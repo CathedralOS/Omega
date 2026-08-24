@@ -143,8 +143,18 @@ pub fn capability_manifest_json_with_composition(
         }
         json.push_str("{\"requirement\": ");
         push_json_string(&mut json, &demand.requirement);
+        json.push_str(", \"requirement_owner_package\": ");
+        match &demand.requirement_owner_package {
+            Some(identity) => push_json_string(&mut json, identity),
+            None => json.push_str("null"),
+        }
         json.push_str(", \"provider_service\": ");
         push_json_string(&mut json, &demand.provider_service);
+        json.push_str(", \"provider_service_package\": ");
+        match &demand.provider_service_package {
+            Some(identity) => push_json_string(&mut json, identity),
+            None => json.push_str("null"),
+        }
         json.push_str(", \"provider_plan_identity\": ");
         push_json_string(
             &mut json,
@@ -275,10 +285,18 @@ fn capability_manifest_text_with_composition(
         for demand in &manifest.build_bound_progress_demands {
             report.push_str("  ");
             report.push_str(&demand.provider_service);
+            if let Some(package) = &demand.provider_service_package {
+                report.push('#');
+                report.push_str(package);
+            }
             report.push_str("@");
             report.push_str(&format!("{:#018x}", demand.provider_plan_identity));
             report.push_str(" / ");
             report.push_str(&demand.requirement);
+            if let Some(package) = &demand.requirement_owner_package {
+                report.push('#');
+                report.push_str(package);
+            }
             report.push_str(" requires ");
             report.push_str(&demand.profile);
             if !demand.subject_projections.is_empty() {
@@ -334,8 +352,10 @@ struct EntryCapabilityManifest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct BuildBoundProgressManifest {
     provider_service: String,
+    provider_service_package: Option<String>,
     provider_plan_identity: u64,
     requirement: String,
+    requirement_owner_package: Option<String>,
     profile: String,
     subject_projections: Vec<String>,
     establishment_routes: Vec<omega_effects::provider_plan::ServiceProgressEstablishmentRoute>,
@@ -415,8 +435,14 @@ fn entry_capability_manifest(
         .flat_map(|manifest| manifest.pending())
         .map(|demand| BuildBoundProgressManifest {
             provider_service: demand.provider_service_identity.clone(),
+            provider_service_package: demand
+                .provider_service_package_identity
+                .map(package_identity_hex),
             provider_plan_identity: demand.provider_plan_identity,
             requirement: demand.requirement_identity.clone(),
+            requirement_owner_package: demand
+                .requirement_owner_package_identity
+                .map(package_identity_hex),
             profile: demand.profile_identity.clone(),
             subject_projections: demand.subject_projections.clone(),
             establishment_routes: demand.establishment_routes.clone(),
@@ -467,6 +493,14 @@ fn entry_capability_manifest(
         build_bound_progress_demands,
         capability_flow_counts: capability_flow_counts(program),
     }
+}
+
+fn package_identity_hex(identity: psi_core::PackageKeyIdentity) -> String {
+    identity
+        .digest()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn installation_bound_reaches(
@@ -833,18 +867,20 @@ mod tests {
     #[test]
     fn executable_manifest_renders_canonical_build_bound_progress_rows() {
         let (program, _) = minimal_manifest_program();
+        let package = psi_core::PackageKeyIdentity::from_digest([0x5a; 32])
+            .expect("nonzero package identity");
         let provider = ProviderPlan {
             name: "scheduler".into(),
             provider_type: "SchedulerProvider".into(),
-            provider_type_package_identity: None,
+            provider_type_package_identity: Some(package),
             target: "test".into(),
             schema: ServiceSchema {
                 trait_name: "Scheduler".into(),
-                trait_package_identity: None,
+                trait_package_identity: Some(package),
                 methods: vec![ServiceMethod {
                     name: "wait".into(),
                     requirement_owner: "Scheduler".into(),
-                    requirement_owner_package_identity: None,
+                    requirement_owner_package_identity: Some(package),
                     requirement_identity: "Scheduler::wait#exact".into(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
@@ -876,10 +912,10 @@ mod tests {
                 requirement_identity: "Scheduler::wait#exact".into(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity: "SchedulerProvider::wait".into(),
-                    machine_package_identity: None,
+                    machine_package_identity: Some(package),
                 },
             }],
-            origin_package_identity: None,
+            origin_package_identity: Some(package),
             origin_package: "test".into(),
         };
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -892,7 +928,9 @@ mod tests {
             &selected,
             vec![omega_effects::CheckedComponentProgressDemand {
                 provider_service_identity: "Scheduler".into(),
+                provider_service_package_identity: Some(package),
                 requirement_identity: "Scheduler::wait#exact".into(),
+                requirement_owner_package_identity: Some(package),
                 profile_identity: "WeakFair".into(),
                 subject_projections: Vec::new(),
                 origin_callable_identity: "Application::launch#exact".into(),
@@ -910,7 +948,15 @@ mod tests {
             Some(&component),
         );
         assert!(json.contains("\"provider_service\": \"Scheduler\""));
+        assert!(json.contains(&format!(
+            "\"provider_service_package\": \"{}\"",
+            "5a".repeat(32)
+        )));
         assert!(json.contains("\"requirement\": \"Scheduler::wait#exact\""));
+        assert!(json.contains(&format!(
+            "\"requirement_owner_package\": \"{}\"",
+            "5a".repeat(32)
+        )));
         assert!(json.contains("\"profile\": \"WeakFair\""));
         assert!(json.contains("\"authorized_establishment_routes\""));
         assert!(json.contains("\"requirement\": \"SchedulerAdmission::grant#exact\""));

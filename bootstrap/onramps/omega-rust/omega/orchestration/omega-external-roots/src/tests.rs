@@ -5098,7 +5098,9 @@ fn progress_installation_fixture() -> (
         &selected,
         vec![CheckedComponentProgressDemand {
             provider_service_identity: "Scheduler".into(),
+            provider_service_package_identity: None,
             requirement_identity: "Scheduler::wait#exact".into(),
+            requirement_owner_package_identity: None,
             profile_identity: "SchedulerHandle::WeakFair".into(),
             subject_projections: vec!["queue".into()],
             origin_callable_identity: "Application::start".into(),
@@ -5249,7 +5251,9 @@ fn component_progress_sealing_is_transactional_and_receipt_facts_are_reusable() 
         .map(
             |(statement_ordinal, call_ordinal)| CheckedComponentProgressDemand {
                 provider_service_identity: "Scheduler".into(),
+                provider_service_package_identity: None,
                 requirement_identity: "Scheduler::wait#exact".into(),
+                requirement_owner_package_identity: None,
                 profile_identity: "SchedulerHandle::WeakFair".into(),
                 subject_projections: vec!["queue".into()],
                 origin_callable_identity: "Application::start".into(),

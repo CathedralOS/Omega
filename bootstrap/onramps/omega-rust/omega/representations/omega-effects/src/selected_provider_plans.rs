@@ -151,10 +151,6 @@ impl SelectedProviderPlanFacts {
         &self.plans
     }
 
-    pub fn plan_by_name(&self, name: &str) -> Option<&ProviderPlan> {
-        self.plans.iter().find(|plan| plan.name == name)
-    }
-
     pub fn plan_by_identity(&self, identity: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
@@ -532,6 +528,60 @@ mod tests {
             SelectedProviderPlanFacts::from_selection(&[first, second], &["Shared".to_owned()])
                 .expect_err("legacy name-only selection cannot choose between packages")
                 .contains("matches 2 candidates")
+        );
+    }
+
+    #[test]
+    fn identity_lookup_distinguishes_same_readable_name_across_packages() {
+        let first_package = psi_core::PackageKeyIdentity::from_digest([0x41; 32])
+            .expect("nonzero package identity");
+        let second_package = psi_core::PackageKeyIdentity::from_digest([0x42; 32])
+            .expect("nonzero package identity");
+        let mut first = candidate("Shared", "run");
+        first.origin_package_identity = Some(first_package);
+        first.provider_type_package_identity = Some(first_package);
+        first.schema.trait_package_identity = Some(first_package);
+        first.schema.methods[0].requirement_owner_package_identity = Some(first_package);
+        let ProviderBinding::CheckedAdapter {
+            machine_package_identity,
+            ..
+        } = &mut first.rows[0].binding
+        else {
+            panic!("test candidate must use a checked adapter");
+        };
+        *machine_package_identity = Some(first_package);
+        let mut second = first.clone();
+        second.origin_package_identity = Some(second_package);
+        second.provider_type_package_identity = Some(second_package);
+        second.schema.trait_package_identity = Some(second_package);
+        second.schema.methods[0].requirement_owner_package_identity = Some(second_package);
+        let ProviderBinding::CheckedAdapter {
+            machine_package_identity,
+            ..
+        } = &mut second.rows[0].binding
+        else {
+            panic!("test candidate must use a checked adapter");
+        };
+        *machine_package_identity = Some(second_package);
+
+        let first_identity = first.identity_fingerprint();
+        let second_identity = second.identity_fingerprint();
+        assert_ne!(first_identity, second_identity);
+
+        let selected = SelectedProviderPlanFacts::from_selected_plans(vec![first, second])
+            .expect("package-qualified same-readable-name plans remain independently addressable");
+
+        assert_eq!(
+            selected
+                .plan_by_identity(first_identity)
+                .and_then(|plan| plan.origin_package_identity),
+            Some(first_package)
+        );
+        assert_eq!(
+            selected
+                .plan_by_identity(second_identity)
+                .and_then(|plan| plan.origin_package_identity),
+            Some(second_package)
         );
     }
 

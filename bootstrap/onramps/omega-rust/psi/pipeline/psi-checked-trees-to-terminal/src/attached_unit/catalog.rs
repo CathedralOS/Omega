@@ -580,7 +580,7 @@ pub(crate) fn lower_root_service_reach(
         .unresolved_installation_reaches
         .iter()
         .map(|dependency| {
-            let matches = checked
+            let trait_matches = checked
                 .typed
                 .traits()
                 .iter()
@@ -593,15 +593,39 @@ pub(crate) fn lower_root_service_reach(
                         .map(move |requirement| (owner, requirement))
                 })
                 .collect::<Vec<_>>();
-            let [(owner, requirement)] = matches.as_slice() else {
-                return unsupported(
-                    "terminal installation reach does not resolve to one exact typed requirement",
-                );
-            };
-            let requirement_identity = checked
+            let machine_matches = checked
                 .typed
-                .normalized_trait_requirement_overload_identity(owner, requirement)
-                .identity();
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == dependency.requirement)
+                .collect::<Vec<_>>();
+            let requirement_identity = match (trait_matches.as_slice(), machine_matches.as_slice())
+            {
+                ([(owner, requirement)], []) => checked
+                    .typed
+                    .normalized_trait_requirement_overload_identity(owner, requirement)
+                    .identity(),
+                ([], [machine])
+                    if machine.service_reach_is_installation_bound
+                        && machine.supply_mode
+                            == psi_language_semantics::MachineSupplyMode::Boundary =>
+                {
+                    checked
+                        .typed
+                        .normalized_machine_overload_identity(machine)
+                        .ok_or_else(|| {
+                            LoweringError::Unsupported(
+                                "top-level installation reach requirement has no normalized machine overload identity",
+                            )
+                        })?
+                        .identity()
+                }
+                _ => {
+                    return unsupported(
+                        "terminal installation reach does not resolve to one exact typed requirement",
+                    );
+                }
+            };
             let mut upper_bound = checked
                 .facts
                 .service_reaches

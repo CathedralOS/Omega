@@ -71,8 +71,13 @@ pub use package_compilation::{
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    PackageReviewCallableRole, PackageReviewCapabilityFlow, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, project_checked_package_review,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewCallableRole, PackageReviewCapabilityFlow,
+    PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
+    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
+    PackageReviewCrashSite, PackageReviewEncodingError, PackageReviewInstallationReach,
+    PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewProgressPremise,
+    PackageReviewTermination, project_checked_package_review,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
@@ -200,6 +205,7 @@ pub use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
 pub use terminal_component_candidate::{
-    TerminalComponentCandidate, TerminalComponentProviderExecution,
-    TerminalComponentProviderSettlement, stage_terminal_component,
+    TerminalComponentCandidate, TerminalComponentCandidateParts,
+    TerminalComponentProviderExecution, TerminalComponentProviderSettlement,
+    stage_terminal_component,
 };

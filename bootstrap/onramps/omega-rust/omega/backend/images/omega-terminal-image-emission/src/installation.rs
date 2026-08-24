@@ -1,8 +1,8 @@
 use std::num::NonZeroU64;
 
 use crate::{
-    TerminalExecutableImage, TerminalObjectBoundarySettlement, TerminalObjectFuelAttribution,
-    TerminalObjectPortEffect,
+    TerminalExecutableImage, TerminalNativeFuelExecutableImage, TerminalObjectBoundarySettlement,
+    TerminalObjectFuelAttribution, TerminalObjectPortEffect,
     boundary_results::boundary_result_is_exact,
     byte_sequence_custody::linux_write_line_custody_is_exact,
     can_emit_terminal_executable_image,
@@ -13,6 +13,9 @@ use omega_calling_conventions::{
 };
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
+use omega_terminal_installation_evidence::{
+    NativeFuelTargetPlanProjection, TerminalNativeFuelChargeEvidence,
+};
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
 use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
 use psi_core::{MachineId, OperationId, ProfileDecisionId, StructuralTypeId};
@@ -33,6 +36,7 @@ mod function_parameter_codec;
 mod function_stack_codec;
 mod installation_header_codec;
 mod internal_unit_call_codec;
+mod native_fuel_codec;
 mod port_effect_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
@@ -47,13 +51,16 @@ mod trivial_affine_local_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
-use fingerprint_codec::{fingerprint_image, fingerprint_record, write_hex};
+use fingerprint_codec::{
+    fingerprint_image, fingerprint_native_fuel_source, fingerprint_record, write_hex,
+};
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
 use installation_header_codec::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
 };
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
+use native_fuel_codec::{decode_native_fuel, encode_native_fuel};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_case_codec::{decode_structural_cases, encode_structural_cases};
@@ -64,7 +71,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 35;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 36;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -167,6 +174,7 @@ pub struct TerminalInstallationRecord {
     structural_returns: Vec<TerminalInstalledStructuralReturn>,
     internal_unit_calls: Vec<TerminalInstalledInternalUnitCall>,
     fuel_attribution: Vec<TerminalObjectFuelAttribution>,
+    native_fuel: Option<TerminalInstalledNativeFuel>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     image: TerminalImageFingerprint,
@@ -216,6 +224,10 @@ impl TerminalInstallationRecord {
 
     pub fn fuel_attribution(&self) -> &[TerminalObjectFuelAttribution] {
         &self.fuel_attribution
+    }
+
+    pub const fn native_fuel(&self) -> Option<&TerminalInstalledNativeFuel> {
+        self.native_fuel.as_ref()
     }
 
     pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
@@ -271,6 +283,70 @@ pub struct TerminalInstalledInternalUnitCall {
     pub machine: MachineId,
     pub text_offset: usize,
     pub custody: omega_terminal_machine_code::TerminalInternalUnitCallRecord,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalNativeFuelSourceFingerprint([u8; 32]);
+
+impl TerminalNativeFuelSourceFingerprint {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for TerminalNativeFuelSourceFingerprint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::fmt::Display for TerminalNativeFuelSourceFingerprint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex(formatter, &self.0)
+    }
+}
+
+/// One source-function span and its independently replayed metered span.
+///
+/// Source coordinates remain the owners of semantic evidence. Metered
+/// coordinates describe the executable realization without rewriting that
+/// evidence into a second semantic identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalInstalledNativeFuelFunction {
+    pub machine: MachineId,
+    pub source_text_offset: usize,
+    pub source_byte_count: usize,
+    pub metered_text_offset: usize,
+    pub metered_byte_count: usize,
+    pub metered_semantic_end_offset: usize,
+}
+
+/// Canonical report-only realization facts for one replayed native-metered
+/// image. This row grants no installation or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledNativeFuel {
+    target_policy: NativeFuelTargetPlanProjection,
+    source_text_fingerprint: TerminalNativeFuelSourceFingerprint,
+    functions: Vec<TerminalInstalledNativeFuelFunction>,
+    charges: Vec<TerminalNativeFuelChargeEvidence>,
+}
+
+impl TerminalInstalledNativeFuel {
+    pub const fn target_policy(&self) -> NativeFuelTargetPlanProjection {
+        self.target_policy
+    }
+
+    pub const fn source_text_fingerprint(&self) -> TerminalNativeFuelSourceFingerprint {
+        self.source_text_fingerprint
+    }
+
+    pub fn functions(&self) -> &[TerminalInstalledNativeFuelFunction] {
+        &self.functions
+    }
+
+    pub fn charges(&self) -> &[TerminalNativeFuelChargeEvidence] {
+        &self.charges
+    }
 }
 
 /// Build the canonical installation record for an emitted image.
@@ -331,12 +407,58 @@ where
         + ?Sized
         + 'execution,
 {
+    let provider_executions = provider_executions.into_iter().collect::<Vec<_>>();
+    let mut selected_provider_plans = provider_executions
+        .iter()
+        .map(|execution| execution.provider_plan())
+        .collect::<Vec<_>>();
+    selected_provider_plans.sort_unstable();
+    selected_provider_plans.dedup();
+    build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+        image,
+        profile_decision,
+        selected_provider_plans,
+        provider_executions,
+        component_progress,
+    )
+}
+
+/// Build a terminal installation record from the complete selected provider
+/// plan closure plus the admitted executions actually used by the image.
+///
+/// Selected plans need not all execute in this image, but every execution must
+/// belong to the selected closure and the execution closure must still match
+/// the image's retained boundary settlements exactly.
+pub fn build_terminal_installation_record_with_selected_provider_plans_and_evidence<
+    'execution,
+    Execution,
+>(
+    image: &TerminalExecutableImage,
+    profile_decision: ProfileDecisionId,
+    selected_provider_plans: impl IntoIterator<Item = u64>,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+    component_progress: Option<
+        &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence,
+    >,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
         .ok_or(TerminalInstallationError::MissingCompilerTextValidation)?;
     let mut admitted_executions = std::collections::BTreeSet::new();
-    let mut selected_provider_plans = std::collections::BTreeSet::new();
+    let mut selected_provider_plan_set = std::collections::BTreeSet::new();
+    for identity in selected_provider_plans {
+        let identity = SelectedProviderPlanIdentity::new(identity)
+            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
+        if !selected_provider_plan_set.insert(identity) {
+            return Err(TerminalInstallationError::DuplicateProviderPlan);
+        }
+    }
     for execution in provider_executions {
         if !admitted_executions.insert((
             execution.provider_plan(),
@@ -347,10 +469,11 @@ where
         )) {
             return Err(TerminalInstallationError::DuplicateProviderExecution);
         }
-        selected_provider_plans.insert(
-            SelectedProviderPlanIdentity::new(execution.provider_plan())
-                .ok_or(TerminalInstallationError::ZeroProviderPlan)?,
-        );
+        let execution_plan = SelectedProviderPlanIdentity::new(execution.provider_plan())
+            .ok_or(TerminalInstallationError::ZeroProviderPlan)?;
+        if !selected_provider_plan_set.contains(&execution_plan) {
+            return Err(TerminalInstallationError::ProviderExecutionOutsideSelectedClosure);
+        }
     }
     let required_executions = image
         .boundary_settlements()
@@ -387,7 +510,7 @@ where
         target: image.target(),
         subsystem: image.subsystem(),
         profile_decision,
-        selected_provider_plans: selected_provider_plans.into_iter().collect(),
+        selected_provider_plans: selected_provider_plan_set.into_iter().collect(),
         component_progress,
         functions: image
             .functions()
@@ -443,6 +566,7 @@ where
             })
             .collect(),
         fuel_attribution: image.fuel_attribution().to_vec(),
+        native_fuel: None,
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
         image: fingerprint_image(&image.output().bytes),
@@ -450,6 +574,120 @@ where
     };
     validate_record_shape(&record)?;
     Ok(record)
+}
+
+/// Build the canonical installation record for one independently replayed
+/// native-metered image with no provider-backed settlements.
+pub fn build_terminal_native_fuel_installation_record(
+    image: &TerminalNativeFuelExecutableImage,
+    profile_decision: ProfileDecisionId,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
+    build_terminal_native_fuel_installation_record_with_provider_executions(
+        image,
+        profile_decision,
+        std::iter::empty::<
+            &dyn omega_terminal_installation_evidence::TerminalProviderExecutionEvidence,
+        >(),
+    )
+}
+
+/// Build a metered installation record from the same admitted provider
+/// executions consumed by its immutable semantic/source artifact.
+pub fn build_terminal_native_fuel_installation_record_with_provider_executions<
+    'execution,
+    Execution,
+>(
+    image: &TerminalNativeFuelExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
+    build_terminal_native_fuel_installation_record_with_evidence(
+        image,
+        profile_decision,
+        provider_executions,
+        None,
+    )
+}
+
+/// Build a metered installation record while retaining one already admitted
+/// component-progress closure. Native metering changes executable coordinates,
+/// not the semantic/provider contract closure.
+pub fn build_terminal_native_fuel_installation_record_with_evidence<'execution, Execution>(
+    image: &TerminalNativeFuelExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+    component_progress: Option<
+        &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence,
+    >,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
+    let semantic_view = image.semantic_installation_view();
+    let mut record = build_terminal_installation_record_with_evidence(
+        &semantic_view,
+        profile_decision,
+        provider_executions,
+        component_progress,
+    )?;
+    record.native_fuel = Some(expected_installed_native_fuel(image)?);
+    validate_terminal_native_fuel_installation_record(&record, image)?;
+    Ok(record)
+}
+
+/// Rejoin a decoded format-36 record to the exact replayed metered image.
+/// The common semantic rows validate against the retained source artifact;
+/// this second half validates the independent physical coordinate map.
+pub fn validate_terminal_native_fuel_installation_record(
+    record: &TerminalInstallationRecord,
+    image: &TerminalNativeFuelExecutableImage,
+) -> Result<(), TerminalInstallationError> {
+    validate_record_shape(record)?;
+    let mut semantic_record = record.clone();
+    semantic_record.native_fuel = None;
+    let semantic_view = image.semantic_installation_view();
+    validate_terminal_installation_record(&semantic_record, &semantic_view)?;
+    let expected = expected_installed_native_fuel(image)?;
+    if record.native_fuel.as_ref() != Some(&expected) {
+        return Err(TerminalInstallationError::NativeFuelImageMismatch);
+    }
+    Ok(())
+}
+
+fn expected_installed_native_fuel(
+    image: &TerminalNativeFuelExecutableImage,
+) -> Result<TerminalInstalledNativeFuel, TerminalInstallationError> {
+    let source = image.semantic_artifact();
+    if source.functions().len() != image.functions().len() {
+        return Err(TerminalInstallationError::NativeFuelFunctionClosureMismatch);
+    }
+    let mut functions = Vec::with_capacity(source.functions().len());
+    for (source, metered) in source.functions().iter().zip(image.functions()) {
+        if source.machine != metered.machine {
+            return Err(TerminalInstallationError::NativeFuelFunctionClosureMismatch);
+        }
+        functions.push(TerminalInstalledNativeFuelFunction {
+            machine: source.machine,
+            source_text_offset: source.text_offset,
+            source_byte_count: source.byte_count,
+            metered_text_offset: metered.text_offset,
+            metered_byte_count: metered.byte_count,
+            metered_semantic_end_offset: metered.semantic_end_offset,
+        });
+    }
+    Ok(TerminalInstalledNativeFuel {
+        target_policy: image.target_policy(),
+        source_text_fingerprint: fingerprint_native_fuel_source(source.text_bytes()),
+        functions,
+        charges: image.charges(),
+    })
 }
 
 /// Recompose the exact internal stack closure retained by a canonical
@@ -630,6 +868,7 @@ pub fn encode_terminal_installation_record(
         &record.internal_unit_calls,
     )?;
     encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
+    encode_native_fuel(&mut bytes, record.native_fuel.as_ref())?;
     encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
     encode_boundary_settlements(&mut bytes, settlement_count, &record.boundary_settlements)?;
     Ok(bytes)
@@ -653,6 +892,7 @@ pub fn decode_terminal_installation_record(
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let fuel_attribution = decode_fuel_attributions(&mut reader)?;
+    let native_fuel = decode_native_fuel(&mut reader, target)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
     if reader.remaining() != 0 {
@@ -670,6 +910,7 @@ pub fn decode_terminal_installation_record(
         structural_returns,
         internal_unit_calls,
         fuel_attribution,
+        native_fuel,
         port_effects,
         boundary_settlements,
         image,
@@ -687,7 +928,8 @@ pub fn validate_terminal_installation_record(
     image: &TerminalExecutableImage,
 ) -> Result<(), TerminalInstallationError> {
     validate_record_shape(record)?;
-    if record.terminal_psi != image.terminal_psi()
+    if record.native_fuel.is_some()
+        || record.terminal_psi != image.terminal_psi()
         || record.target != image.target()
         || record.subsystem != image.subsystem()
         || record.image != fingerprint_image(&image.output().bytes)
@@ -806,7 +1048,7 @@ fn validate_record_shape(
         .iter()
         .map(|settlement| settlement.settlement.provider_execution.provider_plan)
         .collect::<std::collections::BTreeSet<_>>();
-    if required != selected {
+    if !required.is_subset(&selected) {
         return Err(TerminalInstallationError::ProviderSettlementClosureMismatch);
     }
     if record.functions.is_empty() {
@@ -1993,7 +2235,205 @@ fn validate_record_shape(
         previous_text_offset = installed.text_offset;
         previous_operation_ordinal = installed.settlement.operation_ordinal;
     }
+    validate_native_fuel_shape(record)?;
     Ok(())
+}
+
+fn validate_native_fuel_shape(
+    record: &TerminalInstallationRecord,
+) -> Result<(), TerminalInstallationError> {
+    let Some(native) = &record.native_fuel else {
+        return Ok(());
+    };
+    let policy = native.target_policy;
+    if policy.target != record.target
+        || policy.profile.native_target() != record.target
+        || record.target.pointer_size != 8
+        || record.target.pointer_alignment != 8
+        || policy.transfer_plan_identity == 0
+        || !matches!(
+            (record.target.architecture, policy.transport),
+            (
+                Architecture::X86_64,
+                omega_terminal_installation_evidence::SponsorContextTransport::ReservedNonvolatileRegister {
+                    register: MachineRegister::X86Rbx,
+                },
+            ) | (
+                Architecture::Aarch64,
+                omega_terminal_installation_evidence::SponsorContextTransport::ReservedNonvolatileRegister {
+                    register: MachineRegister::Aarch64X(28),
+                },
+            )
+        )
+        || !native_fuel_context_layout_is_canonical(policy.context)
+    {
+        return Err(TerminalInstallationError::InvalidNativeFuelTargetPolicy);
+    }
+
+    if native.functions.len() != record.functions.len() {
+        return Err(TerminalInstallationError::NativeFuelFunctionClosureMismatch);
+    }
+    let mut expected_metered_offset = 0_usize;
+    let mut metered_by_machine = std::collections::BTreeMap::new();
+    for (source, metered) in record.functions.iter().zip(&native.functions) {
+        if metered.machine != source.machine
+            || metered.source_text_offset != source.text_offset
+            || metered.source_byte_count != source.byte_count
+        {
+            return Err(TerminalInstallationError::NativeFuelFunctionClosureMismatch);
+        }
+        if metered.metered_byte_count == 0
+            || metered.metered_text_offset != expected_metered_offset
+            || metered.metered_semantic_end_offset < metered.source_byte_count
+            || metered.metered_semantic_end_offset > metered.metered_byte_count
+            || metered_by_machine
+                .insert(metered.machine, metered)
+                .is_some()
+        {
+            return Err(TerminalInstallationError::NonCanonicalNativeFuelFunctions);
+        }
+        expected_metered_offset = metered
+            .metered_text_offset
+            .checked_add(metered.metered_byte_count)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+    }
+
+    if native.charges.len() != record.fuel_attribution.len() {
+        return Err(TerminalInstallationError::NativeFuelAttributionClosureMismatch);
+    }
+    let mut previous = None;
+    let mut sites = std::collections::BTreeSet::new();
+    let mut previous_semantic_end = std::collections::BTreeMap::new();
+    let mut previous_cold_end = std::collections::BTreeMap::new();
+    for (source, charge) in record.fuel_attribution.iter().zip(&native.charges) {
+        let source_site = match source.attribution.site {
+            TerminalNativeFuelSite::Operation(operation) => {
+                omega_terminal_installation_evidence::TerminalFuelAttributionSite::Operation(
+                    operation,
+                )
+            }
+            TerminalNativeFuelSite::Edge(edge) => {
+                omega_terminal_installation_evidence::TerminalFuelAttributionSite::Edge(edge)
+            }
+        };
+        if charge.attribution.machine != source.machine
+            || charge.attribution.schedule != source.attribution.schedule
+            || charge.attribution.site != source_site
+            || charge.attribution.units != source.attribution.units
+            || charge.attribution.operation_ordinal != source.attribution.operation_ordinal
+            || charge.attribution.text_offset != source.text_offset
+            || charge.attribution.byte_count != source.attribution.byte_count
+        {
+            return Err(TerminalInstallationError::NativeFuelAttributionClosureMismatch);
+        }
+        let key = (
+            charge.attribution.machine,
+            charge.attribution.operation_ordinal,
+            charge.charge_text_offset,
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err(TerminalInstallationError::NonCanonicalNativeFuelChargeOrder);
+        }
+        if !sites.insert((charge.attribution.machine, charge.attribution.site)) {
+            return Err(TerminalInstallationError::DuplicateNativeFuelChargeSite {
+                machine: charge.attribution.machine,
+                site: charge.attribution.site,
+            });
+        }
+        let Some(function) = metered_by_machine.get(&charge.attribution.machine) else {
+            return Err(TerminalInstallationError::NativeFuelFunctionClosureMismatch);
+        };
+        let function_end = function
+            .metered_text_offset
+            .checked_add(function.metered_byte_count)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+        let semantic_end = function
+            .metered_text_offset
+            .checked_add(function.metered_semantic_end_offset)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+        let hot_end = charge
+            .charge_text_offset
+            .checked_add(charge.charge_byte_count)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+        let source_semantic_end = charge
+            .semantic_text_offset
+            .checked_add(charge.attribution.byte_count)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+        let cold_end = charge
+            .cold_dispatch_text_offset
+            .checked_add(charge.cold_dispatch_byte_count)
+            .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+        let prior_semantic_end = previous_semantic_end
+            .get(&charge.attribution.machine)
+            .copied();
+        let prior_cold_end = previous_cold_end.get(&charge.attribution.machine).copied();
+        if charge.charge_byte_count == 0
+            || charge.cold_dispatch_byte_count == 0
+            || charge.charge_text_offset < function.metered_text_offset
+            || prior_semantic_end.is_some_and(|end| end > charge.charge_text_offset)
+            || hot_end != charge.semantic_text_offset
+            || source_semantic_end > semantic_end
+            || charge.cold_dispatch_text_offset < semantic_end
+            || prior_cold_end.is_some_and(|end| end > charge.cold_dispatch_text_offset)
+            || cold_end > function_end
+        {
+            return Err(TerminalInstallationError::InvalidNativeFuelCharge {
+                machine: charge.attribution.machine,
+                site: charge.attribution.site,
+            });
+        }
+        previous_semantic_end.insert(charge.attribution.machine, source_semantic_end);
+        previous_cold_end.insert(charge.attribution.machine, cold_end);
+        previous = Some(key);
+    }
+    Ok(())
+}
+
+fn native_fuel_context_layout_is_canonical(
+    layout: omega_terminal_installation_evidence::NativeFuelContextLayout,
+) -> bool {
+    if layout.byte_size == 0
+        || layout.alignment < 8
+        || !layout.alignment.is_power_of_two()
+        || !layout.byte_size.is_multiple_of(layout.alignment)
+    {
+        return false;
+    }
+    let scalar_offsets = [
+        layout.remaining_units_offset,
+        layout.unpaid_site_kind_offset,
+        layout.unpaid_site_identity_offset,
+        layout.required_units_offset,
+        layout.transfer_entry_offset,
+        layout.retry_code_offset_offset,
+        layout.sponsor_stack_top_offset,
+    ];
+    let mut ranges = Vec::with_capacity(scalar_offsets.len() + 1);
+    for offset in scalar_offsets {
+        if !offset.is_multiple_of(8)
+            || offset
+                .checked_add(8)
+                .is_none_or(|end| end > layout.byte_size)
+        {
+            return false;
+        }
+        ranges.push((offset, offset + 8));
+    }
+    if layout.activation_state_byte_count == 0
+        || !layout.activation_state_offset.is_multiple_of(8)
+        || layout
+            .activation_state_offset
+            .checked_add(layout.activation_state_byte_count)
+            .is_none_or(|end| end > layout.byte_size)
+    {
+        return false;
+    }
+    ranges.push((
+        layout.activation_state_offset,
+        layout.activation_state_offset + layout.activation_state_byte_count,
+    ));
+    ranges.sort_unstable();
+    !ranges.windows(2).any(|pair| pair[0].1 > pair[1].0)
 }
 
 fn installed_stack_facts_are_canonical(
@@ -2328,7 +2768,9 @@ pub enum TerminalInstallationError {
     ZeroComponentProgressManifestIdentity,
     ZeroComponentProgressAcceptanceIdentity,
     ZeroProviderPlan,
+    DuplicateProviderPlan,
     DuplicateProviderExecution,
+    ProviderExecutionOutsideSelectedClosure,
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
@@ -2345,6 +2787,8 @@ pub enum TerminalInstallationError {
     TooManyStructuralCases,
     TooManyStructuralQualifications,
     TooManyFuelAttributions,
+    TooManyNativeFuelFunctions,
+    TooManyNativeFuelCharges,
     TooManyPortEffects,
     TooManyBoundarySettlements,
     TooManySettlementScalarArguments,
@@ -2359,6 +2803,7 @@ pub enum TerminalInstallationError {
     StructuralReturnOffsetNotRepresentable,
     InternalUnitCallOffsetNotRepresentable,
     FuelAttributionOffsetNotRepresentable,
+    NativeFuelOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
     ZeroStructuralReturnIdentity(&'static str),
@@ -2379,6 +2824,10 @@ pub enum TerminalInstallationError {
     ZeroFuelScheduleIdentity,
     ZeroFuelAttributionIdentity(&'static str),
     InvalidFuelSiteTag(u8),
+    InvalidNativeFuelSiteTag(u8),
+    InvalidNativeFuelProfileTag(u8),
+    InvalidNativeFuelTransportTag(u8),
+    ZeroNativeFuelIdentity(&'static str),
     InvalidCallSiteOwnerTag(u8),
     InvalidBoundaryRealizationTag,
     InvalidCleanupActionTag(u8),
@@ -2403,6 +2852,19 @@ pub enum TerminalInstallationError {
     InvalidFuelAttribution {
         machine: MachineId,
         site: TerminalNativeFuelSite,
+    },
+    InvalidNativeFuelTargetPolicy,
+    NativeFuelFunctionClosureMismatch,
+    NonCanonicalNativeFuelFunctions,
+    NativeFuelAttributionClosureMismatch,
+    NonCanonicalNativeFuelChargeOrder,
+    DuplicateNativeFuelChargeSite {
+        machine: MachineId,
+        site: omega_terminal_installation_evidence::TerminalFuelAttributionSite,
+    },
+    InvalidNativeFuelCharge {
+        machine: MachineId,
+        site: omega_terminal_installation_evidence::TerminalFuelAttributionSite,
     },
     EffectMachineMissing(MachineId),
     NonCanonicalPortEffectOrder,
@@ -2447,6 +2909,7 @@ pub enum TerminalInstallationError {
     CountNotRepresentable(&'static str),
     MissingCompilerTextValidation,
     ImageBindingMismatch,
+    NativeFuelImageMismatch,
 }
 
 impl std::fmt::Display for TerminalInstallationError {

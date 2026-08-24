@@ -18,7 +18,7 @@ use omega_effects::{
     ProgramLocalRootEpochLeaseId, ProgramLocalRootEpochLeaseReleaseError,
 };
 use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
-use omega_external_roots::InstalledComponentProgressClosure;
+use omega_external_roots::{InstalledComponentProgressClosure, InstalledRootLedger};
 use omega_terminal_image_emission::InstalledTerminalArtifact;
 
 /// Installed terminal artifact plus the concrete accepted progress closure
@@ -30,6 +30,7 @@ use omega_terminal_image_emission::InstalledTerminalArtifact;
 #[must_use = "installed runnable component evidence must be retained through era retirement"]
 pub struct InstalledRunnableComponent {
     artifact: InstalledTerminalArtifact,
+    roots: InstalledRootLedger,
     progress: Option<InstalledComponentProgressClosure>,
 }
 
@@ -46,8 +47,32 @@ impl InstalledRunnableComponent {
         self.progress.as_ref()
     }
 
+    pub const fn roots(&self) -> &InstalledRootLedger {
+        &self.roots
+    }
+
     pub const fn terminal_artifact(&self) -> &InstalledTerminalArtifact {
         &self.artifact
+    }
+
+    pub const fn installed(&self) -> &InstalledCode {
+        self.artifact.installed()
+    }
+}
+
+/// Installation custody released only after the owning component era has
+/// retired successfully. This is the sole successful-path decomposition gate.
+#[derive(Debug)]
+#[must_use = "retired runnable custody must be reclaimed or transferred"]
+pub struct RetiredRunnableComponent {
+    artifact: InstalledTerminalArtifact,
+    roots: InstalledRootLedger,
+    progress: Option<InstalledComponentProgressClosure>,
+}
+
+impl RetiredRunnableComponent {
+    pub const fn progress(&self) -> Option<&InstalledComponentProgressClosure> {
+        self.progress.as_ref()
     }
 
     pub const fn installed(&self) -> &InstalledCode {
@@ -58,15 +83,17 @@ impl InstalledRunnableComponent {
         self,
     ) -> (
         InstalledTerminalArtifact,
+        InstalledRootLedger,
         Option<InstalledComponentProgressClosure>,
     ) {
-        (self.artifact, self.progress)
+        (self.artifact, self.roots, self.progress)
     }
 }
 
 #[derive(Debug)]
 pub struct InstalledRunnableComponentBindingError {
     artifact: InstalledTerminalArtifact,
+    roots: InstalledRootLedger,
     progress: Option<InstalledComponentProgressClosure>,
     diagnostic: String,
 }
@@ -80,9 +107,10 @@ impl InstalledRunnableComponentBindingError {
         self,
     ) -> (
         InstalledTerminalArtifact,
+        InstalledRootLedger,
         Option<InstalledComponentProgressClosure>,
     ) {
-        (self.artifact, self.progress)
+        (self.artifact, self.roots, self.progress)
     }
 }
 
@@ -98,15 +126,66 @@ impl std::error::Error for InstalledRunnableComponentBindingError {}
 /// acceptance committed in its canonical installation record.
 pub fn bind_installed_runnable_component(
     artifact: InstalledTerminalArtifact,
+    roots: InstalledRootLedger,
     progress: Option<InstalledComponentProgressClosure>,
 ) -> Result<InstalledRunnableComponent, Box<InstalledRunnableComponentBindingError>> {
-    let reject = |artifact, progress, diagnostic: String| {
+    let reject = |artifact, roots, progress, diagnostic: String| {
         Err(Box::new(InstalledRunnableComponentBindingError {
             artifact,
+            roots,
             progress,
             diagnostic,
         }))
     };
+
+    if !roots.binds_installed_code(artifact.installed()) {
+        return reject(
+            artifact,
+            roots,
+            progress,
+            "installation registry names a different installed-code occurrence".into(),
+        );
+    }
+    if roots.records().next().is_some() {
+        return reject(
+            artifact,
+            roots,
+            progress,
+            "runnable component binding accepts only a provider-occurrence/progress installation registry; installed external roots require their own live owner"
+                .into(),
+        );
+    }
+    let installed_plans = artifact
+        .installation()
+        .selected_provider_plans()
+        .iter()
+        .map(|identity| identity.get())
+        .collect::<Vec<_>>();
+    let Some(provider_closure) = roots.provider_occurrence_closure() else {
+        return reject(
+            artifact,
+            roots,
+            progress,
+            "runnable component binding requires a sealed provider-occurrence closure".into(),
+        );
+    };
+    let mut occurrence_plans = provider_closure
+        .selected()
+        .plans()
+        .iter()
+        .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
+        .collect::<Vec<_>>();
+    occurrence_plans.sort_unstable();
+    occurrence_plans.dedup();
+    if installed_plans != occurrence_plans {
+        return reject(
+            artifact,
+            roots,
+            progress,
+            "installation registry and terminal installation record retain different selected provider-plan closures"
+                .into(),
+        );
+    }
 
     let committed = artifact.installation().component_progress();
     let mismatch = match (committed, progress.as_ref()) {
@@ -132,12 +211,6 @@ pub fn bind_installed_runnable_component(
             )
         }
         (Some(_), Some(progress)) => {
-            let installed_plans = artifact
-                .installation()
-                .selected_provider_plans()
-                .iter()
-                .map(|identity| identity.get())
-                .collect::<Vec<_>>();
             (installed_plans != progress.selected_provider_plans()).then(|| {
                 "terminal installation record and progress acceptance retain different selected provider-plan closures"
                     .into()
@@ -145,10 +218,14 @@ pub fn bind_installed_runnable_component(
         }
     };
     if let Some(diagnostic) = mismatch {
-        return reject(artifact, progress, diagnostic);
+        return reject(artifact, roots, progress, diagnostic);
     }
 
-    Ok(InstalledRunnableComponent { artifact, progress })
+    Ok(InstalledRunnableComponent {
+        artifact,
+        roots,
+        progress,
+    })
 }
 
 /// Higher-level lifecycle owner that makes the progress acceptance impossible
@@ -291,7 +368,7 @@ impl RunnableComponentEraLedger {
     pub fn retire(
         &mut self,
         receipt: ComponentEraRetirementReceipt,
-    ) -> Result<InstalledRunnableComponent, RunnableEraRetirementError> {
+    ) -> Result<RetiredRunnableComponent, RunnableEraRetirementError> {
         let era_identity = receipt.era_identity();
         if !self.runnable.contains_key(&era_identity) {
             return Err(RunnableEraRetirementError {
@@ -305,10 +382,15 @@ impl RunnableComponentEraLedger {
                 receipt: error.into_value(),
             });
         }
-        Ok(self
+        let runnable = self
             .runnable
             .remove(&era_identity)
-            .expect("live lifecycle era retained runnable evidence"))
+            .expect("live lifecycle era retained runnable evidence");
+        Ok(RetiredRunnableComponent {
+            artifact: runnable.artifact,
+            roots: runnable.roots,
+            progress: runnable.progress,
+        })
     }
 }
 

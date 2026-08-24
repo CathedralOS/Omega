@@ -252,11 +252,17 @@ impl SymbolTable {
             if let Some(source_span) = self.names.get(data.name).source_span() {
                 return Some(source_span);
             }
-            let generated_from = data.generated_from;
-            if !generated_from.is_valid() || generated_from.arena_index() >= symbol.arena_index() {
+            let provenance_parent = if data.generated_from.is_valid() {
+                data.generated_from
+            } else {
+                data.parent
+            };
+            if !provenance_parent.is_valid()
+                || provenance_parent.arena_index() >= symbol.arena_index()
+            {
                 return None;
             }
-            symbol = generated_from;
+            symbol = provenance_parent;
         }
         None
     }
