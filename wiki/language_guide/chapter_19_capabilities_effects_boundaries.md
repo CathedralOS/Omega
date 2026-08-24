@@ -1429,7 +1429,9 @@ supplies only the ordinary external locator binding; callback placement adds no
 declaration keyword:
 
 ```omega
-windows_x64 machine User32Bindings::register_window_procedure() -> Binding {
+windows_x64 machine User32Bindings::register_window_procedure()
+    -> Binding<10, 16, 0>
+{
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "user32.dll",

@@ -28,7 +28,7 @@ A `const` is a named value evaluated in a constant position:
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
 pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
-pub const IMPORT_NAME: StaticBytes = "WriteFile";
+pub const IMPORT_NAME: [u8; 9] = "WriteFile";
 ```
 
 Constants may be free-standing or genuinely type-scoped:
@@ -42,8 +42,8 @@ Their types must have no cleanup obligation, shared ownership, or interior
 mutability. Each use may copy the value freely. A constant carries no storage
 identity and grants no authority.
 
-Constants are not scalar-only. Fixed arrays, records, copy-eligible sums, and
-owned `StaticBytes` values are eligible when their complete types recursively
+Constants are not scalar-only. Fixed arrays, records, and copy-eligible sums
+are eligible when their complete types recursively
 obey the pure-value/multiplicity rule. An unrestricted active case does not make
 a structurally linear sum eligible. An initializer may be an admitted call to
 an ordinary machine; the constant position requests semantic evaluation, and

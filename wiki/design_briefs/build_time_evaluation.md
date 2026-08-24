@@ -37,14 +37,14 @@ Three adjacent concepts remain distinct:
 They compose directly:
 
 ```omega
-machine Imports::write_file() -> DllImport {
+machine Imports::write_file() -> DllImport<12, 9, 0> {
     DllImport::PeByName {
         library: "kernel32.dll",
         export: "WriteFile",
     }
 }
 
-pub const WRITE_FILE: DllImport = Imports::write_file();
+pub const WRITE_FILE: DllImport<12, 9, 0> = Imports::write_file();
 ```
 
 No `const machine`, `comptime`, macro language, or declaration-phase predicate
@@ -168,14 +168,15 @@ state, another invocation, or runtime state. Augmenting `build.omg` evaluation
 uses a separate API that deliberately returns snapshots of its mutated
 arguments and is not this hermetic world.
 
-`StaticBytes` is the owned variable-length byte value for this bridge. A byte
-literal in a result/constant position expecting `StaticBytes` copies its length
-and bytes into the returned snapshot; it does not export a slice into evaluator
-storage. Equality and hashing are structural, and constant-pool interning is an
-unobservable emission optimization. Temporary references and slices remain
-legal inside the evaluation. This value supports generated format tables,
-encoded plans, lookup data, and typed foreign locators without inventing a
-parallel metadata language.
+Fixed arrays, records containing them, and other ordinary recursively owned
+values may cross this bridge. A byte literal in an exact fixed-array result or
+constant position copies its bytes into that array; a width mismatch rejects.
+It does not export a slice into evaluator storage. Equality and hashing remain
+the ordinary structural operations of the value's type, and constant-pool
+interning is an unobservable emission optimization. Temporary references and
+slices remain legal inside the evaluation. A genuinely dynamic owned sequence
+uses the ordinary collection model when that model is const-evaluable; semantic
+evaluation introduces no special byte-blob type.
 
 ## Evaluation and materialization are separate judgments
 

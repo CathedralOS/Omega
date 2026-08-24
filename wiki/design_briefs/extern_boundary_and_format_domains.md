@@ -29,18 +29,31 @@ The binding vocabulary is an ordinary closed sum, not a growing family of
 keywords:
 
 ```omega
-data DllImport {
-    case PeByName(library: StaticBytes, export: StaticBytes);
-    case PeByOrdinal(library: StaticBytes, ordinal: u16);
+data DllImport<
+    const ObjectLength: u64,
+    const SymbolLength: u64,
+    const VersionLength: u64,
+> {
+    case PeByName(
+        library: [u8; ObjectLength],
+        export: [u8; SymbolLength],
+    );
+    case PeByOrdinal(library: [u8; ObjectLength], ordinal: u16);
     case ElfVersioned(
-        object: StaticBytes,
-        symbol: StaticBytes,
-        version: StaticBytes,
+        object: [u8; ObjectLength],
+        symbol: [u8; SymbolLength],
+        version: [u8; VersionLength],
     );
 }
 
-data Binding {
-    case DllImport(import: DllImport);
+data Binding<
+    const ObjectLength: u64,
+    const SymbolLength: u64,
+    const VersionLength: u64,
+> {
+    case DllImport(
+        import: DllImport<ObjectLength, SymbolLength, VersionLength>
+    );
     case Syscall(number: u64);
     case Firmware(table: FirmwareTable, slot: u32);
     case CompilerIntrinsic;
@@ -60,7 +73,7 @@ The locator is one typed variant, so its object-format coordinates cannot drift
 apart, while raw foreign bytes remain honest data rather than Omega names:
 
 ```omega
-windows_x64 machine WindowsBindings::write_file() -> Binding {
+windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
@@ -74,11 +87,16 @@ machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     via WindowsBindings::write_file();
 ```
 
-The `via` expression must be compile-time evaluable to a normalized `Binding`
-value. It is the external-realization variant of the machine supply slot, not
-an executable body and not a self-authored trust assertion. Its identity feeds
-the derived plan. Structural validation checks the declaration; admission
-assigns the trust class and receipt.
+The `via` expression must be compile-time evaluable to a normalized closed
+`Binding<ObjectLength, SymbolLength, VersionLength>` application. The const
+arguments are ordinary type identity and preserve the exact coordinate widths;
+unused coordinates normalize to zero. A quoted literal in one of these
+fixed-array positions copies exactly its source bytes, and a width mismatch
+rejects. No evaluator reference or dynamically sized byte primitive crosses
+the boundary. The binding value is the external-realization variant of the
+machine supply slot, not an executable body and not a self-authored trust
+assertion. Its identity feeds the derived plan. Structural validation checks
+the declaration; admission assigns the trust class and receipt.
 
 The satisfied boundary requirement independently owns its `Calling<C, Policy>`
 relationship. Evaluating that policy against the normalized signature produces
@@ -97,9 +115,10 @@ or provider but cannot replace fields inside its evaluated binding.
 
 Validation is variant- and target-specific: it checks required nonempty fields,
 forbidden terminators/bytes, ordinal ranges, object-format encoding, target
-applicability, and any versioning rules before the binding enters a provider
-plan. `StaticBytes` supplies owned bytes, not an ambient text interpretation;
-the locator case supplies their physical meaning.
+applicability, unused-coordinate zeros, and any versioning rules before the
+binding enters a provider plan. Fixed byte arrays supply ordinary owned values,
+not an ambient text interpretation; the locator case supplies their physical
+meaning.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

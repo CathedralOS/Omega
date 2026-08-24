@@ -375,7 +375,7 @@ realization-machine symbol, normalized signature, and target application remain
 explicit identity inputs. A payload-free `CompilerIntrinsic` uses the
 realization symbol plus target to select a sealed catalog lowering. A DLL
 locator is instead one typed object-format variant containing all of its raw
-coordinates as `StaticBytes` and scalars. The satisfied requirement's calling
+coordinates as fixed byte arrays and scalars. The satisfied requirement's calling
 policy supplies the independently evaluated `CallPlan`; it is not duplicated in
 the binding. Raw linker bytes are target-package data, enter the binding
 fingerprint directly, and never become Omega names or provider keys.
