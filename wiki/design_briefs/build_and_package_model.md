@@ -110,6 +110,10 @@ vocabulary. Adding a target option normally extends `Build`/library data rather
 than the parser. These dependency calls are the target core-library surface;
 the transitional compiler currently recognizes only
 `builder.depend("alias", path("directory"))` and must migrate.
+Package orchestration can already project canonical direct `Source::Path` and
+`Source::Git` literals hermetically from an immutable root `build.omg`; the
+remaining compiler seam is to consume reconciled alias-to-`PackageKey` snapshot
+bindings instead of rescanning package-authored paths during import discovery.
 
 ## Normalized `Build` core
 

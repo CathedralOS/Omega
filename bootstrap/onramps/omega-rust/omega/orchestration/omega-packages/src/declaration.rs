@@ -143,7 +143,8 @@ fn extract_from_syntax_trees(
 ) -> Result<PackageDeclaration, PackageDeclarationError> {
     if syntax_trees
         .root_items()
-        .any(|item| matches!(item, Item::Data(data) if data.name.as_str() == PACKAGE_TYPE_NAME))
+        .filter_map(package_authored_type_name)
+        .any(|name| item_leaf_name(name) == PACKAGE_TYPE_NAME)
     {
         return Err(PackageDeclarationError::AuthoredPackageType);
     }
@@ -212,6 +213,20 @@ fn extract_from_syntax_trees(
         .map_err(|message| PackageDeclarationError::InvalidPackageName { message })?;
 
     Ok(PackageDeclaration { name })
+}
+
+fn item_leaf_name(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+fn package_authored_type_name(item: &Item) -> Option<&str> {
+    match item {
+        Item::Data(data) => Some(data.name.as_str()),
+        Item::Domain(domain) => Some(domain.name.as_str()),
+        Item::Trait(definition) => Some(definition.name.as_str()),
+        Item::WireData(wire) => Some(wire.name.as_str()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -343,16 +358,20 @@ mod tests {
 
     #[test]
     fn rejects_package_authored_toolchain_vocabulary() {
-        let fixture = PackageFixture::with_source(
-            r#"
-            data Package { name: &[u8]; }
-            const PACKAGE: Package = Package { name: "spoofed-package" };
-            "#,
-        );
-        assert!(matches!(
-            fixture.extract(),
-            Err(PackageDeclarationError::AuthoredPackageType)
-        ));
+        for declaration in [
+            "data Package { name: &[u8]; }",
+            "domain u64::Package;",
+            "trait Package {}",
+        ] {
+            let fixture = PackageFixture::with_source(&format!(
+                "{declaration}\nconst PACKAGE: Package = Package {{ name: \"spoofed-package\" }};"
+            ));
+            let result = fixture.extract();
+            assert!(
+                matches!(result, Err(PackageDeclarationError::AuthoredPackageType)),
+                "unexpected result for {declaration:?}: {result:?}"
+            );
+        }
     }
 
     #[test]

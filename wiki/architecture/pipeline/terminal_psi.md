@@ -1634,6 +1634,14 @@ per-occurrence expressions plus derived cardinality; compact identities remain
 report keys and no scalar multiplication is inferred for interval or
 subject-dependent content.
 
+The cohort and its runtime may project a cloneable aggregate snapshot for
+reporting. The snapshot privately retains the exact required-slot closure and
+cohort identity even when its aggregate row set is empty. Coexistence
+composition compares those snapshots with the authoritative live-era roster
+and accepts exactly one per live epoch. It preserves rows and epoch attribution
+instead of reducing unlike algebras or symbolic capacities; the report is an
+input to deployment policy, never minting or lifecycle authority.
+
 The closed cohort then becomes a non-clonable epoch runtime, not a vector of
 mint grants. A generated installed-entry subject binds the exact root, ABI and
 semantic parameter positions, qualification, carrier, invocation, and runtime

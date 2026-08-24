@@ -116,6 +116,15 @@ pub(crate) fn installed_code_with_fill(
     entry: EntryStubId,
     fill: u8,
 ) -> InstalledCode {
+    installed_code_with_fill_and_installation_identity(artifact_identity, entry, fill, 300)
+}
+
+fn installed_code_with_fill_and_installation_identity(
+    artifact_identity: u64,
+    entry: EntryStubId,
+    fill: u8,
+    installed_code_identity: u64,
+) -> InstalledCode {
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
         install_id(
@@ -198,7 +207,10 @@ pub(crate) fn installed_code_with_fill(
     let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
     let install_authority = InstallAuthority::from_admitted_provider(&validated);
     let installation_receipt = InstallationReceipt::from_provider(
-        install_id(300, InstalledCodeId::from_normalized_identity),
+        install_id(
+            installed_code_identity,
+            InstalledCodeId::from_normalized_identity,
+        ),
         &validated,
         true,
         WxEnforcement::HardwareEnforced,
@@ -1988,6 +2000,25 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
         aggregate.per_occurrence_capacity(),
         &module.boundary_machines[0].program_local_root_introductions[0].capacity
     );
+    let snapshot = cohort.aggregate_snapshot();
+    assert_eq!(snapshot.identity(), cohort.identity());
+    assert_eq!(
+        snapshot.installed_required_slots(),
+        cohort.installed_required_slots()
+    );
+    let snapshot_rows = snapshot.aggregates().collect::<Vec<_>>();
+    let [snapshot_row] = snapshot_rows.as_slice() else {
+        panic!("one snapshotted aggregate row")
+    };
+    assert_eq!(snapshot_row, aggregate);
+    assert_eq!(snapshot_row.cardinality().get(), 1);
+    assert_eq!(
+        snapshot_row.per_occurrence_capacity(),
+        &module.boundary_machines[0].program_local_root_introductions[0].capacity
+    );
+    let cloned_snapshot = snapshot.clone();
+    assert_eq!(cloned_snapshot, snapshot);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
     assert!(
         installation
             .prebind(&catalog, &terminal, &root)
@@ -1995,14 +2026,154 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
             .0
             .contains("prebindings are frozen")
     );
-    let [occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = cohort
-        .into_runtime()
-        .cancel()
-        .try_into()
-        .expect("one cohort occurrence");
+    let runtime = cohort.into_runtime();
+    assert_eq!(runtime.aggregate_snapshot(), snapshot);
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
+    let [occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] =
+        runtime.cancel().try_into().expect("one cohort occurrence");
     installation
         .retire(occurrence, &mut lifecycle)
         .expect("sealed occurrence remains retireable");
+}
+
+#[test]
+fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
+    let entry = entry_id(1);
+    let module = program_local_root_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+
+    let mut first_code = installed_code_with_fill_and_installation_identity(1, entry, 0, 300);
+    let first_code_identity = first_code.identity().normalized_identity();
+    let (mut first_root_ledger, first_root, _first_open_root) =
+        install_program_local_required_root(&mut first_code, entry, vec![program_local_claim()]);
+    let mut first_installation = first_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("first program-local cohort verifier");
+    let [first_prebinding] = first_installation
+        .prebind(&catalog, &terminal, &first_root)
+        .expect("first required root prebinding")
+        .try_into()
+        .expect("one first producer schema");
+
+    let mut lifecycle = program_local_lifecycle(760, 10, first_code_identity, "TestRoot::entry");
+    let first_lease = program_local_epoch_lease(&mut lifecycle, 860, 10, "TestRoot::entry");
+    let first_cohort = first_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                first_prebinding.identity(),
+                &first_root,
+                first_lease,
+            )],
+        )
+        .expect("first exact epoch cohort");
+    let first_snapshot = first_cohort.aggregate_snapshot();
+
+    let mut second_code = installed_code_with_fill_and_installation_identity(2, entry, 0, 301);
+    let second_code_identity = second_code.identity().normalized_identity();
+    publish_program_local_era(
+        &mut lifecycle,
+        20,
+        second_code_identity,
+        "TestRoot::entry",
+        120,
+        true,
+    );
+    let (mut second_root_ledger, second_root, _second_open_root) =
+        install_program_local_required_root(&mut second_code, entry, vec![program_local_claim()]);
+    let mut second_installation = second_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("second program-local cohort verifier");
+    let [second_prebinding] = second_installation
+        .prebind(&catalog, &terminal, &second_root)
+        .expect("second required root prebinding")
+        .try_into()
+        .expect("one second producer schema");
+    let second_lease = program_local_epoch_lease(&mut lifecycle, 861, 20, "TestRoot::entry");
+    let second_cohort = second_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                second_prebinding.identity(),
+                &second_root,
+                second_lease,
+            )],
+        )
+        .expect("second exact epoch cohort");
+    let second_snapshot = second_cohort.aggregate_snapshot();
+
+    let missing =
+        compose_program_local_root_coexistence_report(&lifecycle, std::iter::once(&first_snapshot))
+            .expect_err("one of two live epochs cannot be omitted");
+    assert!(missing.0.contains("omits or adds"));
+
+    let duplicate = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&first_snapshot, &first_snapshot, &second_snapshot],
+    )
+    .expect_err("one live epoch cannot be repeated");
+    assert!(duplicate.0.contains("repeats one lifecycle epoch"));
+
+    let report = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&second_snapshot, &first_snapshot],
+    )
+    .expect("both exact coexisting epochs compose");
+    assert_eq!(report.lifecycle_ledger(), lifecycle.identity());
+    assert_eq!(
+        report
+            .epoch_snapshots()
+            .map(|snapshot| snapshot.identity().lifecycle_epoch())
+            .collect::<Vec<_>>(),
+        vec![10, 20]
+    );
+    assert_eq!(
+        report
+            .aggregates()
+            .map(|(epoch, aggregate)| (epoch, aggregate.cardinality().get()))
+            .collect::<Vec<_>>(),
+        vec![(10, 1), (20, 1)]
+    );
+    assert!(report.aggregates().all(|(_, aggregate)| {
+        aggregate.per_occurrence_capacity()
+            == &module.boundary_machines[0].program_local_root_introductions[0].capacity
+    }));
+
+    let other_lifecycle = program_local_lifecycle(761, 10, first_code_identity, "TestRoot::entry");
+    let substituted = compose_program_local_root_coexistence_report(
+        &other_lifecycle,
+        std::iter::once(&first_snapshot),
+    )
+    .expect_err("a snapshot from another lifecycle ledger rejects");
+    assert!(substituted.0.contains("another lifecycle ledger"));
+
+    let later_only_lifecycle =
+        program_local_lifecycle(760, 20, second_code_identity, "TestRoot::entry");
+    let stale = compose_program_local_root_coexistence_report(
+        &later_only_lifecycle,
+        std::iter::once(&first_snapshot),
+    )
+    .expect_err("an old snapshot cannot stand in for the current live epoch");
+    assert!(stale.0.contains("non-live lifecycle epoch"));
+
+    let [first_occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = first_cohort
+        .into_runtime()
+        .cancel()
+        .try_into()
+        .expect("one first occurrence");
+    first_installation
+        .retire(first_occurrence, &mut lifecycle)
+        .expect("first coexistence occurrence remains retireable");
+    let [second_occurrence]: [InstalledProgramLocalRootOccurrence<'_, '_>; 1] = second_cohort
+        .into_runtime()
+        .cancel()
+        .try_into()
+        .expect("one second occurrence");
+    second_installation
+        .retire(second_occurrence, &mut lifecycle)
+        .expect("second coexistence occurrence remains retireable");
 }
 
 #[test]
