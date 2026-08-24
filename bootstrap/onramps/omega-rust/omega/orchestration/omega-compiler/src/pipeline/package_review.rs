@@ -472,6 +472,11 @@ pub enum PackageReviewContractExpression {
     Result,
     GenericBinder(u32),
     Nominal(PackageReviewNominalIdentity),
+    Member {
+        receiver: Box<PackageReviewContractExpression>,
+        member: PackageReviewNominalIdentity,
+        case_variant: Option<PackageReviewNominalIdentity>,
+    },
     Binary {
         operator: PackageReviewContractBinaryOperator,
         left: Box<PackageReviewContractExpression>,
@@ -2468,6 +2473,7 @@ fn project_callable_contracts(
                         entry,
                         binders,
                         *expression,
+                        Some(fact_handle),
                         0,
                     )?)
                 }
@@ -2498,6 +2504,7 @@ fn project_callable_contracts(
                             entry,
                             binders,
                             membership.value,
+                            Some(fact_handle),
                             0,
                         )?,
                         domain: domain_identity,
@@ -2760,6 +2767,7 @@ fn project_contract_proposition(
                 callable_binders,
                 *argument,
                 value_substitutions,
+                None,
                 0,
             )
         })
@@ -2815,6 +2823,7 @@ fn project_contract_proposition(
                         callable_binders,
                         *expression,
                         &nested_values,
+                        None,
                         0,
                     )
                     .map(PackageReviewContractFact::Expression)
@@ -3259,6 +3268,7 @@ fn project_contract_expression(
     entry: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     expression: psi_typed_trees::expression::ExpressionHandle,
+    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     project_contract_expression_with_substitutions(
@@ -3268,6 +3278,7 @@ fn project_contract_expression(
         binders,
         expression,
         &[],
+        checked_fact,
         depth,
     )
 }
@@ -3279,6 +3290,7 @@ fn project_contract_expression_with_substitutions(
     binders: &[(SymbolHandle, String)],
     expression: psi_typed_trees::expression::ExpressionHandle,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
+    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     use psi_typed_trees::expression::ExpressionNode;
@@ -3297,6 +3309,7 @@ fn project_contract_expression_with_substitutions(
             binders,
             expression,
             substitutions,
+            checked_fact,
             depth + 1,
         )
     };
@@ -3314,46 +3327,307 @@ fn project_contract_expression_with_substitutions(
             operator: project_contract_unary_operator(unary.operator),
             operand: Box::new(child(unary.operand)?),
         }),
-        ExpressionNode::Name(path) => {
-            if let Some((_, substitution)) = substitutions
-                .iter()
-                .rev()
-                .find(|(symbol, _)| *symbol == path.symbol || *symbol == path.head_symbol)
-            {
-                return Ok(substitution.clone());
-            }
-            let members = compilation.expression_table.name_path_members(path.members);
-            let parameters = compilation.state_parameters(entry);
-            if let Some(position) = parameters.iter().position(|parameter| {
-                parameter.symbol == path.symbol
-                    || (members.len() == 1 && members[0] == parameter.name)
-            }) {
-                return portable_parameter_position(position)
-                    .map(PackageReviewContractExpression::Parameter);
-            }
-            if members.len() == 1 && members[0].as_str() == "result" {
-                return Ok(PackageReviewContractExpression::Result);
-            }
-            if let Some(position) = binders
-                .iter()
-                .position(|(symbol, _)| *symbol == path.symbol)
-            {
-                return portable_parameter_position(position)
-                    .map(PackageReviewContractExpression::GenericBinder);
-            }
-            if !path.symbol.is_valid() {
+        ExpressionNode::Name(path) => project_contract_name_expression(
+            compilation,
+            machine,
+            entry,
+            binders,
+            path,
+            substitutions,
+            checked_fact,
+        ),
+        ExpressionNode::Member(_) => {
+            let Some(checked_fact) = checked_fact else {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` contract contains an unresolved name expression",
+                    "reviewed callable `{}` uses a proposition-argument member expression without an exact checked place join",
                     machine.name
                 ))]);
-            }
-            nominal_identity(compilation, path.symbol).map(PackageReviewContractExpression::Nominal)
+            };
+            let Some((root_expression, source_members)) =
+                contract_member_path_source(compilation, expression)
+            else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` uses a computed member expression not yet represented by package review",
+                    machine.name
+                ))]);
+            };
+            let root_symbol = contract_member_path_root_symbol(compilation, entry, root_expression)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` contract member path has no exact symbol root",
+                        machine.name
+                    ))]
+                })?;
+            let receiver = child(root_expression)?;
+            checked_contract_member_path(
+                compilation,
+                machine,
+                checked_fact,
+                root_symbol,
+                &source_members,
+            )?
+            .into_iter()
+            .try_fold(receiver, |receiver, (case_variant, member_symbol)| {
+                project_contract_member_expression(
+                    compilation,
+                    machine,
+                    receiver,
+                    member_symbol,
+                    case_variant,
+                )
+            })
         }
         _ => Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` uses a contract expression form not yet represented by package review",
             machine.name
         ))]),
     }
+}
+
+fn project_contract_name_expression(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    path: &psi_typed_trees::expression::TableNamePath,
+    substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
+    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    let members = compilation.expression_table.name_path_members(path.members);
+    let root_symbol = path.head_symbol;
+    let root_name = members.first();
+    let substitution_root = substitutions
+        .iter()
+        .rev()
+        .find_map(|(symbol, substitution)| {
+            (*symbol == root_symbol || (members.len() == 1 && *symbol == path.symbol))
+                .then(|| substitution.clone())
+        });
+    let parameter_position = compilation
+        .state_parameters(entry)
+        .iter()
+        .position(|parameter| {
+            parameter.symbol == root_symbol || root_name.is_some_and(|name| name == &parameter.name)
+        });
+    let binder_position = binders
+        .iter()
+        .position(|(symbol, _)| *symbol == root_symbol);
+    let root = if let Some(substitution) = substitution_root {
+        Some(substitution)
+    } else if let Some(position) = parameter_position {
+        Some(PackageReviewContractExpression::Parameter(
+            portable_parameter_position(position)?,
+        ))
+    } else if root_name.is_some_and(|name| name.as_str() == "result") {
+        Some(PackageReviewContractExpression::Result)
+    } else if let Some(position) = binder_position {
+        Some(PackageReviewContractExpression::GenericBinder(
+            portable_parameter_position(position)?,
+        ))
+    } else {
+        None
+    };
+
+    let Some(projected) = root else {
+        if !path.symbol.is_valid() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` contract contains an unresolved name expression",
+                machine.name
+            ))]);
+        }
+        return nominal_identity(compilation, path.symbol)
+            .map(PackageReviewContractExpression::Nominal);
+    };
+    if members.len() == 1 {
+        return Ok(projected);
+    }
+    let Some(checked_fact) = checked_fact else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` uses a proposition-argument name-path member without an exact checked place join",
+            machine.name
+        ))]);
+    };
+    let semantic_root = parameter_position
+        .map(|position| compilation.state_parameters(entry)[position].symbol)
+        .or_else(|| root_symbol.is_valid().then_some(root_symbol))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` contract name-path member has no exact symbol root",
+                machine.name
+            ))]
+        })?;
+    checked_contract_member_path(
+        compilation,
+        machine,
+        checked_fact,
+        semantic_root,
+        &members[1..],
+    )?
+    .into_iter()
+    .try_fold(projected, |receiver, (case_variant, member_symbol)| {
+        project_contract_member_expression(
+            compilation,
+            machine,
+            receiver,
+            member_symbol,
+            case_variant,
+        )
+    })
+}
+
+fn project_contract_member_expression(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    receiver: PackageReviewContractExpression,
+    member_symbol: SymbolHandle,
+    case_variant_symbol: Option<SymbolHandle>,
+) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    if !member_symbol.is_valid() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contract contains an unresolved member expression",
+            machine.name
+        ))]);
+    }
+    Ok(PackageReviewContractExpression::Member {
+        receiver: Box::new(receiver),
+        member: nominal_identity(compilation, member_symbol)?,
+        case_variant: case_variant_symbol
+            .map(|symbol| nominal_identity(compilation, symbol))
+            .transpose()?,
+    })
+}
+
+fn contract_member_path_source(
+    compilation: &CheckedCompilation,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    psi_typed_trees::expression::ExpressionHandle,
+    Vec<psi_typed_trees::name::Identifier>,
+)> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    match compilation.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let (root, mut members) = contract_member_path_source(compilation, member.receiver)?;
+            members.push(member.member.clone());
+            Some((root, members))
+        }
+        ExpressionNode::Name(path)
+            if compilation
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                == 1 =>
+        {
+            Some((expression, Vec::new()))
+        }
+        _ => None,
+    }
+}
+
+fn contract_member_path_root_symbol(
+    compilation: &CheckedCompilation,
+    entry: &psi_typed_trees::state::State,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let psi_typed_trees::expression::ExpressionNode::Name(path) =
+        compilation.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let resolved = path
+        .head_symbol
+        .is_valid()
+        .then_some(path.head_symbol)
+        .or_else(|| path.symbol.is_valid().then_some(path.symbol));
+    if resolved.is_some() {
+        return resolved;
+    }
+    let [name] = compilation.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    compilation
+        .state_parameters(entry)
+        .iter()
+        .find(|parameter| parameter.name == *name)
+        .map(|parameter| parameter.symbol)
+}
+
+fn checked_contract_member_path(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    checked_fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    root_symbol: SymbolHandle,
+    source_members: &[psi_typed_trees::name::Identifier],
+) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
+    use psi_facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
+
+    let mut candidates = Vec::new();
+    for (_, semantic_fact) in compilation.facts.semantic.facts.iter() {
+        if semantic_fact.point
+            != (ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            })
+            || !matches!(
+                semantic_fact.payload,
+                FactPayload::ContractBooleanExpression { fact, .. }
+                    | FactPayload::ContractDomainMembership { fact, .. }
+                    if fact == checked_fact
+            )
+        {
+            continue;
+        }
+        let FactPlace::Place(place_handle) = semantic_fact.place else {
+            continue;
+        };
+        let place = compilation.facts.semantic.places.get(place_handle);
+        if place.root != PlaceRoot::Symbol(root_symbol) {
+            continue;
+        }
+        let mut selected = Vec::new();
+        let mut pending_case = None;
+        let mut valid = true;
+        for segment in compilation
+            .facts
+            .semantic
+            .place_segments
+            .span_or_empty(place.segments)
+        {
+            match *segment {
+                PlaceSegment::Case { variant } if pending_case.is_none() => {
+                    pending_case = Some(variant);
+                }
+                PlaceSegment::Field { symbol } if symbol.is_valid() => {
+                    selected.push((pending_case.take(), symbol));
+                }
+                _ => {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+        if !valid || pending_case.is_some() || selected.len() != source_members.len() {
+            continue;
+        }
+        if selected
+            .iter()
+            .zip(source_members)
+            .any(|((_, symbol), name)| compilation.symbols.name(*symbol) != name.as_str())
+        {
+            continue;
+        }
+        if !candidates.contains(&selected) {
+            candidates.push(selected);
+        }
+    }
+    let [selected] = candidates.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contract member path resolves to {} exact checked place rows; expected one",
+            machine.name,
+            candidates.len()
+        ))]);
+    };
+    Ok(selected.clone())
 }
 
 fn portable_parameter_position(position: usize) -> Result<u32, Vec<Diagnostic>> {

@@ -125,7 +125,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 17);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 18);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -882,6 +882,105 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_contract_member_paths_with_exact_receivers_and_fields() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |left_receiver: &str, right_receiver: &str| {
+        format!(
+            r#"pub data Pair [copy] {{
+    left: i32;
+    right: i32;
+}}
+pub machine compare(first: Pair, second: Pair)
+requires {left_receiver}.left == {right_receiver}.right
+{{ }}
+"#
+        )
+    };
+    original.write("main.omg", &source("first", "second"));
+    changed.write("main.omg", &source("second", "first"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    original.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("member-path contract fixture should check");
+        project_checked_package_review(&checked).expect("member-path package review")
+    };
+    let original = project(&original);
+    let changed = project(&changed);
+    let compare = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "compare")
+        .expect("public comparison callable");
+    let [contract] = compare.contracts() else {
+        panic!("one member-path contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left,
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("binary member-path contract")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver: left_receiver,
+        member: left_member,
+        case_variant: left_variant,
+    } = left.as_ref()
+    else {
+        panic!("left member path")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver: right_receiver,
+        member: right_member,
+        case_variant: right_variant,
+    } = right.as_ref()
+    else {
+        panic!("right member path")
+    };
+    assert_eq!(
+        left_receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert_eq!(
+        right_receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(1)
+    );
+    assert_eq!(left_member.path(), "Pair::left");
+    assert_eq!(right_member.path(), "Pair::right");
+    assert!(left_variant.is_none());
+    assert!(right_variant.is_none());
+    assert_eq!(
+        left_member.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_ne!(
+        original
+            .canonical_review_bytes()
+            .expect("original member-path encoding"),
+        changed
+            .canonical_review_bytes()
+            .expect("changed member-path encoding"),
+        "changing only the receiver coordinates must change package review identity",
+    );
+}
+
+#[test]
 fn public_callable_signatures_are_exact_and_lifetime_alpha_normalized() {
     let Some(target) = host_target_name() else {
         return;
@@ -1184,7 +1283,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v17_comparison_encoding() {
+fn exact_synchronous_invocations_change_v18_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1374,7 +1473,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v17_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v18_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1408,7 +1507,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v17_comparison_encoding() {
+fn public_domain_shape_changes_change_v18_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
