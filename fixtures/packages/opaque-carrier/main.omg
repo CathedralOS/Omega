@@ -1,0 +1,4 @@
+// Externally supplied representation with no authored semantic claim.
+pub boundary data PlatformToken;
+
+pub boundary machine inspect(token: PlatformToken);

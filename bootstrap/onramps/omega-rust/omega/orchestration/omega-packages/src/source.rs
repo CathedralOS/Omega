@@ -2842,6 +2842,7 @@ mod tests {
         "network-overreach",
         "remote-journal",
         "axiom-ledger",
+        "opaque-carrier",
         "provider-switchboard",
         "capability-vault",
         "graph-workbench",
