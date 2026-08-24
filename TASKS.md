@@ -541,7 +541,14 @@ Remaining:
   admitted provider execution. Machine emission derives the ordered catalog,
   object and installation validation independently rederive it, and canonical
   installation format 31 preserves it; source, receipt, or provider substitution
-  rejects. One private completion-custody facade now owns argument-path
+  rejects. One real content-bearing source canary now closes that same row
+  through verified Terminal Psi, an admitted native provider, target assignment,
+  machine/object/image emission, and canonical installation replay. Qualified
+  or linear scalar-function structural inputs enter that native lane only when
+  the exact boundary argument, entry source, and completion receipt carry their
+  claim into provider custody; missing content, receipt substitution, and
+  provider substitution reject before object publication. One private
+  completion-custody facade now owns argument-path
   canonicality, receipt bounds, exact source/receipt replay, and provider-
   custody replay in their load-bearing order; object and installation callers
   only map its closed failures to unchanged public errors. The format-31
