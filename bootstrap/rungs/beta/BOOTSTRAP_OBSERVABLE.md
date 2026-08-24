@@ -425,8 +425,9 @@ are valuable teeth, but they do not yet establish the quantified observation:
   zero without another call. Hit at slot zero and exhausted no-match retain
   distinct proof provenance despite their common numeric-zero result. The
   theorem never rereads live NLOC, emits nothing, preserves compiler state,
-  and restores its caller. NTDM/NEQS establishment by a dynamic producer and
-  the expression SCC remain open;
+  and restores its caller. Dynamic producers still must establish NTDM/NEQS;
+  independent expression and statement checkers consume those propositions as
+  explicit same-bundle conjuncts rather than copying process-local cells;
 - its independent conditional bounded-emitter tranche re-executes the
   lower-rooted structural/stack, WSTR, cursor/skip/EXPS, and bounded-DECS
   premises before binding procedures 30, 44, and 47..52. `gen_read_byte`
@@ -441,14 +442,24 @@ are valuable teeth, but they do not yet establish the quantified observation:
   All eight restore their callers and preserve compiler state apart from the
   stated cursor/output effects. Synthetic fallthrough results are unclaimed.
   This clause uses no full-word decimal semantics;
-- its independent statement-family shape tranche binds `gen_store` and
-  procedures 62..67 over the exact same canonical bundle. It exhausts their
-  blocks, transitions, events, frames, epilogues, locals, raw-memory rows,
-  primitive/push rows, table censuses, and decoded regions in an 81,803-byte
-  checker with an independent assembler diamond and eleven mutation teeth.
+- its independent statement-family shape tranche binds `gen_store`,
+  `emit_epilogue`, and procedures 62..67 over the exact same canonical bundle.
+  It exhausts their blocks, transitions, events, frames, epilogues, locals,
+  raw-memory rows, primitive/push rows, table censuses, and decoded regions in an 82,588-byte
+  checker with an independent assembler diamond and twelve mutation teeth.
   This is exact artifact shape only: no expression or `gen_stmts` theorem token
   crosses from another process, and no branch, return, divergence, or
   productivity claim follows from it;
+- its independent 80,086-byte conditional semantic checker is accepted only in
+  conjunction with the lexical/name/emitter/label/expression/shape owners over
+  the identical bundle. It closes the finite p46/p26/p64/p66 helpers, p67's
+  ordered branch relation, p63/p65 Ret-or-Div wrappers, and p62's 65-row
+  block-depth-stratified greatest fixed point. The coinductive guard is a
+  completed child plus mandatory post-child whitespace call and backedge, never
+  cursor or output productivity. Consequently finite silent divergence,
+  finite-output-then-silent divergence, and infinite output retain exact maximal
+  prefixes. Finite terminal activations decrement depth once; divergent ones do
+  not. Twenty-one phase-isolated semantic teeth protect these clauses;
 - no total `parse_proc` claim is currently made. Malformed procedure bodies can
   make `gen_stmts` diverge while emitting—for example when an unrecognized byte
   is never consumed—so closure requires maximal Return-or-Diverge and finite/

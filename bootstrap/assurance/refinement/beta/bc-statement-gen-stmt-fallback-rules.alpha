@@ -1,0 +1,236 @@
+; Conditional finite branch relation for gen_stmt (procedure67), part two.
+; Continues the exact ordered dispatch established by
+; bc-statement-gen-stmt-rules.alpha and publishes STBR only after every finite
+; branch, resource suffix, name provenance, and frame clause has rejoined.
+
+statement_gen_stmt_fallback_rules_init:
+        call statement_gen_stmt_prove_fallback_split
+        call statement_gen_stmt_prove_call
+        call statement_gen_stmt_prove_assignment
+        call statement_gen_stmt_prove_suffix_product
+        call statement_gen_stmt_require_all_rows
+        call statement_gen_stmt_publish
+        jmp statement_wrapper_rules_init
+
+; After all six keyword predicates fail, p67 performs a second terminating
+; SWSQ and observes the post-identifier cbyte.  Exact '(' selects docall without
+; consuming it; every other byte selects assignment.  SWSQ does not clobber the
+; original RIDS slice, so both children receive that exact identifier/query.
+statement_gen_stmt_prove_fallback_split:
+        call statement_gen_stmt_require_dispatch
+        imm r1, 547512
+        imm r2, 1                        ; all six keyword predicates false
+        store r1, r2
+        imm r1, 547520
+        imm r2, 1                        ; second SWSQ, epsilon output
+        store r1, r2
+        imm r1, 547528
+        imm r2, 1                        ; cbyte '(' singleton -> docall
+        store r1, r2
+        imm r1, 547536
+        imm r2, 255                      ; full-byte complement -> assign
+        store r1, r2
+        imm r1, 547544
+        imm r2, 1                        ; original identifier slice retained
+        store r1, r2
+        ret
+
+; GCAL is supplied by AEXP/XPUB.  It receives CUR at the unconsumed '(' and the
+; original identifier.  Its builtin and normal-call partitions, argument rank,
+; first expression failure, and fifth-argument numeric252 writer remain intact.
+; p67 adds no resource guard and returns zero after every finite GCAL result.
+statement_gen_stmt_prove_call:
+        call statement_gen_stmt_require_fallback
+        imm r20, 546140
+        imm r21, 1347962177             ; AEXP includes exact GCAL/GEXP package
+        call exact_require_cell
+        imm r1, 547552
+        imm r2, 1                        ; docall passes unconsumed '('
+        store r1, r2
+        imm r1, 547560
+        imm r2, 1                        ; exact original callee slice
+        store r1, r2
+        imm r1, 547568
+        imm r2, 1                        ; GCAL maximal finite trace/status
+        store r1, r2
+        imm r1, 547576
+        imm r2, 1                        ; p67 finite return0/frame restore
+        store r1, r2
+        ret
+
+; Assignment instantiates LOOK under ANAM's live NameInv.  Three proof outcomes
+; are retained: least hit at slot zero, least positive hit, and exhausted miss.
+; Hit-zero and miss both return numeric zero but have distinct provenance cells.
+; EXPS('=') and GEXP follow, then ESTS(selected slot) executes for both GEXP
+; statuses {0,252}.  The permissive delimiter may mismatch.  An empty identifier
+; and number fallback may leave CUR unchanged while still appending GEXP+ESTS.
+statement_gen_stmt_prove_assignment:
+        call statement_gen_stmt_require_fallback
+        imm r20, 546116
+        imm r21, 1296125505             ; ANAM: DCLS/LOOK/NameInv package
+        call exact_require_cell
+        imm r1, 547584
+        imm r2, 1                        ; LOOK least hit at slot zero
+        store r1, r2
+        imm r1, 547592
+        imm r2, 1                        ; LOOK least positive hit schema
+        store r1, r2
+        imm r1, 547600
+        imm r2, 1                        ; LOOK exhausted/no-match
+        store r1, r2
+        imm r1, 547608
+        imm r2, 2                        ; numeric-zero alias has two provenances
+        store r1, r2
+        imm r1, 547616
+        imm r2, 1                        ; EXPS('=') always executes
+        store r1, r2
+        imm r1, 547624
+        imm r2, 2                        ; GEXP status product 0/252
+        store r1, r2
+        imm r1, 547632
+        imm r2, 2                        ; ESTS executes for both statuses
+        store r1, r2
+        imm r1, 547640
+        imm r2, 3                        ; all LOOK provenance rows rejoin
+        store r1, r2
+        imm r1, 547648
+        imm r2, 2                        ; finite return0/frame restoration
+        store r1, r2
+        ret
+
+; The exact p67 source checks RESOURCE only after DCLS.  This join prevents a
+; later proof from silently turning numeric252 into a general early-return edge.
+; LET-room, RETURN, BYTE, WORD, guarded TO, CALL, and ASSIGN preserve every
+; child-produced output prefix and execute exactly the suffix owned by their
+; child contract.  Only LET-full has the immediate epsilon return.
+statement_gen_stmt_prove_suffix_product:
+        imm r20, 547280
+        imm r21, 1
+        call exact_require_cell          ; only immediate-resource branch
+        imm r20, 547312
+        imm r21, 2
+        call exact_require_cell          ; let ESTS after GEXP status product
+        imm r20, 547352
+        imm r21, 2
+        call exact_require_cell          ; return epilogue after status product
+        imm r20, 547416
+        imm r21, 2
+        call exact_require_cell          ; plain/guarded SDTO contract
+        imm r20, 547448
+        imm r21, 2
+        call exact_require_cell          ; byte/word SSTR rows
+        imm r20, 547568
+        imm r21, 1
+        call exact_require_cell          ; complete GCAL outcome
+        imm r20, 547632
+        imm r21, 2
+        call exact_require_cell          ; assignment ESTS after status product
+        imm r1, 547656
+        imm r2, 7                        ; seven suffix families joined
+        store r1, r2
+        imm r1, 547664
+        imm r2, 1                        ; numeric252 is retained, never typed here
+        store r1, r2
+        ret
+
+statement_gen_stmt_require_fallback:
+        imm r20, 547512
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547520
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547528
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547536
+        imm r21, 255
+        call exact_require_cell
+        imm r20, 547544
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+statement_gen_stmt_require_all_rows:
+        imm r20, 547200
+        imm r21, 9
+        call exact_require_cell
+        imm r20, 547240
+        imm r21, 7
+        call exact_require_cell
+        imm r20, 547264
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547280
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547304
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547312
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547344
+        imm r21, 5
+        call exact_require_cell
+        imm r20, 547352
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547376
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547392
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547416
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547432
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547440
+        imm r21, 8
+        call exact_require_cell
+        imm r20, 547568
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547608
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547632
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 547640
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 547656
+        imm r21, 7
+        call exact_require_cell
+        imm r20, 547664
+        imm r21, 1
+        call exact_require_cell
+        ret
+
+statement_gen_stmt_publish:
+        ; State is the sole p67 branch with an abstract divergent outcome.  Its
+        ; Ret and Div alternatives must both be present before finite STBR is
+        ; exposed to the wrapper relation.
+        imm r20, 547384
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 547400
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 547672
+        imm r2, 14                       ; finite/provisional branch row census
+        store r1, r2
+        imm r20, 547672
+        imm r21, 14
+        call exact_require_cell
+        imm r1, 546196
+        imm r2, 1380078675               ; STBR
+        store r1, r2
+        imm r20, 546196
+        imm r21, 1380078675
+        call exact_require_cell
+        ret

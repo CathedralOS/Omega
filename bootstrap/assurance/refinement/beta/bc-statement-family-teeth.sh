@@ -27,8 +27,10 @@ statement_family_build_tooth() { # name exact-old exact-new
 
 statement_family_build_teeth() {
   statement_family_build_tooth statement-shape-wrong-family-count \
-    'imm r2, 7                       ; exact procedure family cardinality' \
-    'imm r2, 6                       ; exact procedure family cardinality'
+    'imm r2, 8                       ; exact procedure family cardinality' \
+    'imm r2, 7                       ; exact procedure family cardinality'
+  statement_family_build_tooth statement-shape-wrong-epilogue-entry \
+    'imm r21, 31970' 'imm r21, 31971'
   statement_family_build_tooth statement-shape-wrong-gen-store-entry \
     'imm r21, 18185' 'imm r21, 18186'
   statement_family_build_tooth statement-shape-wrong-child-cutpoint \
@@ -55,6 +57,7 @@ statement_family_build_teeth() {
 statement_family_reject_teeth() {
   for statement_tooth_name in \
     statement-shape-wrong-family-count \
+    statement-shape-wrong-epilogue-entry \
     statement-shape-wrong-gen-store-entry \
     statement-shape-wrong-child-cutpoint \
     statement-shape-wrong-gen-stmts-target \

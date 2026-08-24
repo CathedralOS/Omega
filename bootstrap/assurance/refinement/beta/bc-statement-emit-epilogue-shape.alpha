@@ -1,0 +1,108 @@
+; Exact source/artifact shape for emit_epilogue (procedure46).
+; Callable only: semantic publication is owned by the companion rules module.
+
+statement_emit_epilogue_require_shape:
+        call statement_emit_epilogue_require_proc
+        call statement_emit_epilogue_require_block
+        call statement_emit_epilogue_require_events
+        call statement_emit_epilogue_require_censuses
+        call statement_emit_epilogue_require_decoded
+        ret
+
+statement_emit_epilogue_require_proc:
+        imm r20, 7151616
+        imm r21, 46
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 46
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 46
+        call call_bounds_frame_bytes
+        imm r1, 8
+        jeq r0, r1, exact_shape_ok
+        jmp reject
+
+statement_emit_epilogue_require_block:
+        imm r20, 217
+        imm r21, 31970
+        call exact_require_block_pc
+        imm r20, 217
+        imm r21, 217
+        imm r22, 46
+        call exact_require_proc_blocks
+        ret
+
+; Pin an emit row and its exact __write_str call. r20=row,r21=pc.
+statement_emit_epilogue_require_emit:
+        mov r30, r20
+        mov r31, r21
+        mov r20, r30
+        imm r21, 217
+        imm r22, 4
+        mov r23, r31
+        call exact_require_event
+        mov r20, r31
+        imm r21, 31
+        mov r22, r31
+        imm r1, 9
+        add r22, r1
+        call exact_require_call
+        ret
+
+statement_emit_epilogue_require_events:
+        imm r20, 341
+        imm r21, 32030
+        call statement_emit_epilogue_require_emit
+        imm r20, 342
+        imm r21, 32081
+        call statement_emit_epilogue_require_emit
+        imm r20, 343
+        imm r21, 32128
+        call statement_emit_epilogue_require_emit
+        imm r20, 344
+        imm r21, 32177
+        call statement_emit_epilogue_require_emit
+        imm r20, 345
+        imm r21, 32219
+        call statement_emit_epilogue_require_emit
+        ; No explicit source return: the compiler supplies this sole epilogue.
+        imm r20, 32228
+        imm r21, 32247
+        call exact_require_epilogue
+        ret
+
+statement_emit_epilogue_require_censuses:
+        imm r20, 217
+        imm r21, 217
+        imm r22, 133
+        imm r23, 133
+        imm r24, 55
+        imm r25, 55
+        imm r26, 169
+        imm r27, 169
+        imm r28, 341
+        imm r29, 346
+        call exact_require_effect_census
+        imm r20, 217
+        imm r21, 217
+        imm r22, 550
+        imm r23, 550
+        imm r24, 160
+        imm r25, 160
+        imm r26, 320
+        imm r27, 320
+        imm r28, 387
+        imm r29, 387
+        call summary_require_expr_census
+        ret
+
+statement_emit_epilogue_require_decoded:
+        imm r20, 31970
+        imm r21, 32248
+        imm r22, 5
+        imm r23, 1
+        imm r24, 1
+        call exact_quiet_scan_region
+        ret

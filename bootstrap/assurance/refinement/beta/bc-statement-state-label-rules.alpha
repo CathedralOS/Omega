@@ -1,0 +1,202 @@
+; Exact finite semantics for emit_state_label (procedure64).
+;
+; The only trace is current-procedure identifier, literal "__", then the target
+; identifier. The two slices are not interchangeable. Private 549640..<549800.
+
+statement_state_label_rules_init:
+        call statement_state_label_rules_reset
+        call statement_state_label_require_antecedents
+        call statement_emit_state_label_require_shape
+        call statement_state_label_require_current_slice
+        call statement_state_label_require_trace
+        call statement_state_label_require_target_slice
+        call statement_state_label_require_result
+        imm r1, 546180
+        imm r2, 1112298323             ; SSLB
+        store r1, r2
+        jmp statement_gen_to_rules_init
+
+statement_state_label_rules_reset:
+        imm r10, 549640
+statement_state_label_rules_reset_loop:
+        imm r1, 549800
+        jlt r10, r1, statement_state_label_rules_reset_one
+        ret
+statement_state_label_rules_reset_one:
+        imm r1, 0
+        store r10, r1
+        imm r1, 8
+        add r10, r1
+        jmp statement_state_label_rules_reset_loop
+
+statement_state_label_require_antecedents:
+        imm r20, 546156
+        imm r21, 1414414675             ; SANT
+        call exact_require_cell
+        imm r20, 546108
+        imm r21, 1480936513             ; ALEX, including WSTR
+        call exact_require_cell
+        imm r20, 546132
+        imm r21, 1279413313             ; ALBL: exact label emitter package
+        call exact_require_cell
+        imm r20, 546148
+        imm r21, 1346917185             ; ASHP
+        call exact_require_cell
+        imm r20, 546172
+        imm r21, 1381258067             ; SSTR, preceding chain contract
+        call exact_require_cell
+        imm r1, 549640
+        imm r2, 5
+        store r1, r2
+        ret
+
+statement_state_label_require_current_slice:
+        ; Fixed CURPROC_OFF/LEN words, then argument pushes off followed by len.
+        imm r20, 727
+        imm r21, 316
+        imm r22, 1
+        imm r23, 2097096
+        imm r24, 45474
+        call transfer_require_primitive
+        imm r20, 74
+        imm r21, 316
+        imm r22, 1
+        imm r23, 8
+        imm r24, 45484
+        call transfer_require_memory
+        imm r20, 728
+        imm r21, 316
+        imm r22, 1
+        imm r23, 2097088
+        imm r24, 45503
+        call transfer_require_primitive
+        imm r20, 75
+        imm r21, 316
+        imm r22, 1
+        imm r23, 8
+        imm r24, 45513
+        call transfer_require_memory
+        imm r20, 345
+        imm r21, 316
+        imm r22, 2
+        imm r23, 45487
+        call transfer_require_push
+        imm r20, 346
+        imm r21, 316
+        imm r22, 2
+        imm r23, 45516
+        call transfer_require_push
+        imm r1, 549648
+        imm r2, 1                     ; exact current-procedure slice
+        store r1, r2
+        ret
+
+; r20=event,r21=pc,r22=continuation.
+statement_state_label_require_ident_call:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        imm r21, 316
+        mov r22, r31
+        imm r23, 2
+        imm r24, 0
+        imm r25, 31465                 ; emit_ident_at
+        mov r26, r32
+        call summary_require_call_site
+        ret
+
+statement_state_label_require_trace:
+        imm r20, 511
+        imm r21, 45564
+        imm r22, 45573
+        call statement_state_label_require_ident_call
+        imm r20, 512
+        call write_str_require_emit_event_core
+        imm r2, 2                     ; "__"
+        jeq r1, r2, statement_state_label_separator_ok
+        jmp reject
+statement_state_label_separator_ok:
+        imm r20, 513
+        imm r21, 45715
+        imm r22, 45724
+        call statement_state_label_require_ident_call
+        imm r1, 549656
+        imm r2, 3                     ; current, separator, target
+        store r1, r2
+        imm r1, 549664
+        imm r2, 2                     ; exact separator bytes
+        store r1, r2
+        ret
+
+statement_state_label_require_target_slice:
+        ; Parameter0 offset and parameter1 length, pushed in that exact order.
+        imm r20, 201
+        imm r21, 316
+        imm r22, 1
+        imm r23, 0
+        imm r24, 45613
+        call transfer_require_local
+        imm r20, 202
+        imm r21, 316
+        imm r22, 1
+        imm r23, 1
+        imm r24, 45648
+        call transfer_require_local
+        imm r20, 347
+        imm r21, 316
+        imm r22, 2
+        imm r23, 45632
+        call transfer_require_push
+        imm r20, 348
+        imm r21, 316
+        imm r22, 2
+        imm r23, 45667
+        call transfer_require_push
+        imm r1, 549672
+        imm r2, 1                     ; exact target parameter slice
+        store r1, r2
+        ret
+
+statement_state_label_require_result:
+        ; Source return0 and its exact event are already closed by shape.
+        imm r20, 729
+        imm r21, 316
+        imm r22, 1
+        imm r23, 0
+        imm r24, 45724
+        call transfer_require_primitive
+        imm r1, 549680
+        imm r2, 1                     ; finite return is numeric zero
+        store r1, r2
+        imm r1, 549688
+        imm r2, 1                     ; no RESOURCE/data writer
+        store r1, r2
+        imm r1, 549696
+        imm r2, 1                     ; frame restored
+        store r1, r2
+        imm r20, 549640
+        imm r21, 5
+        call exact_require_cell
+        imm r20, 549648
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549656
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 549664
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 549672
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549680
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549688
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549696
+        imm r21, 1
+        call exact_require_cell
+        ret

@@ -970,7 +970,7 @@ same canonical source/artifact/witness bundle: the 84,056-byte shape checker
 fixes every block, transition, event, frame, epilogue, local, raw-memory,
 primitive, push, decoded region, and exclusive census for `gen_load`,
 `gen_write_byte`, `gen_call`, `gen_factor`, `gen_term`, `gen_sum`, and
-`gen_expr`; the 250,534-byte semantic checker reconstructs every prerequisite
+`gen_expr`; the 250,556-byte semantic checker reconstructs every prerequisite
 locally and proves their recursive relation. The shell accepts only their
 conjunction, so no process-local theorem token crosses the capacity split.
 
@@ -995,23 +995,31 @@ reference assemblers agree on both tapes, and
 phase-isolated shape, writer-domain, context, provenance, root, and publication
 mutations.
 
-The next independent shape tranche now binds `gen_store` plus the complete
-statement family at procedures 62..67 before assigning any recursive meaning.
-It fixes p26/p62..p67's 39 blocks, 22 transitions, 79 events, frames,
+The independent statement shape tranche binds `gen_store`, `emit_epilogue`, and
+the complete family at procedures 62..67 before assigning recursive meaning.
+It fixes p26/p46/p62..p67's 40 blocks, 22 transitions, 84 events, frames,
 epilogues, locals, raw-memory rows, primitives, pushes, exclusive table
 censuses, and decoded quiet regions over the same canonical bundle. Procedure
 67 is split into control/event and data/census modules solely to keep every
 source module below the 20 KB cap. The lattice assembler and `asm_ref.py` agree
-on the 81,803-byte tape, and `BC_BLOCK_FOCUS=statement-family` passes canonical
-execution plus eleven phase-isolated family/cardinality, call/cutpoint,
+on the 82,588-byte tape, and `BC_BLOCK_FOCUS=statement-family` passes canonical
+execution plus twelve phase-isolated family/cardinality, call/cutpoint,
 dispatch, census, and publication mutations. This establishes exact artifact
 shape only: it imports neither Checker F's process-local `XPUB` cell nor Checker
 A's process-local `GSBD` cell and makes no Return-or-Diverge claim.
 
-The eventual `parse_proc` theorem must be maximal, not universally terminating.
-For malformed input, an unrecognized body byte such as `@` can survive both
-`gen_stmt` and the number fallback without cursor progress while `gen_stmts`
-keeps emitting. The honest contract is therefore Return-or-Diverge with exact
-finite/infinite output behavior. The next engineering milestone is the body
-Return-or-Diverge relation; deriving any resource-kind classification from its
-exact proved guard/profile remains implementation work.
+The adjacent 80,086-byte semantic process closes that body relation
+conditionally on the exact propositions published by Checkers A/B/C/E/F and
+the shape process over the identical bundle. It covers p46/p26/p64/p66's exact
+finite traces and suffixes, p67's ordered seven-way dispatch and name-table
+provenance, and p63/p65 as Ret-or-Div wrapper functors. Its 65 context rows are
+built from block depth 64 down to zero and select a guarded greatest fixed point:
+a completed p67 child, mandatory post-child `skip_ws`, and the machine backedge
+provide `Tau`; neither cursor movement nor stdout growth is required. Thus
+`Tau^omega`, finite output followed by silent divergence, and infinite output
+all retain their maximal prefixes. Finite p62 exits decrement depth exactly
+once; divergent activations do not. Twenty-one semantic mutations protect the
+antecedent seams, suffixes, provenance, Ret/Div split, guard, fixed-point kind,
+depth restoration, maximality, and publication. The next engineering milestone
+is composing this result through `parse_proc`; exact resource-kind
+classification from each proved guard/profile remains separate work.

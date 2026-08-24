@@ -462,17 +462,19 @@ outside that manifest unless the compiler executable imports them.
   - [x] close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
     `gen_term`, `gen_sum`, and `gen_expr` together under the checked
     `EXPRDEPTH<=64` induction, including every resource exit;
-  - [ ] build `gen_stmt`'s branch relation and the guarded greatest fixed point
+  - [x] build `gen_stmt`'s branch relation and the guarded greatest fixed point
     for `gen_stmts`/`gen_block`/`gen_state`/`gen_stmt`, preserving finite
     or infinite stdout prefixes without assuming output productivity:
-    - [x] bind exact p26/p62..p67 source/artifact shape in an independent
-      81,803-byte checker, with every module below 20 KB, an assembler diamond,
-      and eleven phase-isolated teeth;
-    - [ ] establish the finite helper/dispatch relation, including every
+    - [x] bind exact p26/p46/p62..p67 source/artifact shape in an independent
+      82,588-byte checker, with every module below 20 KB, an assembler diamond,
+      and twelve phase-isolated teeth;
+    - [x] establish the finite helper/dispatch relation, including every
       post-resource suffix and name-table provenance branch; and
-    - [ ] close the block-depth-stratified guarded greatest fixed point, using a
+    - [x] close the block-depth-stratified guarded greatest fixed point, using a
       completed child/backedge machine step—not cursor or stdout progress—as
-      the coinductive guard;
+      the coinductive guard. The independent 80,086-byte conditional semantic
+      checker is conjoined with its six prerequisite owners over the identical
+      canonical bundle and has twenty-one phase-isolated teeth;
   - [ ] compose the `parse_proc`/PFXS body cutpoint through the unconditional
     epilogue and return, including finite child returns after numeric resource
     status 252;

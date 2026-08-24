@@ -41,6 +41,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-label-emitters-teeth.sh"
 . "$GATE_DIR/bc-expression-family-teeth.sh"
 . "$GATE_DIR/bc-statement-family-teeth.sh"
+. "$GATE_DIR/bc-statement-family-semantic-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -284,6 +285,7 @@ build_bounded_emitters_checker() {
     emit_stack_checker_prefix
     cat "$GATE_DIR/bc-post-stack-bounded-emitters.alpha" \
       "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-event-helper.alpha" \
       "$GATE_DIR/bc-write-str-summary.alpha" \
       "$GATE_DIR/bc-post-write-str-bounded-emitters.alpha" \
       "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
@@ -353,6 +355,7 @@ build_label_emitters_checker() {
     emit_stack_checker_prefix
     cat "$GATE_DIR/bc-post-stack-label-emitters.alpha" \
       "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-event-helper.alpha" \
       "$GATE_DIR/bc-write-str-summary.alpha" \
       "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
       "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
@@ -467,6 +470,7 @@ build_expression_family_semantic_checker() {
     cat "$GATE_DIR/bc-expression-root.alpha" \
       "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
       "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-event-helper.alpha" \
       "$GATE_DIR/bc-write-str-summary.alpha" \
       "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
       "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
@@ -575,6 +579,7 @@ build_expression_family_checkers() {
 statement_family_require_module_budgets() {
   for statement_family_module in \
     bc-statement-family-shape-root.alpha \
+    bc-statement-emit-epilogue-shape.alpha \
     bc-statement-gen-store-shape.alpha \
     bc-gen-stmts-boundary-shape.alpha \
     bc-statement-gen-block-shape.alpha \
@@ -583,7 +588,19 @@ statement_family_require_module_budgets() {
     bc-statement-gen-to-shape.alpha \
     bc-statement-gen-stmt-shape.alpha \
     bc-statement-gen-stmt-data-shape.alpha \
-    bc-statement-family-shape.alpha
+    bc-statement-family-shape.alpha \
+    bc-statement-semantic-root.alpha \
+    bc-statement-antecedents.alpha \
+    bc-write-str-event-helper.alpha \
+    bc-statement-emit-epilogue-rules.alpha \
+    bc-statement-gen-store-rules.alpha \
+    bc-statement-state-label-rules.alpha \
+    bc-statement-gen-to-rules.alpha \
+    bc-statement-gen-stmt-rules.alpha \
+    bc-statement-gen-stmt-fallback-rules.alpha \
+    bc-statement-wrapper-rules.alpha \
+    bc-statement-gfp-rules.alpha \
+    bc-statement-family-publication.alpha
   do
     statement_family_module_bytes=$(wc -c < "$GATE_DIR/$statement_family_module" | tr -d ' ')
     if [ "$statement_family_module_bytes" -ge 20000 ]; then
@@ -600,6 +617,7 @@ build_statement_family_shape_checker() {
     cat "$GATE_DIR/bc-statement-family-shape-root.alpha" \
       "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
       "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-statement-emit-epilogue-shape.alpha" \
       "$GATE_DIR/bc-statement-gen-store-shape.alpha" \
       "$GATE_DIR/bc-gen-stmts-boundary-shape.alpha" \
       "$GATE_DIR/bc-statement-gen-block-shape.alpha" \
@@ -624,6 +642,48 @@ build_statement_family_shape_checker() {
   fi
   stamp_seed "$T/statement-family-shape.tape" "$SEED" \
     "$T/statement-family-shape" >/dev/null
+}
+
+build_statement_family_semantic_checker() {
+  statement_family_require_module_budgets
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-statement-semantic-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-statement-antecedents.alpha" \
+      "$GATE_DIR/bc-write-str-event-helper.alpha" \
+      "$GATE_DIR/bc-statement-emit-epilogue-shape.alpha" \
+      "$GATE_DIR/bc-statement-emit-epilogue-rules.alpha" \
+      "$GATE_DIR/bc-statement-gen-store-shape.alpha" \
+      "$GATE_DIR/bc-statement-gen-store-rules.alpha" \
+      "$GATE_DIR/bc-statement-emit-state-label-shape.alpha" \
+      "$GATE_DIR/bc-statement-state-label-rules.alpha" \
+      "$GATE_DIR/bc-statement-gen-to-rules.alpha" \
+      "$GATE_DIR/bc-statement-gen-stmt-rules.alpha" \
+      "$GATE_DIR/bc-statement-gen-stmt-fallback-rules.alpha" \
+      "$GATE_DIR/bc-statement-wrapper-rules.alpha" \
+      "$GATE_DIR/bc-statement-gfp-rules.alpha" \
+      "$GATE_DIR/bc-statement-family-publication.alpha"
+  } > "$T/statement-family-semantic.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/statement-family-semantic.alpha" \
+    > "$T/statement-family-semantic-ref.tape"
+  "$ASM" < "$T/statement-family-semantic.alpha" \
+    > "$T/statement-family-semantic.tape"
+  cmp -s "$T/statement-family-semantic.tape" \
+    "$T/statement-family-semantic-ref.tape" || {
+    echo "bc block control FAIL — statement semantic assembler diamond disagrees" >&2
+    exit 1
+  }
+  statement_semantic_tape_bytes=$(wc -c \
+    < "$T/statement-family-semantic.tape" | tr -d ' ')
+  if [ "$statement_semantic_tape_bytes" -gt 235000 ]; then
+    echo "bc block control FAIL — statement semantic tape is ${statement_semantic_tape_bytes} bytes (235000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/statement-family-semantic.tape" "$SEED" \
+    "$T/statement-family-semantic" >/dev/null
 }
 
 smoke_name_eq_checker() {
@@ -707,19 +767,20 @@ smoke_statement_family_shape_checker() {
   fi
 }
 
-# Exact p26/p62..p67 shape is an independent process. The later statement
-# relation must reconstruct or explicitly transport its own semantic premises;
-# no process-local GSBD/XPUB marker is copied into this executable.
-if [ "${BC_BLOCK_FOCUS:-}" = statement-family ]; then
-  bc_timing_start statement-family-focus
-  build_statement_family_shape_checker
-  smoke_statement_family_shape_checker
-  statement_family_build_teeth
-  statement_family_reject_teeth
-  bc_timing_finish
-  echo "bc statement family shape: focused canonical + 11 phase-isolated teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte tape)"
-  exit 0
-fi
+smoke_statement_family_semantic_checker() {
+  set +e
+  "$T/statement-family-semantic" < "$T/control.bundle" > "$T/stdout"
+  statement_semantic_status=$?
+  set -e
+  if [ "$statement_semantic_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — statement semantic canonical smoke: expected 0/empty, got $statement_semantic_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# Statement-family focus continues through the canonical prerequisite owners
+# below before testing its conditional semantic implication. No process-local
+# GSBD/XPUB/LOOK/BEMS/E5PK marker is copied between executables.
 
 # Exact family shape and the 65-row semantic induction are intentionally two
 # independent processes over one canonical bundle. Acceptance is conjunction.
@@ -799,35 +860,46 @@ if [ "${BC_BLOCK_FOCUS:-}" = bounded-emitters ]; then
   exit 0
 fi
 
-# The unfocused gate closes Checkers D and E before constructing near-capacity
-# Checker A or either earlier independent checker tranche.
-bc_timing_start emit-dec-word-tranche
-build_emit_dec_word_checker
-smoke_emit_dec_word_checker
-emit_dec_word_build_teeth
-emit_dec_word_reject_teeth
-bc_timing_finish
+# Statement focus runs only the canonical external owners here. The unfocused
+# gate retains their full historical teeth before constructing Checker A.
+if [ "${BC_BLOCK_FOCUS:-}" = statement-family ]; then
+  bc_timing_start statement-family-prerequisites
+  build_label_emitters_checker
+  smoke_label_emitters_checker
+  build_expression_family_checkers
+  smoke_expression_family_checkers
+  build_statement_family_shape_checker
+  smoke_statement_family_shape_checker
+  bc_timing_finish
+else
+  bc_timing_start emit-dec-word-tranche
+  build_emit_dec_word_checker
+  smoke_emit_dec_word_checker
+  emit_dec_word_build_teeth
+  emit_dec_word_reject_teeth
+  bc_timing_finish
 
-bc_timing_start label-emitters-tranche
-build_label_emitters_checker
-smoke_label_emitters_checker
-label_emitters_build_teeth
-label_emitters_reject_teeth
-bc_timing_finish
+  bc_timing_start label-emitters-tranche
+  build_label_emitters_checker
+  smoke_label_emitters_checker
+  label_emitters_build_teeth
+  label_emitters_reject_teeth
+  bc_timing_finish
 
-bc_timing_start expression-family-tranche
-build_expression_family_checkers
-smoke_expression_family_checkers
-expression_family_build_teeth
-expression_family_reject_teeth
-bc_timing_finish
+  bc_timing_start expression-family-tranche
+  build_expression_family_checkers
+  smoke_expression_family_checkers
+  expression_family_build_teeth
+  expression_family_reject_teeth
+  bc_timing_finish
 
-bc_timing_start statement-family-shape-tranche
-build_statement_family_shape_checker
-smoke_statement_family_shape_checker
-statement_family_build_teeth
-statement_family_reject_teeth
-bc_timing_finish
+  bc_timing_start statement-family-shape-tranche
+  build_statement_family_shape_checker
+  smoke_statement_family_shape_checker
+  statement_family_build_teeth
+  statement_family_reject_teeth
+  bc_timing_finish
+fi
 
 bc_timing_start checker-a-canonical
 cat "$GATE_DIR/bc-block-control.alpha" \
@@ -849,6 +921,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-post-stack-fixed.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
+  "$GATE_DIR/bc-write-str-event-helper.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
   "$GATE_DIR/bc-fixed-emitter-summary.alpha" \
   "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
@@ -920,6 +993,22 @@ bc_timing_finish
 # Focused development mode avoids the historical mutation matrix while still
 # using the exact canonical source/artifact bundle and every prerequisite proof.
 case "${BC_BLOCK_FOCUS:-}" in
+  statement-family)
+    bc_timing_start statement-family-conditional-semantics
+    build_lookup_checker
+    smoke_lookup_checker
+    build_bounded_emitters_checker
+    smoke_bounded_emitters_checker
+    build_statement_family_semantic_checker
+    smoke_statement_family_semantic_checker
+    statement_family_build_teeth
+    statement_family_reject_teeth
+    statement_family_semantic_build_teeth
+    statement_family_semantic_reject_teeth
+    bc_timing_finish
+    echo "bc statement family: focused prerequisite conjunction + 12 shape and 21 semantic teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/statement-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
+    exit 0
+    ;;
   operator-classifier)
     operator_classifier_build_teeth
     operator_classifier_reject_teeth
@@ -954,15 +1043,25 @@ case "${BC_BLOCK_FOCUS:-}" in
     ;;
 esac
 
-# The unfocused historical gate closes both independent tranches before
-# constructing either tranche's mutation family.
-bc_timing_start independent-historical-tranches
+# Establish the independent canonical owners, then close the statement
+# implication before spending time on their historical mutation families.
+bc_timing_start independent-canonical-tranches
 build_name_eq_checker
 smoke_name_eq_checker
 build_lookup_checker
 smoke_lookup_checker
 build_bounded_emitters_checker
 smoke_bounded_emitters_checker
+bc_timing_finish
+
+bc_timing_start statement-family-semantic-tranche
+build_statement_family_semantic_checker
+smoke_statement_family_semantic_checker
+statement_family_semantic_build_teeth
+statement_family_semantic_reject_teeth
+bc_timing_finish
+
+bc_timing_start independent-historical-teeth
 bounded_emitters_build_teeth
 bounded_emitters_reject_teeth
 checker_split_build_fixed_tooth
@@ -1659,6 +1758,7 @@ cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-post-stack-fixed.alpha" \
   "$GATE_DIR/bc-slurp-summary.alpha" \
   "$GATE_DIR/bc-main-slurp-bridge.alpha" \
+  "$GATE_DIR/bc-write-str-event-helper.alpha" \
   "$GATE_DIR/bc-write-str-summary.alpha" \
   "$GATE_DIR/bc-fixed-emitter-summary.alpha" \
   "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
