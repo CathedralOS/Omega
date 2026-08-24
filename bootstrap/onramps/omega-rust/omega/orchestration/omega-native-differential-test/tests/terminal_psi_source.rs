@@ -9,6 +9,12 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::compile_to_checked;
+use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
+use omega_effects::{
+    ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
+    ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope,
+    IncompleteScopePolicy, ScopeCompleteness, evaluate_executable_tcb_profile,
+};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
     ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
@@ -46,9 +52,10 @@ use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedIntegerControl, TerminalAssignedOperation,
 };
 use omega_terminal_image_emission::{
-    TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
-    decode_terminal_installation_record, derive_terminal_installation_stack_demand,
-    derive_terminal_stack_demand, emit_terminal_executable_image, emit_terminal_object_container,
+    TerminalObjectArtifact, bind_installed_terminal_artifact, build_terminal_installation_record,
+    build_terminal_object_artifact, decode_terminal_installation_record,
+    derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
@@ -400,6 +407,117 @@ fn install_terminal_object(
         install_validated(validated, authority, receipt).expect("terminal code installation"),
         entry,
     )
+}
+
+#[test]
+fn source_terminal_installation_publishes_only_with_retained_code_custody() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("terminal-Psi source canary should compile");
+    assert!(
+        checked.component_progress().is_none(),
+        "targetless source canary publishes no build-bound progress manifest"
+    );
+    let lowered = lower_machine(&checked, "terminal_constant")
+        .expect("accepted source slice should lower to terminal Psi");
+    let verified = verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("source-produced terminal Psi should verify");
+    let abstract_operations = lower_artifact_sections(
+        &encode_module(verified.module()).expect("terminal semantics encode"),
+        &encode_proof_bundle(verified.proof_bundle()).expect("terminal proof encodes"),
+        &AdmissionProfile::default(),
+    )
+    .expect("verified source artifact should lower without frontend state");
+    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+        .expect("source terminal operations should select for the host");
+    let assigned = assign_registers(&target_operations).expect("source terminal homes assign");
+    let machine_code = emit_machine_code(&assigned).expect("source terminal machine code emits");
+    let object = build_terminal_object_artifact(&machine_code)
+        .expect("source terminal machine code forms an object");
+    let image = emit_terminal_executable_image(&object, 3)
+        .expect("source terminal object emits an executable image");
+    let entry_offset = u64::try_from(object.entry_function().text_offset)
+        .expect("terminal entry offset fits installation geometry");
+    let (installed, _) =
+        install_terminal_object(&object, object.text_bytes().to_vec(), entry_offset);
+    let installed_identity = installed.identity();
+    let artifact_identity = installed.artifact();
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(0x53a0).expect("source publication profile decision"),
+    )
+    .expect("source terminal image has canonical installation metadata");
+    let installation = decode_terminal_installation_record(
+        &encode_terminal_installation_record(&installation)
+            .expect("source installation record encodes"),
+    )
+    .expect("source installation record decodes");
+    let terminal_artifact =
+        bind_installed_terminal_artifact(&object, &image, installation, installed)
+            .expect("source terminal join consumes exact installed-code custody");
+    let runnable = bind_installed_runnable_component(terminal_artifact, None)
+        .expect("progress-free source terminal artifact is runnable");
+
+    let tcb_acceptance = |identity: u64| {
+        evaluate_executable_tcb_profile(
+            &ExecutableTcbManifest {
+                known_entries: Vec::new(),
+                completeness: ScopeCompleteness::Complete {
+                    scope: ExecutionScope::CallerAddressSpace,
+                    selected_provider_closure_identity: identity,
+                    opaque_closure_evidence: Vec::new(),
+                    runtime_closure_evidence: Vec::new(),
+                },
+            },
+            &ExecutableTcbProfile {
+                name: format!("source-terminal-publication-{identity}"),
+                scope: ExecutionScope::CallerAddressSpace,
+                allow_static_current_artifact_checked_bodies: true,
+                exact_allowances: Vec::new(),
+                incomplete_scope: IncompleteScopePolicy::Reject,
+            },
+        )
+        .expect("source terminal TCB acceptance")
+    };
+    let mut lifecycle = RunnableComponentEraLedger::new(
+        ComponentEraEntryLedger::new(
+            ComponentEraLedgerId::from_normalized_identity(0x53a1)
+                .expect("source terminal lifecycle ledger"),
+            "SourceTerminalBinding/v1".into(),
+            "terminal_constant".into(),
+            1,
+            tcb_acceptance(0x53a2),
+        )
+        .expect("source terminal lifecycle"),
+    );
+    let candidate = ComponentEraCandidate {
+        era_identity: 1,
+        artifact_instance_identity: installed_identity.normalized_identity(),
+        binding_contract_identity: "SourceTerminalBinding/v1".into(),
+        entry_contract_identity: "terminal_constant".into(),
+        entry_plan_identity: "source-terminal-entry-plan".into(),
+        entry_plan_admission_receipt_identity: "source-terminal-entry-plan-receipt".into(),
+        executable_tcb_acceptance: tcb_acceptance(0x53a3),
+    };
+    let publication = ComponentEraPublicationReceipt::from_runtime(
+        0x53a4,
+        lifecycle.lifecycle(),
+        &candidate,
+        true,
+        false,
+    );
+    lifecycle
+        .publish(candidate, publication, runnable)
+        .expect("source terminal artifact publishes one runnable era");
+    let retained = lifecycle
+        .retained_component(1)
+        .expect("published source terminal era retains installation custody");
+    assert_eq!(retained.installed_code(), installed_identity);
+    assert_eq!(retained.artifact(), artifact_identity);
+    assert!(retained.progress().is_none());
 }
 
 #[cfg(target_os = "macos")]

@@ -240,9 +240,9 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
         Some(&progress),
     )
     .expect("terminal installation record");
-    let artifact = bind_installed_terminal_artifact(&object, &image, installation, &installed)
+    let artifact = bind_installed_terminal_artifact(&object, &image, installation, installed)
         .expect("installed terminal artifact");
-    let runnable = bind_installed_runnable_component(&installed, artifact, Some(progress))
+    let runnable = bind_installed_runnable_component(artifact, Some(progress))
         .expect("installed runnable component");
     RunnableFixture {
         installed_code,
@@ -540,8 +540,20 @@ fn runnable_publication_retains_opaque_progress_until_successful_retirement() {
     let retirement = ComponentEraRetirementReceipt::from_runtime(201, ledger.lifecycle(), 10, true);
     let retired = ledger.retire(retirement).expect("retire old runnable era");
     assert!(retired.progress().is_some());
+    assert_eq!(retired.installed().identity(), first.installed_code);
     assert!(ledger.retained_component(10).is_none());
-    assert!(ledger.retained_component(11).is_some());
+    assert_eq!(
+        ledger
+            .retained_component(11)
+            .unwrap()
+            .installed()
+            .identity(),
+        second.installed_code
+    );
+    let (artifact, progress) = retired.into_parts();
+    let (_, installed) = artifact.into_parts();
+    assert!(progress.is_some());
+    assert_eq!(installed.identity(), first.installed_code);
 }
 
 #[test]
@@ -557,7 +569,10 @@ fn runnable_publication_rejection_returns_candidate_receipt_and_opaque_evidence(
         .expect_err("artifact occurrence substitution rejects");
     assert!(error.diagnostic().contains("different installed artifact"));
     let (_, _, runnable) = error.into_parts();
-    assert!(runnable.progress().is_some());
+    let (artifact, progress) = runnable.into_parts();
+    let (_, installed) = artifact.into_parts();
+    assert!(progress.is_some());
+    assert_eq!(installed.identity(), fixture.installed_code);
     assert_eq!(ledger.current_era(), None);
 }
 

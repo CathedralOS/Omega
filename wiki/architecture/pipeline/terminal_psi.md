@@ -1632,11 +1632,15 @@ Component closure checks every canonical pending row before committing and
 retains the original manifest plus exact evidence. Terminal installation
 format 34 records the manifest and acceptance report identities in the hashed
 installation bytes. Runnable publication additionally joins the complete
-terminal object and image, canonical installation record, exact installed-code
-occurrence, and opaque acceptance, then retains that non-forgeable carrier for
-the live component era. Failed publication or retirement returns it unchanged;
-successful retirement is the only operation that releases it. Compact record
-identities remain report keys and grant no authority.
+terminal object and image, canonical installation record, the linear
+`InstalledCode` claim itself, and opaque acceptance, then retains that
+non-forgeable carrier for the live component era. Failed binding, publication,
+or retirement returns the exact custody unchanged; successful retirement is
+the only operation that releases it. A source-derived progress-free canary
+exercises this path from Terminal-Psi lowering through component-era
+publication. The selected-entry progress-bearing source path and production
+composer remain explicit follow-on integration work. Compact record identities
+remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice
 

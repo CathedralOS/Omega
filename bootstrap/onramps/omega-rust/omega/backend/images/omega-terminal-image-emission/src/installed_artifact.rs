@@ -1,6 +1,4 @@
-use omega_executable_installation::{
-    ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
-};
+use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 
 use crate::{
     TerminalExecutableImage, TerminalInstallationRecord, TerminalObjectArtifact,
@@ -16,9 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct InstalledTerminalArtifact {
     installation: TerminalInstallationRecord,
-    installed: InstalledCodeContext,
-    installed_code: InstalledCodeId,
-    artifact: ArtifactId,
+    installed: InstalledCode,
 }
 
 impl InstalledTerminalArtifact {
@@ -27,16 +23,28 @@ impl InstalledTerminalArtifact {
     }
 
     pub const fn installed_code(&self) -> InstalledCodeId {
-        self.installed_code
+        self.installed.identity()
     }
 
-    pub const fn artifact(&self) -> ArtifactId {
-        self.artifact
+    pub fn artifact(&self) -> ArtifactId {
+        self.installed.artifact()
+    }
+
+    /// Borrow the linear installed-code occurrence retained by this join.
+    /// Callers cannot retire it while the joined artifact remains live.
+    pub const fn installed(&self) -> &InstalledCode {
+        &self.installed
     }
 
     /// Compare complete opaque installation evidence, not only report IDs.
     pub fn binds_installed_code(&self, installed: &InstalledCode) -> bool {
-        self.installed == installed.receipt_context()
+        self.installed.receipt_context() == installed.receipt_context()
+    }
+
+    /// Release the canonical installation record and exact installed-code
+    /// custody after the higher-level runnable lifecycle has retired.
+    pub fn into_parts(self) -> (TerminalInstallationRecord, InstalledCode) {
+        (self.installation, self.installed)
     }
 }
 
@@ -46,6 +54,7 @@ impl InstalledTerminalArtifact {
 #[derive(Debug)]
 pub struct InstalledTerminalArtifactBindingError {
     installation: TerminalInstallationRecord,
+    installed: InstalledCode,
     diagnostic: String,
 }
 
@@ -54,8 +63,8 @@ impl InstalledTerminalArtifactBindingError {
         &self.diagnostic
     }
 
-    pub fn into_installation(self) -> TerminalInstallationRecord {
-        self.installation
+    pub fn into_parts(self) -> (TerminalInstallationRecord, InstalledCode) {
+        (self.installation, self.installed)
     }
 }
 
@@ -74,11 +83,12 @@ pub fn bind_installed_terminal_artifact(
     object: &TerminalObjectArtifact,
     image: &TerminalExecutableImage,
     installation: TerminalInstallationRecord,
-    installed: &InstalledCode,
+    installed: InstalledCode,
 ) -> Result<InstalledTerminalArtifact, Box<InstalledTerminalArtifactBindingError>> {
-    let reject = |installation, diagnostic: String| {
+    let reject = |installation, installed, diagnostic: String| {
         Err(Box::new(InstalledTerminalArtifactBindingError {
             installation,
+            installed,
             diagnostic,
         }))
     };
@@ -86,6 +96,7 @@ pub fn bind_installed_terminal_artifact(
     if object.terminal_psi() != image.terminal_psi() || object.target() != image.target() {
         return reject(
             installation,
+            installed,
             "terminal object and executable image have different semantic or target identity"
                 .into(),
         );
@@ -93,12 +104,14 @@ pub fn bind_installed_terminal_artifact(
     if let Err(error) = validate_terminal_installation_record(&installation, image) {
         return reject(
             installation,
+            installed,
             format!("terminal installation record does not bind the exact image: {error}"),
         );
     }
     if installed.architecture() != object.target().architecture {
         return reject(
             installation,
+            installed,
             "installed code architecture differs from the terminal artifact target".into(),
         );
     }
@@ -109,6 +122,7 @@ pub fn bind_installed_terminal_artifact(
     else {
         return reject(
             installation,
+            installed,
             "terminal executable image truncates the compiler-authored object text".into(),
         );
     };
@@ -116,6 +130,7 @@ pub fn bind_installed_terminal_artifact(
     {
         return reject(
             installation,
+            installed,
             "installed code does not contain the exact unrelocated and materialized terminal text"
                 .into(),
         );
@@ -123,8 +138,6 @@ pub fn bind_installed_terminal_artifact(
 
     Ok(InstalledTerminalArtifact {
         installation,
-        installed: installed.receipt_context(),
-        installed_code: installed.identity(),
-        artifact: installed.artifact(),
+        installed,
     })
 }
