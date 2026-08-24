@@ -137,7 +137,11 @@ complete.
   terminated on every exit path, preventing ordinary helper/SSH descendants
   from surviving or holding capture pipes open; overflow or timeout rejects
   explicitly. This is a portable-executor floor, not strict hostile-process
-  confinement. Local
+  confinement. Fetch requests only the selected revision at depth one and
+  disables Git automatic maintenance and garbage collection; unrelated
+  reachable history is not traversed merely to resolve one package revision.
+  This bounds history amplification but is not an enforced transferred-byte or
+  object-store quota. Local
   sources now follow the same custody shape: a bounded capture is
   re-materialized into a content-addressed, read-only, atomically published
   resolver snapshot;

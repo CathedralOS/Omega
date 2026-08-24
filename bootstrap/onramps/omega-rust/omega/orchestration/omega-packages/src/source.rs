@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v4";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v5";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -381,6 +381,7 @@ fn resolve_verified_git_cache_entry(
         repository.as_os_str(),
         OsStr::new("fetch"),
         OsStr::new("--quiet"),
+        OsStr::new("--depth=1"),
         OsStr::new("--no-tags"),
         OsStr::new("--no-recurse-submodules"),
         OsStr::new("--"),
@@ -2835,6 +2836,10 @@ fn sealed_git_command() -> Command {
             "-c",
             "core.autocrlf=false",
             "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+            "-c",
             "fetch.fsckObjects=true",
             "-c",
             "transfer.fsckObjects=true",
@@ -3754,6 +3759,41 @@ mod tests {
     }
 
     #[test]
+    fn git_source_fetches_only_the_selected_revision_depth() {
+        let (repo, _) = create_git_source("git-shallow");
+        std::fs::write(repo.join("main.omg"), "machine Main::changed() {}\n")
+            .expect("change source");
+        run_test_git(&repo, ["add", "main.omg"]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "second"]);
+        let cache = temp_root("git-shallow-cache");
+        let url = format!("file://{}", repo.display());
+
+        resolve_git_source(
+            &GitSourceSpec {
+                url: url.clone(),
+                rev: Some("HEAD".to_owned()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve a shallow exact revision");
+
+        let repository = git_cache_entry_root(&cache, &url, "HEAD").join(GIT_CACHE_REPOSITORY);
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&repository)
+            .args(["rev-list", "--count", "FETCH_HEAD"])
+            .output()
+            .expect("count fetched history");
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "1");
+        assert!(repository.join("shallow").is_file());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_tree_rejects_traversal_metadata_and_nonportable_paths_before_materialization() {
         let repository = temp_root("git-tree-path-validation");
         let oid = "0123456789012345678901234567890123456789";
@@ -4216,6 +4256,12 @@ mod tests {
             arguments
                 .iter()
                 .any(|argument| argument == "fetch.recurseSubmodules=false")
+        );
+        assert!(arguments.iter().any(|argument| argument == "gc.auto=0"));
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "maintenance.auto=false")
         );
     }
 
