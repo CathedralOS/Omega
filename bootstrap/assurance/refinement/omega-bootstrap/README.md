@@ -28,9 +28,7 @@ packer only frames exact bytes. `ckir-refinement-envelope.beta` is the common
 custody fragment: it independently parses the header, enforces every extent and
 EOF, and retains direct access to every raw byte.
 `checked-ir-refinement-envelope.sh` gates that fragment through the persisted
-Beta compiler and Alpha seed. Source-table reconstruction and artifact-template
-semantics remain the next two implementation layers; envelope acceptance alone
-does not close §10.6.
+Beta compiler and Alpha seed. Envelope acceptance alone does not close §10.6.
 
 The next source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
@@ -38,9 +36,20 @@ one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
 label and exact content extent, and lexes the complete source with nested
 comments, bounded identifiers, checked decimal integers, and exact EOF.
 `checked-ir-refinement-source-input.sh` carries positive comment/trivia forms
-and isolated bundle, label, lexical, and exhaustion negatives. Declaration and
-semantic-table reconstruction still follows; lexical custody alone is not a
-source→CKIR claim.
+and isolated bundle, label, lexical, and exhaustion negatives. Lexical custody
+alone is not a source→CKIR claim.
+
+`ckir-refinement-source-tables.beta` is the next source-side layer. Starting
+from those retained source bytes, it independently parses and resolves data,
+field, type, machine, entry, state, and parameter declarations; reconstructs
+copyability and recursive layout; interns the canonical CKIR1 types; and joins
+the resulting record, field, machine, parameter, and block signatures to the
+claimed CKIR. `checked-ir-refinement-source-tables.sh` carries the product
+library, renamed/reordered sources, a valid copy-owner alternative, and
+cross-pair controls in which valid source or CKIR semantics are changed alone.
+This closes declaration/signature/layout correspondence. Source bodies,
+operations, terminators, state facts, and the source-derived result remain the
+next source-side layer.
 
 The first artifact-side layer is `ckir-refinement-artifact.beta`. It decodes
 the exact CKIR bytes directly, validates the complete CKIR1 declaration,
@@ -50,8 +59,18 @@ owner. `checked-ir-refinement-artifact.sh` runs that checker through persisted
 Beta on the real all-operation fixture, the product library, valid structural
 and self-aliasing-copy controls, a wrong-result claim, and the complete 142-row
 schema mutation inventory. This establishes CKIR custody and recomputes the
-claimed full result; it does not yet relate source tables to those CKIR rows or
-reconstruct and execute the envelope's ELF bytes.
+claimed full result.
+
+`ckir-refinement-elf.beta` independently reconstructs the selected private
+layout, frame, copy leaves, shim, trap, every operation and terminator template,
+rel32 fixup, ELF header and segment, padding, and EOF directly from validated
+CKIR1. It also joins the CKIR evaluator's full scalar result to the claimed
+result and process-status projection. `checked-ir-refinement-elf.sh` carries
+the real fixture and library, a valid self-aliasing control, CKIR/ELF cross-pairs,
+and isolated entry, field, branch, syscall, padding, truncation, trailing-byte,
+and wrong-result controls. This closes the lower-rooted CKIR1→limited-ELF
+relation for the selected finite closed entry profile; composing it with the
+still-open source-body relation is the remaining source→artifact work.
 
 All encoders are untrusted. They gain no authority from this location; accepted
 claims still require the lower-rooted meaning and proof-kernel checks described

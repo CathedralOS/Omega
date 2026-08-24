@@ -346,6 +346,43 @@ outside its declared scalar interval. A `Store` must trap if the runtime scalar
 is outside the destination interval. Static source proof does not authorize the
 backend to omit these checks in CKIR1.
 
+### 5.2 Canonical source-body construction
+
+For the source profile admitted by this tranche, source bodies are lowered in
+machine-ID order, with each machine's entry body first and named-state bodies in
+their block-ID order. Statements and transition arms retain source order.
+Operation IDs are assigned exactly when the following construction emits an
+operation; operand spans are appended at the same point.
+
+A source literal has no operation until a scalar value is required, when it
+emits `Const`. A parameter is already its parameter value. `self` emits
+`SelfPlace`; each member suffix immediately emits `FieldPlace`; and each index
+suffix first lowers and materializes its index, then emits `IndexPlace`.
+Materializing a scalar place emits `Load`; materializing an existing value emits
+nothing. Parentheses do not otherwise affect construction.
+
+For `+` and `<`, parse and lower the left operand's place-producing suffixes,
+then the right operand's place-producing suffixes. Materialize the right operand
+before the left operand, then emit `Add` or `Less` with operands `(left,right)`.
+This right-before-left materialization order is part of CKIR1 canonicality; a
+semantically equivalent producer may not reverse the two loads or constants.
+The resulting Boolean from `<` also carries the source guard fact used by the
+frontend, but facts themselves are not encoded in CKIR1.
+
+For assignment, lower the destination place, lower the source expression, then
+emit `Store` after scalar materialization or `Copy` directly from the structural
+source place/value. For a scalar result, lower and materialize the expression
+and emit `ReturnValue`. A Unit body with no explicit transition emits
+`ReturnUnit`.
+
+A transition lowers and materializes its guard first. Each arm's arguments are
+then lowered and materialized in authored arm and argument order. After all arms
+are checked, the terminator is normalized to `Branch`: target 0 is the authored
+`true` arm or the wildcard target, and target 1 is the authored `false` arm or
+the wildcard target. The flat terminator-operand tail is serialized later in
+terminator-ID order, target 0 arguments before target 1 arguments. No operation
+is emitted merely to reorder edge arguments.
+
 ## 6. Terminators and edge arguments
 
 ### 6.1 Terminator row — 44 bytes
@@ -721,8 +758,18 @@ validates the complete CKIR1 relation and recomputes the selected scalar result.
 That checker accepts the real fixture and library plus valid structural and
 self-aliasing-copy controls, and rejects the complete 142-row schema mutation
 inventory with the specified 251/252 distinction. This is partial item-6
-evidence only: independent source semantic tables → canonical CKIR
-reconstruction and limited-ELF byte/execution reconstruction remain open.
+evidence. A second persisted-Beta checker reconstructs the private layout,
+frame, instruction templates, fixups, ELF headers/segments/padding/EOF, and
+selected process observation directly from those CKIR bytes, with isolated
+relation and byte mutations.
+
+On the source side, a persisted-Beta checker independently reconstructs and
+joins data, fields, types, copyability, recursive layout, machines, parameters,
+blocks, and conformance-root selection. It carries valid renamed/reordered and
+copy-owner alternatives plus valid source/CKIR cross-pair rejections. Item 6 is
+still partial: source-body operations, terminators, transition facts, and the
+source-derived selected result must be independently reconstructed and composed
+with the established CKIR1→limited-ELF relation.
 
 Only after these obligations and their negative controls pass may CKIR1 support
 the bounded artifact tranche. Later widening must publish a new schema version

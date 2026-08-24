@@ -123,6 +123,7 @@ proc refinement_source_decode_bundle() {
 }
 
 proc refinement_source_ident_start(c) {
+    state underscore { to yes when (c == '_')  to upper0 }
     state upper0 { to upper1 when (c >= 'A')  to lower0 }
     state upper1 { to yes when (c <= 'Z')  to lower0 }
     state lower0 { to lower1 when (c >= 'a')  return 0 }

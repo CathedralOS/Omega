@@ -25,6 +25,11 @@ the true branch of a `<` guard into the target state as a bounded interval fact.
 That fact must suffice for the actual unit's guarded array accesses and
 `length + 1` assignment.
 
+`in Trapping` is retained as a type constraint, not discarded as parser trivia.
+It is valid only on `u8`, `u32`, and fixed-array types in this profile; applying
+it to `bool` or a nominal record rejects. The canonical CKIR type row carries
+the corresponding flag.
+
 The rules are name- and order-independent. The implementation may retain source
 spans in fixed tables, but it must not recognize the current declaration names,
 counts, or syntax-tree permutation.

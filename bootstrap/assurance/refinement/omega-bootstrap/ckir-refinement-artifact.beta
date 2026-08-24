@@ -1158,7 +1158,7 @@ proc ckir_interpret_selected() {
     let owner_size = 0
     state library { to entry_begin when (entry != 4294967295)  return 0 }
     state entry_begin {
-        owner_size = word[6000000 + ckir_machine_word(entry, 8) * 8]
+        owner_size = word[6000000 + ckir_record_word(ckir_machine_word(entry, 4), 4) * 8]
         clear = 0
         to clear_owner
     }

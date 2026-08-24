@@ -212,9 +212,12 @@ reconstruction of every selected ELF byte and relation are closed. A
 persisted-Beta checker now
 independently validates CKIR1 and recomputes the selected result across the real
 fixture/library, valid structural controls, and all 142 schema mutations;
-lower-rooted source-table correspondence and lower-rooted limited-ELF
-reconstruction remain open. ABI/layout/lowering are private tranche rules
-rather than Omega ABI promises, and the final
+another persisted-Beta checker reconstructs the exact lower-rooted
+CKIR1→limited-ELF relation and selected observation. Lower-rooted source
+declaration/type/signature/copy/layout correspondence is also established;
+source-body operations, terminators, transition facts, and the source-derived
+result remain open. ABI/layout/lowering are private tranche rules rather than
+Omega ABI promises, and the final
 retain-versus-refactor disposition remains open. The raw-unit interface also
 avoids silently widening the frozen O0/O1
 bundle transport ceiling; eventual bridge admission must compose the measured
