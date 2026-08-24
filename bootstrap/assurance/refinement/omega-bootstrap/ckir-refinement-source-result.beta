@@ -1,0 +1,205 @@
+; Independent selected-result interpretation over source-derived CKIR1 rows.
+; Concatenate after the envelope, source-input, source-tables, and source-
+; lowering fragments with their main procedures removed.  This file never
+; reads raw CKIR bytes, CKIR accessors, artifact layout/runtime storage, or the
+; CKIR evaluator result.  The gate separately requires the persisted-Beta CKIR
+; checker over the same exact envelope, so both meanings meet at the untrusted
+; full-width result claim.
+;
+; The current result envelope represents only library or finite scalar Return.
+; Selected execution here therefore rejects a repeated block: this first
+; source-result claim covers the tranche's acyclic returning conformance entry,
+; not Trap, divergence, or a general fuel semantics.
+
+proc src_eval_type_size(type_id) {
+    let kind=src_ck_type(type_id,0)
+    state scalar { to word_kind when (kind == 2)  to nominal when (kind == 4)  to array when (kind == 5)  return 1 }
+    state word_kind { return 4 }
+    state nominal { return src_record(src_ck_type(type_id,2),5) }
+    state array { return src_eval_type_size(src_ck_type(type_id,2))*src_ck_type(type_id,3) }
+}
+
+proc src_eval_load(type_id, address) {
+    state word_kind { to word_value when (src_ck_type(type_id,0) == 2)  return byte[20000000+address] }
+    state word_value {
+        return byte[20000000+address]
+            + byte[20000000+address+1]*256
+            + byte[20000000+address+2]*65536
+            + byte[20000000+address+3]*16777216
+    }
+}
+
+proc src_eval_store(type_id, address, value) {
+    state range { to trap when (value < src_ck_type(type_id,4))  to trap when (value > src_ck_type(type_id,5))  to word_kind when (src_ck_type(type_id,0) == 2)  byte[20000000+address]=value  return 0 }
+    state word_kind {
+        byte[20000000+address]=value%256
+        byte[20000000+address+1]=(value/256)%256
+        byte[20000000+address+2]=(value/65536)%256
+        byte[20000000+address+3]=(value/16777216)%256
+        return 0
+    }
+    state trap { return 251 }
+}
+
+proc src_eval_snapshot(type_id, source, relative) {
+    let kind=src_ck_type(type_id,0)
+    let i=0
+    let count=0
+    let child=0
+    let record=0
+    let field=0
+    let end=0
+    let offset=0
+    state kind_check { to compound when (kind > 3)  to scalar }
+    state scalar { to word_scalar when (kind == 2)  byte[21000000+relative]=byte[20000000+source]  return 0 }
+    state word_scalar {
+        byte[21000000+relative]=byte[20000000+source]
+        byte[21000000+relative+1]=byte[20000000+source+1]
+        byte[21000000+relative+2]=byte[20000000+source+2]
+        byte[21000000+relative+3]=byte[20000000+source+3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  record=src_ck_type(type_id,2)  field=src_record(record,3)  end=field+src_record(record,4)  to fields }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one { child=src_type(src_field(field,3),9)  offset=src_field(field,4)  to bad when (src_eval_snapshot(child,source+offset,relative+offset) != 0)  field=field+1  to fields }
+    state array { child=src_ck_type(type_id,2)  count=src_ck_type(type_id,3)  to array_loop }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one { offset=src_eval_type_size(child)*i  to bad when (src_eval_snapshot(child,source+offset,relative+offset) != 0)  i=i+1  to array_loop }
+    state bad { return 251 }
+}
+
+proc src_eval_commit(type_id, destination, relative) {
+    let kind=src_ck_type(type_id,0)
+    let i=0
+    let count=0
+    let child=0
+    let record=0
+    let field=0
+    let end=0
+    let offset=0
+    state kind_check { to compound when (kind > 3)  to scalar }
+    state scalar { to word_scalar when (kind == 2)  byte[20000000+destination]=byte[21000000+relative]  return 0 }
+    state word_scalar {
+        byte[20000000+destination]=byte[21000000+relative]
+        byte[20000000+destination+1]=byte[21000000+relative+1]
+        byte[20000000+destination+2]=byte[21000000+relative+2]
+        byte[20000000+destination+3]=byte[21000000+relative+3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  record=src_ck_type(type_id,2)  field=src_record(record,3)  end=field+src_record(record,4)  to fields }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one { child=src_type(src_field(field,3),9)  offset=src_field(field,4)  to bad when (src_eval_commit(child,destination+offset,relative+offset) != 0)  field=field+1  to fields }
+    state array { child=src_ck_type(type_id,2)  count=src_ck_type(type_id,3)  to array_loop }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one { offset=src_eval_type_size(child)*i  to bad when (src_eval_commit(child,destination+offset,relative+offset) != 0)  i=i+1  to array_loop }
+    state bad { return 251 }
+}
+
+proc src_eval_copy(type_id, destination, source) {
+    state snapshot { to bad when (src_eval_snapshot(type_id,source,0) != 0)  to commit }
+    state commit { return src_eval_commit(type_id,destination,0) }
+    state bad { return 251 }
+}
+
+proc src_eval_state_for_block(block) {
+    let i=0
+    state loop { to one when (i < word[10000056])  return 4294967295 }
+    state one { to found when (src_state(i,8) == block)  i=i+1  to loop }
+    state found { return i }
+}
+
+proc src_eval_edge(block, argument_field, count) {
+    let state_id=src_eval_state_for_block(block)
+    let i=0
+    let parameter=0
+    let value=0
+    let type_id=0
+    state target { to bad when (state_id == 4294967295)  to stage }
+    state stage { to stage_one when (i < count)  i=0  to commit }
+    state stage_one { value=src_lower_term(word[21400008],argument_field+i)  word[21300000+i*8]=word[20200000+value*8]  i=i+1  to stage }
+    state commit { to commit_one when (i < count)  return 0 }
+    state commit_one { parameter=src_state(state_id,3)+i  type_id=src_type(src_param(parameter,3),9)  to structural when (src_ck_type(type_id,0) > 3)  to scalar }
+    state structural { word[20200000+parameter*8]=word[21300000+i*8]  i=i+1  to commit }
+    state scalar { to trap when (word[21300000+i*8] < src_ck_type(type_id,4))  to trap when (word[21300000+i*8] > src_ck_type(type_id,5))  word[20200000+parameter*8]=word[21300000+i*8]  i=i+1  to commit }
+    state trap { return 251 }
+    state bad { return 251 }
+}
+
+proc src_refinement_source_result_check() {
+    let root=word[10000232]
+    let block=0
+    let op=0
+    let op_end=0
+    let opcode=0
+    let result=0
+    let result_type=0
+    let start=0
+    let a=0
+    let b=0
+    let value=0
+    let address=0
+    let base_type=0
+    let field=0
+    let target=0
+    let count=0
+    let clear=0
+    let owner_size=0
+    state library { to entry_begin when (root != 4294967295)  word[21400000]=4294967295  return 0 }
+    state entry_begin { owner_size=src_record(src_machine(root,2),5)  to clear_owner }
+    state clear_owner { to clear_one when (clear < owner_size)  clear=0  to clear_visited }
+    state clear_one { byte[20000000+clear]=0  clear=clear+1  to clear_owner }
+    state clear_visited { to clear_visit_one when (clear < word[10000160])  block=src_machine(root,15)  to block_begin }
+    state clear_visit_one { word[21200000+clear*8]=0  clear=clear+1  to clear_visited }
+    state block_begin { to trap when (word[21200000+block*8] != 0)  word[21200000+block*8]=1  op=src_low_block(block,0)  op_end=op+src_low_block(block,1)  to operations }
+    state operations { to operation when (op < op_end)  to terminator }
+    state operation {
+        opcode=src_lower_op(op,2)  result=src_lower_op(op,4)
+        result_type=src_lower_op(op,5)  start=src_lower_op(op,6)
+        to value_result when (src_lower_op(op,3) == 1)
+        to place_result when (src_lower_op(op,3) == 2)  to dispatch
+    }
+    state value_result { to trap when (src_lower_value_type(result) != result_type)  to dispatch }
+    state place_result { to trap when (src_lower_place_type(result) != result_type)  to dispatch }
+    state dispatch {
+        to constant when (opcode == 1)  to self_place when (opcode == 2)
+        to field_place when (opcode == 3)  to index_place when (opcode == 4)
+        to load when (opcode == 5)  to store when (opcode == 6)
+        to copy when (opcode == 7)  to add when (opcode == 8)  to less
+    }
+    state constant { word[20200000+result*8]=src_lower_op(op,8)  to op_next }
+    state self_place { word[20600000+result*8]=0  to op_next }
+    state field_place { a=src_lower_operand(start)  field=src_lower_op(op,8)  word[20600000+result*8]=word[20600000+a*8]+src_field(field,4)  to op_next }
+    state index_place { a=src_lower_operand(start)  b=src_lower_operand(start+1)  value=word[20200000+b*8]  base_type=src_lower_place_type(a)  to trap when (value >= src_ck_type(base_type,3))  word[20600000+result*8]=word[20600000+a*8]+value*src_eval_type_size(src_ck_type(base_type,2))  to op_next }
+    state load { a=src_lower_operand(start)  address=word[20600000+a*8]  word[20200000+result*8]=src_eval_load(result_type,address)  to op_next }
+    state store { a=src_lower_operand(start)  b=src_lower_operand(start+1)  address=word[20600000+a*8]  value=word[20200000+b*8]  to trap when (src_eval_store(src_lower_place_type(a),address,value) != 0)  to op_next }
+    state copy { a=src_lower_operand(start)  b=src_lower_operand(start+1)  address=word[20600000+a*8]  to copy_value when (src_lower_op(op,8) == 1)  value=word[20600000+b*8]  to copy_ready }
+    state copy_value { value=word[20200000+b*8]  to copy_ready }
+    state copy_ready { to trap when (src_eval_copy(src_lower_place_type(a),address,value) != 0)  to op_next }
+    state add { a=src_lower_operand(start)  b=src_lower_operand(start+1)  value=word[20200000+a*8]+word[20200000+b*8]  to byte_overflow when (src_ck_type(result_type,0) == 1)  to word_overflow }
+    state byte_overflow { to trap when (value > 255)  to add_range }
+    state word_overflow { to trap when (value > 4294967295)  to add_range }
+    state add_range { to trap when (value < src_ck_type(result_type,4))  to trap when (value > src_ck_type(result_type,5))  word[20200000+result*8]=value  to op_next }
+    state less { a=src_lower_operand(start)  b=src_lower_operand(start+1)  value=0  to less_true when (word[20200000+a*8] < word[20200000+b*8])  word[20200000+result*8]=0  to op_next }
+    state less_true { word[20200000+result*8]=1  to op_next }
+    state op_next { op=op+1  to operations }
+    state terminator { word[21400008]=block  opcode=src_lower_term(block,0)  to jump when (opcode == 1)  to branch when (opcode == 2)  to trap when (opcode == 3)  to return_value }
+    state jump { target=src_lower_term(block,2)  count=src_lower_term(block,3)  to edge0 }
+    state branch { value=word[20200000+src_lower_term(block,1)*8]  to branch_true when (value != 0)  target=src_lower_term(block,4)  count=src_lower_term(block,5)  to edge1 }
+    state branch_true { target=src_lower_term(block,2)  count=src_lower_term(block,3)  to edge0 }
+    state edge0 { to trap when (src_eval_edge(target,6,count) != 0)  block=target  to block_begin }
+    state edge1 { to trap when (src_eval_edge(target,13,count) != 0)  block=target  to block_begin }
+    state return_value { value=word[20200000+src_lower_term(block,1)*8]  result_type=src_type(src_machine(root,7),9)  to trap when (value < src_ck_type(result_type,4))  to trap when (value > src_ck_type(result_type,5))  word[21400000]=value  to bad_claim when (value != word[524360])  to bad_exit when (value%256 != word[524368])  return 0 }
+    state bad_claim { return 251 }
+    state bad_exit { return 251 }
+    state trap { return 251 }
+}
+
+proc main() {
+    let status=refinement_envelope_read()
+    state envelope { to done when (status != 0)  to bundle }
+    state bundle { status=refinement_source_decode_bundle()  to done when (status != 0)  to tables }
+    state tables { status=src_reconstruct_tables_check()  to done when (status != 0)  to lowering }
+    state lowering { status=src_reconstruct_lowering_check()  to done when (status != 0)  to result }
+    state result { status=src_refinement_source_result_check()  to done }
+    state done { return status }
+}

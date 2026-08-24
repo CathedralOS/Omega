@@ -42,14 +42,30 @@ alone is not a source→CKIR claim.
 `ckir-refinement-source-tables.beta` is the next source-side layer. Starting
 from those retained source bytes, it independently parses and resolves data,
 field, type, machine, entry, state, and parameter declarations; reconstructs
-copyability and recursive layout; interns the canonical CKIR1 types; and joins
+copyability and recursive layout; interns the canonical CKIR1 types; and
+derives the source root and canonical signatures. Its CKIR join then compares
 the resulting record, field, machine, parameter, and block signatures to the
-claimed CKIR. `checked-ir-refinement-source-tables.sh` carries the product
-library, renamed/reordered sources, a valid copy-owner alternative, and
-cross-pair controls in which valid source or CKIR semantics are changed alone.
-This closes declaration/signature/layout correspondence. Source bodies,
-operations, terminators, state facts, and the source-derived result remain the
-next source-side layer.
+claimed artifact. `checked-ir-refinement-source-tables.sh` carries the product
+library, renamed/reordered sources, valid copy-owner and trapping alternatives,
+exact layout exhaustion, and cross-pair controls in which valid source or CKIR
+semantics are changed alone.
+
+`ckir-refinement-source-lowering.beta` independently reconstructs source-body
+operations and operands, value/place identities and types, terminators, edge
+arguments, transition facts, invalidation, and canonical evaluation order.
+`checked-ir-refinement-source-lowering.sh` joins those rows to CKIR in a
+separate persisted-Beta conjunct and carries semantic cross-pairs plus distinct
+semantic and resource failures.
+
+`ckir-refinement-source-result.beta` evaluates the source-derived rows without
+reading CKIR, ELF, or their evaluator caches. Its gate composes three
+persisted-Beta conjuncts over the same exact envelope: CKIR validity and result,
+exact CKIR-to-ELF reconstruction, and source reconstruction and result. Valid
+source/artifact and CKIR/ELF cross-pairs isolate both joins, and a full-width
+result mutation sharing the same exit byte prevents an exit-status-only claim.
+This closes the first finite, acyclic, returning source-to-artifact tranche.
+Cycles, traps, divergence, and later profile growth require separately stated
+observations rather than being inferred from this bounded result contract.
 
 The first artifact-side layer is `ckir-refinement-artifact.beta`. It decodes
 the exact CKIR bytes directly, validates the complete CKIR1 declaration,
@@ -70,7 +86,8 @@ the real fixture and library, a valid self-aliasing control, CKIR/ELF cross-pair
 and isolated entry, field, branch, syscall, padding, truncation, trailing-byte,
 and wrong-result controls. This closes the lower-rooted CKIR1→limited-ELF
 relation for the selected finite closed entry profile; composing it with the
-still-open source-body relation is the remaining source→artifact work.
+source-derived body and result check above closes the current bounded
+source→artifact relation.
 
 All encoders are untrusted. They gain no authority from this location; accepted
 claims still require the lower-rooted meaning and proof-kernel checks described

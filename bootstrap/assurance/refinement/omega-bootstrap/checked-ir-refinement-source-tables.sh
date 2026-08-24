@@ -102,6 +102,22 @@ copy_owner = fixture.replace("data Probe {", "data Probe [copy] {", 1)
 if copy_owner == fixture:
     raise SystemExit("copy-owner mutation did not apply")
 out.joinpath("copy-owner.omg").write_text(copy_owner, encoding="utf-8")
+
+no_trapping = fixture.replace(
+    "bytes: [u8; 4] in Trapping;", "bytes: [u8; 4];", 1
+)
+if no_trapping == fixture:
+    raise SystemExit("Trapping mutation did not apply")
+out.joinpath("no-trapping.omg").write_text(no_trapping, encoding="utf-8")
+
+out.joinpath("layout-limit.omg").write_text(
+    "data Exact { left: [u8; 65536]; right: [u8; 65536]; }\n",
+    encoding="utf-8",
+)
+out.joinpath("layout-over.omg").write_text(
+    "data Over { left: [u8; 65536]; right: [u8; 65536]; tail: u8; }\n",
+    encoding="utf-8",
+)
 PY
 
 observe() { # expected input label
@@ -138,6 +154,7 @@ build_entry fixture "$T/sources/fixture.omg"
 build_entry renamed "$T/sources/renamed.omg"
 build_entry renamed-reordered "$T/sources/renamed-reordered.omg"
 build_entry copy-owner "$T/sources/copy-owner.omg"
+build_entry no-trapping "$T/sources/no-trapping.omg"
 
 # Names erase from CKIR when declaration and semantic order is unchanged.
 cmp "$T/fixture.ckir" "$T/renamed.ckir"
@@ -152,6 +169,22 @@ python3 "$PACKER" "$T/product.bundle" "$T/product.ckir" "$T/empty" \
   --library > "$T/product.rfn"
 observe 0 "$T/product.rfn" product-library
 
+python3 "$BUNDLER" pack "layout-limit.omg=$T/sources/layout-limit.omg" \
+  > "$T/layout-limit.bundle"
+"$T/producer" < "$T/layout-limit.bundle" > "$T/layout-limit.ckir"
+python3 "$PACKER" "$T/layout-limit.bundle" "$T/layout-limit.ckir" "$T/empty" \
+  --library > "$T/layout-limit.rfn"
+observe 0 "$T/layout-limit.rfn" layout-limit-131072
+
+# Pair a source whose otherwise legal field composition exceeds the private
+# layout ceiling with an independently valid library CKIR. The source-derived
+# layout must preserve 252 before the eventual row mismatch can collapse it.
+python3 "$BUNDLER" pack "layout-over.omg=$T/sources/layout-over.omg" \
+  > "$T/layout-over.bundle"
+python3 "$PACKER" "$T/layout-over.bundle" "$T/product.ckir" "$T/empty" \
+  --library > "$T/layout-over.rfn"
+observe 252 "$T/layout-over.rfn" layout-over-131073
+
 # Both triples are independently valid. Cross-pairing them must fail only at
 # the source declaration/signature/layout -> canonical CKIR relation.
 python3 "$PACKER" "$T/fixture.bundle" "$T/copy-owner.ckir" "$T/copy-owner.elf" \
@@ -160,6 +193,15 @@ python3 "$PACKER" "$T/copy-owner.bundle" "$T/fixture.ckir" "$T/fixture.elf" \
   --result 70 > "$T/copy-source-original-ckir.rfn"
 observe 251 "$T/original-source-copy-ckir.rfn" valid-ckir-source-mismatch
 observe 251 "$T/copy-source-original-ckir.rfn" valid-source-ckir-mismatch
+
+# `in Trapping` is semantic type-row input even when removing it leaves a
+# separately valid program with the same selected result and executable shape.
+python3 "$PACKER" "$T/fixture.bundle" "$T/no-trapping.ckir" \
+  "$T/no-trapping.elf" --result 70 > "$T/original-source-no-trapping-ckir.rfn"
+python3 "$PACKER" "$T/no-trapping.bundle" "$T/fixture.ckir" \
+  "$T/fixture.elf" --result 70 > "$T/no-trapping-source-original-ckir.rfn"
+observe 251 "$T/original-source-no-trapping-ckir.rfn" trapping-flag-ckir-mismatch
+observe 251 "$T/no-trapping-source-original-ckir.rfn" trapping-flag-source-mismatch
 
 # Declaration order participates in canonical IDs even though the reordered
 # program remains accepted and has the same selected observation.

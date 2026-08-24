@@ -31,23 +31,23 @@ proc src_exhaust() { word[10000000] = 252  return 252 }
 
 proc src_init_words() {
     ; datacopymachinemutselfstatetransitiontruefalseu8u32boolinTrapping
-    byte[14300000]=100  byte[14300001]=97  byte[14300002]=116  byte[14300003]=97
-    byte[14300004]=99  byte[14300005]=111  byte[14300006]=112  byte[14300007]=121
-    byte[14300008]=109  byte[14300009]=97  byte[14300010]=99  byte[14300011]=104
-    byte[14300012]=105  byte[14300013]=110  byte[14300014]=101
-    byte[14300015]=109  byte[14300016]=117  byte[14300017]=116
-    byte[14300018]=115  byte[14300019]=101  byte[14300020]=108  byte[14300021]=102
-    byte[14300022]=115  byte[14300023]=116  byte[14300024]=97  byte[14300025]=116  byte[14300026]=101
-    byte[14300027]=116  byte[14300028]=114  byte[14300029]=97  byte[14300030]=110  byte[14300031]=115
-    byte[14300032]=105  byte[14300033]=116  byte[14300034]=105  byte[14300035]=111  byte[14300036]=110
-    byte[14300037]=116  byte[14300038]=114  byte[14300039]=117  byte[14300040]=101
-    byte[14300041]=102  byte[14300042]=97  byte[14300043]=108  byte[14300044]=115  byte[14300045]=101
-    byte[14300046]=117  byte[14300047]=56
-    byte[14300048]=117  byte[14300049]=51  byte[14300050]=50
-    byte[14300051]=98  byte[14300052]=111  byte[14300053]=111  byte[14300054]=108
-    byte[14300055]=105  byte[14300056]=110
-    byte[14300057]=84  byte[14300058]=114  byte[14300059]=97  byte[14300060]=112
-    byte[14300061]=112  byte[14300062]=105  byte[14300063]=110  byte[14300064]=103
+    byte[10001000]=100  byte[10001001]=97  byte[10001002]=116  byte[10001003]=97
+    byte[10001004]=99  byte[10001005]=111  byte[10001006]=112  byte[10001007]=121
+    byte[10001008]=109  byte[10001009]=97  byte[10001010]=99  byte[10001011]=104
+    byte[10001012]=105  byte[10001013]=110  byte[10001014]=101
+    byte[10001015]=109  byte[10001016]=117  byte[10001017]=116
+    byte[10001018]=115  byte[10001019]=101  byte[10001020]=108  byte[10001021]=102
+    byte[10001022]=115  byte[10001023]=116  byte[10001024]=97  byte[10001025]=116  byte[10001026]=101
+    byte[10001027]=116  byte[10001028]=114  byte[10001029]=97  byte[10001030]=110  byte[10001031]=115
+    byte[10001032]=105  byte[10001033]=116  byte[10001034]=105  byte[10001035]=111  byte[10001036]=110
+    byte[10001037]=116  byte[10001038]=114  byte[10001039]=117  byte[10001040]=101
+    byte[10001041]=102  byte[10001042]=97  byte[10001043]=108  byte[10001044]=115  byte[10001045]=101
+    byte[10001046]=117  byte[10001047]=56
+    byte[10001048]=117  byte[10001049]=51  byte[10001050]=50
+    byte[10001051]=98  byte[10001052]=111  byte[10001053]=111  byte[10001054]=108
+    byte[10001055]=105  byte[10001056]=110
+    byte[10001057]=84  byte[10001058]=114  byte[10001059]=97  byte[10001060]=112
+    byte[10001061]=112  byte[10001062]=105  byte[10001063]=110  byte[10001064]=103
     return 0
 }
 
@@ -56,7 +56,7 @@ proc src_token_word(base, count) {
     state token { to no when (word[524416] != 256)  to length }
     state length { to no when (word[524432] != count)  to loop }
     state loop { to one when (i < count)  return 1 }
-    state one { to no when (refinement_source_byte(word[524424] + i) != byte[14300000 + base + i])  i = i + 1  to loop }
+    state one { to no when (refinement_source_byte(word[524424] + i) != byte[10001000 + base + i])  i = i + 1  to loop }
     state no { return 0 }
 }
 
@@ -446,14 +446,15 @@ proc src_layout_record(record) {
     let child_size=0
     let child_align=0
     state cached { to done when (src_record(record,7) == 2)  to recursive when (src_record(record,7) == 1)  src_record_set(record,7,1)  field=src_record(record,3)  end=field+src_record(record,4)  to fields }
-    state fields { to field_one when (field < end)  size=src_align(size,alignment)  to save }
+    state fields { to field_one when (field < end)  size=src_align(size,alignment)  to exhausted when (size > 131072)  to save }
     state field_one { to bad when (src_layout_type(src_field(field,3)) != 0)  child_size=src_type(src_field(field,3),11)  child_align=src_type(src_field(field,3),12)  size=src_align(size,child_align)  src_field_set(field,4,size)  to add }
-    state add { to bad when (size > 2147483647-child_size)  size=size+child_size  to keep when (alignment >= child_align)  alignment=child_align  to next }
+    state add { to exhausted when (size > 131072)  to exhausted when (child_size > 131072-size)  size=size+child_size  to keep when (alignment >= child_align)  alignment=child_align  to next }
     state keep { to next }
     state next { field=field+1  to fields }
     state save { src_record_set(record,5,size)  src_record_set(record,6,alignment)  src_record_set(record,7,2)  return 0 }
     state done { return 0 }
     state recursive { return src_reject() }
+    state exhausted { return src_exhaust() }
     state bad { return src_reject() }
 }
 
@@ -469,12 +470,13 @@ proc src_layout_type(type_id) {
     state byte_scalar { size=1  alignment=1  to save }
     state word_scalar { size=4  alignment=4  to save }
     state array { to bad when (src_layout_type(src_type(type_id,4)) != 0)  child_size=src_type(src_type(type_id,4),11)  child_align=src_type(src_type(type_id,4),12)  to array_bound }
-    state array_bound { to array_save when (src_type(type_id,5) == 0)  to bad when (child_size > 2147483647 / src_type(type_id,5))  to array_save }
+    state array_bound { to array_save when (src_type(type_id,5) == 0)  to exhausted when (child_size > 131072 / src_type(type_id,5))  to array_save }
     state array_save { size=child_size*src_type(type_id,5)  alignment=child_align  to save }
     state nominal { record=src_type(type_id,3)  to bad when (src_layout_record(record) != 0)  size=src_record(record,5)  alignment=src_record(record,6)  to save }
     state save { src_type_set(type_id,11,size)  src_type_set(type_id,12,alignment)  src_type_set(type_id,10,2)  return 0 }
     state done { return 0 }
     state recursive { return src_reject() }
+    state exhausted { return src_exhaust() }
     state bad { return src_reject() }
 }
 
@@ -566,6 +568,27 @@ proc src_zero_type(type_id) {
     state no { return 0 }
 }
 
+; Derive every block/parameter partition and the private conformance root from
+; source alone.  No CKIR word is read until the two compare procedures below.
+proc src_prepare_machines_blocks() {
+    let i=0
+    let j=0
+    let id=0
+    let block=0
+    let root=4294967295
+    state counts { word[10000160]=word[10000032]+word[10000056]  word[10000168]=word[10000040]-word[10000064]  to machines }
+    state machines { to machine_one when (i < word[10000032])  i=0  to state_blocks }
+    state machine_one { src_machine_set(i,15,block)  block=block+src_machine(i,13)+1  to root_check }
+    state root_check { to machine_next when (src_machine(i,6) != 0)  to machine_next when (src_machine(i,7) == 4294967295)  to machine_next when (src_type(src_machine(i,7),0) > 3)  to bad when (root != 4294967295)  to machine_zero }
+    state machine_zero { to bad when (src_zero_type(src_machine(i,9)) == 0)  root=i  to machine_next }
+    state machine_next { i=i+1  to machines }
+    state state_blocks { to state_machine when (i < word[10000032])  word[10000232]=root  return 0 }
+    state state_machine { block=src_machine(i,15)+1  j=0  to states }
+    state states { to state_one when (j < src_machine(i,13))  i=i+1  to state_blocks }
+    state state_one { id=src_machine(i,12)+j  src_state_set(id,8,block)  block=block+1  j=j+1  to states }
+    state bad { return src_reject() }
+}
+
 proc src_compare_machines_blocks() {
     let i=0
     let j=0
@@ -574,11 +597,10 @@ proc src_compare_machines_blocks() {
     let bparam=0
     let source_param=0
     let result=0
-    let root=4294967295
     state counts { to bad when (word[10000032] != ckir_count(3))  to mparam_count }
     state mparam_count { to bad when (word[10000064] != ckir_count(4))  to block_count }
-    state block_count { word[10000160]=word[10000032]+word[10000056]  to bad when (word[10000160] != ckir_count(5))  to bparam_count }
-    state bparam_count { word[10000168]=word[10000040]-word[10000064]  to bad when (word[10000168] != ckir_count(6))  to machines }
+    state block_count { to bad when (word[10000160] != ckir_count(5))  to bparam_count }
+    state bparam_count { to bad when (word[10000168] != ckir_count(6))  to machines }
     state machines { to machine_one when (i < word[10000032])  i=0  block=0  bparam=0  to blocks }
     state machine_one { result=4294967295  to result_value when (src_machine(i,7) != 4294967295)  to machine_compare }
     state result_value { result=src_type(src_machine(i,7),9)  to machine_compare }
@@ -586,21 +608,19 @@ proc src_compare_machines_blocks() {
     state mparams { j=0  to mparam_loop }
     state mparam_loop { to mparam_one when (j < src_machine(i,6))  to machine_blocks }
     state mparam_one { source_param=src_machine(i,5)+j  to bad when (ckir_mparam_word(source_param,4) != i)  to bad when (ckir_mparam_word(source_param,8) != j)  to bad when (ckir_mparam_word(source_param,12) != src_type(src_param(source_param,3),9))  to bad when (ckir_mparam_word(source_param,16) != source_param)  j=j+1  to mparam_loop }
-    state machine_blocks { src_machine_set(i,15,block)  to bad when (ckir_machine_word(i,24) != block)  to bad when (ckir_machine_word(i,28) != src_machine(i,13)+1)  to bad when (ckir_machine_word(i,32) != block)  block=block+src_machine(i,13)+1  to root_check }
-    state root_check { to machine_next when (src_machine(i,6) != 0)  to machine_next when (src_machine(i,7) == 4294967295)  to machine_next when (src_type(src_machine(i,7),0) > 3)  to bad when (root != 4294967295)  to machine_zero }
-    state machine_zero { to bad when (src_zero_type(src_machine(i,9)) == 0)  root=i  to machine_next }
+    state machine_blocks { block=src_machine(i,15)  to bad when (ckir_machine_word(i,24) != block)  to bad when (ckir_machine_word(i,28) != src_machine(i,13)+1)  to bad when (ckir_machine_word(i,32) != block)  to machine_next }
     state machine_next { i=i+1  to machines }
     state blocks { to block_machine when (i < word[10000032])  to root_compare }
     state block_machine { block=src_machine(i,15)  to bad when (ckir_block_word(block,4) != i)  to bad when (ckir_block_byte(block,8) != src_machine(i,8)+1)  to bad when (ckir_block_word(block,12) != bparam)  to bad when (ckir_block_word(block,16) != 0)  j=0  block=block+1  to state_blocks }
     state state_blocks { to state_block when (j < src_machine(i,13))  i=i+1  to blocks }
-    state state_block { id=src_machine(i,12)+j  src_state_set(id,8,block)  to bad when (ckir_block_word(block,4) != i)  to bad when (ckir_block_byte(block,8) != src_state(id,5)+1)  to bad when (ckir_block_word(block,12) != bparam)  to bad when (ckir_block_word(block,16) != src_state(id,4))  source_param=src_state(id,3)  to state_params }
+    state state_block { id=src_machine(i,12)+j  to bad when (src_state(id,8) != block)  to bad when (ckir_block_word(block,4) != i)  to bad when (ckir_block_byte(block,8) != src_state(id,5)+1)  to bad when (ckir_block_word(block,12) != bparam)  to bad when (ckir_block_word(block,16) != src_state(id,4))  source_param=src_state(id,3)  to state_params }
     state state_params { to state_param when (source_param < src_state(id,3)+src_state(id,4))  bparam=bparam+src_state(id,4)  block=block+1  j=j+1  to state_blocks }
     state state_param { to bad when (ckir_bparam_word(bparam+source_param-src_state(id,3),4) != block)  to bad when (ckir_bparam_word(bparam+source_param-src_state(id,3),8) != source_param-src_state(id,3))  to bad when (ckir_bparam_word(bparam+source_param-src_state(id,3),12) != src_type(src_param(source_param,3),9))  to bad when (ckir_bparam_word(bparam+source_param-src_state(id,3),16) != word[10000064]+bparam+source_param-src_state(id,3))  source_param=source_param+1  to state_params }
-    state root_compare { to bad when (word[525000] != root)  return 0 }
+    state root_compare { to bad when (word[525000] != word[10000232])  return 0 }
     state bad { return src_reject() }
 }
 
-proc src_refinement_tables_check() {
+proc src_reconstruct_tables_check() {
     let status=0
     state lex_reset { word[524408]=0  word[524440]=0  word[10000128]=word[524400]  status=refinement_source_lex_all()  to done when (status != 0)  to init }
     state init { word[10000000]=0  src_init_words()  to roots }
@@ -609,7 +629,14 @@ proc src_refinement_tables_check() {
     state resolve_states { status=src_resolve_types()  to done when (status != 0)  to layout }
     state layout { status=src_layout_all()  to done when (status != 0)  to copies }
     state copies { status=src_validate_copies()  to done when (status != 0)  to canonical }
-    state canonical { status=src_prepare_ck_types()  to done when (status != 0)  to compare_types }
+    state canonical { status=src_prepare_ck_types()  to done when (status != 0)  to prepare_blocks }
+    state prepare_blocks { status=src_prepare_machines_blocks()  to done }
+    state done { return status }
+}
+
+proc src_refinement_tables_check() {
+    let status=src_reconstruct_tables_check()
+    state reconstruct { to done when (status != 0)  to compare_types }
     state compare_types { status=src_compare_types_records()  to done when (status != 0)  to compare_machines }
     state compare_machines { status=src_compare_machines_blocks()  to done }
     state done { return status }

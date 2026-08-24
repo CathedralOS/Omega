@@ -106,16 +106,19 @@ checkpoint-driven compositional frontend/typechecker cost probe over
 `compiler/psi/source/source.omg` is measured and closed as a checker-only
 claim. Its artifact tranche has selected private `CKIR1` plus direct
 conservative lowering because current Terminal-Psi vocabulary 28 cannot express
-the needed general structural scalar mutation and runtime indexing. That
-artifact tranche remains open while its lower-rooted refinement closes. The
+the needed general structural scalar mutation and runtime indexing. That first
+finite, acyclic, returning artifact tranche is now closed. The
 exact format, Delta producer/direct backend, native/self byte identity,
 canonical-Gamma 0/251/252 meaning, product behavior comparison, exhaustive
 resource/relation teeth, and exact reference reconstruction of the selected
 layout, frame, templates, fixups, segments, padding, and EOF are now executable
-gates. The lower-rooted CKIR1→limited-ELF reconstruction is now established,
-as is source declaration/type/signature/copy/layout correspondence. Independent
-source-body operation, terminator, transition-fact, and result reconstruction
-remains before the complete source→artifact join can close.
+gates. Lower-rooted source reconstruction covers declarations, types,
+signatures, copy/layout, bodies, operands, terminators, transition facts,
+canonical evaluation order, and an independent full source result; the
+CKIR1→limited-ELF checker reconstructs the selected artifact and observation.
+Valid cross-pairs isolate both joins. This bounded closure does not claim cycle,
+trap, or divergence observations, nor does it admit these source families to
+the still-provisional `Ωself` profile.
 `CKIR1` is a private handoff, not Terminal Psi, a
 product IR, a source dialect, or a third source contract. A Terminal-Psi
 vocabulary change would be product work, not an assumed prerequisite here.

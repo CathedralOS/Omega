@@ -736,7 +736,8 @@ the contract:
    CKIR operation, field offset, branch target, or artifact byte must be
    unprovable.
 
-Current evidence closes items 1–5. The focused artifact gate checks every tight
+Current evidence closes items 1–6 for the selected finite, acyclic, returning
+entry profile. The focused artifact gate checks every tight
 table/wire ceiling, standalone block-parameter and place maxima, exact/adjacent
 array, layout, frame, and text boundaries, and a fixed exhaustive inventory of
 header/count/ID/span/owner/ordinal/type/access/result/opcode/operand/immediate/
@@ -748,11 +749,9 @@ mutation. The artifact checker reconstructs the complete ELF headers and
 segments, selected layout and frame, field/array offsets, shim, all selected
 instruction templates, block and trap displacements, padding, and EOF. The
 all-template fixture rejects one mutation at every artifact byte, including
-displacements, and a valid-but-mismatched CKIR/ELF pair rejects. Lower-rooted
-refinement in item 6 remains separately visible in `TASKS_BOOTSTRAP.md`; passing
-items 1–5 cannot silently promote this tranche to complete.
+displacements, and a valid-but-mismatched CKIR/ELF pair rejects.
 
-The lower-rooted support for item 6 now includes the exact refinement envelope,
+The lower-rooted evidence for item 6 includes the exact refinement envelope,
 one-unit source custody and lexing, and a persisted-Beta CKIR checker that
 validates the complete CKIR1 relation and recomputes the selected scalar result.
 That checker accepts the real fixture and library plus valid structural and
@@ -763,15 +762,26 @@ frame, instruction templates, fixups, ELF headers/segments/padding/EOF, and
 selected process observation directly from those CKIR bytes, with isolated
 relation and byte mutations.
 
-On the source side, a persisted-Beta checker independently reconstructs and
-joins data, fields, types, copyability, recursive layout, machines, parameters,
-blocks, and conformance-root selection. It carries valid renamed/reordered and
-copy-owner alternatives plus valid source/CKIR cross-pair rejections. Item 6 is
-still partial: source-body operations, terminators, transition facts, and the
-source-derived selected result must be independently reconstructed and composed
-with the established CKIR1→limited-ELF relation.
+On the source side, persisted-Beta checkers independently reconstruct data,
+fields, types, copyability, recursive layout, machines, parameters, blocks,
+conformance-root selection, body operations and operands, value/place IDs and
+types, terminators, transition facts, invalidation, and canonical evaluation
+order and compare the canonical rows to CKIR. A source-only evaluator then
+recomputes the full selected result without reading CKIR, ELF, or their
+evaluator caches. Three additional conjuncts over the same exact envelope bind
+the independently reconstructed source result, the CKIR result, and the exact
+CKIR→limited-ELF bytes and exit projection. Valid semantic cross-pairs isolate
+both joins; operation, field, branch, artifact-byte, and same-low-byte
+full-result mutations reject.
 
-Only after these obligations and their negative controls pass may CKIR1 support
-the bounded artifact tranche. Later widening must publish a new schema version
-or a compatible rule explicitly defined by a later contract; unused flag bits,
-tags, fields, padding, and reserved values cannot be interpreted by convention.
+This closure is deliberately no broader than the current artifact tranche:
+one selected finite, acyclic, returning entry (or a library with no selected
+entry). It does not establish observations for cycles, divergence, or traps;
+those require an explicit later envelope/result contract when a provisional
+`Ωself` checkpoint needs them.
+
+These obligations and their negative controls are the admission rule under
+which CKIR1 now supports this bounded artifact tranche. Later widening must
+publish a new schema version or a compatible rule explicitly defined by a
+later contract; unused flag bits, tags, fields, padding, and reserved values
+cannot be interpreted by convention.

@@ -134,7 +134,10 @@ the result as a substantial checker (especially under canonical reference
 interpretation). It does not retain those families in final `Ωself`, select a
 bridge artifact representation, or admit the incomplete `u32` carrier above.
 
-Artifact layout, Terminal Psi, native lowering, and runnable behavior belong to
-the separately tracked artifact tranche. Current Terminal-Psi vocabulary 28
-lacks the general structural scalar load/store/copy and runtime-index operations
-needed by this source family; this probe does not silently widen it.
+Artifact layout, native lowering, and runnable behavior belong to the
+separately tracked artifact tranche, whose first finite, acyclic, returning
+source→CKIR1→limited-ELF relation is now closed by independent persisted-Beta
+checkers. Current Terminal-Psi vocabulary 28 lacks the general structural
+scalar load/store/copy and runtime-index operations needed by this source
+family; the tranche uses a private checked-IR handoff and does not silently
+widen Terminal Psi or admit the source family to `Ωself`.
