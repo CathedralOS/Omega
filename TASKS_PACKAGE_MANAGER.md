@@ -317,8 +317,15 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. The review projection is ready for a deliberately versioned
-  canonical encoder; raw Rust/debug serialization remains forbidden.
+  share a native ABI. A v1 length-framed binary comparison encoding now covers
+  every retained callable,
+  crash/proof predicate, authority flow, mutation, and selected-provider row.
+  It converts platform-width ordinals to portable `u64`, distinguishes exact
+  deployment profiles, rejects interner-backed external-supply variants, and
+  remains explicitly review-only rather than a persistable admission
+  certificate. Capability-flow state and propagated `via` state identities are
+  now package-qualified instead of display strings. Compiler/source/toolchain
+  binding and complete Terminal coverage still gate sealed evidence.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.

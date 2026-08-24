@@ -7,6 +7,10 @@
 //! Keeping the type distinct prevents an incomplete checked summary from being
 //! persisted as an accepted lock baseline.
 
+mod encoding;
+
+pub use encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewEncodingError};
+
 use crate::pipeline::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
@@ -51,10 +55,10 @@ impl PackageReviewNominalIdentity {
 pub struct PackageReviewCapabilityFlow {
     capability: PackageReviewNominalIdentity,
     kind: psi_effects::CapabilityFlowKind,
-    state: String,
+    state: PackageReviewNominalIdentity,
     statement_index: usize,
     call_ordinal: usize,
-    via_state: Option<String>,
+    via_state: Option<PackageReviewNominalIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -345,7 +349,7 @@ impl PackageReviewCapabilityFlow {
         self.kind
     }
 
-    pub fn state(&self) -> &str {
+    pub fn state(&self) -> &PackageReviewNominalIdentity {
         &self.state
     }
 
@@ -357,8 +361,8 @@ impl PackageReviewCapabilityFlow {
         self.call_ordinal
     }
 
-    pub fn via_state(&self) -> Option<&str> {
-        self.via_state.as_deref()
+    pub fn via_state(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.via_state.as_ref()
     }
 }
 
@@ -524,6 +528,14 @@ impl CheckedPackageReviewProjection {
 
     pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {
         &self.selected_providers
+    }
+
+    /// Versioned, source-handle-free comparison bytes for this review-only
+    /// projection. These bytes are not a package certificate and must not be
+    /// persisted as accepted evidence without the source/toolchain/compiler
+    /// and complete Terminal joins required by package admission.
+    pub fn canonical_review_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        encoding::encode(self)
     }
 }
 
@@ -1081,18 +1093,14 @@ fn project_capability_flow(
     Ok(PackageReviewCapabilityFlow {
         capability: nominal_identity(compilation, flow.capability_symbol)?,
         kind: flow.kind,
-        state: compilation
-            .typed
-            .symbols
-            .display_path(flow.state_symbol, "::"),
+        state: nominal_identity(compilation, flow.state_symbol)?,
         statement_index: flow.statement_index,
         call_ordinal: flow.call_ordinal,
-        via_state: flow.via_state_symbol.is_valid().then(|| {
-            compilation
-                .typed
-                .symbols
-                .display_path(flow.via_state_symbol, "::")
-        }),
+        via_state: flow
+            .via_state_symbol
+            .is_valid()
+            .then(|| nominal_identity(compilation, flow.via_state_symbol))
+            .transpose()?,
     })
 }
 
