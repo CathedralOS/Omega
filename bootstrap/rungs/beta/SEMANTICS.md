@@ -43,7 +43,8 @@ BetaConfig = {
   input: sequence<Byte>,
   input_cursor: Nat,
   output: finite sequence<Byte>,
-  resources: counters fixed by B
+  resources: counters fixed by B,
+  pending_exhaustion: None | (ResourceKind, limit, requested)
 }
 ```
 
@@ -53,12 +54,19 @@ other locals initialized. `let` creates its function-scoped local; assignment
 updates the resolved local. A well-formed program never reads an uninitialized
 or unresolved local.
 
-`B_bc1` is fixed in [`BOOTSTRAP_OBSERVABLE.md`](BOOTSTRAP_OBSERVABLE.md). A
-resource admission that would exceed a declared checked ceiling transitions to
-`Exhaust(kind, limit, requested)` before the overlapping write or recursive
-activation. Out-of-range raw memory remains a stuck configuration until Alpha's
-corresponding edge is hardened or an independent proof shows it unreachable;
-`B_bc1` requires the latter proof for `bc.beta`.
+`pending_exhaustion` is observer ghost state and is not addressable by the Beta
+program. It begins as `None`. `B_bc1` is fixed in
+[`BOOTSTRAP_OBSERVABLE.md`](BOOTSTRAP_OBSERVABLE.md). A
+resource admission that would exceed a declared checked ceiling records sticky
+`Exhaust(kind, limit, requested)` provenance before the overlapping write or
+recursive activation. The exact `bc.beta` control flow may then execute its
+specified safe return and cleanup suffix; the pending provenance is projected
+to the typed `Exhaust` terminal when the compiler returns its resource status.
+Those cleanup steps may extend stdout but may not perform the refused admission,
+clear the first-failure provenance, or turn exhaustion back into success.
+Out-of-range raw memory remains a stuck configuration until Alpha's corresponding
+edge is hardened or an independent proof shows it unreachable; `B_bc1` requires
+the latter proof for `bc.beta`.
 
 ## 3. Expression order and arithmetic
 
@@ -158,11 +166,14 @@ BetaObservation = {
 }
 ```
 
-Returning from `main` yields `Halt(result mod 2^32)`. A Unix process wrapper may
-expose only the low byte, but that projection is not the language observation.
-A trap or checked exhaustion retains every byte emitted before it. `Diverge`
-means an infinite small-step run; a fuel limit or wall-clock timeout cannot be
-relabelled as a trap.
+Returning from `main` normally yields `Halt(result mod 2^32)`. If sticky checked
+resource provenance is pending, the result is instead the corresponding typed
+`Exhaust` observation; numeric status 252 or 253 alone can never reconstruct its
+kind, limit, or requested amount. A Unix process wrapper may expose only the low
+byte, but that projection is not the language observation. A trap or checked
+exhaustion retains every byte emitted before it, including any specified safe
+cleanup suffix after the refused admission. `Diverge` means an infinite small-
+step run; a fuel limit or wall-clock timeout cannot be relabelled as a trap.
 
 The `bc.beta` theorem required by `BOOTSTRAP_OBSERVABLE.md` compares this maximal
 Beta observation with the exact Alpha tape observation for every finite input

@@ -144,6 +144,13 @@ The hosted source closure separately omits terminal-Psi interpreters, REPLs,
 proof explorers, viewers, debuggers, and other product tools unless the compiler
 executable imports them. Tool membership is not an Omega language feature.
 
+These exclusions describe syntax used by the compiler implementation, not
+features implemented for compiler users. For example, the product source may
+avoid proof syntax and dependent types while ordinary records, sums, tables,
+and procedures in that same source implement full proof parsing, checking, and
+lowering. Full-Omega suites validate the resulting compiler independently of
+the `Ωself` source census.
+
 The gate must compile the complete manifest under explicit compositional profile
 rules and carry a negative canary for every rejected feature. The profile
 includes all transitive libraries, generated and compile-time source, build

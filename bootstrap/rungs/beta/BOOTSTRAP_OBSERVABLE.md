@@ -54,7 +54,10 @@ CompilerObservation = {
 - `Exhaust(ResourceKind, limit, requested)` is a checked semantic outcome. It
   names the exhausted resource and the declared limit, and records the size or
   reservation that could not be admitted. Exhaustion must occur before an
-  overlapping write or acceptance of a truncated compiler input/output.
+  overlapping write or acceptance of a truncated compiler input/output. The
+  failed admission records sticky provenance immediately; `bc.beta` may still
+  execute its specified safe return/cleanup suffix before that provenance is
+  projected as the root terminal observation.
 - `Diverge` means the canonical machine takes infinitely many internal steps
   without another terminal outcome. Its `stdout` may be a finite prefix or an
   infinite stream. A test timeout is not by itself a proof of divergence and
