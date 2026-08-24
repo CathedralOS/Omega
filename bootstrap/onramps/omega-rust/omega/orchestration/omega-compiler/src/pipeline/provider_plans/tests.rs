@@ -1955,6 +1955,7 @@ fn provider_candidate_requires_exact_canonical_typed_schema() {
                 method.parameter_type_identities = vec!["i32 in Accepted".to_owned()];
                 method.entry_claims = vec![omega_effects::provider_plan::ServiceEntryClaim {
                     parameter_index: 0,
+                    carrier_identity: "named(name(Token))".to_owned(),
                     domain: "Accepted".to_owned(),
                     predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
                     effective_carry: psi_language_semantics::CarryPolicy::STRICT,

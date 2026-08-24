@@ -141,6 +141,10 @@ impl ServiceEntryAuthorityFlow {
 pub struct ServiceEntryClaim {
     /// Positional parameter ordinal after excluding any receiver.
     pub parameter_index: usize,
+    /// Canonical normalized identity of the carrier qualified by this routed
+    /// domain. Consumers must not recover it by parsing the complete parameter
+    /// type or substitute an authored display spelling.
+    pub carrier_identity: String,
     /// Carrier-aware normalized semantic-domain identity retained by the typed
     /// constraint. This is not the authored short spelling.
     pub domain: String,
@@ -528,10 +532,13 @@ fn service_entry_claims(
     claims.sort_by(|left, right| {
         left.parameter_index
             .cmp(&right.parameter_index)
+            .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
             .then_with(|| left.domain.cmp(&right.domain))
     });
     claims.dedup_by(|left, right| {
-        left.parameter_index == right.parameter_index && left.domain == right.domain
+        left.parameter_index == right.parameter_index
+            && left.carrier_identity == right.carrier_identity
+            && left.domain == right.domain
     });
     claims
 }
@@ -662,6 +669,9 @@ fn append_routed_entry_claims(
                 {
                     claims.push(ServiceEntryClaim {
                         parameter_index,
+                        carrier_identity: program
+                            .normalized_type_identity(*base_type)
+                            .into_string(),
                         domain: domain
                             .semantic_id
                             .is_valid()
@@ -818,12 +828,14 @@ impl ProviderPlan {
             entry_claims.sort_by(|left, right| {
                 left.parameter_index
                     .cmp(&right.parameter_index)
+                    .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
                     .then_with(|| left.domain.cmp(&right.domain))
             });
             for claim in entry_claims {
                 rendered.push_str(&format!(
-                    "\nmc:{}/{}/{}/{}/{}",
+                    "\nmc:{}/{}/{}/{}/{}/{}",
                     claim.parameter_index,
+                    claim.carrier_identity,
                     claim.domain,
                     claim.predicate_body.as_str(),
                     claim.authority_flow.as_str(),
@@ -1054,6 +1066,15 @@ impl ProviderPlan {
                         claim.parameter_index,
                     ));
                 }
+                if claim.carrier_identity.is_empty() {
+                    errors.push(format!(
+                        "plan `{}` schema method `{}::{}` entry claim for parameter {} has no exact carrier identity",
+                        self.name,
+                        self.schema.trait_name,
+                        method.name,
+                        claim.parameter_index,
+                    ));
+                }
                 if claim.effective_carry != psi_language_semantics::CarryPolicy::STRICT {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claim for parameter {} and domain `{}` is not born-strict",
@@ -1066,8 +1087,16 @@ impl ProviderPlan {
                 }
             }
             for (index, pair) in method.entry_claims.windows(2).enumerate() {
-                let left = (pair[0].parameter_index, pair[0].domain.as_str());
-                let right = (pair[1].parameter_index, pair[1].domain.as_str());
+                let left = (
+                    pair[0].parameter_index,
+                    pair[0].carrier_identity.as_str(),
+                    pair[0].domain.as_str(),
+                );
+                let right = (
+                    pair[1].parameter_index,
+                    pair[1].carrier_identity.as_str(),
+                    pair[1].domain.as_str(),
+                );
                 if left >= right {
                     errors.push(format!(
                         "plan `{}` schema method `{}::{}` entry claims are not strictly increasing at indexes {index} and {}",
@@ -1567,6 +1596,7 @@ mod tests {
         let mut accepted = baseline.clone();
         accepted.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
             parameter_index: 0,
+            carrier_identity: "named(name(InterruptAcknowledgement))".to_owned(),
             domain: "InterruptAcknowledgement::Pending".to_owned(),
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             effective_carry: psi_language_semantics::CarryPolicy::STRICT,
@@ -1577,6 +1607,15 @@ mod tests {
             accepted.identity_fingerprint(),
             baseline.identity_fingerprint(),
             "the receipt identity must bind structured accepted authority, not only display types"
+        );
+
+        let mut redirected_carrier = accepted.clone();
+        redirected_carrier.schema.methods[0].entry_claims[0].carrier_identity =
+            "named(name(OtherAcknowledgement))".to_owned();
+        assert_ne!(
+            accepted.identity_fingerprint(),
+            redirected_carrier.identity_fingerprint(),
+            "the routed qualification's exact carrier is provider-plan identity"
         );
 
         let mut relaxed = accepted.clone();
@@ -1803,6 +1842,7 @@ mod tests {
     fn schema_validation_rejects_malformed_qualification_subjects_independently() {
         let valid_claim = ServiceEntryClaim {
             parameter_index: 0,
+            carrier_identity: "named(name(Token))".to_owned(),
             domain: "Token::Granted".to_owned(),
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             effective_carry: psi_language_semantics::CarryPolicy::STRICT,
@@ -1844,6 +1884,17 @@ mod tests {
                     .contains("entry claim for parameter 0 has no exact semantic domain"))
         );
 
+        let mut empty_entry_carrier = valid.clone();
+        empty_entry_carrier.schema.methods[0].entry_claims[0]
+            .carrier_identity
+            .clear();
+        assert!(
+            empty_entry_carrier
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("has no exact carrier identity"))
+        );
+
         let mut result_presence_mismatch = valid.clone();
         result_presence_mismatch.schema.methods[0].has_result = true;
         assert!(
@@ -1883,6 +1934,7 @@ mod tests {
         let mut valid = windows_console_plan();
         valid.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
             parameter_index: 0,
+            carrier_identity: "named(name(Token))".to_owned(),
             domain: "Token::Granted".to_owned(),
             predicate_body: psi_language_semantics::DomainPredicateBody::Bodyless,
             effective_carry: psi_language_semantics::CarryPolicy::STRICT,
@@ -1929,6 +1981,7 @@ mod tests {
         ) -> ServiceEntryClaim {
             ServiceEntryClaim {
                 parameter_index,
+                carrier_identity: "named(name(Token))".to_owned(),
                 domain: domain.to_owned(),
                 predicate_body,
                 effective_carry: psi_language_semantics::CarryPolicy::STRICT,

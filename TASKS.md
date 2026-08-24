@@ -792,6 +792,12 @@ Remaining:
   root with the two exact producer positions and covers atomic subject
   preflight, returned-account materialization retry, record retry, the
   two-account installation aggregate, and exact audit origins. The
+  canary now obtains those positions from imported Omega source lowered to
+  Terminal Psi and an opaque verifier-produced catalog rather than a
+  hand-authored Terminal module. Routed provider claims retain the canonical
+  carrier independently from their complete qualified parameter type, so the
+  compiler entry binding joins `named(name(Extent))` exactly instead of
+  substituting the display spelling `Extent`. The
   transitional passive-grant installer and its synthetic audit helper are now
   removed. One sealed program-local custody carrier keeps the non-copyable
   registry beside the recorded installation through receiver rejection/retry,

@@ -411,6 +411,7 @@ dependencies = [
  "psi-build-time-evaluation",
  "psi-checked-interpreter",
  "psi-checked-trees",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-diagnostics",
  "psi-effects",

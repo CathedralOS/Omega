@@ -2208,6 +2208,7 @@ fn provider_for_program_storage_binding(
         .map(
             |parameter_index| omega_effects::provider_plan::ServiceEntryClaim {
                 parameter_index,
+                carrier_identity: "named(name(Extent))".into(),
                 domain: "Extent::Granted".into(),
                 predicate_body: psi_language_semantics::DomainPredicateBody::Present,
                 effective_carry: psi_language_semantics::CarryPolicy::STRICT,
