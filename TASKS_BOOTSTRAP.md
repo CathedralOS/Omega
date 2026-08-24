@@ -356,7 +356,12 @@ outside that manifest unless the compiler executable imports them.
   - the bounded `WSTR`/decimal emitter family has exact conditional contracts
     for `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
     `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and `emit_store_slot`,
-    with value-parameterized child custody and no full-word decimal claim; and
+    with value-parameterized child custody and no dependence on a full-word
+    decimal claim;
+  - an independent full-word `emit_dec` theorem now covers the complete signed
+    Word partition. Nonnegative words append canonical decimal; negative words
+    take the source's one-byte base edge and append `48 + srem(n,10)`, with no
+    invented minus sign or unsigned-format claim; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
@@ -370,7 +375,7 @@ outside that manifest unless the compiler executable imports them.
     `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
     `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and
     `emit_store_slot`;
-  - [ ] add the separate full-word `emit_dec` theorem. Preserve the source's
+  - [x] add the separate full-word `emit_dec` theorem. Preserve the source's
     signed comparison/division behavior: negative words take the one-byte base
     case; no unimplemented minus-sign or unsigned-format claim is allowed;
   - [ ] compose `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`,

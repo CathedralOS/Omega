@@ -305,6 +305,17 @@ are valuable teeth, but they do not yet establish the quantified observation:
   control and a four-phase recursive-child-before-digit output induction. The
   older 19-activation resource ceiling is not treated as full-word value
   semantics;
+- its separate independent full-Word decimal tranche covers the complete
+  signed partition for procedure 40. For signed-negative input it follows the
+  actual false guard edge, performs no recursive call or division, and appends
+  exactly the one byte `48+srem(n,10)` in `[39,48]`; this is deliberately not a
+  minus-sign or unsigned-decimal contract. Inputs 0 through 9 append one ASCII
+  digit, and larger signed-positive inputs recurse on the exact truncating
+  quotient before appending the current remainder digit, yielding canonical
+  decimal with no leading zero and at most nineteen activations. Exact
+  procedure shape, a 20-row signed `/10` domain certificate, child-before-digit
+  composition, terminal/frame/quiet joins, and an independent publication are
+  checked without importing the bounded `DECS` theorem;
 - its two fixed-decimal emitter leaves consume the exact fixed-event clauses
   and bounded decimal theorem. For every `0<=nslots<=1024`, `emit_proc_prologue`
   appends its four mandatory frame lines and, on the positive branch, the exact

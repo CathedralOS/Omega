@@ -1,0 +1,645 @@
+; Full-Word signed /10 and decimal-rank certificate for emit_dec.
+;
+; Alpha/Beta division truncates toward zero and comparison is signed.  Thus
+; emit_dec's n>=10 edge recurses only for positive signed Words.  Negative
+; Words take the base edge and write one byte derived from their signed
+; remainder.  This module checks that complete partition without enumerating
+; 2^64 inputs.
+;
+; The 20 rows at 532608 have stride 72 and fields
+;   lo, hi, qlo, qhi, rlo, rhi, recursive, child-row, output-length.
+; Row zero is the entire signed-negative interval.  Rows one through nineteen
+; are the nonnegative decimal phases.  The interval transfer below is an
+; audited universal rule, not an endpoint-sampling claim: for fixed positive
+; d, truncating signed division is monotone on a same-sign interval; its two
+; endpoint quotients therefore bound every interior quotient.  Alpha's mod
+; rule supplies x=d*q+r, |r|<d, with r having x's sign.  The checker validates
+; every side condition before counting a row as discharged.  Concrete endpoint
+; executions, all ten negative residues, and INT64_MIN are additional teeth.
+;
+; Publications:
+;   532512 SD10  total signed /10 interval/remainder law
+;   532520 D19R  total emit_dec rank, at most nineteen activations
+;   532568       exact signed-Word partition
+;   532576       fixed divisor ten is trap-safe
+;   532584       exact row count, twenty
+; Scratch is confined to 534488..<534800.  534048..<534488 is reserved.
+
+emit_dec_word_domain_init:
+        call emit_dec_word_domain_reset
+        call emit_dec_word_domain_build
+        call emit_dec_word_domain_divisor_safe
+        call emit_dec_word_domain_check
+        call emit_dec_word_domain_negative_residues
+        call emit_dec_word_domain_publish
+        ret
+
+emit_dec_word_domain_reset:
+        imm r0, 0
+        imm r1, 532512
+        store r1, r0
+        imm r1, 532520
+        store r1, r0
+        imm r1, 532568
+        store r1, r0
+        imm r1, 532576
+        store r1, r0
+        imm r1, 532584
+        store r1, r0
+        imm r1, 534488
+emit_dec_word_domain_reset_scratch:
+        imm r2, 534800
+        jlt r1, r2, emit_dec_word_domain_reset_scratch_one
+        ret
+emit_dec_word_domain_reset_scratch_one:
+        store r1, r0
+        imm r2, 8
+        add r1, r2
+        jmp emit_dec_word_domain_reset_scratch
+
+; Materialize the exact certificate. Registers r11..r19 are the nine fields.
+emit_dec_word_domain_build:
+        ; row 0: every negative signed Word
+        imm r10, 0
+        imm r11, 9223372036854775808
+        imm r12, 0
+        imm r1, 1
+        sub r12, r1                  ; -1
+        imm r13, 0
+        imm r1, 922337203685477580
+        sub r13, r1                  ; INT64_MIN / 10
+        imm r14, 0                    ; -1 / 10
+        imm r15, 0
+        imm r1, 9
+        sub r15, r1                  ; -9
+        imm r16, 0
+        imm r17, 1                    ; negative false branch
+        imm r18, 0
+        imm r19, 1
+        call emit_dec_word_domain_store_row
+
+        ; row 1: zero through nine
+        imm r10, 1
+        imm r11, 0
+        imm r12, 9
+        imm r13, 0
+        imm r14, 0
+        imm r15, 0
+        imm r16, 9
+        imm r17, 1                    ; small false branch
+        imm r18, 0
+        imm r19, 1
+        call emit_dec_word_domain_store_row
+
+        ; Rows 2..18 are complete powers-of-ten phases.
+        imm r10, 2
+        imm r24, 10                   ; 10^(row-1)
+emit_dec_word_domain_build_regular:
+        imm r1, 19
+        jlt r10, r1, emit_dec_word_domain_build_regular_row
+        jmp emit_dec_word_domain_build_last
+emit_dec_word_domain_build_regular_row:
+        mov r11, r24
+        mov r12, r24
+        imm r1, 10
+        mul r12, r1
+        imm r1, 1
+        sub r12, r1
+        mov r13, r24
+        imm r1, 10
+        div r13, r1
+        mov r14, r24
+        imm r1, 1
+        sub r14, r1
+        imm r15, 0
+        imm r16, 9
+        imm r17, 2                    ; regular positive true branch
+        mov r18, r10
+        imm r1, 1
+        sub r18, r1
+        mov r19, r10
+        call emit_dec_word_domain_store_row
+        imm r1, 10
+        mul r24, r1
+        imm r1, 1
+        add r10, r1
+        jmp emit_dec_word_domain_build_regular
+
+        ; 10^19 is outside signed-positive Word, so phase 19 caps at INT64_MAX.
+emit_dec_word_domain_build_last:
+        imm r10, 19
+        imm r11, 1000000000000000000
+        imm r12, 9223372036854775807
+        imm r13, 100000000000000000
+        imm r14, 922337203685477580
+        imm r15, 0
+        imm r16, 9
+        imm r17, 2                    ; true branch
+        imm r18, 18
+        imm r19, 19
+        call emit_dec_word_domain_store_row
+        ret
+
+emit_dec_word_domain_store_row:
+        mov r0, r10
+        imm r1, 72
+        mul r0, r1
+        imm r1, 532608
+        add r0, r1
+        store r0, r11
+        imm r1, 8
+        add r0, r1
+        store r0, r12
+        add r0, r1
+        store r0, r13
+        add r0, r1
+        store r0, r14
+        add r0, r1
+        store r0, r15
+        add r0, r1
+        store r0, r16
+        add r0, r1
+        store r0, r17
+        add r0, r1
+        store r0, r18
+        add r0, r1
+        store r0, r19
+        ret
+
+; Divisor ten is nonzero, positive, and not -1, excluding both Alpha traps for
+; every dividend (including INT64_MIN).
+emit_dec_word_domain_divisor_safe:
+        imm r0, 10
+        imm r1, 0
+        jeq r0, r1, reject
+        jlt r1, r0, emit_dec_word_domain_divisor_not_overflow
+        jmp reject
+emit_dec_word_domain_divisor_not_overflow:
+        imm r1, 0
+        imm r2, 1
+        sub r1, r2                  ; -1
+        jeq r0, r1, reject
+        imm r1, 532576
+        imm r2, 1
+        store r1, r2
+        ret
+
+emit_dec_word_domain_load_row:
+        mov r0, r10
+        imm r1, 72
+        mul r0, r1
+        imm r1, 532608
+        add r0, r1
+        load r11, r0
+        imm r1, 8
+        add r0, r1
+        load r12, r0
+        add r0, r1
+        load r13, r0
+        add r0, r1
+        load r14, r0
+        add r0, r1
+        load r15, r0
+        add r0, r1
+        load r16, r0
+        add r0, r1
+        load r17, r0
+        add r0, r1
+        load r18, r0
+        add r0, r1
+        load r19, r0
+        ret
+
+; Check exact signed coverage, exact phase boundaries, the universal interval
+; rule, endpoint arithmetic, predecessor containment, and rank decrease.
+emit_dec_word_domain_check:
+        imm r10, 0
+        imm r26, 0                    ; previous high
+        imm r24, 10                   ; expected phase-two low
+        imm r25, 0                    ; accepted rows
+emit_dec_word_domain_check_loop:
+        imm r1, 20
+        jlt r10, r1, emit_dec_word_domain_check_row
+        imm r1, 20
+        jeq r25, r1, emit_dec_word_domain_check_done
+        jmp reject
+emit_dec_word_domain_check_row:
+        call emit_dec_word_domain_load_row
+        ; Every interval is nonempty in signed order.
+        jlt r12, r11, reject
+        imm r1, 0
+        jeq r10, r1, emit_dec_word_domain_check_first
+        mov r1, r26
+        imm r2, 1
+        add r1, r2
+        jeq r11, r1, emit_dec_word_domain_check_contiguous
+        jmp reject
+emit_dec_word_domain_check_first:
+        imm r1, 9223372036854775808
+        jeq r11, r1, emit_dec_word_domain_check_contiguous
+        jmp reject
+emit_dec_word_domain_check_contiguous:
+        mov r26, r12                  ; preserve interval high across helpers
+        call emit_dec_word_domain_check_exact_phase
+        call emit_dec_word_domain_check_interval_rule
+        mov r20, r11
+        mov r21, r13
+        mov r22, r15
+        mov r23, r16
+        call emit_dec_word_domain_check_endpoint
+        mov r20, r12
+        mov r21, r14
+        call emit_dec_word_domain_check_endpoint
+        call emit_dec_word_domain_check_child
+        imm r1, 1
+        add r25, r1
+        add r10, r1
+        jmp emit_dec_word_domain_check_loop
+
+emit_dec_word_domain_check_done:
+        ; Reload and check the final high.
+        imm r10, 19
+        call emit_dec_word_domain_load_row
+        imm r1, 9223372036854775807
+        jeq r12, r1, emit_dec_word_domain_partition_done
+        jmp reject
+emit_dec_word_domain_partition_done:
+        imm r1, 534488
+        load r2, r1
+        imm r3, 20
+        jeq r2, r3, emit_dec_word_domain_rank_done
+        jmp reject
+emit_dec_word_domain_rank_done:
+        imm r1, 534576
+        load r2, r1
+        jeq r2, r3, emit_dec_word_domain_set_partition
+        jmp reject
+emit_dec_word_domain_set_partition:
+        imm r1, 532568
+        imm r2, 1
+        store r1, r2
+        imm r1, 532584
+        imm r2, 20
+        store r1, r2
+        ret
+
+emit_dec_word_domain_check_exact_phase:
+        imm r1, 0
+        jeq r10, r1, emit_dec_word_domain_exact_negative
+        imm r1, 1
+        jeq r10, r1, emit_dec_word_domain_exact_small
+        imm r1, 19
+        jeq r10, r1, emit_dec_word_domain_exact_last
+        ; Complete phase: [p,10p-1], quotient [p/10,p-1].
+        jeq r11, r24, emit_dec_word_domain_exact_regular_high
+        jmp reject
+emit_dec_word_domain_exact_regular_high:
+        mov r1, r24
+        imm r2, 10
+        mul r1, r2
+        imm r2, 1
+        sub r1, r2
+        jeq r12, r1, emit_dec_word_domain_exact_regular_qlo
+        jmp reject
+emit_dec_word_domain_exact_regular_qlo:
+        mov r1, r24
+        imm r2, 10
+        div r1, r2
+        jeq r13, r1, emit_dec_word_domain_exact_regular_qhi
+        jmp reject
+emit_dec_word_domain_exact_regular_qhi:
+        mov r1, r24
+        imm r2, 1
+        sub r1, r2
+        jeq r14, r1, emit_dec_word_domain_exact_regular_advance
+        jmp reject
+emit_dec_word_domain_exact_regular_advance:
+        imm r1, 10
+        mul r24, r1
+        ret
+emit_dec_word_domain_exact_negative:
+        imm r1, 0
+        imm r2, 1
+        sub r1, r2
+        jeq r12, r1, emit_dec_word_domain_exact_negative_qlo
+        jmp reject
+emit_dec_word_domain_exact_negative_qlo:
+        imm r1, 0
+        imm r2, 922337203685477580
+        sub r1, r2
+        jeq r13, r1, emit_dec_word_domain_exact_negative_qhi
+        jmp reject
+emit_dec_word_domain_exact_negative_qhi:
+        imm r1, 0
+        jeq r14, r1, emit_dec_word_domain_exact_phase_done
+        jmp reject
+emit_dec_word_domain_exact_small:
+        imm r1, 0
+        jeq r11, r1, emit_dec_word_domain_exact_small_high
+        jmp reject
+emit_dec_word_domain_exact_small_high:
+        imm r1, 9
+        jeq r12, r1, emit_dec_word_domain_exact_phase_done
+        jmp reject
+emit_dec_word_domain_exact_last:
+        jeq r11, r24, emit_dec_word_domain_exact_last_high
+        jmp reject
+emit_dec_word_domain_exact_last_high:
+        imm r1, 9223372036854775807
+        jeq r12, r1, emit_dec_word_domain_exact_last_qlo
+        jmp reject
+emit_dec_word_domain_exact_last_qlo:
+        imm r1, 100000000000000000
+        jeq r13, r1, emit_dec_word_domain_exact_last_qhi
+        jmp reject
+emit_dec_word_domain_exact_last_qhi:
+        imm r1, 922337203685477580
+        jeq r14, r1, emit_dec_word_domain_exact_phase_done
+        jmp reject
+emit_dec_word_domain_exact_phase_done:
+        ret
+
+; Apply the universal positive-divisor interval law after checking its complete
+; side conditions.  Row zero is wholly negative; all other rows are wholly
+; nonnegative.  qlo/qhi are recomputed, remainder bounds are derived from ten,
+; and the branch/rank metadata is exact.  Incrementing 534488 records one
+; universal rule application, not one sampled value.
+emit_dec_word_domain_check_interval_rule:
+        mov r0, r11
+        imm r1, 10
+        div r0, r1
+        jeq r0, r13, emit_dec_word_domain_interval_qhi
+        jmp reject
+emit_dec_word_domain_interval_qhi:
+        mov r0, r12
+        imm r1, 10
+        div r0, r1
+        jeq r0, r14, emit_dec_word_domain_interval_q_order
+        jmp reject
+emit_dec_word_domain_interval_q_order:
+        jlt r14, r13, reject
+        imm r1, 0
+        jeq r10, r1, emit_dec_word_domain_interval_negative
+        jlt r11, r1, reject
+        imm r1, 0
+        jeq r15, r1, emit_dec_word_domain_interval_positive_rhi
+        jmp reject
+emit_dec_word_domain_interval_positive_rhi:
+        imm r1, 9
+        jeq r16, r1, emit_dec_word_domain_interval_count
+        jmp reject
+emit_dec_word_domain_interval_negative:
+        imm r1, 0
+        jlt r11, r1, emit_dec_word_domain_interval_negative_hi
+        jmp reject
+emit_dec_word_domain_interval_negative_hi:
+        jlt r12, r1, emit_dec_word_domain_interval_negative_rlo
+        jmp reject
+emit_dec_word_domain_interval_negative_rlo:
+        imm r1, 0
+        imm r2, 9
+        sub r1, r2
+        jeq r15, r1, emit_dec_word_domain_interval_negative_rhi
+        jmp reject
+emit_dec_word_domain_interval_negative_rhi:
+        imm r1, 0
+        jeq r16, r1, emit_dec_word_domain_interval_count
+        jmp reject
+emit_dec_word_domain_interval_count:
+        imm r1, 534488
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ret
+
+; r20 endpoint, r21 expected quotient, r22/r23 inclusive remainder bounds.
+emit_dec_word_domain_check_endpoint:
+        mov r0, r20
+        imm r1, 10
+        div r0, r1
+        jeq r0, r21, emit_dec_word_domain_endpoint_remainder
+        jmp reject
+emit_dec_word_domain_endpoint_remainder:
+        mov r2, r20
+        imm r1, 10
+        mod r2, r1
+        jlt r2, r22, reject
+        jlt r23, r2, reject
+        mov r3, r0
+        imm r1, 10
+        mul r3, r1
+        add r3, r2
+        jeq r3, r20, emit_dec_word_domain_endpoint_byte
+        jmp reject
+emit_dec_word_domain_endpoint_byte:
+        imm r1, 48
+        add r2, r1
+        imm r1, 39
+        jlt r2, r1, reject
+        imm r1, 58
+        jlt r2, r1, emit_dec_word_domain_endpoint_done
+        jmp reject
+emit_dec_word_domain_endpoint_done:
+        ret
+
+emit_dec_word_domain_check_child:
+        imm r1, 2
+        jlt r10, r1, emit_dec_word_domain_check_base_metadata
+        imm r1, 2
+        jeq r17, r1, emit_dec_word_domain_check_child_index
+        jmp reject
+emit_dec_word_domain_check_child_index:
+        mov r1, r10
+        imm r2, 1
+        sub r1, r2
+        jeq r18, r1, emit_dec_word_domain_check_child_bounds
+        jmp reject
+emit_dec_word_domain_check_child_bounds:
+        mov r0, r18
+        imm r1, 72
+        mul r0, r1
+        imm r1, 532608
+        add r0, r1
+        load r1, r0                  ; child low
+        jlt r13, r1, reject
+        imm r2, 8
+        add r0, r2
+        load r1, r0                  ; child high
+        jlt r1, r14, reject
+        imm r2, 56
+        add r0, r2
+        load r1, r0                  ; child output length
+        imm r2, 1
+        add r1, r2
+        jeq r19, r1, emit_dec_word_domain_check_rank_count
+        jmp reject
+emit_dec_word_domain_check_base_metadata:
+        imm r1, 1
+        jeq r17, r1, emit_dec_word_domain_check_base_child
+        jmp reject
+emit_dec_word_domain_check_base_child:
+        imm r1, 0
+        jeq r18, r1, emit_dec_word_domain_check_base_length
+        jmp reject
+emit_dec_word_domain_check_base_length:
+        imm r1, 1
+        jeq r19, r1, emit_dec_word_domain_check_rank_count
+        jmp reject
+emit_dec_word_domain_check_rank_count:
+        imm r1, 534576
+        load r2, r1
+        imm r3, 1
+        add r2, r3
+        store r1, r2
+        ret
+
+; Execute representatives -10..-1. Their ten distinct signed remainders cover
+; exactly -9..0. Seen cells are 534496+8*(-r). Then pin INT64_MIN separately.
+emit_dec_word_domain_negative_residues:
+        imm r10, 0
+emit_dec_word_domain_negative_residue_loop:
+        imm r1, 10
+        jlt r10, r1, emit_dec_word_domain_negative_residue
+        jmp emit_dec_word_domain_negative_residue_seen
+emit_dec_word_domain_negative_residue:
+        imm r11, 0
+        imm r1, 10
+        sub r11, r1                  ; -10
+        add r11, r10
+        mov r12, r11
+        imm r1, 10
+        div r12, r1
+        mov r13, r11
+        imm r1, 10
+        mod r13, r1
+        mov r14, r12
+        imm r1, 10
+        mul r14, r1
+        add r14, r13
+        jeq r14, r11, emit_dec_word_domain_negative_residue_range
+        jmp reject
+emit_dec_word_domain_negative_residue_range:
+        imm r1, 0
+        imm r2, 9
+        sub r1, r2                  ; -9
+        jlt r13, r1, reject
+        imm r1, 0
+        jlt r1, r13, reject
+        sub r1, r13                  ; index = -r, zero through nine
+        imm r2, 8
+        mul r1, r2
+        imm r2, 534496
+        add r1, r2
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, emit_dec_word_domain_negative_residue_new
+        jmp reject
+emit_dec_word_domain_negative_residue_new:
+        imm r2, 1
+        store r1, r2
+        mov r1, r13
+        imm r2, 48
+        add r1, r2
+        imm r2, 39
+        jlt r1, r2, reject
+        imm r2, 49
+        jlt r1, r2, emit_dec_word_domain_negative_residue_next
+        jmp reject
+emit_dec_word_domain_negative_residue_next:
+        imm r1, 1
+        add r10, r1
+        jmp emit_dec_word_domain_negative_residue_loop
+
+emit_dec_word_domain_negative_residue_seen:
+        imm r10, 0
+emit_dec_word_domain_negative_residue_seen_loop:
+        imm r1, 10
+        jlt r10, r1, emit_dec_word_domain_negative_residue_seen_one
+        jmp emit_dec_word_domain_int_min
+emit_dec_word_domain_negative_residue_seen_one:
+        mov r1, r10
+        imm r2, 8
+        mul r1, r2
+        imm r2, 534496
+        add r1, r2
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, emit_dec_word_domain_negative_residue_seen_next
+        jmp reject
+emit_dec_word_domain_negative_residue_seen_next:
+        add r10, r3
+        jmp emit_dec_word_domain_negative_residue_seen_loop
+
+emit_dec_word_domain_int_min:
+        imm r0, 9223372036854775808
+        mov r1, r0
+        imm r2, 10
+        div r1, r2
+        imm r3, 0
+        imm r4, 922337203685477580
+        sub r3, r4
+        jeq r1, r3, emit_dec_word_domain_int_min_remainder
+        jmp reject
+emit_dec_word_domain_int_min_remainder:
+        mov r1, r0
+        mod r1, r2
+        imm r3, 0
+        imm r4, 8
+        sub r3, r4                  ; -8
+        jeq r1, r3, emit_dec_word_domain_int_min_byte
+        jmp reject
+emit_dec_word_domain_int_min_byte:
+        imm r2, 48
+        add r1, r2
+        imm r2, 40                    ; INT64_MIN emits byte 40
+        jeq r1, r2, emit_dec_word_domain_negative_done
+        jmp reject
+emit_dec_word_domain_negative_done:
+        ret
+
+emit_dec_word_domain_publish:
+        imm r1, 532568
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, emit_dec_word_domain_publish_safe
+        jmp reject
+emit_dec_word_domain_publish_safe:
+        imm r1, 532576
+        load r2, r1
+        jeq r2, r3, emit_dec_word_domain_publish_count
+        jmp reject
+emit_dec_word_domain_publish_count:
+        imm r1, 532584
+        load r2, r1
+        imm r3, 20
+        jeq r2, r3, emit_dec_word_domain_publish_sd10
+        jmp reject
+emit_dec_word_domain_publish_sd10:
+        imm r1, 532512
+        imm r2, 808535123             ; SD10
+        store r1, r2
+        load r3, r1
+        jeq r3, r2, emit_dec_word_domain_publish_rank
+        jmp reject
+emit_dec_word_domain_publish_rank:
+        imm r1, 534576
+        load r2, r1
+        imm r3, 20
+        jeq r2, r3, emit_dec_word_domain_publish_rank_max
+        jmp reject
+emit_dec_word_domain_publish_rank_max:
+        imm r10, 19
+        call emit_dec_word_domain_load_row
+        imm r1, 19
+        jeq r19, r1, emit_dec_word_domain_publish_d19r
+        jmp reject
+emit_dec_word_domain_publish_d19r:
+        imm r1, 532520
+        imm r2, 1379479876            ; D19R
+        store r1, r2
+        load r3, r1
+        jeq r3, r2, emit_dec_word_domain_publish_done
+        jmp reject
+emit_dec_word_domain_publish_done:
+        ret
