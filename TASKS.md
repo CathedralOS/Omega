@@ -36,7 +36,7 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
-## Self-hosted product compiler
+## Omega-written hosted product compiler
 
 Remaining:
 
@@ -56,6 +56,11 @@ Remaining:
   reserved product roots. Publish a deterministic manifest of every transitive
   compiler module, library, generated/compile-time source, build input, and tool
   imported by that build.
+
+  The first required build of this source is hosted by the Delta-written
+  `omega-bootstrap`; it is not itself an Omega-to-Omega self-rebuild. Once that
+  result exists, rebuilding the same source with production `omega` is optional
+  optimization and reproducibility work, not a second compiler-source task.
 
   Author this source against the working `Ωself` policy in
   `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
