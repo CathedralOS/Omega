@@ -35,6 +35,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-fixed-keyword-teeth.sh"
 . "$GATE_DIR/bc-checker-split-teeth.sh"
 . "$GATE_DIR/bc-name-eq-teeth.sh"
+. "$GATE_DIR/bc-lookup-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -208,7 +209,7 @@ apply_tape_patch push-stack-register
 apply_tape_patch push-value-register
 apply_tape_patch push-opcode
 
-build_name_eq_checker() {
+emit_name_eq_checker_prefix() {
   cat "$GATE_DIR/bc-block-control.alpha" \
     "$GATE_DIR/bc-effect-sites.alpha" \
     "$GATE_DIR/bc-frame-shape.alpha" \
@@ -230,9 +231,28 @@ build_name_eq_checker() {
     "$GATE_DIR/bc-name-table-domain.alpha" \
     "$GATE_DIR/bc-name-eq-control-shape.alpha" \
     "$GATE_DIR/bc-name-eq-data-shape.alpha" \
-    "$GATE_DIR/bc-name-eq-summary.alpha" > "$T/name-eq-check.alpha"
+    "$GATE_DIR/bc-name-eq-summary.alpha"
+}
+
+build_name_eq_checker() {
+  {
+    emit_name_eq_checker_prefix
+    cat "$GATE_DIR/bc-post-name-eq-base.alpha"
+  } > "$T/name-eq-check.alpha"
   "$ASM" < "$T/name-eq-check.alpha" > "$T/name-eq-check.tape"
   stamp_seed "$T/name-eq-check.tape" "$SEED" "$T/name-eq-check" >/dev/null
+}
+
+build_lookup_checker() {
+  {
+    emit_name_eq_checker_prefix
+    cat "$GATE_DIR/bc-post-name-eq-lookup.alpha" \
+      "$GATE_DIR/bc-lookup-control-shape.alpha" \
+      "$GATE_DIR/bc-lookup-data-shape.alpha" \
+      "$GATE_DIR/bc-lookup-summary.alpha"
+  } > "$T/lookup-check.alpha"
+  "$ASM" < "$T/lookup-check.alpha" > "$T/lookup-check.tape"
+  stamp_seed "$T/lookup-check.tape" "$SEED" "$T/lookup-check" >/dev/null
 }
 
 smoke_name_eq_checker() {
@@ -242,6 +262,17 @@ smoke_name_eq_checker() {
   set -e
   if [ "$name_eq_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — name_eq canonical smoke: expected 0/empty, got $name_eq_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+smoke_lookup_checker() {
+  set +e
+  "$T/lookup-check" < "$T/control.bundle" > "$T/stdout"
+  lookup_smoke_status=$?
+  set -e
+  if [ "$lookup_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — lookup canonical smoke: expected 0/empty, got $lookup_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
 }
@@ -256,6 +287,15 @@ if [ "${BC_BLOCK_FOCUS:-}" = name-eq ]; then
   checker_split_reject_name_tooth
   name_eq_reject_teeth
   echo "bc name_eq: focused canonical + 32 phase-isolated teeth passed ($(wc -c < "$T/name-eq-check.tape" | tr -d ' ')-byte checker tape)"
+  exit 0
+fi
+
+if [ "${BC_BLOCK_FOCUS:-}" = lookup ]; then
+  build_lookup_checker
+  smoke_lookup_checker
+  lookup_build_teeth
+  lookup_reject_teeth
+  echo "bc lookup: focused canonical + 35 phase-isolated teeth passed ($(wc -c < "$T/lookup-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
 
@@ -386,12 +426,16 @@ esac
 # constructing either tranche's mutation family.
 build_name_eq_checker
 smoke_name_eq_checker
+build_lookup_checker
+smoke_lookup_checker
 checker_split_build_fixed_tooth
 checker_split_build_name_tooth
 name_eq_build_teeth
 checker_split_reject_fixed_tooth
 checker_split_reject_name_tooth
 name_eq_reject_teeth
+lookup_build_teeth
+lookup_reject_teeth
 
 # Phase-isolated fixed-load tooth: keep the exact source, artifact, witness,
 # grammar counts, and every prior phase unchanged while omitting one load-class

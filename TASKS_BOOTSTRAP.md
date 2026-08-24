@@ -314,15 +314,18 @@ unless the compiler executable imports them.
     `gen_stmts`/expression cutpoints;
   - fixed emitters, bounded decimal emission, parse-number, parse-character,
     operator classifiers, `cmp_op`, the nine fixed keyword recognizers, and
-    conditional `name_eq` have exact shape/meaning/negative modules; and
+    conditional `name_eq`/`lookup` have exact shape/meaning/negative modules;
+    lookup retains distinct hit-slot-zero versus no-match provenance despite
+    their deliberate numeric-zero alias; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
   - [x] establish the bounded conditional name-table/query-slice domain and
     exact terminating `name_eq` relation, including length short circuit,
     first mismatch, and full byte equality;
-  - [ ] compose conditional `lookup` over that carried domain and `name_eq`.
-    Preserve the source's deliberate no-match alias to slot zero;
+  - [x] compose conditional `lookup` over that carried domain and `name_eq`,
+    preserving the source's deliberate no-match alias to slot zero while
+    retaining distinct proof provenance;
   - [ ] close the bounded `WSTR`/bounded-decimal emitters:
     `gen_read_byte`, `emit_pop_into`, `emit_push`, `emit_mnemonic`,
     `emit_combine`, `emit_slot_addr`, `emit_load_slot`, and

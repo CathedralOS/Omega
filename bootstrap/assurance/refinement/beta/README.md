@@ -855,9 +855,30 @@ source/input/output/CUR/compiler state is preserved and the caller frame is
 restored. Shared exact-shape helpers are 11,801 bytes; domain/control/data/
 meaning modules are 6,430/6,254/9,426/10,190 bytes. Thirty-two isolated
 continuation, helper, shape, domain, footprint, and semantic canaries pass in
-`BC_BLOCK_FOCUS=name-eq` with a 100,856-byte Checker B. This is conditional
-`name_eq`, not establishment of the dynamic prefix and not `lookup`; the
-source's deliberate no-match alias to slot zero remains open.
+`BC_BLOCK_FOCUS=name-eq` with a 100,865-byte Checker B. This is conditional
+`name_eq`, not establishment of the dynamic prefix.
+
+`bc-lookup-control-shape.alpha`, `bc-lookup-data-shape.alpha`, and
+`bc-lookup-summary.alpha` extend Checker B through procedure 36. Exact shape
+binds blocks 179..182, transitions 134..136, events 278..280, locals 90..97,
+memory row 51, primitives 477..484, binary pushes 130..132, argument push 313,
+the name_eq call at PC 26420/target 24914/continuation 26429, its 24-byte
+frame, three epilogues, and the decoded one-call/three-return/eight-store quiet
+footprint at PCs 26114..26686. Under NTDM/NEQS, lookup snapshots `n0=NLOC`
+exactly once and ties that same value to the conditional prefix. Its invariant
+carries `0<=i<=n0<=1024`, rank `n0-i`, and the exact proposition that every
+prior index is a NEQS nonmatch. A match returns the least index, including in
+the presence of duplicate names; a nonmatch advances once and strictly lowers
+rank; exhaustion returns numeric zero. Separate publications preserve a hit at
+slot zero versus exhausted no-match even though both source results are zero.
+The theorem never rereads live NLOC, instantiates the selected name from the
+current local `i`, consumes NEQS's total zero/one and quiet/frame clause, emits
+nothing, preserves compiler state, and restores its caller. Control/data/
+meaning modules are 4,485/4,104/12,312 bytes. Thirty-five isolated shape,
+snapshot, call, rank, least-hit, alias-provenance, and publication canaries pass
+in `BC_BLOCK_FOCUS=lookup` with a 105,957-byte Checker B. The dynamic producer
+of NTDM/NEQS remains a conditional premise; the broader expression SCC remains
+open.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

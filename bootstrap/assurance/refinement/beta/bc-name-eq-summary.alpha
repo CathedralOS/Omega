@@ -21,7 +21,7 @@ name_eq_summary_init:
         call name_eq_prove_equal_step
         call name_eq_prove_full_match
         call name_eq_publish
-        jmp scan_owned_effects_init
+        jmp bc_post_name_eq
 
 name_eq_require_imports:
         imm r20, 531848
