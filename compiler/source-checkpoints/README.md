@@ -13,17 +13,20 @@ Checkpoint artifacts remain separate:
 - `profile-NNNNNN.md` records the compositional Omega facilities actually used
   by that closure and the current retain/refactor disposition. The compiler's
   `omega-source-snapshot --feature-census` mode supplies the exhaustive
-  feature/resource observations; and
+  feature/resource observations;
+- `profile-NNNNNN.json` binds the manifest digest, versioned feature catalog,
+  provisional admission partition, resource ceilings, valid-Omega canaries,
+  unresolved evidence, and its own domain-separated digest; and
 - product and bootstrap task files record what functionality remains.
 
 The manifest and census are evidence, never an allowlist for `omega-bootstrap`.
 The bridge must implement the published profile generally and reject excluded
 Omega before publication.
 
-Run `compiler/source-checkpoints/verify.sh` for the fast gate: it replays native
-source resolution for every declared target, compares the exact loaded-source,
-alias, and import-edge closure, checks external/generator provenance, and runs
-manifest mutation teeth. It is part of `bootstrap/verify-lattice.sh`.
+Run `compiler/source-checkpoints/verify.sh` for the fast gate: it composes the
+resolver-exact manifest/provenance gate with every-target profile census,
+checked-Omega admission canaries, resource ceilings, and both manifest and
+profile mutation teeth. It is part of `bootstrap/verify-lattice.sh`.
 
 Run `compiler/source-checkpoints/checkpoint-000001.sh` for the complete product
 checkpoint: it also reproduces generated Unicode source, compiles the hosted

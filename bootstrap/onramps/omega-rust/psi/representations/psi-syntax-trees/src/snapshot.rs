@@ -67,6 +67,9 @@ pub enum ItemSnapshot {
         members: Vec<CapabilityMemberSnapshot>,
     },
     Conformance {
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        lifetime_parameters: Vec<IdentifierSnapshot>,
+        type_parameters: Vec<TypeParameterSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         type_name: Option<IdentifierSnapshot>,
         #[serde(skip_serializing_if = "is_false")]
@@ -538,6 +541,7 @@ pub enum StatementSnapshot {
     },
     Call {
         receiver: Vec<IdentifierSnapshot>,
+        receiver_starts_at_self: bool,
         target: IdentifierSnapshot,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
@@ -546,6 +550,7 @@ pub enum StatementSnapshot {
         acknowledgement_synthesized: bool,
         acknowledges_suspend: bool,
         acknowledges_block: bool,
+        discards_result: bool,
     },
     ProofOutputBindingStatement {
         bindings: Vec<(IdentifierSnapshot, IdentifierSnapshot)>,
@@ -558,6 +563,7 @@ pub enum StatementSnapshot {
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
         initial_value: ExpressionSnapshot,
+        is_mutable: bool,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -587,6 +593,7 @@ pub enum TransitionGuardSnapshot {
 pub enum TransitionTargetSnapshot {
     Named {
         path: Vec<IdentifierSnapshot>,
+        path_starts_at_self: bool,
         arguments: Vec<ExpressionSnapshot>,
         evidence_arguments: Vec<IdentifierSnapshot>,
     },
@@ -603,6 +610,8 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         access: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        lifetime: Option<IdentifierSnapshot>,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -685,6 +694,8 @@ pub enum ExpressionSnapshot {
     Cast {
         value: Box<ExpressionSnapshot>,
         target_type: Box<TypeReferenceSnapshot>,
+        arithmetic_domain: &'static str,
+        form: &'static str,
         semantic_domain: Vec<IdentifierSnapshot>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
@@ -719,6 +730,8 @@ pub enum ExpressionSnapshot {
     Member {
         receiver: Box<ExpressionSnapshot>,
         member: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        case_variant: Option<IdentifierSnapshot>,
     },
     Borrow {
         access: &'static str,
@@ -735,6 +748,8 @@ pub enum ExpressionSnapshot {
     SelfValue,
     StructLiteral {
         type_name: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        case_name: Option<IdentifierSnapshot>,
         fields: Vec<StructLiteralFieldSnapshot>,
     },
     String {
@@ -796,6 +811,17 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
         },
         Item::Conformance(value) => ItemSnapshot::Conformance {
+            lifetime_parameters: value
+                .lifetime_parameters
+                .iter()
+                .map(snapshot_identifier)
+                .collect(),
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
             type_name: match &value.subject {
                 crate::item::ConformanceSubject::Carrier(type_name) => {
                     Some(snapshot_identifier(type_name))
@@ -1756,6 +1782,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                     .statements
                     .identifier_path_members(call.receiver),
             ),
+            receiver_starts_at_self: call.receiver_starts_at_self,
             target: snapshot_identifier(&call.target),
             machine_arguments: call
                 .machine_arguments
@@ -1773,6 +1800,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 == psi_language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
+            discards_result: call.discards_result,
         },
         StatementNode::ProofOutputBindingStatement(binding) => {
             StatementSnapshot::ProofOutputBindingStatement {
@@ -1796,6 +1824,7 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             name: snapshot_identifier(&value.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
+            is_mutable: value.is_mutable,
         },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
             target: snapshot_transition_target(
@@ -1836,11 +1865,12 @@ fn snapshot_transition_target(
     match target {
         TransitionTargetNode::Named {
             path,
+            path_starts_at_self,
             arguments,
             evidence_arguments,
-            ..
         } => TransitionTargetSnapshot::Named {
             path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
+            path_starts_at_self: *path_starts_at_self,
             arguments: syntax_trees
                 .statements
                 .expression_handles(*arguments)
@@ -1877,11 +1907,11 @@ fn snapshot_type_reference_handle(
         TypeReferenceNode::Reference {
             referee,
             access,
-            // Lifetime omitted from the structural snapshot (borrow-region tag).
-            lifetime: _,
+            lifetime,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
             access: reference_access_name(*access),
+            lifetime: lifetime.as_ref().map(snapshot_identifier),
         },
         TypeReferenceNode::Constrained {
             base_type,
@@ -2012,6 +2042,12 @@ fn snapshot_expression_handle(
                 syntax_trees,
                 cast.target_type,
             )),
+            arithmetic_domain: cast.domain.name(),
+            form: match cast.form {
+                psi_language_core::cast_form::CastForm::Value => "value",
+                psi_language_core::cast_form::CastForm::RecastShared => "recast_shared",
+                psi_language_core::cast_form::CastForm::RecastMutable => "recast_mutable",
+            },
             semantic_domain: snapshot_identifier_slice(
                 syntax_trees
                     .expressions
@@ -2046,6 +2082,7 @@ fn snapshot_expression_handle(
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),
             member: snapshot_identifier(&member.member),
+            case_variant: member.case_variant.as_ref().map(snapshot_identifier),
         },
         ExpressionNode::Borrow(value) => ExpressionSnapshot::Borrow {
             access: reference_access_name(value.access),
@@ -2070,6 +2107,7 @@ fn snapshot_expression_handle(
         ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
             type_name: snapshot_identifier(&value.type_name),
+            case_name: value.case_name.as_ref().map(snapshot_identifier),
             fields: syntax_trees
                 .expressions
                 .struct_fields(value.fields)

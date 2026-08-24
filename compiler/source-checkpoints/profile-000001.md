@@ -1,4 +1,4 @@
-# Provisional Ωself census — checkpoint 000001
+# Provisional Ωself profile — checkpoint 000001
 
 Checkpoint 000001 is the first coherent Omega-written product compiler source
 snapshot. It implements Psi source custody, final token/lexical-diagnostic
@@ -7,8 +7,10 @@ spelling. The hosted adapter reads one source unit, exits with its accepted
 status 0, rejects lexical errors with status 251, and rejects source
 capacity exhaustion with status 252.
 
-This census is provisional evidence, not the final `Ωself` profile. It records
-general facilities used by the exact manifest in `checkpoint-000001.json`.
+This is a mechanically enforced provisional profile, not the final `Ωself`
+freeze. It records general facilities used by the exact manifest in
+`checkpoint-000001.json`; `profile-000001.json` is the canonical admission
+artifact and this document explains its evidence and unresolved decisions.
 Later product checkpoints rerun the census; the Delta bridge supplies the cost
 evidence needed to settle retain-versus-refactor decisions. “Unused” below means
 absent from this lexical checkpoint only. Such a facility may be rejected by
@@ -17,9 +19,11 @@ this checkpoint's provisional profile, but it is not finally excluded from
 
 The census is now compiler-produced rather than hand-inferred. Run
 `omega-source-snapshot --feature-census` against the checkpoint entry and each
-declared target. Snapshot schema v2 retains machine target qualifiers,
+declared target. Snapshot schema v3 retains machine target qualifiers,
 `bodyless`, `satisfies`/`via`, generic conformance bounds, ranking arguments and
-ranges, and data `where` facts instead of silently dropping them. All four
+ranges, data `where` facts, cast domain/form, case construction/projection,
+local mutability, call/transition qualification flags, and reference lifetimes
+instead of silently dropping them. All four
 checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
@@ -43,13 +47,15 @@ The largest observed compositional resources are:
 | path components / identifier bytes | 6 / 49 | 8 / 64 |
 | array-literal elements / declared fixed-array length | 806 / 65,536 | 1,024 / 65,536 |
 | struct-literal fields / string-literal bytes | 3 / 18 | 4 / 32 |
+| normalized expression nesting depth | 7 | 8 |
 
 The ceilings are rounded, path-independent admission candidates, not exact
-closure fingerprints. They remain provisional until the profile evaluator has
-at-limit/over-limit mutation teeth and the Delta bridge supplies capacity and
-assurance cost. The census proves normalized source shape only; resolution,
-typing, selected-target completeness, lowering, and runtime capacity remain
-separate gates.
+closure fingerprints. The profile evaluator now has exact-limit and adjacent-
+over-limit mutation teeth for every resource. The ceilings nevertheless remain
+provisional until the Delta bridge supplies capacity, exhaustion/publication,
+and assurance evidence. The census proves normalized source shape only;
+resolution, typing, selected-target completeness, lowering, and runtime
+capacity remain separate gates.
 
 | Facility | Checkpoint use | Provisional disposition |
 | --- | --- | --- |
@@ -67,12 +73,12 @@ separate gates.
 | propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally; likely final exclusion because implementing full-Omega proof checking does not require proof syntax in compiler source |
 | termination/ranking clauses | one ranking clause | retain candidate; ranking is executable compiler control evidence and must not be swept into the proof-surface exclusion |
 | dependent bounds and linear types | unused in checkpoint | reject provisionally; likely final exclusion, subject to later source closures |
-| domain polymorphism | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
+| domains and authored generic domain families | unused in checkpoint | reject provisionally; the canary isolates a generic domain declaration, while typed semantic use remains unresolved |
 | advanced authored generic constraints | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
 | specialization and reflection | no distinct accepted authored syntax to census | no profile claim yet; add a row only when Omega has an accepted source spelling |
 | numeric/schema field tags | unused in checkpoint | reject provisionally; compare ordinary named fields if later source introduces them |
 | mixed field-plus-case declarations | unused in checkpoint | reject provisionally; compare separate records and sums if later source introduces them |
-| complex aggregate transition payloads | unused in checkpoint | reject provisionally; compare scalar/index state parameters plus explicit context if later source introduces them |
+| inline aggregate transition literals | unused in checkpoint | reject provisionally; aggregate-typed names/calls require typed census evidence and remain explicitly unresolved |
 
 The checkpoint deliberately binds branching computations to fields before
 dispatch. This is ordinary Omega and avoids depending on implicit arm-value
@@ -84,9 +90,11 @@ language or a semantic exception.
 Run `compiler/source-checkpoints/checkpoint-000001.sh`. The checkpoint is
 accepted only when all of the following hold:
 
-1. `python3 compiler/source-checkpoints/verify_manifest.py` replays all declared
-   target resolutions, validates the exact loaded-source/alias/import closure and
-   provenance digests, and rejects the built-in closure mutations.
+1. `python3 compiler/source-checkpoints/verify_profile.py` composes the manifest
+   gate, replays every target census, validates the domain-separated profile
+   digest and exact catalog partition, enforces resource limits, proves every
+   profile canary is valid checked Omega, applies admission expectations, and
+   rejects the built-in profile mutations.
 2. The hosted entry compiles through native emission for its selected target.
 3. Empty input, identifiers, integers, punctuation, whitespace, representative
    Omega source with a Unicode identifier, nested block comments, and
@@ -95,12 +103,13 @@ accepted only when all of the following hold:
    and unsupported punctuation reject with status 251 and publish no token
    observation as success.
 
-The standard gate does not yet claim `Ωself` admission enforcement. The current
-mechanical milestone is an exhaustive compiler-owned feature/resource census;
-the next milestone binds a versioned profile artifact to it, checks every
-retained/excluded disposition, and adds ordinary-Omega positive and negative
-canaries. Until then, this file is evidence and design guidance, not a profile
-acceptance oracle.
+The standard gate now enforces the normalized-syntax and resource portion of
+this provisional `Ωself` profile. Negative fixtures are valid full-Omega
+programs rejected only by profile admission; the positive fixture composes
+retained facilities without matching product filenames or exact occurrence
+counts. Typed semantic distinctions, ABI/layout, lowering coverage, Delta
+capacity behavior, and measured bridge costs remain explicitly unresolved and
+are not claimed by this artifact.
 
 The adapter does not yet publish the complete canonical token/diagnostic byte
 stream. That observation format and the Rust-comparator differential are the

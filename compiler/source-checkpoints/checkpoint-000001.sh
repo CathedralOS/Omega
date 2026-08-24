@@ -8,7 +8,7 @@ trap 'rm -rf -- "$checkpoint_tmp"' EXIT HUP INT TERM
 
 cd "$checkpoint_root"
 
-python3 compiler/source-checkpoints/verify_manifest.py
+python3 compiler/source-checkpoints/verify_profile.py
 
 cargo run -q --locked --offline -p psi-source-files-to-tokens \
     --bin generate_omega_unicode \

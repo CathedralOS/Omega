@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 CHECKPOINT_DIR = Path(__file__).resolve().parent
 SCHEMA = "omega.product-compiler-source-checkpoint.v2"
-SNAPSHOT_SCHEMA = "omega.source-closure-snapshot.v2"
+SNAPSHOT_SCHEMA = "omega.source-closure-snapshot.v3"
 DOMAIN = b"omega.product-compiler-source-checkpoint.v2\0"
 BUILD_PRELUDE_OWNER = (
     "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/"

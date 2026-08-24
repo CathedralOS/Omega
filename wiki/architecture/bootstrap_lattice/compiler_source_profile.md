@@ -256,7 +256,8 @@ negative source convention:
 branching computations publish explicit result fields before callers dispatch.
 The closure does not require implicit branching value-machine result
 materialization, dependent bounds, proof syntax, mixed field-plus-case data, or
-complex aggregate transition payloads. Those absences are provisional profile
+inline aggregate transition literals. Aggregate-typed transition names and
+calls still require typed census facts. Those absences are provisional profile
 evidence, not full-Omega feature removals.
 
 These are `Ωself` source-profile choices, not proposals to remove the features
@@ -350,9 +351,12 @@ not a special case accepted by them.
 
 The final bootstrap gate must compile that exact closure under the explicit
 `Ωself` profile rules and reject an excluded-feature canary for every exclusion.
-Checkpoint 000001 currently has exhaustive compiler-owned syntax/resource
-census evidence, but not yet a bound admission-profile artifact; its own profile
-document labels that remaining enforcement step explicitly.
+Checkpoint 000001 now binds its manifest to a separately hashed provisional
+normalized-syntax/resource profile, every-target compiler census, valid-Omega
+positive and negative admission canaries, rounded ceilings, and mutation teeth.
+That artifact explicitly leaves typed semantic distinctions, ABI/layout,
+lowering coverage, Delta capacity behavior, and measured bridge costs
+unresolved rather than presenting syntax census as broader evidence.
 The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
