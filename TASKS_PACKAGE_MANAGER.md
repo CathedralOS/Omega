@@ -132,13 +132,16 @@ complete.
   follow the same custody shape: a bounded capture is re-materialized into a
   content-addressed, read-only, atomically published resolver snapshot;
   source/cache overlap and ordinary concurrent mutation reject, and diagnostics
-  expose the snapshot path rather than the live tree.
+  expose the snapshot path rather than the live tree. Mutable local-package
+  capture now excludes the compiler-reserved root `build/` output directory
+  without consulting package-authored ignore files; nested `build` directories
+  remain source, and symlinks cannot reintroduce excluded output. Exact Git and
+  resolver-owned materializations remain exact-tree checks.
 
   Remaining suspect points:
 
-  - local capture still includes tool-owned build outputs already present in
-    the source root, and its before/after check does not defend against a
-    deliberately hostile same-user process racing both observations;
+  - the local before/after check does not defend against a deliberately hostile
+    same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the Git subprocess has no OS sandbox, descendant containment, or CPU/memory/
@@ -239,8 +242,10 @@ complete.
   bind a canonical typed machine-overload identity to the exact package owning
   that machine, reject row transplantation across realizing packages, and
   resolve without short-name fallback in validation, dispatch, progress,
-  external-root, TCB, and trust projections. Provider selection identity,
-  compiler-intrinsic toolchain identity and the sealed admission projection
+  external-root, TCB, and trust projections. Authored provider selections now
+  retain exact resolved boundary-Trait and provider-Data symbols plus their
+  package-qualified canonical paths; plan matching has no leaf-name fallback.
+  Compiler-intrinsic toolchain identity and the sealed admission projection
   remain. Terminal Psi evidence remains separately required for rows that make
   final-realization claims.
 
