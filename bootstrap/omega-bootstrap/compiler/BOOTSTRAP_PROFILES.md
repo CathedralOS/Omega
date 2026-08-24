@@ -5,9 +5,14 @@ compiler. O0/O1 are frozen profile names; the architectural role and artifact
 owner is `omega-bootstrap`. This file is
 bootstrap-owned and is not a product Omega language specification.
 
-Four contracts are intentionally tracked separately. D0, O0, and O1 are
-implementation/canary labels, not language generations and not steps that the
-final build lattice must preserve:
+Four named profile records are tracked here, but they are not four
+architecture-level feature inventories. D0, O0, and O1 are frozen executable
+regression envelopes:
+they keep today's vertical slices honest without selecting the final language
+or product-source surface. Delta v1 and `Ωself` remain the only two open feature
+inventories, and only `Ωself` is described by one of the labels below. D0, O0,
+and O1 are not language generations or steps that the final build lattice must
+preserve:
 
 - **Delta implementation profile D0** is the current Delta surface used by the
   bridge canaries. It is frozen so those slices do not acquire facilities merely

@@ -59,7 +59,9 @@ Remaining:
   `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task does
   not wait for Delta v1 or a frozen `Ωself`. Once the exact source closure
   exists, jointly derive the profile: for each disputed source feature, either
-  refactor it away or propose its measured bootstrap and assurance cost. Keep
+  refactor it away or retain a general compositional form whose source benefit
+  justifies its measured bootstrap and assurance cost. Feature removal is not
+  a goal when it only produces brittle monomorphic duplication. Keep
   the final closure within that ordinary-Omega profile. `Ωself` is the incidental
   feature footprint of this implementation made into a compositional contract;
   it is not a second product language. The manifest is closure evidence, not

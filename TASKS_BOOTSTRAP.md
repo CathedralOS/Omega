@@ -312,6 +312,19 @@ feature decision belongs to Delta v1; an Omega feature used or rejected by the
 production compiler source belongs to `Ωself`. Do not solve one contract by
 silently widening the other.
 
+The work below has three stages, not three additional contracts:
+
+1. expose the product and bridge source closures while maintaining provisional
+   Delta and `Ωself` records;
+2. implement the general bridge and use its measured cost to settle both
+   inventories; and
+3. freeze, validate, and perform the one required hosted production build.
+
+O0/O1 remain regression inputs throughout these stages. They do not define a
+numbered route to `Ωself`.
+
+#### Stage 1 — expose both source closures
+
 **Rolling invariant — maintain Delta's provisional compiler-host feature
 ledger.** This is not a separate completion gate or a prerequisite freeze. The
 ledger co-evolves with bridge source until the Delta-v1 freeze below:
@@ -345,6 +358,8 @@ used by the compiler belong to the manifest. That does not pull in a standalone
 Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
 `omega-bootstrap` to use Terminal Psi as its own internal compiler IR.
 
+#### Stage 2 — derive the source profile and implement the bridge
+
 - [ ] **Derive and enforce provisional `Ωself` from the product source.**
   Dependency: the exact production-compiler source manifest above must exist
   before the profile can be derived. Standard library samples and current Rust
@@ -355,6 +370,10 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   - [ ] measure every feature used by the complete source closure against its
     production-source benefit and the cost of implementing and assuring it in
     the Delta-written bridge;
+  - [ ] for every disputed facility, record one explicit outcome: retain a
+    general compositional form, or refactor it out of the product source and
+    keep a negative canary. Do not reward feature removal when it merely creates
+    monomorphic duplication or source-shape permutations;
   - [ ] publish candidate compositional syntax, static-semantics, resource,
     ABI/layout, and lowering rules—not file identities, statement counts, or
     AST permutations—and enforce them provisionally;
@@ -408,6 +427,8 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
   Acceptance: the bridge compiles every admitted `Ωself` program with exact
   Omega semantics. It need not accept full Omega, optimize its own output, use
   the production allocator architecture, or host unrelated product tools.
+
+#### Stage 3 — freeze both inventories and close the hosted edge
 
 - [ ] **Freeze `Ωself` at the completed bridge join.**
   Reconcile the exact production-source closure, the provisional compositional
