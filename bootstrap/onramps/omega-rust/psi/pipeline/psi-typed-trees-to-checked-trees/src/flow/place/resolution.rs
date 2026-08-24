@@ -180,6 +180,24 @@ pub(crate) fn symbol_type_symbol(
         }
     }
 
+    // Trait requirements are checked state signatures rather than executable
+    // machine states. Their parameter symbols still own exact declared types
+    // and must participate in member-place resolution for requirement
+    // contracts.
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            for parameter in program.state_signature_parameters(signature) {
+                if parameter.symbol == symbol {
+                    return Some(
+                        program
+                            .type_reference_table
+                            .type_symbol(parameter.type_reference),
+                    );
+                }
+            }
+        }
+    }
+
     for data in program.data_definitions() {
         for member in program.data_members(data) {
             match member {

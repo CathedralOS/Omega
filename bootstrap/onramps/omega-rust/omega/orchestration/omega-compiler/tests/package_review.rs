@@ -509,7 +509,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 27);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 28);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2086,7 +2086,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v27_comparison_encoding() {
+fn exact_synchronous_invocations_change_v28_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2276,7 +2276,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v27_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v28_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2310,7 +2310,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v27_comparison_encoding() {
+fn public_domain_shape_changes_change_v28_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -3076,7 +3076,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_projects_trait_defaults_and_rejects_unprojected_trait_contract_lanes() {
+fn review_projects_trait_defaults_and_unnamed_contracts() {
     let default_package = TempPackage::new();
     default_package.write(
         "main.omg",
@@ -3158,13 +3158,189 @@ machine build(builder: &mut Build) { }
         package_inputs(&precondition_package.0),
     )
     .expect("public progress precondition fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("a progress precondition without termination remains a proof contract");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("uses proof, boundary, or crash contracts")
-    }));
+    let review = project_checked_package_review(&checked)
+        .expect("an unnamed trait precondition should project exactly");
+    let runtime = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "SchedulerRuntime")
+        .expect("scheduler runtime trait row");
+    let [wait] = runtime.requirements() else {
+        panic!("one scheduler requirement")
+    };
+    let [contract] = wait.contracts() else {
+        panic!("one exact trait contract")
+    };
+    assert_eq!(contract.kind(), PackageReviewContractKind::Requires);
+    assert_eq!(contract.binding(), None);
+    let PackageReviewContractFact::Membership { value, domain } = contract.fact() else {
+        panic!("trait precondition must retain exact membership")
+    };
+    assert_eq!(value, &PackageReviewContractExpression::Parameter(0));
+    assert_eq!(domain.path(), "SchedulerHandle::WeakFair");
+    assert_eq!(
+        domain.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+}
+
+#[test]
+fn public_trait_requires_and_ensures_change_comparison_identity() {
+    let project = |minimum: u8| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub trait Bounds {{\n    machine clamp(value: u64) -> u64\n    requires value >= {minimum}\n    ensures result >= value;\n}}\n"
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("public trait contract fixture should check");
+        project_checked_package_review(&checked).expect("public trait contracts should project")
+    };
+
+    let first = project(1);
+    let changed = project(2);
+    let [bounds] = first.public_traits() else {
+        panic!("one public trait")
+    };
+    let [clamp] = bounds.requirements() else {
+        panic!("one public trait requirement")
+    };
+    assert_eq!(clamp.contracts().len(), 2);
+    assert!(
+        clamp
+            .contracts()
+            .iter()
+            .any(|contract| contract.kind() == PackageReviewContractKind::Requires)
+    );
+    assert!(
+        clamp
+            .contracts()
+            .iter()
+            .any(|contract| contract.kind() == PackageReviewContractKind::Ensures)
+    );
+    assert_ne!(
+        first.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "changing a public trait contract must change comparison identity"
+    );
+}
+
+#[test]
+fn public_trait_member_contracts_join_exact_state_signature_places() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Threshold { minimum: u64; }
+pub trait Bounds {
+    machine accepts(threshold: Threshold, value: u64)
+    requires value >= threshold.minimum;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public trait member contract should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public trait member contract should join checked places");
+    let [bounds] = review.public_traits() else {
+        panic!("one public trait")
+    };
+    let [accepts] = bounds.requirements() else {
+        panic!("one public trait requirement")
+    };
+    let [contract] = accepts.contracts() else {
+        panic!("one public trait contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("one exact binary contract expression")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = right.as_ref()
+    else {
+        panic!("right operand must retain the exact field place")
+    };
+    assert_eq!(
+        receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert_eq!(member.path(), "Threshold::minimum");
+    assert_eq!(
+        member.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+}
+
+#[test]
+fn public_trait_unrepresented_contract_lanes_remain_fail_closed() {
+    let reject = |source: &str, expected: &str| {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("fail-closed trait contract fixture should reach checked trees");
+        let diagnostics = project_checked_package_review(&checked)
+            .expect_err("unrepresented public trait contract lane must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected `{expected}` rejection, found {diagnostics:#?}"
+        );
+    };
+
+    reject(
+        r#"machine computed_zero() -> u64 { 0 }
+pub trait Worker {
+    machine wait() -> u64
+    ensures result == computed_zero();
+}
+"#,
+        "contract expression form not yet represented by package review",
+    );
+    reject(
+        r#"pub trait Worker {
+    machine wait(flag: bool)
+    crashes Trap
+        flag;
+}
+"#,
+        "uses a crash contract not yet represented by public-trait review",
+    );
 }
 
 #[test]
