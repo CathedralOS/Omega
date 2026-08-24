@@ -108,7 +108,16 @@ machine build(builder: &mut Build) { }
         panic!("one selected provider review row")
     };
     assert_eq!(provider.realizing_package(), Some(package_identity()));
+    assert_eq!(provider.provider_type_package(), None);
     assert_eq!(provider.service_schema(), "Host");
+    assert_eq!(
+        provider.schema().trait_package_identity,
+        Some(package_identity())
+    );
+    assert_eq!(
+        provider.schema().methods[0].requirement_owner_package_identity,
+        Some(package_identity())
+    );
     assert_eq!(provider.rows().len(), 1);
     assert!(matches!(
         provider.rows()[0].binding,

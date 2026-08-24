@@ -18,6 +18,9 @@
 pub struct ServiceSchema {
     /// The boundary trait's name (`Console`, `FilesystemHost`).
     pub trait_name: String,
+    /// Exact package owning the selected boundary trait/operator declaration.
+    /// `None` is explicit for toolchain, standalone, or source-free trees.
+    pub trait_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// One entry per trait machine, in declaration order.
     pub methods: Vec<ServiceMethod>,
 }
@@ -29,6 +32,10 @@ pub struct ServiceMethod {
     /// enclosing schema when a target root inherits a stable core requirement
     /// and refines only its calling plan.
     pub requirement_owner: String,
+    /// Exact package owning `requirement_owner`. Inherited requirements may
+    /// differ from the selected schema owner. `None` is never repaired from
+    /// the readable owner or overload identity.
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Stable named-callable identity of the exact requirement overload.
     /// Provider schemas are never name-only, including singleton schemas.
     pub requirement_identity: String,
@@ -223,6 +230,10 @@ pub struct ProviderPlan {
     /// to nominal provider types. Slot overrides select this identity, never
     /// individual rows.
     pub provider_type: String,
+    /// Exact package owning `provider_type`. Free external leaves and
+    /// toolchain/standalone/source-free trees retain `None`; consumers must not
+    /// infer this from `provider_type` or the realizing machine's package.
+    pub provider_type_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// The target this plan serves (`windows_x64`; empty = every target).
     pub target: String,
     /// The schema served.
@@ -271,6 +282,9 @@ impl ServiceSchema {
         );
         Some(Self {
             trait_name: trait_definition.name.as_str().to_owned(),
+            trait_package_identity: program
+                .symbols
+                .symbol_package_identity(trait_definition.symbol),
             methods,
         })
     }
@@ -287,12 +301,16 @@ impl ServiceSchema {
             trait_name: psi_typed_trees::operator::boundary_operator_requirement_identity(
                 program, operator,
             ),
+            trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
             methods: vec![ServiceMethod {
                 name: "realize".to_owned(),
                 requirement_owner:
                     psi_typed_trees::operator::boundary_operator_requirement_identity(
                         program, operator,
                     ),
+                requirement_owner_package_identity: program
+                    .symbols
+                    .symbol_package_identity(operator.symbol),
                 requirement_identity:
                     psi_typed_trees::operator::boundary_operator_requirement_identity(
                         program, operator,
@@ -371,6 +389,9 @@ fn collect_service_methods(
         methods.push(ServiceMethod {
             name: signature.name.as_str().to_owned(),
             requirement_owner: trait_definition.name.as_str().to_owned(),
+            requirement_owner_package_identity: program
+                .symbols
+                .symbol_package_identity(trait_definition.symbol),
             requirement_identity,
             parameter_count: program
                 .state_signature_parameters(signature)
@@ -769,6 +790,24 @@ fn boundary_trait_name_for_type(
         .map(|definition| definition.name.as_str().to_owned())
 }
 
+fn push_package_identity(
+    rendered: &mut String,
+    label: &str,
+    identity: Option<psi_core::PackageKeyIdentity>,
+) {
+    rendered.push('\n');
+    rendered.push_str(label);
+    rendered.push(':');
+    match identity {
+        Some(identity) => {
+            for byte in identity.digest() {
+                rendered.push_str(&format!("{byte:02x}"));
+            }
+        }
+        None => rendered.push_str("<unbound>"),
+    }
+}
+
 impl ProviderPlan {
     /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
     /// the canonical rendering (name, exact package provenance, target,
@@ -781,6 +820,16 @@ impl ProviderPlan {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
             self.name, self.provider_type, self.target, self.schema.trait_name
+        );
+        push_package_identity(
+            &mut rendered,
+            "provider-type-package",
+            self.provider_type_package_identity,
+        );
+        push_package_identity(
+            &mut rendered,
+            "schema-package",
+            self.schema.trait_package_identity,
         );
         rendered.push_str("\npackage:");
         match self.origin_package_identity {
@@ -798,6 +847,11 @@ impl ProviderPlan {
                 .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
         });
         for method in methods {
+            push_package_identity(
+                &mut rendered,
+                "requirement-owner-package",
+                method.requirement_owner_package_identity,
+            );
             rendered.push_str(&format!(
                 "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
                 method.name,
@@ -1370,10 +1424,12 @@ mod tests {
     fn windows_console_plan() -> ProviderPlan {
         let schema = ServiceSchema {
             trait_name: "Console".to_owned(),
+            trait_package_identity: None,
             methods: vec![
                 ServiceMethod {
                     name: "write_line".to_owned(),
                     requirement_owner: "Console".to_owned(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: "Console::write_line".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["String".to_owned()],
@@ -1392,6 +1448,7 @@ mod tests {
                 ServiceMethod {
                     name: "read_byte".to_owned(),
                     requirement_owner: "Console".to_owned(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: "Console::read_byte".to_owned(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
@@ -1410,6 +1467,7 @@ mod tests {
                 ServiceMethod {
                     name: "exit_process".to_owned(),
                     requirement_owner: "Console".to_owned(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: "Console::exit_process".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["i32".to_owned()],
@@ -1430,6 +1488,7 @@ mod tests {
         ProviderPlan {
             name: "omega::host::standard::console".to_owned(),
             provider_type: "StandardConsole".to_owned(),
+            provider_type_package_identity: None,
             target: "windows_x64".to_owned(),
             schema,
             rows: vec![
@@ -1491,6 +1550,21 @@ mod tests {
         let mut second = first;
         second.origin_package_identity = psi_core::PackageKeyIdentity::from_digest([2; 32]);
         assert_ne!(second.identity_fingerprint(), first_identity);
+
+        let mut provider_type_owner = renamed_label.clone();
+        provider_type_owner.provider_type_package_identity =
+            psi_core::PackageKeyIdentity::from_digest([3; 32]);
+        assert_ne!(provider_type_owner.identity_fingerprint(), first_identity);
+
+        let mut schema_owner = renamed_label.clone();
+        schema_owner.schema.trait_package_identity =
+            psi_core::PackageKeyIdentity::from_digest([4; 32]);
+        assert_ne!(schema_owner.identity_fingerprint(), first_identity);
+
+        let mut requirement_owner = renamed_label;
+        requirement_owner.schema.methods[0].requirement_owner_package_identity =
+            psi_core::PackageKeyIdentity::from_digest([5; 32]);
+        assert_ne!(requirement_owner.identity_fingerprint(), first_identity);
     }
 
     #[test]

@@ -138,14 +138,17 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
     ProviderPlan {
         name: name.to_owned(),
         provider_type: name.to_owned(),
+        provider_type_package_identity: None,
         target: String::new(),
         schema: ServiceSchema {
             trait_name: "Pair".to_owned(),
+            trait_package_identity: None,
             methods: methods
                 .iter()
                 .map(|method| omega_effects::provider_plan::ServiceMethod {
                     name: (*method).to_owned(),
                     requirement_owner: "Pair".to_owned(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: format!("Pair::{method}"),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),

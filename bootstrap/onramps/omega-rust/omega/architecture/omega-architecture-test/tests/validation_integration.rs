@@ -7317,6 +7317,7 @@ mod provider_plan {
         // fingerprint; changing a binding changes it.
         let schema = ServiceSchema {
             trait_name: "Console".to_owned(),
+            trait_package_identity: None,
             methods: Vec::new(),
         };
         let row = |method: &str, number: i64| ProviderPlanRow {
@@ -7327,6 +7328,7 @@ mod provider_plan {
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
             name: "p".to_owned(),
             provider_type: "P".to_owned(),
+            provider_type_package_identity: None,
             target: "t".to_owned(),
             schema: schema.clone(),
             rows,

@@ -136,7 +136,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -144,6 +144,7 @@ impl ArtifactWriter {
                 } else {
                     row.provider_type.as_str()
                 },
+                package_key_text(row.provider_type_package_identity),
                 if row.target.is_empty() {
                     "<all>"
                 } else {
@@ -156,10 +157,12 @@ impl ArtifactWriter {
                 },
                 package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
+                package_key_text(row.service_schema_package_identity),
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
+                package_key_text(row.requirement_owner_package_identity),
                 row.requirement_identity,
                 row.method,
                 if row.parameter_type_identities.is_empty() {
@@ -202,7 +205,7 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} [{:016x}] -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
                 row.provider_plan_fingerprint,
                 if row.provider_type.is_empty() {
@@ -210,6 +213,7 @@ impl ArtifactWriter {
                 } else {
                     row.provider_type.as_str()
                 },
+                package_key_text(row.provider_type_package_identity),
                 if row.target.is_empty() {
                     "<all>"
                 } else {
@@ -222,10 +226,12 @@ impl ArtifactWriter {
                 },
                 package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
+                package_key_text(row.service_schema_package_identity),
                 row.calling_plan_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
+                package_key_text(row.requirement_owner_package_identity),
                 row.requirement_identity,
                 row.method,
                 row.subject,

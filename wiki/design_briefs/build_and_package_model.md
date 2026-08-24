@@ -349,12 +349,12 @@ preserved as a second selection path.
 
 Selection and binding identities must be nominal. The current compiler validates
 normalized overload strings against typed declarations and binds provider plans
-to the realizing package, but provider bindings, schemas, requirements, and
-selection keys remain string-carried. Admission requires package-qualified
-typed identities and sealed target/catalog metadata rather than trusting those
-spellings. Changing sealed foreign or target metadata must change artifact
-identity and trigger fresh admission rather than silently retargeting a nominal
-ID.
+to exact package owners for the realizing machine, provider type, selected
+service schema, and requirement owner. Provider bindings and selection keys
+remain string-carried. Admission requires package-qualified typed identities
+and sealed target/catalog metadata rather than trusting those spellings.
+Changing sealed foreign or target metadata must change artifact identity and
+trigger fresh admission rather than silently retargeting a nominal ID.
 
 The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
@@ -638,10 +638,11 @@ as contract slack; dangerous slack is audit-relevant, and a later transition
 from unused to used authority changes realized evidence even when the public
 ceiling is unchanged. Capability-flow, provider, trust, proof, installation,
 operational, and executable-TCB rows must retain exact package-qualified
-provenance. Provider-plan and provider-trust rows now retain realizing-package
-identity, but the remaining nominal and artifact joins are unfinished. Risk
-classes must come from compiler-owned metadata on admitted nominal identities,
-never from package-controlled names.
+provenance. Provider-plan and provider-trust rows now retain package identity
+for the realizing machine, provider type, selected service schema, and
+requirement owner, but binding/selection and remaining artifact joins are
+unfinished. Risk classes must come from compiler-owned metadata on admitted
+nominal identities, never from package-controlled names.
 
 Open/deferred proof obligations reject package admission. This is an admission
 requirement, not a claim that ordinary compilation already exposes such a
@@ -652,8 +653,9 @@ checked obligation that discharged it. Kernel-checked proofs are rechecked.
 Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 rows; authored postconditions remain obligations. Boundary providers must
 satisfy exact package-qualified requirement identities, so a same-spelled trait
-from another source lineage grants nothing. The current provider carrier does
-not yet fully represent that package-qualified requirement identity.
+from another source lineage grants nothing. The current provider carrier pairs
+the normalized requirement identity with its exact owner package, but binding
+and selection carriers remain unfinished.
 
 Package policy admits the transitive reachable-authority set of the final
 resolved artifact. It does not approve dependencies one edge at a time. A new

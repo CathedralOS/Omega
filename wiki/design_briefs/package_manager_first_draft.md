@@ -206,9 +206,10 @@ Accepted axioms and opaque boundary claims must remain explicit trust-bearing
 evidence and require admission; authored postconditions are obligations, never
 proof. Boundary realization must use exact package-qualified nominal identities
 and reject same-spelled declarations from another lineage. Currently the
-compiler joins the realizing package to provider plans and provider trust rows;
-package-qualified requirement/provider nominal carriers and sealed admission
-evidence remain unfinished.
+compiler joins package identity for the realizing machine, provider type,
+selected service schema, and requirement owner into provider plans and provider
+trust rows. Provider binding/selection identities and sealed admission evidence
+remain unfinished.
 
 Risk classification must be compiler-owned metadata attached to exact admitted
 boundary/capability identities. It must never be inferred from
