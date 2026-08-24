@@ -1,0 +1,118 @@
+; Responsibility-neutral instantiation helper for an exact emit-event row.
+; The caller supplies r20=row. Return p in r0 and len in r1. The owning WSTR
+; theorem equates M[p:p+len] with this row's decoded Beta string literal.
+
+write_str_require_emit_event:
+        call write_str_require_emit_event_core
+        mov r7, r0
+        mov r28, r1
+        imm r20, 525816
+        imm r21, 1465074514
+        call write_str_require_cell
+        mov r0, r7
+        mov r1, r28
+        ret
+
+; Structural core for conditional consumers whose WSTR proposition is an
+; explicit external antecedent rather than a process-local cell.
+write_str_require_emit_event_core:
+        mov r25, r20
+        mov r26, r20
+        imm r1, 8
+        mul r26, r1
+        imm r1, 7086080
+        add r1, r26
+        load r2, r1
+        imm r3, 4
+        jeq r2, r3, write_str_emit_pc
+        jmp reject
+write_str_emit_pc:
+        imm r1, 7135232
+        add r1, r26
+        load r27, r1                 ; call pc
+        imm r1, 7127040
+        add r1, r26
+        load r28, r1                 ; decoded length
+        imm r2, 0
+        jlt r28, r2, reject
+
+        mov r20, r27
+        imm r21, 19                  ; call helper
+        call require_tape_byte
+        mov r20, r27
+        imm r2, 1
+        add r20, r2
+        imm r21, 31
+        call require_tape_word
+
+        mov r29, r27
+        imm r2, 10
+        sub r29, r2                  ; imm r1,len pc
+        mov r20, r29
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r29
+        imm r2, 1
+        add r20, r2
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r29
+        imm r2, 2
+        add r20, r2
+        mov r21, r28
+        call require_tape_word
+
+        mov r29, r27
+        imm r2, 20
+        sub r29, r2                  ; imm r0,p pc / end of literal
+        mov r20, r29
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r29
+        imm r2, 1
+        add r20, r2
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r29
+        imm r2, 2
+        add r20, r2
+        imm r1, 2097152
+        add r1, r20
+        load r7, r1                  ; p
+        imm r2, 0
+        jlt r7, r2, reject
+        mov r6, r7
+        add r6, r28
+        jlt r6, r7, reject            ; exclude wrapping p+len
+        jeq r6, r29, write_str_emit_bound
+        jmp reject
+write_str_emit_bound:
+        imm r1, 524296
+        load r2, r1
+        jlt r29, r2, write_str_emit_jump
+        jmp reject
+write_str_emit_jump:
+        imm r2, 9
+        jlt r7, r2, reject
+        mov r20, r7
+        sub r20, r2
+        imm r21, 12
+        call require_tape_byte
+        mov r20, r7
+        imm r2, 9
+        sub r20, r2
+        imm r3, 1
+        add r20, r3
+        mov r21, r29
+        call require_tape_word
+
+        mov r0, r7
+        mov r1, r28
+        ret
+
+write_str_require_cell:
+        load r2, r20
+        jeq r2, r21, write_str_require_ok
+        jmp reject
+write_str_require_ok:
+        ret

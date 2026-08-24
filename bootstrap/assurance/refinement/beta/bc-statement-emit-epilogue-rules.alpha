@@ -1,0 +1,128 @@
+; Exact finite semantics for emit_epilogue (procedure46).
+;
+; The source order is the output order: five fixed WSTR fragments and then the
+; compiler-supplied frame return. SEPI means "statement epilogue".
+; Private work: 549000..<549096.
+
+statement_emit_epilogue_rules_init:
+        call statement_emit_epilogue_rules_reset
+        call statement_emit_epilogue_require_antecedents
+        call statement_emit_epilogue_require_shape
+        call statement_emit_epilogue_prove_trace
+        call statement_emit_epilogue_require_result
+        imm r1, 546164
+        imm r2, 1229997395             ; SEPI
+        store r1, r2
+        jmp statement_gen_store_rules_init
+
+statement_emit_epilogue_rules_reset:
+        imm r10, 549000
+statement_emit_epilogue_rules_reset_loop:
+        imm r1, 549096
+        jlt r10, r1, statement_emit_epilogue_rules_reset_one
+        ret
+statement_emit_epilogue_rules_reset_one:
+        imm r1, 0
+        store r10, r1
+        imm r1, 8
+        add r10, r1
+        jmp statement_emit_epilogue_rules_reset_loop
+
+statement_emit_epilogue_require_antecedents:
+        imm r20, 546156
+        imm r21, 1414414675             ; SANT
+        call exact_require_cell
+        imm r20, 546108
+        imm r21, 1480936513             ; ALEX, including exact WSTR
+        call exact_require_cell
+        imm r1, 549000
+        imm r2, 2
+        store r1, r2
+        ret
+
+; r20=event row,r21=literal length,r22=one-based trace position.
+statement_emit_epilogue_require_fragment:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        call write_str_require_emit_event_core
+        jeq r1, r31, statement_emit_epilogue_fragment_length_ok
+        jmp reject
+statement_emit_epilogue_fragment_length_ok:
+        mov r1, r32
+        imm r2, 8
+        mul r1, r2
+        imm r2, 549000
+        add r1, r2
+        store r1, r31
+        ret
+
+statement_emit_epilogue_prove_trace:
+        ; Exact source/event order, with every returned WSTR length consumed.
+        imm r20, 341
+        imm r21, 12                    ; "mov r15,r14\n"
+        imm r22, 1
+        call statement_emit_epilogue_require_fragment
+        imm r20, 342
+        imm r21, 13                    ; "load r14,r15\n"
+        imm r22, 2
+        call statement_emit_epilogue_require_fragment
+        imm r20, 343
+        imm r21, 9                     ; "imm r2,8\n"
+        imm r22, 3
+        call statement_emit_epilogue_require_fragment
+        imm r20, 344
+        imm r21, 11                    ; "add r15,r2\n"
+        imm r22, 4
+        call statement_emit_epilogue_require_fragment
+        imm r20, 345
+        imm r21, 4                     ; "ret\n"
+        imm r22, 5
+        call statement_emit_epilogue_require_fragment
+        imm r1, 549048
+        imm r2, 5                     ; ordered fragment count
+        store r1, r2
+        imm r1, 549056
+        imm r2, 49                    ; exact concatenated byte count
+        store r1, r2
+        imm r1, 549064
+        imm r2, 1                     ; output only; data state is quiet
+        store r1, r2
+        imm r1, 549072
+        imm r2, 1                     ; synthetic epilogue restores frame
+        store r1, r2
+        ret
+
+statement_emit_epilogue_require_result:
+        imm r20, 549000
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 549008
+        imm r21, 12
+        call exact_require_cell
+        imm r20, 549016
+        imm r21, 13
+        call exact_require_cell
+        imm r20, 549024
+        imm r21, 9
+        call exact_require_cell
+        imm r20, 549032
+        imm r21, 11
+        call exact_require_cell
+        imm r20, 549040
+        imm r21, 4
+        call exact_require_cell
+        imm r20, 549048
+        imm r21, 5
+        call exact_require_cell
+        imm r20, 549056
+        imm r21, 49
+        call exact_require_cell
+        imm r20, 549064
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549072
+        imm r21, 1
+        call exact_require_cell
+        ret
