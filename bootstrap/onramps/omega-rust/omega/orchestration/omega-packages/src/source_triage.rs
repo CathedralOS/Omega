@@ -465,6 +465,9 @@ const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::RetainedDangerousAuthority(
             PackageReviewDangerousAuthorityClass::RootMemory,
         ) => "retained_dangerous_authority_root_memory",
+        PackageTriageReason::RetainedDangerousAuthority(
+            PackageReviewDangerousAuthorityClass::Process,
+        ) => "retained_dangerous_authority_process",
     }
 }
 
@@ -501,6 +504,12 @@ mod tests {
                 PackageReviewDangerousAuthorityClass::Filesystem,
             )),
             "retained_dangerous_authority_filesystem"
+        );
+        assert_eq!(
+            reason_token(PackageTriageReason::RetainedDangerousAuthority(
+                PackageReviewDangerousAuthorityClass::Process,
+            )),
+            "retained_dangerous_authority_process"
         );
         assert_eq!(
             reason_token(PackageTriageReason::RepresentationTcbIntroducedOrChanged),

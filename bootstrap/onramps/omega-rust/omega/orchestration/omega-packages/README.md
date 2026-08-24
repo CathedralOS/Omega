@@ -363,7 +363,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-30 length-framed binary comparison encoding over this review
+a version-31 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
@@ -385,10 +385,10 @@ the accepted lock and never silently re-resolves mutable source selectors.
 Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
-The compiler owns both the semantic extraction and the canonical conflict-row
-boundaries. It may read different rows from different Psi-owned checked
-representations and move those joins as compiler internals evolve. Package
-orchestration receives only independently framed, versioned bytes and compares
+Ratified 2026-08-24: the compiler owns both the semantic extraction and the
+canonical conflict-row boundaries. It may read different rows from different
+Psi-owned checked representations and move those joins as compiler internals
+evolve. Package orchestration receives only independently framed, versioned bytes and compares
 them exactly; it does not parse compiler IR or duplicate capability semantics.
 This does not create a nominal Chi stage. A new stage is warranted only if
 implementation discovers a genuine shared semantic invariant, not merely to
@@ -519,4 +519,6 @@ are recorded in `fixtures/packages/REMOTE_PINS.md`. Every fixture declares
 source custody, performs the package-aware compile, and checks the compiler's
 canonical review projection. It deliberately stops before sealed admission and
 lock mutation; tests that fabricate manifests from fixture intent have been
-removed from integration coverage.
+removed from integration coverage. The `process-exit` fixture exercises exact
+toolchain `Console` provenance, compiler-owned process classification, and the
+audit recommendation retained on both initial admission and unchanged update.

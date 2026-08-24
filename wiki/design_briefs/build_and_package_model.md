@@ -670,8 +670,8 @@ identity, a reproducible-build receipt, or proof of the executable image already
 loaded by the operating system. Those stronger source/toolchain joins remain
 part of sealing `PackageInstance`.
 
-The implementation should read each row from the earliest coherent checked
-compiler state that contains it. Different rows may come from different
+Ratified 2026-08-24: the implementation should read each row from the earliest
+coherent checked compiler state that contains it. Different rows may come from different
 internal representations; the final projection must be total, but no single
 intermediate representation must contain every row. This may couple the checker
 to compiler-private representations: the checker is part of the compiler and
@@ -684,6 +684,9 @@ This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for format stability. It has no execution semantics or
 transformation pipeline of its own. A future shared stage is warranted only if
 independent consumers or transformations establish an actual semantic boundary.
+Conversely, discovery may place more rows in an existing coherent
+representation such as `Exact` when that simplifies the compiler without
+erasing meaning.
 
 Canonical rows may carry compiler-issued explanatory source coordinates without
 making those coordinates semantic identity. Paths are canonical UTF-8 and

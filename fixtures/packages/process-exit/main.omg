@@ -1,0 +1,9 @@
+// Public reach of the exact toolchain-owned Console boundary.
+use omega::language::std::console;
+
+pub machine terminate(console: Console, return_code: i32)
+reaches Console
+invokes console;
+{
+    console.exit_process(return_code);
+}

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 30;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 31;
 const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -381,6 +381,7 @@ fn encode_dangerous_authority(
         PackageReviewDangerousAuthorityClass::InterruptControl => 3,
         PackageReviewDangerousAuthorityClass::InterruptEntry => 4,
         PackageReviewDangerousAuthorityClass::RootMemory => 5,
+        PackageReviewDangerousAuthorityClass::Process => 6,
     });
     encode_nominal(encoder, &authority.service)
 }
