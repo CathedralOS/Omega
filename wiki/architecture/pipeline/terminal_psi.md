@@ -1680,19 +1680,28 @@ realizes one owner-authorized boundary route and the receipt qualifies the
 exact subject occurrence. Issuer and subject need not be the same occurrence.
 Component closure checks every canonical pending row before committing and
 retains the original manifest plus exact evidence. Terminal installation
-format 35 records structural access modes plus the manifest and acceptance report identities in the hashed
-installation bytes. Runnable publication additionally joins the complete
+format 36 records structural access modes plus the manifest and acceptance
+report identities in the hashed installation bytes. Runnable publication
+additionally joins the complete
 terminal object and image, canonical installation record, the linear
 `InstalledCode` claim itself, and opaque acceptance, then retains that
 non-forgeable carrier for the live component era. Failed binding, publication,
 or retirement returns the exact custody unchanged; successful retirement is
-the only operation that releases it. A source-derived progress-free canary
+the only operation that releases it. The production deployment owner now
+consumes the compiler candidate and real installed code, validates exact bytes
+before the one-shot registry claim, and retains a retryable staged session
+through provider closure, progress closure, canonical installation replay,
+and runnable binding. Installation identity retains the complete selected-plan
+set, including selected plans with no execution in this image. Runnable binding
+compares that set with the sealed registry even without progress and retains
+the registry until era retirement; only the retired carrier exposes its parts.
+This composer rejects installed external-root records until their code-borrowing
+handles gain an owned teardown protocol. A source-derived progress-free canary
 exercises this path from Terminal-Psi lowering through component-era
 publication. A selected-entry progress-bearing canary now does the same with
 one exact source-derived `self.field` premise, source-selected provider plan,
 installed provider occurrence, authorized establishment route, and opaque
-acceptance; omitting that acceptance rejects runnable binding. Only the
-production composer remains follow-on integration work.
+acceptance; malformed closure input returns the claimed session for retry.
 
 The compiler now exposes one production staging boundary before that owner. It
 lowers an exact source-selected entry through canonical semantic/proof encoding,
@@ -1705,10 +1714,10 @@ and provider executions outside the selected closure reject before a candidate
 exists. The candidate deliberately has no output path, visibility receipt,
 installed provider occurrence, progress-establishment receipt, or
 `InstalledCode` claim: compilation assembles evidence but cannot mint runtime
-or publication authority. The deployment owner must consume the candidate,
-join real installation occurrences and receipts under the live era ledger,
-acquire installed-code custody, and only then publish a runnable carrier. Until
-that owner is wired, the legacy direct `write_output` path remains fenced.
+or publication authority. The deployment owner consumes the candidate, joins
+real installation occurrences and receipts under the live registry, acquires
+installed-code custody, and only then produces a runnable carrier. The legacy
+direct `write_output` path remains fenced until it delegates to that owner.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

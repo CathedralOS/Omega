@@ -1,0 +1,19 @@
+[package]
+name = "omega-component-deployment"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_component_deployment"
+path = "src/lib.rs"
+
+[dependencies]
+omega-compiler = { path = "../omega-compiler" }
+omega-component-publication = { path = "../omega-component-publication" }
+omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-external-roots = { path = "../omega-external-roots" }
+omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
+psi-core = { path = "../../../psi/foundation/psi-core" }

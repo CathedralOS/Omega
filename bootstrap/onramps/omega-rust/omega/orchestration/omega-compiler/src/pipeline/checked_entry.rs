@@ -16,6 +16,7 @@ use std::sync::Arc;
 pub struct CheckedCompilation {
     program: CheckedTrees,
     package_identity: Option<psi_core::PackageKeyIdentity>,
+    selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
@@ -38,6 +39,13 @@ impl CheckedCompilation {
     /// checking has no selected target and therefore cannot be staged.
     pub const fn selected_native_target(&self) -> Option<omega_target::NativeTarget> {
         self.selected_native_target
+    }
+
+    /// Exact deployment-policy target selected for this checked compilation.
+    /// This remains distinct when profiles share a native ABI, notably
+    /// `windows_x64` and `uefi_x64`.
+    pub const fn selected_target_profile(&self) -> Option<omega_target::TargetProfile> {
+        self.selected_target_profile
     }
 
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
@@ -232,10 +240,12 @@ fn compile_to_checked_inner(
     // rewrite adapter calls in the interpreter program.
     let provider_plans =
         crate::pipeline::provider_plans::derive_satisfies_plans(&typed, target_name);
-    let selected_native_target = target_name
-        .map(|target_name| omega_target::NativeTarget::from_omega_target_name(Some(target_name)))
+    let selected_target_profile = target_name
+        .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let selected_native_target =
+        selected_target_profile.map(omega_target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(omega_target::NativeTarget::host);
     let diagnostics =
@@ -309,6 +319,7 @@ fn compile_to_checked_inner(
     Ok(CheckedCompilation {
         program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
         package_identity,
+        selected_target_profile,
         selected_native_target,
         selected_program_entry_machine,
         selected_build_machine_symbol,

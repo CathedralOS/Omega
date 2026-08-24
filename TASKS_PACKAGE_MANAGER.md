@@ -304,8 +304,28 @@ complete.
   ABI, and checked-fact construction without a name-based candidate rejoin;
   same-spelled selected slots are distinguished by package identity and an
   ambiguous readable invocation target rejects. Authored selector resolution,
-  several downstream schema/progress/grant joins, and compiler-intrinsic
-  toolchain ownership are not yet package-qualified or sealed.
+  several downstream schema/grant joins, and compiler-intrinsic toolchain
+  ownership are not yet package-qualified or sealed. Build-bound progress
+  obligations now retain and match the compiler-derived package owners of both
+  the provider service and exact requirement, including through component
+  manifests and audit rendering; no readable-name lookup remains on retained
+  selected-provider facts. Installation-bound reach, termination premises,
+  mutation frames, crash sites/calls, and permission frontiers now project
+  package-owned semantic paths rather than arena-local handles/row IDs. Crash
+  predicates retain only their existing source-independent canonical identity.
+  Source-free structural children now inherit authored hierarchy provenance,
+  closing the implicit-entry-state ownership gap discovered by the crash
+  projection. Review identity now retains the exact deployment target profile,
+  so profiles such as Windows and UEFI cannot collapse merely because they
+  share a native ABI. A v1 length-framed binary comparison encoding now covers
+  every retained callable,
+  crash/proof predicate, authority flow, mutation, and selected-provider row.
+  It converts platform-width ordinals to portable `u64`, distinguishes exact
+  deployment profiles, rejects interner-backed external-supply variants, and
+  remains explicitly review-only rather than a persistable admission
+  certificate. Capability-flow state and propagated `via` state identities are
+  now package-qualified instead of display strings. Compiler/source/toolchain
+  binding and complete Terminal coverage still gate sealed evidence.
   Compiler-generated symbols now inherit the exact authored provenance of a
   mandatory derivation origin; truly source-free symbols and exact toolchain
   identity remain visibly unbound rather than guessed.

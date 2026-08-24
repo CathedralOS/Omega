@@ -29,10 +29,10 @@ machine Main::main(&mut self) { }
 
     let checked = compile_to_checked(&source, None).expect("provider program should check");
     let facts = checked.selected_provider_plans();
-    assert_eq!(facts.plans().len(), 1);
-    let plan = facts
-        .plan_by_name("satisfies::Pair")
-        .expect("the unique covering Pair plan should be selected");
+    let [plan] = facts.plans() else {
+        panic!("exactly one covering Pair plan should be selected");
+    };
+    assert_eq!(plan.name, "satisfies::Pair");
     assert_eq!(plan.rows.len(), 2);
     assert!(plan.covers_schema());
     assert_eq!(

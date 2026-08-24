@@ -5,14 +5,16 @@ use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_image_emission::{
     TERMINAL_INSTALLATION_FORMAT_MARKER, TerminalInstallationError, TerminalObjectError,
     build_terminal_installation_record, build_terminal_installation_record_with_evidence,
-    build_terminal_installation_record_with_provider_executions, build_terminal_object_artifact,
+    build_terminal_installation_record_with_provider_executions,
+    build_terminal_installation_record_with_selected_provider_plans_and_evidence,
+    build_terminal_native_fuel_installation_record, build_terminal_object_artifact,
     can_emit_terminal_executable_image, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
     derive_terminal_unit_stack_demand, emit_terminal_executable_image,
     emit_terminal_native_fuel_executable_image, emit_terminal_native_fuel_object_container,
     emit_terminal_object_container, encode_terminal_installation_record,
     terminal_installation_fingerprint, validate_terminal_installation_record,
-    validate_terminal_native_fuel_plan,
+    validate_terminal_native_fuel_installation_record, validate_terminal_native_fuel_plan,
 };
 use omega_terminal_installation_evidence::{
     NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
@@ -614,6 +616,10 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
 
     let record = build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap())
         .expect("installation record");
+    assert!(
+        record.native_fuel().is_none(),
+        "plain images keep the native-fuel carrier canonically absent"
+    );
     validate_terminal_installation_record(&record, &image).expect("image binding");
 }
 
@@ -684,6 +690,85 @@ fn native_fuel_object_translation_rebases_the_typed_call_and_function_symbols() 
             .expect("metered relocation envelope")
             .text_relocation_count,
         1
+    );
+
+    let record =
+        build_terminal_native_fuel_installation_record(&image, ProfileDecisionId::new(1).unwrap())
+            .expect("native-fuel installation record");
+    let installed = record
+        .native_fuel()
+        .expect("metered image retains dual-coordinate evidence");
+    assert_eq!(installed.target_policy(), image.target_policy());
+    assert_eq!(installed.functions().len(), semantic.functions().len());
+    assert_eq!(installed.charges().len(), semantic.fuel_attribution().len());
+    for ((coordinates, source), metered) in installed
+        .functions()
+        .iter()
+        .zip(semantic.functions())
+        .zip(image.functions())
+    {
+        assert_eq!(coordinates.machine, source.machine);
+        assert_eq!(coordinates.source_text_offset, source.text_offset);
+        assert_eq!(coordinates.source_byte_count, source.byte_count);
+        assert_eq!(coordinates.metered_text_offset, metered.text_offset);
+        assert_eq!(coordinates.metered_byte_count, metered.byte_count);
+        assert_eq!(
+            coordinates.metered_semantic_end_offset,
+            metered.semantic_end_offset
+        );
+    }
+    let encoded = encode_terminal_installation_record(&record).expect("encode format 36");
+    let decoded = decode_terminal_installation_record(&encoded).expect("decode format 36");
+    assert_eq!(decoded, record);
+    validate_terminal_native_fuel_installation_record(&decoded, &image)
+        .expect("rejoin exact native-fuel image");
+
+    let fingerprint_offset = encoded
+        .windows(installed.source_text_fingerprint().as_bytes().len())
+        .position(|window| window == installed.source_text_fingerprint().as_bytes())
+        .expect("source fingerprint in canonical row");
+    assert_eq!(
+        encoded
+            .windows(installed.source_text_fingerprint().as_bytes().len())
+            .filter(|window| *window == installed.source_text_fingerprint().as_bytes())
+            .count(),
+        1
+    );
+
+    let mut changed_source = encoded.clone();
+    changed_source[fingerprint_offset] ^= 1;
+    let changed_source = decode_terminal_installation_record(&changed_source)
+        .expect("canonical changed fingerprint");
+    assert_eq!(
+        validate_terminal_native_fuel_installation_record(&changed_source, &image),
+        Err(TerminalInstallationError::NativeFuelImageMismatch)
+    );
+
+    let mut changed_target_recipe = encoded.clone();
+    changed_target_recipe[fingerprint_offset - 1] ^= 1;
+    let changed_target_recipe = decode_terminal_installation_record(&changed_target_recipe)
+        .expect("canonical changed target recipe");
+    assert_eq!(
+        validate_terminal_native_fuel_installation_record(&changed_target_recipe, &image),
+        Err(TerminalInstallationError::NativeFuelImageMismatch)
+    );
+
+    let first_function = fingerprint_offset + 32 + 4;
+    let first_metered_offset = first_function + 8 + 8 + 8;
+    let mut changed_metered_coordinates = encoded.clone();
+    changed_metered_coordinates[first_metered_offset] ^= 1;
+    assert_eq!(
+        decode_terminal_installation_record(&changed_metered_coordinates),
+        Err(TerminalInstallationError::NonCanonicalNativeFuelFunctions)
+    );
+
+    let charge_count = first_function + installed.functions().len() * 48;
+    let first_charge_units = charge_count + 4 + 8 + 4 + 4 + 8;
+    let mut changed_charge = encoded;
+    changed_charge[first_charge_units] ^= 1;
+    assert_eq!(
+        decode_terminal_installation_record(&changed_charge),
+        Err(TerminalInstallationError::NativeFuelAttributionClosureMismatch)
     );
 }
 
@@ -2257,7 +2342,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         terminal_installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "7673dc656b470b97fd22e0f009c4fcdfd9c0253badaa574d9a989a2625b085ce"
+        "778ffd37083e1b3bd3dad5d4efd66e8c59a3b8c3f05929563d46cfbefa80127a"
     );
 
     let mut changed_plan = plan;
@@ -2337,6 +2422,36 @@ fn installation_record_fingerprints_component_progress_acceptance() {
             Some(&zero),
         ),
         Err(TerminalInstallationError::ZeroComponentProgressManifestIdentity)
+    );
+}
+
+#[test]
+fn installation_record_retains_selected_provider_plan_without_execution() {
+    let artifact = build_terminal_object_artifact(&two_function_plan()).expect("artifact");
+    let image = emit_terminal_executable_image(&artifact, 3).expect("image");
+    let profile = ProfileDecisionId::new(13).expect("profile decision");
+    let record = build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+        &image,
+        profile,
+        [91],
+        std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+        None,
+    )
+    .expect("selected but unexecuted provider plan remains installation identity");
+
+    assert_eq!(record.selected_provider_plans()[0].get(), 91);
+    let bytes = encode_terminal_installation_record(&record).expect("canonical bytes");
+    assert_eq!(decode_terminal_installation_record(&bytes), Ok(record));
+
+    assert_eq!(
+        build_terminal_installation_record_with_selected_provider_plans_and_evidence(
+            &image,
+            profile,
+            [91, 91],
+            std::iter::empty::<&dyn TerminalProviderExecutionEvidence>(),
+            None,
+        ),
+        Err(TerminalInstallationError::DuplicateProviderPlan)
     );
 }
 

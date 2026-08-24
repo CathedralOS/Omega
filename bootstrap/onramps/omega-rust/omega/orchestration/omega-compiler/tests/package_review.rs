@@ -1,5 +1,6 @@
 use omega_compiler::{
-    PackageCompilationInputs, PackageReviewCallableRole, PackageReviewNominalOwner,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewNominalOwner,
     PackageSourceBinding, compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
@@ -57,9 +58,15 @@ fn review_projects_root_boundary_and_build_authority() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"boundary machine host_ping();
+        r#"boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
 machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
+data Receipt [linear] { code: i32; }
+machine helper()
+crashes Abort
+{
+    crash Abort;
+}
 "#,
     );
     package.write(
@@ -68,7 +75,13 @@ machine ping_leaf() satisfies Host::ping via Binding::VtableSlot(1);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build)
+crashes Abort
+{
+    helper();
+    let receipt: Receipt = Receipt { code: 1 };
+    crash Abort;
+}
 "#,
     );
 
@@ -79,8 +92,28 @@ machine build(builder: &mut Build) { }
     )
     .expect("package fixture should check");
     let review = project_checked_package_review(&checked).expect("review projection should close");
+    let encoded = review
+        .canonical_review_bytes()
+        .expect("review projection should have a canonical comparison encoding");
+    let magic = b"OMEGA-PACKAGE-REVIEW\0";
+    assert!(encoded.starts_with(magic));
+    assert_eq!(
+        &encoded[magic.len()..magic.len() + 2],
+        &PACKAGE_REVIEW_ENCODING_VERSION.to_le_bytes(),
+    );
+    assert_eq!(
+        encoded,
+        review
+            .canonical_review_bytes()
+            .expect("repeated encoding must be deterministic")
+    );
 
     assert_eq!(review.package(), package_identity());
+    assert_eq!(
+        review.target().target_name(),
+        target,
+        "review identity must retain the deployment profile, not only its native ABI",
+    );
     assert_eq!(review.callables().len(), 2);
     let boundary = review
         .callables()
@@ -92,9 +125,41 @@ machine build(builder: &mut Build) { }
         boundary.identity().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(boundary.declared_service_reach(), Some(&[][..]));
-    assert!(boundary.realized_service_reach().is_empty());
+    let [declared] = boundary
+        .declared_service_reach()
+        .expect("installation-bound declaration retains its upper bound")
+    else {
+        panic!("one declared upper-bound service")
+    };
+    assert_eq!(declared.path(), "Host");
+    assert_eq!(
+        declared.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(
+        boundary.realized_service_reach(),
+        boundary
+            .declared_service_reach()
+            .expect("published upper bound")
+    );
+    assert!(boundary.concrete_service_reach().is_empty());
     assert!(boundary.capability_flows().is_empty());
+    let [installation] = boundary.unresolved_installation_reaches() else {
+        panic!("one normalized installation-bound reach row")
+    };
+    assert_eq!(
+        installation.requirement().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert!(installation.requirement().path().contains("host_ping"));
+    let [upper_bound] = installation.upper_bound() else {
+        panic!("one normalized installation upper-bound service")
+    };
+    assert_eq!(
+        upper_bound.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(upper_bound.path(), "Host");
 
     let build = review
         .callables()
@@ -103,6 +168,56 @@ machine build(builder: &mut Build) { }
         .expect("build row");
     assert_eq!(build.identity().path(), "build");
     assert_eq!(build.declared_service_reach(), None);
+    let crash = build.checked_crash();
+    assert_eq!(
+        crash.interface(),
+        PackageReviewCrashInterface::PublishedCeiling
+    );
+    let [published_crash] = crash.published() else {
+        panic!("one normalized published crash route")
+    };
+    assert_eq!(
+        published_crash.cause(),
+        psi_checked_trees::CrashCause::Abort
+    );
+    assert_eq!(
+        published_crash.alternative_guards(),
+        [PackageReviewCrashRouteGuard::Truth]
+    );
+    let [crash_site] = crash.checked_sites() else {
+        panic!("one normalized checked crash site")
+    };
+    assert_eq!(
+        crash_site.state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(crash_site.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(crash_site.guard_covering_buckets(), [1]);
+    assert!(!crash_site.frontier_lower_bound().is_empty());
+    assert!(
+        crash_site
+            .frontier_lower_bound()
+            .iter()
+            .all(|claim| claim.machine().owner()
+                == PackageReviewNominalOwner::Package(package_identity())
+                && claim.state().owner() == PackageReviewNominalOwner::Package(package_identity()))
+    );
+    let [crash_call] = crash.checked_calls() else {
+        panic!("one normalized checked crash call")
+    };
+    assert_eq!(
+        crash_call.state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(
+        crash_call.target_machine().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(crash_call.target_machine().path(), "helper");
+    assert_eq!(
+        crash_call.target_state().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
 
     let [provider] = review.selected_providers() else {
         panic!("one selected provider review row")
@@ -153,6 +268,81 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
             .message
             .contains("requires package-aware checked compilation")
     }));
+}
+
+#[test]
+fn review_distinguishes_profiles_that_share_a_native_target() {
+    let package = TempPackage::new();
+    package.write("main.omg", "machine local() { }\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target uefi_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let windows = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("Windows review fixture should check");
+    let uefi = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("uefi_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("UEFI review fixture should check");
+
+    assert_eq!(
+        windows.selected_native_target(),
+        uefi.selected_native_target()
+    );
+    let windows = project_checked_package_review(&windows).expect("Windows review projection");
+    let uefi = project_checked_package_review(&uefi).expect("UEFI review projection");
+    assert_eq!(windows.target(), omega_target::TargetProfile::WindowsX64);
+    assert_eq!(uefi.target(), omega_target::TargetProfile::UefiX64);
+    assert_ne!(windows.target(), uefi.target());
+    assert_ne!(
+        windows.canonical_review_bytes().expect("Windows encoding"),
+        uefi.canonical_review_bytes().expect("UEFI encoding"),
+    );
+}
+
+#[test]
+fn review_encoding_ignores_unreviewed_arena_insertion_order() {
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    first.write("main.omg", "boundary machine host_ping();\n");
+    second.write(
+        "main.omg",
+        "machine unrelated() { }\nboundary machine host_ping();\n",
+    );
+    let build = r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("arena-order fixture should check")
+    };
+    let first = project_checked_package_review(&compile(&first))
+        .expect("first arena-order review")
+        .canonical_review_bytes()
+        .expect("first arena-order encoding");
+    let second = project_checked_package_review(&compile(&second))
+        .expect("second arena-order review")
+        .canonical_review_bytes()
+        .expect("second arena-order encoding");
+
+    assert_eq!(first, second);
 }
 
 #[test]

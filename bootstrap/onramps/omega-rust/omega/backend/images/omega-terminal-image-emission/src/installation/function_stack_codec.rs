@@ -1,4 +1,4 @@
-//! Canonical format-35 codec for one installed function's stack facts.
+//! Canonical format-36 codec for one installed function's stack facts.
 //!
 //! Function ordering and stack validation remain in the installation parent.
 //! This child owns optional local envelopes and ordered unit/scalar call rows.

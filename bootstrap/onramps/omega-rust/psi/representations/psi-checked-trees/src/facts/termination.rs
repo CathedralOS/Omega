@@ -48,8 +48,12 @@ pub struct BuildBoundProgressDemand {
     /// Exact boundary service whose selected provider occurrence is the
     /// premise subject at composition.
     pub provider_service_identity: String,
+    /// Compiler-derived package owner of that exact boundary service.
+    pub provider_service_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Normalized exact trait-requirement overload identity.
     pub requirement_identity: String,
+    /// Compiler-derived package owner of the requirement overload.
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Canonical progress-profile identity.
     pub profile_identity: String,
     /// Exact field path below the provider receiver.

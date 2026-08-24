@@ -1,4 +1,4 @@
-//! Canonical format-35 codec for retained completion claim sources.
+//! Canonical format-36 codec for retained completion claim sources.
 //!
 //! This module owns only the tagged source row. The installation parent keeps
 //! settlement ordering and count fields, so extraction cannot reorder bytes or
