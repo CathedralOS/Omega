@@ -1,0 +1,243 @@
+; Exact procedure/control shape for emit_cmp(code), procedure60.
+;
+; This module owns procedure metadata, all eighteen blocks, and the complete
+; twenty-four-transition decision/materialization graph.  The adjacent data
+; module owns effects, locals, primitives, pushes, table censuses, epilogues,
+; and the decoded footprint.
+
+emit_cmp_require_shape:
+        call emit_cmp_require_control_shape
+        call emit_cmp_require_data_shape
+        ret
+
+emit_cmp_require_control_shape:
+        imm r20, 7151616
+        imm r21, 60
+        imm r22, 1                    ; parameter code
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 60
+        imm r22, 3                    ; code,set,done
+        call transfer_require_cell
+        imm r20, 60
+        call call_bounds_frame_bytes
+        imm r1, 32
+        jeq r0, r1, emit_cmp_require_blocks
+        jmp reject
+
+emit_cmp_require_blocks:
+        imm r20, 285
+        imm r21, 40739
+        call exact_require_block_pc
+        imm r20, 286
+        imm r21, 41040
+        call exact_require_block_pc
+        imm r20, 287
+        imm r21, 41172
+        call exact_require_block_pc
+        imm r20, 288
+        imm r21, 41229
+        call exact_require_block_pc
+        imm r20, 289
+        imm r21, 41361
+        call exact_require_block_pc
+        imm r20, 290
+        imm r21, 41418
+        call exact_require_block_pc
+        imm r20, 291
+        imm r21, 41550
+        call exact_require_block_pc
+        imm r20, 292
+        imm r21, 41607
+        call exact_require_block_pc
+        imm r20, 293
+        imm r21, 41739
+        call exact_require_block_pc
+        imm r20, 294
+        imm r21, 41796
+        call exact_require_block_pc
+        imm r20, 295
+        imm r21, 41928
+        call exact_require_block_pc
+        imm r20, 296
+        imm r21, 41985
+        call exact_require_block_pc
+        imm r20, 297
+        imm r21, 42117
+        call exact_require_block_pc
+        imm r20, 298
+        imm r21, 42174
+        call exact_require_block_pc
+        imm r20, 299
+        imm r21, 42452
+        call exact_require_block_pc
+        imm r20, 300
+        imm r21, 42508
+        call exact_require_block_pc
+        imm r20, 301
+        imm r21, 42928
+        call exact_require_block_pc
+        imm r20, 302
+        imm r21, 42984
+        call exact_require_block_pc
+        imm r20, 285
+        imm r21, 302
+        imm r22, 60
+        call exact_require_proc_blocks
+        call emit_cmp_require_transitions
+        ret
+
+; row/source block/guarded/target/control PC.
+emit_cmp_require_transitions:
+        imm r20, 225
+        imm r21, 286
+        imm r22, 1
+        imm r23, 287
+        imm r24, 41144
+        call exact_require_transition
+        imm r20, 226
+        imm r21, 286
+        imm r22, 0
+        imm r23, 288
+        imm r24, 41163
+        call exact_require_transition
+        imm r20, 227
+        imm r21, 287
+        imm r22, 0
+        imm r23, 298
+        imm r24, 41220
+        call exact_require_transition
+
+        imm r20, 228
+        imm r21, 288
+        imm r22, 1
+        imm r23, 289
+        imm r24, 41333
+        call exact_require_transition
+        imm r20, 229
+        imm r21, 288
+        imm r22, 0
+        imm r23, 290
+        imm r24, 41352
+        call exact_require_transition
+        imm r20, 230
+        imm r21, 289
+        imm r22, 0
+        imm r23, 298
+        imm r24, 41409
+        call exact_require_transition
+
+        imm r20, 231
+        imm r21, 290
+        imm r22, 1
+        imm r23, 291
+        imm r24, 41522
+        call exact_require_transition
+        imm r20, 232
+        imm r21, 290
+        imm r22, 0
+        imm r23, 292
+        imm r24, 41541
+        call exact_require_transition
+        imm r20, 233
+        imm r21, 291
+        imm r22, 0
+        imm r23, 298
+        imm r24, 41598
+        call exact_require_transition
+
+        imm r20, 234
+        imm r21, 292
+        imm r22, 1
+        imm r23, 293
+        imm r24, 41711
+        call exact_require_transition
+        imm r20, 235
+        imm r21, 292
+        imm r22, 0
+        imm r23, 294
+        imm r24, 41730
+        call exact_require_transition
+        imm r20, 236
+        imm r21, 293
+        imm r22, 0
+        imm r23, 298
+        imm r24, 41787
+        call exact_require_transition
+
+        imm r20, 237
+        imm r21, 294
+        imm r22, 1
+        imm r23, 295
+        imm r24, 41900
+        call exact_require_transition
+        imm r20, 238
+        imm r21, 294
+        imm r22, 0
+        imm r23, 296
+        imm r24, 41919
+        call exact_require_transition
+        imm r20, 239
+        imm r21, 295
+        imm r22, 0
+        imm r23, 298
+        imm r24, 41976
+        call exact_require_transition
+
+        imm r20, 240
+        imm r21, 296
+        imm r22, 1
+        imm r23, 297
+        imm r24, 42089
+        call exact_require_transition
+        imm r20, 241
+        imm r21, 296
+        imm r22, 0
+        imm r23, 298
+        imm r24, 42108
+        call exact_require_transition
+        imm r20, 242
+        imm r21, 297
+        imm r22, 0
+        imm r23, 298
+        imm r24, 42165
+        call exact_require_transition
+
+        imm r20, 243
+        imm r21, 298
+        imm r22, 1
+        imm r23, 299
+        imm r24, 42377               ; signed code<3
+        call exact_require_transition
+        imm r20, 244
+        imm r21, 298
+        imm r22, 0
+        imm r23, 300
+        imm r24, 42443
+        call exact_require_transition
+        imm r20, 245
+        imm r21, 299
+        imm r22, 0
+        imm r23, 300
+        imm r24, 42499
+        call exact_require_transition
+
+        imm r20, 246
+        imm r21, 300
+        imm r22, 1
+        imm r23, 301
+        imm r24, 42853               ; same signed code<3 split
+        call exact_require_transition
+        imm r20, 247
+        imm r21, 300
+        imm r22, 0
+        imm r23, 302
+        imm r24, 42919
+        call exact_require_transition
+        imm r20, 248
+        imm r21, 301
+        imm r22, 0
+        imm r23, 302
+        imm r24, 42975
+        call exact_require_transition
+        ret

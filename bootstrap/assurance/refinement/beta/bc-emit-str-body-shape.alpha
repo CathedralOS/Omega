@@ -1,0 +1,500 @@
+; Exact source/artifact shape for emit_str_body().
+;
+; Procedure 27 blindly advances over one byte, then owns a six-block string
+; scan with quote, zero, ordinary, and escape outcomes.  This module binds all
+; calls and direct writes in lowering order (including the nested cbyte calls
+; which precede their lexical write_byte rows), both explicit returns, the
+; synthetic epilogue, the one-slot frame, and exhaustive table/decoded-region
+; censuses.  Cursor/output meaning is proved by the adjacent case and summary
+; modules.
+;
+; Private publication cell: 535656 = SBSH.
+
+emit_str_body_require_shape:
+        imm r20, 7151616
+        imm r21, 27
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 27
+        imm r22, 1                    ; local len only
+        call transfer_require_cell
+        imm r20, 27
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, emit_str_body_shape_blocks
+        jmp reject
+
+emit_str_body_shape_blocks:
+        imm r20, 140
+        imm r21, 18780
+        call exact_require_block_pc
+        imm r20, 141
+        imm r21, 18850
+        call exact_require_block_pc
+        imm r20, 142
+        imm r21, 18972
+        call exact_require_block_pc
+        imm r20, 143
+        imm r21, 19313
+        call exact_require_block_pc
+        imm r20, 144
+        imm r21, 19352
+        call exact_require_block_pc
+        imm r20, 145
+        imm r21, 19488
+        call exact_require_block_pc
+        imm r20, 140
+        imm r21, 145
+        imm r22, 27
+        call exact_require_proc_blocks
+        call emit_str_body_require_transitions
+        call emit_str_body_require_events
+        call emit_str_body_require_locals
+        call emit_str_body_require_primitives
+        call emit_str_body_require_pushes
+        call emit_str_body_require_censuses
+        imm r1, 535656
+        imm r2, 1213416019            ; SBSH
+        store r1, r2
+        imm r20, 535656
+        imm r21, 1213416019
+        call exact_require_cell
+        ret
+
+emit_str_body_require_transitions:
+        imm r20, 102
+        imm r21, 141
+        imm r22, 1
+        imm r23, 142
+        imm r24, 18944                ; cbyte()!=34 -> body
+        call exact_require_transition
+        imm r20, 103
+        imm r21, 141
+        imm r22, 0
+        imm r23, 145
+        imm r24, 18963                ; quote -> done
+        call exact_require_transition
+        imm r20, 104
+        imm r21, 142
+        imm r22, 1
+        imm r23, 143
+        imm r24, 19066                ; unescaped zero -> eof
+        call exact_require_transition
+        imm r20, 105
+        imm r21, 142
+        imm r22, 1
+        imm r23, 144
+        imm r24, 19179                ; backslash -> esc
+        call exact_require_transition
+        imm r20, 106
+        imm r21, 142
+        imm r22, 0
+        imm r23, 141
+        imm r24, 19304                ; ordinary successor -> loop
+        call exact_require_transition
+        imm r20, 107
+        imm r21, 144
+        imm r22, 0
+        imm r23, 141
+        imm r24, 19479                ; escape successor -> loop
+        call exact_require_transition
+        ret
+
+emit_str_body_require_events:
+        ; Opening and loop observations.
+        imm r20, 183
+        imm r21, 140
+        imm r22, 18812
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939                 ; adv
+        imm r26, 18821
+        call summary_require_call_site
+        imm r20, 184
+        imm r21, 141
+        imm r22, 18850
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609                 ; cbyte
+        imm r26, 18859
+        call summary_require_call_site
+        imm r20, 185
+        imm r21, 142
+        imm r22, 18972
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 18981
+        call summary_require_call_site
+        imm r20, 186
+        imm r21, 142
+        imm r22, 19085
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 19094
+        call summary_require_call_site
+
+        ; Lexical row 187 is the write, but its cbyte argument at row 188
+        ; lowers first and continues directly at that write instruction.
+        imm r20, 188
+        imm r21, 142
+        imm r22, 19198
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 19207
+        call summary_require_call_site
+        imm r20, 187
+        imm r21, 142
+        imm r22, 3
+        imm r23, 19207
+        call exact_require_event
+        imm r20, 187
+        imm r21, 1
+        call exact_require_event_arity
+        imm r20, 189
+        imm r21, 142
+        imm r22, 19209
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 19218
+        call summary_require_call_site
+
+        imm r20, 190
+        imm r21, 143
+        imm r22, 5
+        imm r23, 19351
+        call exact_require_event
+
+        ; Escape writes the literal backslash before observing/writing its
+        ; second byte.  Again the nested cbyte row lowers before write row 193.
+        imm r20, 191
+        imm r21, 144
+        imm r22, 3
+        imm r23, 19362
+        call exact_require_event
+        imm r20, 191
+        imm r21, 1
+        call exact_require_event_arity
+        imm r20, 192
+        imm r21, 144
+        imm r22, 19364
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 19373
+        call summary_require_call_site
+        imm r20, 194
+        imm r21, 144
+        imm r22, 19373
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 19382
+        call summary_require_call_site
+        imm r20, 193
+        imm r21, 144
+        imm r22, 3
+        imm r23, 19382
+        call exact_require_event
+        imm r20, 193
+        imm r21, 1
+        call exact_require_event_arity
+        imm r20, 195
+        imm r21, 144
+        imm r22, 19384
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 19393
+        call summary_require_call_site
+
+        imm r20, 196
+        imm r21, 145
+        imm r22, 19488
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 19497
+        call summary_require_call_site
+        imm r20, 197
+        imm r21, 145
+        imm r22, 5
+        imm r23, 19535
+        call exact_require_event
+
+        imm r20, 19332
+        imm r21, 19351
+        call exact_require_epilogue
+        imm r20, 19516
+        imm r21, 19535
+        call exact_require_epilogue
+        imm r20, 19536
+        imm r21, 19555
+        call exact_require_epilogue
+        ret
+
+emit_str_body_require_locals:
+        imm r20, 37
+        imm r21, 140
+        imm r22, 2
+        imm r23, 0
+        imm r24, 18831                ; len=0
+        call transfer_require_local
+        imm r20, 38
+        imm r21, 142
+        imm r22, 2
+        imm r23, 0
+        imm r24, 19285                ; ordinary len successor
+        call transfer_require_local
+        imm r20, 39
+        imm r21, 142
+        imm r22, 1
+        imm r23, 0
+        imm r24, 19218
+        call transfer_require_local
+        imm r20, 40
+        imm r21, 143
+        imm r22, 1
+        imm r23, 0
+        imm r24, 19313                ; eof result
+        call transfer_require_local
+        imm r20, 41
+        imm r21, 144
+        imm r22, 2
+        imm r23, 0
+        imm r24, 19460                ; escape len successor
+        call transfer_require_local
+        imm r20, 42
+        imm r21, 144
+        imm r22, 1
+        imm r23, 0
+        imm r24, 19393
+        call transfer_require_local
+        imm r20, 43
+        imm r21, 145
+        imm r22, 1
+        imm r23, 0
+        imm r24, 19497                ; quote result
+        call transfer_require_local
+        ret
+
+emit_str_body_require_primitives:
+        imm r20, 370
+        imm r21, 140
+        imm r22, 1
+        imm r23, 0
+        imm r24, 18821
+        call transfer_require_primitive
+        imm r20, 371
+        imm r21, 141
+        imm r22, 3
+        imm r23, 11                  ; cbyte != 34
+        imm r24, 18885
+        call transfer_require_primitive
+        imm r20, 372
+        imm r21, 141
+        imm r22, 1
+        imm r23, 34
+        imm r24, 18875
+        call transfer_require_primitive
+        imm r20, 373
+        imm r21, 142
+        imm r22, 3
+        imm r23, 10                  ; cbyte == 0
+        imm r24, 19007
+        call transfer_require_primitive
+        imm r20, 374
+        imm r21, 142
+        imm r22, 1
+        imm r23, 0
+        imm r24, 18997
+        call transfer_require_primitive
+        imm r20, 375
+        imm r21, 142
+        imm r22, 3
+        imm r23, 10                  ; cbyte == 92
+        imm r24, 19120
+        call transfer_require_primitive
+        imm r20, 376
+        imm r21, 142
+        imm r22, 1
+        imm r23, 92
+        imm r24, 19110
+        call transfer_require_primitive
+        imm r20, 377
+        imm r21, 142
+        imm r22, 2
+        imm r23, 3                   ; len+1
+        imm r24, 19263
+        call transfer_require_primitive
+        imm r20, 378
+        imm r21, 142
+        imm r22, 1
+        imm r23, 1
+        imm r24, 19253
+        call transfer_require_primitive
+        imm r20, 379
+        imm r21, 144
+        imm r22, 1
+        imm r23, 92                  ; literal first escape byte
+        imm r24, 19352
+        call transfer_require_primitive
+        imm r20, 380
+        imm r21, 144
+        imm r22, 2
+        imm r23, 3                   ; len+1, not len+2
+        imm r24, 19438
+        call transfer_require_primitive
+        imm r20, 381
+        imm r21, 144
+        imm r22, 1
+        imm r23, 1
+        imm r24, 19428
+        call transfer_require_primitive
+        ret
+
+emit_str_body_require_pushes:
+        imm r20, 93
+        imm r21, 141
+        imm r22, 1
+        imm r23, 18859
+        call transfer_require_push
+        imm r20, 94
+        imm r21, 142
+        imm r22, 1
+        imm r23, 18981
+        call transfer_require_push
+        imm r20, 95
+        imm r21, 142
+        imm r22, 1
+        imm r23, 19094
+        call transfer_require_push
+        imm r20, 96
+        imm r21, 142
+        imm r22, 1
+        imm r23, 19237
+        call transfer_require_push
+        imm r20, 97
+        imm r21, 144
+        imm r22, 1
+        imm r23, 19412
+        call transfer_require_push
+        ret
+
+emit_str_body_require_censuses:
+        imm r20, 140
+        imm r21, 145
+        imm r22, 37
+        imm r23, 44                  ; exclusive local row
+        imm r24, 33
+        imm r25, 33                  ; no raw-memory rows
+        imm r26, 102
+        imm r27, 108                 ; exclusive transition row
+        imm r28, 183
+        imm r29, 198                 ; exclusive event row
+        call exact_require_effect_census
+
+        imm r20, 140
+        imm r21, 145
+        imm r22, 370
+        imm r23, 382                 ; exclusive primitive row
+        imm r24, 93
+        imm r25, 98                  ; binary pushes
+        imm r26, 297
+        imm r27, 297                 ; no ordinary argument pushes
+        imm r28, 381
+        imm r29, 381                 ; no store-address pushes
+        call summary_require_expr_census
+
+        imm r20, 18780
+        imm r21, 19556
+        imm r22, 10                  ; adv/cbyte calls
+        imm r23, 3                   ; two explicit + synthetic returns
+        imm r24, 3                   ; direct writes
+        imm r25, 9                   ; saved-fp/local/push stores
+        call emit_str_body_scan_region
+        ret
+
+; Exact decoded census.  This region intentionally writes three bytes, but has
+; no input, raw-byte memory, halt, division, or remainder instruction.
+emit_str_body_scan_region:
+        mov r26, r20
+        mov r27, r21
+        mov r28, r22
+        mov r29, r23
+        mov r30, r24
+        mov r31, r25
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0
+        imm r13, 0
+emit_str_body_scan_loop:
+        jlt r26, r27, emit_str_body_scan_pc
+        jeq r10, r28, emit_str_body_scan_returns
+        jmp reject
+emit_str_body_scan_returns:
+        jeq r11, r29, emit_str_body_scan_writes
+        jmp reject
+emit_str_body_scan_writes:
+        jeq r12, r30, emit_str_body_scan_stores
+        jmp reject
+emit_str_body_scan_stores:
+        jeq r13, r31, emit_str_body_scan_done
+        jmp reject
+emit_str_body_scan_pc:
+        imm r1, 4194304
+        add r1, r26
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, emit_str_body_scan_start
+        jmp emit_str_body_scan_next
+emit_str_body_scan_start:
+        imm r1, 2097152
+        add r1, r26
+        loadb r2, r1
+        imm r3, 19
+        jeq r2, r3, emit_str_body_scan_call
+        imm r3, 20
+        jeq r2, r3, emit_str_body_scan_return
+        imm r3, 18
+        jeq r2, r3, emit_str_body_scan_write
+        imm r3, 11
+        jeq r2, r3, emit_str_body_scan_store
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 6
+        jeq r2, r3, reject
+        imm r3, 7
+        jeq r2, r3, reject
+        imm r3, 8
+        jeq r2, r3, reject
+        imm r3, 9
+        jeq r2, r3, reject
+        imm r3, 17
+        jeq r2, r3, reject
+        jmp emit_str_body_scan_next
+emit_str_body_scan_call:
+        imm r1, 1
+        add r10, r1
+        jmp emit_str_body_scan_next
+emit_str_body_scan_return:
+        imm r1, 1
+        add r11, r1
+        jmp emit_str_body_scan_next
+emit_str_body_scan_write:
+        imm r1, 1
+        add r12, r1
+        jmp emit_str_body_scan_next
+emit_str_body_scan_store:
+        imm r1, 1
+        add r13, r1
+emit_str_body_scan_next:
+        imm r1, 1
+        add r26, r1
+        jmp emit_str_body_scan_loop
+emit_str_body_scan_done:
+        ret

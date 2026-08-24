@@ -1,0 +1,492 @@
+; Full-Word exact trace summary for emit_cmp(code).
+;
+; Exact codes0..5 emit their selected ten-byte branch mnemonic. Every other
+; Word follows the source complement and emits no operator text. Both later
+; code<3 tests are signed: codes0..2 and every high-bit/negative Word use
+; fall-through zero / branch-taken one; codes3..INT64_MAX use the inverse.
+; Four LREF children receive set,done,set,done in that exact order. NLBL gives
+; modular LBL+2; no canonical-label spelling is claimed here.
+;
+; Cases occupy537704..<538112. Work is538112..<538400, semantic completion
+; rows are538400..<538464, and final counters are538472..<538496.
+
+emit_cmp_summary_init:
+        call emit_cmp_require_shape
+        call emit_cmp_cases_init
+        call emit_cmp_prove_summary
+        jmp label_emitters_publication_init
+
+emit_cmp_prove_summary:
+        call emit_cmp_summary_reset
+        call emit_cmp_require_imports
+        imm r10, 0                    ; selected case row
+        imm r11, 0                    ; valid-code rows
+emit_cmp_summary_row_loop:
+        imm r1, 8
+        jlt r10, r1, emit_cmp_summary_row
+        imm r1, 8
+        jeq r10, r1, emit_cmp_summary_finish_rows
+        jmp reject
+emit_cmp_summary_row:
+        call emit_cmp_summary_reset_work
+        call emit_cmp_load_selected_case
+        call emit_cmp_bind_code_and_labels
+        call emit_cmp_compose_prelude
+        call emit_cmp_compose_operator
+        call emit_cmp_compose_materialization
+        call emit_cmp_compose_label_suffix
+        call emit_cmp_finalize_selected_case
+        imm r1, 538400
+        mov r2, r10
+        imm r3, 8
+        mul r2, r3
+        add r1, r2
+        imm r2, 1
+        store r1, r2
+        imm r1, 538152
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, emit_cmp_summary_count_valid
+        jmp emit_cmp_summary_next
+emit_cmp_summary_count_valid:
+        add r11, r1
+emit_cmp_summary_next:
+        imm r1, 1
+        add r10, r1
+        jmp emit_cmp_summary_row_loop
+
+emit_cmp_summary_reset:
+        imm r1, 534864
+        imm r2, 0
+        store r1, r2
+        imm r1, 534872
+        store r1, r2
+        imm r1, 538112
+emit_cmp_summary_reset_loop:
+        imm r3, 538496
+        jlt r1, r3, emit_cmp_summary_reset_cell
+        ret
+emit_cmp_summary_reset_cell:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp emit_cmp_summary_reset_loop
+
+emit_cmp_summary_reset_work:
+        imm r1, 538112
+        imm r2, 0
+emit_cmp_summary_reset_work_loop:
+        imm r3, 538400
+        jlt r1, r3, emit_cmp_summary_reset_work_cell
+        ret
+emit_cmp_summary_reset_work_cell:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp emit_cmp_summary_reset_work_loop
+
+emit_cmp_require_imports:
+        imm r20, 534800
+        imm r21, 1163022164           ; EROOT
+        call exact_require_cell
+        imm r20, 525816
+        imm r21, 1465074514           ; WSTR exact fixed emit clauses
+        call exact_require_cell
+        imm r20, 534832
+        imm r21, 1279413326           ; NLBL
+        call exact_require_cell
+        imm r20, 534840
+        imm r21, 1178948172           ; LREF
+        call exact_require_cell
+        imm r20, 537704
+        imm r21, 1129333573           ; ECPC cases
+        call exact_require_cell
+        imm r20, 537712
+        imm r21, 1                    ; exhaustive signed partition
+        call exact_require_cell
+        imm r20, 537720
+        imm r21, 8
+        call exact_require_cell
+        ret
+
+emit_cmp_load_selected_case:
+        imm r1, 538112
+        store r1, r10                 ; exact selected row identity
+        mov r12, r10
+        imm r1, 48
+        mul r12, r1
+        imm r1, 537728
+        add r12, r1
+        load r2, r12
+        imm r1, 538120
+        store r1, r2                  ; code lower endpoint
+        imm r4, 8
+        add r12, r4
+        load r2, r12
+        imm r1, 538128
+        store r1, r2                  ; code upper endpoint
+        add r12, r4
+        load r2, r12
+        imm r1, 538136
+        store r1, r2                  ; operator tag
+        add r12, r4
+        load r2, r12
+        imm r1, 538144
+        store r1, r2                  ; signed code<3 bit
+        add r12, r4
+        load r2, r12
+        imm r1, 538152
+        store r1, r2                  ; valid-six bit
+        add r12, r4
+        load r2, r12
+        imm r1, 1
+        jeq r2, r1, emit_cmp_load_case_complete
+        jmp reject
+emit_cmp_load_case_complete:
+        imm r1, 538160
+        imm r2, 1
+        store r1, r2                  ; consumed descriptor completion
+        ret
+
+; NLBL is a modular full-Word relation. The exact first/second result stores
+; and later local loads preserve set=L and done=L+1, with final LBL=L+2.
+emit_cmp_bind_code_and_labels:
+        call emit_cmp_require_imports
+        imm r1, 538168
+        imm r2, 1
+        store r1, r2                  ; parameter slot0 carries selected code
+        imm r1, 538176
+        store r1, r2                  ; exact six-test/complement path selected
+        imm r1, 538192
+        store r1, r2                  ; first NLBL result stored in set slot1
+        imm r1, 538200
+        store r1, r2                  ; second NLBL consumes successor LBL
+        imm r1, 538208
+        store r1, r2                  ; set/done distinct modulo2^64
+        imm r1, 538328
+        store r1, r2                  ; exact final LBL=L+2 mod2^64
+        ret
+
+; Events463..466 are source-ordered WSTR clauses totaling42 literal bytes.
+emit_cmp_compose_prelude:
+        imm r1, 538184
+        imm r2, 42
+        store r1, r2
+        ret
+
+; Rows0..5 select exactly event469+row and ten bytes. The two complement rows
+; traverse all six false equality edges and append no operator bytes.
+emit_cmp_compose_operator:
+        imm r1, 538152
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, emit_cmp_compose_valid_operator
+        imm r1, 538136
+        load r2, r1
+        imm r3, 0
+        jeq r2, r3, emit_cmp_compose_no_operator
+        jmp reject
+emit_cmp_compose_valid_operator:
+        imm r1, 538136
+        load r2, r1
+        imm r3, 1
+        jeq r2, r3, emit_cmp_compose_operator_present
+        imm r3, 2
+        jeq r2, r3, emit_cmp_compose_operator_present
+        imm r3, 3
+        jeq r2, r3, emit_cmp_compose_operator_present
+        jmp reject
+emit_cmp_compose_operator_present:
+        imm r1, 538216
+        imm r2, 10
+        store r1, r2
+        imm r1, 538368
+        imm r2, 1                    ; exact code row selects its one event
+        store r1, r2
+        ret
+emit_cmp_compose_no_operator:
+        imm r1, 538216
+        imm r2, 1                    ; encoded proof of zero appended bytes
+        store r1, r2
+        imm r1, 538368
+        imm r2, 2                    ; complete six-false complement
+        store r1, r2
+        ret
+
+; First LREF is set. Newline follows. signed code<3 chooses fall value0,
+; otherwise value1; the later taken value is the exact inverse.
+emit_cmp_compose_materialization:
+        imm r1, 538224
+        imm r2, 1                    ; LREF(set), event475/arg row339
+        store r1, r2
+        imm r1, 538232
+        store r1, r2                  ; exact one-byte newline event476
+        imm r1, 538144
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, emit_cmp_compose_lt3_values
+        imm r1, 0
+        jeq r2, r1, emit_cmp_compose_ge3_values
+        jmp reject
+emit_cmp_compose_lt3_values:
+        imm r1, 538240
+        imm r2, 1                    ; encoded exact fall value0
+        store r1, r2
+        imm r1, 538288
+        imm r2, 2                    ; encoded exact taken value1
+        store r1, r2
+        jmp emit_cmp_compose_materialization_common
+emit_cmp_compose_ge3_values:
+        imm r1, 538240
+        imm r2, 2                    ; encoded exact fall value1
+        store r1, r2
+        imm r1, 538288
+        imm r2, 1                    ; encoded exact taken value0
+        store r1, r2
+emit_cmp_compose_materialization_common:
+        imm r1, 538248
+        imm r2, 1                    ; exact "jmp " follows fall value
+        store r1, r2
+        ret
+
+; The remaining children/events are done,"\n",set,":\n",taken,done,":\n".
+; Same local identities at rows188/189/191 and argument pushes340..342 prevent
+; swapping set and done even when a malformed high-bit LREF is noncanonical.
+emit_cmp_compose_label_suffix:
+        imm r1, 538256
+        imm r2, 1                    ; first LREF(done), event480
+        store r1, r2
+        imm r1, 538264
+        store r1, r2                  ; newline event481
+        imm r1, 538272
+        store r1, r2                  ; second LREF(set), event482
+        imm r1, 538280
+        store r1, r2                  ; colon-newline event483
+        imm r1, 538296
+        store r1, r2                  ; second LREF(done), event486
+        imm r1, 538304
+        store r1, r2                  ; colon-newline event487
+        imm r1, 538312
+        store r1, r2                  ; exact set,done,set,done child order
+        imm r1, 538360
+        store r1, r2                  ; all four exact argument custodies
+        imm r1, 538376
+        store r1, r2                  ; complete arbitrary-prior trace join
+        imm r1, 538336
+        store r1, r2                  ; explicit result Word0
+        imm r1, 538344
+        store r1, r2                  ; caller frame restored
+        imm r1, 538352
+        store r1, r2                  ; quiet except output and LBL
+        ret
+
+emit_cmp_finalize_selected_case:
+        call emit_cmp_finalize_descriptor_identity
+        call emit_cmp_require_imports
+        imm r20, 538160
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538168
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538176
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538184
+        imm r21, 42
+        call exact_require_cell
+        imm r20, 538192
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538200
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538208
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538224
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538232
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538248
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538256
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538264
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538272
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538280
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538296
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538304
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538312
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538328
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538336
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538344
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538352
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538360
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538376
+        imm r21, 1
+        call exact_require_cell
+
+        ; Consume the selected signed split and exact fixed-byte total.
+        imm r1, 538144
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, emit_cmp_finalize_lt3
+        imm r1, 0
+        jeq r2, r1, emit_cmp_finalize_ge3
+        jmp reject
+emit_cmp_finalize_lt3:
+        imm r20, 538240
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 538288
+        imm r21, 2
+        call exact_require_cell
+        jmp emit_cmp_finalize_operator
+emit_cmp_finalize_ge3:
+        imm r20, 538240
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 538288
+        imm r21, 1
+        call exact_require_cell
+emit_cmp_finalize_operator:
+        imm r1, 538152
+        load r2, r1
+        imm r1, 1
+        jeq r2, r1, emit_cmp_finalize_valid
+        imm r20, 538216
+        imm r21, 1                    ; encoded zero operator bytes
+        call exact_require_cell
+        imm r20, 538368
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 538320
+        imm r2, 70                    ; 42 prelude + 28 post, no operator
+        store r1, r2
+        jmp emit_cmp_finalize_total
+emit_cmp_finalize_valid:
+        imm r20, 538216
+        imm r21, 10
+        call exact_require_cell
+        imm r20, 538368
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 538320
+        imm r2, 80                    ; 42 + selected10 + post28
+        store r1, r2
+emit_cmp_finalize_total:
+        imm r1, 538152
+        load r2, r1
+        imm r20, 538320
+        imm r21, 80
+        imm r1, 1
+        jeq r2, r1, emit_cmp_finalize_require_total
+        imm r21, 70
+emit_cmp_finalize_require_total:
+        call exact_require_cell
+        ret
+
+; Recompute the selected descriptor address and consume row/lo/hi/op/lt/valid
+; identities before any semantic completion can be published.  This prevents
+; the interval endpoints from becoming decorative case-table data.
+emit_cmp_finalize_descriptor_identity:
+        imm r1, 538112
+        load r30, r1
+        jeq r30, r10, emit_cmp_finalize_descriptor_address
+        jmp reject
+emit_cmp_finalize_descriptor_address:
+        imm r1, 48
+        mul r30, r1
+        imm r1, 537728
+        add r30, r1
+        imm r31, 538120
+        imm r32, 0
+emit_cmp_finalize_descriptor_loop:
+        imm r1, 5
+        jlt r32, r1, emit_cmp_finalize_descriptor_field
+        ret
+emit_cmp_finalize_descriptor_field:
+        load r2, r30
+        load r3, r31
+        jeq r2, r3, emit_cmp_finalize_descriptor_next
+        jmp reject
+emit_cmp_finalize_descriptor_next:
+        imm r1, 8
+        add r30, r1
+        add r31, r1
+        imm r1, 1
+        add r32, r1
+        jmp emit_cmp_finalize_descriptor_loop
+
+emit_cmp_summary_finish_rows:
+        imm r1, 6
+        jeq r11, r1, emit_cmp_summary_require_completions
+        jmp reject
+emit_cmp_summary_require_completions:
+        imm r10, 0
+emit_cmp_summary_completion_loop:
+        imm r1, 8
+        jlt r10, r1, emit_cmp_summary_completion
+        imm r1, 538472
+        imm r2, 8
+        store r1, r2                  ; all total-Word rows composed
+        imm r1, 538480
+        imm r2, 6
+        store r1, r2                  ; exact valid comparison-code rows
+        jmp emit_cmp_summary_publish
+emit_cmp_summary_completion:
+        mov r20, r10
+        imm r1, 8
+        mul r20, r1
+        imm r1, 538400
+        add r20, r1
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 1
+        add r10, r1
+        jmp emit_cmp_summary_completion_loop
+
+emit_cmp_summary_publish:
+        imm r20, 538472
+        imm r21, 8
+        call exact_require_cell
+        imm r20, 538480
+        imm r21, 6
+        call exact_require_cell
+        imm r1, 534872
+        imm r2, 1                    ; exact useful code0..5 subrelation
+        store r1, r2
+        imm r1, 534864
+        imm r2, 1347240773           ; ECMP total Word relation
+        store r1, r2
+        imm r20, 534864
+        imm r21, 1347240773
+        call exact_require_cell
+        ret

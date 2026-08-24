@@ -1,0 +1,4 @@
+; Continue Checker E from independently rebuilt EXPS into full-Word DECW.
+
+bc_post_expect:
+        jmp emit_dec_word_summary_init

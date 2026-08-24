@@ -927,6 +927,43 @@ publication modules are 19,591, 16,441, and 2,024 bytes. The independent
 `BC_BLOCK_FOCUS=emit-dec-word` gate passes its canonical 102,421-byte checker
 plus 36 literal, phase-isolated shape/domain/composition/publication mutations.
 
+Checker E independently rebuilds the lower-rooted stack/effect prefix, `WSTR`,
+the successful-source-segment premise, cursor/skip/`EXPS`, and full-Word `DECW`
+before composing procedures 1, 2, 27, 28, and 60. Exact shape covers
+`new_label`, `emit_lref`, `emit_str_body`, `gen_emit`, and `emit_cmp`, including
+their complete block/transition/event/local/primitive/push tables, epilogues,
+decoded regions, exact call targets and continuations, and frame sizes.
+
+The semantic chain proves the source's actual edge behavior. `new_label`
+returns the old Word and advances `LBL` modulo 2^64, including `WORD_MAX -> 0`,
+without claiming global freshness. `emit_lref` appends `"_L" || DECW(n)` and
+therefore retains `DECW`'s one-byte signed-negative behavior rather than
+inventing unsigned label spelling. `emit_str_body` blindly advances past its
+opening byte, leaves an unescaped NUL unconsumed, continues after escaped NUL,
+and maps a trailing backslash to exact bytes `[92,0]`, one logical unit, and
+final `CUR=LEN+1`; its `LEN+1-k` rank closes the recursive ordinary/escape
+cases with source-ordered traces.
+
+`gen_emit` composes two modular label allocations, eleven fixed fragments
+totalling 48 bytes, four `LREF` children in `albl,slbl,albl,slbl` order, the
+exact string-body trace, and the same returned logical length passed to
+full-Word `DECW`. Its final permissive expect consumes ordinary `EXPS` when
+`CUR<=LEN` and the distinct `EXPX` overshoot theorem at `LEN+1`; both paths
+return zero with final `LBL=entry+2`. `emit_cmp` partitions all Words into
+codes 0..5, the remaining signed nonnegative interval, and the high-bit signed
+interval. Only codes 0..5 emit their selected ten-byte operator; the complement
+emits none. Both `code<3` decisions are signed, so high-bit Words take the same
+materialization side as codes 0..2, and the four label children retain exact
+`set,done,set,done` order.
+
+All fourteen family modules are below 20 KB (`bc-gen-emit-summary.alpha` is
+largest at 19,708 bytes). The complete checker source is 673,638 bytes; the
+lattice assembler and independent `asm_ref.py` agree byte-for-byte on its
+167,051-byte tape. `BC_BLOCK_FOCUS=label-emitters` passes canonical execution
+plus 36 phase-isolated premise, shape, full-Word boundary, trace-order,
+malformed-tail, complement, signed-split, and publication mutations. This
+closes the label/string/comparison emitter family, not the expression SCC.
+
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both
 `gen_stmt` and the number fallback without cursor progress while `gen_stmts`

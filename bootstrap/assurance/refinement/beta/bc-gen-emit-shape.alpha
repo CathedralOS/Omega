@@ -1,0 +1,367 @@
+; Exact source/artifact shape for gen_emit().
+;
+; Procedure 28 is one straight-line block.  It composes permissive expect and
+; whitespace normalization, two new_label calls, eleven exact fixed-string
+; helpers, four label references, emit_str_body, full-Word emit_dec, a final
+; permissive expect, and an explicit zero return.  This module binds their
+; source rows to exact artifact PCs, arguments, targets and continuations, the
+; three-slot frame, every local/literal/push row, both epilogues, and the whole
+; decoded-region footprint.  The adjacent summary owns values and trace order.
+;
+; Private publication cell: 536680 = GESH.
+
+gen_emit_require_shape:
+        call gen_emit_require_proc
+        call gen_emit_require_block
+        call gen_emit_require_events
+        call gen_emit_require_locals
+        call gen_emit_require_primitives
+        call gen_emit_require_pushes
+        call gen_emit_require_censuses
+        call gen_emit_require_decoded
+        imm r1, 536680
+        imm r2, 1213416775            ; GESH
+        store r1, r2
+        imm r20, 536680
+        imm r21, 1213416775
+        call exact_require_cell
+        ret
+
+gen_emit_require_proc:
+        imm r20, 7151616
+        imm r21, 28
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 28
+        imm r22, 3                    ; slbl, albl, len
+        call transfer_require_cell
+        imm r20, 28
+        call call_bounds_frame_bytes
+        imm r1, 32
+        jeq r0, r1, gen_emit_shape_ok
+        jmp reject
+
+gen_emit_require_block:
+        imm r20, 146
+        imm r21, 19556
+        call exact_require_block_pc
+        imm r20, 146
+        imm r21, 146
+        imm r22, 28
+        call exact_require_proc_blocks
+        ret
+
+; r20=row, r21=PC, r22=arity, r23=target, r24=continuation.  All ordinary
+; calls in this straight-line block have zero ambient expression words.
+gen_emit_require_call:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r20, r30
+        imm r21, 146
+        mov r22, r31
+        mov r23, r32
+        imm r24, 0
+        mov r25, r33
+        mov r26, r34
+        call summary_require_call_site
+        ret
+
+; r20=row, r21=PC.  Pin both the source emit row and its exact helper call.
+gen_emit_require_fixed:
+        mov r30, r20
+        mov r31, r21
+        mov r20, r30
+        imm r21, 146
+        imm r22, 4
+        mov r23, r31
+        call exact_require_event
+        mov r20, r31
+        imm r21, 31                   ; __write_str
+        mov r22, r31
+        imm r1, 9
+        add r22, r1
+        call exact_require_call
+        ret
+
+gen_emit_require_events:
+        ; Opening delimiter and normalization.
+        imm r20, 198
+        imm r21, 19630
+        imm r22, 1
+        imm r23, 17441                ; expect
+        imm r24, 19639
+        call gen_emit_require_call
+        imm r20, 199
+        imm r21, 19639
+        imm r22, 0
+        imm r23, 4277                 ; skip_ws
+        imm r24, 19648
+        call gen_emit_require_call
+
+        ; Exact consecutive label allocation.
+        imm r20, 200
+        imm r21, 19648
+        imm r22, 0
+        imm r23, 1131                 ; new_label
+        imm r24, 19657
+        call gen_emit_require_call
+        imm r20, 201
+        imm r21, 19676
+        imm r22, 0
+        imm r23, 1131
+        imm r24, 19685
+        call gen_emit_require_call
+
+        imm r20, 202
+        imm r21, 19737                ; "jmp "
+        call gen_emit_require_fixed
+        imm r20, 203
+        imm r21, 19797                ; emit_lref(albl)
+        imm r22, 1
+        imm r23, 1366
+        imm r24, 19806
+        call gen_emit_require_call
+        imm r20, 204
+        imm r21, 19836                ; "\n"
+        call gen_emit_require_fixed
+        imm r20, 205
+        imm r21, 19896                ; emit_lref(slbl)
+        imm r22, 1
+        imm r23, 1366
+        imm r24, 19905
+        call gen_emit_require_call
+        imm r20, 206
+        imm r21, 19936                ; ":\n"
+        call gen_emit_require_fixed
+        imm r20, 207
+        imm r21, 19978                ; "db \""
+        call gen_emit_require_fixed
+        imm r20, 208
+        imm r21, 19987                ; emit_str_body()
+        imm r22, 0
+        imm r23, 18780
+        imm r24, 19996
+        call gen_emit_require_call
+        imm r20, 209
+        imm r21, 20046                ; "\"\n"
+        call gen_emit_require_fixed
+        imm r20, 210
+        imm r21, 20106                ; emit_lref(albl), second use
+        imm r22, 1
+        imm r23, 1366
+        imm r24, 20115
+        call gen_emit_require_call
+        imm r20, 211
+        imm r21, 20146                ; ":\n"
+        call gen_emit_require_fixed
+        imm r20, 212
+        imm r21, 20191                ; "imm r0,"
+        call gen_emit_require_fixed
+        imm r20, 213
+        imm r21, 20251                ; emit_lref(slbl), second use
+        imm r22, 1
+        imm r23, 1366
+        imm r24, 20260
+        call gen_emit_require_call
+        imm r20, 214
+        imm r21, 20290                ; "\n"
+        call gen_emit_require_fixed
+        imm r20, 215
+        imm r21, 20335                ; "imm r1,"
+        call gen_emit_require_fixed
+        imm r20, 216
+        imm r21, 20395                ; emit_dec(len)
+        imm r22, 1
+        imm r23, 29152
+        imm r24, 20404
+        call gen_emit_require_call
+        imm r20, 217
+        imm r21, 20434                ; "\n"
+        call gen_emit_require_fixed
+        imm r20, 218
+        imm r21, 20489                ; "call __write_str\n"
+        call gen_emit_require_fixed
+        imm r20, 219
+        imm r21, 20540                ; expect(')')
+        imm r22, 1
+        imm r23, 17441
+        imm r24, 20549
+        call gen_emit_require_call
+        imm r20, 220
+        imm r21, 146
+        imm r22, 5
+        imm r23, 20578
+        call exact_require_event
+
+        imm r20, 20559
+        imm r21, 20578
+        call exact_require_epilogue
+        imm r20, 20579
+        imm r21, 20598
+        call exact_require_epilogue
+        ret
+
+; r20=row, r21=kind, r22=slot, r23=PC.
+gen_emit_require_local:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r20, r30
+        imm r21, 146
+        mov r22, r31
+        mov r23, r32
+        mov r24, r33
+        call transfer_require_local
+        ret
+
+gen_emit_require_locals:
+        imm r20, 44
+        imm r21, 2                    ; store slbl
+        imm r22, 0
+        imm r23, 19657
+        call gen_emit_require_local
+        imm r20, 45
+        imm r21, 2                    ; store albl
+        imm r22, 1
+        imm r23, 19685
+        call gen_emit_require_local
+        imm r20, 46
+        imm r21, 1                    ; load albl #1
+        imm r22, 1
+        imm r23, 19746
+        call gen_emit_require_local
+        imm r20, 47
+        imm r21, 1                    ; load slbl #1
+        imm r22, 0
+        imm r23, 19845
+        call gen_emit_require_local
+        imm r20, 48
+        imm r21, 2                    ; store body len
+        imm r22, 2
+        imm r23, 19996
+        call gen_emit_require_local
+        imm r20, 49
+        imm r21, 1                    ; load albl #2
+        imm r22, 1
+        imm r23, 20055
+        call gen_emit_require_local
+        imm r20, 50
+        imm r21, 1                    ; load slbl #2
+        imm r22, 0
+        imm r23, 20200
+        call gen_emit_require_local
+        imm r20, 51
+        imm r21, 1                    ; load body len
+        imm r22, 2
+        imm r23, 20344
+        call gen_emit_require_local
+        ret
+
+; r20=row, r21=value, r22=PC.  All three are exact Word literals.
+gen_emit_require_literal:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        imm r21, 146
+        imm r22, 1
+        mov r23, r31
+        mov r24, r32
+        call transfer_require_primitive
+        ret
+
+gen_emit_require_primitives:
+        imm r20, 382
+        imm r21, 40                   ; '('
+        imm r22, 19588
+        call gen_emit_require_literal
+        imm r20, 383
+        imm r21, 41                   ; ')'
+        imm r22, 20498
+        call gen_emit_require_literal
+        imm r20, 384
+        imm r21, 0                    ; explicit result
+        imm r22, 20549
+        call gen_emit_require_literal
+        ret
+
+; r20=row, r21=PC.  Every push is ordinal-zero call-argument staging.
+gen_emit_require_argument_push:
+        mov r30, r20
+        mov r31, r21
+        mov r20, r30
+        imm r21, 146
+        imm r22, 2
+        mov r23, r31
+        call transfer_require_push
+        ret
+
+gen_emit_require_pushes:
+        imm r20, 297                  ; expect('(')
+        imm r21, 19598
+        call gen_emit_require_argument_push
+        imm r20, 298                  ; lref(albl) #1
+        imm r21, 19765
+        call gen_emit_require_argument_push
+        imm r20, 299                  ; lref(slbl) #1
+        imm r21, 19864
+        call gen_emit_require_argument_push
+        imm r20, 300                  ; lref(albl) #2
+        imm r21, 20074
+        call gen_emit_require_argument_push
+        imm r20, 301                  ; lref(slbl) #2
+        imm r21, 20219
+        call gen_emit_require_argument_push
+        imm r20, 302                  ; emit_dec(len)
+        imm r21, 20363
+        call gen_emit_require_argument_push
+        imm r20, 303                  ; expect(')')
+        imm r21, 20508
+        call gen_emit_require_argument_push
+        ret
+
+gen_emit_require_censuses:
+        imm r20, 146
+        imm r21, 146
+        imm r22, 44
+        imm r23, 52                   ; exclusive local row
+        imm r24, 33
+        imm r25, 33                   ; no raw-memory rows
+        imm r26, 108
+        imm r27, 108                  ; no transition rows
+        imm r28, 198
+        imm r29, 221                  ; exclusive event row
+        call exact_require_effect_census
+
+        imm r20, 146
+        imm r21, 146
+        imm r22, 382
+        imm r23, 385                  ; exclusive primitive row
+        imm r24, 98
+        imm r25, 98                   ; no binary pushes
+        imm r26, 297
+        imm r27, 304                  ; seven argument pushes
+        imm r28, 381
+        imm r29, 381                  ; no store-address pushes
+        call summary_require_expr_census
+        ret
+
+gen_emit_require_decoded:
+        ; Calls comprise eleven fixed helpers plus eleven ordinary children.
+        ; Stores are saved-fp, three locals, and seven argument pushes.  There
+        ; is no direct I/O, raw-memory access, branch, arithmetic, or trap site.
+        imm r20, 19556
+        imm r21, 20599
+        imm r22, 22
+        imm r23, 2                    ; explicit + synthetic returns
+        imm r24, 11
+        call exact_quiet_scan_region
+        ret
+
+gen_emit_shape_ok:
+        ret

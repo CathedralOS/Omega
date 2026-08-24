@@ -374,7 +374,14 @@ outside that manifest unless the compiler executable imports them.
   - an independent full-word `emit_dec` theorem now covers the complete signed
     Word partition. Nonnegative words append canonical decimal; negative words
     take the source's one-byte base edge and append `48 + srem(n,10)`, with no
-    invented minus sign or unsigned-format claim; and
+    invented minus sign or unsigned-format claim;
+  - `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`, and `emit_cmp` now
+    compose through an independent lower-rooted checker. It preserves modular
+    label wrap, the source's signed-negative label spelling, blind string-body
+    opening, escaped-NUL continuation, exact `[92,0]` malformed-tail behavior,
+    the 48-byte/four-label `gen_emit` trace, both final-expect cursor classes,
+    invalid-comparison no-op output, signed high-bit materialization, and exact
+    `set,done,set,done` label order; and
   - every claimed source/artifact join remains lower-rooted and mutation-toothed.
 
   Remaining proof plan:
@@ -391,7 +398,7 @@ outside that manifest unless the compiler executable imports them.
   - [x] add the separate full-word `emit_dec` theorem. Preserve the source's
     signed comparison/division behavior: negative words take the one-byte base
     case; no unimplemented minus-sign or unsigned-format claim is allowed;
-  - [ ] compose `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`,
+  - [x] compose `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`,
     and `emit_cmp`, retaining exact trace order and malformed-tail cursor
     bounds;
   - [ ] close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
