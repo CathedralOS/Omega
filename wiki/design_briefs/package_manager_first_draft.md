@@ -611,6 +611,20 @@ The aggregate byte ceiling retains
 separate compiler-only and hostile-source frames. No output can construct
 accepted lock evidence or attest that review happened.
 
+Review can resume after process restart without refetching the old source. A
+versioned, bounded binary review-baseline capsule retains the complete resolved
+`PackageKey` graph and immutable resolutions, comparison commitments, and every
+canonical comparison row plus its source-explanation sidecar. The compiler owns
+strict row-envelope recovery; orchestration treats row values as opaque, and a
+recovered row remains distinctly review-only rather than becoming newly
+compiler-issued evidence. The capsule checksum detects accidental corruption,
+not authenticity or proof of review, while canonical decode rechecks graph
+closure, row/package/target identity, ordering, singleton rows, and all resource
+ceilings. It is deliberately a non-admitting checkpoint: no API converts it to
+`PackageInstance`, a conflict resolution, project mutation, or accepted lock.
+The future lock may contain the same normalized material only after its full
+toolchain-provenance and admission envelope is settled.
+
 Useful result states include:
 
 ```text

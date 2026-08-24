@@ -8,10 +8,17 @@
 //! persisted as an accepted lock baseline.
 
 mod encoding;
+mod recovery;
 
 pub use encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError,
+};
+pub use recovery::{
+    DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
+    PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
+    decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
+    encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
 
 use crate::pipeline::CheckedCompilation;
