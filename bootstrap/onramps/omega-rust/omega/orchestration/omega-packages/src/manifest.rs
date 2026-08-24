@@ -1,4 +1,4 @@
-pub use crate::identity::PackageName;
+pub use crate::identity::{AliasName, PackageName};
 use crate::json::{JsonParseError, JsonParser, JsonValue};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -6,26 +6,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const PACKAGE_CAPABILITY_MANIFEST_SCHEMA_VERSION: u32 = 1;
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AliasName(String);
-
-impl AliasName {
-    pub fn parse(value: impl Into<String>) -> Result<Self, String> {
-        let value = value.into();
-        if is_snake_case(&value) {
-            Ok(Self(value))
-        } else {
-            Err(format!(
-                "dependency alias `{value}` must use snake_case Omega identifier spelling"
-            ))
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceIdentity {
@@ -860,31 +840,6 @@ pub(crate) fn section_json(manifest: &PackageCapabilityManifest, section: &str) 
         "reproducibility" => format!("{:?}", manifest.reproducibility),
         _ => String::new(),
     }
-}
-
-fn is_snake_case(value: &str) -> bool {
-    is_separated_lowercase(value, '_')
-}
-
-fn is_separated_lowercase(value: &str, separator: char) -> bool {
-    if value.is_empty() || value.starts_with(separator) || value.ends_with(separator) {
-        return false;
-    }
-    let mut previous_separator = false;
-    for ch in value.chars() {
-        if ch == separator {
-            if previous_separator {
-                return false;
-            }
-            previous_separator = true;
-            continue;
-        }
-        previous_separator = false;
-        if !ch.is_ascii_lowercase() && !ch.is_ascii_digit() {
-            return false;
-        }
-    }
-    true
 }
 
 fn sorted_unique(values: Vec<String>) -> Vec<String> {

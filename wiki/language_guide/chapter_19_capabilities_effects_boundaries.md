@@ -1160,6 +1160,14 @@ origin. The cohort's aggregate preserves exact per-occurrence expressions and
 derives cardinality from membership; it does not multiply interval or
 subject-dependent capacity by convention.
 
+The aggregate has a separate reporting projection. A private-construction
+snapshot keeps the cohort identity, installed required-slot closure, and every
+schema row but carries no claim or lifecycle lease. Live-era composition is
+complete only when the exact component lifecycle roster contributes one
+snapshot per epoch. The resulting report remains epoch-attributed and
+unreduced so system policy can calculate a deployment-specific coexistence
+peak without Omega inventing arithmetic between unlike content algebras.
+
 Contracts call the exact owner-unique projection machine. Proof-only
 `entry(place)` selects an entry-version structural place, while compiler-owned
 `separate(...)` performs the closed algebra's partial n-ary composition. Neither

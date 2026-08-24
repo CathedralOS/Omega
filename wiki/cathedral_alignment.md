@@ -30,7 +30,10 @@ enumerable installed root position or to one selected provider issuance. Split,
 transfer, cleanup, custody exit, and recomposition conserve the same root
 identity and algebra account. Omega derives each installed artifact-instance
 aggregate per lifecycle epoch; Cathedral composes the peak across all live
-components and coexisting replacement eras.
+components and coexisting replacement eras. Omega exposes that boundary as
+exact epoch-attributed aggregate snapshots checked against the authoritative
+live-era roster; the snapshots preserve symbolic capacities and content
+algebras rather than pretending every demand has one scalar unit.
 
 This is Omega P1. Cathedral must not treat matching byte counts, inert handles,
 or provider assertions as authority. A provider may attest custody, but interval

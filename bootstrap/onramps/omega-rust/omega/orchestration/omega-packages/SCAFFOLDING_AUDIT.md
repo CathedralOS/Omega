@@ -25,10 +25,13 @@ and
 | Production surface | Classification | Finding and required disposition |
 | --- | --- | --- |
 | `src/json.rs` | Retain | A small strict internal parser. It grants no authority by itself. Keep it private and use it only for versioned tool-owned encodings. |
-| `src/source.rs` local traversal and hashing | Rewrite | Identity uses injective framing over raw path bytes, files, symlinks, every directory including empty ones, symlink spelling, executable mode, length, and contents; it rejects special files and links into excluded Git metadata and bounds reads before allocation. Directory permissions normalize to the canonical read-only snapshot mode so local and Git forms do not diverge on host-checkout state. It still reads a mutable tree without a snapshot boundary and excludes tool outputs only through the special `.git` rule. Retain the complete-tree identity work; replace live-tree consumption before admission use. |
+| `src/source.rs` local traversal and hashing | Rewrite | Identity uses injective framing over raw path bytes, files, symlinks, every directory including empty ones, symlink spelling, executable mode, length, and contents; it rejects special files and links into excluded Git metadata and bounds reads before allocation. A bounded capture is re-materialized into a content-addressed, read-only, atomically published snapshot and checked against ordinary concurrent mutation. Directory permissions normalize to the canonical snapshot mode. Deliberately hostile same-user races and tool outputs already present beneath the selected source root remain outside this cooperative boundary. |
 | `src/source.rs` Git resolution | Rewrite | Cache keys are full and policy-versioned; staged entries bind exact resolver metadata, origin, and a strict local config; resolver access is locked; Git configuration is sealed; and submodule declarations/gitlinks reject before materialization. Validated tree/blob objects are now copied into an atomically published read-only snapshot without checkout, filters, hooks, or package execution, and the snapshot is re-hashed and checked before reuse. Cooperative locks and permissions do not exclude hostile same-user cache writers, SSH retains an external configuration surface, command output is not fully resource-bounded, and the subprocess lacks an OS sandbox/resource limits. Retain the snapshot work behind a future isolated helper and resolver receipt. |
 | `src/resolver.rs` source-cache policy records | Rewrite | Limits and rejection receipts are useful diagnostics, but the record describes an unhardened resolver and exposes mutable cache paths. A future sealed resolver receipt must bind adapter kind, lineage, immutable resolution, snapshot/content identity, policy, and resolver/tool identity. Parsed records never authorize source. |
-| `src/manifest.rs` | Rewrite | `PackageName`/alias spelling helpers are reusable concepts. `PackageCapabilityManifest`, `SourceIdentity`, and public constructors/JSON parsing are caller-authored security artifacts keyed by name and free strings; they must be replaced by compiler-issued sealed evidence over `PackageKey` and `PackageInstance`. |
+| `src/identity.rs` and `src/package_source.rs` | Retain | Typed `PackageName`, `PackageKey`, conservative source lineage, immutable source resolution, and `PackageInstance` now exist. Git/external-local custody binds declarations from immutable snapshots to `PackageKey` without pretending toolchain/compiler evidence exists. These values are structural identity only; accepted instance construction must eventually come from opaque compiler evidence. |
+| `src/dependency_projection.rs` | Retain | The strict extractor reads only the immutable root `build.omg`, recognizes canonical literal Path/Git requests, and rejects hidden, computed, malformed, or unsupported dependency shapes without executing build code. Recursive source traversal and the compiler's trusted resolved-binding input remain. |
+| `src/graph.rs` | Retain | The typed graph validates exact-key source topology, resolution conflicts, aliases, reachability, and v1 acyclicity without persistence or admission claims. Dependency projection and compiler evidence must populate it before production use. |
+| `src/manifest.rs` | Rewrite | `PackageCapabilityManifest`, `SourceIdentity`, and public constructors/JSON parsing are caller-authored security artifacts keyed by name and free strings; they must be replaced by compiler-issued sealed evidence over `PackageKey` and `PackageInstance`. |
 | `src/diff.rs` | Rewrite | The responsibility survives, but section fingerprints use Rust `Debug` output and deltas compare coarse sections or aggregate counts without checked-row identity/provenance. Replace with canonical row-specific conflicts over compiler evidence. |
 | `src/review.rs` | Delete/quarantine | Free-form reviewer/reason receipts approve manifest sections constructed by callers. Replace with row-specific resolution artifacts bound to candidate, toolchain, evidence, conflict, and every resolved row. |
 | `src/lock.rs` | Rewrite | Closure checks are useful. The schema is name-keyed, trusts caller manifests, stores only manifest fingerprints, and lacks `PackageKey`, `PackageInstance`, normalized accepted evidence, provenance, observations, and exact conflict resolutions. Temporary persistence uses predictable non-exclusive names and does not synchronize file/directory state, so even its atomic-replace shape requires hardening. No current lock is an accepted lock. |
@@ -44,8 +47,8 @@ and
 
 | Required area | Current evidence | Ruling |
 | --- | --- | --- |
-| Source/cache process isolation | `source.rs` seals Git configuration, validates resolver-owned cache state, serializes resolver access, checks submodule policy before materialization, and consumes Git through validated immutable snapshots. It still invokes an unsandboxed Git/transport process, trusts same-user cache custody between checks, and hashes local sources from mutable live trees. | Partial only; local snapshotting, hostile-process custody, resource ceilings, a hardened execution boundary, and a resolver receipt remain P0. |
-| Identity | `manifest.rs` and `lock.rs` key graphs by `PackageName`; `SourceIdentity` is free strings. | Replace with source-derived `PackageKey` and evidence-bound `PackageInstance`. |
+| Source/cache process isolation | `source.rs` seals Git configuration, validates resolver-owned cache state, serializes resolver access, checks submodule policy before materialization, and consumes Git and local requests through validated immutable snapshots. It still invokes an unsandboxed Git/transport process and trusts same-user cache custody between checks. | Partial only; hostile-process custody, resource ceilings, a hardened execution boundary, clean local-source policy, and a resolver receipt remain P0. |
+| Identity | Typed source-derived `PackageKey`, immutable resolution, source graph, and `PackageInstance` building blocks exist; legacy manifests and locks remain name/free-string keyed. | Thread the typed identities through compiler evidence and replace the legacy lock/admission graph rather than adapting its strings. |
 | Manifests/evidence | Public structs and JSON parsers construct capability claims without compiler custody. | No production parser or constructor may accept these as evidence. |
 | Locks/persistence | Atomic temporary-file replacement is useful, but schema v1 is not an accepted lock and fingerprints do not retain baselines. | Rewrite schema; reject legacy locks at the future production boundary. |
 | Install/update plans | Plans operate on caller-selected names, aliases, manifests, and receipts. | Delete as workflow; rebuild after identity/evidence/lock foundations. |
@@ -57,13 +60,13 @@ and
 ## Test provenance
 
 The current unit tests establish behavior of exploratory data structures only.
-`tests/local_fixture_graph.rs` fabricates manifests from fixture intent;
-`tests/remote_fixtures.rs` validates source pins and local correspondence but
-does not compile compiler-issued package evidence. These tests may remain as
-isolated algorithm/source-resolution coverage while marked scaffolding. They do
-not satisfy package-admission acceptance. End-to-end tests must eventually
-compile each fixture, consume sealed evidence, and reject any path that supplies
-manifest or identity values directly.
+The integration test that fabricated manifests from fixture intent has been
+removed. `tests/remote_fixtures.rs` validates source pins, immutable custody,
+declared package identity, and local correspondence but does not compile
+compiler-issued package evidence. It does not satisfy package-admission
+acceptance. End-to-end tests must eventually compile each fixture, consume
+sealed evidence, and reject any path that supplies manifest or identity values
+directly.
 
 ## Production fence
 

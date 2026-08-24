@@ -159,7 +159,9 @@ projection or retain a mandatory content-addressed copy.
 The first resolver does not solve semantic-version ranges. Requests for the
 same `PackageKey` must reconcile to one immutable instance or fail with every
 conflicting dependency path. Multiple-version composition is a later explicit
-feature.
+feature. Package dependency cycles reject in v1, keeping build order and
+request-path provenance finite; supporting a cycle later requires an explicit
+semantic and custody model rather than accidental graph acceptance.
 
 ## Compiler-derived package evidence
 
