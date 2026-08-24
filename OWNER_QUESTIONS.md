@@ -13,39 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-24.
 
-## Q1 — What source authority expresses variadic `Respects` evidence?
-
-Quotient operations are selected explicitly as
-`Quotient::lift<F, Respect>(...)` or `Quotient::define<F, Respect>(...)`. The
-compiler already derives the representative operation's ordered runtime
-telescope, the pointwise input relation `RA`, and result relation `RR`. What is
-missing is a source/core declaration that lets the explicitly named `Respect`
-conformance certify `Respects<F, RA, RR>` when `RA` has one entry per runtime
-operand.
-
-Choose the declaration and application model for this compiler-derived,
-variadic proof interface. It must:
-
-- retain one exact named conformance selected by the quotient owner, with no
-  structural proof-machine discovery or visible-unique inference;
-- derive operand positions from the normalized representative telescope,
-  including attached `self` at position zero, rather than use an arity-specific
-  `Respects1`/`Respects2` family;
-- make the complete `F`/`RA`/`RR` application and proof rows available to
-  checked and Terminal verification without exposing a runtime dictionary;
-- support generic representative applications only after their static
-  telescope is closed; and
-- remain a reusable proof-interface mechanism rather than privileged syntax
-  attached only to `Quotient::lift`.
-
-Recommended direction: add a sealed proof-interface binder for a normalized
-relation telescope, allowing core to declare one variadic `Respects` trait
-whose applications the compiler constructs but whose named conformances remain
-ordinary source declarations. Do not encode the telescope as an untyped list,
-generate arity-indexed traits, or let the lift operation discover a proof by
-shape.
-
-## Q2 — How does a native layout declare a private callback demand?
+## Q1 — How does a native layout declare a private callback demand?
 
 Registered-callback lowering already maps one nominal static-machine binder to
 one native parameter or nested layout place. A nested destination is valid only
@@ -76,7 +44,7 @@ resolves those names into opaque identities during layout evaluation. Do not
 put raw IDs or field offsets in source, infer the demand from the callback row,
 or expose a callback-address-shaped semantic field.
 
-## Q3 — Does `export` re-export dependencies, or should it be retired?
+## Q2 — Does `export` re-export dependencies, or should it be retired?
 
 The parser accepts `export path [as alias];`, but symbol resolution deliberately
 drops the item. The language guide instead makes `pub` on package-owned
@@ -104,7 +72,7 @@ same-package, module-only export whose target retains exact package-owned
 identity. Do not allow a dependency declaration to be relabeled as exporter-
 owned or let an alias hide the package/reach edge.
 
-## Q4 — May a trait invariant introduce an undeclared structural member?
+## Q3 — May a trait invariant introduce an undeclared structural member?
 
 The language guide illustrates `invariant self.value in 0..=1000`, but a trait
 declares no field named `value` and has no associated-data/member namespace.
@@ -130,7 +98,7 @@ it. Tempting but wrong alternatives are to canonically encode the string
 `value`, infer an implicit structural member and its type from invariant uses,
 or add a report-only IR stage that merely freezes the unresolved spelling.
 
-## Q5 — Should trait requirements admit named witness contracts?
+## Q4 — Should trait requirements admit named witness contracts?
 
 Concrete machines use named `requires`/`ensures` contracts as erased witness
 input/output lanes. Public trait requirement syntax currently does not admit the
@@ -152,7 +120,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q6 — What does a boundary clause mean on an abstract requirement?
+## Q5 — What does a boundary clause mean on an abstract requirement?
 
 Boundary syntax distinguishes host and named boundary levels before semantic
 lowering, but the state-signature path collapses them to one undifferentiated
@@ -172,7 +140,7 @@ real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
 
-## Q7 — What authority does a callable domain predicate publish?
+## Q6 — What authority does a callable domain predicate publish?
 
 Omega currently permits a domain predicate to call an ordinary machine, for
 example `requires within_calibration(self)`. A proposition application written
@@ -205,7 +173,7 @@ Boolean-returning machine is pure or proof-only, trust the body without an
 authority edge, or treat proposition and machine calls as interchangeable
 because they share surface syntax.
 
-## Q8 — What compiler/toolchain provenance seals a package instance?
+## Q7 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
