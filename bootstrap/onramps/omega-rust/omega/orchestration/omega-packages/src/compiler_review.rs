@@ -6,7 +6,8 @@ use crate::{
 };
 use omega_compiler::{
     CheckedPackageReviewProjection, PackageCompilationInputError, PackageReviewEncodingError,
-    compile_to_checked_with_packages_in_build_dir, project_checked_package_review,
+    PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_build_dir,
+    project_checked_package_review,
 };
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -22,6 +23,7 @@ use std::path::{Path, PathBuf};
 pub struct CompilerIssuedPackageReview {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    source_consumption_commitment: PackageSourceConsumptionCommitment,
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
 }
@@ -33,6 +35,10 @@ impl CompilerIssuedPackageReview {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
+    }
+
+    pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
+        self.source_consumption_commitment
     }
 
     pub fn projection(&self) -> &CheckedPackageReviewProjection {
@@ -93,6 +99,13 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         error: PackageReviewEncodingError,
     },
+    SourceConsumptionMissing {
+        package: PackageKey,
+    },
+    SourceConsumptionDrift {
+        package: PackageKey,
+        diagnostics: Vec<Diagnostic>,
+    },
     IdentityMismatch {
         package: PackageKey,
     },
@@ -140,6 +153,20 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 formatter,
                 "review encoding failed for package `{}`: {error}",
                 package.name().as_str()
+            ),
+            Self::SourceConsumptionMissing { package } => write!(
+                formatter,
+                "package-aware compilation for `{}` emitted no source-consumption commitment",
+                package.name().as_str()
+            ),
+            Self::SourceConsumptionDrift {
+                package,
+                diagnostics,
+            } => write!(
+                formatter,
+                "compiler-consumed source verification failed for package `{}` with {} diagnostic(s)",
+                package.name().as_str(),
+                diagnostics.len()
             ),
             Self::IdentityMismatch { package } => write!(
                 formatter,
@@ -196,6 +223,20 @@ pub fn compile_resolved_package_reviews(
             &key,
             PackageSourceVerificationPhase::AfterCompilation,
         )?;
+        checked
+            .verify_current_source_consumption()
+            .map_err(
+                |diagnostics| CompileResolvedPackageReviewsError::SourceConsumptionDrift {
+                    package: key.clone(),
+                    diagnostics,
+                },
+            )?;
+        let source_consumption_commitment =
+            checked.source_consumption_commitment().ok_or_else(|| {
+                CompileResolvedPackageReviewsError::SourceConsumptionMissing {
+                    package: key.clone(),
+                }
+            })?;
         let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
@@ -214,6 +255,7 @@ pub fn compile_resolved_package_reviews(
         reviews.push(CompilerIssuedPackageReview {
             key,
             resolution: custody.resolution().clone(),
+            source_consumption_commitment,
             projection,
             canonical_review_bytes,
         });

@@ -1,9 +1,9 @@
 use omega_compiler::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewArithmeticDomain,
-    PackageReviewCallableRole, PackageReviewCastForm, PackageReviewContractBinaryOperator,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
-    PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageDependencyBinding,
+    PackageReviewArithmeticDomain, PackageReviewCallableRole, PackageReviewCastForm,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
+    PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
@@ -56,6 +56,129 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
         Vec::new(),
     )
     .expect("single-package review graph should validate")
+}
+
+#[test]
+fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let source = "pub data Token { value: i64; }\n";
+    let changed_source = "// source-only change\npub data Token { value: i64; }\n";
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#;
+
+    let first = TempPackage::new();
+    first.write("main.omg", source);
+    first.write("build.omg", build);
+    let first_checked = compile_to_checked_with_packages(
+        &first.0.join("main.omg"),
+        Some(target),
+        package_inputs(&first.0),
+    )
+    .expect("first package source should check");
+    let first_commitment = first_checked
+        .source_consumption_commitment()
+        .expect("package-aware compilation must retain source consumption");
+    assert_ne!(first_commitment.digest(), [0; 32]);
+    first_checked
+        .verify_current_source_consumption()
+        .expect("unchanged loaded source should verify");
+
+    let relocated = TempPackage::new();
+    relocated.write("main.omg", source);
+    relocated.write("build.omg", build);
+    let relocated_checked = compile_to_checked_with_packages(
+        &relocated.0.join("main.omg"),
+        Some(target),
+        package_inputs(&relocated.0),
+    )
+    .expect("relocated package source should check");
+    assert_eq!(
+        first_commitment,
+        relocated_checked
+            .source_consumption_commitment()
+            .expect("relocated package source commitment"),
+        "absolute cache location and source-id assignment are not source identity"
+    );
+
+    let changed = TempPackage::new();
+    changed.write("main.omg", changed_source);
+    changed.write("build.omg", build);
+    let changed_checked = compile_to_checked_with_packages(
+        &changed.0.join("main.omg"),
+        Some(target),
+        package_inputs(&changed.0),
+    )
+    .expect("source-only changed package should check");
+    assert_ne!(
+        first_commitment,
+        changed_checked
+            .source_consumption_commitment()
+            .expect("changed package source commitment")
+    );
+    assert_eq!(
+        project_checked_package_review(&first_checked)
+            .expect("first package review")
+            .canonical_review_bytes()
+            .expect("first package review bytes"),
+        project_checked_package_review(&changed_checked)
+            .expect("changed package review")
+            .canonical_review_bytes()
+            .expect("changed package review bytes"),
+        "source consumption and normalized capability/API comparison remain separate identities"
+    );
+
+    first.write("main.omg", changed_source);
+    assert!(
+        first_checked.verify_current_source_consumption().is_err(),
+        "loaded source drift must reject against the retained compiler bytes"
+    );
+
+    let graph_root = TempPackage::new();
+    graph_root.write("main.omg", source);
+    graph_root.write("build.omg", build);
+    let dependency = TempPackage::new();
+    dependency.write("main.omg", "pub data DependencyToken {}\n");
+    dependency.write("build.omg", build);
+    let root_identity = package_identity();
+    let dependency_identity =
+        PackageKeyIdentity::from_digest([42; 32]).expect("dependency package identity");
+    let graph_inputs = |alias: &str| {
+        PackageCompilationInputs::new(
+            root_identity,
+            vec![
+                PackageSourceBinding::new(root_identity, graph_root.0.clone()),
+                PackageSourceBinding::new(dependency_identity, dependency.0.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_identity,
+                alias,
+                dependency_identity,
+            )],
+        )
+        .expect("two-package graph should validate")
+    };
+    let first_graph = compile_to_checked_with_packages(
+        &graph_root.0.join("main.omg"),
+        Some(target),
+        graph_inputs("dependency"),
+    )
+    .expect("first reconciled graph should check");
+    let renamed_graph = compile_to_checked_with_packages(
+        &graph_root.0.join("main.omg"),
+        Some(target),
+        graph_inputs("renamed_dependency"),
+    )
+    .expect("renamed reconciled graph should check");
+    assert_ne!(
+        first_graph.source_consumption_commitment(),
+        renamed_graph.source_consumption_commitment(),
+        "requester-local dependency bindings must enter compiler-consumption identity even when unused"
+    );
 }
 
 #[test]

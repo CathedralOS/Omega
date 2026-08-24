@@ -80,6 +80,12 @@ additional and is required only for claims about final realization or by a
 hardened profile; absence of that evidence never implies a weaker Terminal
 guarantee.
 
+Compiler-issued package review also retains a separate commitment to the exact
+reconciled package/alias graph and source bytes consumed by the frontend.
+Absolute cache locations and load order are not identity. This commitment
+changes on a source-only edit without asserting that the normalized public
+capability/API contract changed.
+
 ### Build orchestration is not semantic evaluation
 
 Two kinds of Omega code run before the final program:

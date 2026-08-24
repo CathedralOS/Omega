@@ -369,11 +369,17 @@ complete.
   graph, and receives a package-and-source-specific writable build root outside
   resolver snapshots. The returned rows have no public constructor and retain
   exact `PackageKey`, selected immutable resolution, compiler projection, and
-  canonical comparison bytes. Every transitive source snapshot is mode-checked
-  and re-hashed under its retained resolver limits before and after each
-  package compilation. This associates locally generated review with resolver
-  custody but is not sealed admission: a single compiler-consumption source
-  commitment and compiler/toolchain commitments remain. CLI invocation remains.
+  canonical comparison bytes. Package-aware checked compilation now also
+  issues one domain-separated source-consumption commitment over the exact
+  reconciled root/package/alias graph and every loaded package/toolchain source
+  path and byte sequence. Absolute custody paths and source-load order are
+  excluded. Every transitive source snapshot is mode-checked and re-hashed
+  under its retained resolver limits before and after each package compilation;
+  the compiler additionally re-reads every physical source against the bytes
+  it retained, both before returning and after the resolver's post-check. This
+  closes the missing compiler-consumption identity while preserving the stated
+  hostile same-user race limitation. Whole compiler/toolchain commitments and
+  CLI invocation remain; the result is still not sealed admission.
   The first concrete closure adapter resolves an explicitly named workspace
   member, requester-relative in-workspace Path rows, and Git rows. Each fetched
   Git snapshot becomes its own registered immutable workspace for nested Path
@@ -641,11 +647,13 @@ complete.
   non-caller-constructible review rows only by compiling every package from a
   resolver-owned source closure; callers cannot submit standalone manifest or
   review bytes to this path. The row retains the exact package key, selected
-  immutable resolution, compiler projection, and canonical comparison bytes.
-  It remains explicitly review-only. Package orchestration re-hashes every
-  transitive source snapshot before and after compilation, but this does not
-  prevent a hostile same-user process from racing both observations and is not
-  one compiler-consumption commitment. Whole compiler/toolchain binding is
+  immutable resolution, compiler projection, canonical comparison bytes, and
+  compiler-issued source-consumption commitment. That commitment canonically
+  binds the reconciled compiler graph and exact loaded source bytes without
+  absolute cache locations. Package orchestration also re-hashes every
+  transitive snapshot and rechecks the compiler-retained bytes after
+  compilation. It remains explicitly review-only: a hostile same-user process
+  can still race filesystem observations, whole compiler/toolchain binding is
   incomplete, and remaining completeness joins must land before a replacement
   admission type is issued or persisted.
 

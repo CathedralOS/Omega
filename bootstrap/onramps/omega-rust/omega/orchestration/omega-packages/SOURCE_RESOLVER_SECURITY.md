@@ -107,9 +107,13 @@ Transport erasure now retains the original file, byte, and depth limits beside
 each package snapshot. Review orchestration checks canonical read-only modes
 and re-hashes every transitive snapshot under those limits immediately before
 and after each package compilation. Any mismatch rejects the review set. This
-detects custody drift around ordinary compiler use but is not an atomic
-compiler-consumption commitment: a hostile same-user process may still race
-both observations.
+is joined to a compiler-issued, domain-separated commitment over the canonical
+reconciled input graph and every exact source path and byte sequence retained by
+the frontend. The compiler re-reads each physical source before returning;
+orchestration repeats that comparison after its whole-snapshot post-check.
+Together these bind review rows to compiler-consumed bytes and detect ordinary
+custody drift, but they are not an atomic filesystem snapshot: a hostile
+same-user process may still race every observation.
 
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
 capture, and a deadline. Fetch requests only the selected revision at depth one

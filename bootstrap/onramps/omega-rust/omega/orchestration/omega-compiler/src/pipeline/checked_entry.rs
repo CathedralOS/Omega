@@ -16,6 +16,7 @@ use std::sync::Arc;
 pub struct CheckedCompilation {
     program: CheckedTrees,
     package_identity: Option<psi_core::PackageKeyIdentity>,
+    source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
@@ -33,6 +34,23 @@ impl CheckedCompilation {
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<psi_core::PackageKeyIdentity> {
         self.package_identity
+    }
+
+    /// Canonical commitment to the exact source bytes consumed by this
+    /// package-aware frontend run. Standalone compilation has no package-
+    /// custody commitment.
+    pub const fn source_consumption_commitment(
+        &self,
+    ) -> Option<super::PackageSourceConsumptionCommitment> {
+        self.source_consumption_commitment
+    }
+
+    /// Re-read every physical source path and require it to equal the bytes
+    /// retained by the frontend. Resolver orchestration calls this around its
+    /// own whole-snapshot verification; hostile same-user races still require
+    /// an OS isolation boundary.
+    pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
+        super::package_source_consumption::verify_current_files(&self.program)
     }
 
     /// Exact native target selected for this checked compilation. Semantic-only
@@ -346,9 +364,17 @@ fn compile_to_checked_inner(
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
+    let program = Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone());
+    let source_consumption_commitment = package_inputs
+        .map(|inputs| super::package_source_consumption::derive(&program, inputs))
+        .transpose()?;
+    if source_consumption_commitment.is_some() {
+        super::package_source_consumption::verify_current_files(&program)?;
+    }
     Ok(CheckedCompilation {
-        program: Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+        program,
         package_identity,
+        source_consumption_commitment,
         selected_target_profile,
         selected_native_target,
         selected_program_entry_machine,
