@@ -2,7 +2,8 @@ use omega_compiler::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewArithmeticDomain,
     PackageReviewCallableRole, PackageReviewCastForm, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewDataMember,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
@@ -54,6 +55,95 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
         Vec::new(),
     )
     .expect("single-package review graph should validate")
+}
+
+#[test]
+fn dangerous_authority_classification_requires_exact_toolchain_provenance() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let canonical = TempPackage::new();
+    canonical.write(
+        "main.omg",
+        r#"use omega::language::std::filesystem_host;
+
+pub data Journal { files: FilesystemHost; written: i64; }
+
+pub machine Journal::append(&mut self, descriptor: i32, bytes: &[u8])
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    self.written = self.files.write(descriptor, bytes);
+}
+"#,
+    );
+    canonical.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let canonical_checked = compile_to_checked_with_packages(
+        &canonical.0.join("main.omg"),
+        Some(target),
+        package_inputs(&canonical.0),
+    )
+    .expect("canonical filesystem fixture should check");
+    let canonical_review = project_checked_package_review(&canonical_checked)
+        .expect("canonical filesystem review should close");
+    let [authority] = canonical_review.dangerous_authorities() else {
+        panic!("canonical filesystem authority row")
+    };
+    assert_eq!(
+        authority.class(),
+        PackageReviewDangerousAuthorityClass::Filesystem
+    );
+    assert_eq!(
+        authority.service().owner(),
+        PackageReviewNominalOwner::ToolchainUnbound
+    );
+    assert_eq!(authority.service().path(), "FilesystemHost");
+
+    let lookalike = TempPackage::new();
+    lookalike.write(
+        "main.omg",
+        r#"pub boundary trait FilesystemHost {
+    machine write(descriptor: i32, bytes: &[u8]) -> i64;
+}
+
+pub data Journal { files: FilesystemHost; written: i64; }
+
+pub machine Journal::append(&mut self, descriptor: i32, bytes: &[u8])
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    self.written = self.files.write(descriptor, bytes);
+}
+"#,
+    );
+    lookalike.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let lookalike_checked = compile_to_checked_with_packages(
+        &lookalike.0.join("main.omg"),
+        Some(target),
+        package_inputs(&lookalike.0),
+    )
+    .expect("package-owned filesystem lookalike should check as ordinary source");
+    let lookalike_review = project_checked_package_review(&lookalike_checked)
+        .expect("package-owned filesystem lookalike review should close");
+    assert!(
+        lookalike_review.dangerous_authorities().is_empty(),
+        "package-controlled naming must not mint a compiler-owned risk class"
+    );
 }
 
 #[test]
@@ -126,7 +216,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 19);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 20);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1445,7 +1535,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v19_comparison_encoding() {
+fn exact_synchronous_invocations_change_v20_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1635,7 +1725,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v19_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v20_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1669,7 +1759,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v19_comparison_encoding() {
+fn public_domain_shape_changes_change_v20_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

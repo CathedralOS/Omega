@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 19;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 20;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -43,8 +43,19 @@ pub(super) fn encode(
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.callables, encode_callable)?;
+    encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     Ok(encoder.output)
+}
+
+fn encode_dangerous_authority(
+    encoder: &mut Encoder,
+    authority: &PackageReviewDangerousAuthority,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.byte(match authority.class {
+        PackageReviewDangerousAuthorityClass::Filesystem => 0,
+    });
+    encode_nominal(encoder, &authority.service)
 }
 
 fn encode_trait_shape(

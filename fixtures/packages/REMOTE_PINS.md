@@ -15,9 +15,9 @@ cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=
 | --- | --- | --- |
 | `arithmetic-kernels` | `https://github.com/CathedralOS/arithmetic-kernels` | `dd02c8eabe81b4bbd20cc124b64183992a46fa6e` |
 | `generated-table` | `https://github.com/CathedralOS/generated-table` | `4c71d3257e42bc0cc4912627469eae949cf68129` |
-| `file-journal` | `https://github.com/CathedralOS/file-journal` | `1d30b1e3d94a5bd112a214d81741a762292a5e88` |
+| `file-journal` | `https://github.com/CathedralOS/file-journal` | `6e475db09634e5733fc3efa04bb54f3f0c11aef4` |
 | `network-overreach` | `https://github.com/CathedralOS/network-overreach` | `19406048e972378afc70e295f1fbfa8b0733c1a1` |
-| `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `3aacc4dc185bc44bc56fd1750b9f3622bf932546` |
+| `remote-journal` | `https://github.com/CathedralOS/remote-journal` | `84765f49151c73a8c957ffd737be368ac8f75145` |
 | `axiom-ledger` | `https://github.com/CathedralOS/axiom-ledger` | `5f0f2ea1b7a576a43563f1c58e4597ffb1f51778` |
 | `opaque-carrier` | `https://github.com/CathedralOS/opaque-carrier` | `3d36453fb608bbdcd079a2e71ac2b9dd968e4049` |
 | `provider-switchboard` | `https://github.com/CathedralOS/provider-switchboard` | `49869722a9bd05a8f5c5453844f9f79b1e77c45f` |

@@ -515,10 +515,10 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v19 length-framed binary comparison encoding now covers
+  share a native ABI. A v20 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
-  crash/proof predicate, proposition/witness, authority flow, mutation, and
-  selected-provider row.
+  crash/proof predicate, proposition/witness, authority flow, dangerous-
+  authority classification, mutation, and selected-provider row.
   It converts platform-width ordinals to portable `u64`, distinguishes exact
   deployment profiles, rejects interner-backed external-supply variants, and
   remains explicitly review-only rather than persistable admission evidence.
@@ -634,8 +634,13 @@ complete.
   Progress 2026-08-24: the existing build-host staging gate no longer admits a
   package-authored `FilesystemHost` or `Console` lookalike by spelling. Allowed
   staging services must resolve to the exact toolchain source origin and
-  canonical std module path; a fail canary pins same-name spoof rejection.
-  General compiler-owned risk classes and their sealed package evidence remain.
+  canonical std module path; a fail canary pins same-name spoof rejection. The
+  compiler review projection now emits the first intrinsic risk row for an
+  exposed canonical toolchain `FilesystemHost`, selected by exact declaration
+  and toolchain-source coordinates rather than package-controlled spelling.
+  Canonical and same-named package-owned tests pin both sides of that join, and
+  comparison encoding v20 retains the row. Broader risk classes and sealed
+  package evidence remain.
 
 - **REPRESENTATION-TCB-REVIEW.** Retain claim-free opaque boundary data as a
   distinct compiler-owned review lane.
@@ -727,7 +732,11 @@ complete.
   `remote-journal` fixture now adds exact retained
   filesystem+network reach and invocation through resolver-owned custody and
   compiler review evidence; its private CathedralOS mirror is pinned at the
-  byte-identical source commit. `provider-switchboard` now covers exact
+  byte-identical source commit. `file-journal` and `remote-journal` now use the
+  real canonical filesystem boundary, while the latter's network boundary
+  remains intentionally package-local until a canonical toolchain network
+  surface exists. Compiler review classifies only the canonical filesystem
+  authority. `provider-switchboard` now covers exact
   build-owned provider selection and its normalized compiler review row.
   `generated-table` now covers the canonical build machine's exact toolchain-
   owned filesystem reach/invocation ceiling from immutable source custody and a

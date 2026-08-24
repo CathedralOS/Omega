@@ -16,6 +16,7 @@ use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewTypeIdentity {
@@ -777,6 +778,35 @@ impl PackageReviewNominalIdentity {
     }
 }
 
+/// A compiler-owned risk class for authority exposed by a reviewed package.
+///
+/// The class is attached only after an exact service declaration rejoins its
+/// current compiler/toolchain provenance. Package-controlled declaration names
+/// never select a class. The containing review projection remains unsealed;
+/// admission must still retain the exact toolchain commitment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewDangerousAuthorityClass {
+    Filesystem,
+}
+
+/// One exact reached/invoked service whose compiler-owned metadata marks it as
+/// intrinsically dangerous. This is review evidence, not an authority grant.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewDangerousAuthority {
+    class: PackageReviewDangerousAuthorityClass,
+    service: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewDangerousAuthority {
+    pub const fn class(&self) -> PackageReviewDangerousAuthorityClass {
+        self.class
+    }
+
+    pub const fn service(&self) -> &PackageReviewNominalIdentity {
+        &self.service
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewCapabilityFlow {
     capability: PackageReviewNominalIdentity,
@@ -1301,6 +1331,7 @@ pub struct CheckedPackageReviewProjection {
     public_domains: Vec<PackageReviewDomainShape>,
     public_data: Vec<PackageReviewDataShape>,
     callables: Vec<CheckedPackageCallableReview>,
+    dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     selected_providers: Vec<CheckedPackageProviderReview>,
 }
 
@@ -1327,6 +1358,10 @@ impl CheckedPackageReviewProjection {
 
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
         &self.callables
+    }
+
+    pub fn dangerous_authorities(&self) -> &[PackageReviewDangerousAuthority] {
+        &self.dangerous_authorities
     }
 
     pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {
@@ -1436,6 +1471,7 @@ pub fn project_checked_package_review(
             .then(left.role.cmp(&right.role))
             .then(left.contracts.cmp(&right.contracts))
     });
+    let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
     let selected_providers = compilation
         .selected_provider_plans()
         .plans()
@@ -1459,8 +1495,91 @@ pub fn project_checked_package_review(
         public_domains,
         public_data,
         callables,
+        dangerous_authorities,
         selected_providers,
     })
+}
+
+fn project_dangerous_authorities(
+    compilation: &CheckedCompilation,
+    callables: &[CheckedPackageCallableReview],
+) -> Result<Vec<PackageReviewDangerousAuthority>, Vec<Diagnostic>> {
+    let mut exposed_services = BTreeSet::new();
+    for callable in callables {
+        if let Some(services) = callable.declared_service_reach() {
+            exposed_services.extend(services.iter().cloned());
+        }
+        exposed_services.extend(callable.realized_service_reach().iter().cloned());
+        exposed_services.extend(callable.concrete_service_reach().iter().cloned());
+        for reach in callable.unresolved_installation_reaches() {
+            exposed_services.extend(reach.upper_bound().iter().cloned());
+        }
+        if let Some(invocations) = callable.declared_synchronous_invocations() {
+            exposed_services.extend(
+                invocations
+                    .iter()
+                    .filter_map(PackageReviewSynchronousInvocation::service)
+                    .cloned(),
+            );
+        }
+        exposed_services.extend(
+            callable
+                .realized_synchronous_invocations()
+                .iter()
+                .filter_map(PackageReviewSynchronousInvocation::service)
+                .cloned(),
+        );
+    }
+
+    let mut rows = Vec::new();
+    for definition in compilation.facts.service_reaches.services.definitions() {
+        let service = nominal_identity(compilation, definition.symbol)?;
+        if !exposed_services.contains(&service) {
+            continue;
+        }
+        let Some(class) = dangerous_authority_class(compilation, definition) else {
+            continue;
+        };
+        rows.push(PackageReviewDangerousAuthority { class, service });
+    }
+    rows.sort();
+    rows.dedup();
+    Ok(rows)
+}
+
+/// Compiler-owned intrinsic metadata for the standard authority catalog.
+/// Both the declaration path and immutable toolchain source coordinate must
+/// match. A package-authored lookalike therefore cannot acquire or suppress a
+/// risk class by choosing a declaration name.
+fn dangerous_authority_class(
+    compilation: &CheckedCompilation,
+    definition: &psi_language_semantics::ServiceReachDefinition,
+) -> Option<PackageReviewDangerousAuthorityClass> {
+    let source_file = compilation
+        .typed
+        .symbols
+        .symbol_source_span(definition.symbol)
+        .and_then(|span| compilation.typed.symbols.source_file(span))?;
+    if source_file.origin != psi_source::SourceOrigin::Toolchain {
+        return None;
+    }
+    let relative_source = source_file
+        .path
+        .strip_prefix(&source_file.package_root)
+        .ok()?;
+    match (
+        relative_source,
+        compilation
+            .typed
+            .symbols
+            .display_path(definition.symbol, "::")
+            .as_str(),
+    ) {
+        (path, "FilesystemHost") if path == std::path::Path::new("filesystem_host.omg") => {
+            Some(PackageReviewDangerousAuthorityClass::Filesystem)
+        }
+        _ => None,
+    }
 }
 
 fn project_public_traits(
