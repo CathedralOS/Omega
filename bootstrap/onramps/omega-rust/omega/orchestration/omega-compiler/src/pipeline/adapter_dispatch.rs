@@ -373,7 +373,10 @@ fn resolve_selected_adapter_row(
 ) -> Result<Option<AdapterRow>, Diagnostic> {
     use omega_effects::provider_plan::ProviderBinding;
 
-    let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+    let ProviderBinding::CheckedAdapter {
+        machine_identity, ..
+    } = &row.binding
+    else {
         return Ok(None);
     };
     if typed.operators().iter().any(|operator| {
@@ -439,43 +442,28 @@ fn resolve_selected_adapter_row(
             plan.name,
         )));
     }
-    let machines = typed
-        .machines()
-        .iter()
-        .filter(|candidate| candidate.name.as_str() == machine)
-        .collect::<Vec<_>>();
-    let [adapter] = machines.as_slice() else {
-        return Err(Diagnostic::error(match machines.len() {
-            0 => format!(
-                "selected checked-adapter ProviderPlan `{}` names absent machine `{machine}`",
-                plan.name,
-            ),
-            count => format!(
-                "selected checked-adapter machine `{machine}` matches {count} typed machines",
-            ),
-        }));
-    };
+    let adapter = super::provider_plans::exact_checked_adapter(typed, plan, row)?;
     if adapter.attached_data.as_ref().map(|owner| owner.as_str())
         != Some(plan.provider_type.as_str())
     {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine}` does not belong to nominal provider `{}`",
+            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
         )));
     }
     if !adapter.supply_mode.is_checked_body() {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine}` is not a checked body",
+            "selected checked adapter `{machine_identity}` is not a checked body",
         )));
     }
     let Some(entry) = typed.machine_states(adapter).first() else {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine}` has no executable entry state",
+            "selected checked adapter `{machine_identity}` has no executable entry state",
         )));
     };
     if !entry.symbol.is_valid() {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine}` has no exact entry-state symbol",
+            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
         )));
     }
 
@@ -501,7 +489,7 @@ fn resolve_selected_adapter_row(
         .count();
     if conformances != 1 {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine}` binds exact overload `{}` through {conformances} checked conformances",
+            "selected checked adapter `{machine_identity}` binds exact overload `{}` through {conformances} checked conformances",
             method.requirement_identity,
         )));
     }
@@ -524,7 +512,7 @@ fn resolve_selected_adapter_row(
         None => {
             let count = actual_parameters.len();
             return Err(Diagnostic::error(format!(
-                "selected checked adapter `{machine}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
+                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
                 method.requirement_identity, method.parameter_count, requirement_owner.name,
             )));
         }
@@ -536,7 +524,7 @@ fn resolve_selected_adapter_row(
         requirement: method.name.clone(),
         requirement_identity: method.requirement_identity.clone(),
         requirement_symbol: signature.symbol,
-        adapter_target: machine.clone(),
+        adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
         forward_receiver,
     }))
@@ -864,8 +852,11 @@ mod tests {
                 Drift::AbsentSignature,
                 Some("resolves to 0 exact typed signatures"),
             ),
-            (Drift::AbsentMachine, Some("names absent machine")),
-            (Drift::DuplicateMachine, Some("matches 2 typed machines")),
+            (Drift::AbsentMachine, Some("is absent from typed machines")),
+            (
+                Drift::DuplicateMachine,
+                Some("resolves to 2 exact typed machines"),
+            ),
             (
                 Drift::WrongOwner,
                 Some("does not belong to nominal provider"),
@@ -906,21 +897,23 @@ mod tests {
                 }
                 Drift::AbsentMachine => {
                     selected.rows[row_index].binding = ProviderBinding::CheckedAdapter {
-                        machine: "EchoProvider::missing".into(),
+                        machine_identity: "EchoProvider::missing".into(),
+                        machine_package_identity: None,
                     };
                 }
                 Drift::DuplicateMachine => {
-                    let exact = match &selected.rows[row_index].binding {
-                        ProviderBinding::CheckedAdapter { machine } => machine.clone(),
+                    let machine_identity = match &selected.rows[row_index].binding {
+                        ProviderBinding::CheckedAdapter {
+                            machine_identity, ..
+                        } => machine_identity.clone(),
                         _ => unreachable!(),
                     };
-                    fixture
+                    let duplicate = fixture
                         .typed
-                        .machines_mut()
-                        .iter_mut()
-                        .find(|machine| machine.name.as_str() == "OtherProvider::echo_adapter")
-                        .expect("other adapter")
-                        .name = psi_typed_trees::name::Identifier::generated(exact);
+                        .machine_by_normalized_overload_identity(&machine_identity)
+                        .expect("selected adapter")
+                        .clone();
+                    fixture.typed.push_machine(duplicate);
                 }
                 Drift::WrongOwner => selected.provider_type = "OtherProvider".into(),
                 Drift::NonCheckedMachine => {
@@ -1003,14 +996,15 @@ mod tests {
         let fixture = fixture();
         let selected = plan(&fixture.plans, "Forward");
         let row = &selected.rows[checked_row(selected, "send")];
-        let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+        let ProviderBinding::CheckedAdapter {
+            machine_identity, ..
+        } = &row.binding
+        else {
             unreachable!()
         };
         let adapter = fixture
             .typed
-            .machines()
-            .iter()
-            .find(|candidate| candidate.name.as_str() == machine)
+            .machine_by_normalized_overload_identity(machine_identity)
             .expect("forwarding adapter");
         let entry = fixture
             .typed

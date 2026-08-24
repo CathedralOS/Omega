@@ -345,7 +345,8 @@ fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
 fn trust_provider_realizations_distinguish_checked_and_opaque_leaves() {
     assert_eq!(
         TrustProviderRealization::CheckedAdapter {
-            machine: "ConsoleProvider::write".to_owned(),
+            machine_identity: "ConsoleProvider::write".to_owned(),
+            machine_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5a; 32]),
         }
         .report_text(),
         "checked adapter `ConsoleProvider::write`"

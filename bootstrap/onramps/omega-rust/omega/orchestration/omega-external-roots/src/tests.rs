@@ -566,7 +566,8 @@ fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
             method: "complete".into(),
             requirement_identity: requirement_identity.clone(),
             binding: ProviderBinding::CheckedAdapter {
-                machine: "LegacyPicController::complete".into(),
+                machine_identity: "LegacyPicController::complete".into(),
+                machine_package_identity: None,
             },
         }],
         origin_package_identity: None,

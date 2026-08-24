@@ -546,13 +546,31 @@ pub enum TrustProgressPremiseSubject {
 /// inferring mechanism from the provider name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustProviderRealization {
-    Import { library: String, symbol: String },
-    Syscall { number: i64 },
-    CompilerIntrinsic { machine: String },
-    VtableSlot { index: i64 },
-    VtableField { table: String, field: String },
-    TableFunction { table: String, field: String },
-    CheckedAdapter { machine: String },
+    Import {
+        library: String,
+        symbol: String,
+    },
+    Syscall {
+        number: i64,
+    },
+    CompilerIntrinsic {
+        machine: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
+    VtableField {
+        table: String,
+        field: String,
+    },
+    TableFunction {
+        table: String,
+        field: String,
+    },
+    CheckedAdapter {
+        machine_identity: String,
+        machine_package_identity: Option<psi_core::PackageKeyIdentity>,
+    },
 }
 
 impl TrustProviderRealization {
@@ -570,7 +588,9 @@ impl TrustProviderRealization {
             Self::TableFunction { table, field } => {
                 format!("table function `{table}.{field}`")
             }
-            Self::CheckedAdapter { machine } => format!("checked adapter `{machine}`"),
+            Self::CheckedAdapter {
+                machine_identity, ..
+            } => format!("checked adapter `{machine_identity}`"),
         }
     }
 }

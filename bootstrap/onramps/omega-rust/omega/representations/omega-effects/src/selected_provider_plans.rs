@@ -412,7 +412,8 @@ mod tests {
                 method: method.into(),
                 requirement_identity: format!("{name}Service::{method}"),
                 binding: ProviderBinding::CheckedAdapter {
-                    machine: format!("{name}Provider::{method}"),
+                    machine_identity: format!("{name}Provider::{method}"),
+                    machine_package_identity: None,
                 },
             }],
             origin_package_identity: None,
@@ -868,7 +869,8 @@ mod tests {
             method: "convert".into(),
             requirement_identity: second_identity.into(),
             binding: ProviderBinding::CheckedAdapter {
-                machine: "ConvertProvider::convert".into(),
+                machine_identity: "ConvertProvider::convert".into(),
+                machine_package_identity: None,
             },
         });
 

@@ -54,8 +54,11 @@ canonical source lineage and is the security identity intended to qualify
 package symbols across updates. Managed imports and authored symbols now retain
 it. Post-resolution compiler symbols require one existing derivation origin and
 inherit its exact authored package/toolchain provenance; truly source-free
-symbols remain unresolved. Provider/boundary nominal identities are not yet
-fully qualified. `PackageInstance` additionally binds exact source content,
+symbols remain unresolved. Checked provider-adapter rows now retain a canonical
+machine-overload identity and its exact package owner, and every compiler
+consumer resolves both without falling back to a short spelling. Provider
+selection and compiler-intrinsic toolchain identities are not yet fully sealed.
+`PackageInstance` additionally binds exact source content,
 toolchain identity, and compiler-derived package evidence. Spoof rejection for
 same-named packages from different source lineages remains an admission
 requirement until those joins are sealed.

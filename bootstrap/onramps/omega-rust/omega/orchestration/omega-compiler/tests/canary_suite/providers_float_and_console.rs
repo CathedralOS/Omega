@@ -1,5 +1,20 @@
 use super::*;
 
+fn checked_adapter_identity(
+    checked: &psi_checked_trees::CheckedTrees,
+    machine_name: &str,
+) -> String {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .unwrap_or_else(|| panic!("missing checked adapter `{machine_name}`"));
+    checked
+        .normalized_machine_overload_identity(machine)
+        .expect("checked adapter must have an entry overload")
+        .identity()
+}
+
 #[test]
 fn runtime_adapter_dispatch_exit_canary_runs() {
     // PRV4 adapter dispatch: the boundary-trait call rewrites to the unique
@@ -187,10 +202,11 @@ fn component_owner_provider_override_canary_selects_complete_pick_plan() {
     assert!(pick_plan.covers_schema());
     assert_eq!(pick_plan.rows.len(), 1);
     assert_eq!(pick_plan.rows[0].method, "choose");
+    let expected = checked_adapter_identity(&checked, "SecondProvider::choose");
     assert!(matches!(
         &pick_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
-            if machine == "SecondProvider::choose"
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, .. }
+            if machine_identity == &expected
     ));
 }
 
@@ -214,10 +230,11 @@ fn test_owner_provider_override_canary_selects_complete_pick_plan() {
     assert!(pick_plan.covers_schema());
     assert_eq!(pick_plan.rows.len(), 1);
     assert_eq!(pick_plan.rows[0].method, "choose");
+    let expected = checked_adapter_identity(&checked, "TestProvider::choose");
     assert!(matches!(
         &pick_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
-            if machine == "TestProvider::choose"
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, .. }
+            if machine_identity == &expected
     ));
 }
 
@@ -259,10 +276,11 @@ fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
     assert_eq!(echo_plan.provider_type, "EchoProvider");
     assert!(echo_plan.covers_schema());
     assert_eq!(echo_plan.rows.len(), 1);
+    let expected = checked_adapter_identity(&checked, "EchoProvider::echo_adapter");
     assert!(matches!(
         &echo_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
-            if machine == "EchoProvider::echo_adapter"
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, .. }
+            if machine_identity == &expected
     ));
 }
 
@@ -345,12 +363,14 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     assert_eq!(console_plan.rows.len(), 6);
     assert!(console_plan.covers_schema());
     for method in ["write", "write_line"] {
+        let expected =
+            checked_adapter_identity(&checked, &format!("ConsoleNativeProvider::{method}"));
         assert!(console_plan.rows.iter().any(|row| {
             row.method == method
                 && matches!(
                     &row.binding,
-                    omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
-                        if machine == &format!("ConsoleNativeProvider::{method}")
+                    omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine_identity, .. }
+                        if machine_identity == &expected
                 )
         }));
     }

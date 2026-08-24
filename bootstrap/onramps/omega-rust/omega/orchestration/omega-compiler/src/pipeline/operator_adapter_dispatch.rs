@@ -165,7 +165,10 @@ fn resolve_operator_adapter_call(
         )));
     }
 
-    let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+    let ProviderBinding::CheckedAdapter {
+        machine_identity, ..
+    } = &row.binding
+    else {
         return Ok(None);
     };
 
@@ -195,40 +198,23 @@ fn resolve_operator_adapter_call(
             plan.name,
         )));
     }
-    let providers = checked
-        .typed
-        .machines()
-        .iter()
-        .filter(|candidate| candidate.name.as_str() == machine)
-        .collect::<Vec<_>>();
-    let [provider] = providers.as_slice() else {
-        return Err(Diagnostic::error(match providers.len() {
-            0 => format!(
-                "selected checked-operator ProviderPlan `{}` names absent adapter `{machine}`",
-                plan.name,
-            ),
-            count => format!(
-                "selected checked-operator ProviderPlan `{}` adapter `{machine}` matches {count} checked machines",
-                plan.name,
-            ),
-        }));
-    };
+    let provider = super::provider_plans::exact_checked_adapter(&checked.typed, plan, row)?;
     if provider.attached_data.as_ref().map(|owner| owner.as_str())
         != Some(plan.provider_type.as_str())
     {
         return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine}` does not belong to nominal provider `{}`",
+            "selected checked-operator adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
         )));
     }
     if provider.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody {
         return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine}` is not a checked body",
+            "selected checked-operator adapter `{machine_identity}` is not a checked body",
         )));
     }
     let Some(entry) = checked.typed.machine_states(provider).first() else {
         return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine}` has no executable entry state",
+            "selected checked-operator adapter `{machine_identity}` has no executable entry state",
         )));
     };
 
@@ -257,13 +243,13 @@ fn resolve_operator_adapter_call(
         .count();
     if conformances != 1 {
         return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine}` binds exact overload `{overload_identity}` through {conformances} checked conformances",
+            "selected checked-operator adapter `{machine_identity}` binds exact overload `{overload_identity}` through {conformances} checked conformances",
         )));
     }
 
     Ok(Some(OperatorAdapterRewrite {
         expression: operator_use.expression,
-        machine: machine.clone(),
+        machine: provider.name.as_str().to_owned(),
         entry_symbol: entry.symbol,
     }))
 }
@@ -393,8 +379,11 @@ mod tests {
                 Drift::CrossOperatorPlan,
                 Some("does not bind exact overload"),
             ),
-            (Drift::AbsentAdapter, Some("names absent adapter")),
-            (Drift::DuplicateAdapter, Some("matches 2 checked machines")),
+            (Drift::AbsentAdapter, Some("is absent from typed machines")),
+            (
+                Drift::DuplicateAdapter,
+                Some("resolves to 2 exact typed machines"),
+            ),
             (
                 Drift::WrongOwner,
                 Some("does not belong to nominal provider"),
@@ -433,23 +422,25 @@ mod tests {
                 }
                 Drift::AbsentAdapter => {
                     plan.rows[0].binding = ProviderBinding::CheckedAdapter {
-                        machine: "CheckedMathProvider::absent".into(),
+                        machine_identity: "CheckedMathProvider::absent".into(),
+                        machine_package_identity: None,
                     };
                     plans = vec![plan.clone()];
                 }
                 Drift::DuplicateAdapter => {
-                    let exact_name = match &plan.rows[0].binding {
-                        ProviderBinding::CheckedAdapter { machine } => machine.clone(),
+                    let machine_identity = match &plan.rows[0].binding {
+                        ProviderBinding::CheckedAdapter {
+                            machine_identity, ..
+                        } => machine_identity.clone(),
                         binding => panic!("unexpected fixture binding {binding:?}"),
                     };
-                    fixture
+                    let duplicate = fixture
                         .checked
                         .typed
-                        .machines_mut()
-                        .iter_mut()
-                        .find(|machine| machine.name.as_str().ends_with("decoy_impl"))
-                        .expect("decoy adapter")
-                        .name = psi_typed_trees::name::Identifier::generated(exact_name);
+                        .machine_by_normalized_overload_identity(&machine_identity)
+                        .expect("selected adapter")
+                        .clone();
+                    fixture.checked.typed.push_machine(duplicate);
                 }
                 Drift::WrongOwner => {
                     plan.provider_type = "OtherProvider".into();
@@ -466,8 +457,22 @@ mod tests {
                         .supply_mode = psi_language_semantics::MachineSupplyMode::Boundary;
                 }
                 Drift::WrongConformance => {
+                    let decoy = fixture
+                        .checked
+                        .typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str().ends_with("decoy_impl"))
+                        .expect("decoy adapter");
+                    let machine_identity = fixture
+                        .checked
+                        .typed
+                        .normalized_machine_overload_identity(decoy)
+                        .expect("decoy adapter identity")
+                        .identity();
                     plan.rows[0].binding = ProviderBinding::CheckedAdapter {
-                        machine: "CheckedMathProvider::decoy_impl".into(),
+                        machine_identity,
+                        machine_package_identity: None,
                     };
                     plans = vec![plan.clone()];
                 }

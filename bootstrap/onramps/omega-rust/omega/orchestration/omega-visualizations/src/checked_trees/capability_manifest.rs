@@ -875,7 +875,8 @@ mod tests {
                 method: "wait".into(),
                 requirement_identity: "Scheduler::wait#exact".into(),
                 binding: ProviderBinding::CheckedAdapter {
-                    machine: "SchedulerProvider::wait".into(),
+                    machine_identity: "SchedulerProvider::wait".into(),
+                    machine_package_identity: None,
                 },
             }],
             origin_package_identity: None,

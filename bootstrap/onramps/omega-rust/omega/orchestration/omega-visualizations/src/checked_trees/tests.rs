@@ -567,7 +567,8 @@ fn selected_storage_plan() -> ProviderPlan {
             method: "transfer".to_owned(),
             requirement_identity: "StorageBase::transfer".to_owned(),
             binding: ProviderBinding::CheckedAdapter {
-                machine: "StorageProvider::transfer".to_owned(),
+                machine_identity: "StorageProvider::transfer".to_owned(),
+                machine_package_identity: None,
             },
         }],
         origin_package_identity: None,

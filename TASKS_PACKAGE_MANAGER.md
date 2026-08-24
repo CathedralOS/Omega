@@ -198,8 +198,12 @@ complete.
   fingerprint remains review/execution compatibility data, not sealed package
   admission identity. Post-resolution compiler symbols now require an existing
   derivation-origin symbol and inherit its exact package/toolchain provenance;
-  source-free symbols remain deliberately unresolved. Package-qualified binding
-  and selection identities, toolchain identity, terminal Psi, and sealed emitted
+  source-free symbols remain deliberately unresolved. Checked-adapter rows now
+  bind a canonical typed machine-overload identity to the exact package owning
+  that machine, reject row transplantation across realizing packages, and
+  resolve without short-name fallback in validation, dispatch, progress,
+  external-root, TCB, and trust projections. Provider selection identity,
+  compiler-intrinsic toolchain identity, terminal Psi, and sealed emitted
   evidence remain.
 
 ## P2 — Dependency projection and reconciliation
@@ -294,10 +298,12 @@ complete.
   service rows, unresolved installation rows, exact capability-flow
   coordinates, operational outcomes, crashes, mutation, and selected provider
   mechanisms with exact realizing-package, provider-type, service-schema, and
-  requirement-owner provenance. Provider binding and selection labels remain
-  unsealed strings. Compiler-generated symbols now inherit the exact authored
-  provenance of a mandatory derivation origin; truly source-free symbols and
-  exact toolchain identity remain visibly unbound rather than guessed.
+  requirement-owner provenance. Checked-adapter bindings now retain and verify
+  canonical overload plus realizing-package identity; provider selection names
+  and compiler-intrinsic toolchain ownership remain unsealed.
+  Compiler-generated symbols now inherit the exact authored provenance of a
+  mandatory derivation origin; truly source-free symbols and exact toolchain
+  identity remain visibly unbound rather than guessed.
   Standalone and target-free compilations reject projection.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
