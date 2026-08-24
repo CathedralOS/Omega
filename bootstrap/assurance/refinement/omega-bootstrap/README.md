@@ -30,6 +30,13 @@ EOF, and retains direct access to every raw byte.
 `checked-ir-refinement-envelope.sh` gates that fragment through the persisted
 Beta compiler and Alpha seed. Envelope acceptance alone does not close §10.6.
 
+The planned two-unit `OMGCOMP` successor is pinned in
+[`OMGCOMP_REFINEMENT_WITNESS.md`](OMGCOMP_REFINEMENT_WITNESS.md). Its version-2
+frame carries one untrusted normalized-resolution witness so source resolution,
+CKIR tables, body lowering, and result checking remain separate persisted-Beta
+conjuncts under the 128-procedure ceiling. The witness contains no operations
+and carries neither resolver-receipt nor digest authority.
+
 The next source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical

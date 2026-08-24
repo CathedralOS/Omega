@@ -1,0 +1,17 @@
+// Expected semantic order after direct-alias resolution and module erasure.
+// This source is reference plumbing only; it is not a second package authority.
+
+data Pair [copy] {
+    first: u8;
+    second: u8;
+}
+
+data Probe {
+    pair: Pair;
+}
+
+machine Probe::run(&mut self) -> u8 {
+    self.pair.first = 70;
+    self.pair.second = 23;
+    self.pair.first
+}
