@@ -252,7 +252,7 @@ optimizer and advanced lowering rather than duplicating those passes. A further
 production `omega` → `omega` self-rebuild can optimize the compiler binary and
 is optional. The required bridge → product edge is a cross-language hosted
 build, not that self-rebuild. See
-[`self_hosting_profile.md`](self_hosting_profile.md).
+[`compiler_source_profile.md`](compiler_source_profile.md).
 
 ## How today's work fits
 
@@ -380,9 +380,9 @@ architecture questions:
   then freeze and prove that closure against the resulting v1 contract. Fewer
   features are not a win when their absence makes the bridge brittle or much
   larger.
-- **Omega self-hosting profile** — derive and enforce `Ωself` from the exact
-  production compiler dependency manifest, with explicit exclusions and
-  negative gates.
+- **Omega product-compiler source profile** — derive and enforce `Ωself` from
+  the exact production compiler dependency manifest, with explicit exclusions
+  and negative gates.
 - **Hosted product build** — use `omega-bootstrap` once to build and validate
   the full optimizing compiler from `Ωself`-constrained Omega source. Its own
   binary may remain conservatively lowered until an optional rebuild.

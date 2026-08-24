@@ -100,6 +100,6 @@ belong beside the scripts that gate them rather than in a drifting count here.
 See:
 
 - [Delta→omega-bootstrap tasks](../../TASKS_BOOTSTRAP.md#delta--omega-bootstrap--production-omega-readiness)
-- [Delta and Ωself](../../wiki/architecture/bootstrap_lattice/self_hosting_profile.md)
+- [Delta and Ωself](../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md)
 - [Omega toolchain](../../wiki/architecture/bootstrap_lattice/omega_toolchain.md)
 - [Target repository structure](../../wiki/architecture/bootstrap_lattice/repository_structure.md)
