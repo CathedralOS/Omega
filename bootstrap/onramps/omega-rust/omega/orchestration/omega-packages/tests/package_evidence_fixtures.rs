@@ -99,10 +99,10 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             authority.class(),
             PackageReviewDangerousAuthorityClass::Filesystem
         );
-        assert_eq!(
-            authority.service().owner(),
-            PackageReviewNominalOwner::ToolchainUnbound
-        );
+        let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
+            panic!("{package} filesystem authority must retain exact toolchain source")
+        };
+        assert_ne!(source.digest(), [0; 32]);
         assert_eq!(authority.service().path(), "FilesystemHost");
     }
 

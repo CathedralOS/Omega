@@ -127,20 +127,23 @@ into compiler inputs, whose constructor independently canonicalizes and checks
 every root and edge again. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
-is intentionally not source/toolchain-bound admission evidence: exact toolchain
-ownership gaps remain explicit. Compiler-generated symbols now inherit the
-package/toolchain provenance of a mandatory authored derivation origin, while
-truly source-free symbols remain unresolved. The projection includes selected provider
-mechanisms, and provider plans/trust rows retain exact package owners for the
-realizing machine, provider type, service schema, and requirement owner.
+is intentionally not complete source/toolchain-bound admission evidence.
+Authored toolchain nominals now retain a domain-separated commitment over the
+canonical toolchain-relative source path and exact bytes. Compiler-generated
+symbols inherit the package/toolchain provenance of a mandatory authored
+derivation origin, while truly source-free symbols remain unresolved and
+compiler-intrinsic atoms remain explicitly toolchain-unbound. The projection
+includes selected provider mechanisms, and provider plans/trust rows retain
+exact package owners for the realizing machine, provider type, service schema,
+and requirement owner.
 Checked-adapter bindings resolve by canonical overload plus exact package owner
 without a short-name fallback. Authored provider choices retain two structural
 type paths, resolve to exact typed trait/data symbols, and match plans only by
 package plus canonical path. The selected plans remain intact through cycle,
 ABI, and checked-fact construction; package-distinct same-spelled slots and
-providers do not collapse. Remaining schema/grant joins, compiler-intrinsic
-toolchain identity, and the
-remaining trust/proof/reproducibility joins are incomplete. Build-bound
+providers do not collapse. Remaining schema/grant joins, whole-compiler and
+compiler-intrinsic toolchain identity, and the remaining
+trust/proof/reproducibility joins are incomplete. Build-bound
 progress obligations retain and match package ownership for both service and
 requirement, and retained selected-provider facts expose no name-only plan
 lookup. Installation-bound reach, termination, mutation, crash, and permission

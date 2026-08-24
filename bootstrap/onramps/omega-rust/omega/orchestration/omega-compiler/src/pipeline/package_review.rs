@@ -1,9 +1,9 @@
 //! Compiler-owned, in-memory package authority projection.
 //!
-//! This is deliberately a review surface, not admission evidence. It is not
-//! source/toolchain bound, toolchain nominal ownership is not yet committed,
-//! and several provider-nominal/proof/trust joins still live outside this
-//! projection.
+//! This is deliberately a review surface, not admission evidence. Authored
+//! toolchain nominals are bound to exact source commitments, but whole-source,
+//! compiler/toolchain, provider-nominal, proof, and trust commitments still
+//! live outside this projection.
 //! Keeping the type distinct prevents an incomplete checked summary from being
 //! persisted as an accepted lock baseline.
 
@@ -16,6 +16,7 @@ use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -791,10 +792,25 @@ impl PackageReviewSynchronousInvocation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewToolchainSourceIdentity {
+    digest: [u8; 32],
+}
+
+impl PackageReviewToolchainSourceIdentity {
+    pub const fn digest(self) -> [u8; 32] {
+        self.digest
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewNominalOwner {
     Package(PackageKeyIdentity),
-    /// The declaration is compiler/toolchain source, but this review-only
-    /// projection does not yet carry the exact toolchain commitment.
+    /// Exact authored toolchain source coordinate and bytes. This binds the
+    /// nominal declaration but is not the whole compiler/toolchain commitment
+    /// required by sealed admission.
+    ToolchainSource(PackageReviewToolchainSourceIdentity),
+    /// Compiler-intrinsic identity with no authored source coordinate. Review
+    /// keeps this visibly unbound until an exact compiler commitment exists.
     ToolchainUnbound,
     /// Checked lowering retained a nominal reference without an authored
     /// source owner or mandatory compiler derivation origin. Review surfaces
@@ -1484,7 +1500,9 @@ pub fn project_checked_package_review(
         let owner = nominal_identity(compilation, machine.symbol)?;
         match owner.owner {
             PackageReviewNominalOwner::Package(owner) if owner == package => {}
-            PackageReviewNominalOwner::Package(_) | PackageReviewNominalOwner::ToolchainUnbound => {
+            PackageReviewNominalOwner::Package(_)
+            | PackageReviewNominalOwner::ToolchainSource(_)
+            | PackageReviewNominalOwner::ToolchainUnbound => {
                 continue;
             }
             PackageReviewNominalOwner::Unresolved => {
@@ -2464,7 +2482,8 @@ fn reviewed_package_owns(
 ) -> Result<bool, Vec<Diagnostic>> {
     match identity.owner {
         PackageReviewNominalOwner::Package(owner) => Ok(owner == package),
-        PackageReviewNominalOwner::ToolchainUnbound => Ok(false),
+        PackageReviewNominalOwner::ToolchainSource(_)
+        | PackageReviewNominalOwner::ToolchainUnbound => Ok(false),
         PackageReviewNominalOwner::Unresolved => Err(vec![Diagnostic::error(format!(
             "reviewed public declaration `{}` has no managed package owner",
             identity.path
@@ -4123,7 +4142,7 @@ fn installation_requirement_identity(
         .collect::<Vec<_>>();
     match (trait_matches.as_slice(), machine_matches.as_slice()) {
         ([(owner, requirement)], []) => Ok(PackageReviewNominalIdentity {
-            owner: nominal_owner(compilation, owner.symbol),
+            owner: nominal_owner(compilation, owner.symbol)?,
             path: compilation
                 .normalized_trait_requirement_overload_identity(owner, requirement)
                 .identity(),
@@ -4141,7 +4160,7 @@ fn installation_requirement_identity(
                 })?
                 .identity();
             Ok(PackageReviewNominalIdentity {
-                owner: nominal_owner(compilation, machine.symbol),
+                owner: nominal_owner(compilation, machine.symbol)?,
                 path,
             })
         }
@@ -4526,7 +4545,7 @@ fn nominal_identity(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let owner = nominal_owner(compilation, symbol);
+    let owner = nominal_owner(compilation, symbol)?;
     let path = compilation.typed.symbols.display_path(symbol, "::");
     if path.is_empty() {
         return Err(vec![Diagnostic::error(
@@ -4539,17 +4558,101 @@ fn nominal_identity(
 fn nominal_owner(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
-) -> PackageReviewNominalOwner {
+) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
     if let Some(package) = compilation.typed.symbols.symbol_package_identity(symbol) {
-        PackageReviewNominalOwner::Package(package)
-    } else {
-        match compilation.typed.symbols.symbol_source_origin(symbol) {
-            Some(psi_source::SourceOrigin::Toolchain) => {
-                PackageReviewNominalOwner::ToolchainUnbound
-            }
-            Some(psi_source::SourceOrigin::User) | None => PackageReviewNominalOwner::Unresolved,
-        }
+        return Ok(PackageReviewNominalOwner::Package(package));
     }
+    let Some(source_file) = compilation
+        .typed
+        .symbols
+        .symbol_source_span(symbol)
+        .and_then(|span| compilation.typed.symbols.source_file(span))
+    else {
+        return Ok(PackageReviewNominalOwner::Unresolved);
+    };
+    match source_file.origin {
+        psi_source::SourceOrigin::Toolchain => Ok(PackageReviewNominalOwner::ToolchainSource(
+            toolchain_source_identity(source_file)?,
+        )),
+        psi_source::SourceOrigin::User => Ok(PackageReviewNominalOwner::Unresolved),
+    }
+}
+
+fn toolchain_source_identity(
+    source_file: &psi_source::SourceFile,
+) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
+    let relative = match source_file.path.strip_prefix(&source_file.package_root) {
+        Ok(relative) => relative,
+        Err(_) if is_canonical_virtual_toolchain_path(&source_file.path) => {
+            source_file.path.as_path()
+        }
+        Err(_) => {
+            return Err(vec![Diagnostic::error(format!(
+                "toolchain source `{}` is outside its canonical package root `{}`",
+                source_file.path.display(),
+                source_file.package_root.display()
+            ))]);
+        }
+    };
+    let mut components = Vec::new();
+    for component in relative.components() {
+        let std::path::Component::Normal(component) = component else {
+            return Err(vec![Diagnostic::error(format!(
+                "toolchain source `{}` has a non-canonical relative path",
+                source_file.path.display()
+            ))]);
+        };
+        let component = component.to_str().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "toolchain source `{}` has a non-UTF-8 canonical path component",
+                source_file.path.display()
+            ))]
+        })?;
+        components.push(component.as_bytes());
+    }
+    if components.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "toolchain source identity requires a non-empty canonical relative path",
+        )]);
+    }
+
+    let mut digest = Sha256::new();
+    digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
+    digest.update(
+        u64::try_from(components.len())
+            .expect("path component count fits u64")
+            .to_le_bytes(),
+    );
+    for component in components {
+        digest.update(
+            u64::try_from(component.len())
+                .expect("path component length fits u64")
+                .to_le_bytes(),
+        );
+        digest.update(component);
+    }
+    digest.update(
+        u64::try_from(source_file.source.len())
+            .expect("toolchain source length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(source_file.source.as_bytes());
+    Ok(PackageReviewToolchainSourceIdentity {
+        digest: digest.finalize().into(),
+    })
+}
+
+fn is_canonical_virtual_toolchain_path(path: &std::path::Path) -> bool {
+    let mut components = path.components();
+    let Some(std::path::Component::Normal(component)) = components.next() else {
+        return false;
+    };
+    if components.next().is_some() {
+        return false;
+    }
+    component.to_str().is_some_and(|component| {
+        component.len() >= 3 && component.starts_with('<') && component.ends_with('>')
+    })
 }
 
 fn exactly_one<'item, Item>(
@@ -4568,4 +4671,73 @@ fn exactly_one<'item, Item>(
         ))]);
     }
     Ok(first)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::toolchain_source_identity;
+    use psi_source::{SourceFile, SourceId, SourceOrigin};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    fn toolchain_source(relative_path: &str, source: &str) -> SourceFile {
+        let package_root = PathBuf::from("toolchain/std");
+        SourceFile {
+            source_id: SourceId(0),
+            path: package_root.join(relative_path),
+            package_root,
+            package_identity: None,
+            origin: SourceOrigin::Toolchain,
+            source: Arc::from(source),
+        }
+    }
+
+    fn virtual_toolchain_source(path: &str, source: &str) -> SourceFile {
+        SourceFile {
+            source_id: SourceId(0),
+            path: PathBuf::from(path),
+            package_root: PathBuf::from("toolchain/std"),
+            package_identity: None,
+            origin: SourceOrigin::Toolchain,
+            source: Arc::from(source),
+        }
+    }
+
+    #[test]
+    fn toolchain_source_identity_is_framed_over_path_and_exact_bytes() {
+        let first = toolchain_source_identity(&toolchain_source("service.omg", "trait Host {}"))
+            .expect("canonical toolchain source identity");
+        let repeated = toolchain_source_identity(&toolchain_source("service.omg", "trait Host {}"))
+            .expect("repeated canonical toolchain source identity");
+        let changed_path =
+            toolchain_source_identity(&toolchain_source("other.omg", "trait Host {}"))
+                .expect("changed-path toolchain source identity");
+        let changed_source =
+            toolchain_source_identity(&toolchain_source("service.omg", "trait Host { }"))
+                .expect("changed-source toolchain source identity");
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, changed_path);
+        assert_ne!(first, changed_source);
+        assert_ne!(first.digest(), [0; 32]);
+    }
+
+    #[test]
+    fn toolchain_source_identity_accepts_only_canonical_virtual_coordinates() {
+        let virtual_source =
+            toolchain_source_identity(&virtual_toolchain_source("<build-prelude>", "data Build"))
+                .expect("canonical virtual toolchain source identity");
+        assert_ne!(virtual_source.digest(), [0; 32]);
+
+        let error = toolchain_source_identity(&virtual_toolchain_source(
+            "virtual/<build-prelude>",
+            "data Build",
+        ))
+        .expect_err("nested virtual path outside the toolchain root must reject");
+        assert!(
+            error[0]
+                .message
+                .contains("outside its canonical package root")
+        );
+    }
 }

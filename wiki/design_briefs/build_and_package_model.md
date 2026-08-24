@@ -608,7 +608,10 @@ Public domain rows likewise retain exact declaring-package identity,
 alpha-normalized type/const binders, carrier type, and index arguments.
 Synthesized semantic paths retain an authored provenance span without replacing
 their canonical spelling with the source substring. Transparent aliases
-recursively flatten to sorted, deduplicated package-qualified atoms; compiler
+recursively flatten to sorted, deduplicated package-qualified atoms. Authored
+toolchain nominals bind a canonical toolchain-relative source path plus exact
+source-byte commitment in review evidence; this does not replace the
+whole-toolchain commitment required for sealed admission. Compiler
 carry aliases expand to explicit toolchain-unbound atoms until exact toolchain
 commitment lands. Predicate, semantic-role, and operator semantics fail closed
 until exact rows exist.
