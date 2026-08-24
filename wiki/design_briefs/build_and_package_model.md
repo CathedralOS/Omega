@@ -117,18 +117,19 @@ The alias is name-resolution syntax, never package identity.
 
 Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
-than the parser. These dependency calls are the target core-library surface;
-the transitional compiler currently recognizes only
-`builder.depend("alias", path("directory"))` and must migrate.
-Package orchestration can already project canonical direct `Source::Path` and
-`Source::Git` literals hermetically from an immutable root `build.omg`.
+than the parser. The compiler-provided build prelude now defines the canonical
+`Source::Path`, `Source::Git`, `Build::depend`, and `Build::depend_as` surface as
+ordinary Omega declarations. Package orchestration projects those canonical
+direct literals hermetically from an immutable root `build.omg`, including an
+exceptional validated explicit alias.
 Package-aware compiler entrypoints now consume a closed requester-local graph
 of alias-to-opaque-`PackageKey` bindings and canonical source roots. That mode
 does not scan or combine package-authored dependency rows during import
 discovery; source paths route loading but do not become nominal identity.
 Orchestration still needs to translate the resolved package closure into this
-handoff, and legacy standalone compilation retains the transitional scanner
-until its canaries migrate.
+handoff. Legacy standalone compilation retains only a narrow explicit
+`depend_as(..., Source::Path { ... })` compatibility scanner until its canaries
+migrate.
 
 ## Normalized `Build` core
 
@@ -568,6 +569,12 @@ unbound identities, compiler-private handles, and any fact it cannot represent
 exactly. The lock persists only the versioned canonical evidence, with source,
 target, evidence-schema, and compiler/toolchain provenance.
 
+The implementation should read each row from the earliest coherent checked
+compiler state that contains it. This may couple the checker to compiler-private
+representations: the checker is part of the compiler and moves with them. That
+coupling does not make the internal representation a package format or public
+compatibility surface.
+
 This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for format stability. It has no execution semantics or
 transformation pipeline of its own. A future shared stage is warranted only if
@@ -804,9 +811,11 @@ foundation. The current Rust package crate is exploratory scaffolding and is
 not an accepted admission implementation: it keys locks by package name,
 accepts caller-constructed manifest JSON, requires caller-supplied aliases and
 package names, stores fingerprints without a complete accepted baseline, and
-uses free-form review receipts. The transitional compiler also syntactically
-scans local dependency calls and may skip malformed dependency builds. These
-seams must be replaced before install/update mutation.
+uses free-form review receipts. Legacy standalone compilation also retains a
+syntactic local-Path compatibility scanner that may skip malformed rows;
+package-aware compilation never consults it, and no admission path may treat it
+as authoritative dependency projection. This seam must be removed before
+install/update mutation.
 `TASKS_PACKAGE_MANAGER.md` owns that migration.
 
 ## Still open

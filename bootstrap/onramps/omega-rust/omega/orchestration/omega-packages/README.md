@@ -28,7 +28,9 @@ real package fixture demonstrates an irreducible external contract.
   evidence from checked source and build results.
 - Ordinary admission uses a total internal projection from checked semantic
   state into versioned canonical evidence. Raw compiler IR is never a lock
-  format, and this projection does not require a nominal Chi stage.
+  format. The checker may consume the earliest coherent compiler-private
+  checked representation for each fact and move with it; this does not require
+  a nominal Chi stage.
 - Terminal evidence is separate and required only for final-realization claims
   or hardened profiles, not as a blanket package-admission gate.
 - `omega.lock` records the exact reconciled closure and normalized accepted
@@ -68,7 +70,8 @@ The following assumptions are superseded and must be removed before
 - standalone JSON manifests accepted as compiler evidence;
 - a manifest fingerprint without the normalized accepted baseline;
 - free-form reviewer/reason receipts that accept whole sections; and
-- syntactic dependency scanning that silently ignores malformed package builds.
+- treating the legacy standalone local-Path compatibility scanner as package
+  dependency authority.
 
 Source fetching, content hashing, traversal limits, normalization, and graph
 algorithms may be reusable only after focused review against the corrected
@@ -86,7 +89,8 @@ derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
 consulting downloaded dependency rows; legacy standalone compilation still
-retains its transitional scanner. Checked package compilation now also retains
+retains a narrow explicit `depend_as(..., Source::Path { ... })` compatibility
+scanner. Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
 is intentionally not source/toolchain-bound admission evidence: exact toolchain

@@ -331,9 +331,11 @@ mod tests {
             resolved.dependency_requests(),
             [
                 DependencySourceRequest::Path {
+                    explicit_alias: None,
                     location: "../local-library".to_owned(),
                 },
                 DependencySourceRequest::Git {
+                    explicit_alias: None,
                     repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
                     revision: "main".to_owned(),
                 },

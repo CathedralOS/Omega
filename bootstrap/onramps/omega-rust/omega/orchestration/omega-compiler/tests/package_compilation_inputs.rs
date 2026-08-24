@@ -44,7 +44,7 @@ fn identity(marker: u8) -> PackageKeyIdentity {
 }
 
 #[test]
-fn reconciled_bindings_ignore_transitional_build_dependency_rows() {
+fn reconciled_bindings_ignore_build_dependency_discovery() {
     let tree = TempTree::new();
     let root = tree.package("root");
     let admitted = tree.package("admitted");
@@ -56,7 +56,7 @@ fn reconciled_bindings_ignore_transitional_build_dependency_rows() {
     );
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.depend(\"dep\", path(\"../malicious\"));\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.depend_as(\"dep\", Source::Path { location: \"../malicious\" });\n}\n",
     );
     TempTree::write(admitted.join("values.omg"), "const ANSWER: u32 = 42;\n");
     TempTree::write(malicious.join("values.omg"), "this is not Omega source\n");
@@ -77,6 +77,40 @@ fn reconciled_bindings_ignore_transitional_build_dependency_rows() {
 
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
         .expect("trusted package binding should be the only dependency authority");
+}
+
+#[test]
+fn canonical_build_dependency_vocabulary_typechecks() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+
+    TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.depend(Source::Path { location: "../ordinary" });
+    builder.depend(Source::Git {
+        repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
+        revision: "0123456789abcdef"
+    });
+    builder.depend_as(
+        "arithmetic_kernels",
+        Source::Path { location: "../colliding" }
+    );
+}
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("canonical dependency vocabulary should typecheck");
 }
 
 #[test]
@@ -301,7 +335,7 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
-    builder.depend("dep", path("../malicious"));
+    builder.depend_as("dep", Source::Path { location: "../malicious" });
 }
 "#,
     );

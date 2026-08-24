@@ -1,3 +1,4 @@
+use crate::identity::AliasName;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -21,12 +22,24 @@ const DEPEND_AS_MACHINE_NAME: &str = "depend_as";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencySourceRequest {
     Path {
+        explicit_alias: Option<AliasName>,
         location: String,
     },
     Git {
+        explicit_alias: Option<AliasName>,
         repository: String,
         revision: String,
     },
+}
+
+impl DependencySourceRequest {
+    pub fn explicit_alias(&self) -> Option<&AliasName> {
+        match self {
+            Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
+                explicit_alias.as_ref()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,10 +55,12 @@ pub enum DependencyProjectionError {
     InvalidBuildMachine,
     MissingBuildEntry,
     InvalidBuildParameter,
-    UnsupportedDependencyOperation { operation: String },
     UnsupportedDependencyShape,
     WrongDependencyReceiver,
     WrongDependencyArguments,
+    AliasNotString,
+    AliasNotUtf8,
+    InvalidAlias { alias: String },
     SourceNotLiteral,
     WrongSourceType,
     MissingSourceCase,
@@ -88,18 +103,24 @@ impl fmt::Display for DependencyProjectionError {
             Self::InvalidBuildParameter => formatter.write_str(
                 "package build machine's first parameter must be `builder: &mut Build`",
             ),
-            Self::UnsupportedDependencyOperation { operation } => write!(
-                formatter,
-                "dependency operation `{operation}` is not supported by hermetic projection"
-            ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "dependency requests must be direct canonical `builder.depend(Source::...)` statements in the root build entry",
+                "dependency requests must be direct canonical `builder.depend(Source::...)` or `builder.depend_as(alias, Source::...)` statements in the root build entry",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request receiver must be the root build machine's first parameter",
             ),
             Self::WrongDependencyArguments => formatter.write_str(
-                "`builder.depend` must have one source argument and no static, evidence, operational, or discard modifiers",
+                "`builder.depend` must have one source argument and `builder.depend_as` must have one direct alias literal followed by one source argument; neither accepts static, evidence, operational, or discard modifiers",
+            ),
+            Self::AliasNotString => formatter.write_str(
+                "dependency alias must be a direct string literal",
+            ),
+            Self::AliasNotUtf8 => formatter.write_str(
+                "dependency alias must contain UTF-8 bytes",
+            ),
+            Self::InvalidAlias { alias } => write!(
+                formatter,
+                "dependency alias `{alias}` must use snake_case Omega identifier spelling"
             ),
             Self::SourceNotLiteral => formatter.write_str(
                 "dependency source must be a direct `Source::Path` or `Source::Git` literal",
@@ -210,7 +231,7 @@ fn extract_from_syntax_trees(
     }
 
     let Some(build) = named_builds.first() else {
-        reject_unprojected_dependency_syntax(syntax_trees, &[], &[])?;
+        reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
         return Ok(Vec::new());
     };
     if build.bodyless
@@ -263,16 +284,15 @@ fn extract_from_syntax_trees(
     let mut requests = Vec::new();
     let mut accepted_statements = Vec::new();
     let mut accepted_sources = Vec::new();
+    let mut accepted_aliases = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        if call.target.as_str() == DEPEND_AS_MACHINE_NAME {
-            return Err(DependencyProjectionError::UnsupportedDependencyOperation {
-                operation: DEPEND_AS_MACHINE_NAME.to_owned(),
-            });
-        }
-        if call.target.as_str() != DEPEND_MACHINE_NAME {
+        if !matches!(
+            call.target.as_str(),
+            DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
+        ) {
             continue;
         }
         if call.receiver_starts_at_self
@@ -290,16 +310,36 @@ fn extract_from_syntax_trees(
         {
             return Err(DependencyProjectionError::WrongDependencyArguments);
         }
-        let [source_handle] = syntax_trees.statements.expression_handles(call.arguments) else {
-            return Err(DependencyProjectionError::WrongDependencyArguments);
+        let arguments = syntax_trees.statements.expression_handles(call.arguments);
+        let (explicit_alias, source_handle) = match call.target.as_str() {
+            DEPEND_MACHINE_NAME => {
+                let [source_handle] = arguments else {
+                    return Err(DependencyProjectionError::WrongDependencyArguments);
+                };
+                (None, *source_handle)
+            }
+            DEPEND_AS_MACHINE_NAME => {
+                let [alias_handle, source_handle] = arguments else {
+                    return Err(DependencyProjectionError::WrongDependencyArguments);
+                };
+                let alias = project_alias_literal(syntax_trees, *alias_handle)?;
+                accepted_aliases.push(*alias_handle);
+                (Some(alias), *source_handle)
+            }
+            _ => unreachable!("dependency operation filtered above"),
         };
-        let request = project_source_literal(syntax_trees, *source_handle)?;
+        let request = project_source_literal(syntax_trees, source_handle, explicit_alias)?;
         requests.push(request);
         accepted_statements.push(*statement_handle);
-        accepted_sources.push(*source_handle);
+        accepted_sources.push(source_handle);
     }
 
-    reject_unprojected_dependency_syntax(syntax_trees, &accepted_statements, &accepted_sources)?;
+    reject_unprojected_dependency_syntax(
+        syntax_trees,
+        &accepted_statements,
+        &accepted_sources,
+        &accepted_aliases,
+    )?;
     Ok(requests)
 }
 
@@ -353,6 +393,7 @@ fn machine_leaf_name(name: &str) -> &str {
 fn project_source_literal(
     syntax_trees: &SyntaxTrees,
     source_handle: ExpressionHandle,
+    explicit_alias: Option<AliasName>,
 ) -> Result<DependencySourceRequest, DependencyProjectionError> {
     let ExpressionNode::StructLiteral(literal) = syntax_trees.expressions.expression(source_handle)
     else {
@@ -378,6 +419,7 @@ fn project_source_literal(
                 });
             }
             Ok(DependencySourceRequest::Path {
+                explicit_alias,
                 location: string_field(syntax_trees, "location", field.value)?,
             })
         }
@@ -407,6 +449,7 @@ fn project_source_literal(
                 .find(|field| field.name.as_str() == "revision")
                 .expect("validated Git revision field");
             Ok(DependencySourceRequest::Git {
+                explicit_alias,
                 repository: string_field(syntax_trees, "repository", repository.value)?,
                 revision: string_field(syntax_trees, "revision", revision.value)?,
             })
@@ -415,6 +458,19 @@ fn project_source_literal(
             case_name: unsupported.to_owned(),
         }),
     }
+}
+
+fn project_alias_literal(
+    syntax_trees: &SyntaxTrees,
+    alias_handle: ExpressionHandle,
+) -> Result<AliasName, DependencyProjectionError> {
+    let ExpressionNode::String(bytes) = syntax_trees.expressions.expression(alias_handle) else {
+        return Err(DependencyProjectionError::AliasNotString);
+    };
+    let alias = std::str::from_utf8(bytes).map_err(|_| DependencyProjectionError::AliasNotUtf8)?;
+    AliasName::parse(alias).map_err(|_| DependencyProjectionError::InvalidAlias {
+        alias: alias.to_owned(),
+    })
 }
 
 fn string_field(
@@ -438,6 +494,7 @@ fn reject_unprojected_dependency_syntax(
     syntax_trees: &SyntaxTrees,
     accepted_statements: &[StatementHandle],
     accepted_sources: &[ExpressionHandle],
+    accepted_aliases: &[ExpressionHandle],
 ) -> Result<(), DependencyProjectionError> {
     for item in syntax_trees.root_items() {
         let Item::Machine(machine) = item else {
@@ -451,13 +508,10 @@ fn reject_unprojected_dependency_syntax(
                 else {
                     continue;
                 };
-                if call.target.as_str() == DEPEND_AS_MACHINE_NAME {
-                    return Err(DependencyProjectionError::UnsupportedDependencyOperation {
-                        operation: DEPEND_AS_MACHINE_NAME.to_owned(),
-                    });
-                }
-                if call.target.as_str() == DEPEND_MACHINE_NAME
-                    && !accepted_statements.contains(statement_handle)
+                if matches!(
+                    call.target.as_str(),
+                    DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
+                ) && !accepted_statements.contains(statement_handle)
                 {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
@@ -480,16 +534,15 @@ fn reject_unprojected_dependency_syntax(
                     DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
                 ) =>
             {
-                if call.target.as_str() == DEPEND_AS_MACHINE_NAME {
-                    return Err(DependencyProjectionError::UnsupportedDependencyOperation {
-                        operation: DEPEND_AS_MACHINE_NAME.to_owned(),
-                    });
-                }
-                let [source] = syntax_trees.expressions.expression_handles(call.arguments) else {
-                    return Err(DependencyProjectionError::UnsupportedDependencyShape);
-                };
-                if !accepted_sources.contains(source) {
-                    return Err(DependencyProjectionError::UnsupportedDependencyShape);
+                match (
+                    call.target.as_str(),
+                    syntax_trees.expressions.expression_handles(call.arguments),
+                ) {
+                    (DEPEND_MACHINE_NAME, [source]) if accepted_sources.contains(source) => {}
+                    (DEPEND_AS_MACHINE_NAME, [alias, source])
+                        if accepted_aliases.contains(alias)
+                            && accepted_sources.contains(source) => {}
+                    _ => return Err(DependencyProjectionError::UnsupportedDependencyShape),
                 }
             }
             _ => {}
@@ -543,7 +596,7 @@ mod tests {
             r#"
             machine build(builder: &mut Build, filesystem: &mut Filesystem) {
                 builder.depend(Source::Path { location: "../local" });
-                builder.depend(Source::Git {
+                builder.depend_as("arithmetic_kernels", Source::Git {
                     revision: "0123456789abcdef",
                     repository: "ssh://git@github.com/CathedralOS/example.git"
                 });
@@ -554,9 +607,11 @@ mod tests {
             fixture.extract().unwrap(),
             vec![
                 DependencySourceRequest::Path {
+                    explicit_alias: None,
                     location: "../local".to_owned(),
                 },
                 DependencySourceRequest::Git {
+                    explicit_alias: Some(AliasName::parse("arithmetic_kernels").unwrap()),
                     repository: "ssh://git@github.com/CathedralOS/example.git".to_owned(),
                     revision: "0123456789abcdef".to_owned(),
                 },
@@ -663,6 +718,7 @@ mod tests {
             "domain u64::Source; machine build(builder: &mut Build) {}",
             "trait Build {} machine build(builder: &mut Build) {}",
             "machine Build::depend(source: Source) {} machine build(builder: &mut Build) {}",
+            "machine Build::depend_as(alias: &[u8], source: Source) {} machine build(builder: &mut Build) {}",
         ] {
             let fixture = PackageFixture::with_source(source);
             let result = fixture.extract();
@@ -677,7 +733,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_wrong_receiver_arguments_and_depend_as() {
+    fn rejects_wrong_receiver_and_dependency_argument_shapes() {
         let cases = [
             (
                 r#"machine build(builder: &mut Build) { other.depend(Source::Path { location: "x" }); }"#,
@@ -688,8 +744,12 @@ mod tests {
                 "arguments",
             ),
             (
-                r#"machine build(builder: &mut Build) { builder.depend_as("alias", Source::Path { location: "x" }); }"#,
-                "depend_as",
+                r#"machine build(builder: &mut Build) { builder.depend_as(Source::Path { location: "x" }); }"#,
+                "arguments",
+            ),
+            (
+                r#"machine build(builder: &mut Build) { builder.depend_as("alias", Source::Path { location: "x" }, "extra"); }"#,
+                "arguments",
             ),
         ];
         for (source, expected) in cases {
@@ -704,12 +764,40 @@ mod tests {
                     ) | (
                         DependencyProjectionError::WrongDependencyArguments,
                         "arguments"
-                    ) | (
-                        DependencyProjectionError::UnsupportedDependencyOperation { .. },
-                        "depend_as"
                     )
                 ),
                 "unexpected error: {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_nonliteral_non_utf8_and_invalid_explicit_aliases() {
+        let nonliteral = PackageFixture::with_source(
+            r#"machine build(builder: &mut Build) { builder.depend_as(alias, Source::Path { location: "x" }); }"#,
+        );
+        assert_eq!(
+            nonliteral.extract().unwrap_err(),
+            DependencyProjectionError::AliasNotString
+        );
+
+        let non_utf8 = PackageFixture::with_source(
+            r#"machine build(builder: &mut Build) { builder.depend_as("\xff", Source::Path { location: "x" }); }"#,
+        );
+        assert_eq!(
+            non_utf8.extract().unwrap_err(),
+            DependencyProjectionError::AliasNotUtf8
+        );
+
+        for alias in ["BadAlias", "bad-alias", "_bad", "bad__alias", "bad_"] {
+            let fixture = PackageFixture::with_source(&format!(
+                r#"machine build(builder: &mut Build) {{ builder.depend_as("{alias}", Source::Path {{ location: "x" }}); }}"#,
+            ));
+            assert_eq!(
+                fixture.extract().unwrap_err(),
+                DependencyProjectionError::InvalidAlias {
+                    alias: alias.to_owned()
+                }
             );
         }
     }
@@ -781,7 +869,7 @@ mod tests {
         let helper = PackageFixture::with_source(
             r#"
             machine add_dependency(builder: &mut Build) {
-                builder.depend(Source::Path { location: "hidden" });
+                builder.depend_as("hidden_alias", Source::Path { location: "hidden" });
             }
             machine build(builder: &mut Build) { add_dependency(builder); }
             "#,

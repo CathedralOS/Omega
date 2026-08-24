@@ -112,7 +112,8 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             SourceStorage::for_compilation(root_package, toolchain_root)
         }
     };
-    // depend-mapping (M2 blocker 3): `build.depend("alias", path("dir"))` rows
+    // Legacy standalone depend mapping: explicit
+    // `builder.depend_as("alias", Source::Path { location: "dir" })` rows
     // collected from every loaded build machine, alias -> directory. Each
     // frontier collects BEFORE resolving its uses, so a build.omg companion
     // maps aliases for the sources loaded alongside it.
@@ -256,8 +257,8 @@ fn validate_package_source_frontier(
 }
 
 /// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
-/// build.omg is just `machine build(build: &mut Build) { ... }` or the scoped
-/// `machine Owner::build(&mut self, build: &mut Build) { ... }` -- the `Build` /
+/// build.omg is just `machine build(builder: &mut Build) { ... }` or the scoped
+/// `machine Owner::build(&mut self, builder: &mut Build) { ... }` -- the `Build` /
 /// `Subsystem` types are CORE-DEFINED, never authored per file. When a
 /// build.omg root declares either build-machine shape and no `Build` data of
 /// its own, the build-machine fragment is injected as a virtual source (a
@@ -277,10 +278,13 @@ data Build {
     subsystem: Subsystem;
     freestanding: bool;
 }
-machine Build::depend(&mut self, alias: &[u8], location: &[u8]) {
+data Source {
+    case Path(location: &[u8]);
+    case Git(repository: &[u8], revision: &[u8]);
 }
-machine path(location: &[u8]) -> &[u8] {
-    transition { _ -> (location) }
+machine Build::depend(&mut self, source: Source) {
+}
+machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 "#;
 
@@ -990,6 +994,94 @@ mod tests {
     use omega_control_flow::StateKey;
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
+
+    #[test]
+    fn build_prelude_owns_canonical_dependency_vocabulary() {
+        let tokens = psi_source_files_to_tokens::Lexer::new(BUILD_PRELUDE)
+            .tokenize()
+            .expect("toolchain build prelude must lex");
+        let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("toolchain build prelude must parse as ordinary Omega");
+
+        let source = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Source" => {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define Source");
+        let source_cases = syntax_trees.items.data_members(source.members);
+        let [
+            psi_syntax_trees::item::DataMember::Variant(path),
+            psi_syntax_trees::item::DataMember::Variant(git),
+        ] = source_cases
+        else {
+            panic!("Source must contain exactly Path and Git cases");
+        };
+        assert_eq!(path.name.as_str(), "Path");
+        assert_eq!(
+            syntax_trees
+                .items
+                .data_payload_fields(path.payload)
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["location"]
+        );
+        assert_eq!(git.name.as_str(), "Git");
+        assert_eq!(
+            syntax_trees
+                .items
+                .data_payload_fields(git.payload)
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["repository", "revision"]
+        );
+
+        let mut dependency_methods = syntax_trees
+            .root_items()
+            .filter_map(|item| match item {
+                psi_syntax_trees::item::Item::Machine(machine)
+                    if machine
+                        .attached_data
+                        .as_ref()
+                        .is_some_and(|owner| owner.as_str() == "Build") =>
+                {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        dependency_methods.sort_by_key(|machine| machine.name.as_str());
+        assert_eq!(dependency_methods.len(), 2);
+        assert_eq!(dependency_methods[0].name.as_str(), "Build::depend");
+        assert_eq!(dependency_methods[1].name.as_str(), "Build::depend_as");
+
+        let parameter_names = |machine: &psi_syntax_trees::item::Machine| {
+            let [entry] = syntax_trees.items.state_handles(machine.states) else {
+                panic!("dependency method must have exactly one entry state");
+            };
+            syntax_trees
+                .items
+                .state_parameters(syntax_trees.items.state(*entry).parameters)
+                .iter()
+                .map(|handle| syntax_trees.items.state_parameter(*handle).name.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(parameter_names(dependency_methods[0]), ["self", "source"]);
+        assert_eq!(
+            parameter_names(dependency_methods[1]),
+            ["self", "alias", "source"]
+        );
+        assert!(!syntax_trees.root_items().any(|item| matches!(
+            item,
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.attached_data.is_none() && machine.name.as_str() == "path"
+        )));
+    }
 
     #[test]
     fn build_prelude_owns_package_declaration_vocabulary() {
