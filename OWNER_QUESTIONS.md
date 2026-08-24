@@ -205,7 +205,7 @@ Boolean-returning machine is pure or proof-only, trust the body without an
 authority edge, or treat proposition and machine calls as interchangeable
 because they share surface syntax.
 
-## Q9 — What compiler/toolchain provenance seals a package instance?
+## Q8 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
