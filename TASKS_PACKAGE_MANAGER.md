@@ -432,6 +432,14 @@ complete.
   alias. Callable conformance bounds, static machine/proposition parameters,
   and non-public, external, operator, or lifetime-parameterized realizations
   reject until their complete rows exist rather than disappearing from review.
+  Public callable `requires`, `ensures`, boundary, and named-evidence clauses
+  still lack exact canonical proof/contract rows. The review comparison retains
+  the legacy 64-bit machine-contract fingerprint so accepted boundary claims
+  such as `ensures result == 0` do not disappear before those rows land. That
+  fingerprint also folds compiler-private internal-state shape and is neither
+  exact nor collision-resistant; it remains review/execution compatibility
+  data, blocks sealed admission, and must leave canonical evidence only after
+  exact accepted/proof contract rows replace it.
   It retains
   package-qualified authored nominals, distinct declared/effective/concrete
   service rows, unresolved installation rows, exact capability-flow

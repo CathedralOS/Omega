@@ -256,6 +256,16 @@ lifetime-parameterized realizations reject until their complete canonical forms
 are represented. The projection never substitutes an overload display name or
 a runtime-layout-only type identity for this contract surface.
 
+Public callable `requires`, `ensures`, boundary, and named-evidence clauses
+still need exact canonical proof/contract rows. Review comparison temporarily
+retains the compiler's legacy 64-bit machine-contract fingerprint so an
+accepted boundary claim does not vanish before those rows land. The fingerprint
+also folds private internal-state shape and is neither exact nor
+collision-resistant. It is review/execution compatibility data, not sealed
+admission identity, and exact accepted/proof contract rows must replace it
+before the projection can be sealed. Exact crash, reach, invocation,
+termination, signature, and conformance rows remain independently encoded.
+
 The eventual normalized package-admission evidence must include, with exact
 provenance:
 
