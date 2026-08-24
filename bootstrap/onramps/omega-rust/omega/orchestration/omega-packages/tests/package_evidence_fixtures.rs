@@ -1,7 +1,7 @@
 use omega_compiler::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use omega_packages::{
     LocalSourceLimits, PackageSourceClosureLimits, SourceLineage, WorkspaceMemberPath,
@@ -129,12 +129,18 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 panic!("axiom-ledger exact accepted claim")
             };
             assert_eq!(contract.kind(), PackageReviewContractKind::Ensures);
-            assert!(matches!(
-                contract.fact(),
-                PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary { left, right, .. })
-                    if matches!(left.as_ref(), PackageReviewContractExpression::Result)
-                        && matches!(right.as_ref(), PackageReviewContractExpression::Integer(value) if value == "0")
-            ));
+            let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+                panic!("axiom-ledger exact accepted proposition")
+            };
+            assert_eq!(application.declaration().path(), "is_zero");
+            assert_eq!(
+                application.arguments(),
+                [PackageReviewContractExpression::Result]
+            );
+            assert_eq!(
+                application.evidence(),
+                &PackageReviewPropositionEvidence::FactOnly
+            );
         }
         _ => {}
     }

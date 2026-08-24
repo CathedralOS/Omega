@@ -4,8 +4,9 @@ use omega_compiler::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
     PackageReviewCrashRouteGuard, PackageReviewDataMember, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewNominalOwner,
-    PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewSynchronousInvocation, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -124,7 +125,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 15);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 16);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -455,6 +456,281 @@ machine build(builder: &mut Build) { }
                 .contains("exposes non-public domain `u64::Hidden`")
         }),
         "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn review_projects_structural_propositions_and_alpha_normalizes_their_binders() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    original.write(
+        "main.omg",
+        r#"proposition equivalent<Element>(left: Element, right: Element);
+pub machine compare<Value>(left: Value, right: Value)
+requires equivalent<Value>(left, right)
+{ }
+"#,
+    );
+    renamed.write(
+        "main.omg",
+        r#"proposition equivalent<Item>(left: Item, right: Item);
+pub machine compare<Compared>(left: Compared, right: Compared)
+requires equivalent<Compared>(left, right)
+{ }
+"#,
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    original.write("build.omg", build);
+    renamed.write("build.omg", build);
+
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("generic proposition fixture should check");
+        project_checked_package_review(&checked).expect("generic proposition review")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let compare = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("compare"))
+        .expect("public comparison callable");
+    let [contract] = compare.contracts() else {
+        panic!("one proposition contract")
+    };
+    assert_eq!(contract.evidence_lane_position(), None);
+    let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+        panic!("exact proposition application")
+    };
+    assert_eq!(application.declaration().path(), "equivalent");
+    let [binder] = application.binders() else {
+        panic!("one proposition binder")
+    };
+    assert_eq!(binder.kind(), &PackageReviewPropositionBinderKind::Type);
+    let [argument] = application.binder_arguments() else {
+        panic!("one proposition binder argument")
+    };
+    assert_eq!(
+        argument.value(),
+        &PackageReviewPropositionBinderValue::GenericBinder(0)
+    );
+    assert_eq!(application.parameter_types().len(), 2);
+    assert_eq!(
+        application.arguments(),
+        [
+            PackageReviewContractExpression::Parameter(0),
+            PackageReviewContractExpression::Parameter(1),
+        ]
+    );
+    assert_eq!(
+        application.evidence(),
+        &PackageReviewPropositionEvidence::FactOnly
+    );
+    assert_eq!(
+        original
+            .canonical_review_bytes()
+            .expect("original encoding"),
+        renamed.canonical_review_bytes().expect("renamed encoding"),
+        "renaming callable and proposition binders must not alter package evidence",
+    );
+}
+
+#[test]
+fn review_projects_named_witness_interfaces_through_transparent_aliases() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let direct = TempPackage::new();
+    let aliased = TempPackage::new();
+    let direct_source = r#"pub trait EvidenceBase<Element> {
+    machine inherited(value: Element);
+}
+pub trait Evidence<Element>: EvidenceBase<Element> {
+    machine witness(value: Element);
+}
+proposition carries<Element>(value: Element) evidence Evidence<Element>;
+pub machine consume()
+requires proof: carries<i32>(1)
+{ }
+"#;
+    let aliased_source = r#"pub trait EvidenceBase<Element> {
+    machine inherited(value: Element);
+}
+pub trait Evidence<Element>: EvidenceBase<Element> {
+    machine witness(value: Element);
+}
+proposition carries<Element>(value: Element) evidence Evidence<Element>;
+proposition forwarded<Item>(value: Item) = carries<Item>(value);
+pub machine consume()
+requires evidence: forwarded<i32>(1)
+{ }
+"#;
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    direct.write("main.omg", direct_source);
+    direct.write("build.omg", build);
+    aliased.write("main.omg", aliased_source);
+    aliased.write("build.omg", build);
+
+    let compile = |package: &TempPackage| {
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named witness fixture should check")
+    };
+    let direct_checked = compile(&direct);
+    let direct_review =
+        project_checked_package_review(&direct_checked).expect("direct witness review");
+    let aliased_review =
+        project_checked_package_review(&compile(&aliased)).expect("aliased witness review");
+    let consume = direct_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("public consumer");
+    let [contract] = consume.contracts() else {
+        panic!("one named witness contract")
+    };
+    assert_eq!(
+        contract.binding(),
+        None,
+        "a named requires spelling is a callee-local alias"
+    );
+    assert_eq!(contract.evidence_lane_position(), Some(0));
+    let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+        panic!("witness proposition application")
+    };
+    assert_eq!(application.declaration().path(), "carries");
+    let PackageReviewPropositionEvidence::Witness(interface) = application.evidence() else {
+        panic!("witness interface")
+    };
+    assert_eq!(interface.trait_identity().path(), "Evidence");
+    assert_eq!(interface.arguments().len(), 1);
+    assert_eq!(interface.requirements().len(), 2);
+    assert!(interface.requirements().iter().any(|requirement| {
+        requirement.declaring_trait().path() == "Evidence"
+            && requirement.requirement().path().contains("witness")
+            && requirement.declaring_trait_arguments().len() == 1
+    }));
+    assert!(interface.requirements().iter().any(|requirement| {
+        requirement.declaring_trait().path() == "EvidenceBase"
+            && requirement.requirement().path().contains("inherited")
+            && requirement.declaring_trait_arguments().len() == 1
+    }));
+    assert_eq!(
+        direct_review
+            .canonical_review_bytes()
+            .expect("direct witness encoding"),
+        aliased_review
+            .canonical_review_bytes()
+            .expect("aliased witness encoding"),
+        "a transparent proposition alias and local requires-binding rename must not mint package identity",
+    );
+
+    let mut diagnostic_spoof = compile(&direct);
+    let term_handles = diagnostic_spoof
+        .facts
+        .proof
+        .evidence_terms
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in term_handles {
+        let term = diagnostic_spoof.facts.proof.evidence_terms.get_mut(handle);
+        term.evidence_type = "spoofed diagnostic evidence".to_owned();
+        term.proposition
+            .arguments
+            .fill("spoofed argument".to_owned());
+        for argument in &mut term.proposition.binder_arguments {
+            argument.identity = "spoofed binder".to_owned();
+        }
+        if let Some(interface) = term.evidence_interface.as_mut() {
+            interface.arguments.fill("spoofed interface".to_owned());
+            for requirement in &mut interface.requirements {
+                requirement
+                    .declaring_trait_arguments
+                    .fill("spoofed requirement".to_owned());
+            }
+        }
+    }
+    let spoofed_review = project_checked_package_review(&diagnostic_spoof)
+        .expect("diagnostic strings are not review identity");
+    assert_eq!(
+        direct_review
+            .canonical_review_bytes()
+            .expect("structural witness encoding"),
+        spoofed_review
+            .canonical_review_bytes()
+            .expect("spoofed diagnostic witness encoding"),
+        "checked diagnostic strings must not influence package evidence",
+    );
+}
+
+#[test]
+fn named_evidence_lane_order_changes_canonical_review_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let first = TempPackage::new();
+    let second = TempPackage::new();
+    let prefix = r#"pub trait Evidence {}
+proposition left_fact() evidence Evidence;
+proposition right_fact() evidence Evidence;
+"#;
+    first.write(
+        "main.omg",
+        &format!(
+            "{prefix}pub machine consume()\nrequires left: left_fact()\nrequires right: right_fact()\n{{ }}\n"
+        ),
+    );
+    second.write(
+        "main.omg",
+        &format!(
+            "{prefix}pub machine consume()\nrequires right: right_fact()\nrequires left: left_fact()\n{{ }}\n"
+        ),
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    first.write("build.omg", build);
+    second.write("build.omg", build);
+    let encode = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named evidence lane fixture should check");
+        project_checked_package_review(&checked)
+            .expect("named evidence lane review")
+            .canonical_review_bytes()
+            .expect("named evidence lane encoding")
+    };
+    assert_ne!(
+        encode(&first),
+        encode(&second),
+        "reordering positional erased proof inputs must change package evidence",
     );
 }
 
@@ -798,7 +1074,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v15_comparison_encoding() {
+fn exact_synchronous_invocations_change_v16_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -988,7 +1264,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v15_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v16_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1022,7 +1298,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v15_comparison_encoding() {
+fn public_domain_shape_changes_change_v16_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

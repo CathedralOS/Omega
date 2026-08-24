@@ -7,6 +7,6 @@ claim set, and that open deferrals are fatal for package admission.
 
 Expected package evidence:
 
-- accepted proof/boundary claim identity is recorded;
+- accepted proposition/boundary claim identity and exact argument are recorded;
 - open proof deferrals reject release/admission;
 - imported claims cannot self-approve.

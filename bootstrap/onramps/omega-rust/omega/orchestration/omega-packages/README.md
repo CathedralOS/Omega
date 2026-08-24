@@ -184,17 +184,21 @@ realizations fail closed until complete rows land. Public callable `requires`,
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
 value and package-qualified public domain; private package domains reject.
-Unsupported proposition/named-evidence, call, member, cast, and aggregate forms fail closed.
-For proposition rows, typed declaration/binder/expression structure is joined
-to checked evidence-term and witness-interface routing plus the eventual
-proof/admission disposition. Checked string renderings remain diagnostic only;
-any currently string-only witness argument must gain a structural carrier in
-the existing owning representation before that form can pass review. This join
-does not create a nominal Chi stage.
+Proposition rows retain an exact package-qualified primitive endpoint,
+alpha-normalized declaration binders and parameter types, structural
+binder/value arguments, and fact-only or witness classification. Transparent
+aliases expand without identity. Witness interfaces retain exact root arguments
+and complete direct/inherited requirement surfaces. Named contracts join their
+checked evidence term and positional lane. A `requires` binding spelling is a
+local alias and is excluded from canonical identity; an `ensures` selector is
+public and remains. Checked string renderings are diagnostic only and changing
+them does not change review bytes. Evidence-projection binder arguments and
+unsupported call, member, cast, and aggregate expressions still fail closed.
+This join does not create a nominal Chi stage.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-15 length-framed
+a version-16 length-framed
 binary comparison encoding over this review projection; it is explicitly not a package certificate or
 accepted-lock payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

@@ -71,7 +71,7 @@ pub struct PropositionBinderArgument {
     pub symbol: SymbolHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PropositionBinderArgumentKind {
     Type,
     Const,

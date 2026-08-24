@@ -233,6 +233,27 @@ impl TypedTrees {
         ))
     }
 
+    /// Package-qualified counterpart used by compiler-owned projections that
+    /// instantiate a public template while retaining alpha-normalized local
+    /// binders. Concrete substitutions are followed structurally; every
+    /// remaining non-binder nominal still receives its exact source owner.
+    pub fn package_qualified_type_identity_with_binders_and_substitutions(
+        &self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> NormalizedTypeIdentity {
+        NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                binders,
+                substitutions,
+                qualification: TypeIdentityQualification::PackageQualified,
+            },
+        ))
+    }
+
     pub fn normalized_domain_expression(
         &self,
         constraints: HandleSpan<TypeConstraintNode>,

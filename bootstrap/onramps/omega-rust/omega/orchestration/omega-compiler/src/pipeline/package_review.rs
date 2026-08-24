@@ -484,18 +484,193 @@ pub enum PackageReviewContractExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewPropositionBinderKind {
+    Type,
+    Const(PackageReviewTypeIdentity),
+    Machine,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewPropositionBinder {
+    kind: PackageReviewPropositionBinderKind,
+    bounds: psi_typed_trees::data::DataProperties,
+}
+
+impl PartialOrd for PackageReviewPropositionBinder {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PackageReviewPropositionBinder {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.kind.cmp(&other.kind).then_with(|| {
+            package_review_data_properties_key(self.bounds)
+                .cmp(&package_review_data_properties_key(other.bounds))
+        })
+    }
+}
+
+fn package_review_data_properties_key(
+    properties: psi_typed_trees::data::DataProperties,
+) -> (u8, Option<(u8, u8, u8, u8)>) {
+    let multiplicity = match properties.multiplicity {
+        psi_language_semantics::Multiplicity::Unrestricted => 0,
+        psi_language_semantics::Multiplicity::Affine => 1,
+        psi_language_semantics::Multiplicity::Linear => 2,
+    };
+    let carry = properties.carry.map(|carry| {
+        (
+            u8::from(matches!(
+                carry.suspension,
+                psi_language_semantics::CarrySuspension::Allowed
+            )),
+            u8::from(matches!(carry.cpu, psi_language_semantics::CarryCpu::Any)),
+            u8::from(matches!(
+                carry.host_thread,
+                psi_language_semantics::CarryHostThread::Any
+            )),
+            u8::from(matches!(
+                carry.address,
+                psi_language_semantics::CarryAddress::Movable
+            )),
+        )
+    });
+    (multiplicity, carry)
+}
+
+impl PackageReviewPropositionBinder {
+    pub const fn kind(&self) -> &PackageReviewPropositionBinderKind {
+        &self.kind
+    }
+
+    pub const fn bounds(&self) -> psi_typed_trees::data::DataProperties {
+        self.bounds
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewPropositionBinderValue {
+    Nominal(PackageReviewNominalIdentity),
+    GenericBinder(u32),
+    Integer(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewPropositionBinderArgument {
+    kind: psi_typed_trees::proposition::PropositionBinderArgumentKind,
+    value: PackageReviewPropositionBinderValue,
+}
+
+impl PackageReviewPropositionBinderArgument {
+    pub const fn kind(&self) -> psi_typed_trees::proposition::PropositionBinderArgumentKind {
+        self.kind
+    }
+
+    pub const fn value(&self) -> &PackageReviewPropositionBinderValue {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewEvidenceRequirement {
+    declaring_trait: PackageReviewNominalIdentity,
+    declaring_trait_arguments: Vec<PackageReviewTypeIdentity>,
+    requirement: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewEvidenceRequirement {
+    pub const fn declaring_trait(&self) -> &PackageReviewNominalIdentity {
+        &self.declaring_trait
+    }
+
+    pub fn declaring_trait_arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.declaring_trait_arguments
+    }
+
+    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewEvidenceInterface {
+    trait_identity: PackageReviewNominalIdentity,
+    arguments: Vec<PackageReviewTypeIdentity>,
+    requirements: Vec<PackageReviewEvidenceRequirement>,
+}
+
+impl PackageReviewEvidenceInterface {
+    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.trait_identity
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.arguments
+    }
+
+    pub fn requirements(&self) -> &[PackageReviewEvidenceRequirement] {
+        &self.requirements
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewPropositionEvidence {
+    FactOnly,
+    Witness(PackageReviewEvidenceInterface),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewPropositionApplication {
+    declaration: PackageReviewNominalIdentity,
+    binders: Vec<PackageReviewPropositionBinder>,
+    parameter_types: Vec<PackageReviewTypeIdentity>,
+    binder_arguments: Vec<PackageReviewPropositionBinderArgument>,
+    arguments: Vec<PackageReviewContractExpression>,
+    evidence: PackageReviewPropositionEvidence,
+}
+
+impl PackageReviewPropositionApplication {
+    pub const fn declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.declaration
+    }
+
+    pub fn binders(&self) -> &[PackageReviewPropositionBinder] {
+        &self.binders
+    }
+
+    pub fn parameter_types(&self) -> &[PackageReviewTypeIdentity] {
+        &self.parameter_types
+    }
+
+    pub fn binder_arguments(&self) -> &[PackageReviewPropositionBinderArgument] {
+        &self.binder_arguments
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewContractExpression] {
+        &self.arguments
+    }
+
+    pub const fn evidence(&self) -> &PackageReviewPropositionEvidence {
+        &self.evidence
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractFact {
     Expression(PackageReviewContractExpression),
     Membership {
         value: PackageReviewContractExpression,
         domain: PackageReviewNominalIdentity,
     },
+    Proposition(PackageReviewPropositionApplication),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewCallableContract {
     kind: PackageReviewContractKind,
     binding: Option<String>,
+    evidence_lane_position: Option<u32>,
     fact: PackageReviewContractFact,
 }
 
@@ -506,6 +681,10 @@ impl PackageReviewCallableContract {
 
     pub fn binding(&self) -> Option<&str> {
         self.binding.as_deref()
+    }
+
+    pub const fn evidence_lane_position(&self) -> Option<u32> {
+        self.evidence_lane_position
     }
 
     pub const fn fact(&self) -> &PackageReviewContractFact {
@@ -1877,6 +2056,23 @@ fn review_type_identity_with_binders(
     }
 }
 
+fn review_type_identity_with_binders_and_substitutions(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+) -> PackageReviewTypeIdentity {
+    PackageReviewTypeIdentity {
+        canonical: compilation
+            .package_qualified_type_identity_with_binders_and_substitutions(
+                type_reference,
+                binders,
+                substitutions,
+            )
+            .into_string(),
+    }
+}
+
 /// Public signature identity layers erased borrow-region relationships over
 /// the ordinary package-qualified runtime type identity. General structural
 /// type identity intentionally erases these tags; package compatibility may
@@ -2239,15 +2435,25 @@ fn project_callable_contracts(
             SignatureContractKind::Boundary => PackageReviewContractKind::Boundary,
             SignatureContractKind::Crashes { .. } => continue,
         };
-        let facts = compilation.proof_facts.span_or_empty(contract.facts);
-        if facts.is_empty() {
+        if contract.facts.is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{}` has an empty public {:?} contract",
                 machine.name, kind
             ))]);
         }
-        for fact in facts {
-            let fact = match fact {
+        for offset in 0..contract.facts.count() {
+            let fact_handle = psi_arena::Handle::from_parts(
+                contract
+                    .facts
+                    .start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("proof fact handle index overflow"),
+                contract.facts.start().generation(),
+            );
+            let checked_fact =
+                checked_machine_contract_fact(compilation, machine, fact_handle, kind)?;
+            let fact = match compilation.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => {
                     PackageReviewContractFact::Expression(project_contract_expression(
                         compilation,
@@ -2290,19 +2496,37 @@ fn project_callable_contracts(
                         domain: domain_identity,
                     }
                 }
-                ProofFact::Proposition(_) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` uses a proposition or named-evidence contract not yet represented by package review",
-                        machine.name
-                    ))]);
-                }
+                ProofFact::Proposition(application) => project_contract_proposition(
+                    compilation,
+                    machine,
+                    entry,
+                    binders,
+                    application,
+                    &[],
+                    &[],
+                    &mut Vec::new(),
+                    0,
+                )?,
             };
+            let evidence_lane_position = validate_checked_contract_evidence(
+                compilation,
+                machine,
+                contract.binding.as_ref(),
+                checked_fact,
+                &fact,
+            )?;
             projected.push(PackageReviewCallableContract {
                 kind,
-                binding: contract
-                    .binding
-                    .as_ref()
-                    .map(|binding| binding.as_str().to_owned()),
+                binding: match kind {
+                    PackageReviewContractKind::Ensures => contract
+                        .binding
+                        .as_ref()
+                        .map(|binding| binding.as_str().to_owned()),
+                    PackageReviewContractKind::Requires | PackageReviewContractKind::Boundary => {
+                        None
+                    }
+                },
+                evidence_lane_position,
                 fact,
             });
         }
@@ -2312,12 +2536,617 @@ fn project_callable_contracts(
     Ok(projected)
 }
 
+fn checked_machine_contract_fact<'a>(
+    compilation: &'a CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    kind: PackageReviewContractKind,
+) -> Result<&'a psi_checked_trees::ContractProofFact, Vec<Diagnostic>> {
+    let checked_kind = match kind {
+        PackageReviewContractKind::Requires => psi_checked_trees::ContractProofFactKind::Requires,
+        PackageReviewContractKind::Ensures => psi_checked_trees::ContractProofFactKind::Ensures,
+        PackageReviewContractKind::Boundary => psi_checked_trees::ContractProofFactKind::Boundary,
+    };
+    let matching = compilation
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .filter_map(|(_, checked)| {
+            (checked.fact == fact
+                && checked.kind == checked_kind
+                && checked.owner
+                    == psi_checked_trees::ContractProofFactOwner::Machine {
+                        machine_symbol: machine.symbol,
+                    })
+            .then_some(checked)
+        })
+        .collect::<Vec<_>>();
+    let [checked] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contract fact has {} checked machine rows; expected one",
+            machine.name,
+            matching.len()
+        ))]);
+    };
+    Ok(*checked)
+}
+
+fn validate_checked_contract_evidence(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    binding: Option<&psi_typed_trees::name::Identifier>,
+    checked: &psi_checked_trees::ContractProofFact,
+    projected: &PackageReviewContractFact,
+) -> Result<Option<u32>, Vec<Diagnostic>> {
+    let Some(binding) = binding else {
+        if checked.evidence_term.is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has an unnamed contract with a checked evidence term",
+                machine.name
+            ))]);
+        }
+        return Ok(None);
+    };
+    let Some(term_handle) = checked.evidence_term else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` has no checked evidence term",
+            machine.name, binding
+        ))]);
+    };
+    let term = compilation.facts.proof.evidence_terms.get(term_handle);
+    if term.name != binding.as_str() || term.owner != checked.owner || term.kind != checked.kind {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` does not match its checked evidence term",
+            machine.name, binding
+        ))]);
+    }
+    let PackageReviewContractFact::Proposition(application) = projected else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` is not a proposition",
+            machine.name, binding
+        ))]);
+    };
+    if nominal_identity(compilation, term.proposition.declaration)? != application.declaration {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` changed proposition endpoint during checked lowering",
+            machine.name, binding
+        ))]);
+    }
+    let PackageReviewPropositionEvidence::Witness(interface) = &application.evidence else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` does not expose witness evidence",
+            machine.name, binding
+        ))]);
+    };
+    let Some(checked_interface) = term.evidence_interface.as_ref() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` has no exact checked witness interface",
+            machine.name, binding
+        ))]);
+    };
+    if nominal_identity(compilation, checked_interface.trait_symbol)? != interface.trait_identity {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` changed witness trait during checked lowering",
+            machine.name, binding
+        ))]);
+    }
+    let mut checked_requirements = checked_interface
+        .requirements
+        .iter()
+        .map(|requirement| {
+            Ok((
+                nominal_identity(compilation, requirement.declaring_trait)?,
+                nominal_identity(compilation, requirement.requirement)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    checked_requirements.sort();
+    let mut projected_requirements = interface
+        .requirements
+        .iter()
+        .map(|requirement| {
+            (
+                requirement.declaring_trait.clone(),
+                requirement.requirement.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    projected_requirements.sort();
+    if checked_requirements != projected_requirements {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` named contract `{}` changed witness requirements during checked lowering",
+            machine.name, binding
+        ))]);
+    }
+    portable_parameter_position(term.lane_position).map(Some)
+}
+
+fn project_contract_proposition(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    callable_binders: &[(SymbolHandle, String)],
+    application: &psi_typed_trees::proposition::PropositionApplication,
+    binder_substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
+    value_substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
+    visiting: &mut Vec<SymbolHandle>,
+    depth: usize,
+) -> Result<PackageReviewContractFact, Vec<Diagnostic>> {
+    use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+
+    if depth >= 64 {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` proposition expansion exceeds the package-review depth limit",
+            machine.name
+        ))]);
+    }
+    if visiting.contains(&application.proposition) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` proposition expansion is cyclic",
+            machine.name
+        ))]);
+    }
+    let declaration = compilation
+        .propositions()
+        .iter()
+        .find(|candidate| candidate.symbol == application.proposition)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` contract refers to an unresolved or generic proposition endpoint",
+                machine.name
+            ))]
+        })?;
+    let declaration_binders = compilation.proposition_binders(declaration);
+    let declaration_parameters = compilation.proposition_parameters(declaration);
+    if declaration_binders.len() != application.binder_arguments.len()
+        || declaration_parameters.len()
+            != compilation
+                .expression_table
+                .expression_handles(application.arguments)
+                .len()
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` proposition `{}` has inconsistent checked arity",
+            machine.name, declaration.name
+        ))]);
+    }
+    let binder_arguments = declaration_binders
+        .iter()
+        .zip(&application.binder_arguments)
+        .map(|(binder, argument)| {
+            let expected = match binder.kind {
+                psi_typed_trees::proposition::PropositionBinderKind::Type => {
+                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Type
+                }
+                psi_typed_trees::proposition::PropositionBinderKind::Const { .. } => {
+                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Const
+                }
+                psi_typed_trees::proposition::PropositionBinderKind::Machine => {
+                    psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine
+                }
+            };
+            if argument.kind != expected {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` proposition `{}` binder kind changed during typing",
+                    machine.name, declaration.name
+                ))]);
+            }
+            project_proposition_binder_argument(
+                compilation,
+                machine,
+                callable_binders,
+                argument,
+                binder_substitutions,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let arguments = compilation
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            project_contract_expression_with_substitutions(
+                compilation,
+                machine,
+                entry,
+                callable_binders,
+                *argument,
+                value_substitutions,
+                0,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    match &declaration.body {
+        PropositionBody::Primitive | PropositionBody::Witness { .. } => Ok(
+            PackageReviewContractFact::Proposition(project_proposition_endpoint(
+                compilation,
+                declaration,
+                binder_arguments,
+                arguments,
+            )?),
+        ),
+        PropositionBody::Transparent { proposition } => {
+            visiting.push(declaration.symbol);
+            let mut nested_binders = binder_substitutions.to_vec();
+            nested_binders.extend(
+                declaration_binders
+                    .iter()
+                    .zip(&binder_arguments)
+                    .map(|(binder, argument)| (binder.symbol, argument.clone())),
+            );
+            let mut nested_values = value_substitutions.to_vec();
+            nested_values.extend(
+                declaration_parameters
+                    .iter()
+                    .zip(&arguments)
+                    .map(|(parameter, argument)| (parameter.symbol, argument.clone())),
+            );
+            for (binder, argument) in declaration_binders.iter().zip(&binder_arguments) {
+                if let Some(value) = proposition_binder_value_expression(argument) {
+                    nested_values.push((binder.symbol, value));
+                }
+            }
+            let projected = match proposition {
+                PropositionFormula::Application(expansion) => project_contract_proposition(
+                    compilation,
+                    machine,
+                    entry,
+                    callable_binders,
+                    expansion,
+                    &nested_binders,
+                    &nested_values,
+                    visiting,
+                    depth + 1,
+                ),
+                PropositionFormula::BooleanExpression(expression) => {
+                    project_contract_expression_with_substitutions(
+                        compilation,
+                        machine,
+                        entry,
+                        callable_binders,
+                        *expression,
+                        &nested_values,
+                        0,
+                    )
+                    .map(PackageReviewContractFact::Expression)
+                }
+            };
+            visiting.pop();
+            projected
+        }
+    }
+}
+
+fn project_proposition_binder_argument(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    callable_binders: &[(SymbolHandle, String)],
+    argument: &psi_typed_trees::proposition::PropositionBinderArgument,
+    substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
+) -> Result<PackageReviewPropositionBinderArgument, Vec<Diagnostic>> {
+    if argument.evidence_projection.is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` uses a proposition evidence-projection binder argument not yet represented by package review",
+            machine.name
+        ))]);
+    }
+    if let Some((_, substitution)) = substitutions
+        .iter()
+        .rev()
+        .find(|(symbol, _)| *symbol == argument.symbol)
+    {
+        if substitution.kind != argument.kind {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` proposition binder substitution changes kind",
+                machine.name
+            ))]);
+        }
+        return Ok(substitution.clone());
+    }
+    let value = if let Some(literal) = &argument.const_literal {
+        PackageReviewPropositionBinderValue::Integer(literal.text().to_owned())
+    } else if let Some(position) = callable_binders
+        .iter()
+        .position(|(symbol, _)| *symbol == argument.symbol)
+    {
+        PackageReviewPropositionBinderValue::GenericBinder(portable_parameter_position(position)?)
+    } else if argument.symbol.is_valid() {
+        PackageReviewPropositionBinderValue::Nominal(nominal_identity(
+            compilation,
+            argument.symbol,
+        )?)
+    } else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` proposition contains an unresolved binder argument",
+            machine.name
+        ))]);
+    };
+    Ok(PackageReviewPropositionBinderArgument {
+        kind: argument.kind,
+        value,
+    })
+}
+
+fn proposition_binder_value_expression(
+    argument: &PackageReviewPropositionBinderArgument,
+) -> Option<PackageReviewContractExpression> {
+    match &argument.value {
+        PackageReviewPropositionBinderValue::Nominal(identity) => {
+            Some(PackageReviewContractExpression::Nominal(identity.clone()))
+        }
+        PackageReviewPropositionBinderValue::GenericBinder(position) => {
+            Some(PackageReviewContractExpression::GenericBinder(*position))
+        }
+        PackageReviewPropositionBinderValue::Integer(value) => {
+            Some(PackageReviewContractExpression::Integer(value.clone()))
+        }
+    }
+}
+
+fn project_proposition_endpoint(
+    compilation: &CheckedCompilation,
+    declaration: &psi_typed_trees::proposition::PropositionDefinition,
+    binder_arguments: Vec<PackageReviewPropositionBinderArgument>,
+    arguments: Vec<PackageReviewContractExpression>,
+) -> Result<PackageReviewPropositionApplication, Vec<Diagnostic>> {
+    use psi_typed_trees::proposition::{PropositionBinderKind, PropositionBody};
+
+    let declaration_binders = compilation.proposition_binders(declaration);
+    let binder_symbols = declaration_binders
+        .iter()
+        .enumerate()
+        .map(|(position, binder)| (binder.symbol, format!("proposition-binder:{position}")))
+        .collect::<Vec<_>>();
+    let binders = declaration_binders
+        .iter()
+        .map(|binder| {
+            Ok(PackageReviewPropositionBinder {
+                kind: match binder.kind {
+                    PropositionBinderKind::Type => PackageReviewPropositionBinderKind::Type,
+                    PropositionBinderKind::Const { type_reference } => {
+                        PackageReviewPropositionBinderKind::Const(
+                            review_type_identity_with_binders(
+                                compilation,
+                                type_reference,
+                                &binder_symbols,
+                            ),
+                        )
+                    }
+                    PropositionBinderKind::Machine => PackageReviewPropositionBinderKind::Machine,
+                },
+                bounds: binder.bounds,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let parameter_types = compilation
+        .proposition_parameters(declaration)
+        .iter()
+        .map(|parameter| {
+            review_type_identity_with_binders(
+                compilation,
+                parameter.type_reference,
+                &binder_symbols,
+            )
+        })
+        .collect();
+    let evidence = match declaration.body {
+        PropositionBody::Primitive => PackageReviewPropositionEvidence::FactOnly,
+        PropositionBody::Witness { evidence } => PackageReviewPropositionEvidence::Witness(
+            project_evidence_interface(compilation, evidence, &binder_symbols)?,
+        ),
+        PropositionBody::Transparent { .. } => unreachable!("transparent endpoint was expanded"),
+    };
+    Ok(PackageReviewPropositionApplication {
+        declaration: nominal_identity(compilation, declaration.symbol)?,
+        binders,
+        parameter_types,
+        binder_arguments,
+        arguments,
+        evidence,
+    })
+}
+
+fn project_evidence_interface(
+    compilation: &CheckedCompilation,
+    evidence: psi_typed_trees::types::TypeReferenceHandle,
+    proposition_binders: &[(SymbolHandle, String)],
+) -> Result<PackageReviewEvidenceInterface, Vec<Diagnostic>> {
+    use psi_typed_trees::types::TypeReferenceNode;
+
+    let (trait_symbol, arguments) = match compilation.type_reference_table.type_reference(evidence)
+    {
+        TypeReferenceNode::Named { symbol, .. } => (*symbol, Vec::new()),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => (
+            *base_symbol,
+            compilation
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .to_vec(),
+        ),
+        _ => {
+            return Err(vec![Diagnostic::error(
+                "reviewed witness proposition uses a non-nominal evidence interface",
+            )]);
+        }
+    };
+    let definition = compilation
+        .traits()
+        .iter()
+        .find(|candidate| candidate.symbol == trait_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "reviewed witness proposition has an unresolved evidence trait",
+            )]
+        })?;
+    if !definition.lifetime_parameters.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed witness proposition uses lifetime-parameterized evidence trait `{}` without retained lifetime arguments",
+            definition.name
+        ))]);
+    }
+    let projected_arguments = arguments
+        .iter()
+        .map(|argument| {
+            review_type_identity_with_binders_and_substitutions(
+                compilation,
+                *argument,
+                proposition_binders,
+                &[],
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut requirements = Vec::new();
+    collect_evidence_requirements(
+        compilation,
+        trait_symbol,
+        &arguments,
+        proposition_binders,
+        &[],
+        &mut Vec::new(),
+        &mut requirements,
+    )?;
+    requirements.sort();
+    requirements.dedup();
+    Ok(PackageReviewEvidenceInterface {
+        trait_identity: nominal_identity(compilation, trait_symbol)?,
+        arguments: projected_arguments,
+        requirements,
+    })
+}
+
+fn collect_evidence_requirements(
+    compilation: &CheckedCompilation,
+    trait_symbol: SymbolHandle,
+    trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    proposition_binders: &[(SymbolHandle, String)],
+    inherited_substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    visited: &mut Vec<(PackageReviewNominalIdentity, Vec<PackageReviewTypeIdentity>)>,
+    requirements: &mut Vec<PackageReviewEvidenceRequirement>,
+) -> Result<(), Vec<Diagnostic>> {
+    let definition = compilation
+        .traits()
+        .iter()
+        .find(|candidate| candidate.symbol == trait_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "reviewed evidence interface inherits an unresolved trait",
+            )]
+        })?;
+    if !definition.lifetime_parameters.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed evidence interface inherits lifetime-parameterized trait `{}`",
+            definition.name
+        ))]);
+    }
+    let type_parameters = compilation.trait_type_parameters(definition);
+    if type_parameters.len() != trait_arguments.len() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed evidence trait `{}` has inconsistent instantiated arity",
+            definition.name
+        ))]);
+    }
+    if type_parameters.iter().any(|parameter| {
+        !matches!(
+            parameter.kind,
+            psi_typed_trees::data::TypeParameterKind::Type
+                | psi_typed_trees::data::TypeParameterKind::Const { .. }
+        )
+    }) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed evidence trait `{}` uses a static machine or proposition parameter not yet represented by package review",
+            definition.name
+        ))]);
+    }
+    let argument_identities = trait_arguments
+        .iter()
+        .map(|argument| {
+            review_type_identity_with_binders_and_substitutions(
+                compilation,
+                *argument,
+                proposition_binders,
+                inherited_substitutions,
+            )
+        })
+        .collect::<Vec<_>>();
+    let visit = (
+        nominal_identity(compilation, trait_symbol)?,
+        argument_identities.clone(),
+    );
+    if visited.contains(&visit) {
+        return Ok(());
+    }
+    visited.push(visit);
+
+    for requirement in compilation.trait_machine_signatures(definition) {
+        requirements.push(PackageReviewEvidenceRequirement {
+            declaring_trait: nominal_identity(compilation, trait_symbol)?,
+            declaring_trait_arguments: argument_identities.clone(),
+            requirement: nominal_identity(compilation, requirement.symbol)?,
+        });
+    }
+
+    let mut substitutions = inherited_substitutions.to_vec();
+    substitutions.extend(
+        type_parameters
+            .iter()
+            .zip(trait_arguments)
+            .map(|(parameter, argument)| (parameter.symbol, *argument)),
+    );
+    for parent in compilation.trait_requirements(definition) {
+        if !parent.lifetime_arguments.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed evidence trait `{}` has a parent with lifetime arguments not yet represented by package review",
+                definition.name
+            ))]);
+        }
+        let parent_arguments = compilation
+            .type_reference_table
+            .type_reference_handles(parent.arguments);
+        collect_evidence_requirements(
+            compilation,
+            parent.symbol,
+            parent_arguments,
+            proposition_binders,
+            &substitutions,
+            visited,
+            requirements,
+        )?;
+    }
+    Ok(())
+}
+
 fn project_contract_expression(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
     entry: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     expression: psi_typed_trees::expression::ExpressionHandle,
+    depth: usize,
+) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    project_contract_expression_with_substitutions(
+        compilation,
+        machine,
+        entry,
+        binders,
+        expression,
+        &[],
+        depth,
+    )
+}
+
+fn project_contract_expression_with_substitutions(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     use psi_typed_trees::expression::ExpressionNode;
@@ -2329,7 +3158,15 @@ fn project_contract_expression(
         ))]);
     }
     let child = |expression| {
-        project_contract_expression(compilation, machine, entry, binders, expression, depth + 1)
+        project_contract_expression_with_substitutions(
+            compilation,
+            machine,
+            entry,
+            binders,
+            expression,
+            substitutions,
+            depth + 1,
+        )
     };
     match compilation.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => Ok(PackageReviewContractExpression::Boolean(*value)),
@@ -2346,6 +3183,13 @@ fn project_contract_expression(
             operand: Box::new(child(unary.operand)?),
         }),
         ExpressionNode::Name(path) => {
+            if let Some((_, substitution)) = substitutions
+                .iter()
+                .rev()
+                .find(|(symbol, _)| *symbol == path.symbol || *symbol == path.head_symbol)
+            {
+                return Ok(substitution.clone());
+            }
             let members = compilation.expression_table.name_path_members(path.members);
             let parameters = compilation.state_parameters(entry);
             if let Some(position) = parameters.iter().position(|parameter| {
