@@ -151,9 +151,11 @@ checkpoint's candidate gate, but not a final exclusion while later compiler
 phases remain unwritten. The working authoring and measurement biases for the
 compiler's own source are:
 
-- avoid the math/proof surface and linear/dependent types in new compiler
-  source, and presumptively exclude them from the final profile unless the
-  complete closure establishes a real implementation need;
+- avoid the math/proof surface and advanced dependent/proof-indexed types in
+  new compiler source, and presumptively exclude them from the final profile
+  unless the complete closure establishes a real implementation need;
+- measure ordinary ownership, linearity, and multiplicity separately rather
+  than treating routine resource discipline as proof-oriented typing;
 - retain ordinary named fields, payload-bearing enums/sum data, and basic
   generics unless evidence shows that their Delta implementation and assurance
   cost exceeds their source-level benefit;

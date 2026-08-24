@@ -289,7 +289,8 @@ establishes the implementation and assurance cost.
 | --- | --- | --- |
 | propositions, proof facts/contracts, quotients, and proof-program mathematics | avoid in new compiler source; presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
-| linear and dependent types | avoid in new compiler source; presumptively exclude | same source-need and total-cost test |
+| dependent types and proof-indexed data/control | avoid in new compiler source; presumptively exclude | same source-need and total-cost test; implementing these features for user programs is not itself a reason to use them in compiler implementation code |
+| ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | ordinary named record fields | presumptively retain | the first general Delta checker probe establishes frontend feasibility but at substantial fixed-backing/reference-meaning cost; the selected private checked-IR tranche measures conservative layout/lowering, after which compare the total cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
@@ -312,13 +313,14 @@ at the completed source-and-bridge join, not by intuition ahead of either
 implementation.
 
 The table intentionally does not aim for the smallest possible source profile.
-Named fields, basic generics, domains, payload sums, or richer transitions may
-remain when their general bridge implementation is cheaper and safer than the
-duplication or manual encodings needed to avoid them. Proof-program mathematics
-and linear/dependent typing are strong exclusion candidates because the compiler
-can implement those user-facing features without expressing its own algorithms
-in them. Every row still resolves by the same measured whole-bootstrap cost
-test; none is a ruling merely because it appears in this table.
+Named fields, basic generics, domains, payload sums, ordinary resource
+linearity, or richer transitions may remain when their general bridge
+implementation is cheaper and safer than the duplication or manual encodings
+needed to avoid them. Proof-program mathematics and dependent/proof-indexed
+typing are strong exclusion candidates because the compiler can implement
+those user-facing features without expressing its own algorithms in them.
+Every row still resolves by the same measured whole-bootstrap cost test; none
+is a ruling merely because it appears in this table.
 
 The first concrete frontend cost result for the record/array/attached-machine
 cluster is the bootstrap-owned

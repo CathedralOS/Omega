@@ -69,11 +69,11 @@ Remaining:
   resulting compiler implements. Prefer a small regular implementation
   footprint, but do not replace useful general facilities with brittle
   monomorphic duplication merely to reduce the feature count. The working
-  authoring bias is to avoid proof-program mathematics and linear/dependent
-  typing in the compiler's own source, while measuring rather than preemptively
-  banning ordinary records, payload sums, basic generics, or domains. Keep
-  adjacent tools outside the closure unless the compiler executable imports
-  them.
+  authoring bias is to avoid proof-program mathematics and advanced dependent
+  or proof-indexed typing in the compiler's own source. Measure ordinary
+  ownership/multiplicity, records, payload sums, basic generics, and domains
+  rather than preemptively banning them. Keep adjacent tools outside the
+  closure unless the compiler executable imports them.
 
   Deriving and enforcing `Ωself`, implementing the Delta-written bridge, and
   validating the hosted build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
