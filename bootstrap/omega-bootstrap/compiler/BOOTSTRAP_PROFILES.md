@@ -60,9 +60,10 @@ implemented, self-hosted Delta surface:
 
 These bullets describe what current D0 canaries may use. They do not prescribe
 the eventual Delta spelling or require a general boundary-trait facility. The
-working v1 host authority is narrower: byte input, artifact output, diagnostic
-output, and process termination, supplied through a sealed interface unless
-bridge evidence requires more.
+provisional bridge host authority is narrower: byte input, artifact output,
+diagnostic output, and process termination, supplied through a sealed interface
+unless bridge evidence requires more. Even that interface is retained in Delta
+v1 only in the smallest shape the complete bridge source demonstrates.
 
 The calling-profile limits are at most four value parameters for a free machine
 and at most three value parameters for a self method. A D0 compiler slice must
