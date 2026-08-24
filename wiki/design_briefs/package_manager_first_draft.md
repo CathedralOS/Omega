@@ -549,9 +549,19 @@ that flow. It compares compiler-issued closure rows, blocks capability/API and
 source-lineage changes, recommends audit for unavailable old source, changed
 representation-TCB evidence, changed build observations, and retained dangerous
 authority, and renders only fixed reason/disposition tokens plus canonical
-package-key commitments under a caller-supplied byte ceiling. It does not yet
-render the bounded source patch or invoke an advisory model. Its output cannot
-construct accepted lock evidence or attest that review happened.
+package-key commitments under a caller-supplied byte ceiling. The separate
+source packet accepts only resolver-issued custody for one exact `PackageKey`,
+binds both full immutable resolutions, and renders raw tree changes with fixed
+three-line context. It retains directories, executable bits, symlink spellings,
+entry-kind transitions, exact line endings, and raw path order without rename,
+whitespace, Unicode, or Git normalization. Independent entry, source-byte,
+metadata-byte, line, diff-work, trace-memory, and output ceilings reject rather
+than truncate. Binary or non-UTF-8 changes expose only size and a
+domain-separated content commitment and require standalone audit. Fixed
+grammar and byte escaping prevent source from forging renderer structure, but
+cannot prevent semantic prompt injection in code under review. Model invocation
+and the custody-to-triage join remain future work. No output can construct
+accepted lock evidence or attest that review happened.
 
 Useful result states include:
 

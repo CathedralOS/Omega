@@ -115,6 +115,13 @@ Together these bind review rows to compiler-consumed bytes and detect ordinary
 custody drift, but they are not an atomic filesystem snapshot: a hostile
 same-user process may still race every observation.
 
+Review-time source patching reuses that custody boundary. It captures the
+verified bytes once under the exact-materialized policy and diffs that private
+capture; it never reopens a live checkout, asks Git for a patch, or reapplies
+mutable-local `.git`/root-`build/` exclusions to a published snapshot. A second
+whole-snapshot verification after rendering detects ordinary intervening
+mutation under the same documented same-user race limitation.
+
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
 capture, and a deadline. Fetch requests only the selected revision at depth one
 and disables automatic maintenance and garbage collection, so selecting one

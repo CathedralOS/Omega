@@ -912,9 +912,19 @@ complete.
   to recommend audit for unchanged dangerous authority. A fixed-vocabulary
   renderer exposes only canonical package-key commitments and closed reason/
   disposition tokens; it rejects above a caller ceiling instead of truncating.
-  Real source-patch rendering, advisory model invocation, row-specific
-  capability conflicts, sealed accepted-baseline loading, and policy
-  application of the advisory result remain.
+  A separate source-patch renderer now compares only exact-key,
+  resolver-custodied immutable snapshots. It binds full immutable resolutions,
+  diffs raw path-ordered files with deterministic bounded work and context,
+  retains executable, directory, symlink, line-ending, and entry-kind changes,
+  and byte-escapes every attacker-controlled lane. File/entry, content,
+  metadata, line, diff-work, trace-memory, and rendered-output ceilings reject
+  rather than truncate. Binary or non-UTF-8 changes retain size and a
+  domain-separated content commitment and deterministically require standalone
+  audit. Missing baseline source uses the same renderer in complete-candidate
+  mode; source-lineage replacement cannot enter ordinary diff mode. Joining
+  recovered baseline/candidate custody to compiler triage, advisory model
+  invocation, row-specific capability conflicts, sealed accepted-baseline
+  loading, and policy application of the advisory result remain.
 
 - **AUDIT-RESULT-STATES.** Represent at least `admitted`,
   `admitted-with-audit-recommended`,

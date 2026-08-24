@@ -628,8 +628,16 @@ changed representation-TCB evidence recommend audit. Initial admission uses an
 empty baseline and applies the same dangerous-authority and representation-TCB
 recommendations. The bounded advisory projection contains canonical package-key
 commitments and closed compiler vocabulary only; it rejects rather than
-silently truncating. A source-patch projection and model runner remain future
-work. Model output is policy advice, never package evidence or proof of review.
+silently truncating. Source code enters a separate hostile-data packet derived
+only from exact-key resolver custody. That packet binds complete immutable
+resolutions and renders deterministic raw-tree changes, including executable,
+directory, symlink, entry-kind, and line-ending distinctions, under independent
+capture, metadata, line, algorithm-work, trace-memory, and output ceilings.
+Binary or non-UTF-8 changes are commitment-visible but model-incomplete and
+therefore require standalone audit. Byte escaping protects the packet grammar,
+not the model from semantic instructions embedded in reviewed code. Joining
+recovered custody to triage and invoking a model remain future work. Model
+output is policy advice, never package evidence or proof of review.
 
 ## Package admission projection
 
