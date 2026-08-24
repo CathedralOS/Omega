@@ -38,7 +38,7 @@ write_str_summary_init:
         call write_str_require_shape
         call write_str_prove_schema
         call write_str_instantiate_emits
-        jmp fixed_emitter_summary_init
+        jmp bc_post_write_str
 
 ; ---- Exact helper closure ---------------------------------------------
 

@@ -205,11 +205,11 @@ main_slurp_require_root_prefix:
         imm r20, 20
         imm r21, 51013
         imm r22, 29
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 51045
         imm r21, 83                    ; checked slurp entry
         imm r22, 51054
-        call main_slurp_require_call
+        call exact_require_call
 
         imm r10, 51013
         imm r11, 0
@@ -269,27 +269,6 @@ main_slurp_root_relation:
         store r1, r2
         imm r1, 525720
         store r1, r2
-        ret
-
-; Require call at r20 to target r21 and have exact fallthrough r22.
-main_slurp_require_call:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r2, r25
-        imm r1, 9
-        add r2, r1
-        jeq r2, r27, main_slurp_call_opcode
-        jmp reject
-main_slurp_call_opcode:
-        mov r20, r25
-        imm r21, 19
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 1
-        add r20, r1
-        mov r21, r26
-        call require_tape_word
         ret
 
 ; Instantiate the already checked frame equations at the exact root.  main's

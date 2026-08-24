@@ -1,33 +1,3 @@
-; Shared blockwise-summary combinators.
-;
-; This module owns only reusable table joins. It has no initialization phase or
-; language-specific theorem state; semantic modules call these routines after
-; the global source/artifact tables have been reconstructed and checked.
-
-; Rejoin one ordinary source call across the event, arity, expression-height,
-; and decoded-call tables. Inputs are event/block/pc/arity/ambient/target/
-; continuation in r20..r26.
-summary_require_call_site:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r36, r26
-        mov r20, r30
-        mov r21, r31
-        imm r22, 1
-        mov r23, r32
-        call exact_require_event
-        mov r20, r30
-        mov r21, r33
-        call skip_require_event_arity
-        mov r20, r30
-        mov r21, r34
-        call main_ready_require_ambient_height
-        mov r20, r32
-        mov r21, r35
-        mov r22, r36
-        call main_slurp_require_call
-        ret
+; Compatibility source boundary. Responsibility-neutral table/call joiners now
+; live in bc-exact-shape-helpers.alpha so independent checker tranches can use
+; them without importing main.ready or cursor-semantic modules.

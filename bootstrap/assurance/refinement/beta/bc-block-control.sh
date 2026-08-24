@@ -36,6 +36,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-checker-split-teeth.sh"
 . "$GATE_DIR/bc-name-eq-teeth.sh"
 . "$GATE_DIR/bc-lookup-teeth.sh"
+. "$GATE_DIR/bc-bounded-emitters-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -209,7 +210,7 @@ apply_tape_patch push-stack-register
 apply_tape_patch push-value-register
 apply_tape_patch push-opcode
 
-emit_name_eq_checker_prefix() {
+emit_stack_checker_prefix() {
   cat "$GATE_DIR/bc-block-control.alpha" \
     "$GATE_DIR/bc-effect-sites.alpha" \
     "$GATE_DIR/bc-frame-shape.alpha" \
@@ -225,7 +226,12 @@ emit_name_eq_checker_prefix() {
     "$GATE_DIR/bc-frame-summary.alpha" \
     "$GATE_DIR/bc-ranged-store-transfer.alpha" \
     "$GATE_DIR/bc-counter-transfer.alpha" \
-    "$GATE_DIR/bc-stack-potential-lift.alpha" \
+    "$GATE_DIR/bc-stack-potential-lift.alpha"
+}
+
+emit_name_eq_checker_prefix() {
+  emit_stack_checker_prefix
+  cat \
     "$GATE_DIR/bc-post-stack-name-eq.alpha" \
     "$GATE_DIR/bc-exact-shape-helpers.alpha" \
     "$GATE_DIR/bc-name-table-domain.alpha" \
@@ -255,6 +261,33 @@ build_lookup_checker() {
   stamp_seed "$T/lookup-check.tape" "$SEED" "$T/lookup-check" >/dev/null
 }
 
+build_bounded_emitters_checker() {
+  {
+    emit_stack_checker_prefix
+    cat "$GATE_DIR/bc-post-stack-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-summary.alpha" \
+      "$GATE_DIR/bc-post-write-str-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
+      "$GATE_DIR/bc-skip-ws-summary.alpha" \
+      "$GATE_DIR/bc-post-skip-ws-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-expect-shape.alpha" \
+      "$GATE_DIR/bc-expect-summary.alpha" \
+      "$GATE_DIR/bc-post-expect-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-emit-dec-shape.alpha" \
+      "$GATE_DIR/bc-emit-dec-summary.alpha" \
+      "$GATE_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-control-shape.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-data-shape.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-summary.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-slot-summary.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-publication.alpha"
+  } > "$T/bounded-emitters-check.alpha"
+  "$ASM" < "$T/bounded-emitters-check.alpha" > "$T/bounded-emitters-check.tape"
+  stamp_seed "$T/bounded-emitters-check.tape" "$SEED" \
+    "$T/bounded-emitters-check" >/dev/null
+}
+
 smoke_name_eq_checker() {
   set +e
   "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
@@ -273,6 +306,17 @@ smoke_lookup_checker() {
   set -e
   if [ "$lookup_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
     echo "bc block control FAIL — lookup canonical smoke: expected 0/empty, got $lookup_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+smoke_bounded_emitters_checker() {
+  set +e
+  "$T/bounded-emitters-check" < "$T/control.bundle" > "$T/stdout"
+  bounded_emitters_smoke_status=$?
+  set -e
+  if [ "$bounded_emitters_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — bounded emitters canonical smoke: expected 0/empty, got $bounded_emitters_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
     exit 1
   fi
 }
@@ -296,6 +340,17 @@ if [ "${BC_BLOCK_FOCUS:-}" = lookup ]; then
   lookup_build_teeth
   lookup_reject_teeth
   echo "bc lookup: focused canonical + 35 phase-isolated teeth passed ($(wc -c < "$T/lookup-check.tape" | tr -d ' ')-byte checker tape)"
+  exit 0
+fi
+
+# Checker C independently re-executes the lower-rooted WSTR, cursor/expect,
+# and bounded-DECS prerequisites.  Its focus never constructs Checker A or B.
+if [ "${BC_BLOCK_FOCUS:-}" = bounded-emitters ]; then
+  build_bounded_emitters_checker
+  smoke_bounded_emitters_checker
+  bounded_emitters_build_teeth
+  bounded_emitters_reject_teeth
+  echo "bc bounded emitters: focused canonical + 52 phase-isolated teeth passed ($(wc -c < "$T/bounded-emitters-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
 
@@ -428,6 +483,10 @@ build_name_eq_checker
 smoke_name_eq_checker
 build_lookup_checker
 smoke_lookup_checker
+build_bounded_emitters_checker
+smoke_bounded_emitters_checker
+bounded_emitters_build_teeth
+bounded_emitters_reject_teeth
 checker_split_build_fixed_tooth
 checker_split_build_name_tooth
 name_eq_build_teeth
@@ -1612,3 +1671,4 @@ for mutation in call-retarget read-register write-register helper-write emit-byt
 done
 
 echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, parse_number returns the exact maximal digit fold modulo 2^64 after same-cursor observations and one-byte ranked steps, parse_char exhausts ordinary/escape byte mappings with exact bounded malformed-tail cursor outcomes and no closing-quote premise, is_muldiv/is_addsub are total quiet Word predicates for */% and +-, cmp_op returns exact operator codes/deltas including restored single = and unchecked ADVX-bounded ! tail, and nine fixed keyword recognizers return one exactly on their bounded identifier spellings with length-first/first-mismatch short circuit; id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, the bounded parse_proc parameter loop records at most four exact slices or returns numeric 252 before output, pdone composes nparams+count_lets without wrap and reaches slotsready at <=1024 or returns numeric 252 before output, fixed-decimal emitter summaries append exact bounded prologue and parameter-store text, and the PCAP bridge composes saved name/nslots/nparams through the exact at-most-four store loop to genbody; procedure62's root-independent boundary closes depth64/resource/close/zero returns and the unexecuted gen_stmt cutpoint; nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
+echo "bc independent conditional tranches: name_eq, lookup, and eight bounded emitters passed their canonical and phase-isolated mutation gates"

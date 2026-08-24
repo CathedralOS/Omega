@@ -38,7 +38,7 @@ skip_ws_summary_init:
         call skip_step_prove_summary
         call skip_require_shape
         call skip_prove_summary
-        jmp main_ready_summary_init
+        jmp bc_post_skip_ws
 
 ; ---- Exact skip_ws_step shape -----------------------------------------
 
@@ -181,47 +181,47 @@ skip_step_require_shape:
 
         imm r20, 23
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 24
         imm r21, 1
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 25
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 28
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 29
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 30
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
 
         imm r20, 4491
         imm r21, 1609
         imm r22, 4500
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 4570
         imm r21, 3627
         imm r22, 4579
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 4692
         imm r21, 1939
         imm r22, 4701
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 4893
         imm r21, 1609
         imm r22, 4902
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 5006
         imm r21, 1609
         imm r22, 5015
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 5119
         imm r21, 1939
         imm r22, 5128
-        call main_slurp_require_call
+        call exact_require_call
 
         ; c is stored once from cbyte's returned r0 and reloaded twice.
         imm r20, 30
@@ -418,11 +418,11 @@ skip_require_shape:
         call exact_require_event
         imm r20, 21
         imm r21, 0
-        call skip_require_event_arity
+        call exact_require_event_arity
         imm r20, 4296
         imm r21, 4459
         imm r22, 4305                 ; checked skip call continuation
-        call main_slurp_require_call
+        call exact_require_call
         imm r20, 71
         imm r21, 34
         imm r22, 3
@@ -1231,16 +1231,6 @@ skip_require_domain:
         imm r20, 526320
         imm r21, 1
         jmp exact_require_cell
-
-skip_require_event_arity:
-        mov r2, r20
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7143424
-        add r1, r2
-        load r2, r1
-        jeq r2, r21, exact_shape_ok
-        jmp reject
 
 ; Region [r20,r21) has exactly r22 ordinary calls and r23 returns, and no
 ; direct input/output, halt, division, or remainder.  Event/transition/local/

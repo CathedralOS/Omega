@@ -852,10 +852,10 @@ NAMEOFF or source-byte access; equal lengths compare left-to-right, return zero
 at the first unequal byte, and return one exactly when the full slices match.
 The `len-k` rank and a non-aliasing successor-prefix cell close the backedge;
 source/input/output/CUR/compiler state is preserved and the caller frame is
-restored. Shared exact-shape helpers are 11,801 bytes; domain/control/data/
+restored. Shared exact-shape helpers are 13,738 bytes; domain/control/data/
 meaning modules are 6,430/6,254/9,426/10,190 bytes. Thirty-two isolated
 continuation, helper, shape, domain, footprint, and semantic canaries pass in
-`BC_BLOCK_FOCUS=name-eq` with a 100,865-byte Checker B. This is conditional
+`BC_BLOCK_FOCUS=name-eq` with a 101,163-byte Checker B. This is conditional
 `name_eq`, not establishment of the dynamic prefix.
 
 `bc-lookup-control-shape.alpha`, `bc-lookup-data-shape.alpha`, and
@@ -876,9 +876,36 @@ current local `i`, consumes NEQS's total zero/one and quiet/frame clause, emits
 nothing, preserves compiler state, and restores its caller. Control/data/
 meaning modules are 4,485/4,104/12,312 bytes. Thirty-five isolated shape,
 snapshot, call, rank, least-hit, alias-provenance, and publication canaries pass
-in `BC_BLOCK_FOCUS=lookup` with a 105,957-byte Checker B. The dynamic producer
+in `BC_BLOCK_FOCUS=lookup` with a 106,255-byte Checker B. The dynamic producer
 of NTDM/NEQS remains a conditional premise; the broader expression SCC remains
 open.
+
+Checker C independently re-executes the lower-rooted structural/stack prefix,
+`WSTR`, the conditional successful source segment, cursor/skip/`EXPS`, and
+bounded `DECS`; it imports no process-local Checker-A/B cells. The bounded
+emitter shape modules bind procedures 30, 44, and 47..52: eighteen blocks,
+nine mnemonic transitions, 42 events, every local/primitive/push row, nine
+ordinary calls with exact arguments, targets and continuations, fifteen
+epilogues, empty raw-memory ownership, and the exact decoded 35-call/
+15-return/33-store footprint across three disjoint artifact regions.
+
+The three meaning modules publish exact conditional contracts for all eight
+leaves. `gen_read_byte` composes permissive `EXPS('(')` then `EXPS(')')`,
+threads the first cursor outcome into the second call, and always appends
+`read r0\n`; delimiter mismatch is not reinterpreted as rejection.
+`emit_pop_into` covers `0<=k<4`; `emit_push` is fixed. `emit_mnemonic` is total
+over Word, emits the five exact three-byte mnemonics, and emits nothing for the
+full-Word complement; `emit_combine` passes the same `op` into that child before
+its suffix. `emit_slot_addr` exhausts all 2,048 `(reg,slot)` pairs for
+`reg in {0,1}` and `0<=slot<1024`, computes and passes the exact nonwrapping
+`8+8*slot<=8192`, and repeats the same register child. The load/store wrappers
+instantiate distinct reg-zero/reg-one clauses with the same slot. Every child
+trace is source ordered, all frames restore, and six synthetic results remain
+explicitly unclaimed. Thus this leaf uses only bounded `DECS`; the signed
+full-word `emit_dec` theorem remains separate. Control/data/meaning modules are
+14,933/16,187 and 17,961/18,716/2,420 bytes. Fifty-two isolated continuation,
+shape, domain, parameter-custody, ordering, frame, and publication canaries pass
+in `BC_BLOCK_FOCUS=bounded-emitters` with a 140,673-byte Checker C.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

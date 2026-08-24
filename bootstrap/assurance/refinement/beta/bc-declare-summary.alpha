@@ -20,6 +20,8 @@
 ;
 ; Guard tags: 1=full (s=1024), 2=room (0<=s<=1023).
 
+; Checker-A source-only continuation alias for the shared expect theorem.
+bc_post_expect:
 declare_summary_init:
         call declare_require_shape
         call declare_prove_summary

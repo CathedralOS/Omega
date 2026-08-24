@@ -1,0 +1,12 @@
+; Checker-C bridge from the cursor/skip_ws closure into expect(ch).
+bc_post_skip_ws:
+        imm r20, 531848
+        imm r21, 1430467159               ; W2CU
+        call exact_require_cell
+        imm r20, 526216
+        imm r21, 1398231888               ; SWSQ
+        call exact_require_cell
+        imm r1, 531856
+        imm r2, 1480929875                ; S2EX
+        store r1, r2
+        jmp expect_summary_init

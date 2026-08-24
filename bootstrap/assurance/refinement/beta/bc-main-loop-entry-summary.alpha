@@ -98,7 +98,7 @@ main_loop_require_root_link:
         imm r20, 20
         imm r21, 51013
         imm r22, 29
-        call main_slurp_require_call
+        call exact_require_call
 
         ; Source lowering order is stage-left, literal zero, != comparison,
         ; then a distinct literal zero on the false return path.
