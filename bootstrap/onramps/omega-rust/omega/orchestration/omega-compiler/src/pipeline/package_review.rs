@@ -109,8 +109,9 @@ pub struct CheckedPackageCallableReview {
 /// The realizing package is exact and participates in `plan_fingerprint`.
 /// That existing 64-bit fingerprint is review/execution compatibility data,
 /// not a collision-resistant package-admission identity.
-/// Provider type, schema, requirement, and binding names remain review labels
-/// carried by the existing provider-plan model; they are not yet sealed
+/// Provider type, schema, and requirement labels are paired with exact package
+/// owners in the retained schema. Binding and selection names remain review
+/// labels carried by the existing provider-plan model; they are not yet sealed
 /// package-qualified nominal identities.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
@@ -118,7 +119,8 @@ pub struct CheckedPackageProviderReview {
     plan_fingerprint: u64,
     realizing_package: Option<PackageKeyIdentity>,
     provider_type: String,
-    service_schema: String,
+    provider_type_package: Option<PackageKeyIdentity>,
+    schema: omega_effects::provider_plan::ServiceSchema,
     target: String,
     rows: Vec<omega_effects::provider_plan::ProviderPlanRow>,
 }
@@ -140,8 +142,16 @@ impl CheckedPackageProviderReview {
         &self.provider_type
     }
 
+    pub const fn provider_type_package(&self) -> Option<PackageKeyIdentity> {
+        self.provider_type_package
+    }
+
     pub fn service_schema(&self) -> &str {
-        &self.service_schema
+        &self.schema.trait_name
+    }
+
+    pub fn schema(&self) -> &omega_effects::provider_plan::ServiceSchema {
+        &self.schema
     }
 
     pub fn target(&self) -> &str {
@@ -310,7 +320,8 @@ pub fn project_checked_package_review(
             plan_fingerprint: plan.identity_fingerprint(),
             realizing_package: plan.origin_package_identity,
             provider_type: plan.provider_type.clone(),
-            service_schema: plan.schema.trait_name.clone(),
+            provider_type_package: plan.provider_type_package_identity,
+            schema: plan.schema.clone(),
             target: plan.target.clone(),
             rows: plan.rows.clone(),
         })

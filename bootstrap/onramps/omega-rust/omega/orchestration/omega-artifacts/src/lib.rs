@@ -482,6 +482,8 @@ pub struct TrustProviderRequirementRow {
     pub provider_plan_fingerprint: u64,
     /// Exact normalized provider type; empty denotes a free external leaf.
     pub provider_type: String,
+    /// Exact package owning the nominal provider type, when one exists.
+    pub provider_type_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
     /// Exact compiler-derived package provenance of the realizing machine.
@@ -491,10 +493,14 @@ pub struct TrustProviderRequirementRow {
     pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,
+    /// Exact package owning the selected service schema.
+    pub service_schema_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Exact evaluated calling contract identity, when the requirement has one.
     pub calling_plan_fingerprint: Option<u64>,
     pub selected: bool,
     pub requirement_owner: String,
+    /// Exact package owning the inherited/direct requirement declaration.
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub requirement_identity: String,
     pub method: String,
     /// Exact positional normalized semantic parameter identities.
@@ -580,6 +586,8 @@ pub struct TrustQualificationRow {
     pub provider_plan_fingerprint: u64,
     /// Exact normalized provider type; empty denotes a free external leaf.
     pub provider_type: String,
+    /// Exact package owning the nominal provider type, when one exists.
+    pub provider_type_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Exact normalized target; empty denotes all targets.
     pub target: String,
     /// Exact compiler-derived package provenance of the realizing machine,
@@ -590,6 +598,8 @@ pub struct TrustQualificationRow {
     pub provider_origin_package: String,
     /// Exact selected boundary-service schema identity.
     pub service_schema: String,
+    /// Exact package owning the selected service schema.
+    pub service_schema_package_identity: Option<psi_core::PackageKeyIdentity>,
     /// Exact evaluated calling contract identity, when the requirement has one.
     pub calling_plan_fingerprint: Option<u64>,
     pub selected: bool,
@@ -597,6 +607,8 @@ pub struct TrustQualificationRow {
     /// separate from the canonical overload identity because an inherited
     /// requirement's owner can differ from the selected service schema.
     pub requirement_owner: String,
+    /// Exact package owning the inherited/direct requirement declaration.
+    pub requirement_owner_package_identity: Option<psi_core::PackageKeyIdentity>,
     pub requirement_identity: String,
     pub method: String,
     /// `parameter:N` for an accepted entry claim or `result` for a returned

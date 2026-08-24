@@ -537,12 +537,15 @@ fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
     let plan = ProviderPlan {
         name: "LegacyPic".into(),
         provider_type: "LegacyPicController".into(),
+        provider_type_package_identity: None,
         target: "x86_64-unknown-none".into(),
         schema: ServiceSchema {
             trait_name: "InterruptCompletion".into(),
+            trait_package_identity: None,
             methods: vec![ServiceMethod {
                 name: "complete".into(),
                 requirement_owner: "InterruptCompletion".into(),
+                requirement_owner_package_identity: None,
                 requirement_identity: requirement_identity.clone(),
                 parameter_count: 0,
                 parameter_type_identities: Vec::new(),
@@ -5018,9 +5021,11 @@ fn progress_installation_fixture() -> (
     let scheduler = ProviderPlan {
         name: "scheduler-plan".into(),
         provider_type: "SchedulerProvider".into(),
+        provider_type_package_identity: None,
         target: "test".into(),
         schema: ServiceSchema {
             trait_name: "Scheduler".into(),
+            trait_package_identity: None,
             methods: vec![ServiceMethod {
                 name: "wait".into(),
                 requirement_owner: "Scheduler".into(),
@@ -5050,9 +5055,11 @@ fn progress_installation_fixture() -> (
     let admission = ProviderPlan {
         name: "scheduler-admission-plan".into(),
         provider_type: "SchedulerAdmissionProvider".into(),
+        provider_type_package_identity: None,
         target: "test".into(),
         schema: ServiceSchema {
             trait_name: "SchedulerAdmission".into(),
+            trait_package_identity: None,
             methods: vec![ServiceMethod {
                 name: "grant_weak_fair".into(),
                 requirement_owner: "SchedulerAdmission".into(),

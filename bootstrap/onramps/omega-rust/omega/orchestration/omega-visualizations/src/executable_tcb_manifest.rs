@@ -398,12 +398,15 @@ mod tests {
         let plan = ProviderPlan {
             name: "selected".into(),
             provider_type: "SelectedProvider".into(),
+            provider_type_package_identity: None,
             target: "test-target".into(),
             schema: ServiceSchema {
                 trait_name: "Storage".into(),
+                trait_package_identity: None,
                 methods: vec![ServiceMethod {
                     name: "read".into(),
                     requirement_owner: "Storage".into(),
+                    requirement_owner_package_identity: None,
                     requirement_identity: "Storage::read".into(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),

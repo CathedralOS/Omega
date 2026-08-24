@@ -195,13 +195,18 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
             provider_plan: "RootProvider::satisfies::Root".to_owned(),
             provider_plan_fingerprint: 0x1234,
             provider_type: "RootProvider".to_owned(),
+            provider_type_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5b; 32]),
             target: "windows_x64".to_owned(),
             provider_origin_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5a; 32]),
             provider_origin_package: "omega::providers::root".to_owned(),
             service_schema: "Root".to_owned(),
+            service_schema_package_identity: psi_core::PackageKeyIdentity::from_digest([0x5c; 32]),
             calling_plan_fingerprint: Some(0xfeed),
             selected: false,
             requirement_owner: "Base".to_owned(),
+            requirement_owner_package_identity: psi_core::PackageKeyIdentity::from_digest(
+                [0x5d; 32],
+            ),
             requirement_identity: "named-callable(path(Base::enter), parameters(), result(none))"
                 .to_owned(),
             method: "enter".to_owned(),
@@ -228,6 +233,9 @@ fn trust_report_keeps_inherited_requirement_owner_separate_from_overload_identit
     assert!(output.contains("target: windows_x64"));
     assert!(output.contains("provider origin package: omega::providers::root"));
     assert!(output.contains(&format!("provider package key: {}", "5a".repeat(32))));
+    assert!(output.contains(&format!("provider type package: {}", "5b".repeat(32))));
+    assert!(output.contains(&format!("service schema package: {}", "5c".repeat(32))));
+    assert!(output.contains(&format!("requirement owner package: {}", "5d".repeat(32))));
     assert!(output.contains("own-package (dev-active)"));
     assert!(output.contains("service schema: Root"));
     assert!(output.contains("calling plan: 000000000000feed"));
@@ -257,13 +265,16 @@ fn trust_report_keeps_claim_free_provider_requirement_blast_radius_exact() {
             provider_plan: "RootProvider::satisfies::Root".to_owned(),
             provider_plan_fingerprint: 0x1234,
             provider_type: String::new(),
+            provider_type_package_identity: None,
             target: String::new(),
             provider_origin_package_identity: None,
             provider_origin_package: String::new(),
             service_schema: "Root".to_owned(),
+            service_schema_package_identity: None,
             calling_plan_fingerprint: None,
             selected: true,
             requirement_owner: "Base".to_owned(),
+            requirement_owner_package_identity: None,
             requirement_identity: "named-callable(path(Base::enter), parameters(), result(none))"
                 .to_owned(),
             method: "enter".to_owned(),

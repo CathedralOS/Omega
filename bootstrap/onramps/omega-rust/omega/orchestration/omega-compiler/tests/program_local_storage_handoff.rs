@@ -551,9 +551,11 @@ fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPla
         .collect();
     let schema = ServiceSchema {
         trait_name: "UefiApplication".into(),
+        trait_package_identity: None,
         methods: vec![ServiceMethod {
             name: "enter".into(),
             requirement_owner: "ProgramStorageEntry".into(),
+            requirement_owner_package_identity: None,
             requirement_identity: requirement_identity.into(),
             parameter_count: 2,
             parameter_type_identities: vec![

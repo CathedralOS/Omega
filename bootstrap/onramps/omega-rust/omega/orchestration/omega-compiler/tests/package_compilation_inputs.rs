@@ -128,7 +128,8 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
     TempTree::write(
         dependency.join("provider.omg"),
         r#"boundary trait Pair { machine first(); }
-machine first_leaf() satisfies Pair::first via Binding::VtableSlot(1);
+data Provider { }
+machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
 "#,
     );
 
@@ -152,6 +153,12 @@ machine first_leaf() satisfies Pair::first via Binding::VtableSlot(1);
         panic!("one selected dependency provider plan")
     };
     assert_eq!(plan.origin_package_identity, Some(identity(2)));
+    assert_eq!(plan.provider_type_package_identity, Some(identity(2)));
+    assert_eq!(plan.schema.trait_package_identity, Some(identity(2)));
+    assert_eq!(
+        plan.schema.methods[0].requirement_owner_package_identity,
+        Some(identity(2))
+    );
     assert_eq!(plan.origin_package, "");
 }
 
