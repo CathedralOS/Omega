@@ -18,6 +18,11 @@ this file records which Delta facilities are justified by the implementation of
 that bridge. A feature excluded from one surface is not thereby excluded from,
 or admitted to, the other.
 
+No third bridge feature ledger is needed. `omega-bootstrap`'s implementation
+features are Delta-v1 entries here; its accepted Omega features are `Ωself`
+entries in the separate product-source profile. The full Omega specification
+already governs what the resulting production compiler implements.
+
 The objective is a small, robust compiler-host language, not the smallest token
 census. A modest facility may remain without many textual occurrences when it
 makes the bridge materially safer, clearer, more modular, or easier to assure.

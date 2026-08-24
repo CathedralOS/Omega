@@ -198,6 +198,12 @@ source closure. `Ωself` is an incidental subset of ordinary Omega discovered
 from the production compiler's own complete source closure. Neither manifest
 substitutes for a general language/profile definition.
 
+These are the only two feature inventories being selected. The source used to
+write `omega-bootstrap` is governed by Delta v1; the Omega source it accepts is
+governed by `Ωself`. The resulting product compiler's user-facing feature set is
+not a third choice: it implements the already-authoritative full Omega
+specification. Generated-code quality is likewise not a language inventory.
+
 Delta v1 is not frozen in advance from the current Rust producer or D0 corpus.
 The fixed design constraints are deterministic specified behavior, no undefined
 behavior or ambient host authority, specified failure, lower-rung meaning for

@@ -59,9 +59,10 @@ reserved `compiler/{psi,omega}/` product roots.
   proof kernel and negative controls.
 - [`compiler/BOOTSTRAP_PROFILES.md`](compiler/BOOTSTRAP_PROFILES.md) freezes the
   current Delta implementation profile and the O0/O1 Omega console canaries.
-  The production `Ωself` profile remains open until the exact Omega compiler
-  source and transitive dependency manifest exists and the general bridge
-  supplies the cost evidence used to settle its retained features.
+  A provisional production `Ωself` profile can be derived and enforced once the
+  exact Omega compiler source and transitive dependency manifest exists; it
+  freezes only when the general bridge supplies the cost evidence used to
+  settle every retained or refactored-away feature.
 - [`compiler/OMEGA_BOOTSTRAP_BUNDLE.md`](compiler/OMEGA_BOOTSTRAP_BUNDLE.md)
   specifies the canonical length-delimited multi-source artifact;
   `compiler/omega_bootstrap_bundle.py` and
