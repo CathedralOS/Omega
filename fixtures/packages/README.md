@@ -26,8 +26,8 @@ Packages:
 - `network-overreach`: intentionally over-declared public network reach.
 - `remote-journal`: retained filesystem-plus-network reach and invocation.
 - `axiom-ledger`: bodyless accepted boundary-claim fixture.
-- `provider-switchboard`: public clock-service reach/invocation fixture and
-  future provider-selection fixture.
+- `provider-switchboard`: public clock-service reach/invocation plus exact
+  build-owned provider-selection fixture.
 - `capability-vault`: capability acquisition/return flow fixture.
 - `graph-workbench`: root graph fixture depending on pure and capability-bearing
   packages.

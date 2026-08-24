@@ -857,20 +857,16 @@ At the build root, an override is explicit and type-per-slot:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.providers.bind(
-        selected_target::Console,
-        TestConsole::Complete
-    );
+    builder.select_provider<selected_target::Console, TestConsole>();
 }
 ```
 
 The build declaration can select only a complete candidate already present in
 the loaded dependency closure and applicable to the selected target. It does
 not append rows, admit a candidate, or widen the requirement's reach. The
-boundary type path resolves to exactly one canonical slot. An exact canonical
-name wins; otherwise an unqualified leaf is convenient when unique and must be
-qualified when ambiguous. Equivalent qualified and unqualified spellings
-cannot select the same slot twice.
+boundary trait and provider type paths each resolve to one exact nominal
+identity. There is no leaf-name fallback after ordinary name resolution.
+Alternate spellings of the same exact pair cannot select the slot twice.
 
 A generic provider requirement is still one selected slot. For example,
 `ResidentContentTransfer<P, T>` does not create one independently selectable

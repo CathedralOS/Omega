@@ -695,8 +695,10 @@ complete.
   resolver-owned immutable custody, compiles it through the package-aware
   compiler path, and asserts canonical compiler-issued review evidence for the
   package identity, public surface, reach, invocation, accepted claim, and
-  capability flow represented by the fixture. Sealed admission evidence remains
-  gated on the final admission pipeline.
+  capability flow represented by the fixture. `provider-switchboard` now also
+  selects a real ordinary provider type from its canonical build machine and
+  asserts the compiler-derived selected-provider row. Sealed admission evidence
+  remains gated on the final admission pipeline.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
@@ -712,9 +714,10 @@ complete.
   source graph. The local `remote-journal` fixture now adds exact retained
   filesystem+network reach and invocation through resolver-owned custody and
   compiler review evidence; its private CathedralOS mirror is pinned at the
-  byte-identical source commit. Build effects, provider selection, claim-free
-  opaque representation, escalation, missing baselines, spoofing, and
-  reconciliation conflicts remain.
+  byte-identical source commit. `provider-switchboard` now covers exact
+  build-owned provider selection and its normalized compiler review row. Build
+  effects, claim-free opaque representation, escalation, missing baselines,
+  spoofing, and reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.
