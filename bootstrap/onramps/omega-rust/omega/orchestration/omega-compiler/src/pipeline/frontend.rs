@@ -183,8 +183,9 @@ pub fn parse_sources(
     })
 }
 
-/// depend-mapping (M2 blocker 3): collect `b.depend("alias", path("dir"))`
-/// rows from every `machine build(b: &mut Build)` in this batch, resolving
+/// depend-mapping (M2 blocker 3): collect
+/// `build.depend("alias", path("dir"))` rows from every
+/// `machine build(build: &mut Build)` in this batch, resolving
 /// the directory against the DECLARING FILE's parent (each package's
 /// build.omg maps its own reach). Purely syntactic -- the vocabulary types
 /// exist for validation; the toolchain reads the calls as data

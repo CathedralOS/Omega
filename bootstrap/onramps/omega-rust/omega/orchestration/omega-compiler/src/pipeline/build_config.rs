@@ -2,16 +2,16 @@
 //! image facts come from `build.omg`'s augmenting machine, never from an
 //! invented config grammar. When the program (build.omg is ordinary source,
 //! auto-included next to main.omg) defines the conventionally-named free
-//! machine `build(b: &mut Build)`, the compiler evaluates it at build time
+//! machine `build(build: &mut Build)`, the compiler evaluates it at build time
 //! (purity-gated, the L0 engine) with a ZII `Build` and reads the augmented
 //! value back:
 //!
 //! ```omega
 //! data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
 //! data Build { subsystem: Subsystem; freestanding: bool; }
-//! machine build(b: &mut Build) {
-//!     b.subsystem = Subsystem::EfiApplication;
-//!     b.freestanding = true;
+//! machine build(build: &mut Build) {
+//!     build.subsystem = Subsystem::EfiApplication;
+//!     build.freestanding = true;
 //! }
 //! ```
 //!

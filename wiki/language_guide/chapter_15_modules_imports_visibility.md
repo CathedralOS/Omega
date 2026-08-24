@@ -11,10 +11,24 @@ it declares what it may import, and imports resolve only against that
 declaration. Visibility and hot-swap points nest *within* a package; a part that
 needs a different reach-set is, by that fact, a different package.
 
-**A package is a directory with a `build.omg`.** Its
-identity lives in that manifest (and/or the directory name); source files are
-members **by location** and do **not** re-declare it. There is no per-file
-`package X` line. One directory = one package = one `build.omg`.
+**A package is a directory with a `build.omg`.** Source files are members **by
+location** and do **not** re-declare it. There is no per-file `package X` line.
+One directory = one package = one `build.omg`.
+
+The package declares its human name once through ordinary build vocabulary:
+
+```omega
+const PACKAGE: Package = Package {
+    name: "arithmetic-kernels"
+};
+```
+
+The compiler evaluates this declaration hermetically before dependency
+resolution or build execution. The directory and repository names do not
+establish identity. The declared name is qualified by canonical source lineage
+to form the stable `PackageKey` used by locks and nominal symbols; exact source
+content and compiler evidence form a `PackageInstance`. A same-spelled package
+or boundary from another lineage is therefore a different identity.
 
 Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
@@ -23,9 +37,19 @@ A package's dependencies — the external packages it may reach — are declared
 its **`build.omg`**, a capability-checked build-entry machine that augments a
 `Build` (see
 [`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md)).
-Each dependency is a local alias bound to a pinned source (content hash), so
-code names a stable alias while the binding is what moves. There is no version
-solving and no separate lockfile — the pins live in `build.omg`.
+Each dependency row requests a source and update selector. After fetching it,
+Omega reads the dependency's own `PACKAGE` and derives the default local alias
+by mapping kebab-case to snake_case. Explicit aliases are exceptional local
+renames and never package identity.
+
+`omega.lock` is machine-written accepted state: it records the reconciled
+closure, exact commits/trees/content, source-qualified package identities,
+compiler-derived capability/API baselines, build observations, and admission
+evidence. The compiler consumes the lock rather than silently resolving mutable
+selectors. The lock should normally be committed; source caches may be ignored.
+The first implementation performs no semantic-version solving and rejects
+incompatible requests for one `PackageKey` with their complete dependency
+paths.
 
 ### Build orchestration is not semantic evaluation
 
@@ -150,8 +174,9 @@ evidence-backed and cannot be forged by placing the two beside each other.
 When an invariant is not structurally expressible, useful operations require a
 routed qualification such as `Tree::Valid`.
 
-Changing a published source shape changes the pinned package identity and
-causes dependents to rebuild or fail loudly. It does not silently alter an ABI.
+Changing a published source shape changes package-instance and public-contract
+identity and causes dependents to rebuild or fail loudly. It does not silently
+alter an ABI.
 Only behavior declared `pub` is nameable outside the package. This preserves a
 determinate component entry set for replacement and quiescence.
 
