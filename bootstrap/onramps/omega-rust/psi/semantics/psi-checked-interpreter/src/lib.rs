@@ -141,10 +141,10 @@ pub struct EvaluationUsage {
 
 /// Schema for the current incomplete filesystem operation-attempt evidence.
 ///
-/// This records successful-run call-start order, exact provider, scalar return,
-/// and post-operation error state. It is not the canonical replay transcript:
-/// failed evaluator attempts, arguments, rooted paths, mutable output regions,
-/// logical handles, and retained content are not present yet.
+/// This records call-start order, exact provider, and a typed returned or
+/// evaluator-halted outcome. It is not the canonical replay transcript:
+/// arguments, rooted paths, mutable output regions, logical handles, and
+/// retained content are not present yet.
 pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,8 +204,9 @@ impl FilesystemGrantRefusal {
     }
 }
 
-/// One completed canonical filesystem operation attempted by a successful
-/// build-machine evaluation.
+/// One completed canonical filesystem operation attempted during build-machine
+/// evaluation. Failed evaluations retain their completed prefix as
+/// non-admission evidence.
 ///
 /// The operation tag is an append-only compiler-owned identity. No package
 /// string enters this row. Runtime descriptor numbers may still appear in

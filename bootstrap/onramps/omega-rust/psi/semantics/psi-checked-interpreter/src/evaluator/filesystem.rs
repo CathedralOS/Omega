@@ -1,35 +1,5 @@
 use super::*;
 
-/// Deterministic per-argument allocation ceiling for raw filesystem byte
-/// inputs and reads. This is an evaluator sponsor limit, not a language or OS
-/// API limit. A future build policy may supply a stricter budget, but package
-/// code cannot raise it.
-const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FilesystemTransferCountError {
-    NegativeOrUnrepresentable,
-    ExceedsEvaluatorLimit,
-}
-
-fn checked_filesystem_transfer_count(raw: i64) -> Result<usize, FilesystemTransferCountError> {
-    let count = usize::try_from(raw)
-        .map_err(|_| FilesystemTransferCountError::NegativeOrUnrepresentable)?;
-    if count > MAX_FILESYSTEM_TRANSFER_BYTES {
-        return Err(FilesystemTransferCountError::ExceedsEvaluatorLimit);
-    }
-    Ok(count)
-}
-
-fn check_filesystem_byte_argument_len(length: usize) -> EvalResult<()> {
-    if length > MAX_FILESYSTEM_TRANSFER_BYTES {
-        return Err(Halt::Trap(format!(
-            "filesystem byte argument exceeds evaluator limit of {MAX_FILESYSTEM_TRANSFER_BYTES} bytes"
-        )));
-    }
-    Ok(())
-}
-
 impl<'program> Evaluator<'program> {
     /// Record one exact canonical operation in call-start order around the
     /// selected provider. The placeholder preserves nesting order if argument
@@ -54,7 +24,9 @@ impl<'program> Evaluator<'program> {
                 provider,
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
-        let outcome = self.serve_filesystem_call(operation, arguments, frame);
+        let outcome = self
+            .prepare_filesystem_call(operation, arguments, frame)
+            .and_then(|call| self.serve_filesystem_call(call));
         let completed_index = self
             .filesystem_operation_attempt_stack
             .pop()
@@ -71,6 +43,17 @@ impl<'program> Evaluator<'program> {
                         "canonical filesystem operation `{operation}` returned a non-integer value"
                     )));
                 };
+                if operation.result_kind() == FilesystemHostResultKind::I32
+                    && i32::try_from(result).is_err()
+                {
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                            FilesystemEvaluationHaltKind::Trap,
+                        ));
+                    return Err(Halt::Trap(format!(
+                        "canonical filesystem operation `{operation}` returned `{result}` outside its i32 result type"
+                    )));
+                }
                 let post_error = self
                     .real_fs
                     .as_ref()
@@ -93,41 +76,38 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Drive a value-returning `FilesystemHost` operation against the selected
-    /// filesystem provider. Argument expressions remain table handles and are
-    /// evaluated inside the selected provider arm; evidence capture must not
-    /// evaluate them a second time. The closed operation type makes dispatch
-    /// exhaustive.
-    fn serve_filesystem_call(
-        &mut self,
-        operation: FilesystemHostOperation,
-        arguments: &[ExpressionHandle],
-        frame: &Frame,
-    ) -> EvalResult<Value> {
+    /// filesystem provider. Canonical preparation has already evaluated every
+    /// authored operand exactly once and validated every mutable output place.
+    fn serve_filesystem_call(&mut self, call: PreparedFilesystemCall) -> EvalResult<Value> {
         // REAL-filesystem mode (build.omg rung; opt-in via
         // `FilesystemAccess::RealUnscoped`): the whole op family routes to the
         // real provider with the same exhaustive operation set.
         if self.real_fs.is_some() {
-            return self.try_real_filesystem_call(operation, arguments, frame);
+            return self.try_real_filesystem_call(call);
         }
         // Value-returning raw `FilesystemHost` ops, matching the native seam:
         // each returns its "syscall" result (fd / byte count / rc; negative on
         // error) against the deterministic in-memory filesystem.
-        let result: i64 = match operation {
-            FilesystemHostOperation::Create => {
+        let result: i64 = match call {
+            PreparedFilesystemCall::Create { path, mode: _ } => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 self.virtual_open(path, true, true) as i64
             }
-            FilesystemHostOperation::Open => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+            PreparedFilesystemCall::Open { path, flags } => {
                 self.virtual_open_flags(path, flags) as i64
             }
-            FilesystemHostOperation::OpenPathHandle => {
+            PreparedFilesystemCall::OpenPathHandle {
+                path,
+                desired_access: _,
+                share_mode: _,
+                security_attributes: _,
+                creation_disposition: _,
+                flags_and_attributes: _,
+                template_file: _,
+            } => {
                 // Hermetic CreateFileA model for metadata/query handles. The
                 // wrapper supplies access=0 + OPEN_EXISTING; the virtual fd
                 // table already models both files and read-only directories.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let fd = self.virtual_open_flags(path, 0);
                 if fd < 0 {
                     // `GetLastError`, not CRT errno, is the native error source.
@@ -140,7 +120,7 @@ impl<'program> Evaluator<'program> {
                 }
                 fd as i64
             }
-            FilesystemHostOperation::OpenCreate => {
+            PreparedFilesystemCall::OpenCreate { path, flags, mode } => {
                 // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
                 // `OpenOptions.create`/`.create_new`). Flag bits are the HOST's
                 // (host_open_flags, mirroring the checked target encoder). This
@@ -148,9 +128,6 @@ impl<'program> Evaluator<'program> {
                 // create-new guard + create-mode recording; every other flag bit
                 // (O_TRUNC/O_APPEND/access/EACCES/ENOENT) is handled by the shared
                 // `virtual_open_flags`, so `open_create` cleanly SUBSUMES `open`.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                let mode = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as u32;
                 let exists = self.virtual_files.contains_key(&path)
                     || self.virtual_dirs.contains(&path)
                     || self.virtual_char_devices.contains(&path);
@@ -163,18 +140,16 @@ impl<'program> Evaluator<'program> {
                     let created = host_open_flags::o_creat(flags) && !exists;
                     let fd = self.virtual_open_flags(path.clone(), flags);
                     if fd >= 0 && created {
-                        self.virtual_perms.insert(path, mode & 0o777);
+                        self.virtual_perms.insert(path, (mode as u32) & 0o777);
                     }
                     fd as i64
                 }
             }
-            FilesystemHostOperation::Read => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                match self.virtual_read_n(fd, count) {
+            PreparedFilesystemCall::Read { fd, buffer, count } => {
+                match self.virtual_read_n(fd, count.host) {
                     Some(bytes) => {
                         let n = bytes.len() as i64;
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        buffer.write(&bytes)?;
                         n
                     }
                     None => {
@@ -183,9 +158,7 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Write => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::Write { fd, bytes } => {
                 match self.virtual_write(fd, &bytes) {
                     Some(count) => count as i64,
                     None => {
@@ -194,16 +167,18 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::ReadAt => {
+            PreparedFilesystemCall::ReadAt {
+                fd,
+                buffer,
+                count,
+                offset,
+            } => {
                 // `pread(fd, buf, count, offset)`: read at an absolute offset
                 // WITHOUT moving the cursor (Rust `FileExt::read_at`).
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
-                match self.virtual_read_at(fd, offset, count) {
+                match self.virtual_read_at(fd, offset, count.host) {
                     Some(bytes) => {
                         let n = bytes.len() as i64;
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        buffer.write(&bytes)?;
                         n
                     }
                     None => {
@@ -212,12 +187,9 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::WriteAt => {
+            PreparedFilesystemCall::WriteAt { fd, bytes, offset } => {
                 // `pwrite(fd, buf, count, offset)`: write at an absolute offset
                 // WITHOUT moving the cursor (Rust `FileExt::write_at`).
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
                 match self.virtual_write_at(fd, offset, &bytes) {
                     Some(count) => count as i64,
                     None => {
@@ -226,8 +198,7 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Close => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Close { fd } => {
                 if self.virtual_fds.remove(&fd).is_some() {
                     // Closing the owning fd releases any advisory lock it held.
                     self.virtual_flocks.retain(|_, owner| *owner != fd);
@@ -237,24 +208,25 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::CloseHandle => {
-                let handle = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                if self.virtual_fds.remove(&handle).is_some() {
-                    self.virtual_flocks.retain(|_, owner| *owner != handle);
-                    1 // Win32 BOOL success
-                } else {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
+            PreparedFilesystemCall::CloseHandle { handle } => {
+                match synthetic_handle_fd(handle) {
+                    Some(handle) if self.virtual_fds.remove(&handle).is_some() => {
+                        self.virtual_flocks.retain(|_, owner| *owner != handle);
+                        1 // Win32 BOOL success
+                    }
+                    _ => {
+                        self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                        0
+                    }
                 }
             }
-            FilesystemHostOperation::Duplicate => {
+            PreparedFilesystemCall::Duplicate { fd } => {
                 // `dup(fd)`: mint a fresh descriptor over the same open file (Rust
                 // `File::try_clone`). Native dup SHARES the underlying file offset;
                 // the hermetic model gives the clone its OWN cursor snapshotted from
                 // the source (independent thereafter) -- faithful for the common
                 // clone-then-use pattern, where the clone's offset starts where the
                 // source's was. EBADF for an unknown fd.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let clone = self.virtual_fds.get(&fd).map(|descriptor| VirtualFd {
                     path: descriptor.path.clone(),
                     cursor: descriptor.cursor,
@@ -274,14 +246,12 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::LockFile => {
+            PreparedFilesystemCall::LockFile { fd, operation } => {
                 // `flock(fd, operation)`: advisory whole-file lock (Rust
                 // `File::lock`/`lock_shared`/`try_lock`/`unlock`). operation
                 // bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. The
                 // hermetic model tracks EXCLUSIVE ownership per path; a
                 // non-blocking acquire on a path another fd holds is EWOULDBLOCK.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let operation = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 let path = self
                     .virtual_fds
                     .get(&fd)
@@ -313,13 +283,23 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::LockFileEx => {
+            PreparedFilesystemCall::LockFileEx {
+                handle,
+                flags,
+                reserved: _,
+                length_low: _,
+                length_high: _,
+                overlapped: _,
+            } => {
                 // Win32 LockFileEx over the synthetic fd/HANDLE. flags:
                 // EXCLUSIVE=2, FAIL_IMMEDIATELY=1. The range/OVERLAPPED
                 // arguments are ABI-shape inputs; the std wrapper always asks
                 // for offset zero and the whole file.
-                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
-                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let Some(fd) = synthetic_handle_fd(handle) else {
+                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                    return Ok(Value::Int(0));
+                };
+                let flags = flags as i32;
                 let path = self
                     .virtual_fds
                     .get(&fd)
@@ -344,8 +324,17 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::UnlockFile => {
-                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
+            PreparedFilesystemCall::UnlockFile {
+                handle,
+                offset_low: _,
+                offset_high: _,
+                length_low: _,
+                length_high: _,
+            } => {
+                let Some(fd) = synthetic_handle_fd(handle) else {
+                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
+                    return Ok(Value::Int(0));
+                };
                 let path = self
                     .virtual_fds
                     .get(&fd)
@@ -365,12 +354,12 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::GetLastError => i64::from(self.virtual_errno),
+            PreparedFilesystemCall::GetLastError => i64::from(self.virtual_errno),
             // `remove_name` is the TRUSTED plain-path twin (D-at trust class,
             // the create_dir_name precedent): the arg bytes ARE the path, so
             // both spellings share one model.
-            FilesystemHostOperation::Remove | FilesystemHostOperation::RemoveName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::Remove { path }
+            | PreparedFilesystemCall::RemoveName { path } => {
                 if self.virtual_files.remove(&path).is_some() {
                     0
                 } else {
@@ -378,10 +367,7 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::Seek => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
-                let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+            PreparedFilesystemCall::Seek { fd, offset, whence } => {
                 match self.virtual_seek(fd, offset, whence) {
                     Some(position) => position,
                     None => {
@@ -390,21 +376,17 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetLen => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::SetLen { fd, length } => {
                 let rc = self.virtual_set_len(fd, length);
                 if rc < 0 {
                     self.virtual_errno = 9; // EBADF
                 }
                 rc
             }
-            FilesystemHostOperation::SetFilePermissions => {
+            PreparedFilesystemCall::SetFilePermissions { fd, mode } => {
                 // `fchmod(fd, mode)`: record the mode against the fd's path so a
                 // subsequent write-open sees it (mirrors path-based chmod). EBADF
                 // if the descriptor is unknown.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
                 match self.virtual_fds.get(&fd) {
                     Some(descriptor) => {
                         let path = descriptor.path.clone();
@@ -417,18 +399,17 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetFileTimes => {
+            PreparedFilesystemCall::SetFileTimes { fd, times } => {
                 // `futimens(fd, times)`: `times` is two packed `struct timespec`
                 // (atime then mtime, {tv_sec i64, tv_nsec i64} each). Read the
                 // modification seconds -- times[1].tv_sec at byte offset 16 -- and
                 // record it against the fd's path so stat/fstat report it. EBADF if
                 // the descriptor is unknown.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let times = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 match self.virtual_fds.get(&fd) {
                     Some(descriptor) => {
                         let path = descriptor.path.clone();
                         let mtime = times
+                            .bytes
                             .get(16..24)
                             .and_then(|s| <[u8; 8]>::try_from(s).ok())
                             .map(i64::from_le_bytes)
@@ -442,16 +423,15 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Sync | FilesystemHostOperation::SyncData => {
+            PreparedFilesystemCall::Sync { fd } | PreparedFilesystemCall::SyncData { fd } => {
                 // `fsync(fd)`: flush to durable storage (`sync_data` aliases it --
                 // macOS has no `fdatasync`). In the hermetic in-memory FS the bytes
                 // are already "durable", so this is a no-op that only validates the
                 // descriptor: 0 for a live fd, -1 (EBADF) otherwise -- matching the
                 // native seam's contract.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 i64::from(self.virtual_fds.contains_key(&fd)) - 1
             }
-            FilesystemHostOperation::Errno => {
+            PreparedFilesystemCall::Errno => {
                 // `read_errno()` (darwin `___error()` deref): the thread-local
                 // errno set by the most recent failing op. Not cleared on
                 // success (POSIX), so it is only meaningful right after a -1.
@@ -460,8 +440,11 @@ impl<'program> Evaluator<'program> {
             // The trusted plain-name variant shares create_dir's semantics
             // (the arg bytes ARE the path -- the scratch subslice excludes
             // the native NUL, so both engines see identical bytes).
-            FilesystemHostOperation::CreateDir | FilesystemHostOperation::CreateDirName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::CreateDir { path, mode: _ }
+            | PreparedFilesystemCall::CreateDirName {
+                name: path,
+                mode: _,
+            } => {
                 // -1 (EEXIST) if the dir already exists.
                 if self.virtual_dirs.insert(path) {
                     0
@@ -470,8 +453,8 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::RemoveDir | FilesystemHostOperation::RemoveDirName => {
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+            PreparedFilesystemCall::RemoveDir { path }
+            | PreparedFilesystemCall::RemoveDirName { path } => {
                 if self.virtual_dirs.remove(&path) {
                     0
                 } else {
@@ -479,13 +462,10 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::OpenAt => {
+            PreparedFilesystemCall::OpenAt { dirfd, name, flags } => {
                 // `openat(dirfd, name, flags)`: open `name` relative to the open
                 // directory `dirfd`. The full path (dirfd's path + "/" + name) is
                 // joined HERE (the OS does it natively), so no Omega path build.
-                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 match self.virtual_at_path(dirfd, &name) {
                     Some(full) => self.virtual_open_flags(full, flags) as i64,
                     None => {
@@ -494,12 +474,9 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::UnlinkAt => {
+            PreparedFilesystemCall::UnlinkAt { dirfd, name, flags } => {
                 // `unlinkat(dirfd, name, flags)`: remove `name` relative to `dirfd`.
                 // flags & AT_REMOVEDIR(0x80) removes an empty directory, else a file.
-                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 match self.virtual_at_path(dirfd, &name) {
                     None => {
                         self.virtual_errno = 9; // EBADF
@@ -520,11 +497,9 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetPermissions => {
+            PreparedFilesystemCall::SetPermissions { path, mode } => {
                 // `chmod(path, mode)`: record the mode. ENOENT if the path names
                 // neither a file nor a directory. `mode` is the second arg.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
                 if self.virtual_files.contains_key(&path) || self.virtual_dirs.contains(&path) {
                     self.virtual_perms.insert(path, mode);
                     0
@@ -533,7 +508,8 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::ChangeOwner | FilesystemHostOperation::ChangeOwnerNoFollow => {
+            PreparedFilesystemCall::ChangeOwner { path, uid, gid }
+            | PreparedFilesystemCall::ChangeOwnerNoFollow { path, uid, gid } => {
                 // `chown`/`lchown(path, uid, gid)`: change owner/group. ENOENT if
                 // the path is absent. The hermetic model's process identity is
                 // VIRTUAL_UID/GID (a normal, non-root user), so only a NO-OP change
@@ -543,9 +519,6 @@ impl<'program> Evaluator<'program> {
                 // (`lchown` differs from `chown` only on symlinks, which the
                 // hermetic FS never follows on ownership ops, so they behave
                 // identically here.)
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 let exists = self.virtual_files.contains_key(&path)
                     || self.virtual_dirs.contains(&path)
                     || self.virtual_symlinks.contains_key(&path);
@@ -556,12 +529,9 @@ impl<'program> Evaluator<'program> {
                     self.virtual_chown_result(uid, gid)
                 }
             }
-            FilesystemHostOperation::ChangeFileOwner => {
+            PreparedFilesystemCall::ChangeFileOwner { fd, uid, gid } => {
                 // `fchown(fd, uid, gid)`: like `chown` by descriptor. EBADF for an
                 // unknown fd; otherwise the same non-root ownership rule.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
-                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 if self.virtual_fds.contains_key(&fd) {
                     self.virtual_chown_result(uid, gid)
                 } else {
@@ -569,9 +539,7 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::Rename => {
-                let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+            PreparedFilesystemCall::Rename { from, to } => {
                 match self.virtual_files.remove(&from) {
                     Some(content) => {
                         self.virtual_files.insert(to, content);
@@ -583,14 +551,12 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::HardLink => {
+            PreparedFilesystemCall::HardLink { original, link } => {
                 // `link(original, link)`: a second name for the same inode.
                 // ENOENT if the original is absent; EEXIST if the link name is
                 // taken. The hermetic FS has no inodes, so this COPIES the bytes
                 // (approximate: a later write to one name won't show in the
                 // other — see TASKS_FS.md). Enough to model create+readback.
-                let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
                     self.virtual_errno = 17; // EEXIST
                     -1
@@ -602,15 +568,17 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
-            FilesystemHostOperation::CreateHardLink => {
+            PreparedFilesystemCall::CreateHardLink {
+                link,
+                existing,
+                security_attributes: _,
+            } => {
                 // `CreateHardLinkA(link, existing, security)` -- the WINDOWS
                 // hard-link primitive (session slice 3): the ARG ORDER is
                 // (new link, existing), REVERSED from `hard_link`, and the
                 // result is BOOL (1 success / 0 failure). Same hermetic
                 // copy-the-bytes model as `hard_link` above. virtual_errno is
                 // also the provider's Win32 last-error slot for GetLastError.
-                let link = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let existing = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
                     self.virtual_errno = 183; // ERROR_ALREADY_EXISTS
                     0
@@ -622,19 +590,23 @@ impl<'program> Evaluator<'program> {
                     0
                 }
             }
-            FilesystemHostOperation::GetOsfHandle => {
+            PreparedFilesystemCall::GetOsfHandle { fd } => {
                 // `_get_osfhandle(fd)` -- the fd -> HANDLE bridge (session
                 // slice 4a). The hermetic model's handles ARE its fds
                 // (identity), so consumers key the same descriptor table;
                 // -2 (msvcrt's bad-fd spelling) for an unknown fd.
-                let fd = self.eval_fs_scalar(arguments.first().copied(), frame)? as i32;
                 if self.virtual_fds.contains_key(&fd) {
                     i64::from(fd)
                 } else {
                     -2
                 }
             }
-            FilesystemHostOperation::FinalPathNameByHandle => {
+            PreparedFilesystemCall::FinalPathNameByHandle {
+                handle,
+                buffer,
+                capacity,
+                flags: _,
+            } => {
                 // `GetFinalPathNameByHandleA(handle, buffer, capacity, flags)`:
                 // resolve an OPEN handle to its final path. The hermetic
                 // model's canonical path IS the descriptor's stored key
@@ -644,18 +616,15 @@ impl<'program> Evaluator<'program> {
                 // when it fits, the REQUIRED size INCLUDING the NUL when the
                 // capacity is too small, 0 for a bad handle (GetLastError
                 // semantics -- no errno touched).
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let capacity = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                let path = self
-                    .virtual_fds
-                    .get(&(handle as i32))
+                let path = synthetic_handle_fd(handle)
+                    .and_then(|handle| self.virtual_fds.get(&handle))
                     .map(|descriptor| descriptor.path.clone());
                 match path {
                     Some(path) => {
-                        if path.len() + 1 <= capacity {
+                        if path.len() < capacity.host {
                             let mut bytes = path.clone();
                             bytes.push(0);
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                            buffer.write(&bytes)?;
                             path.len() as i64
                         } else {
                             (path.len() + 1) as i64
@@ -667,16 +636,19 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::SetFileTime => {
+            PreparedFilesystemCall::SetFileTime {
+                handle,
+                creation: _,
+                last_access: _,
+                last_write: write_ft,
+            } => {
                 // `SetFileTime(handle, creation, access_ft, write_ft)` (session
                 // slice 4b): stamp the handle's path with the WRITE time from
                 // its 8-byte FILETIME buffer (100ns units since 1601 -> unix
                 // seconds via the calibration constants), the same
                 // virtual_times store `set_file_times` uses. BOOL result;
                 // 0 for a bad handle (GetLastError semantics -- no errno).
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
-                let write_ft = self.eval_fs_bytes(arguments.get(3).copied(), frame)?;
-                match self.virtual_fds.get(&(handle as i32)) {
+                match synthetic_handle_fd(handle).and_then(|handle| self.virtual_fds.get(&handle)) {
                     Some(descriptor) => {
                         let path = descriptor.path.clone();
                         let filetime = write_ft
@@ -694,11 +666,9 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Symlink => {
+            PreparedFilesystemCall::Symlink { target, link } => {
                 // `symlink(target, linkpath)`: record the link -> target mapping.
                 // EEXIST if the link name already names a file/dir/symlink.
-                let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 if self.virtual_files.contains_key(&link)
                     || self.virtual_dirs.contains(&link)
                     || self.virtual_symlinks.contains_key(&link)
@@ -710,16 +680,18 @@ impl<'program> Evaluator<'program> {
                     0
                 }
             }
-            FilesystemHostOperation::ReadLink => {
+            PreparedFilesystemCall::ReadLink {
+                path,
+                buffer,
+                count,
+            } => {
                 // `readlink(path, buf, count)`: write the target bytes into the
                 // buffer (up to `count`), returning the number written. ENOENT if
                 // `path` is not a symlink in the hermetic model.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let count = self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
                 match self.virtual_symlinks.get(&path).cloned() {
                     Some(target) => {
-                        let n = target.len().min(count);
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &target[..n]);
+                        let n = target.len().min(count.host);
+                        buffer.write(&target[..n])?;
                         n as i64
                     }
                     None => {
@@ -728,34 +700,37 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::Canonicalize => {
+            PreparedFilesystemCall::Canonicalize { path, buffer } => {
                 // `realpath(path, buf)`: resolve `path` to its canonical absolute
                 // form and write it NUL-terminated into the buffer. The hermetic FS
                 // is already absolute and does not resolve `.`/`..`; it follows one
                 // symlink level (matching `read_link`). Returns a non-zero success
                 // flag (native returns the resolved-buffer pointer) or 0 (NULL) +
                 // ENOENT when the target does not exist.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let resolved = self.virtual_symlinks.get(&path).cloned().unwrap_or(path);
                 let exists = self.virtual_files.contains_key(&resolved)
                     || self.virtual_dirs.contains(&resolved);
                 if exists {
                     let mut bytes = resolved;
                     bytes.push(0); // NUL-terminate like realpath's C string
-                    self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                    buffer.write(&bytes)?;
                     1
                 } else {
                     self.virtual_errno = 2; // ENOENT
                     0
                 }
             }
-            FilesystemHostOperation::ReadDir => {
+            PreparedFilesystemCall::ReadDir {
+                fd,
+                buffer,
+                count,
+                position,
+            } => {
                 // `read_dir(fd, buf, count, &position)`: pack the directory's
                 // entries as Darwin `dirent` records and return the next window
                 // of complete records. `position` is a synthetic byte cursor, so
                 // repeated calls drain directories larger than one buffer just
                 // like native `___getdirentries64`.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let dir_path = self
                     .virtual_fds
                     .get(&fd)
@@ -772,28 +747,22 @@ impl<'program> Evaluator<'program> {
                         -1
                     }
                     Some(path) => {
-                        let count =
-                            self.eval_fs_transfer_count(arguments.get(2).copied(), frame)?;
-                        let position = self.read_fs_position(arguments.get(3).copied(), frame);
                         let records = self.build_dirent_records(&path);
-                        let start = position.max(0) as usize;
-                        let (chunk, next_position) = dirent_record_chunk(&records, start, count);
+                        let start = position.initial.max(0) as usize;
+                        let (chunk, next_position) =
+                            dirent_record_chunk(&records, start, count.host);
                         if chunk.is_empty() {
                             0
                         } else {
                             let n = chunk.len();
-                            self.write_fs_buffer(arguments.get(1).copied(), frame, chunk);
-                            self.write_fs_position(
-                                arguments.get(3).copied(),
-                                frame,
-                                next_position as i64,
-                            );
+                            buffer.write(chunk)?;
+                            position.write(next_position as i64)?;
                             n as i64
                         }
                     }
                 }
             }
-            FilesystemHostOperation::FindFirst => {
+            PreparedFilesystemCall::FindFirst { pattern, data } => {
                 // `find_first(pattern, &data)` -- the windows dir-walk seam (fs
                 // rung 3a). `pattern` is `dir/*`: the impl joins with `/`, which
                 // Win32 accepts natively and which matches the hermetic FS keys
@@ -804,7 +773,6 @@ impl<'program> Evaluator<'program> {
                 // (INVALID_HANDLE_VALUE, ENOENT) when the directory does not
                 // exist. A real directory always yields "." first, so an open
                 // enumeration always has a first entry -- exactly Win32.
-                let pattern = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let entries = pattern
                     .strip_suffix(b"/*")
                     .filter(|dir_path| self.virtual_dirs.contains(*dir_path))
@@ -813,7 +781,7 @@ impl<'program> Evaluator<'program> {
                     Some(mut entries) => {
                         let (name, is_dir) =
                             entries.pop_front().expect("dot entries are always present");
-                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        self.write_find_data(&data, &name, is_dir)?;
                         let handle = self.virtual_next_find;
                         self.virtual_next_find += 1;
                         self.virtual_finds.insert(handle, entries);
@@ -825,37 +793,34 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::FindNext => {
+            PreparedFilesystemCall::FindNext { handle, data } => {
                 // `find_next(handle, &data)`: fill the next snapshotted entry
                 // (1 = filled, 0 = end-of-enumeration or unknown handle).
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 match self
                     .virtual_finds
                     .get_mut(&handle)
                     .and_then(std::collections::VecDeque::pop_front)
                 {
                     Some((name, is_dir)) => {
-                        self.write_find_data(arguments.get(1).copied(), frame, &name, is_dir);
+                        self.write_find_data(&data, &name, is_dir)?;
                         1
                     }
                     None => 0,
                 }
             }
-            FilesystemHostOperation::FindClose => {
+            PreparedFilesystemCall::FindClose { handle } => {
                 // `find_close(handle)`: release the cursor (BOOL, like Win32).
-                let handle = self.eval_fs_scalar(arguments.first().copied(), frame)?;
                 if self.virtual_finds.remove(&handle).is_some() {
                     1
                 } else {
                     0
                 }
             }
-            FilesystemHostOperation::ReadMetadata => {
+            PreparedFilesystemCall::ReadMetadata { path, buffer } => {
                 // `stat(path, buf)`: fill the buffer's st_mode (off 4, u16) and
                 // st_size (off 96, i64) as the darwin kernel would. A regular
                 // file is S_IFREG(0o100000)|0o644 with size = content length; a
                 // directory is S_IFDIR(0o040000)|0o755 size 0. ENOENT otherwise.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 // st_mode = format bits (S_IFREG/S_IFDIR) | permission bits, so
                 // a prior `set_permissions` (chmod) shows through `readonly()`.
                 let chmod_perm = self
@@ -884,7 +849,7 @@ impl<'program> Evaluator<'program> {
                             .get(&path)
                             .copied()
                             .unwrap_or(VIRTUAL_MTIME_SECS);
-                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
+                        self.write_fs_stat(&buffer, mode, size, mtime)?;
                         0
                     }
                     None => {
@@ -893,12 +858,11 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::ReadFileMetadata => {
+            PreparedFilesystemCall::ReadFileMetadata { fd, buffer } => {
                 // `fstat(fd, buf)`: like `stat` but keyed by an OPEN descriptor. Map
                 // the fd to its path, then fill the same stat record (a held `File`
                 // is always a regular file here). EBADF for an unknown fd. Never
                 // touches the cursor.
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let path = self
                     .virtual_fds
                     .get(&fd)
@@ -928,7 +892,7 @@ impl<'program> Evaluator<'program> {
                 });
                 match meta {
                     Some((mode, size, mtime)) => {
-                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
+                        self.write_fs_stat(&buffer, mode, size, mtime)?;
                         0
                     }
                     None => {
@@ -937,12 +901,11 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            FilesystemHostOperation::ReadSymlinkMetadata => {
+            PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => {
                 // `lstat(path, buf)`: like `stat`, but does NOT follow a final
                 // symlink. A symlink reports S_IFLNK(0o120000)|0o777 with size =
                 // the target path length (POSIX: a symlink's size is its target's
                 // byte length); everything else is identical to `stat`.
-                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let meta = if let Some(target) = self.virtual_symlinks.get(&path) {
                     Some((0o120_000u16 | 0o777, target.len() as i64))
                 } else {
@@ -963,13 +926,7 @@ impl<'program> Evaluator<'program> {
                 };
                 match meta {
                     Some((mode, size)) => {
-                        self.write_fs_stat(
-                            arguments.get(1).copied(),
-                            frame,
-                            mode,
-                            size,
-                            VIRTUAL_MTIME_SECS,
-                        );
+                        self.write_fs_stat(&buffer, mode, size, VIRTUAL_MTIME_SECS)?;
                         0
                     }
                     None => {
@@ -980,167 +937,6 @@ impl<'program> Evaluator<'program> {
             }
         };
         Ok(Value::Int(result))
-    }
-
-    /// Evaluate an argument to an integer scalar (fd / flags / offset / count).
-    pub(super) fn eval_fs_scalar(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> EvalResult<i64> {
-        let Some(argument) = argument else {
-            return Ok(0);
-        };
-        Ok(self.eval_expression(argument, frame)?.as_int().unwrap_or(0))
-    }
-
-    /// Evaluate a raw byte count exactly once and reject values that could wrap
-    /// at the host `usize` boundary or force an unbounded provider allocation.
-    pub(super) fn eval_fs_transfer_count(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> EvalResult<usize> {
-        let raw = self.eval_fs_scalar(argument, frame)?;
-        checked_filesystem_transfer_count(raw).map_err(|error| match error {
-            FilesystemTransferCountError::NegativeOrUnrepresentable => Halt::Trap(
-                "filesystem transfer count is negative or not host-representable".to_owned(),
-            ),
-            FilesystemTransferCountError::ExceedsEvaluatorLimit => Halt::Trap(format!(
-                "filesystem transfer count exceeds evaluator limit of {MAX_FILESYSTEM_TRANSFER_BYTES} bytes"
-            )),
-        })
-    }
-
-    /// Evaluate an argument expected to be byte data (a path or a write payload).
-    pub(super) fn eval_fs_bytes(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> EvalResult<Vec<u8>> {
-        let Some(argument) = argument else {
-            return Ok(Vec::new());
-        };
-        match self.eval_expression(argument, frame)? {
-            Value::Str(text) => {
-                let text = text.borrow();
-                check_filesystem_byte_argument_len(text.len())?;
-                Ok(text.clone())
-            }
-            // A byte array or a subslice view of one (`buffer` / `buffer[0..n]`):
-            // each element cell holds a byte as an `Int`. This is the write-side
-            // mirror of `write_fs_buffer`'s `Array` arm, and lets a caller write
-            // a bounded prefix of a buffer (Rust `fs::copy`, `write` of a slice).
-            Value::Array(cells) => {
-                check_filesystem_byte_argument_len(cells.len())?;
-                let mut bytes = Vec::with_capacity(cells.len());
-                for cell in &cells {
-                    bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
-                }
-                Ok(bytes)
-            }
-            // `&mut buffer` / `&buffer`: a reference to a caller field/local (e.g. a
-            // `set_file_times` timespec buffer built in place). Deref to the array.
-            Value::Ref(target) => {
-                if let Value::Array(cells) = &*target.borrow() {
-                    check_filesystem_byte_argument_len(cells.len())?;
-                    let mut bytes = Vec::with_capacity(cells.len());
-                    for cell in cells {
-                        bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
-                    }
-                    Ok(bytes)
-                } else {
-                    unsupported("filesystem call expected byte data behind a reference".to_owned())
-                }
-            }
-            other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
-        }
-    }
-
-    /// Evaluate a `File` handle argument to its raw descriptor. The interpreter
-    /// carries the fd directly (see the `Opened` construction), but a wrapping
-    /// single-field struct is accepted defensively.
-    pub(super) fn eval_fs_fd(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> EvalResult<i32> {
-        let Some(argument) = argument else {
-            return trap("filesystem call missing file handle");
-        };
-        let value = self.eval_expression(argument, frame)?;
-        let fd = match &value {
-            Value::Struct { fields, .. } => {
-                fields.get("fd").and_then(|cell| cell.borrow().as_int())
-            }
-            other => other.as_int(),
-        };
-        fd.map(|fd| fd as i32)
-            .ok_or_else(|| Halt::Trap("filesystem call file handle is not an fd".to_owned()))
-    }
-
-    /// Copy read bytes into a caller `&mut [u8]` buffer (a text carrier or a byte
-    /// array), truncated to the buffer's length. Best-effort: the outcome's
-    /// `count` is authoritative; an unrecognized buffer shape is left untouched.
-    pub(super) fn write_fs_buffer(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-        bytes: &[u8],
-    ) {
-        let Some(argument) = argument else {
-            return;
-        };
-        let Ok(cell) = self.resolve_place(argument, frame) else {
-            return;
-        };
-        let cell = self.deref_cell(cell);
-        let shape = cell.borrow().clone();
-        match shape {
-            Value::Str(text) => {
-                *text.borrow_mut() = bytes.to_vec();
-            }
-            Value::Array(cells) => {
-                let count = bytes.len().min(cells.len());
-                for (slot, byte) in cells.iter().zip(bytes.iter()).take(count) {
-                    *slot.borrow_mut() = Value::Int(*byte as i64);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Read the current value of a `&mut i64` argument (the in/out `position`
-    /// cursor of `read_dir`), 0 if unresolvable.
-    pub(super) fn read_fs_position(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> i64 {
-        let Some(argument) = argument else {
-            return 0;
-        };
-        let Ok(cell) = self.resolve_place(argument, frame) else {
-            return 0;
-        };
-        let value = self.deref_cell(cell).borrow().as_int().unwrap_or(0);
-        value
-    }
-
-    /// Write back a `&mut i64` argument (the in/out `position` cursor).
-    pub(super) fn write_fs_position(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-        value: i64,
-    ) {
-        let Some(argument) = argument else {
-            return;
-        };
-        let Ok(cell) = self.resolve_place(argument, frame) else {
-            return;
-        };
-        *self.deref_cell(cell).borrow_mut() = Value::Int(value);
     }
 
     /// Build the packed darwin `dirent` records for a directory: `.` and `..`
@@ -1201,18 +997,17 @@ impl<'program> Evaluator<'program> {
     /// FILE_ATTRIBUTE_NORMAL 0x80) and the NUL-terminated entry name at byte
     /// 44. Other fields are left zero.
     pub(super) fn write_find_data(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
+        &self,
+        output: &PreparedByteOutput,
         name: &[u8],
         is_dir: bool,
-    ) {
+    ) -> EvalResult<()> {
         let mut record = vec![0u8; 320];
         let attributes: u32 = if is_dir { 0x10 } else { 0x80 };
         record[0..4].copy_from_slice(&attributes.to_le_bytes());
         let name_len = name.len().min(259);
         record[44..44 + name_len].copy_from_slice(&name[..name_len]);
-        self.write_fs_buffer(argument, frame, &record);
+        output.write(&record)
     }
 
     fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {
@@ -1245,55 +1040,34 @@ impl<'program> Evaluator<'program> {
     /// `st_size` (i64) at byte offset 96, both little-endian. The Omega layer
     /// reads those fields back with byte-assembly. Other fields are left zero.
     pub(super) fn write_fs_stat(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
+        &self,
+        output: &PreparedByteOutput,
         mode: u16,
         size: i64,
         mtime_secs: i64,
-    ) {
-        let Some(argument) = argument else {
-            return;
-        };
-        let Ok(cell) = self.resolve_place(argument, frame) else {
-            return;
-        };
-        let cell = self.deref_cell(cell);
-        if let Value::Array(cells) = &*cell.borrow() {
-            let put = |offset: usize, byte: u8| {
-                if let Some(slot) = cells.get(offset) {
-                    *slot.borrow_mut() = Value::Int(i64::from(byte));
-                }
-            };
-            // Lay the fields out at the HOST target's stat offsets (mirrors the
-            // selected StatLayout policy the wrapper projects). On
-            // windows the width-mismatched/absent fields go to a synthetic tail; a
-            // real native `_stat64` would leave that tail zero.
-            use host_stat_offsets as off;
-            put(off::MODE, (mode & 0xff) as u8);
-            put(off::MODE + 1, (mode >> 8) as u8);
-            // st_nlink: the hermetic FS models a fixed link count of 1 -- it does not
-            // track hard-link groups (its `hard_link` copies bytes), so every path
-            // reports 1. Native `stat` returns the real count (2 after a `hard_link`);
-            // that case is asserted only in the native canary.
-            put(off::NLINK, 1);
-            put(off::NLINK + 1, 0);
-            for i in 0..8 {
-                put(off::INO + i, (VIRTUAL_INO >> (8 * i)) as u8);
-                put(off::ATIME + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8);
-                put(off::MTIME + i, (mtime_secs >> (8 * i)) as u8);
-                put(off::CTIME + i, (VIRTUAL_CTIME_SECS >> (8 * i)) as u8);
-                put(off::BTIME + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8);
-                put(off::SIZE + i, (size >> (8 * i)) as u8);
-                put(off::BLOCKS + i, (VIRTUAL_BLOCKS >> (8 * i)) as u8);
-            }
-            for i in 0..4 {
-                put(off::DEV + i, (VIRTUAL_DEV >> (8 * i)) as u8);
-                put(off::UID + i, (VIRTUAL_UID >> (8 * i)) as u8);
-                put(off::GID + i, (VIRTUAL_GID >> (8 * i)) as u8);
-                put(off::BLKSIZE + i, (VIRTUAL_BLKSIZE >> (8 * i)) as u8);
-            }
-        }
+    ) -> EvalResult<()> {
+        // Lay the fields out at the HOST target's stat offsets (mirrors the
+        // selected StatLayout policy the wrapper projects).
+        use host_stat_offsets as off;
+        output.write_at(off::MODE, &mode.to_le_bytes())?;
+        // The hermetic model does not track hard-link inode groups.
+        output.write_at(off::NLINK, &1u16.to_le_bytes())?;
+        output.write_at(off::INO, &VIRTUAL_INO.to_le_bytes())?;
+        output.write_at(off::ATIME, &VIRTUAL_ATIME_SECS.to_le_bytes())?;
+        output.write_at(off::MTIME, &mtime_secs.to_le_bytes())?;
+        output.write_at(off::CTIME, &VIRTUAL_CTIME_SECS.to_le_bytes())?;
+        output.write_at(off::BTIME, &VIRTUAL_BIRTHTIME_SECS.to_le_bytes())?;
+        output.write_at(off::SIZE, &size.to_le_bytes())?;
+        output.write_at(off::BLOCKS, &VIRTUAL_BLOCKS.to_le_bytes())?;
+        // These two modeled public values are retained as u64 constants, but
+        // their host stat carrier fields are four bytes. Writing all eight
+        // would overlap mode/nlink on Darwin and adjacent synthetic fields on
+        // Windows.
+        output.write_at(off::DEV, &(VIRTUAL_DEV as u32).to_le_bytes())?;
+        output.write_at(off::UID, &VIRTUAL_UID.to_le_bytes())?;
+        output.write_at(off::GID, &VIRTUAL_GID.to_le_bytes())?;
+        output.write_at(off::BLKSIZE, &(VIRTUAL_BLKSIZE as u32).to_le_bytes())?;
+        Ok(())
     }
 
     /// Mint a fresh descriptor over `path`; `create` truncates (or creates) the
@@ -1525,9 +1299,9 @@ impl<'program> Evaluator<'program> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
-        check_filesystem_byte_argument_len, checked_filesystem_transfer_count,
+    use super::super::filesystem_preparation::{
+        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES, PreparedTransferCount,
+        checked_filesystem_transfer_count,
     };
 
     #[test]
@@ -1544,21 +1318,16 @@ mod tests {
 
     #[test]
     fn transfer_count_accepts_the_closed_interval_through_the_limit() {
-        assert_eq!(checked_filesystem_transfer_count(0), Ok(0));
+        assert_eq!(
+            checked_filesystem_transfer_count(0),
+            Ok(PreparedTransferCount { raw: 0, host: 0 })
+        );
         assert_eq!(
             checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64),
-            Ok(MAX_FILESYSTEM_TRANSFER_BYTES)
+            Ok(PreparedTransferCount {
+                raw: MAX_FILESYSTEM_TRANSFER_BYTES as u64,
+                host: MAX_FILESYSTEM_TRANSFER_BYTES,
+            })
         );
-    }
-
-    #[test]
-    fn byte_argument_length_rejects_before_provider_allocation() {
-        assert!(check_filesystem_byte_argument_len(MAX_FILESYSTEM_TRANSFER_BYTES).is_ok());
-        let error = check_filesystem_byte_argument_len(MAX_FILESYSTEM_TRANSFER_BYTES + 1)
-            .expect_err("oversized path or write payload must reject");
-        assert!(matches!(
-            error,
-            super::Halt::Trap(message) if message.contains("filesystem byte argument exceeds")
-        ));
     }
 }

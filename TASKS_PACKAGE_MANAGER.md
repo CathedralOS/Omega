@@ -704,17 +704,28 @@ complete.
   review row. A failure can follow an earlier staging side effect, so the fresh
   disposable child session is always cleaned up and no result is published
   unless cleanup succeeds. This evidence is not
-  called a transcript or receipt. Bounded exactly-once argument preparation,
-  complete transcript schema and
-  serialization, lossless rooted
+  called a transcript or receipt. A shared canonical preparer now checks exact
+  arity before evaluating anything, consumes every authored operand once in
+  left-to-right order, and produces one closed typed call covering all 50
+  operations. This includes ABI operands a provider does not otherwise use.
+  Scalar and byte kinds reject instead of becoming zero/empty; mutable byte and
+  scalar places resolve once and remain the same cells for input/output; count-
+  bearing and fixed-layout inputs/outputs reject inadequate capacity before provider
+  or grant access. Both virtual and real providers accept only prepared calls.
+  Preparation failure remains attached to the outer operation attempt, and
+  executable real-scoped canaries prove ignored-operand traps and invalid
+  outputs occur before disk mutation or grant consultation. The canonical trait
+  test pins each operation's exact operand order/kind and result width.
+  Complete transcript schema and serialization, lossless rooted
   paths, transcripts/content custody, cleanup-gated publication, output-tree
-  commitment, and replay remain. Raw byte-valued inputs are evaluated once in
-  the selected provider arm and reject above a compiler-owned 16 MiB ceiling
-  before the provider clone/allocation. Raw transfer counts pass one checked
+  commitment, and replay remain. Raw byte-valued inputs reject above a
+  compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
+  transfer counts pass one checked
   conversion shared by both providers and reject negative, wrapped, or
   above-ceiling requests before allocation. This is an evaluator sponsor limit,
-  not a language limit; canonical typed operand preparation, maximum file
-  extent, total staged bytes/entries, and process memory/CPU quotas remain.
+  not a language limit; maximum file extent, total staged bytes/entries, and
+  process memory/CPU quotas remain. Canonicalize enforces its declared
+  1024-byte `PATH_MAX` carrier before provider or grant access.
 
 - **PROOF-AND-BOUNDARY-ADMISSION.** Fail closed on false or incomplete evidence.
 

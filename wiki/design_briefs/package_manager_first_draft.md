@@ -410,12 +410,18 @@ logical handles, and content, so it remains an incomplete trace and makes no rec
 replayability, or source-rebuildability claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required
 before any `Receipted` verdict.
-Raw byte-valued inputs are evaluated once in the selected provider arm and
-reject above the current 16 MiB evaluator sponsor ceiling before provider
-cloning/allocation. Read/count capacities reject negative, wrapped, or
+Raw byte-valued inputs are evaluated once by the shared preparer and reject
+above the current 16 MiB evaluator sponsor ceiling before provider cloning/
+allocation. Read/count capacities reject negative, wrapped, or
 above-ceiling values through one checked conversion. This is not a language
-limit; canonical typed operand preparation, file extent, total staging-tree,
-memory, and CPU quotas remain open.
+limit. A shared closed preparer checks exact arity, consumes every authored
+operand once from left to right, rejects wrong kinds, and retains validated
+mutable cells/capacities, including fixed ABI inputs such as Win32 `OVERLAPPED`,
+before provider or grant access. It includes otherwise-
+unused ABI operands and is source-checked against all 50 canonical signatures
+and result widths. Canonicalize enforces its declared 1024-byte `PATH_MAX`
+carrier at that gate. File extent, total staging-tree, memory, and CPU quotas
+remain open.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable
