@@ -1,7 +1,7 @@
 ; Final publication of the conditional statement-family theorem.  SPUB means:
 ; if the fifteen external propositions recorded by SANT all hold over this
-; exact canonical bundle, then p26/p46/p62..p67 have the finite helper rules and
-; the maximal guarded Return-or-Diverge relation published below.  No external
+; exact canonical bundle, then SREL names the complete p26/p46/p62..p67 finite
+; helper and maximal guarded Return-or-Diverge relation published below.  No external
 ; process-local theorem cell is copied or treated as established here.
 
 statement_family_publication_init:
@@ -49,6 +49,12 @@ statement_family_publication_init:
         call exact_require_cell
         imm r20, 560376
         imm r21, 1                      ; no stdout productivity assumption
+        call exact_require_cell
+        imm r1, 546228
+        imm r2, 1279611475             ; SREL full p26/p46/p62..p67 consequent
+        store r1, r2
+        imm r20, 546228
+        imm r21, 1279611475
         call exact_require_cell
         imm r1, 546220
         imm r2, 1112887379             ; SPUB conditional statement theorem

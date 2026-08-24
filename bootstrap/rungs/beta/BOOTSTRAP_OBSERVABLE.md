@@ -450,7 +450,7 @@ are valuable teeth, but they do not yet establish the quantified observation:
   This is exact artifact shape only: no expression or `gen_stmts` theorem token
   crosses from another process, and no branch, return, divergence, or
   productivity claim follows from it;
-- its independent 80,086-byte conditional semantic checker is accepted only in
+- its independent 80,138-byte conditional semantic checker is accepted only in
   conjunction with the lexical/name/emitter/label/expression/shape owners over
   the identical bundle. It closes the finite p46/p26/p64/p66 helpers, p67's
   ordered branch relation, p63/p65 Ret-or-Div wrappers, and p62's 65-row
@@ -459,11 +459,28 @@ are valuable teeth, but they do not yet establish the quantified observation:
   cursor or output productivity. Consequently finite silent divergence,
   finite-output-then-silent divergence, and infinite output retain exact maximal
   prefixes. Finite terminal activations decrement depth once; divergent ones do
-  not. Twenty-one phase-isolated semantic teeth protect these clauses;
-- no total `parse_proc` claim is currently made. Malformed procedure bodies can
-  make `gen_stmts` diverge while emitting—for example when an unrecognized byte
-  is never consumed—so closure requires maximal Return-or-Diverge and finite/
-  infinite trace correspondence, not merely a termination induction;
+  not. Twenty-two phase-isolated semantic teeth protect these clauses;
+- its independent 63,560-byte `parse_proc.genbody` implication checker is
+  accepted only after the gate discharges the statement checker's exact
+  fifteen antecedents across six owners over the identical bundle. It does not
+  import SPUB as though an implication were its conclusion. PBOD is uniform over exact
+  entry depth `D=0..64`: `D<64` has Ret/status0, Ret/numeric252, and Div rows,
+  while `D=64` has only the immediate depth-exhaustion Ret/numeric252 base,
+  producing an exhaustive 64/65/64 outcome table. Finite traces are exactly
+  `PFXS-prefix || child || 49-byte-epilogue`; the p46 call remains unconditional
+  after numeric252, source return is zero, exact child status/provenance and
+  cursor/state survive, and the p68 caller plus entry depth are restored.
+  Divergent traces are exactly `PFXS-prefix || maximal-child`, event601 is
+  unreachable, p68/child resumptions remain live without a depth decrement,
+  and neither cursor nor stdout productivity is assumed. Twenty-five teeth
+  protect the implication seam, exact shape, depth partition, trace order,
+  numeric status/provenance, Div lifting, and refusal to infer ResourceKind;
+- no root-reachable total `parse_proc` claim is currently made. PBOD deliberately
+  does not infer `D=0` from PFXS; the root-loop composition must carry the
+  already-proved zero-depth state to that cutpoint and instantiate the schema.
+  Malformed bodies may diverge while emitting—for example when an unrecognized
+  byte is never consumed—so the eventual root closure must preserve this
+  maximal Return-or-Diverge relation rather than replace it with termination;
 - its BC11 grammar-composition pass further partitions every raw-store source
   address into 31 aligned fixed compiler globals, one exact source-buffer
   `base + n` spelling, and two exact local-name-table `base + s * 8` spellings;

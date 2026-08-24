@@ -90,6 +90,9 @@ statement_family_semantic_build_teeth() {
   statement_semantic_build_tooth statement-semantic-drop-tau-constructor \
     'store r1, r2                    ; Ret/Tau/Put constructors' \
     'store r1, r0                    ; Ret/Tau/Put constructors'
+  statement_semantic_build_tooth statement-semantic-wrong-srel-consequent \
+    'imm r2, 1279611475             ; SREL full p26/p46/p62..p67 consequent' \
+    'imm r2, 1279611474             ; SREL full p26/p46/p62..p67 consequent'
   statement_semantic_build_tooth statement-semantic-wrong-publication \
     'imm r2, 1112887379             ; SPUB conditional statement theorem' \
     'imm r2, 1112887378             ; SPUB conditional statement theorem'
@@ -117,6 +120,7 @@ statement_family_semantic_reject_teeth() {
     statement-semantic-decrement-divergence \
     statement-semantic-truncate-prefix \
     statement-semantic-drop-tau-constructor \
+    statement-semantic-wrong-srel-consequent \
     statement-semantic-wrong-publication
   do
     set +e

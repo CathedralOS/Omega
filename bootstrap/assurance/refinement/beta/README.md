@@ -1008,7 +1008,7 @@ dispatch, census, and publication mutations. This establishes exact artifact
 shape only: it imports neither Checker F's process-local `XPUB` cell nor Checker
 A's process-local `GSBD` cell and makes no Return-or-Diverge claim.
 
-The adjacent 80,086-byte semantic process closes that body relation
+The adjacent 80,138-byte semantic process closes that body relation
 conditionally on the exact propositions published by Checkers A/B/C/E/F and
 the shape process over the identical bundle. It covers p46/p26/p64/p66's exact
 finite traces and suffixes, p67's ordered seven-way dispatch and name-table
@@ -1018,8 +1018,27 @@ a completed p67 child, mandatory post-child `skip_ws`, and the machine backedge
 provide `Tau`; neither cursor movement nor stdout growth is required. Thus
 `Tau^omega`, finite output followed by silent divergence, and infinite output
 all retain their maximal prefixes. Finite p62 exits decrement depth exactly
-once; divergent activations do not. Twenty-one semantic mutations protect the
+once; divergent activations do not. Twenty-two semantic mutations protect the
 antecedent seams, suffixes, provenance, Ret/Div split, guard, fixed-point kind,
 depth restoration, maximality, and publication. The next engineering milestone
-is composing this result through `parse_proc`; exact resource-kind
-classification from each proved guard/profile remains separate work.
+is exact resource-kind classification from each proved guard/profile.
+
+The independent 63,560-byte `parse_proc.genbody` checker now composes `PFXS`
+with that statement relation without copying a process-local theorem cell. The
+gate explicitly discharges the statement checker's fifteen antecedents across
+six owners over the identical immutable bundle, then accepts the local
+`(PFXS && SREL) => PBOD` implication. PBOD is parameterized over exact entry
+`BLOCKDEPTH D` rather than inventing root depth zero: for `D<64` its table has
+Ret/status0, Ret/numeric252, and Div rows; `D=64` has only the immediate
+depth-exhaustion Ret/numeric252 row. The exhaustive product is 64/65/64 rows.
+A five-term trace DAG fixes finite output as `P || child || E` and divergent
+output as `P || child`, where p46's `E` has five fragments and exactly 49 bytes.
+Every finite row reaches p46 unconditionally, preserves exact status/provenance,
+returns source zero, restores entry depth and the p68 caller, and retains the
+child-final cursor/state. Div never reaches event601, leaves p68/child
+resumptions live without a depth decrement, and carries the maximal child trace
+without cursor or stdout productivity assumptions. Twenty-five phase-isolated
+teeth protect the implication seam, exact tail shape, depth/outcome partition,
+trace order, numeric252 suffix/provenance, Div lifting, non-productivity, refusal
+to infer ResourceKind, and publication. Root reachability/D=0 instantiation and
+typed resource classification remain later composition work.

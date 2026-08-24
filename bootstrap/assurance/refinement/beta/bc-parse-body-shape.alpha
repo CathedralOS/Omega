@@ -1,0 +1,120 @@
+; Exact selected shape for parse_proc.genbody (procedure68, block348).
+; Earlier blocks are owned by Checker A's PCAP/PFXS relation. This module binds
+; the two unconditional child calls, literal source return, both epilogues,
+; exhaustive empty data families, and the decoded quiet region.
+
+parse_body_shape_init:
+        call parse_body_require_proc
+        call parse_body_require_block
+        call parse_body_require_events
+        call parse_body_require_data
+        call parse_body_require_censuses
+        call parse_body_require_decoded
+        imm r1, 560432
+        imm r2, 1213416016             ; PBSH
+        store r1, r2
+        jmp parse_body_rules_init
+
+parse_body_require_proc:
+        imm r20, 7151616
+        imm r21, 68
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 68
+        imm r22, 5
+        call transfer_require_cell
+        imm r20, 68
+        call call_bounds_frame_bytes
+        imm r1, 48
+        jeq r0, r1, exact_shape_ok
+        jmp reject
+
+parse_body_require_block:
+        imm r20, 348
+        imm r21, 50945
+        call exact_require_block_pc
+        ret
+
+; r20=row,r21=pc,r22=target,r23=continuation.
+parse_body_require_call:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r20, r30
+        imm r21, 348
+        mov r22, r31
+        imm r23, 0
+        imm r24, 0
+        mov r25, r32
+        mov r26, r33
+        call summary_require_call_site
+        ret
+
+parse_body_require_events:
+        imm r20, 600
+        imm r21, 50945
+        imm r22, 44066                 ; gen_stmts
+        imm r23, 50954
+        call parse_body_require_call
+        imm r20, 601
+        imm r21, 50954
+        imm r22, 31970                 ; emit_epilogue
+        imm r23, 50963
+        call parse_body_require_call
+        imm r20, 602
+        imm r21, 348
+        imm r22, 5
+        imm r23, 50992
+        call exact_require_event
+        imm r20, 50973
+        imm r21, 50992
+        call exact_require_epilogue
+        imm r20, 50993
+        imm r21, 51012
+        call exact_require_epilogue
+        ret
+
+parse_body_require_data:
+        imm r20, 805
+        imm r21, 348
+        imm r22, 1
+        imm r23, 0
+        imm r24, 50963
+        call transfer_require_primitive
+        ret
+
+parse_body_require_censuses:
+        imm r20, 348
+        imm r21, 348
+        imm r22, 240
+        imm r23, 240                  ; no locals
+        imm r24, 95
+        imm r25, 95                   ; no raw memory
+        imm r26, 286
+        imm r27, 286                  ; no transitions
+        imm r28, 600
+        imm r29, 603
+        call exact_require_effect_census
+        imm r20, 348
+        imm r21, 348
+        imm r22, 805
+        imm r23, 806
+        imm r24, 232
+        imm r25, 232                  ; no binary pushes
+        imm r26, 369
+        imm r27, 369                  ; no argument pushes
+        imm r28, 0
+        imm r29, 0                    ; no store-address pushes
+        call summary_require_expr_census
+        ret
+
+parse_body_require_decoded:
+        imm r20, 50945
+        imm r21, 51013
+        imm r22, 2                    ; calls
+        imm r23, 2                    ; returns
+        imm r24, 0                    ; target stores
+        call exact_quiet_scan_region
+        ret
