@@ -195,10 +195,11 @@ recognize the current compiler files, declaration counts, or syntax-tree
 permutations.
 
 The first checkpoint-driven frontend probe and selected private `CKIR1` direct
-artifact route are established. An independent reference checker already
-reconstructs the exact selected ELF bytes, while the equivalent lower-rooted
-CKIR-to-ELF claim remains open. Completed evidence and remaining artifact
-obligations live in
+artifact route are established. The lower-rooted CKIR1→limited-ELF checker now
+reconstructs the exact selected bytes and observation. The lower-rooted
+source→CKIR join reconstructs declarations, signatures, copyability, and
+layout; source bodies and their selected result remain open. Completed evidence
+and remaining artifact obligations live in
 [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md)
 and
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md).
@@ -215,14 +216,12 @@ families to `Ωself`.
   route, not the final `Ωself` disposition of any source feature. Any future
   Terminal-Psi vocabulary work remains product work in `TASKS.md`.
   - [ ] Reconstruct accepted source semantic tables and their canonical CKIR1
-    relation below Delta. Compose this with the established envelope custody,
-    one-unit lexing, CKIR1 validation, and selected-result interpretation;
-    perturb source semantics, canonical operation selection, and the claimed
-    result (§10.6).
-  - [ ] Reconstruct the exact CKIR1→limited-ELF relation and selected execution
-    observation below Delta. Perturb layout offsets, instruction selection,
-    branch targets, artifact bytes, and the execution claim, then compose both
-    lower-rooted relations into the source→artifact tranche (§10.6).
+    relation below Delta. Declaration/type/signature/copy/layout reconstruction
+    and valid-source cross-pairs are established. Independently reconstruct
+    body operations, terminators, transition facts, and the selected source
+    result; perturb source semantics and canonical operation selection, then
+    compose that result with the established CKIR1→limited-ELF relation and
+    its layout, branch, byte, and execution-claim teeth (§10.6).
 - [ ] Continue against later provisional checkpoints until the bridge generally
   parses, resolves, checks, diagnoses, and conservatively lowers every program
   admitted by the candidate `Ωself` profile while rejecting everything else

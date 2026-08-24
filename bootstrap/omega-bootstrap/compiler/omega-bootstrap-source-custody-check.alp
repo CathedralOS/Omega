@@ -514,8 +514,11 @@ machine Main::parse_type_constraints(&mut self) {
     }
     state in_consume() {
         self.next_token(); self.expect_word(57, 8);
-        transition self.status == 0 { true -> range_check() _ -> done() }
+        transition self.status == 0 { true -> trapping_kind() _ -> done() }
     }
+    state trapping_kind() { transition self.type_kinds[self.expr_type] == 3 { true -> bad() _ -> trapping_nominal() } }
+    state trapping_nominal() { transition self.type_kinds[self.expr_type] == 4 { true -> bad() _ -> trapping_save() } }
+    state trapping_save() { self.type_trapping[self.expr_type] = 1; transition 0 { _ -> range_check() } }
     state range_check() { transition self.tok == 91 { true -> range_open() _ -> done() } }
     state range_open() { transition self.type_kinds[self.expr_type] == 5 { true -> done() _ -> range_base() } }
     state range_base() { transition self.type_kinds[self.expr_type] == 2 { true -> range_begin() _ -> bad() } }

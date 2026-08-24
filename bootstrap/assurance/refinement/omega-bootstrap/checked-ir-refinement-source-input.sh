@@ -82,6 +82,7 @@ out.joinpath("unterminated.omg").write_bytes(fixture + b"\n/* open")
 out.joinpath("non-ascii.omg").write_bytes(fixture + b"\n\xff")
 out.joinpath("long-ident.omg").write_bytes(b"data " + b"A" * 65 + b" { value: u8; }\n")
 out.joinpath("large-int.omg").write_bytes(b"data X { value: u32 [0..=2147483648]; }\n")
+out.joinpath("underscore.omg").write_bytes(b"data _Hidden { _value: u8; }\n")
 out.joinpath("source-over.omg").write_bytes(b" " * 131073)
 PY
 
@@ -91,6 +92,7 @@ make_case unterminated "$T/unterminated.omg"
 make_case non-ascii "$T/non-ascii.omg"
 make_case long-ident "$T/long-ident.omg"
 make_case large-int "$T/large-int.omg"
+make_case underscore "$T/underscore.omg"
 make_case source-over "$T/source-over.omg"
 
 observe 0 "$T/comments.rfn"
@@ -99,6 +101,7 @@ observe 251 "$T/unterminated.rfn"
 observe 251 "$T/non-ascii.rfn"
 observe 252 "$T/long-ident.rfn"
 observe 251 "$T/large-int.rfn"
+observe 0 "$T/underscore.rfn"
 observe 252 "$T/source-over.rfn"
 
 python3 - "$T/fixture.rfn" "$T/bad-count.rfn" "$T/bad-label.rfn" <<'PY'

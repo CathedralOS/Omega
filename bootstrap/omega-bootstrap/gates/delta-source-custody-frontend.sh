@@ -119,6 +119,9 @@ case("reject-nonboolean-guard", 251, r'''data Cell { value: u8; }
 machine Cell::bad(&mut self) { transition self.value { true -> done() _ -> done() } state done(&mut self) { } }''')
 case("reject-result-mismatch", 251, r'''data Cell { value: u8; }
 machine Cell::bad(&self) -> u8 { true }''')
+case("reject-bool-trapping", 251, "data Cell { value: bool in Trapping; }")
+case("reject-nominal-trapping", 251, r'''data Inner { value: u8; }
+data Outer { value: Inner in Trapping; }''')
 case("reject-unguarded-index", 251, r'''data Buffer { bytes: [u8; 8] in Trapping; length: u32 [0..=8]; }
 machine Buffer::bad(&self, at: u32 in Trapping) -> u8 { self.bytes[at] }''')
 

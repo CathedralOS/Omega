@@ -56,8 +56,8 @@ compiler cannot be confused with either the current Rust on-ramp or the
   lowermachine-built producer/backend paths, product behavior, exhaustive
   schema/resource teeth with a representative self-built split, and exact
   independent reference reconstruction of ELF bytes with byte-wide mutation
-  controls. This reference checker is not the still-open lower-rooted
-  CKIR1→ELF refinement.
+  controls. The separate lower-rooted CKIR1→ELF refinement checker lives under
+  `bootstrap/assurance/refinement/omega-bootstrap/`.
 - [`gates/delta-source-custody-artifact-meaning.sh`](gates/delta-source-custody-artifact-meaning.sh)
   requires the `CKIR1` producer and backend to reproduce native 0/251/252 status
   and every published byte through the persisted Beta-written Gamma route.
@@ -112,7 +112,10 @@ exact format, Delta producer/direct backend, native/self byte identity,
 canonical-Gamma 0/251/252 meaning, product behavior comparison, exhaustive
 resource/relation teeth, and exact reference reconstruction of the selected
 layout, frame, templates, fixups, segments, padding, and EOF are now executable
-gates. The corresponding lower-rooted reconstruction remains open.
+gates. The lower-rooted CKIR1→limited-ELF reconstruction is now established,
+as is source declaration/type/signature/copy/layout correspondence. Independent
+source-body operation, terminator, transition-fact, and result reconstruction
+remains before the complete source→artifact join can close.
 `CKIR1` is a private handoff, not Terminal Psi, a
 product IR, a source dialect, or a third source contract. A Terminal-Psi
 vocabulary change would be product work, not an assumed prerequisite here.
