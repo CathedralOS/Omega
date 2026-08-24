@@ -245,6 +245,17 @@ ordinary result remains on its declared Type and canonical runtime call;
 outcome guards control which selectors are available in each arm. Producer
 conformances remain inside proof construction and do not enter proposition or
 output-lane identity.
+Each guarded guarantee row carries the exact nominal case of the declared
+result sum. Named rows additionally carry the public selector and evidence-term
+identity; unnamed rows carry the proposition and derivation but no selectable
+term. The source braces have no terminal row or identity. Verification requires
+every ordinary exit producing the case to discharge the row by exact assignment
+when named or by proposition proof when unnamed, rejects any discharge on a
+different case, and requires caller fact import and selected term binding to be
+dominated by the matching case refinement. The retained validity descriptor is
+the intersection of the result occurrence, normalized referenced occurrences,
+and evidence-interface scopes; codec replay preserves that descriptor and
+write-invalidation coordinates independently from the case identity.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry

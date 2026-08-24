@@ -7175,18 +7175,36 @@ Remaining N6/N8 work:
   non-lifetime conformance arguments remain explicit and ordinary lifetime
   elision resolves before this identity is recorded.
 
-  Remaining outcome-specific slice is blocked on the owner question **How does
-  a named guarantee declare its result-case guard?** Once settled, implement it
-  in three bounded stages:
+  The outcome-specific declaration is settled. Implement it in bounded stages:
 
-  1. parse and resolve the explicit guard on a named `ensures`, normalize it to
-     one exact case of the declared result sum, and include it in public
-     signature compatibility;
-  2. extend result-arm patterns with the existing `runtime payload; named proof
-     selectors` split, binding selected terms and omitted facts only under the
-     exact matching case while checking producer definite assignment per case;
-  3. retain the case guard in checked and Terminal proof-output rows, canonical
-     codec identity, and verifier replay without adding runtime operations.
+  1. parse `ExactResultCase -> { guarantees }` inside `ensures`; resolve the
+     path only against the declared result sum, normalize the exact nominal case,
+     reject a non-sum result, Boolean guard, duplicate case group, duplicate
+     machine-wide public selector, and case-literal-shaped ambiguity, and give
+     the braces no value/package/group identity;
+  2. admit named and unnamed rows inside the group. On every ordinary exit
+     producing that case, require each named row to receive one exact evidence
+     assignment and prove each unnamed proposition after substituting the
+     concrete result payload. Other cases assign neither, crash exits produce no
+     result lane, and a shared proof at a join covers only when every qualifying
+     incoming path establishes it;
+  3. extend result-arm patterns with the existing `runtime payload; named proof
+     selectors` split. All guarded propositions enter the fact catalog only
+     under the matching case; selected named terms bind there, while omitted
+     selectors and unnamed rows mint no local term and never leak to siblings;
+  4. derive each guarded fact/term validity as the intersection of its result
+     occurrence, normalized referenced occurrences, and evidence-interface
+     scopes. Preserve borrow and revision invalidation under intersecting writes;
+  5. retain the exact case on checked and Terminal guarantee rows, public
+     signature compatibility, canonical codec identity, derivation provenance,
+     and verifier replay without adding runtime operations.
+
+  Requirement guarantees are inherited and satisfiers author additions only;
+  omission never weakens the requirement, exact restatement rejects, and direct
+  concrete calls may see the stronger merged row set while requirement calls see
+  the pinned requirement surface. Named witness rows on trait requirements stay
+  deferred to **Should trait requirements admit named witness contracts?**; this
+  task must not settle that separate source surface accidentally.
 
   Never infer evidence from visible facts or attached state names. Runtime Type
   results retain their own multiplicity independently of the proof lane, and
@@ -7604,7 +7622,7 @@ specifications:
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **CALLBACK-PRIVATE-LAYOUT-DEMAND:** target-package declaration of a typed
-  private native callback slot in `OWNER_QUESTIONS.md` Q3.
+  private native callback slot in `OWNER_QUESTIONS.md` Q2.
 
 ## Platform-gated verification
 

@@ -205,6 +205,15 @@ derivations may reach the same term through different admitted premises; two
 terms may inhabit the same proof-irrelevant proposition while carrying
 different hidden witnesses.
 
+Result-case guarantee groups are a contract-indexing form, not another proof
+carrier. `ExactCase -> { ... }` attaches each contained named or unnamed
+guarantee to one nominal result case. Matching the sum tag activates its facts;
+the group creates no proposition, domain, package, or evidence identity. Named
+rows retain selectable erased terms, while unnamed rows retain only their
+proved proposition and provenance. Referenced borrow and revision scopes remain
+part of either row's validity and are invalidated normally by intersecting
+writes.
+
 ## Migration boundary
 
 The current rule that recursive/non-layoutable mathematical data becomes
