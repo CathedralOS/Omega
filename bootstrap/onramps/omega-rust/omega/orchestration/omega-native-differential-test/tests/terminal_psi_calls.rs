@@ -8,14 +8,17 @@ use omega_terminal_image_emission::{
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+    ScalarType, ValueId,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation,
     OperationKind, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
@@ -23,6 +26,151 @@ use psi_terminal_interpreter::{
     interpret_terminal_artifact_measured,
 };
 use psi_terminal_verifier::{ProofBundle, verify_module};
+
+const SCALAR_CALL_V28_FIXTURE: &str = include_str!(
+    "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-scalar-call-v28.hex"
+);
+
+#[test]
+fn scalar_i32_call_has_exact_exportable_vocabulary_28_bytes() {
+    let module = i32_call_module();
+    let semantic = encode_module(&module).expect("encode scalar i32 call fixture");
+
+    if std::env::var_os("OMEGA_UPDATE_TERMINAL_FIXTURES").is_some() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-scalar-call-v28.hex",
+        );
+        std::fs::write(fixture, wrapped_hex(&semantic)).expect("refresh scalar call fixture");
+    } else {
+        assert_eq!(
+            compact_hex(&semantic),
+            SCALAR_CALL_V28_FIXTURE
+                .split_ascii_whitespace()
+                .collect::<String>(),
+            "scalar call terminal bytes drifted; reviewed replacement:\n{}",
+            wrapped_hex(&semantic)
+        );
+    }
+
+    assert_eq!(decode_module(&semantic), Ok(module.clone()));
+    assert_eq!(
+        encode_module(&decode_module(&semantic).expect("decode scalar call fixture")),
+        Ok(semantic.clone())
+    );
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free scalar i32 call verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, machine_id(1))
+            .expect("fixed scalar call fuel")
+            .ceiling_units(),
+        4
+    );
+    let measured = interpret_terminal_artifact_measured(
+        &semantic,
+        &encode_proof_bundle(&ProofBundle::default()).expect("empty scalar call proof"),
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("interpret scalar i32 call fixture");
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+            scalar_type: i32_type(),
+            value: IntegerValue::Signed(73),
+        })
+    );
+
+    let abstract_plan = lower_artifact_sections(
+        &semantic,
+        &encode_proof_bundle(&ProofBundle::default()).expect("empty lowering proof"),
+        &AdmissionProfile::default(),
+    )
+    .expect("lower scalar call fixture");
+    let target = lower_to_target_operations(&abstract_plan, NativeTarget::linux_x64())
+        .expect("select Linux x86-64 scalar call ABI");
+    let assigned = assign_registers(&target).expect("assign scalar call arguments");
+    let machine_code = emit_machine_code(&assigned).expect("emit scalar call machine code");
+    assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
+    assert_eq!(
+        machine_code.functions[0].internal_calls[0].target,
+        machine_id(2)
+    );
+    let artifact = build_terminal_object_artifact(&machine_code).expect("build scalar call object");
+    derive_terminal_stack_demand(&artifact, machine_id(1)).expect("compose scalar call stack");
+    emit_terminal_executable_image(&artifact, 3).expect("resolve scalar call image");
+
+    if let Some(path) = std::env::var_os("OMEGA_BOOTSTRAP_SCALAR_CALL_TERMINAL") {
+        std::fs::write(path, &semantic).expect("write requested scalar call terminal reference");
+    }
+
+    let mut wrong_arity = module.clone();
+    let OperationKind::Call { arguments, .. } =
+        &mut wrong_arity.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    arguments.clear();
+    assert!(
+        verify_module(
+            &wrong_arity,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "scalar call arity mutation must reject"
+    );
+
+    let mut wrong_callee = module;
+    let OperationKind::Call { callee, .. } =
+        &mut wrong_callee.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *callee = machine_id(3);
+    assert!(
+        verify_module(
+            &wrong_callee,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "unknown scalar callee mutation must reject"
+    );
+
+    let mut wrong_argument = i32_call_module();
+    let OperationKind::Call { arguments, .. } =
+        &mut wrong_argument.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    arguments[0] = value_id(99);
+    assert!(
+        verify_module(
+            &wrong_argument,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "undefined scalar argument mutation must reject"
+    );
+
+    let mut wrong_result_type = i32_call_module();
+    wrong_result_type.machines[0].blocks[0].operations[1].result =
+        psi_terminal::OperationResult::Scalar(scalar_declaration(value_id(2), ScalarType::Boolean));
+    assert!(
+        verify_module(
+            &wrong_result_type,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "scalar call result-type mutation must reject"
+    );
+}
 
 #[test]
 fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
@@ -224,6 +372,22 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
 }
 
 fn call_module() -> TerminalModule {
+    scalar_call_module(
+        ScalarType::Boolean,
+        OperationKind::BooleanConstant { value: true },
+    )
+}
+
+fn i32_call_module() -> TerminalModule {
+    scalar_call_module(
+        ScalarType::Integer(i32_type()),
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Signed(73),
+        },
+    )
+}
+
+fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> TerminalModule {
     let caller_constant = value_id(1);
     let call_result = value_id(2);
     let caller_result = value_id(3);
@@ -254,7 +418,10 @@ fn call_module() -> TerminalModule {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
-                result: TerminalMachineResult::Scalar(boolean_declaration(caller_result)),
+                result: TerminalMachineResult::Scalar(scalar_declaration(
+                    caller_result,
+                    scalar_type,
+                )),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -266,15 +433,17 @@ fn call_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             id: operation_id(1),
-                            result: psi_terminal::OperationResult::Scalar(boolean_declaration(
+                            result: psi_terminal::OperationResult::Scalar(scalar_declaration(
                                 caller_constant,
+                                scalar_type,
                             )),
-                            kind: OperationKind::BooleanConstant { value: true },
+                            kind: constant_kind,
                         },
                         Operation {
                             id: operation_id(2),
-                            result: psi_terminal::OperationResult::Scalar(boolean_declaration(
+                            result: psi_terminal::OperationResult::Scalar(scalar_declaration(
                                 call_result,
+                                scalar_type,
                             )),
                             kind: OperationKind::Call {
                                 callee: machine_id(2),
@@ -298,8 +467,11 @@ fn call_module() -> TerminalModule {
                 structural_parameters: Vec::new(),
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
-                parameters: vec![boolean_declaration(callee_parameter)],
-                result: TerminalMachineResult::Scalar(boolean_declaration(callee_result)),
+                parameters: vec![scalar_declaration(callee_parameter, scalar_type)],
+                result: TerminalMachineResult::Scalar(scalar_declaration(
+                    callee_result,
+                    scalar_type,
+                )),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
@@ -330,11 +502,27 @@ fn empty_contract(raw: u64) -> MachineContract {
     }
 }
 
-fn boolean_declaration(id: ValueId) -> ValueDeclaration {
-    ValueDeclaration {
-        id,
-        scalar_type: ScalarType::Boolean,
-    }
+fn scalar_declaration(id: ValueId, scalar_type: ScalarType) -> ValueDeclaration {
+    ValueDeclaration { id, scalar_type }
+}
+
+fn i32_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Signed, 32).expect("i32 scalar type")
+}
+
+fn compact_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn wrapped_hex(bytes: &[u8]) -> String {
+    let compact = compact_hex(bytes);
+    compact
+        .as_bytes()
+        .chunks(96)
+        .map(|chunk| std::str::from_utf8(chunk).expect("hex is UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn machine_id(raw: u64) -> MachineId {

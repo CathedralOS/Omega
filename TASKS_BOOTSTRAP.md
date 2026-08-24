@@ -432,6 +432,24 @@ Terminal-Psi interpreter, verifier, viewer, or debugger, and it does not require
     lower-rung meaning, and lowermachine-built terminal-to-ELF observations
     agree. This is ordinary lexical substrate, not `Ωself` admission or a
     module/package decision;
+  - [x] publish the differential-only vocabulary-28 scalar-`Call` reference
+    needed by the next general tranche. The product-owned fixture is exact and
+    deterministic, carries one signed-`i32` argument/result through a two-machine
+    call, verifies and interprets with fixed fuel, lowers through the Linux
+    x86-64 internal-relocation path, and rejects arity, callee, argument-ID, and
+    result-type mutations. It is comparison evidence, never bootstrap authority;
+  - [ ] implement a bounded, table-driven scalar in-module call/return
+    conformance slice in the Delta frontend and backend. Admit multiple
+    arbitrarily named machines in one program unit, signed-`i32` parameters and
+    results, literals, parameter references, and forward acyclic calls through
+    general symbol/signature/value/call tables. Declaration/name permutations
+    must use the same implementation; duplicate/unknown names, arity/type/result
+    mismatches, cycles, malformed terminal IDs, and every table/code ceiling
+    reject before publication. Carry exact native, lowermachine-built,
+    lower-rung meaning, terminal-validation, and runnable-artifact observations.
+    Recursion, modules, records, generics, domains, proofs, and general control
+    flow remain outside this conformance slice; the slice does not admit a row
+    to `Ωself`;
   - [ ] publish the complete deterministic Delta source manifest and prove each
     transitive unit valid under the provisional profile; final validity under
     frozen Delta v1 belongs to the subsequent freeze task, and one entry source
