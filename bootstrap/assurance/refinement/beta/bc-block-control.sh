@@ -39,6 +39,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-bounded-emitters-teeth.sh"
 . "$GATE_DIR/bc-emit-dec-word-teeth.sh"
 . "$GATE_DIR/bc-label-emitters-teeth.sh"
+. "$GATE_DIR/bc-expression-family-teeth.sh"
 
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
@@ -334,7 +335,8 @@ label_emitters_require_module_budgets() {
     bc-emit-cmp-data-shape.alpha \
     bc-emit-cmp-cases.alpha \
     bc-emit-cmp-summary.alpha \
-    bc-label-emitters-publication.alpha
+    bc-label-emitters-publication.alpha \
+    bc-post-label-emitters-base.alpha
   do
     label_emitters_module_bytes=$(wc -c < "$GATE_DIR/$label_emitters_module" | tr -d ' ')
     if [ "$label_emitters_module_bytes" -ge 20000 ]; then
@@ -375,7 +377,8 @@ build_label_emitters_checker() {
       "$GATE_DIR/bc-emit-cmp-data-shape.alpha" \
       "$GATE_DIR/bc-emit-cmp-cases.alpha" \
       "$GATE_DIR/bc-emit-cmp-summary.alpha" \
-      "$GATE_DIR/bc-label-emitters-publication.alpha"
+      "$GATE_DIR/bc-label-emitters-publication.alpha" \
+      "$GATE_DIR/bc-post-label-emitters-base.alpha"
   } > "$T/label-emitters-check.alpha"
   label_emitters_checker_source_bytes=$(wc -c < "$T/label-emitters-check.alpha" | tr -d ' ')
   if [ "$label_emitters_checker_source_bytes" -ge 900000 ]; then
@@ -391,6 +394,181 @@ build_label_emitters_checker() {
   fi
   stamp_seed "$T/label-emitters-check.tape" "$SEED" \
     "$T/label-emitters-check" >/dev/null
+}
+
+emit_expression_table_prefix() {
+  cat "$GATE_DIR/bc-block-control.alpha" \
+    "$GATE_DIR/bc-effect-sites.alpha" \
+    "$GATE_DIR/bc-frame-shape.alpha" \
+    "$GATE_DIR/bc-local-access.alpha" \
+    "$GATE_DIR/bc-memory-sites.alpha" \
+    "$GATE_DIR/bc-expr-primitives.alpha" \
+    "$GATE_DIR/bc-stack-pushes.alpha" \
+    "$GATE_DIR/bc-expr-composition.alpha" \
+    "$GATE_DIR/bc-raw-load-families.alpha" \
+    "$GATE_DIR/bc-call-bounds.alpha"
+}
+
+expression_family_require_module_budgets() {
+  for expression_family_module in \
+    bc-expression-selected-row-helpers.alpha \
+    bc-expression-leaf-shape.alpha \
+    bc-expression-call-control-shape.alpha \
+    bc-expression-call-data-shape.alpha \
+    bc-expression-factor-control-shape.alpha \
+    bc-expression-factor-data-shape.alpha \
+    bc-expression-levels-shape.alpha \
+    bc-expression-gen-expr-shape.alpha \
+    bc-expression-leaf-rules.alpha \
+    bc-expression-call-rules.alpha \
+    bc-expression-factor-rules.alpha \
+    bc-expression-levels-rules.alpha \
+    bc-expression-gen-expr-rules.alpha \
+    bc-expression-family-publication.alpha
+  do
+    expression_family_module_bytes=$(wc -c < "$GATE_DIR/$expression_family_module" | tr -d ' ')
+    if [ "$expression_family_module_bytes" -ge 20000 ]; then
+      echo "bc block control FAIL — $expression_family_module is ${expression_family_module_bytes} bytes (20KB module cap)" >&2
+      exit 1
+    fi
+  done
+}
+
+build_expression_family_shape_checker() {
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-expression-shape-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-expression-leaf-shape.alpha" \
+      "$GATE_DIR/bc-expression-call-control-shape.alpha" \
+      "$GATE_DIR/bc-expression-call-data-shape.alpha" \
+      "$GATE_DIR/bc-expression-factor-control-shape.alpha" \
+      "$GATE_DIR/bc-expression-factor-data-shape.alpha" \
+      "$GATE_DIR/bc-expression-levels-shape.alpha" \
+      "$GATE_DIR/bc-expression-gen-expr-shape.alpha" \
+      "$GATE_DIR/bc-expression-family-shape.alpha"
+  } > "$T/expression-family-shape.alpha"
+  "$ASM" < "$T/expression-family-shape.alpha" > "$T/expression-family-shape.tape"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/expression-family-shape.alpha" > "$T/expression-family-shape-ref.tape"
+  cmp -s "$T/expression-family-shape.tape" "$T/expression-family-shape-ref.tape" || {
+    echo "bc block control FAIL — expression shape assembler diamond disagrees" >&2
+    exit 1
+  }
+  stamp_seed "$T/expression-family-shape.tape" "$SEED" \
+    "$T/expression-family-shape" >/dev/null
+}
+
+build_expression_family_semantic_checker() {
+  {
+    emit_expression_table_prefix
+    cat "$GATE_DIR/bc-expression-root.alpha" \
+      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-write-str-summary.alpha" \
+      "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
+      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
+      "$GATE_DIR/bc-skip-ws-summary.alpha" \
+      "$GATE_DIR/bc-post-skip-ws-label-emitters.alpha" \
+      "$GATE_DIR/bc-expect-shape.alpha" \
+      "$GATE_DIR/bc-expect-summary.alpha" \
+      "$GATE_DIR/bc-post-expect-expression.alpha" \
+      "$GATE_DIR/bc-emit-dec-shape.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-label-publication.alpha" \
+      "$GATE_DIR/bc-cursor-tail-summary.alpha" \
+      "$GATE_DIR/bc-label-core-shape.alpha" \
+      "$GATE_DIR/bc-label-counter-summary.alpha" \
+      "$GATE_DIR/bc-label-ref-summary.alpha" \
+      "$GATE_DIR/bc-emit-str-body-shape.alpha" \
+      "$GATE_DIR/bc-emit-str-body-cases.alpha" \
+      "$GATE_DIR/bc-emit-str-body-summary.alpha" \
+      "$GATE_DIR/bc-gen-emit-shape.alpha" \
+      "$GATE_DIR/bc-gen-emit-summary.alpha" \
+      "$GATE_DIR/bc-emit-cmp-control-shape.alpha" \
+      "$GATE_DIR/bc-emit-cmp-data-shape.alpha" \
+      "$GATE_DIR/bc-emit-cmp-cases.alpha" \
+      "$GATE_DIR/bc-emit-cmp-summary.alpha" \
+      "$GATE_DIR/bc-label-emitters-publication.alpha" \
+      "$GATE_DIR/bc-post-label-emitters-expression.alpha" \
+      "$GATE_DIR/bc-classifier-shape.alpha" \
+      "$GATE_DIR/bc-classifier-summary.alpha" \
+      "$GATE_DIR/bc-read-ident-shape.alpha" \
+      "$GATE_DIR/bc-read-ident-summary.alpha" \
+      "$GATE_DIR/bc-emit-ident-shape.alpha" \
+      "$GATE_DIR/bc-emit-ident-summary.alpha" \
+      "$GATE_DIR/bc-expression-id-char.alpha" \
+      "$GATE_DIR/bc-fixed-keyword-shape-core.alpha" \
+      "$GATE_DIR/bc-fixed-keyword-data-shape.alpha" \
+      "$GATE_DIR/bc-fixed-keyword-cases.alpha" \
+      "$GATE_DIR/bc-fixed-keyword-summary.alpha" \
+      "$GATE_DIR/bc-literal-skip-shape.alpha" \
+      "$GATE_DIR/bc-literal-skip-summary.alpha" \
+      "$GATE_DIR/bc-post-literal-skip-expression.alpha" \
+      "$GATE_DIR/bc-parse-number-shape.alpha" \
+      "$GATE_DIR/bc-parse-number-summary.alpha" \
+      "$GATE_DIR/bc-parse-char-shape.alpha" \
+      "$GATE_DIR/bc-parse-char-cases.alpha" \
+      "$GATE_DIR/bc-parse-char-summary.alpha" \
+      "$GATE_DIR/bc-operator-classifier-shape.alpha" \
+      "$GATE_DIR/bc-operator-classifier-summary.alpha" \
+      "$GATE_DIR/bc-cmp-op-shape.alpha" \
+      "$GATE_DIR/bc-cmp-op-cases.alpha" \
+      "$GATE_DIR/bc-cmp-op-summary.alpha" \
+      "$GATE_DIR/bc-name-table-domain.alpha" \
+      "$GATE_DIR/bc-name-eq-control-shape.alpha" \
+      "$GATE_DIR/bc-name-eq-data-shape.alpha" \
+      "$GATE_DIR/bc-name-eq-summary.alpha" \
+      "$GATE_DIR/bc-post-name-eq-lookup.alpha" \
+      "$GATE_DIR/bc-lookup-control-shape.alpha" \
+      "$GATE_DIR/bc-lookup-data-shape.alpha" \
+      "$GATE_DIR/bc-lookup-summary.alpha" \
+      "$GATE_DIR/bc-emit-dec-summary.alpha" \
+      "$GATE_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-control-shape.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-data-shape.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-summary.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-slot-summary.alpha" \
+      "$GATE_DIR/bc-bounded-emitters-publication.alpha" \
+      "$GATE_DIR/bc-expression-prerequisites.alpha" \
+      "$GATE_DIR/bc-expression-resource-domain.alpha" \
+      "$GATE_DIR/bc-expression-tail-rules.alpha" \
+      "$GATE_DIR/bc-expression-leaf-rules.alpha" \
+      "$GATE_DIR/bc-expression-call-rules.alpha" \
+      "$GATE_DIR/bc-expression-factor-rules.alpha" \
+      "$GATE_DIR/bc-expression-levels-rules.alpha" \
+      "$GATE_DIR/bc-expression-gen-expr-rules.alpha" \
+      "$GATE_DIR/bc-expression-family-publication.alpha"
+  } > "$T/expression-family-semantic.alpha"
+  expression_semantic_source_bytes=$(wc -c < "$T/expression-family-semantic.alpha" | tr -d ' ')
+  if [ "$expression_semantic_source_bytes" -ge 1040000 ]; then
+    echo "bc block control FAIL — expression semantic source is ${expression_semantic_source_bytes} bytes (1040KB budget)" >&2
+    exit 1
+  fi
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/expression-family-semantic.alpha" > "$T/expression-family-semantic-ref.tape"
+  "$ASM" < "$T/expression-family-semantic.alpha" > "$T/expression-family-semantic.tape"
+  expression_semantic_tape_bytes=$(wc -c < "$T/expression-family-semantic.tape" | tr -d ' ')
+  if [ "$expression_semantic_tape_bytes" -gt 262140 ]; then
+    echo "bc block control FAIL — expression semantic tape is ${expression_semantic_tape_bytes} bytes (262140-byte limit)" >&2
+    exit 1
+  fi
+  cmp -s "$T/expression-family-semantic.tape" "$T/expression-family-semantic-ref.tape" || {
+    echo "bc block control FAIL — expression semantic assembler diamond disagrees" >&2
+    cmp -l "$T/expression-family-semantic.tape" \
+      "$T/expression-family-semantic-ref.tape" | head -8 >&2 || true
+    exit 1
+  }
+  stamp_seed "$T/expression-family-semantic.tape" "$SEED" \
+    "$T/expression-family-semantic" >/dev/null
+}
+
+build_expression_family_checkers() {
+  expression_family_require_module_budgets
+  build_expression_family_shape_checker
+  build_expression_family_semantic_checker
 }
 
 smoke_name_eq_checker() {
@@ -447,6 +625,34 @@ smoke_label_emitters_checker() {
     exit 1
   fi
 }
+
+smoke_expression_family_checkers() {
+  for expression_checker_kind in shape semantic
+  do
+    set +e
+    "$T/expression-family-$expression_checker_kind" \
+      < "$T/control.bundle" > "$T/stdout"
+    expression_checker_status=$?
+    set -e
+    if [ "$expression_checker_status" != 0 ] || [ -s "$T/stdout" ]; then
+      echo "bc block control FAIL — expression $expression_checker_kind canonical smoke: expected 0/empty, got $expression_checker_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+      exit 1
+    fi
+  done
+}
+
+# Exact family shape and the 65-row semantic induction are intentionally two
+# independent processes over one canonical bundle. Acceptance is conjunction.
+if [ "${BC_BLOCK_FOCUS:-}" = expression-family ]; then
+  bc_timing_start expression-family-focus
+  build_expression_family_checkers
+  smoke_expression_family_checkers
+  expression_family_build_teeth
+  expression_family_reject_teeth
+  bc_timing_finish
+  echo "bc expression family: focused canonical + 16 phase-isolated teeth passed ($(wc -c < "$T/expression-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/expression-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
+  exit 0
+fi
 
 # Checker E independently rebuilds WSTR/cursor/expect/full-Word DECW before
 # composing the label, string-body, gen_emit, and comparison emitter family.
@@ -527,6 +733,13 @@ build_label_emitters_checker
 smoke_label_emitters_checker
 label_emitters_build_teeth
 label_emitters_reject_teeth
+bc_timing_finish
+
+bc_timing_start expression-family-tranche
+build_expression_family_checkers
+smoke_expression_family_checkers
+expression_family_build_teeth
+expression_family_reject_teeth
 bc_timing_finish
 
 bc_timing_start checker-a-canonical
@@ -1854,4 +2067,4 @@ done
 bc_timing_finish
 
 echo "bc block control/effects: 70 proc / 355 block / 291 transition; 613 effect sites / 829 fixed emit bytes; 113 __write_str calls instantiated from one length-ranked exact-output summary; main.ready composes emit_prelude/write_str/skip_ws into the exact 187-byte prefix, then a reusable main.loop split sends normalized zero to halt(0) and nonzero to main.body without consuming it; byte classifiers digit/alpha/alnum are exact over all 256 cbyte values, terminating read_ident returns their maximal prefix, parse_number returns the exact maximal digit fold modulo 2^64 after same-cursor observations and one-byte ranked steps, parse_char exhausts ordinary/escape byte mappings with exact bounded malformed-tail cursor outcomes and no closing-quote premise, is_muldiv/is_addsub are total quiet Word predicates for */% and +-, cmp_op returns exact operator codes/deltas including restored single = and unchecked ADVX-bounded ! tail, and nine fixed keyword recognizers return one exactly on their bounded identifier spellings with length-first/first-mismatch short circuit; id_char/is_let recognize the exact let slice, literal skippers terminate honestly through bounded malformed tails, count_lets terminates with exact nested-body let count and restored entry CUR, the bounded parse_proc parameter loop records at most four exact slices or returns numeric 252 before output, pdone composes nparams+count_lets without wrap and reaches slotsready at <=1024 or returns numeric 252 before output, fixed-decimal emitter summaries append exact bounded prologue and parameter-store text, and the PCAP bridge composes saved name/nslots/nparams through the exact at-most-four store loop to genbody; procedure62's root-independent boundary closes depth64/resource/close/zero returns and the unexecuted gen_stmt cutpoint; nonzero expect normalizes then conditionally consumes one delimiter, and declare either appends the identifier slot or records numeric status 252 at capacity; cbyte/adv/is_space leaf summaries compose through terminating skip_ws_step/skip_ws loops; 78 frame slots / 27 parameter stores / 134 call pops; 169 local loads / 73 local stores; 61 raw loads = 54 fixed-safe + 5 SRC-indexed + 2 table-indexed / 34 raw stores; cursor-zero slurp segment/value/termination summary composed from root through main.ready or halt(253); 581 literals / 55 arithmetic / 180 comparison primitives; 235 binary / 134 argument / 34 store-address pushes; syntax-directed composition / relative temporary peak 2; three ranged Alpha operands transferred; all 607 stores partitioned / 70 call-cut frames summarized; 64-row counter contexts; absolute B_bc1 stack <=12720 explicit bytes / <=662 hidden returns; all 2630 explicit-stack effects and 687 artifact effects owned ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte Alpha checker tape)"
-echo "bc independent conditional tranches: name_eq, lookup, eight bounded emitters, full-Word emit_dec, and the label/string/comparison emitter family passed canonical and phase-isolated mutation gates"
+echo "bc independent conditional tranches: name_eq, lookup, eight bounded emitters, full-Word emit_dec, label/string/comparison emitters, and the seven-procedure expression family passed canonical and phase-isolated mutation gates"

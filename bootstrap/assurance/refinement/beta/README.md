@@ -959,10 +959,41 @@ materialization side as codes 0..2, and the four label children retain exact
 All fourteen family modules are below 20 KB (`bc-gen-emit-summary.alpha` is
 largest at 19,708 bytes). The complete checker source is 673,638 bytes; the
 lattice assembler and independent `asm_ref.py` agree byte-for-byte on its
-167,051-byte tape. `BC_BLOCK_FOCUS=label-emitters` passes canonical execution
+167,060-byte tape. `BC_BLOCK_FOCUS=label-emitters` passes canonical execution
 plus 36 phase-isolated premise, shape, full-Word boundary, trace-order,
 malformed-tail, complement, signed-split, and publication mutations. This
 closes the label/string/comparison emitter family, not the expression SCC.
+
+Checker F closes the seven-procedure expression family without reviving the
+over-capacity monolithic checker. Two independent processes consume the exact
+same canonical source/artifact/witness bundle: the 84,056-byte shape checker
+fixes every block, transition, event, frame, epilogue, local, raw-memory,
+primitive, push, decoded region, and exclusive census for `gen_load`,
+`gen_write_byte`, `gen_call`, `gen_factor`, `gen_term`, `gen_sum`, and
+`gen_expr`; the 250,534-byte semantic checker reconstructs every prerequisite
+locally and proves their recursive relation. The shell accepts only their
+conjunction, so no process-local theorem token crosses the capacity split.
+
+The semantic half exhausts the 65 contexts `remaining=64-D`. At `D=64`, the
+exact protected writer sets numeric status 252 and returns zero without moving
+the cursor, emitting output, or changing `EXPRDEPTH`; ghost provenance retains
+whether this is the first depth failure or an earlier argument failure. For
+`D<64`, the checked increment selects the completed `D+1` BCS9 context, all
+recursive factor/argument/term/sum calls instantiate that smaller context, and
+both the comparison and no-comparison exits decrement exactly once back to
+`D`. The proof carries the full nine-case product of entry status and first
+child failure. Status 252 never suppresses the source's remaining suffix:
+comparison still stages the left value, compiles the right sum, invokes
+`emit_cmp`, advances `LBL` by two, and preserves the maximal output prefix.
+Normal calls use rank `4-nargs`, reject the fifth argument with the exact
+resource writer, and distinguish that argument-capacity provenance from depth
+exhaustion. Malformed literal/operator tails retain their honest cursor bound
+through the `ADVX`, `PNUM`, and `CMOP` adapters rather than assuming validating
+syntax. Every expression-family module stays below 20 KB; the lattice and
+reference assemblers agree on both tapes, and
+`BC_BLOCK_FOCUS=expression-family` passes canonical execution plus sixteen
+phase-isolated shape, writer-domain, context, provenance, root, and publication
+mutations.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

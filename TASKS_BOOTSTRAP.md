@@ -439,7 +439,7 @@ outside that manifest unless the compiler executable imports them.
   - [x] compose `new_label`, `emit_lref`, `emit_str_body`, `gen_emit`,
     and `emit_cmp`, retaining exact trace order and malformed-tail cursor
     bounds;
-  - [ ] close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
+  - [x] close `gen_load`, `gen_write_byte`, `gen_call`, `gen_factor`,
     `gen_term`, `gen_sum`, and `gen_expr` together under the checked
     `EXPRDEPTH<=64` induction, including every resource exit;
   - [ ] build `gen_stmt`'s branch relation and the guarded greatest fixed point

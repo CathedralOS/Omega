@@ -15,7 +15,7 @@ label_emitters_publication_init:
         imm r20, 534880
         imm r21, 1263547717
         call exact_require_cell
-        jmp scan_owned_effects_init
+        jmp label_emitters_post_publication
 
 label_emitters_require_public_family:
         imm r20, 534800

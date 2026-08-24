@@ -1,0 +1,5 @@
+; The expression checker imports only literal_skip_prove_extended_adv. Its
+; historical whole-checker continuation is unreachable in this process.
+
+count_lets_shape_init:
+        jmp reject

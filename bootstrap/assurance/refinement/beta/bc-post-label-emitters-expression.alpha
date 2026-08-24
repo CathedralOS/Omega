@@ -1,0 +1,5 @@
+; Checker-F continuation.  E5PK is complete before the remaining lexical,
+; name-query, and bounded-emitter prerequisites are reconstructed.
+
+label_emitters_post_publication:
+        jmp expression_prerequisites_init
