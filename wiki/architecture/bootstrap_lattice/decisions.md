@@ -181,7 +181,7 @@ that grants an artifact authority.
   parallel reference while useful, but never make its agreement, availability,
   or output a bootstrap authority or release dependency.
 
-## D6 — Delta builds a profile-limited Omega compiler; that compiler builds the full product. The proof kernel is orthogonal.
+## D6 — Delta builds a profile-limited bridge; that bridge builds the full-spec product compiler. The proof kernel is orthogonal.
 
 **Ratified 2026-08-04; superseded and clarified 2026-08-23.** The small
 bootstrap languages form the audited spine:
@@ -273,8 +273,8 @@ There is one required hosted production build. `omega-bootstrap` may be slow
 and may lower the production compiler conservatively. It must compile the
 `Ωself` source that implements the production optimizer and advanced lowering,
 but it does not implement or run those product passes during this build. The
-resulting compiler has full optimizing functionality even if its own binary is
-not yet optimized. This Delta-compiler → Omega-source edge is not, strictly, an
+resulting compiler contains the full production optimizer and advanced lowering
+even if its own binary is not yet optimized. This Delta-compiler → Omega-source edge is not, strictly, an
 Omega self-rebuild. A later production `omega` → `omega` rebuild may optimize
 that binary and provide fixed-point/reproducibility evidence; it is product
 work, not a second bootstrap task or architectural dependency. As
@@ -340,7 +340,7 @@ internal IR merely because it compiles product modules that implement it.
 
 proof kernel .... check.beta + checker.gamma; cross-cutting derivation checker           [Rust-free, audited]
 omega-bootstrap . accepts exact Ωself and rejects the rest; may itself run slowly         [hosted bridge]
-omega ........... full optimizing compiler; own binary may be conservative          [one hosted production build]
+omega ........... full-spec compiler with optimizer; own binary may be conservative  [one hosted production build]
 Psi ............. source semantics + terminal IR inside both compiler products            [not a rung]
 ```
 
@@ -382,6 +382,7 @@ authoritative.
    source. Do not require unrelated full-Omega source or tool surfaces.
    *(D2/D6, later.)*
 7. **Build production Omega once** — compile the `Ωself`-constrained Omega
-   source into the full optimizing compiler, then apply the normal meaning and
+   source into the full-spec compiler containing the optimizer and advanced
+   lowering, then apply the normal meaning and
    translation-validation gates. Its own binary may be conservative; a further
    self-rebuild that optimizes it is optional. *(D3/D6, later.)*

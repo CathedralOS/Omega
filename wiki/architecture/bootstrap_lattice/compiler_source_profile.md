@@ -333,8 +333,9 @@ and negative gates together.
 conservatively. It must understand enough `Ωself` to compile the source that
 *implements* the production optimizer and advanced lowering; it does not need
 to run those product passes during this build. The required hosted result is a
-full optimizing compiler, although that compiler's own machine code may still
-be conservatively generated.
+full-spec compiler containing the production optimizer and advanced lowering
+pipeline, although that compiler's own machine code may still be conservatively
+generated.
 
 ```text
 Delta bridge source ──[Delta compiler]──▶ omega-bootstrap (slow binary)

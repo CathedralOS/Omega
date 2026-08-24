@@ -15,8 +15,9 @@
 
 This is the architecture for how the Psi/Omega toolchain is rebuilt from a tiny
 hand-audited seed through increasingly capable languages. Delta builds a
-profile-limited bridge compiler; that compiler builds the full optimizing Omega
-compiler from deliberately constrained Omega source. Only the optional final
+profile-limited bridge compiler; that compiler builds the full-spec Omega
+compiler, including its optimizer and advanced lowering, from deliberately
+constrained Omega source. Only the optional final
 Omega-to-Omega rebuild is strict self-hosting. The construction is separate
 from two things it is easy to confuse it with:
 
@@ -384,8 +385,9 @@ architecture questions:
   the exact production compiler dependency manifest, with explicit exclusions
   and negative gates.
 - **Hosted product build** — use `omega-bootstrap` once to build and validate
-  the full optimizing compiler from `Ωself`-constrained Omega source. Its own
-  binary may remain conservatively lowered until an optional rebuild.
+  the full-spec compiler containing the optimizer and advanced lowering from
+  `Ωself`-constrained Omega source. Its own binary may remain conservatively
+  lowered until an optional rebuild.
 
 ## Rung Questions
 
