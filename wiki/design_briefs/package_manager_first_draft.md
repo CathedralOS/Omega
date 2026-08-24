@@ -393,7 +393,12 @@ only execution receives no real filesystem provider. Authored filesystem reach
 with no statically reachable operation remains a hermetic ceiling. These facts
 are driven only by exact canonical toolchain requirement symbols; package-
 authored same-named traits and methods cannot select the provider in statement
-or value position. They stay separate from capability/API comparison bytes and
+or value position. Exact canonical signatures then map to a closed, explicitly
+tagged 50-operation set exhaustively handled by both providers; aliases and
+platform alternatives remain distinct transcript identities. Rooted evidence
+must account for potentially absolute `read_link` output and necessarily
+absolute `canonicalize`/`final_path_name_by_handle` output. These observations
+stay separate from capability/API comparison bytes and
 make no receipt,
 replayability, or source-rebuildability claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required

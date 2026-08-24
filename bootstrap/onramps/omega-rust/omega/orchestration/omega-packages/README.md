@@ -166,6 +166,11 @@ filesystem rows remain `Hermetic`. Console-only execution is not supplied real
 filesystem authority. Filesystem dispatch also requires an exact canonical
 toolchain requirement symbol in statement and value position; package-authored
 lookalikes cannot consume the provider merely because granted mode was selected.
+The exact canonical signature then selects a closed, explicitly tagged
+operation identity shared exhaustively by both providers; aliases remain
+distinct. Future rooted transcripts must handle potentially absolute
+`read_link` output and necessarily absolute `canonicalize` and
+`final_path_name_by_handle` output.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.

@@ -8,15 +8,17 @@ impl<'program> Evaluator<'program> {
     pub(super) fn exact_filesystem_host_operation(
         &self,
         target_symbol: SymbolHandle,
-    ) -> Option<String> {
+    ) -> EvalResult<Option<FilesystemHostOperation>> {
         if !target_symbol.is_valid() {
-            return None;
+            return Ok(None);
         }
-        let trait_definition = self.program.traits().iter().find(|definition| {
+        let Some(trait_definition) = self.program.traits().iter().find(|definition| {
             definition.name.as_str() == "FilesystemHost"
                 && self.symbol_has_exact_toolchain_source(definition.symbol, "filesystem_host.omg")
-        })?;
-        let signature = self
+        }) else {
+            return Ok(None);
+        };
+        let Some(signature) = self
             .program
             .trait_machine_signatures(trait_definition)
             .iter()
@@ -24,8 +26,18 @@ impl<'program> Evaluator<'program> {
                 signature.symbol == target_symbol
                     && self
                         .symbol_has_exact_toolchain_source(signature.symbol, "filesystem_host.omg")
+            })
+        else {
+            return Ok(None);
+        };
+        let operation = FilesystemHostOperation::from_canonical_name(signature.name.as_str())
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "canonical filesystem host operation `{}` has no compiler-owned identity",
+                    signature.name.as_str()
+                ))
             })?;
-        Some(signature.name.as_str().to_owned())
+        Ok(Some(operation))
     }
 
     fn symbol_has_exact_toolchain_source(

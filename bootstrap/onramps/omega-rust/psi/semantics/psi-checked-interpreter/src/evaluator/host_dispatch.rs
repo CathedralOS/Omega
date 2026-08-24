@@ -24,7 +24,7 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol);
+        let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol)?;
         if filesystem_operation.is_none() && !self.is_boundary_call(call, frame) {
             return Ok(None);
         }
@@ -45,12 +45,8 @@ impl<'program> Evaluator<'program> {
                 .statement_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            if let Some(value) = self.try_filesystem_call(&filesystem_operation, &args, frame)? {
-                return Ok(Some(value));
-            }
-            return unsupported(format!(
-                "canonical filesystem host call `{filesystem_operation}` not yet supported"
-            ));
+            let value = self.try_filesystem_call(filesystem_operation, &args, frame)?;
+            return Ok(Some(value));
         }
 
         // Everything past the Filesystem branch is a NON-fs host boundary

@@ -567,7 +567,12 @@ an observation. Console-only execution receives no real filesystem provider.
 Statement- and value-position calls can enter the real filesystem provider only
 through an exact requirement symbol owned by canonical toolchain
 `filesystem_host.omg`; package-authored lookalikes remain ordinary unsupported
-calls even when an evaluator grant exists.
+calls even when an evaluator grant exists. The canonical signature maps to one
+of 50 closed, explicitly tagged operation identities; both providers match the
+same enum exhaustively, while aliases and platform alternatives stay distinct.
+Future rooted evidence must reject or virtualize absolute path bytes returned
+unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
+by `read_link`.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
 replay verdict. A `Receipted` row still requires a canonical operation

@@ -3,6 +3,9 @@ use crate::{
     MeasuredBuildMachineEvaluation, MeasuredEvaluation,
 };
 
+mod filesystem_host_operation;
+use filesystem_host_operation::FilesystemHostOperation;
+
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private
 /// `Evaluator` internals (the fs argument/buffer helpers) without widening
