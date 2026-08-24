@@ -45,7 +45,11 @@ pub(super) fn parse_item<'tokens, 'source>(
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,
-            _ => {}
+            _ => {
+                return Err(rest.error_here(
+                    "`pub` is not yet retained for this declaration kind; refusing to compile a silently private API",
+                ));
+            }
         }
         return Ok((item, rest));
     }

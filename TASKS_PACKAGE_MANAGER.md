@@ -344,8 +344,10 @@ complete.
   suspension, blocking, and crash; checked underdeclaration rejects. Ordinary
   `pub data` visibility likewise survives parsing, copies, snapshots, lowering,
   and generic specialization, but its normalized public shape is not yet in the
-  review projection. Settled export semantics, the remaining public non-machine
-  API shape, generated/toolchain symbol ownership, package-qualified provider
+  review projection. Declaration kinds without retained visibility now reject
+  `pub` instead of silently compiling a private API. Settled export semantics,
+  visibility retention and normalized shape for the remaining public non-machine
+  API, generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
   non-provider trust ownership, build observations, and reproducibility
   receipts still need one sealed projection. Exact provenance for the realizing
