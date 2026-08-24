@@ -1,12 +1,13 @@
 use omega_compiler::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
-    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewCrashInterface,
-    PackageReviewCrashRouteGuard, PackageReviewDataMember, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewNominalOwner,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewSynchronousInvocation, PackageSourceBinding,
-    compile_to_checked_with_packages, project_checked_package_review,
+    PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewArithmeticDomain,
+    PackageReviewCallableRole, PackageReviewCastForm, PackageReviewContractBinaryOperator,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewDataMember,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
+    PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
+    project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -125,7 +126,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 18);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 19);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -981,6 +982,167 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_contract_casts_without_diagnostic_spelling() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let u16_cast = TempPackage::new();
+    let u32_cast = TempPackage::new();
+    let source = |target_type: &str| {
+        format!(
+            r#"pub machine compare(value: u8)
+requires (value as {target_type}) == 1
+{{ }}
+"#
+        )
+    };
+    u16_cast.write("main.omg", &source("u16"));
+    u32_cast.write("main.omg", &source("u32"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    u16_cast.write("build.omg", build);
+    u32_cast.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("exact widening cast contract should check");
+        project_checked_package_review(&checked).expect("cast contract package review")
+    };
+    let u16_cast = project(&u16_cast);
+    let u32_cast = project(&u32_cast);
+    let compare = u16_cast
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "compare")
+        .expect("public comparison callable");
+    let [contract] = compare.contracts() else {
+        panic!("one cast contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("binary cast contract")
+    };
+    let PackageReviewContractExpression::Cast {
+        value,
+        target,
+        arithmetic_domain,
+        semantic_domain,
+        semantic_domain_arguments,
+        form,
+    } = left.as_ref()
+    else {
+        panic!("structural cast expression")
+    };
+    assert_eq!(
+        value.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert!(target.canonical().contains("u16"));
+    assert_eq!(*arithmetic_domain, PackageReviewArithmeticDomain::Exact);
+    assert!(semantic_domain.is_none());
+    assert!(semantic_domain_arguments.is_empty());
+    assert_eq!(*form, PackageReviewCastForm::Value);
+    assert_ne!(
+        u16_cast
+            .canonical_review_bytes()
+            .expect("u16 cast encoding"),
+        u32_cast
+            .canonical_review_bytes()
+            .expect("u32 cast encoding"),
+        "changing the exact cast target must change package review identity",
+    );
+}
+
+#[test]
+fn review_casts_retain_public_semantic_domains_and_reject_private_exposure() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let public = TempPackage::new();
+    public.write(
+        "main.omg",
+        r#"pub domain u16::Tagged;
+pub machine compare(value: u8)
+requires (value as u16 in Tagged) == 1
+{ }
+"#,
+    );
+    public.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &public.0.join("main.omg"),
+        Some(target),
+        package_inputs(&public.0),
+    )
+    .expect("public semantic-domain cast contract should check");
+    let review = project_checked_package_review(&checked).expect("public domain cast review");
+    let compare = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "compare")
+        .expect("public comparison callable");
+    let [contract] = compare.contracts() else {
+        panic!("one public-domain cast contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("binary public-domain cast contract")
+    };
+    let PackageReviewContractExpression::Cast {
+        semantic_domain: Some(domain),
+        ..
+    } = left.as_ref()
+    else {
+        panic!("semantic domain cast identity")
+    };
+    assert_eq!(domain.path(), "u16::Tagged");
+    assert_eq!(
+        domain.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+
+    let private = TempPackage::new();
+    private.write(
+        "main.omg",
+        r#"domain u16::Hidden;
+pub machine compare(value: u8)
+requires (value as u16 in Hidden) == 1
+{ }
+"#,
+    );
+    private.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &private.0.join("main.omg"),
+        Some(target),
+        package_inputs(&private.0),
+    )
+    .expect("private semantic-domain cast contract should check before package review");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a public contract must not expose a private semantic domain");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exposes non-public semantic domain")
+    }));
+}
+
+#[test]
 fn public_callable_signatures_are_exact_and_lifetime_alpha_normalized() {
     let Some(target) = host_target_name() else {
         return;
@@ -1283,7 +1445,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v18_comparison_encoding() {
+fn exact_synchronous_invocations_change_v19_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -1473,7 +1635,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v18_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v19_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -1507,7 +1669,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v18_comparison_encoding() {
+fn public_domain_shape_changes_change_v19_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
