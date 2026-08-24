@@ -1,11 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Package-resolution and package-admission orchestration for the Omega
-//! compiler.
+//! Exploratory package-resolution and package-admission scaffolding for the
+//! Omega compiler.
 //!
-//! This crate is intentionally about package identity, source identity,
-//! manifests, lock evidence, and command workflow. Language-level evidence is
-//! derived elsewhere and passed in as normalized data.
+//! The current name-keyed identities, caller-constructible manifests,
+//! standalone JSON persistence, and free-form review receipts predate the
+//! corrected package design and are not production trust boundaries. See this
+//! crate's README and `TASKS_PACKAGE_MANAGER.md` before reusing an API.
 
 mod audit;
 mod commands;

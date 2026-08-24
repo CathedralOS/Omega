@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-19. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-23. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -10,7 +10,29 @@ configuration language.
 host services and records their observations. The latter evaluates constants,
 proofs, plans, and generators under target semantics with no host reach.
 
-## Build entry
+## Package declaration and build entry
+
+Every package owns one stable human name declared in its own `build.omg`:
+
+```omega
+const PACKAGE: Package = Package {
+    name: "arithmetic-kernels"
+};
+```
+
+`Package` is toolchain-provided ordinary data. The compiler hermetically
+evaluates this well-known constant before resolving the package's dependencies
+or executing its build machine. Missing, duplicate, effectful,
+dependency-dependent, generated, or non-canonical declarations reject.
+Directory and repository names are advisory only.
+
+The declared `PackageName` is not security identity. `PackageKey` joins it to
+canonical source lineage and qualifies package symbols across updates.
+`PackageInstance` additionally binds exact source content, toolchain identity,
+and compiler-derived package evidence. Same-name packages from different
+lineages therefore cannot spoof each other's imports or boundary traits.
+
+The package may then define:
 
 Each package may define:
 
@@ -40,10 +62,9 @@ does not introduce `depends {}`, `target {}`, or another block dialect.
 
 ```omega
 machine build(builder: &mut Build, filesystem: &mut Filesystem) {
-    builder.dependencies.bind(
-        "uefi",
-        Source::Path("../../contracts/uefi")
-    );
+    builder.depend(Source::Path {
+        location: "../../contracts/uefi"
+    });
     builder.target = cathedral::targets::uefi_x86_64;
     builder.roots.bind(
         cathedral::targets::uefi_x86_64::ProgramEntry,
@@ -56,9 +77,16 @@ machine build(builder: &mut Build, filesystem: &mut Filesystem) {
 }
 ```
 
+The dependency's own `PACKAGE` supplies its name. Its default local import
+alias is derived mechanically from kebab-case to snake_case; only a real local
+collision uses the exceptional `builder.depend_as(alias, source)` operation.
+The alias is name-resolution syntax, never package identity.
+
 Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
-than the parser.
+than the parser. These dependency calls are the target core-library surface;
+the transitional compiler currently recognizes only
+`builder.depend("alias", path("directory"))` and must migrate.
 
 ## Normalized `Build` core
 
@@ -491,24 +519,41 @@ mutation of one package's local class.
 
 ## Dependencies and the lock artifact
 
-Code imports package-local aliases. `build.omg` binds each alias to a source:
-content hash, local path, or exact repository revision. Fully qualified paths do
-not bypass the declared alias/reach set.
+Code imports package-local aliases. `build.omg` records source requests and
+update selectors. It does not assert the fetched package's name, capability
+manifest, or resolved immutable identity. Fully qualified paths do not bypass
+the declared alias/reach set.
+
+Dependency-source projection is hermetic even when later build staging is not.
+Source rows cannot depend on build-host observations, generated files, imported
+code, or dependency build outputs. Resolution fetches a source, extracts its
+own package declaration and dependency projection, and closes the source graph
+before downloaded build code receives any provider.
 
 The unified lock artifact records the resolved closure:
 
-- content/package identities;
+- package names, source-qualified `PackageKey` values, and exact
+  `PackageInstance` values;
+- source selectors plus resolved commit/tree/content identities;
 - toolchain identity;
-- mutable-reference resolutions, if permitted;
+- the normalized accepted package capability/API baseline, not only its
+  fingerprint;
 - build observation ceilings, realized classes, and replay receipts;
 - record-replay and source-rebuildability verdicts;
 - boundary/provider trust receipts;
 - accepted proof/grant identities; and
 - component/build contract identities needed for reproducibility.
 
-Exact pins in source reduce resolution, but do not eliminate the value of this
-machine-produced audit artifact. The lockfile is generated/checked state, not a
-second hand-authored dependency language.
+The compiler consumes the accepted lock and never silently re-resolves a
+mutable selector. The lockfile is generated/checked state, not a second
+hand-authored dependency language, and should normally be committed. Source
+caches and expanded artifacts may be ignored. If the lock embeds only an
+evidence fingerprint while the corresponding normalized baseline is absent, it
+is not sufficient for update admission.
+
+The first implementation performs no semantic-version solving. Requests for
+one `PackageKey` must reconcile to one immutable instance or fail with every
+conflicting dependency path.
 
 ## Package reach boundary
 
@@ -542,13 +587,30 @@ hot-swap call syntax or `slot` keyword is implied.
 
 ## Authority evidence and admission
 
-Runtime authority uses ordinary data layout plus domain evidence. The artifact
-records each owner-authorized boundary establishment, checked resource
-transformation, provider/backing requirement, admitted claim, and reachable
-authority. Public
-data shape and domain trust policy enter contract/component compatibility
+Runtime authority uses ordinary data layout plus domain evidence. The compiler
+derives package evidence from the fetched, checked candidate; callers and
+packages cannot author or patch it. The artifact records each owner-authorized
+boundary establishment, checked resource transformation, provider/backing
+requirement, admitted claim, and reachable authority. Public data shape and
+domain trust policy enter contract/component compatibility
 identity; private implementation bodies and proof evidence affect content
 identity while remaining outside public contract identity.
+
+For every public callable and the build machine, evidence retains both the
+declared service-reach ceiling and the realized transitive reach. An
+underdeclared implementation rejects. An overdeclared ceiling remains visible
+as contract slack; dangerous slack is audit-relevant, and a later transition
+from unused to used authority changes realized evidence even when the public
+ceiling is unchanged. Capability-flow, provider, trust, proof, installation,
+operational, and executable-TCB rows retain exact package-qualified provenance.
+Risk classes come from compiler-owned metadata on admitted nominal identities,
+never from package-controlled names.
+
+Open/deferred proof obligations reject package admission. Kernel-checked proofs
+are rechecked. Accepted axioms and opaque boundary claims remain explicit
+trust-bearing rows; authored postconditions remain obligations. Boundary
+providers must satisfy exact package-qualified requirement identities, so a
+same-spelled trait from another source lineage grants nothing.
 
 Package policy admits the transitive reachable-authority set of the final
 resolved artifact. It does not approve dependencies one edge at a time. A new
@@ -566,8 +628,9 @@ the changed implementation can now misuse already-admitted power.
 Package capability admission uses conflict-resolution artifacts rather than
 approval prompts, and it is part of install/update rather than a disjoint
 workflow. `omega install` treats the prior admission baseline as empty for the
-new dependency closure; `omega update` compares against the existing admitted
-lock state. Either command writes a compiler-generated capability conflict when
+new dependency closure; `omega update` compares against the normalized accepted
+baseline retained by the existing lock. Either command writes a
+compiler-generated capability conflict when
 the candidate introduces blocking or suspicious authority, stops before
 mutating `build.omg` or `omega.lock`, and resumes only after an exact resolution
 artifact accepts or rejects every blocking delta. Initial install therefore
@@ -583,11 +646,21 @@ before lock mutation. `omega.lock` records the admitted result and references
 the resolution evidence; it remains generated/checked state, not an authored
 policy file.
 
+Every source update also receives provenance and source-diff triage because an
+implementation can misuse already-admitted power without changing capability
+evidence. Retained dangerous authority always produces an audit recommendation.
+The prior source tree improves review quality but is not the admission baseline:
+if it is unavailable, lock-based capability comparison still works and source
+review escalates to a standalone candidate audit. If the accepted lock baseline
+is unavailable, the complete closure undergoes fresh admission.
+
 LLM review is advisory evidence, not authority to mutate the lock. Review tools
-consume canonical diffs rendered by Omega, with package-origin strings treated
-as quoted inert data to reduce prompt-injection surface. A following source-code
-audit may still read attacker-controlled code; that risk is handled by the
-reviewer workflow, not by granting package prose authority over admission.
+consume canonical diffs rendered by Omega, with bounded and escaped
+package-origin identifiers treated as quoted inert data. Package prose,
+comments, README text, and commit messages do not enter capability triage. A
+following source-code audit may still read attacker-controlled code; that risk
+is handled by the reviewer workflow, not by granting package prose authority
+over admission.
 
 Boundary statements imported from a dependency are inert requests. The root
 accepts one package claim set rather than repeating an approval for every
@@ -613,16 +686,17 @@ the build tool discovers the nearest enclosing workspace/build entry.
 ## Current engineering delta
 
 The scoped filesystem executor and real/virtual filesystem modes are the live
-foundation. `TASKS.md` owns provider injection, normalized ceilings, the
-dependency/target API, typed root slots and bridges, declared-alias resolution,
-the unified lock/trust artifact, observation provenance, and retirement of old
-target/build-log paths. This brief owns their semantics, not a second progress
-ledger.
+foundation. The current Rust package crate is exploratory scaffolding and is
+not an accepted admission implementation: it keys locks by package name,
+accepts caller-constructed manifest JSON, requires caller-supplied aliases and
+package names, stores fingerprints without a complete accepted baseline, and
+uses free-form review receipts. The transitional compiler also syntactically
+scans local dependency calls and may skip malformed dependency builds. These
+seams must be replaced before install/update mutation.
+`TASKS_PACKAGE_MANAGER.md` owns that migration.
 
 ## Still open
 
-- final `Build` schema and ergonomic library calls;
-- mutable dependency references and update policy;
 - workspace inheritance/ceiling details;
 - which additional standard provider families ship beyond Filesystem/Console;
 - initial root policy profiles for volatile-capable, record-replayable, and

@@ -132,6 +132,7 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_unhardened_source_resolver();
     let Some(arguments) = parse_audit_source_arguments(arguments) else {
         eprintln!("usage: omega audit source <locator> [--rev <rev>] [--cache-dir <dir>]");
         std::process::exit(2);
@@ -153,6 +154,7 @@ fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_unhardened_source_resolver();
     let Some(arguments) = parse_audit_source_cache_policy_arguments(arguments) else {
         eprintln!(
             "usage: omega audit source-cache-policy <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]"
@@ -187,6 +189,7 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
 }
 
 fn audit_packages(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_untrusted_package_prototype();
     let Some(arguments) = parse_audit_packages_arguments(arguments) else {
         eprintln!(
             "usage: omega audit packages [--lock <omega.lock>] --manifest <manifest.json>..."
@@ -226,6 +229,7 @@ fn lock(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn lock_assemble(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_untrusted_package_prototype();
     let Some(arguments) = parse_lock_assemble_arguments(arguments) else {
         eprintln!(
             "usage: omega lock assemble --root-package <package> --manifest <manifest.json>... --out <omega.lock>"
@@ -284,6 +288,7 @@ fn plan(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn plan_install(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_untrusted_package_prototype();
     let Some(arguments) = parse_plan_install_arguments(arguments) else {
         eprintln!(
             "usage: omega plan install --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --alias <alias> --package <package>"
@@ -326,6 +331,7 @@ fn plan_install(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn plan_update(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_untrusted_package_prototype();
     let Some(arguments) = parse_plan_update_arguments(arguments) else {
         eprintln!(
             "usage: omega plan update --lock <omega.lock> --current-manifest <manifest.json>... --candidate-manifest <manifest.json>... --package <package> [--receipt <receipt.json>]"
@@ -397,6 +403,7 @@ fn review(arguments: impl Iterator<Item = std::ffi::OsString>) {
 }
 
 fn review_capability_change(arguments: impl Iterator<Item = std::ffi::OsString>) {
+    warn_untrusted_package_prototype();
     let Some(arguments) = parse_review_capability_change_arguments(arguments) else {
         eprintln!(
             "usage: omega review capability-change --old-manifest <manifest.json> --new-manifest <manifest.json> --reviewer <id> --reason <text> --out <receipt.json>"
@@ -447,6 +454,22 @@ fn review_capability_change(arguments: impl Iterator<Item = std::ffi::OsString>)
         std::process::exit(1);
     }
     print!("{}", command.to_text());
+}
+
+fn warn_untrusted_package_prototype() {
+    eprintln!(
+        "warning: this package manifest/lock/review command is diagnostic \
+         scaffolding; caller-authored JSON is not compiler-issued admission \
+         evidence and this output must not be treated as an accepted production lock"
+    );
+}
+
+fn warn_unhardened_source_resolver() {
+    eprintln!(
+        "warning: the prototype source resolver is not yet a hardened \
+         hostile-input boundary; Git execution currently inherits host \
+         configuration and cache/source identity rules remain under audit"
+    );
 }
 
 fn inspect_terminal(arguments: impl Iterator<Item = std::ffi::OsString>) {
