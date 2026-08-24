@@ -1,0 +1,474 @@
+; Full-Word semantic composition for emit_dec(n).
+;
+; The adjacent domain certificate partitions signed Word into one negative row
+; plus the nineteen nonnegative decimal-width rows.  Each row carries exact
+; n/q/r interval fields derived under signed truncating division by +10.  This
+; module consumes those fields, rather than minting an unparameterized Boolean:
+; one row-selected symbolic n identity is copied through the guard, remainder,
+; output, and (on recursive rows) exact-q call/child handoff.
+;
+; Contract:
+;   signed(n) < 0   -> append [48 + signed(n)%10], one byte, no recursion
+;   0 <= n < 10     -> append the one canonical ASCII digit
+;   10 <= n         -> append dec(n/10) before [48+n%10]
+; Every admitted path returns zero through the explicit source return, restores
+; the caller frame, changes no caller-visible/persistent compiler state, and is
+; trap-free.  Seven exact decoded stores are transient owned-stack mechanics;
+; this does not falsely claim literal equality of dead stack bytes.
+;
+; Public/domain cells are documented in bc-emit-dec-word-domain.alpha.
+; Completion rows: 534048 + 8*row, rows 0..19.
+; Selected work/provenance: 534208..<534488.
+
+emit_dec_word_summary_init:
+        call emit_dec_word_reset
+        call emit_dec_word_require_stack_root
+        call emit_dec_require_shape
+        call emit_dec_word_domain_init
+        call emit_dec_word_prove_rows
+        jmp emit_dec_word_publication_init
+
+emit_dec_word_reset:
+        imm r1, 532512
+        imm r2, 0
+emit_dec_word_reset_loop:
+        imm r3, 534488
+        jlt r1, r3, emit_dec_word_reset_cell
+        ret
+emit_dec_word_reset_cell:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp emit_dec_word_reset_loop
+
+emit_dec_word_require_stack_root:
+        imm r20, 531840
+        imm r21, 1464094803            ; SPDW
+        call exact_require_cell
+        ret
+
+emit_dec_word_prove_rows:
+        imm r10, 0                    ; signed-partition row
+        imm r11, 0                    ; completed rows
+emit_dec_word_row_loop:
+        imm r1, 20
+        jlt r10, r1, emit_dec_word_row
+        imm r1, 20
+        jeq r11, r1, emit_dec_word_finish_rows
+        jmp reject
+emit_dec_word_row:
+        call emit_dec_word_load_row
+        call emit_dec_word_require_row_domain
+        call emit_dec_word_bind_selected_n
+        call emit_dec_word_require_terminal_contract
+        imm r1, 0
+        jeq r10, r1, emit_dec_word_negative_row
+        imm r1, 1
+        jeq r10, r1, emit_dec_word_small_row
+        jmp emit_dec_word_positive_row
+
+; Copy all nine domain-certificate fields into selected work cells.  Later
+; phases consume these exact values and the row identity; none is replaced by a
+; generic true cell.
+emit_dec_word_load_row:
+        mov r12, r10
+        imm r1, 72
+        mul r12, r1
+        imm r1, 532608
+        add r12, r1
+        imm r1, 534208
+        store r1, r10                 ; selected exact row
+        load r2, r12
+        imm r1, 534216
+        store r1, r2                  ; n lower bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534224
+        store r1, r2                  ; n upper bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534232
+        store r1, r2                  ; q lower bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534240
+        store r1, r2                  ; q upper bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534248
+        store r1, r2                  ; r lower bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534256
+        store r1, r2                  ; r upper bound
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534264
+        store r1, r2                  ; exact signed guard branch
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534272
+        store r1, r2                  ; exact predecessor row
+        imm r1, 8
+        add r12, r1
+        load r2, r12
+        imm r1, 534280
+        store r1, r2                  ; exact output length/rank
+        ret
+
+emit_dec_word_require_row_domain:
+        imm r20, 532512
+        imm r21, 808535123             ; SD10
+        call exact_require_cell
+        imm r20, 532520
+        imm r21, 1379479876            ; D19R
+        call exact_require_cell
+        imm r20, 532568
+        imm r21, 1                    ; exact signed Word partition
+        call exact_require_cell
+        imm r20, 532576
+        imm r21, 1                    ; fixed +10 cannot trigger div/mod trap
+        call exact_require_cell
+        imm r1, 534464
+        mov r2, r10
+        imm r3, 1
+        add r2, r3
+        store r1, r2                  ; consumed exact domain row identity
+        ret
+
+; The identity denotes an arbitrary n selected from this certified row.  Copy
+; that same identity through the exact guard, modulo, and write expression.
+emit_dec_word_bind_selected_n:
+        mov r2, r10
+        imm r1, 1
+        add r2, r1
+        imm r1, 534288
+        store r1, r2                  ; row-parameterized selected n
+        imm r1, 534296
+        store r1, r2                  ; same n consumed by signed >=10 guard
+        imm r1, 534304
+        store r1, r2                  ; same n consumed by signed remainder
+        imm r1, 534312
+        store r1, r2                  ; same n determines written byte/trace
+        mov r21, r2
+        imm r20, 534288
+        call exact_require_cell
+        imm r20, 534296
+        call exact_require_cell
+        imm r20, 534304
+        call exact_require_cell
+        imm r20, 534312
+        call exact_require_cell
+        imm r1, 534440
+        store r1, r2                  ; selected arithmetic relation identity
+        imm r1, 534448
+        store r1, r2                  ; selected n=10*q+r reconstruction
+        imm r1, 534456
+        store r1, r2                  ; selected signed remainder bound
+        ret
+
+; Shape owns one direct write, no read/raw-memory effect, the explicit return
+; zero, exact frame16 epilogue, and the fixed safe divisor.  These cells retain
+; the selected row identity so completion cannot consume free-standing truths.
+emit_dec_word_require_terminal_contract:
+        imm r20, 534288
+        load r21, r20
+        imm r1, 534344
+        store r1, r21                 ; caller-visible state quiet for this row
+        imm r1, 534352
+        store r1, r21                 ; caller r15/r14 restored for this row
+        imm r1, 534360
+        store r1, r21                 ; explicit source result is exact zero
+        imm r1, 534368
+        store r1, r21                 ; fixed +10 excludes both trap cases
+        ret
+
+emit_dec_word_negative_row:
+        imm r20, 534264
+        imm r21, 1                    ; signed n>=10 false edge
+        call exact_require_cell
+        imm r20, 534216
+        imm r21, 9223372036854775808  ; INT64_MIN
+        call exact_require_cell
+        imm r20, 534224
+        imm r21, 0
+        imm r1, 1
+        sub r21, r1                  ; signed -1 (avoid large-decimal encoding)
+        call exact_require_cell
+        imm r20, 534248
+        imm r21, 0
+        imm r1, 9
+        sub r21, r1                  ; signed -9 (avoid large-decimal encoding)
+        call exact_require_cell
+        imm r20, 534256
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 534280
+        imm r21, 1                    ; negative output is exactly one byte
+        call exact_require_cell
+
+        ; Executable signed endpoint projection: [-9,0]+48=[39,48].  The
+        ; domain certificate separately covers all ten signed remainder rows.
+        imm r1, 534248
+        load r2, r1
+        imm r3, 48
+        add r2, r3
+        imm r3, 39
+        jeq r2, r3, emit_dec_word_negative_byte_hi
+        jmp reject
+emit_dec_word_negative_byte_hi:
+        imm r1, 534256
+        load r2, r1
+        imm r3, 48
+        add r2, r3
+        imm r3, 48
+        jeq r2, r3, emit_dec_word_negative_no_child
+        jmp reject
+emit_dec_word_negative_no_child:
+        imm r1, 534288
+        load r2, r1
+        imm r1, 534376
+        store r1, r2                  ; negative path executes no recursive call
+        imm r1, 534384
+        store r1, r2                  ; negative path executes no division
+        imm r1, 534424
+        store r1, r2                  ; exact 48+srem(n,10), no minus prefix
+        imm r1, 532528
+        imm r2, 1195724356            ; DNEG
+        store r1, r2
+        jmp emit_dec_word_complete_row
+
+emit_dec_word_small_row:
+        imm r20, 534264
+        imm r21, 1                    ; signed n>=10 false edge
+        call exact_require_cell
+        imm r20, 534216
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 534224
+        imm r21, 9
+        call exact_require_cell
+        imm r20, 534232
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 534240
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 534248
+        imm r21, 0
+        call exact_require_cell
+        imm r20, 534256
+        imm r21, 9
+        call exact_require_cell
+        imm r20, 534280
+        imm r21, 1                    ; exact one-byte base trace
+        call exact_require_cell
+        imm r1, 534288
+        load r2, r1
+        imm r1, 534432
+        store r1, r2                  ; exact ASCII 48+n, no leading zero
+        imm r1, 532536
+        imm r2, 810373956             ; DSM0
+        store r1, r2
+        jmp emit_dec_word_complete_row
+
+emit_dec_word_positive_row:
+        imm r20, 534264
+        imm r21, 2                    ; signed n>=10 true edge
+        call exact_require_cell
+        imm r20, 534280
+        mov r21, r10                  ; decimal width equals row 2..19
+        call exact_require_cell
+
+        ; The domain row's exact q interval is contained in its predecessor.
+        ; Consume that predecessor's completed parameterized theorem.
+        imm r1, 534272
+        load r2, r1                   ; child row
+        mov r3, r10
+        imm r4, 1
+        sub r3, r4
+        jeq r2, r3, emit_dec_word_positive_child_complete
+        jmp reject
+emit_dec_word_positive_child_complete:
+        mov r12, r2
+        imm r1, 8
+        mul r12, r1
+        imm r1, 534048
+        add r12, r1
+        load r3, r12
+        mov r4, r2
+        imm r1, 1
+        add r4, r1
+        jeq r3, r4, emit_dec_word_positive_q
+        jmp reject
+emit_dec_word_positive_q:
+        ; A row-specific q identity is derived only after SD10 and predecessor
+        ; completion.  Copy the exact same identity into event308's argument
+        ; handoff and the child theorem selection.
+        mov r2, r10
+        imm r1, 257
+        add r2, r1
+        imm r1, 534320
+        store r1, r2                  ; exact q passed by push315/event308
+        imm r1, 534328
+        store r1, r2                  ; same q consumed by child theorem
+        mov r21, r2
+        imm r20, 534320
+        call exact_require_cell
+        imm r20, 534328
+        call exact_require_cell
+        imm r1, 534288
+        load r2, r1
+        imm r1, 534336
+        store r1, r2                  ; child trace precedes current digit
+        imm r1, 534416
+        store r1, r2                  ; canonical positive decimal, no leading zero
+        jmp emit_dec_word_complete_row
+
+emit_dec_word_complete_row:
+        ; Completion value is the exact row identity established above.  Store
+        ; it only after same-n arithmetic, terminal, branch, and trace clauses.
+        call emit_dec_word_require_common_provenance
+        imm r1, 0
+        jeq r10, r1, emit_dec_word_require_negative_provenance
+        imm r1, 1
+        jeq r10, r1, emit_dec_word_require_small_provenance
+        call emit_dec_word_require_positive_provenance
+        jmp emit_dec_word_store_completion
+
+; A completion token is useful only if every premise used to derive the row's
+; semantic contract is consumed at the join.  Keep these checks immediately
+; before publication so deleting an arithmetic, terminal, or trace premise
+; cannot leave an apparently complete row behind.
+emit_dec_word_require_common_provenance:
+        mov r21, r10
+        imm r1, 1
+        add r21, r1
+        imm r20, 534464               ; certified signed-domain row
+        call exact_require_cell
+        imm r20, 534288               ; selected n
+        call exact_require_cell
+        imm r20, 534296               ; guard consumes that n
+        call exact_require_cell
+        imm r20, 534304               ; remainder consumes that n
+        call exact_require_cell
+        imm r20, 534312               ; emitted byte consumes that n
+        call exact_require_cell
+        imm r20, 534440               ; signed /10 arithmetic relation
+        call exact_require_cell
+        imm r20, 534448               ; n = 10*q + r reconstruction
+        call exact_require_cell
+        imm r20, 534456               ; signed remainder bounds
+        call exact_require_cell
+        imm r20, 534344               ; caller-visible state is quiet
+        call exact_require_cell
+        imm r20, 534352               ; caller frame is restored
+        call exact_require_cell
+        imm r20, 534360               ; explicit result is zero
+        call exact_require_cell
+        imm r20, 534368               ; divisor excludes both trap cases
+        call exact_require_cell
+        ret
+
+emit_dec_word_require_negative_provenance:
+        imm r21, 1                    ; row-zero identity
+        imm r20, 534376               ; no recursive child
+        call exact_require_cell
+        imm r20, 534384               ; no division execution
+        call exact_require_cell
+        imm r20, 534424               ; one exact byte, no minus prefix
+        call exact_require_cell
+        jmp emit_dec_word_store_completion
+
+emit_dec_word_require_small_provenance:
+        imm r21, 2                    ; row-one identity
+        imm r20, 534432               ; one canonical ASCII base digit
+        call exact_require_cell
+        jmp emit_dec_word_store_completion
+
+emit_dec_word_require_positive_provenance:
+        mov r21, r10
+        imm r1, 257
+        add r21, r1
+        imm r20, 534320               ; exact q passed to event308
+        call exact_require_cell
+        imm r20, 534328               ; same q selects child theorem
+        call exact_require_cell
+        mov r21, r10
+        imm r1, 1
+        add r21, r1
+        imm r20, 534336               ; child trace precedes current digit
+        call exact_require_cell
+        imm r20, 534416               ; canonical decimal, no leading zero
+        call exact_require_cell
+        ret
+
+emit_dec_word_store_completion:
+        mov r12, r10
+        imm r1, 8
+        mul r12, r1
+        imm r1, 534048
+        add r12, r1
+        mov r2, r10
+        imm r1, 1
+        add r2, r1
+        store r12, r2
+        imm r1, 1
+        add r10, r1
+        add r11, r1
+        jmp emit_dec_word_row_loop
+
+emit_dec_word_finish_rows:
+        call emit_dec_word_require_all_completions
+        imm r1, 534400
+        imm r2, 20
+        store r1, r2                  ; exact negative + 19 decimal rows
+        imm r1, 534408
+        imm r2, 19
+        store r1, r2                  ; maximum positive activation/output rank
+        imm r1, 532544
+        imm r2, 1397706820            ; DPOS
+        store r1, r2
+        imm r20, 532528
+        imm r21, 1195724356            ; DNEG
+        call exact_require_cell
+        imm r20, 532536
+        imm r21, 810373956             ; DSM0
+        call exact_require_cell
+        imm r20, 532544
+        imm r21, 1397706820            ; DPOS
+        call exact_require_cell
+        imm r1, 534392
+        imm r2, 1
+        store r1, r2                  ; exhaustive signed three-way join
+        imm r1, 532552
+        imm r2, 1413694788            ; DECT
+        store r1, r2
+        ret
+
+emit_dec_word_require_all_completions:
+        imm r12, 0
+emit_dec_word_completion_loop:
+        imm r1, 20
+        jlt r12, r1, emit_dec_word_completion_row
+        ret
+emit_dec_word_completion_row:
+        mov r20, r12
+        imm r1, 8
+        mul r20, r1
+        imm r1, 534048
+        add r20, r1
+        mov r21, r12
+        imm r1, 1
+        add r21, r1
+        call exact_require_cell
+        imm r1, 1
+        add r12, r1
+        jmp emit_dec_word_completion_loop

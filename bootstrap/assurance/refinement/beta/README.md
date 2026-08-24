@@ -902,10 +902,30 @@ its suffix. `emit_slot_addr` exhausts all 2,048 `(reg,slot)` pairs for
 instantiate distinct reg-zero/reg-one clauses with the same slot. Every child
 trace is source ordered, all frames restore, and six synthetic results remain
 explicitly unclaimed. Thus this leaf uses only bounded `DECS`; the signed
-full-word `emit_dec` theorem remains separate. Control/data/meaning modules are
-14,933/16,187 and 17,961/18,716/2,420 bytes. Fifty-two isolated continuation,
+full-word `emit_dec` theorem is established separately below.
+Control/data/meaning modules are 14,933/16,187 and
+17,961/18,716/2,420 bytes. Fifty-two isolated continuation,
 shape, domain, parameter-custody, ordering, frame, and publication canaries pass
 in `BC_BLOCK_FOCUS=bounded-emitters` with a 140,673-byte Checker C.
+
+Checker D is the independent full-Word `emit_dec` tranche. It reuses the shared
+stack/effect prefix and exact procedure-40 shape, but imports neither bounded
+`DECS` nor Checker C's emitter publications. A 20-row signed partition proves
+the fixed positive-divisor `/10` and `%10` interval law, quotient containment
+in the preceding decimal phase, exact reconstruction and remainder bounds,
+trap exclusion for divisor ten, and a maximum positive rank of nineteen. The
+semantic composition then gives the source's actual total relation: signed
+negative words take the false guard edge and append exactly one byte
+`48+srem(n,10)` (39 through 48), with no recursive call, division, minus prefix,
+or unsigned-format claim; zero through nine append one ASCII digit; larger
+positive words append the child trace before the current digit and therefore
+produce canonical decimal without a leading zero. Every path returns zero,
+restores the caller frame, and preserves caller-visible compiler state apart
+from output; the seven decoded stack stores remain transient owned-stack
+mechanics rather than a false raw-memory-equality claim. Domain, semantic, and
+publication modules are 19,591, 16,441, and 2,024 bytes. The independent
+`BC_BLOCK_FOCUS=emit-dec-word` gate passes its canonical 102,421-byte checker
+plus 36 literal, phase-isolated shape/domain/composition/publication mutations.
 
 The eventual `parse_proc` theorem must be maximal, not universally terminating.
 For malformed input, an unrecognized body byte such as `@` can survive both

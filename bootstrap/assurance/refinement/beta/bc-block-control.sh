@@ -37,6 +37,7 @@ trap 'rm -rf "$T"' EXIT
 . "$GATE_DIR/bc-name-eq-teeth.sh"
 . "$GATE_DIR/bc-lookup-teeth.sh"
 . "$GATE_DIR/bc-bounded-emitters-teeth.sh"
+. "$GATE_DIR/bc-emit-dec-word-teeth.sh"
 
 # The persisted compiler supplies only a location hint.  Require its Alpha text
 # to assemble to the exact committed artifact before deriving that hint.
@@ -288,6 +289,21 @@ build_bounded_emitters_checker() {
     "$T/bounded-emitters-check" >/dev/null
 }
 
+build_emit_dec_word_checker() {
+  {
+    emit_stack_checker_prefix
+    cat "$GATE_DIR/bc-post-stack-emit-dec-word.alpha" \
+      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
+      "$GATE_DIR/bc-emit-dec-shape.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
+      "$GATE_DIR/bc-emit-dec-word-publication.alpha"
+  } > "$T/emit-dec-word-check.alpha"
+  "$ASM" < "$T/emit-dec-word-check.alpha" > "$T/emit-dec-word-check.tape"
+  stamp_seed "$T/emit-dec-word-check.tape" "$SEED" \
+    "$T/emit-dec-word-check" >/dev/null
+}
+
 smoke_name_eq_checker() {
   set +e
   "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
@@ -321,6 +337,28 @@ smoke_bounded_emitters_checker() {
   fi
 }
 
+smoke_emit_dec_word_checker() {
+  set +e
+  "$T/emit-dec-word-check" < "$T/control.bundle" > "$T/stdout"
+  emit_dec_word_smoke_status=$?
+  set -e
+  if [ "$emit_dec_word_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
+    echo "bc block control FAIL — emit_dec Word canonical smoke: expected 0/empty, got $emit_dec_word_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  fi
+}
+
+# Checker D independently re-executes exact procedure-40 shape and proves the
+# honest signed full-Word relation without importing bounded DECS.
+if [ "${BC_BLOCK_FOCUS:-}" = emit-dec-word ]; then
+  build_emit_dec_word_checker
+  smoke_emit_dec_word_checker
+  emit_dec_word_build_teeth
+  emit_dec_word_reject_teeth
+  echo "bc emit_dec Word: focused canonical + 36 phase-isolated teeth passed ($(wc -c < "$T/emit-dec-word-check.tape" | tr -d ' ')-byte checker tape)"
+  exit 0
+fi
+
 # The name_eq focus is an independent tranche: it deliberately skips Checker A
 # and imports no process-local theorem cells from it.
 if [ "${BC_BLOCK_FOCUS:-}" = name-eq ]; then
@@ -353,6 +391,13 @@ if [ "${BC_BLOCK_FOCUS:-}" = bounded-emitters ]; then
   echo "bc bounded emitters: focused canonical + 52 phase-isolated teeth passed ($(wc -c < "$T/bounded-emitters-check.tape" | tr -d ' ')-byte checker tape)"
   exit 0
 fi
+
+# The unfocused gate closes Checker D before constructing near-capacity
+# Checker A or either earlier independent checker tranche.
+build_emit_dec_word_checker
+smoke_emit_dec_word_checker
+emit_dec_word_build_teeth
+emit_dec_word_reject_teeth
 
 cat "$GATE_DIR/bc-block-control.alpha" \
   "$GATE_DIR/bc-effect-sites.alpha" \
