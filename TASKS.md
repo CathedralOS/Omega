@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-23.
+Last pruned: 2026-08-24.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -74,9 +74,14 @@ Remaining:
   manifest yields a provisional profile; `Ωself` freezes only at the bridge
   join, after the general implementation supplies the cost evidence used to
   settle every retained feature.
-  Keep compiler-adjacent tools out of the source closure unless the compiler
-  executable imports them; full Omega acceptance does not require a hosted
-  Terminal-Psi interpreter, REPL, proof explorer, viewer, or debugger. The
+  The feature choice made by this task concerns only the product compiler's
+  own ordinary-Omega source footprint. It does not select Delta features,
+  redefine full Omega, or choose
+  between a "limited" and "full" compiler: the resulting compiler must always
+  implement full Omega. Keep compiler-adjacent tools out of the source closure
+  unless the compiler executable imports them; full Omega acceptance does not
+  require a hosted Terminal-Psi interpreter, REPL, proof explorer, viewer, or
+  debugger. The
   Terminal-Psi representation and lowering modules linked into the compiler do
   remain ordinary members of its source closure.
 

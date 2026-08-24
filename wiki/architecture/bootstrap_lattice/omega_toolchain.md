@@ -6,10 +6,13 @@ Omega is the product language and toolchain, not another Greek bootstrap rung.
 Psi owns source processing through terminal portable IR; Omega consumes that IR
 and performs target realization, optimization, and native emission. Today the
 working implementations are primarily Rust. The hosted destination has one
-profile-limited bridge compiler and one production compiler:
+profile-limited bridge compiler and one production compiler. Written as build
+actions rather than artifact shorthand:
 
 ```text
-Delta → omega-bootstrap (accepts Ωself) → omega (implements full Ω)
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap (accepts Ωself)
+Ωself source ──[omega-bootstrap]──▶ omega (implements full Ω)
+Ωself source ──[optional omega]───▶ omega (same compiler, optimized binary)
 ```
 
 `omega-bootstrap` is written in Delta and contains only the Psi/Omega input
@@ -38,6 +41,12 @@ Three separate properties are involved:
   profile admits; and
 - the production `omega` it builds accepts and implements full Omega, even
   though that compiler executable may itself have been lowered conservatively.
+
+These are the two bootstrap source questions: what Delta literally is, and
+which ordinary Omega features the product compiler uses in its own source.
+Full-Omega implementation coverage is already required by the product
+specification, and conservative-versus-optimized generation is not a third
+language surface.
 
 The exact compiler-source manifest demonstrates closure under `Ωself`; it must
 not become a whitelist of files, statement counts, or syntax-tree shapes.

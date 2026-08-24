@@ -3,15 +3,27 @@
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Delta rung](rungs/delta.md) | [Psi/Omega toolchain](omega_toolchain.md)
 
-The final bootstrap has two deliberately different source surfaces and one
-product language specification:
+The final bootstrap makes exactly two bootstrap feature-inventory decisions:
+the literal Delta language used to write the bridge, and the ordinary-Omega
+profile used to write the product compiler. Full Omega is already the product
+language specification; generated-code quality is an artifact property. The
+actual build sequence is:
 
 ```text
-Delta source              Omega source constrained to Ωself
-     │                                  │
-     ▼                                  ▼
-omega-bootstrap  ─────────────────▶  production omega
- accepts Ωself only                    implements full Ω
+omega-bootstrap source ∈ Delta v1
+             │
+             └──[lattice-built Delta compiler]──▶ omega-bootstrap
+
+production-compiler source ∈ Ωself
+             │
+             └──[omega-bootstrap]───────────────▶ omega
+                                                   accepts full Ω
+                                                   contains the optimizer
+                                                   may itself be conservatively lowered
+
+the same production source ──[optional omega rebuild]──▶ omega
+                                                          same compiler,
+                                                          better executable
 ```
 
 Delta v1 and `Ωself` are the only remaining source-surface contracts in this
@@ -33,7 +45,9 @@ self-hosting.
 
 Full Omega is the already-separate product language specification. It is what
 the production compiler must implement, not a third bootstrap source-profile
-choice. The compiler artifacts have corresponding implementation obligations:
+choice. Likewise, "conservative" versus "optimized" describes how a compiler
+binary was generated, not what source language it accepts or what compiler it
+contains. The compiler artifacts have corresponding implementation obligations:
 
 There is no separate `omega-bootstrap` language inventory: its implementation
 surface is Delta v1 and its accepted-source surface is `Ωself`. There is also no
@@ -46,9 +60,10 @@ implement; the full Omega specification already answers that question.
 | production `omega` | Omega constrained to `Ωself` | full Omega | implement the complete language, optimizer, and lowering pipeline |
 | optional rebuilt `omega` | the same `Ωself`-constrained Omega source, now compiled by production `omega` | full Omega | improve the compiler executable itself and add reproducibility evidence |
 
-The optional rebuild is not another language rung or bootstrap dependency.
-Likewise, a conservatively generated production-compiler executable may still
-contain and run the full optimizer when it compiles user programs.
+The optional rebuild is not another language rung, another compiler
+implementation, or a bootstrap dependency. It recompiles the same product
+source. Likewise, a conservatively generated production-compiler executable
+may still contain and run the full optimizer when it compiles user programs.
 
 The names are deliberately non-generational. `omega-bootstrap` is a role, not
 “Omega 0”; the production compiler is `omega`, not “Omega 1”; and an optional
