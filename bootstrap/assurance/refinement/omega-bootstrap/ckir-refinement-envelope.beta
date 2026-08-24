@@ -1,0 +1,125 @@
+; Shared exact raw-input envelope for the two CKIR1 refinement checkers.
+;
+; Wire (little endian):
+;   magic[8] = "OMGRFN1\0"
+;   u32 version = 1
+;   u32 flags   = 0 library, 1 entry-bearing compilation
+;   u32 source_bundle_length
+;   u32 ckir_length
+;   u32 elf_length
+;   u32 claimed_full_result
+;   u32 claimed_exit_projection
+;   exact source bundle || exact CKIR || exact ELF || EOF
+;
+; The envelope is custody only.  Its claims are not authoritative until the
+; source and artifact checkers independently recompute them from the retained
+; raw bytes.  The common 4 MiB buffer covers the published first-tranche maxima.
+;
+; Globals (word addresses):
+;   524288 length; 524296 status; 524304 flags
+;   524312 bundle offset; 524320 bundle length
+;   524328 CKIR offset;   524336 CKIR length
+;   524344 ELF offset;    524352 ELF length
+;   524360 claimed result; 524368 claimed exit
+; Raw bytes: 1048576 .. 5242879 (4 MiB)
+
+proc refinement_envelope_u32(at) {
+    return byte[1048576 + at]
+        + byte[1048576 + at + 1] * 256
+        + byte[1048576 + at + 2] * 65536
+        + byte[1048576 + at + 3] * 16777216
+}
+
+proc refinement_envelope_read() {
+    let n = 0
+    let overflow = 0
+    let c = read_byte()
+    state loop {
+        to body when (c >= 0)
+        to finish
+    }
+    state body {
+        to exhausted when (n >= 4194304)
+        byte[1048576 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state exhausted {
+        overflow = 1
+        c = read_byte()
+        to loop
+    }
+    state finish {
+        word[524288] = n
+        word[524296] = 0
+        to too_large when (overflow == 1)
+        to header when (n >= 36)
+        to malformed
+    }
+    state too_large { word[524296] = 252  return 252 }
+    state header {
+        to malformed when (byte[1048576] != 'O')
+        to magic1
+    }
+    state magic1 { to malformed when (byte[1048577] != 'M')  to magic2 }
+    state magic2 { to malformed when (byte[1048578] != 'G')  to magic3 }
+    state magic3 { to malformed when (byte[1048579] != 'R')  to magic4 }
+    state magic4 { to malformed when (byte[1048580] != 'F')  to magic5 }
+    state magic5 { to malformed when (byte[1048581] != 'N')  to magic6 }
+    state magic6 { to malformed when (byte[1048582] != '1')  to magic7 }
+    state magic7 { to malformed when (byte[1048583] != 0)  to version }
+    state version { to malformed when (refinement_envelope_u32(8) != 1)  to fields }
+    state fields {
+        let flags = refinement_envelope_u32(12)
+        let bundle_length = refinement_envelope_u32(16)
+        let ckir_length = refinement_envelope_u32(20)
+        let elf_length = refinement_envelope_u32(24)
+        let result = refinement_envelope_u32(28)
+        let exit_projection = refinement_envelope_u32(32)
+        word[524304] = flags
+        word[524312] = 36
+        word[524320] = bundle_length
+        word[524328] = 36 + bundle_length
+        word[524336] = ckir_length
+        word[524344] = 36 + bundle_length + ckir_length
+        word[524352] = elf_length
+        word[524360] = result
+        word[524368] = exit_projection
+        to malformed when (flags > 1)
+        to malformed when (bundle_length < 1)
+        to malformed when (ckir_length < 1)
+        to exhausted_size when (bundle_length > 131160)
+        to exhausted_size when (ckir_length > 2260040)
+        to exhausted_size when (elf_length > 1052672)
+        to malformed when (n != 36 + bundle_length + ckir_length + elf_length)
+        to library when (flags == 0)
+        to entry
+    }
+    state library {
+        to malformed when (word[524352] != 0)
+        to malformed when (word[524360] != 4294967295)
+        to malformed when (word[524368] != 4294967295)
+        return 0
+    }
+    state entry {
+        to malformed when (word[524352] < 1)
+        to malformed when (word[524368] > 255)
+        to malformed when (word[524368] != (word[524360] % 256))
+        return 0
+    }
+    state exhausted_size { word[524296] = 252  return 252 }
+    state malformed { word[524296] = 251  return 251 }
+}
+
+proc refinement_bundle_byte(index) {
+    return byte[1048576 + word[524312] + index]
+}
+
+proc refinement_ckir_byte(index) {
+    return byte[1048576 + word[524328] + index]
+}
+
+proc refinement_elf_byte(index) {
+    return byte[1048576 + word[524344] + index]
+}
