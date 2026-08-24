@@ -88,7 +88,8 @@ pub use source::{
     resolve_local_source_snapshot,
 };
 pub use source_adapter::{
-    ResolveDependencySourceError, ResolveWorkspacePackageClosureError,
+    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
+    ResolveWorkspacePackageClosureError, resolve_external_local_package_closure,
     resolve_workspace_package_closure,
 };
 pub use source_commands::{
