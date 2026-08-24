@@ -17,6 +17,7 @@ const PACKAGES: &[&str] = &[
     "network-overreach",
     "remote-journal",
     "axiom-ledger",
+    "opaque-carrier",
     "provider-switchboard",
     "capability-vault",
     "graph-workbench",
@@ -60,6 +61,7 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
         "capability-vault" => (2, 1, PackageReviewCallableRole::Public),
         "network-overreach" => (1, 0, PackageReviewCallableRole::Public),
         "axiom-ledger" => (0, 0, PackageReviewCallableRole::Boundary),
+        "opaque-carrier" => (0, 1, PackageReviewCallableRole::Boundary),
         _ => (0, 0, PackageReviewCallableRole::Public),
     };
     assert_eq!(
@@ -176,6 +178,25 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             assert_eq!(
                 application.evidence(),
                 &PackageReviewPropositionEvidence::FactOnly
+            );
+        }
+        "opaque-carrier" => {
+            let [opaque] = review.public_data() else {
+                panic!("opaque-carrier exact public data row")
+            };
+            assert_eq!(opaque.identity().path(), "PlatformToken");
+            assert_ne!(
+                opaque.supply(),
+                Default::default(),
+                "opaque-carrier supply must not collapse to an ordinary checked shape"
+            );
+            assert!(opaque.members().is_empty());
+            assert!(callable.contracts().is_empty());
+            assert!(
+                callable
+                    .declared_service_reach()
+                    .expect("claim-free boundary publishes an empty reach ceiling")
+                    .is_empty()
             );
         }
         _ => {}

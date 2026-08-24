@@ -686,7 +686,7 @@ complete.
   Acceptance: fixture identity comes from source, not directory names or test
   constructors, and compiler admission emits every expected evidence row.
 
-  Progress 2026-08-24: all eight local package fixtures declare `PACKAGE` and
+  Progress 2026-08-24: all ten local package fixtures declare `PACKAGE` and
   use the coherent `builder` parameter name. Their private CathedralOS mirrors
   carry byte-identical source at refreshed exact pins. The optional live-network
   test now compares package declarations, source content, and canonical
@@ -711,13 +711,17 @@ complete.
   a bodyless accepted boundary claim, exact filesystem reach/invocation,
   retained network reach without a hidden invocation, exact clock-service
   reach/invocation, capability acquisition/return flow, and a two-dependency
-  source graph. The local `remote-journal` fixture now adds exact retained
+  source graph. `opaque-carrier` adds an exact package-qualified public-data row
+  with boundary-opaque supply and no authored semantic claim; its byte-identical
+  private CathedralOS mirror is pinned at an exact commit. It deliberately does
+  not fabricate the still-unsealed mechanism/ABI evidence. The local
+  `remote-journal` fixture now adds exact retained
   filesystem+network reach and invocation through resolver-owned custody and
   compiler review evidence; its private CathedralOS mirror is pinned at the
   byte-identical source commit. `provider-switchboard` now covers exact
   build-owned provider selection and its normalized compiler review row. Build
-  effects, claim-free opaque representation, escalation, missing baselines,
-  spoofing, and reconciliation conflicts remain.
+  effects, sealed representation mechanism/ABI evidence, escalation, missing
+  baselines, spoofing, and reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.
