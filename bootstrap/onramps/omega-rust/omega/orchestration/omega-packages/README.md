@@ -134,11 +134,16 @@ survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. The review includes public and
 boundary callables plus the selected build machine, excludes private machines,
 and projects invocation targets as exact parameter ordinals or package-qualified
-service identities. Public data (including numbered data's schema and derived
-plain-data root) and public trait visibility also survive frontend lowering,
-snapshots, copies, and checked-tree construction, although their normalized
-public shapes are not yet part of the review projection. The compiler now
-provides a version-2 length-framed binary comparison encoding over this review
+service identities. Package-qualified type identity gives every non-binder
+nominal an exact package, toolchain, or unresolved owner while preserving
+owner-free alpha-normalized binders. Package-owned public data is now projected
+with supply, generic shape, properties, stable field/variant identities,
+retired identities, relevance, and exact field/payload types. Numbered ordinary
+data is the wire contract; the retired standalone `wire data` form is not a
+second API row. Quotients, data `where` facts, and static machine/proposition
+parameters reject review until exact canonical rows exist. Public trait and
+domain shapes remain. The compiler now provides a version-3 length-framed
+binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced

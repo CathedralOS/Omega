@@ -582,6 +582,16 @@ Chi stage merely for format stability. It has no execution semantics or
 transformation pipeline of its own. A future shared stage is warranted only if
 independent consumers or transformations establish an actual semantic boundary.
 
+Package-visible structural identity follows the same rule: every non-binder
+nominal in a public type is qualified by exact package ownership, an explicit
+toolchain marker, or an unresolved marker, while generic binders are
+alpha-normalized without an invented owner. Public data projects its supply,
+generic shape, properties, fields/variants/payloads, relevance, and stable
+numbered and retired identities. Those numbered ordinary-data identities are
+the wire contract; the retired standalone `wire data` form is not projected as
+a duplicate API. Any public quotient, default-domain proof fact, or static
+machine/proposition parameter rejects until the projection has an exact row.
+
 Terminal Psi evidence remains a separate evidence class for checked
 final-realization claims: Omega-emitted executable code, asserted properties of
 native or externally supplied code, lowering- or ABI-bound guarantees, fixed
