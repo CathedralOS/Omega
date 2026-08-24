@@ -3261,10 +3261,9 @@ pub(crate) fn validate_provider_plan_candidates(
 /// selected target cannot manufacture an edge.
 pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
-    plans: &[omega_effects::provider_plan::ProviderPlan],
-    selected_names: &[String],
+    selected_plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
-    let selected = exact_selected_synchronous_plans(plans, selected_names)?;
+    let selected = exact_selected_synchronous_plans(selected_plans)?;
     let inferred = psi_effects::infer_synchronous_invocations(typed);
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     let mut diagnostics = Vec::new();
@@ -3291,12 +3290,23 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                 }
             };
             for target_name in target_names {
-                if let Some(target_index) = selected
+                let matching_targets = selected
                     .iter()
-                    .position(|target| target.schema.trait_name == target_name)
-                    && !edges[source_index].contains(&target_index)
-                {
-                    edges[source_index].push(target_index);
+                    .enumerate()
+                    .filter(|(_, target)| target.schema.trait_name == target_name)
+                    .collect::<Vec<_>>();
+                match matching_targets.as_slice() {
+                    [] => {}
+                    [(target_index, _)] if !edges[source_index].contains(target_index) => {
+                        edges[source_index].push(*target_index);
+                    }
+                    [_] => {}
+                    _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                        "selected synchronous invocation `{target_name}` from `{}::{}` is ambiguous across {} package-qualified boundary slots",
+                        source.schema.trait_name,
+                        method.name,
+                        matching_targets.len(),
+                    ))),
                 }
             }
         }
@@ -3328,37 +3338,27 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
 }
 
 fn exact_selected_synchronous_plans<'plans>(
-    plans: &'plans [ProviderPlan],
-    selected_names: &[String],
+    selected_plans: &'plans [ProviderPlan],
 ) -> Result<Vec<&'plans ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
     let mut selected = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut seen_names = Vec::new();
-    for name in selected_names {
-        if name.is_empty() {
+    let mut seen_plans = Vec::new();
+    for plan in selected_plans {
+        if plan.name.is_empty() {
             diagnostics.push(psi_diagnostics::Diagnostic::error(
                 "selected synchronous-invocation ProviderPlan name is empty",
             ));
             continue;
         }
-        if seen_names.contains(name) {
+        if seen_plans.contains(&plan) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "selected synchronous-invocation ProviderPlan `{name}` is listed more than once",
+                "selected synchronous-invocation ProviderPlan `{}` is listed more than once",
+                plan.name,
             )));
             continue;
         }
-        seen_names.push(name.clone());
-        let matches = plans
-            .iter()
-            .filter(|plan| plan.name == *name)
-            .collect::<Vec<_>>();
-        match matches.as_slice() {
-            [plan] => selected.push(*plan),
-            _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "selected synchronous-invocation ProviderPlan `{name}` resolves to {} exact candidate plans",
-                matches.len(),
-            ))),
-        }
+        seen_plans.push(plan);
+        selected.push(plan);
     }
 
     let mut seen_schemas = Vec::new();
@@ -3370,14 +3370,18 @@ fn exact_selected_synchronous_plans<'plans>(
             )));
             continue;
         }
-        if seen_schemas.contains(&plan.schema.trait_name) {
+        let schema_identity = (
+            plan.schema.trait_package_identity,
+            plan.schema.trait_name.as_str(),
+        );
+        if seen_schemas.contains(&schema_identity) {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation schema `{}` is realized by more than one selected ProviderPlan",
                 plan.schema.trait_name,
             )));
             continue;
         }
-        seen_schemas.push(plan.schema.trait_name.clone());
+        seen_schemas.push(schema_identity);
     }
 
     if diagnostics.is_empty() {
@@ -3463,12 +3467,12 @@ fn resolve_provider_selection_slots(
 /// package's ordinary default declaration. Without either, a unique covering
 /// candidate supplies the declaration-era default. Rows are never selected
 /// individually and partial candidates never combine.
-pub(crate) fn select_provider_plan_names(
+pub(crate) fn select_provider_plans(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
     defaults: &[crate::pipeline::build_config::ProviderSelection],
     requested: &[crate::pipeline::build_config::ProviderSelection],
-) -> Result<Vec<String>, Vec<psi_diagnostics::Diagnostic>> {
+) -> Result<Vec<ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
     // plan scoped to a NON-selected target is inert and never collides --
     // only plans that RESOLVE to the selected target participate.
@@ -3610,7 +3614,7 @@ pub(crate) fn select_provider_plan_names(
                 })
                 .collect();
             match matching.as_slice() {
-                [plan] if plan.covers_schema() => selected.push(plan.name.clone()),
+                [plan] if plan.covers_schema() => selected.push((*plan).clone()),
                 [plan] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "{owner} selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
                     declaration.provider_type,
@@ -3647,7 +3651,7 @@ pub(crate) fn select_provider_plan_names(
 
         match covering.as_slice() {
             [] => {}
-            [plan] => selected.push(plan.name.clone()),
+            [plan] => selected.push((*plan).clone()),
             many => {
                 let count = if many.len() == 2 {
                     "two".to_owned()

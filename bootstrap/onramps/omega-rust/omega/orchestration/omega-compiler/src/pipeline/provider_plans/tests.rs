@@ -191,6 +191,10 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
     }
 }
 
+fn selected_plan_names(plans: &[ProviderPlan]) -> Vec<String> {
+    plans.iter().map(|plan| plan.name.clone()).collect()
+}
+
 #[test]
 fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     let first = selection_plan("FirstProvider", &["first"], &["first"]);
@@ -432,19 +436,12 @@ fn selected_synchronous_invocation_graph_rejects_cycles_only_after_selection() {
     beta.schema.trait_name = "Beta".to_owned();
     beta.schema.methods[0].synchronous_invocations = vec!["Alpha".to_owned()];
 
-    validate_selected_synchronous_invocation_cycles(
-        &TypedTrees::default(),
-        &[alpha.clone(), beta.clone()],
-        &["alpha".to_owned()],
-    )
-    .expect("an unselected potential return edge is not realized");
+    validate_selected_synchronous_invocation_cycles(&TypedTrees::default(), &[alpha.clone()])
+        .expect("an unselected potential return edge is not realized");
 
-    let diagnostics = validate_selected_synchronous_invocation_cycles(
-        &TypedTrees::default(),
-        &[alpha, beta],
-        &["alpha".to_owned(), "beta".to_owned()],
-    )
-    .expect_err("the selected Alpha -> Beta -> Alpha graph must reject");
+    let diagnostics =
+        validate_selected_synchronous_invocation_cycles(&TypedTrees::default(), &[alpha, beta])
+            .expect_err("the selected Alpha -> Beta -> Alpha graph must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -456,10 +453,8 @@ fn selected_synchronous_invocation_graph_rejects_cycles_only_after_selection() {
 #[derive(Clone, Copy, Debug)]
 enum SelectedInvocationDrift {
     None,
-    EmptySelectedName,
-    MissingSelectedPlan,
-    DuplicateSelectedName,
-    DuplicatePlanName,
+    EmptyPlanName,
+    DuplicatePlan,
     DuplicateSelectedSchema,
     EmptyMethodIdentity,
     DuplicateMethodIdentity,
@@ -476,20 +471,12 @@ fn selected_synchronous_invocation_identity_drift_rejects_exactly() {
     let cases = [
         (SelectedInvocationDrift::None, None),
         (
-            SelectedInvocationDrift::EmptySelectedName,
+            SelectedInvocationDrift::EmptyPlanName,
             Some("name is empty"),
         ),
         (
-            SelectedInvocationDrift::MissingSelectedPlan,
-            Some("resolves to 0 exact candidate plans"),
-        ),
-        (
-            SelectedInvocationDrift::DuplicateSelectedName,
+            SelectedInvocationDrift::DuplicatePlan,
             Some("listed more than once"),
-        ),
-        (
-            SelectedInvocationDrift::DuplicatePlanName,
-            Some("resolves to 2 exact candidate plans"),
         ),
         (
             SelectedInvocationDrift::DuplicateSelectedSchema,
@@ -536,17 +523,10 @@ fn selected_synchronous_invocation_identity_drift_rejects_exactly() {
         let mut beta = selection_plan("beta", &["run"], &["run"]);
         beta.schema.trait_name = "pkg::Beta".to_owned();
         let mut plans = vec![alpha, beta];
-        let mut selected = vec!["alpha".to_owned(), "beta".to_owned()];
         match drift {
             SelectedInvocationDrift::None => {}
-            SelectedInvocationDrift::EmptySelectedName => selected[0].clear(),
-            SelectedInvocationDrift::MissingSelectedPlan => {
-                selected[0] = "missing".to_owned();
-            }
-            SelectedInvocationDrift::DuplicateSelectedName => {
-                selected[1] = selected[0].clone();
-            }
-            SelectedInvocationDrift::DuplicatePlanName => {
+            SelectedInvocationDrift::EmptyPlanName => plans[0].name.clear(),
+            SelectedInvocationDrift::DuplicatePlan => {
                 let duplicate = plans[0].clone();
                 plans.push(duplicate);
             }
@@ -580,11 +560,8 @@ fn selected_synchronous_invocation_identity_drift_rejects_exactly() {
             }
         }
 
-        let result = validate_selected_synchronous_invocation_cycles(
-            &TypedTrees::default(),
-            &plans,
-            &selected,
-        );
+        let result =
+            validate_selected_synchronous_invocation_cycles(&TypedTrees::default(), &plans);
         match expected {
             None => result.expect("exact selected direct graph is valid"),
             Some(expected) => {
@@ -612,21 +589,41 @@ fn selected_synchronous_invocation_edges_require_complete_schema_identity() {
     validate_selected_synchronous_invocation_cycles(
         &TypedTrees::default(),
         &[alpha.clone(), beta.clone()],
-        &["alpha".to_owned(), "beta".to_owned()],
     )
     .expect("same-leaf foreign schema must not manufacture an edge");
 
     alpha.schema.methods[0].synchronous_invocations = vec!["b::Beta".to_owned()];
-    let diagnostics = validate_selected_synchronous_invocation_cycles(
-        &TypedTrees::default(),
-        &[alpha, beta],
-        &["alpha".to_owned(), "beta".to_owned()],
-    )
-    .expect_err("the exact canonical Alpha -> Beta -> Alpha graph must reject");
+    let diagnostics =
+        validate_selected_synchronous_invocation_cycles(&TypedTrees::default(), &[alpha, beta])
+            .expect_err("the exact canonical Alpha -> Beta -> Alpha graph must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
             .contains("a::Alpha -> b::Beta -> a::Alpha")
+    }));
+}
+
+#[test]
+fn selected_synchronous_invocation_rejects_same_spelled_cross_package_targets() {
+    let first_package =
+        psi_core::PackageKeyIdentity::from_digest([0x41; 32]).expect("nonzero package identity");
+    let second_package =
+        psi_core::PackageKeyIdentity::from_digest([0x42; 32]).expect("nonzero package identity");
+    let mut first = selection_plan("first", &["run"], &["run"]);
+    first.schema.trait_name = "Shared".to_owned();
+    first.schema.trait_package_identity = Some(first_package);
+    first.schema.methods[0].synchronous_invocations = vec!["Shared".to_owned()];
+    let mut second = selection_plan("second", &["run"], &["run"]);
+    second.schema.trait_name = "Shared".to_owned();
+    second.schema.trait_package_identity = Some(second_package);
+
+    let diagnostics =
+        validate_selected_synchronous_invocation_cycles(&TypedTrees::default(), &[first, second])
+            .expect_err("a readable target cannot choose between package-qualified slots");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("ambiguous across 2 package-qualified boundary slots")
     }));
 }
 
@@ -899,8 +896,10 @@ fn implicit_selection_never_combines_partial_candidates() {
         selection_plan("SecondProvider", &["first", "second"], &["second"]),
     ];
     assert_eq!(
-        select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[], &[])
-            .expect("partial candidates are reportable, not ambiguous"),
+        selected_plan_names(
+            &select_provider_plans(&plans, omega_target::NativeTarget::host(), &[], &[])
+                .expect("partial candidates are reportable, not ambiguous")
+        ),
         Vec::<String>::new(),
         "two partial candidates are not one provider"
     );
@@ -917,8 +916,10 @@ fn implicit_selection_returns_the_unique_covering_candidate() {
         selection_plan("PartialProvider", &["first", "second"], &["first"]),
     ];
     assert_eq!(
-        select_provider_plan_names(&plans, omega_target::NativeTarget::host(), &[], &[])
-            .expect("one covering candidate selects"),
+        selected_plan_names(
+            &select_provider_plans(&plans, omega_target::NativeTarget::host(), &[], &[])
+                .expect("one covering candidate selects")
+        ),
         vec!["CompleteProvider".to_owned()]
     );
 }
@@ -1345,7 +1346,7 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
         selection_plan("FirstProvider", &["first"], &["first"]),
         selection_plan("SecondProvider", &["first"], &["first"]),
     ];
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
         &[],
@@ -1355,7 +1356,10 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
         }],
     )
     .expect("the build root owns the slot choice");
-    assert_eq!(selected, vec!["SecondProvider".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["SecondProvider".to_owned()]
+    );
 }
 
 #[test]
@@ -1365,7 +1369,7 @@ fn unqualified_selection_refuses_an_ambiguous_boundary_slot_leaf() {
     let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
     second.schema.trait_name = "second::Pick".to_owned();
 
-    let diagnostics = select_provider_plan_names(
+    let diagnostics = select_provider_plans(
         &[first, second],
         omega_target::NativeTarget::host(),
         &[],
@@ -1393,7 +1397,7 @@ fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
     let mut qualified = selection_plan("QualifiedProvider", &["choose"], &[]);
     qualified.schema.trait_name = "package::Pair".to_owned();
 
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
@@ -1403,7 +1407,10 @@ fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
         }],
     )
     .expect("an exact canonical slot name outranks leaf fallback");
-    assert_eq!(selected, vec!["ExactProvider".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["ExactProvider".to_owned()]
+    );
 }
 
 #[test]
@@ -1412,7 +1419,7 @@ fn exact_provider_name_wins_over_a_qualified_leaf_fallback() {
     let mut qualified = selection_plan("qualified-plan", &["choose"], &["choose"]);
     qualified.provider_type = "package::exact-plan".to_owned();
 
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
@@ -1422,7 +1429,10 @@ fn exact_provider_name_wins_over_a_qualified_leaf_fallback() {
         }],
     )
     .expect("an exact canonical provider name outranks leaf fallback");
-    assert_eq!(selected, vec!["exact-plan".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["exact-plan".to_owned()]
+    );
 }
 
 #[test]
@@ -1430,7 +1440,7 @@ fn canonical_slot_resolution_catches_duplicate_selection_spellings() {
     let mut plan = selection_plan("FirstProvider", &["choose"], &["choose"]);
     plan.schema.trait_name = "package::Pick".to_owned();
 
-    let diagnostics = select_provider_plan_names(
+    let diagnostics = select_provider_plans(
         &[plan],
         omega_target::NativeTarget::host(),
         &[],
@@ -1461,7 +1471,7 @@ fn target_default_refuses_an_ambiguous_boundary_slot_leaf() {
     let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
     second.schema.trait_name = "second::Pick".to_owned();
 
-    let diagnostics = select_provider_plan_names(
+    let diagnostics = select_provider_plans(
         &[first, second],
         omega_target::NativeTarget::host(),
         &[crate::pipeline::build_config::ProviderSelection {
@@ -1485,7 +1495,7 @@ fn explicit_selection_refuses_partial_provider() {
         &["first", "second"],
         &["first"],
     )];
-    let diagnostics = select_provider_plan_names(
+    let diagnostics = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
         &[],
@@ -1504,7 +1514,7 @@ fn target_default_resolves_covering_ambiguity() {
         selection_plan("FirstProvider", &["first"], &["first"]),
         selection_plan("SecondProvider", &["first"], &["first"]),
     ];
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
         &[crate::pipeline::build_config::ProviderSelection {
@@ -1514,14 +1524,17 @@ fn target_default_resolves_covering_ambiguity() {
         &[],
     )
     .expect("the selected target package supplies the slot default");
-    assert_eq!(selected, vec!["FirstProvider".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["FirstProvider".to_owned()]
+    );
 }
 
 #[test]
 fn target_default_aliases_of_one_provider_do_not_conflict() {
     let mut plan = selection_plan("package-provider", &["first"], &["first"]);
     plan.provider_type = "package::FirstProvider".to_owned();
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &[plan],
         omega_target::NativeTarget::host(),
         &[
@@ -1537,7 +1550,10 @@ fn target_default_aliases_of_one_provider_do_not_conflict() {
         &[],
     )
     .expect("aliases of one canonical provider type are one target default");
-    assert_eq!(selected, vec!["package-provider".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["package-provider".to_owned()]
+    );
 }
 
 #[test]
@@ -1546,7 +1562,7 @@ fn build_override_wins_over_target_default() {
         selection_plan("FirstProvider", &["first"], &["first"]),
         selection_plan("SecondProvider", &["first"], &["first"]),
     ];
-    let selected = select_provider_plan_names(
+    let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
         &[crate::pipeline::build_config::ProviderSelection {
@@ -1559,7 +1575,10 @@ fn build_override_wins_over_target_default() {
         }],
     )
     .expect("the build root owns the final slot choice");
-    assert_eq!(selected, vec!["SecondProvider".to_owned()]);
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["SecondProvider".to_owned()]
+    );
 }
 
 #[test]
@@ -1568,7 +1587,7 @@ fn conflicting_target_defaults_are_loud() {
         selection_plan("FirstProvider", &["first"], &["first"]),
         selection_plan("SecondProvider", &["first"], &["first"]),
     ];
-    let diagnostics = select_provider_plan_names(
+    let diagnostics = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
         &[

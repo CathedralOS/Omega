@@ -194,8 +194,7 @@ where
 fn extract_external_binding_rows(
     selected_target: Option<&str>,
     native_target: omega_target::NativeTarget,
-    selected_plan_names: &[String],
-    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_plans: &[omega_effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
     ],
@@ -208,11 +207,7 @@ fn extract_external_binding_rows(
     // The selected ProviderPlan set is the immutable normalization boundary.
     // Do not rescan source `via` clauses after selection: doing so would create
     // a second binding authority beside the retained typed identity.
-    for plan in provider_plans.iter().filter(|plan| {
-        selected_plan_names
-            .iter()
-            .any(|selected| selected == &plan.name)
-    }) {
+    for plan in selected_plans {
         for row in &plan.rows {
             let binding = match &row.binding {
                 ProviderBinding::Import { library, symbol } => ExternalBindingKind::DllImport {
@@ -242,10 +237,8 @@ fn extract_external_binding_rows(
             };
             let boundary_entry_plan = selected_source_boundary_entry_plan(
                 typed,
-                provider_plans,
-                selected_plan_names,
                 boundary_calling_plan_realizations,
-                &plan.name,
+                plan,
                 &plan.schema.trait_name,
                 &row.method,
                 &row.requirement_identity,
@@ -323,45 +316,24 @@ fn extract_external_binding_rows(
 /// internally so lowering never has to rediscover or re-run policy source.
 fn selected_source_boundary_entry_plan(
     typed: &psi_typed_trees::TypedTrees,
-    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
-    selected_plan_names: &[String],
     boundary_calling_plan_realizations: &[
         crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
     ],
-    provider_plan_name: &str,
+    plan: &omega_effects::provider_plan::ProviderPlan,
     trait_name: &str,
     method_name: &str,
     requirement_identity: &str,
 ) -> Result<Option<omega_calling_conventions::BoundaryEntryPlan>, Diagnostic> {
-    if provider_plan_name.is_empty() {
+    if plan.name.is_empty() {
         return Err(Diagnostic::error(
             "selected source boundary entry plan has an empty ProviderPlan name",
         ));
     }
-    let selected_count = selected_plan_names
-        .iter()
-        .filter(|selected| selected.as_str() == provider_plan_name)
-        .count();
-    if selected_count != 1 {
-        return Err(Diagnostic::error(format!(
-            "source boundary entry ProviderPlan `{provider_plan_name}` is selected {selected_count} times; exactly one retained selection is required"
-        )));
-    }
-
-    let matching_plans = provider_plans
-        .iter()
-        .filter(|plan| plan.name == provider_plan_name)
-        .collect::<Vec<_>>();
-    let [plan] = matching_plans.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` resolves to {} exact candidate plans",
-            matching_plans.len()
-        )));
-    };
+    let provider_plan_name = plan.name.as_str();
     if plan.schema.trait_name != trait_name {
         return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` serves schema `{}`, not exact requested schema `{trait_name}`",
-            plan.schema.trait_name
+            "selected source boundary entry ProviderPlan `{}` serves schema `{}`, not exact requested schema `{trait_name}`",
+            plan.name, plan.schema.trait_name
         )));
     }
     if requirement_identity.is_empty() {
@@ -706,7 +678,7 @@ impl Compiler {
         if !adapter_diagnostics.is_empty() {
             return Err(adapter_diagnostics);
         }
-        let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plan_names(
+        let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plans(
             &provider_plans,
             selected_native_target,
             &target_provider_defaults,
@@ -714,13 +686,11 @@ impl Compiler {
         )?;
         crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
             &typed,
-            &provider_plans,
             &selected_provider_plans,
         )?;
         let selected_provider_plan_facts =
-            omega_effects::SelectedProviderPlanFacts::from_selection(
-                &provider_plans,
-                &selected_provider_plans,
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(
+                selected_provider_plans.clone(),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let prepared_trust_lock = crate::pipeline::trust_lockfile::prepare_trust_lockfile(
@@ -746,7 +716,6 @@ impl Compiler {
             self.options.target_name.as_deref(),
             selected_native_target,
             &selected_provider_plans,
-            &provider_plans,
             &boundary_calling_plan_realizations,
             &typed,
         )?;
@@ -1194,7 +1163,6 @@ mod tests {
     struct Fixture {
         typed: TypedTrees,
         plans: Vec<ProviderPlan>,
-        selected: Vec<String>,
         realizations: Vec<BoundaryCallingPlanRealization>,
         requirement_identity: String,
         expected: BoundaryEntryPlan,
@@ -1318,24 +1286,21 @@ mod tests {
         Fixture {
             typed,
             plans: vec![plan],
-            selected: vec![PLAN_NAME.to_owned()],
             realizations: vec![realization],
             requirement_identity,
             expected,
         }
     }
 
-    fn resolve(
-        fixture: &Fixture,
-        plan_name: &str,
-        schema_name: &str,
-    ) -> Result<Option<BoundaryEntryPlan>, String> {
+    fn resolve(fixture: &Fixture, schema_name: &str) -> Result<Option<BoundaryEntryPlan>, String> {
+        let plan = fixture
+            .plans
+            .first()
+            .ok_or_else(|| "missing resolved provider plan".to_owned())?;
         selected_source_boundary_entry_plan(
             &fixture.typed,
-            &fixture.plans,
-            &fixture.selected,
             &fixture.realizations,
-            plan_name,
+            plan,
             schema_name,
             METHOD_NAME,
             &fixture.requirement_identity,
@@ -1360,7 +1325,6 @@ mod tests {
         let rows = extract_external_binding_rows(
             None,
             omega_target::NativeTarget::host(),
-            &fixture.selected,
             &fixture.plans,
             &fixture.realizations,
             &fixture.typed,
@@ -1390,7 +1354,7 @@ mod tests {
         for inherited in [false, true] {
             let fixture = fixture(inherited);
             assert_eq!(
-                resolve(&fixture, PLAN_NAME, SCHEMA_NAME),
+                resolve(&fixture, SCHEMA_NAME),
                 Ok(Some(fixture.expected.clone()))
             );
         }
@@ -1428,16 +1392,13 @@ mod tests {
                     .starts_with("operator::CheckedMath::offset_zero")
             })
             .expect("exact operator provider plan");
-        let selected = vec![plans[plan_index].name.clone()];
         let method = plans[plan_index].schema.methods[0].clone();
 
         assert_eq!(
             selected_source_boundary_entry_plan(
                 &typed,
-                &plans,
-                &selected,
                 &[],
-                &selected[0],
+                &plans[plan_index],
                 &plans[plan_index].schema.trait_name,
                 &method.name,
                 &method.requirement_identity,
@@ -1450,10 +1411,8 @@ mod tests {
         plans[plan_index].schema.methods[0].requirement_owner = "other::Owner".to_owned();
         let error = selected_source_boundary_entry_plan(
             &typed,
-            &plans,
-            &selected,
             &[],
-            &selected[0],
+            &plans[plan_index],
             &plans[plan_index].schema.trait_name,
             &method.name,
             &method.requirement_identity,
@@ -1470,10 +1429,6 @@ mod tests {
     fn selected_source_boundary_entry_plan_rejects_plan_and_schema_drift_exactly() {
         enum Drift {
             EmptyPlanName,
-            MissingSelection,
-            DuplicateSelection,
-            MissingCandidate,
-            DuplicateCandidate,
             SchemaName,
             EmptyRequirementIdentity,
             MissingMethod,
@@ -1482,16 +1437,6 @@ mod tests {
         }
         let cases = [
             (Drift::EmptyPlanName, "empty ProviderPlan name"),
-            (Drift::MissingSelection, "selected 0 times"),
-            (Drift::DuplicateSelection, "selected 2 times"),
-            (
-                Drift::MissingCandidate,
-                "resolves to 0 exact candidate plans",
-            ),
-            (
-                Drift::DuplicateCandidate,
-                "resolves to 2 exact candidate plans",
-            ),
             (Drift::SchemaName, "not exact requested schema"),
             (
                 Drift::EmptyRequirementIdentity,
@@ -1507,14 +1452,9 @@ mod tests {
 
         for (drift, expected) in cases {
             let mut fixture = fixture(false);
-            let mut plan_name = PLAN_NAME;
             let mut schema_name = SCHEMA_NAME;
             match drift {
-                Drift::EmptyPlanName => plan_name = "",
-                Drift::MissingSelection => fixture.selected.clear(),
-                Drift::DuplicateSelection => fixture.selected.push(PLAN_NAME.to_owned()),
-                Drift::MissingCandidate => fixture.plans.clear(),
-                Drift::DuplicateCandidate => fixture.plans.push(fixture.plans[0].clone()),
+                Drift::EmptyPlanName => fixture.plans[0].name.clear(),
                 Drift::SchemaName => schema_name = "other::RootService",
                 Drift::EmptyRequirementIdentity => fixture.requirement_identity.clear(),
                 Drift::MissingMethod => {
@@ -1528,7 +1468,7 @@ mod tests {
                     fixture.plans[0].schema.methods[0].requirement_owner.clear()
                 }
             }
-            let error = resolve(&fixture, plan_name, schema_name)
+            let error = resolve(&fixture, schema_name)
                 .expect_err("selected source authority drift must reject");
             assert!(
                 error.contains(expected),
@@ -1541,14 +1481,14 @@ mod tests {
     fn selected_source_boundary_entry_plan_rejects_typed_custody_drift_exactly() {
         let duplicate_schema = fixture_with_inventory(true, 2, 1, true);
         assert!(
-            resolve(&duplicate_schema, PLAN_NAME, SCHEMA_NAME)
+            resolve(&duplicate_schema, SCHEMA_NAME)
                 .expect_err("duplicate schema owner")
                 .contains("resolves to 2 exact typed boundary traits")
         );
 
         let duplicate_signature = fixture_with_inventory(true, 1, 2, true);
         assert!(
-            resolve(&duplicate_signature, PLAN_NAME, SCHEMA_NAME)
+            resolve(&duplicate_signature, SCHEMA_NAME)
                 .expect_err("duplicate signature")
                 .contains("binds 2 exact typed signatures")
         );
@@ -1563,7 +1503,7 @@ mod tests {
                 ..Default::default()
             });
         assert!(
-            resolve(&duplicate_requirement_owner, PLAN_NAME, SCHEMA_NAME)
+            resolve(&duplicate_requirement_owner, SCHEMA_NAME)
                 .expect_err("duplicate requirement owner")
                 .contains("resolves to 2 exact typed traits")
         );
@@ -1571,7 +1511,7 @@ mod tests {
         let mut missing_owner = fixture(true);
         missing_owner.plans[0].schema.methods[0].requirement_owner = "missing::Owner".to_owned();
         assert!(
-            resolve(&missing_owner, PLAN_NAME, SCHEMA_NAME)
+            resolve(&missing_owner, SCHEMA_NAME)
                 .expect_err("missing requirement owner")
                 .contains("resolves to 0 exact typed traits")
         );
@@ -1587,14 +1527,14 @@ mod tests {
             });
         missing_signature.plans[0].schema.methods[0].requirement_owner = "empty::Owner".to_owned();
         assert!(
-            resolve(&missing_signature, PLAN_NAME, SCHEMA_NAME)
+            resolve(&missing_signature, SCHEMA_NAME)
                 .expect_err("missing typed signature")
                 .contains("binds 0 exact typed signatures")
         );
 
         let non_boundary = fixture_with_inventory(true, 1, 1, false);
         assert!(
-            resolve(&non_boundary, PLAN_NAME, SCHEMA_NAME)
+            resolve(&non_boundary, SCHEMA_NAME)
                 .expect_err("non-boundary requirement owner")
                 .contains("is not an exact boundary trait")
         );
@@ -1602,7 +1542,7 @@ mod tests {
         let mut missing_schema = fixture(true);
         missing_schema.plans[0].schema.trait_name = "missing::Schema".to_owned();
         assert!(
-            resolve(&missing_schema, PLAN_NAME, "missing::Schema")
+            resolve(&missing_schema, "missing::Schema")
                 .expect_err("missing schema owner")
                 .contains("resolves to 0 exact typed boundary traits")
         );
@@ -1642,7 +1582,7 @@ mod tests {
         cross_owner.plans[0].schema.methods[0].requirement_identity = other_identity.clone();
         cross_owner.requirement_identity = other_identity;
         assert!(
-            resolve(&cross_owner, PLAN_NAME, SCHEMA_NAME)
+            resolve(&cross_owner, SCHEMA_NAME)
                 .expect_err("cross-owner realization")
                 .contains("resolves to 0 exact calling-plan realizations")
         );
@@ -1693,8 +1633,7 @@ mod tests {
                     fixture.plans[0].schema.methods[0].calling_plan_fingerprint = Some(0)
                 }
             }
-            let error = resolve(&fixture, PLAN_NAME, SCHEMA_NAME)
-                .expect_err("realization drift must reject");
+            let error = resolve(&fixture, SCHEMA_NAME).expect_err("realization drift must reject");
             assert!(
                 error.contains(expected),
                 "expected `{expected}` in `{error}`"
@@ -1707,11 +1646,11 @@ mod tests {
         let mut fixture = fixture(true);
         fixture.plans[0].schema.methods[0].calling_plan_fingerprint = None;
         fixture.realizations.clear();
-        assert_eq!(resolve(&fixture, PLAN_NAME, SCHEMA_NAME), Ok(None));
+        assert_eq!(resolve(&fixture, SCHEMA_NAME), Ok(None));
 
         fixture.plans[0].schema.methods[0].requirement_owner = "missing::Owner".to_owned();
         assert!(
-            resolve(&fixture, PLAN_NAME, SCHEMA_NAME)
+            resolve(&fixture, SCHEMA_NAME)
                 .expect_err("missing owner cannot enter compatibility fallback")
                 .contains("resolves to 0 exact typed traits")
         );
