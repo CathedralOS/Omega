@@ -60,6 +60,27 @@ if [ "$reference_status" -ne 37 ] || [ "$self_status" -ne 37 ]; then
   exit 1
 fi
 
+# Delta's keywords are contextual: `machine` may name a field or parameter,
+# while `data()` may name a state target inside a machine body.
+# Declaration pre-scans must therefore recognize a top-level item structurally,
+# not treat every same-spelled token before a machine body as another machine.
+printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; machine: i32; result: i32; } machine echo(machine: i32) -> i32 { transition 0 { _ -> data() } state data() { return machine; } } machine helper(n: i32) -> i32 { return n + 32; } machine Main::main(&mut self) { self.machine = 5; self.result = echo(self.machine); self.result = helper(self.result); self.console.exit_process(self.result); }' > "$T/contextual-machine.alp"
+DELTA_ARCH=aarch64 "$BIN" "$T/contextual-machine.alp" "$T/contextual-reference" >/dev/null
+"$T/lowermachine" < "$T/contextual-machine.alp" > "$T/contextual-self.s"
+cmp "$T/contextual-reference.s" "$T/contextual-self.s" >/dev/null
+clang -arch arm64 -o "$T/contextual-self" "$T/contextual-self.s"
+codesign -f -s - "$T/contextual-self" >/dev/null 2>&1
+set +e
+"$T/contextual-reference" >/dev/null 2>&1
+contextual_reference_status=$?
+"$T/contextual-self" >/dev/null 2>&1
+contextual_self_status=$?
+set -e
+if [ "$contextual_reference_status" -ne 37 ] || [ "$contextual_self_status" -ne 37 ]; then
+  echo "lowermachine contextual-machine FAIL — reference=$contextual_reference_status self=$contextual_self_status, expected 37"
+  exit 1
+fi
+
 # A fifth free-machine value parameter exceeds the D0 calling profile.  The
 # compiler must reject before phase 2 publishes any assembly.
 printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine too_many(a: i32, b: i32, c: i32, d: i32, e: i32) { return 0; } machine Main::main(&mut self) { self.console.exit_process(0); }' > "$T/too-many.alp"
@@ -72,4 +93,4 @@ if [ "$too_many_status" -ne 3 ] || [ -s "$T/too-many.s" ]; then
   exit 1
 fi
 
-echo "LOWERMACHINE SCALE ✓ — parameter 65 stays disjoint; D0 signature bounds fail closed"
+echo "LOWERMACHINE SCALE ✓ — parameter 65 stays disjoint; contextual machine/data identifiers remain non-declarations; D0 signature bounds fail closed"
