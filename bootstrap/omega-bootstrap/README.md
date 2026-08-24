@@ -1,11 +1,12 @@
 # `bootstrap/omega-bootstrap/` — Delta-built bridge ownership
 
-This directory owns the bridge-specific Rust-free Omega/Psi meaning work and
-the contracts and gates for the Delta-built `omega-bootstrap` compiler. It does
-not own the eventual Omega-written product compiler. Historical `omega0` path
-and artifact names were transitional; compatibility aliases do not define an
-Omega0 language rung. Delta remains an independent final Greek compiler-host
-language:
+This directory owns the Delta-written bridge, its bridge-specific Rust-free
+Omega/Psi meaning route, contracts, and gates. It may consume the product
+compiler's source bundle and canonical Psi/Omega formats, but it does not own
+production Psi/Omega implementation tasks or the eventual Omega-written product
+compiler. Historical `omega0` path and artifact names were transitional;
+compatibility aliases do not define an Omega0 language rung. Delta remains an
+independent final Greek compiler-host language:
 
 ```text
 Alpha → Beta → Gamma → Delta
