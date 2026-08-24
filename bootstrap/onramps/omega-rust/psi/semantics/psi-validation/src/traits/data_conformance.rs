@@ -13,7 +13,6 @@
 //! bodyless requirement stays an error naming the machine the type must write.
 
 use super::shared::trait_definition_by_symbol;
-use crate::symbols::TopLevelSymbols;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
@@ -22,11 +21,7 @@ use psi_typed_trees::trait_definition::TraitDefinition;
 use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceRowSource};
 use psi_typed_trees::types::TypeReferenceHandle;
 
-pub(crate) fn validate_conformances(
-    program: &TypedTrees,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for (index, conformance) in program.conformances().iter().enumerate() {
         let (subject_name, carrier_name) = match &conformance.subject {
             psi_typed_trees::trait_definition::ConformanceSubject::Carrier(type_name) => {
@@ -76,12 +71,12 @@ pub(crate) fn validate_conformances(
             let data_exists = program
                 .data_definitions()
                 .iter()
-                .any(|definition| definition.name.as_str() == type_name);
+                .any(|definition| definition.symbol == conformance.carrier_symbol);
             let name_owned_type_parameter = program
                 .conformance_type_parameters(conformance)
                 .iter()
                 .any(|parameter| {
-                    parameter.name.as_str() == type_name
+                    parameter.symbol == conformance.carrier_symbol
                         && matches!(
                             parameter.kind,
                             psi_typed_trees::data::TypeParameterKind::Type
@@ -95,7 +90,8 @@ pub(crate) fn validate_conformances(
             }
         }
 
-        let Some(trait_definition) = symbols.trait_definition(trait_name) else {
+        let Some(trait_definition) = trait_definition_by_symbol(program, conformance.trait_symbol)
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "conformance `{subject_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
             )));

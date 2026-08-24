@@ -52,6 +52,9 @@ pub struct PackageReviewTypeParameter {
 pub struct PackageReviewConformanceBound {
     binder_ordinal: Option<u32>,
     subject_parameter: u32,
+    selected_conformance: Option<PackageReviewNominalIdentity>,
+    selected_carrier: Option<PackageReviewNominalIdentity>,
+    selected_carrier_arguments: Vec<PackageReviewTypeIdentity>,
     trait_identity: PackageReviewNominalIdentity,
     arguments: Vec<PackageReviewTypeIdentity>,
 }
@@ -63,6 +66,18 @@ impl PackageReviewConformanceBound {
 
     pub const fn subject_parameter(&self) -> u32 {
         self.subject_parameter
+    }
+
+    pub const fn selected_conformance(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.selected_conformance.as_ref()
+    }
+
+    pub const fn selected_carrier(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.selected_carrier.as_ref()
+    }
+
+    pub fn selected_carrier_arguments(&self) -> &[PackageReviewTypeIdentity] {
+        &self.selected_carrier_arguments
     }
 
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
@@ -2341,11 +2356,6 @@ fn project_conformance_bounds(
         } else {
             None
         };
-        if bound.conformance.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` selects a specific conformance whose complete declaration is not yet represented by package review"
-            ))]);
-        }
         let Some(subject_parameter) = parameters
             .iter()
             .position(|parameter| parameter.symbol == bound.subject)
@@ -2354,10 +2364,94 @@ fn project_conformance_bounds(
                 "{declaration_kind} `{declaration_path}` has a conformance subject outside its type-parameter telescope"
             ))]);
         };
+        let selected = bound.conformance.map(|symbol| {
+            compilation
+                .conformances()
+                .iter()
+                .filter(|declaration| declaration.symbol == symbol)
+                .collect::<Vec<_>>()
+        });
+        let (
+            selected_conformance,
+            selected_carrier,
+            selected_carrier_arguments,
+            trait_symbol,
+            trait_arguments,
+        ) = match selected {
+            None => (
+                None,
+                None,
+                Vec::new(),
+                bound.carrier,
+                bound.arguments.clone(),
+            ),
+            Some(selected) => {
+                let [selected] = selected.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "{declaration_kind} `{declaration_path}` resolves its selected conformance to {} declarations; expected exactly one",
+                        selected.len()
+                    ))]);
+                };
+                if !selected.lifetime_parameters.is_empty()
+                    || !compilation.conformance_type_parameters(selected).is_empty()
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "{declaration_kind} `{declaration_path}` selects generic conformance `{}` whose application telescope is not yet represented by package review",
+                        selected
+                            .alias
+                            .as_ref()
+                            .map_or("<unnamed>", |name| name.as_str())
+                    ))]);
+                }
+                if selected.carrier_symbol != bound.carrier {
+                    return Err(vec![Diagnostic::error(format!(
+                        "{declaration_kind} `{declaration_path}` selected conformance carrier does not match its exact bound carrier"
+                    ))]);
+                }
+                let matching_carriers = compilation
+                    .data_definitions()
+                    .iter()
+                    .filter(|definition| definition.symbol == selected.carrier_symbol)
+                    .collect::<Vec<_>>();
+                let [carrier] = matching_carriers.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "{declaration_kind} `{declaration_path}` resolves its selected conformance carrier to {} data declarations; expected exactly one",
+                        matching_carriers.len()
+                    ))]);
+                };
+                if !carrier.is_public {
+                    return Err(vec![Diagnostic::error(format!(
+                        "{declaration_kind} `{declaration_path}` exposes non-public selected-conformance carrier `{}`",
+                        carrier.name
+                    ))]);
+                }
+                (
+                    Some(nominal_identity(compilation, selected.symbol)?),
+                    Some(nominal_identity(compilation, selected.carrier_symbol)?),
+                    bound
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            review_signature_type_identity_with_binders(
+                                compilation,
+                                *argument,
+                                binders,
+                                lifetime_binders,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    selected.trait_symbol,
+                    compilation
+                        .type_reference_table
+                        .type_reference_handles(selected.arguments)
+                        .to_vec(),
+                )
+            }
+        };
         let matching_traits = compilation
             .traits()
             .iter()
-            .filter(|definition| definition.symbol == bound.carrier)
+            .filter(|definition| definition.symbol == trait_symbol)
             .collect::<Vec<_>>();
         let [trait_definition] = matching_traits.as_slice() else {
             return Err(vec![Diagnostic::error(format!(
@@ -2384,9 +2478,11 @@ fn project_conformance_bounds(
                     "{declaration_kind} `{declaration_path}` conformance subject exceeds the portable review parameter range"
                 ))]
             })?,
+            selected_conformance,
+            selected_carrier,
+            selected_carrier_arguments,
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
-            arguments: bound
-                .arguments
+            arguments: trait_arguments
                 .iter()
                 .map(|argument| {
                     review_signature_type_identity_with_binders(

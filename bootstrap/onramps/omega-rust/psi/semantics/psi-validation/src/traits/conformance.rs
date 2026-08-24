@@ -508,7 +508,7 @@ fn validate_conformance_bounds(
                 )));
                 continue;
             };
-            if declaration.carrier_name() != Some(&bound.carrier_name) {
+            if declaration.carrier_symbol != bound.carrier {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner_kind} `{owner_name}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
                     bound.carrier_name,

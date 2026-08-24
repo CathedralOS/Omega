@@ -132,7 +132,9 @@ pub fn lower_symbol_resolved_trees(
                     psi_typed_trees::trait_definition::ConformanceSubject::Subjectless
                 }
             },
+            carrier_symbol: conformance.carrier_symbol,
             trait_name: crate::name::lower_name(&conformance.trait_name),
+            trait_symbol: conformance.trait_symbol,
             arguments,
             alias: conformance.alias.as_ref().map(crate::name::lower_name),
             implementation: match &conformance.implementation {
