@@ -4,7 +4,9 @@ use psi_core::{
     OperationId, PlaceId, PropositionError, PropositionId, ScalarType, ServiceId,
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use psi_terminal::{CrashCause, EvidenceContractLaneKind, StructuralMultiplicity};
+use psi_terminal::{
+    CrashCause, EvidenceContractLaneKind, StructuralAccess, StructuralMultiplicity,
+};
 use psi_terminal_semantics::OperationSemanticError;
 
 use super::foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
@@ -385,6 +387,23 @@ pub enum ModuleError {
         expected: StructuralMultiplicity,
         actual: StructuralMultiplicity,
     },
+    StructuralArgumentAccessMismatch {
+        operation: OperationId,
+        argument_index: u32,
+        expected: StructuralAccess,
+        actual: StructuralAccess,
+    },
+    StructuralArgumentAccessExceedsSource {
+        operation: OperationId,
+        argument_index: u32,
+        source: StructuralAccess,
+        presented: StructuralAccess,
+    },
+    OverlappingExclusiveStructuralArguments {
+        operation: OperationId,
+        first_argument: u32,
+        second_argument: u32,
+    },
     StructuralArgumentMissingQualification {
         operation: OperationId,
         argument_index: u32,
@@ -719,6 +738,10 @@ pub enum ModuleError {
         operation: OperationId,
         source: PlaceId,
         field: StructuralFieldId,
+    },
+    StructuralObservationRequiresReadableAccess {
+        operation: OperationId,
+        source: PlaceId,
     },
     BooleanNotRequiresBooleanResult(OperationId),
     BooleanNotOperandTypeMismatch {

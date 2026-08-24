@@ -7,7 +7,7 @@ use psi_core::{
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ByteSequenceCarrier, MachineContract, Operation,
-    OperationKind, OperationResult, StructuralArgument, StructuralMultiplicity,
+    OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
@@ -48,6 +48,7 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
         structural_arguments,
         &[StructuralArgument {
             place: place_id(1),
+            access: StructuralAccess::SharedBorrow,
             path: Vec::new(),
         }]
     );
@@ -78,11 +79,13 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 is_self: false,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
             published_service_ceiling: Vec::new(),
         }],
         provider_candidates: Vec::new(),
@@ -133,6 +136,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
                                 place: literal,
+                                access: StructuralAccess::SharedBorrow,
                                 path: Vec::new(),
                             }],
                             completion_receipts: Vec::new(),

@@ -1,4 +1,4 @@
-//! Canonical format-34 structural source and result declaration rows.
+//! Canonical format-35 structural source and result declaration rows.
 
 use psi_core::{PlaceId, StructuralTypeId};
 use psi_terminal::{StructuralParameterDeclaration, StructuralResultDeclaration};
@@ -6,7 +6,8 @@ use psi_terminal::{StructuralParameterDeclaration, StructuralResultDeclaration};
 use super::{
     Reader, TerminalInstallationError, decode_boolean, push_u32, push_u64,
     structural_scalar_codec::{
-        decode_domains, decode_multiplicity, encode_domains, multiplicity_tag,
+        access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
+        multiplicity_tag,
     },
 };
 
@@ -18,7 +19,8 @@ pub(super) fn encode_structural_parameter(
     push_u32(bytes, parameter.position);
     bytes.push(u8::from(parameter.is_self));
     bytes.push(multiplicity_tag(parameter.multiplicity));
-    bytes.extend_from_slice(&[0; 2]);
+    bytes.push(access_tag(parameter.access));
+    bytes.push(0);
     push_u64(bytes, parameter.structural_type.get());
     encode_domains(bytes, &parameter.qualifications)
 }
@@ -43,7 +45,8 @@ pub(super) fn decode_structural_parameter(
     let position = reader.u32()?;
     let is_self = decode_boolean(reader.u8()?)?;
     let multiplicity = decode_multiplicity(reader.u8()?)?;
-    if reader.u16()? != 0 {
+    let access = decode_access(reader.u8()?)?;
+    if reader.u8()? != 0 {
         return Err(TerminalInstallationError::NonzeroReservedField);
     }
     let structural_type = StructuralTypeId::new(reader.u64()?).ok_or(
@@ -55,6 +58,7 @@ pub(super) fn decode_structural_parameter(
         is_self,
         structural_type,
         multiplicity,
+        access,
         qualifications: decode_domains(reader)?,
     })
 }

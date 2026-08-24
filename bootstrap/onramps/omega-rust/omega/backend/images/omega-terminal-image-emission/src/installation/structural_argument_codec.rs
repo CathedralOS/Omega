@@ -1,4 +1,4 @@
-//! Canonical format-34 codec for one structural boundary argument.
+//! Canonical format-35 codec for one structural boundary argument.
 //!
 //! The installation parent owns argument counts and settlement sequencing;
 //! this child owns only the place/path row and its established decode errors.
@@ -6,13 +6,18 @@
 use psi_core::PlaceId;
 use psi_terminal::{StructuralArgument, StructuralPathSegment};
 
-use super::{Reader, TerminalInstallationError, push_u32, push_u64};
+use super::{
+    Reader, TerminalInstallationError, push_u32, push_u64,
+    structural_scalar_codec::{access_tag, decode_access},
+};
 
 pub(super) fn encode_structural_argument(
     bytes: &mut Vec<u8>,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInstallationError> {
     push_u64(bytes, argument.place.get());
+    bytes.push(access_tag(argument.access));
+    bytes.extend_from_slice(&[0; 3]);
     push_u32(
         bytes,
         u32::try_from(argument.path.len())
@@ -48,6 +53,10 @@ pub(super) fn decode_structural_argument(
 ) -> Result<StructuralArgument, TerminalInstallationError> {
     let place = PlaceId::new(reader.u64()?)
         .ok_or(TerminalInstallationError::ZeroSettlementIdentity("PlaceId"))?;
+    let access = decode_access(reader.u8()?)?;
+    if reader.take(3)? != [0; 3] {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
     let path_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManySettlementArgumentPathSegments)?;
     if path_count > reader.remaining() / 8 {
@@ -79,5 +88,9 @@ pub(super) fn decode_structural_argument(
             }
         });
     }
-    Ok(StructuralArgument { place, path })
+    Ok(StructuralArgument {
+        place,
+        access,
+        path,
+    })
 }

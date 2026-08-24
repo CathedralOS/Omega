@@ -1,4 +1,4 @@
-//! Canonical format-34 codec for retained completion claim sources.
+//! Canonical format-35 codec for retained completion claim sources.
 //!
 //! This module owns only the tagged source row. The installation parent keeps
 //! settlement ordering and count fields, so extraction cannot reorder bytes or
@@ -28,6 +28,7 @@ pub(super) fn encode_completion_claim_source(
             bytes,
             &StructuralArgument {
                 place: entry.input,
+                access: psi_terminal::StructuralAccess::Owned,
                 path: entry.path.clone(),
             },
         )?;

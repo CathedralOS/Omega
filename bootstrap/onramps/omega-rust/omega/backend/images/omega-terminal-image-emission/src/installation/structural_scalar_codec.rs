@@ -1,7 +1,7 @@
-//! Canonical scalar vocabulary shared by format-34 structural codecs.
+//! Canonical scalar vocabulary shared by format-35 structural codecs.
 
 use psi_core::StructuralDomainId;
-use psi_terminal::StructuralMultiplicity;
+use psi_terminal::{StructuralAccess, StructuralMultiplicity};
 
 use super::{Reader, TerminalInstallationError, push_u32, push_u64};
 
@@ -79,5 +79,24 @@ pub(super) fn decode_multiplicity(
         _ => Err(TerminalInstallationError::InvalidStructuralMultiplicity(
             value,
         )),
+    }
+}
+
+pub(super) fn access_tag(value: StructuralAccess) -> u8 {
+    match value {
+        StructuralAccess::Owned => 1,
+        StructuralAccess::SharedBorrow => 2,
+        StructuralAccess::MutableBorrow => 3,
+        StructuralAccess::WriteOnlyBorrow => 4,
+    }
+}
+
+pub(super) fn decode_access(value: u8) -> Result<StructuralAccess, TerminalInstallationError> {
+    match value {
+        1 => Ok(StructuralAccess::Owned),
+        2 => Ok(StructuralAccess::SharedBorrow),
+        3 => Ok(StructuralAccess::MutableBorrow),
+        4 => Ok(StructuralAccess::WriteOnlyBorrow),
+        _ => Err(TerminalInstallationError::InvalidStructuralAccess(value)),
     }
 }

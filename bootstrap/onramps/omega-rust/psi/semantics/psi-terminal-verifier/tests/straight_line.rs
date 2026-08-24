@@ -15,12 +15,12 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, CompletionReceipt,
     ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralArgument,
-    StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralArgument, StructuralCaseDeclaration, StructuralContentProjection,
+    StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -2573,6 +2573,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             is_self: false,
             structural_type: local_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     machine
@@ -2583,6 +2584,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             is_self: false,
             structural_type: local_type,
             multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
@@ -3288,6 +3290,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             is_self: false,
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
         entry_claims: vec![psi_terminal::EntryClaim {
@@ -3495,6 +3498,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         is_self: false,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     let machine = TerminalMachine {
@@ -3544,6 +3548,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
                         place: input_root,
+                        access: StructuralAccess::Owned,
                         path: Vec::new(),
                     }],
                     completion_receipts: vec![CompletionReceipt {

@@ -11,6 +11,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Affine,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     checked.facts.flow.terminal_structural_unit_controls =
@@ -82,6 +83,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Affine,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     let leaf = |state| psi_checked_trees::CheckedStructuralUnitControlStatePlan {
@@ -231,6 +233,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Affine,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
@@ -314,6 +317,7 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         is_self: false,
         type_identity: "example::Acknowledgement".to_owned(),
         multiplicity: Multiplicity::Affine,
+        access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
     };
     plan.states[0].scalar_parameters.push(
