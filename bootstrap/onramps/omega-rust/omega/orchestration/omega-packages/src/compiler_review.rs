@@ -6,9 +6,9 @@ use crate::{
 };
 use omega_compiler::{
     BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
-    CompilerExecutableCommitmentError, PackageCompilationInputError, PackageReviewEncodingError,
-    PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_build_dir,
-    project_checked_package_review,
+    CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
+    PackageCompilationInputError, PackageReviewEncodingError, PackageSourceConsumptionCommitment,
+    compile_to_checked_with_packages_in_sponsored_build_dir, project_checked_package_review,
 };
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -105,6 +105,10 @@ pub enum CompileResolvedPackageReviewsError {
         path: PathBuf,
         error: io::Error,
     },
+    BuildStagingSponsor {
+        path: PathBuf,
+        error: FilesystemSponsorError,
+    },
     BuildStagingCleanup {
         path: PathBuf,
         error: io::Error,
@@ -158,6 +162,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::BuildStagingCreate { path, error } => write!(
                 formatter,
                 "could not create a fresh package-review build session at `{}`: {error}",
+                path.display()
+            ),
+            Self::BuildStagingSponsor { path, error } => write!(
+                formatter,
+                "failed to sponsor package-review staging root `{}`: {error}",
                 path.display()
             ),
             Self::BuildStagingCleanup { path, error, prior } => {
@@ -257,7 +266,12 @@ pub fn compile_resolved_package_reviews(
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let build_session = ReviewBuildSession::create(build_root)?;
-    let result = compile_resolved_package_reviews_in_session(closure, target, build_session.root());
+    let result = compile_resolved_package_reviews_in_session(
+        closure,
+        target,
+        build_session.root(),
+        build_session.sponsor(),
+    );
     build_session.dispose(result)
 }
 
@@ -265,6 +279,7 @@ fn compile_resolved_package_reviews_in_session(
     closure: &ResolvedPackageSourceClosure,
     target: &str,
     build_session_root: &Path,
+    filesystem_sponsor: &FilesystemSponsor,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let compiler_executable_commitment =
         CompilerExecutableCommitment::derive_current().map_err(|error| {
@@ -289,11 +304,12 @@ fn compile_resolved_package_reviews_in_session(
                 errors,
             }
         })?;
-        let checked = compile_to_checked_with_packages_in_build_dir(
+        let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
             &custody.snapshot_root().join("main.omg"),
             &package_build_root(build_session_root, &key, custody.resolution()),
             Some(target),
             inputs,
+            filesystem_sponsor.clone(),
         )
         .map_err(
             |diagnostics| CompileResolvedPackageReviewsError::Compilation {
@@ -367,6 +383,7 @@ fn compile_resolved_package_reviews_in_session(
 #[derive(Debug)]
 struct ReviewBuildSession {
     root: PathBuf,
+    sponsor: FilesystemSponsor,
     active: bool,
 }
 
@@ -413,8 +430,19 @@ impl ReviewBuildSession {
                             ),
                         });
                     }
+                    let sponsor = match FilesystemSponsor::new(&canonical_root) {
+                        Ok(sponsor) => sponsor,
+                        Err(error) => {
+                            let _ = fs::remove_dir(&canonical_root);
+                            return Err(CompileResolvedPackageReviewsError::BuildStagingSponsor {
+                                path: canonical_root,
+                                error,
+                            });
+                        }
+                    };
                     return Ok(Self {
                         root: canonical_root,
+                        sponsor,
                         active: true,
                     });
                 }
@@ -439,6 +467,10 @@ impl ReviewBuildSession {
 
     fn root(&self) -> &Path {
         &self.root
+    }
+
+    fn sponsor(&self) -> &FilesystemSponsor {
+        &self.sponsor
     }
 
     fn dispose<T>(

@@ -153,7 +153,7 @@ pub struct EvaluationUsage {
 /// evaluator-halted outcome. It is not the canonical replay transcript:
 /// arguments, rooted paths, mutable output regions, logical handles, and
 /// retained content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 3;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -190,6 +190,7 @@ pub enum FilesystemEvaluationHaltKind {
     Exit,
     Unsupported,
     Trap,
+    ResourceExhausted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -321,6 +322,7 @@ pub enum BuildMachineEvaluationFailureKind {
     Exit,
     Unsupported,
     Trap,
+    ResourceExhausted,
     ResultAccountingOverflow,
     WorkerUnavailable,
     WorkerPanicked,
@@ -586,6 +588,13 @@ pub enum FilesystemAccess {
     /// write root; anything else is refused with EACCES before the OS is
     /// touched. build.omg's shape: read = source tree, write = build dir.
     RealScoped(FsGrants),
+    /// The same path authority, plus a compiler-owned resource sponsor shared
+    /// across every build-machine evaluation in one package-review session.
+    /// The program cannot inspect or enlarge this account.
+    RealScopedSponsored {
+        grants: FsGrants,
+        sponsor: FilesystemSponsor,
+    },
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

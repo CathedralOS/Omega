@@ -161,6 +161,18 @@ impl fmt::Display for FilesystemSponsorError {
 
 impl Error for FilesystemSponsorError {}
 
+impl FilesystemSponsorError {
+    pub const fn is_limit_exceeded(&self) -> bool {
+        matches!(
+            self,
+            Self::EntryLimitExceeded { .. }
+                | Self::TotalLogicalBytesLimitExceeded { .. }
+                | Self::ObjectExtentLimitExceeded { .. }
+                | Self::ArithmeticOverflow
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FilesystemSponsor {
     account: Arc<Mutex<FilesystemAccount>>,

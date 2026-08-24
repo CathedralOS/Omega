@@ -234,3 +234,33 @@ Tempting but wrong alternatives are to encode only the callee name, assume a
 Boolean-returning machine is pure or proof-only, trust the body without an
 authority edge, or treat proposition and machine calls as interchangeable
 because they share surface syntax.
+
+## Q9 — What compiler/toolchain provenance seals a package instance?
+
+Review orchestration now binds exact compiler-consumed package/toolchain bytes
+and the producer executable bytes observed before and after closure review.
+That is useful review provenance, but it neither identifies the complete
+compiler/toolchain source closure nor proves that the observed executable is
+the process image that produced the rows. `CompilerIssuedPackageReview`
+therefore correctly remains review-only and cannot yet seal `PackageInstance`.
+
+Choose the exact portable producer provenance required for accepted package
+evidence. It must specify:
+
+- the compiler, verifier, evidence-schema, standard-library, target-package,
+  and bootstrap/toolchain distribution closure that enters identity;
+- whether source closure plus a reproducible-build relation is mandatory, or
+  whether an admitted binary/toolchain commitment is a distinct trust tier;
+- how a verifier establishes that the executing producer corresponds to the
+  committed artifact without pretending an ordinary process can attest its own
+  loaded image;
+- which parts are compatibility identity versus trust/provenance metadata; and
+- how independently bootstrapped or substituted toolchains compare without
+  claiming that provenance certifies honesty or proves an audit occurred.
+
+Recommended direction: define a versioned toolchain-closure commitment rooted
+in exact source and schema identities, then allow either independently checked
+reproduction or an explicit admitted-binary trust tier to bind the executing
+producer. Keep capability/API comparison bytes independent of this envelope.
+Do not treat a path hash of the current executable, a self-reported version,
+PCC, or an audit-attestation string as proof of producer identity or honesty.

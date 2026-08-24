@@ -63,6 +63,7 @@ pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_in_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_dir,
 };
 pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;

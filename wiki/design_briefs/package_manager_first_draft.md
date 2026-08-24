@@ -399,7 +399,7 @@ platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
 stay separate from capability/API comparison bytes. Observation schema v3
-carries operation-attempt schema v3, retaining each completed operation's exact
+carries operation-attempt schema v4, retaining each completed operation's exact
 provider, stable tag, scalar result, and post-error in successful-run call-start
 order. Grant-gate denials retain exact operand ordinals, read/write access, and
 closed unresolvable/outside-root reasons; host errors do not fabricate one. It
@@ -420,13 +420,15 @@ mutable cells/capacities, including fixed ABI inputs such as Win32 `OVERLAPPED`,
 before provider or grant access. It includes otherwise-
 unused ABI operands and is source-checked against all 50 canonical signatures
 and result widths. Canonicalize enforces its declared 1024-byte `PATH_MAX`
-carrier at that gate. File extent, total staging-tree, memory, and CPU quotas
-remain open.
+carrier at that gate. Process memory and CPU quotas remain open.
 Scoped hard links require write authority on both names, so a read-only source
-inode cannot be introduced into writable staging by alias. The remaining quota
-must be shared across the whole disposable review session and account for
-namespace entries, unique objects, symlink payloads, and open-but-unlinked
-objects; neither per-package limits nor path-summing bound the actual resource.
+inode cannot be introduced into writable staging by alias. One compiler-owned
+sponsor is shared across the whole disposable review session. It accounts for
+package output roots, namespace names, unique object extents, symlink payloads,
+and open-but-unlinked objects under a 4,096-entry, 256-MiB-total, and
+256-MiB-per-object ceiling. Provider mutations reserve before touching the OS
+and commit after success; ceiling refusal is resource exhaustion. Neither
+per-package limits nor path-summing bound the actual resource.
 
 Terminal evidence is a separate stronger lane. It is required only for rows
 that claim checked properties of final realization—Omega-emitted executable
