@@ -605,13 +605,25 @@ impl<'a> Parser<'a> {
     fn prescan_machine_names(&mut self) -> Result<(), String> {
         let mut scan = 0usize;
         let mut depth = 0i32;
+        let mut at_item_start = true;
         while self.tokens[scan].kind != TokenKind::Eof {
             match self.tokens[scan].kind {
-                TokenKind::LBrace => depth += 1,
-                TokenKind::RBrace => depth -= 1,
+                TokenKind::LBrace => {
+                    depth += 1;
+                    at_item_start = false;
+                }
+                TokenKind::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        at_item_start = true;
+                    }
+                }
                 TokenKind::Ident
-                    if depth == 0 && token_text(&self.tokens[scan], self.source) == b"machine" =>
+                    if depth == 0
+                        && at_item_start
+                        && token_text(&self.tokens[scan], self.source) == b"machine" =>
                 {
+                    at_item_start = false;
                     let mut last_ident: Option<usize> = None;
                     let mut probe = scan + 1;
                     while self.tokens[probe].kind != TokenKind::LParen
@@ -628,6 +640,14 @@ impl<'a> Parser<'a> {
                             .push(token_text(&self.tokens[index], self.source).to_vec()),
                         None => return Err("alpha-onramp: parse error: machine without a name".into()),
                     }
+                }
+                TokenKind::Ident
+                    if depth == 0
+                        && at_item_start
+                        && (token_text(&self.tokens[scan], self.source) == b"boundary"
+                            || token_text(&self.tokens[scan], self.source) == b"data") =>
+                {
+                    at_item_start = false;
                 }
                 _ => {}
             }
