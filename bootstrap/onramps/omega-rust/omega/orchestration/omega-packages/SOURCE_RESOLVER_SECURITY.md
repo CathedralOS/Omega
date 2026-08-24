@@ -104,12 +104,17 @@ rejects. Resolver-owned materializations are checked under an exact-tree policy,
 so immutable Git snapshots still preserve every selected tree entry.
 
 Git subprocesses now receive null stdin, concurrent bounded stdout/stderr
-capture, and a deadline. Overflow and timeout terminate the child and reject
-explicitly, including for blob reads. Fetch and materialization still run in the
-parent process without an OS sandbox, descendant containment, or CPU, memory,
-process-count, and transfer ceilings. A deliberately hostile same-user process
-can race cooperative locks and validation, including the local before/after
-observation. SSH retains an external client and credential/configuration
-surface. Those conditions keep the resolver diagnostic-only until helper
-confinement, hostile-process custody, remaining resource ceilings, and opaque-
-receipt work land.
+capture, and a deadline. Each subprocess starts in a fresh Unix process group
+or Windows Job Object, and every completion or rejection path terminates that
+container before returning; ordinary helper and SSH descendants therefore
+cannot survive the resolver command or keep inherited capture pipes open.
+Overflow and timeout reject explicitly, including for blob reads. This process
+container floor is not an OS sandbox: a hostile Unix descendant may deliberately
+escape into another session. Fetch and materialization still run in the parent
+process without filesystem/network confinement or CPU, memory, process-count,
+and transfer ceilings. A deliberately hostile same-user process can race
+cooperative locks and validation, including the local before/after observation.
+SSH retains an external client and credential/configuration surface. Those
+conditions keep the resolver diagnostic-only until native helper confinement,
+hostile-process custody, remaining resource ceilings, and opaque-receipt work
+land.

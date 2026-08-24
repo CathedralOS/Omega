@@ -9,6 +9,7 @@ name = "omega_packages"
 path = "src/lib.rs"
 
 [dependencies]
+command-group = "5.0.1"
 omega-compiler = { path = "../omega-compiler" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-source = { path = "../../../psi/foundation/psi-source" }

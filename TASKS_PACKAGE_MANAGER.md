@@ -127,10 +127,15 @@ complete.
   filters, hooks, or submodules, re-hashed against the expected tree, made
   read-only, and atomically published as a resolver-owned snapshot. Published
   snapshots are revalidated before reuse. Every Git subprocess now receives
-  null stdin, concurrently bounded stdout/stderr capture, and a deadline;
-  overflow or timeout kills the child and rejects explicitly. Local sources now
-  follow the same custody shape: a bounded capture is re-materialized into a
-  content-addressed, read-only, atomically published resolver snapshot;
+  null stdin, concurrently bounded stdout/stderr capture, and a deadline. It
+  also runs in a fresh Unix process group or Windows Job Object which is
+  terminated on every exit path, preventing ordinary helper/SSH descendants
+  from surviving or holding capture pipes open; overflow or timeout rejects
+  explicitly. This is a portable-executor floor, not strict hostile-process
+  confinement. Local
+  sources now follow the same custody shape: a bounded capture is
+  re-materialized into a content-addressed, read-only, atomically published
+  resolver snapshot;
   source/cache overlap and ordinary concurrent mutation reject, and diagnostics
   expose the snapshot path rather than the live tree. Mutable local-package
   capture now excludes the compiler-reserved root `build/` output directory
@@ -144,9 +149,10 @@ complete.
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
-  - the Git subprocess has no OS sandbox, descendant containment, or CPU/memory/
-    process/transfer ceilings, and SSH transport still necessarily invokes an
-    external client with its own configuration surface;
+  - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
+    ceilings; process-container cleanup contains ordinary descendants but not a
+    hostile Unix process that deliberately changes session, and SSH transport
+    necessarily invokes an external client with its own configuration surface;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
