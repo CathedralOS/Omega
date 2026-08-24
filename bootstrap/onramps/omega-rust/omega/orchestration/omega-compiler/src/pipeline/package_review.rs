@@ -1549,6 +1549,10 @@ pub enum PackageReviewCanonicalRowKind {
     Callable,
     DangerousAuthority,
     SelectedProviderSet,
+    /// A trust-bearing bodyless boundary guarantee. This is separate from the
+    /// callable API row so admission policy cannot mistake an accepted claim
+    /// for checked implementation evidence.
+    AcceptedClaim,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

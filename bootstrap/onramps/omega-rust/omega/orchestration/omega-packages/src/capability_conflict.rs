@@ -1,3 +1,7 @@
+use crate::review_closure::{
+    ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
+    validate_review_only_set,
+};
 use crate::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, DependencyRequestPath,
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
@@ -351,6 +355,16 @@ pub enum ReviewOnlyCapabilityConflictError {
     CandidateResolutionMismatch {
         package: Box<PackageKey>,
     },
+    MixedReviewTarget {
+        role: ReviewSetRole,
+        first: Box<PackageKey>,
+        conflicting: Box<PackageKey>,
+    },
+    MixedCompilerExecutableCommitment {
+        role: ReviewSetRole,
+        first: Box<PackageKey>,
+        conflicting: Box<PackageKey>,
+    },
     MissingDependencyPath {
         package: Box<PackageKey>,
     },
@@ -423,6 +437,28 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
                 formatter,
                 "candidate source custody and compiler review disagree on `{}` resolution",
                 package.name().as_str()
+            ),
+            Self::MixedReviewTarget {
+                role,
+                first,
+                conflicting,
+            } => write!(
+                formatter,
+                "{} review closure mixes targets between `{}` and `{}`",
+                review_role_token(*role),
+                first.name().as_str(),
+                conflicting.name().as_str()
+            ),
+            Self::MixedCompilerExecutableCommitment {
+                role,
+                first,
+                conflicting,
+            } => write!(
+                formatter,
+                "{} review closure mixes compiler executable commitments between `{}` and `{}`",
+                review_role_token(*role),
+                first.name().as_str(),
+                conflicting.name().as_str()
             ),
             Self::MissingDependencyPath { package } => write!(
                 formatter,
@@ -545,15 +581,14 @@ pub fn compare_review_only_capabilities(
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
     let mut input_budget = ComparisonInputBudget::default();
-    let baseline_by_key =
-        validate_reviews(baseline, ReviewSetRole::Baseline, limits, &mut input_budget)?;
-    let candidate_by_key = validate_reviews(
-        candidate,
-        ReviewSetRole::Candidate,
-        limits,
-        &mut input_budget,
-    )?;
-    validate_candidate_custody(&candidate_by_key, candidate_sources)?;
+    account_review_resources(baseline, limits, &mut input_budget)?;
+    let baseline_by_key = validate_review_only_set(baseline)
+        .map_err(|error| map_set_validation_error(ReviewSetRole::Baseline, error))?
+        .into_reviews_by_key();
+    account_review_resources(candidate, limits, &mut input_budget)?;
+    let candidate_by_key = validate_review_only_closure(candidate_sources, candidate)
+        .map_err(map_candidate_closure_validation_error)?
+        .into_reviews_by_key();
     let candidate_closure = derive_candidate_closure_commitment(candidate_sources)?;
 
     let mut packages = Vec::new();
@@ -635,29 +670,18 @@ struct ComparisonInputBudget {
     source_location_path_bytes: usize,
 }
 
-fn validate_reviews<'review>(
-    reviews: &'review CompilerIssuedPackageReviewSet,
-    role: ReviewSetRole,
+fn account_review_resources(
+    reviews: &CompilerIssuedPackageReviewSet,
     limits: ReviewOnlyCapabilityConflictLimits,
     budget: &mut ComparisonInputBudget,
-) -> Result<Vec<&'review CompilerIssuedPackageReview>, ReviewOnlyCapabilityConflictError> {
+) -> Result<(), ReviewOnlyCapabilityConflictError> {
     budget.packages = budget.packages.saturating_add(reviews.reviews().len());
     if budget.packages > limits.maximum_packages {
         return Err(ReviewOnlyCapabilityConflictError::TooManyPackages {
             maximum: limits.maximum_packages,
         });
     }
-    let mut by_key = Vec::new();
-    by_key
-        .try_reserve(reviews.reviews().len())
-        .map_err(|_| ReviewOnlyCapabilityConflictError::AllocationFailed)?;
     for review in reviews.reviews() {
-        if review.projection().package() != review.key().identity() {
-            return Err(ReviewOnlyCapabilityConflictError::ReviewIdentityMismatch {
-                role,
-                package: Box::new(review.key().clone()),
-            });
-        }
         budget.rows = budget.rows.saturating_add(review.canonical_rows().len());
         budget.row_key_bytes = review
             .canonical_rows()
@@ -704,52 +728,73 @@ fn validate_reviews<'review>(
                 },
             );
         }
-        by_key.push(review);
-    }
-    by_key.sort_by(|left, right| left.key().cmp(right.key()));
-    if let Some(pair) = by_key
-        .windows(2)
-        .find(|pair| pair[0].key() == pair[1].key())
-    {
-        return Err(ReviewOnlyCapabilityConflictError::DuplicateReview {
-            role,
-            package: Box::new(pair[0].key().clone()),
-        });
-    }
-    Ok(by_key)
-}
-
-fn validate_candidate_custody(
-    candidate: &[&CompilerIssuedPackageReview],
-    sources: &ResolvedPackageSourceClosure,
-) -> Result<(), ReviewOnlyCapabilityConflictError> {
-    for review in candidate {
-        let custody = sources.custody(review.key()).ok_or_else(|| {
-            ReviewOnlyCapabilityConflictError::MissingCandidateCustody {
-                package: Box::new(review.key().clone()),
-            }
-        })?;
-        if custody.resolution() != review.resolution() {
-            return Err(
-                ReviewOnlyCapabilityConflictError::CandidateResolutionMismatch {
-                    package: Box::new(review.key().clone()),
-                },
-            );
-        }
-    }
-    for custody in sources.custodies() {
-        if candidate
-            .binary_search_by(|review| review.key().cmp(custody.key()))
-            .is_err()
-        {
-            return Err(
-                ReviewOnlyCapabilityConflictError::UnexpectedCandidateCustody {
-                    package: Box::new(custody.key().clone()),
-                },
-            );
-        }
     }
     Ok(())
+}
+
+fn map_candidate_closure_validation_error(
+    error: ReviewOnlyClosureValidationError,
+) -> ReviewOnlyCapabilityConflictError {
+    match error {
+        ReviewOnlyClosureValidationError::ReviewSet(error) => {
+            map_set_validation_error(ReviewSetRole::Candidate, error)
+        }
+        ReviewOnlyClosureValidationError::MissingReview { package } => {
+            ReviewOnlyCapabilityConflictError::UnexpectedCandidateCustody {
+                package: Box::new(package),
+            }
+        }
+        ReviewOnlyClosureValidationError::UnexpectedReview { package } => {
+            ReviewOnlyCapabilityConflictError::MissingCandidateCustody {
+                package: Box::new(package),
+            }
+        }
+        ReviewOnlyClosureValidationError::ResolutionMismatch { package } => {
+            ReviewOnlyCapabilityConflictError::CandidateResolutionMismatch {
+                package: Box::new(package),
+            }
+        }
+        ReviewOnlyClosureValidationError::AllocationFailed => {
+            ReviewOnlyCapabilityConflictError::AllocationFailed
+        }
+    }
+}
+
+fn map_set_validation_error(
+    role: ReviewSetRole,
+    error: ReviewOnlySetValidationError,
+) -> ReviewOnlyCapabilityConflictError {
+    match error {
+        ReviewOnlySetValidationError::DuplicateReview { package } => {
+            ReviewOnlyCapabilityConflictError::DuplicateReview {
+                role,
+                package: Box::new(package),
+            }
+        }
+        ReviewOnlySetValidationError::ProjectionIdentityMismatch { package } => {
+            ReviewOnlyCapabilityConflictError::ReviewIdentityMismatch {
+                role,
+                package: Box::new(package),
+            }
+        }
+        ReviewOnlySetValidationError::MixedTarget { first, conflicting } => {
+            ReviewOnlyCapabilityConflictError::MixedReviewTarget {
+                role,
+                first: Box::new(first),
+                conflicting: Box::new(conflicting),
+            }
+        }
+        ReviewOnlySetValidationError::MixedCompilerExecutableCommitment { first, conflicting } => {
+            ReviewOnlyCapabilityConflictError::MixedCompilerExecutableCommitment {
+                role,
+                first: Box::new(first),
+                conflicting: Box::new(conflicting),
+            }
+        }
+        ReviewOnlySetValidationError::AllocationFailed => {
+            ReviewOnlyCapabilityConflictError::AllocationFailed
+        }
+    }
 }
 
 #[derive(Default)]
@@ -1473,6 +1518,7 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::Callable => "callable",
         PackageReviewCanonicalRowKind::DangerousAuthority => "dangerous_authority",
         PackageReviewCanonicalRowKind::SelectedProviderSet => "selected_provider_set",
+        PackageReviewCanonicalRowKind::AcceptedClaim => "accepted_claim",
     }
 }
 
@@ -1486,6 +1532,7 @@ const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::Callable => 5,
         PackageReviewCanonicalRowKind::DangerousAuthority => 6,
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
+        PackageReviewCanonicalRowKind::AcceptedClaim => 8,
     }
 }
 

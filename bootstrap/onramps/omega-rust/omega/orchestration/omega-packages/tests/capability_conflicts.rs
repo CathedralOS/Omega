@@ -46,6 +46,8 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     let baseline_cache = temp_root("baseline-cache");
     let candidate_cache = temp_root("candidate-cache");
     let representation_cache = temp_root("representation-cache");
+    let accepted_claim_baseline_cache = temp_root("accepted-claim-baseline-cache");
+    let accepted_claim_candidate_cache = temp_root("accepted-claim-candidate-cache");
     let build_root = temp_root("build");
     let context = ExternalSourceContext::derive(b"capability-conflict-test-lock");
     write_package(
@@ -283,9 +285,93 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
         PackageTriageDisposition::AdmittedWithAuditRecommended
     );
 
+    write_package(
+        &live,
+        r#"boundary machine trusted_zero() -> u64
+ensures result == 0;
+"#,
+    );
+    let accepted_claim_baseline_sources = resolve_external_local_package_closure(
+        &live,
+        ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
+        &accepted_claim_baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve accepted-claim baseline");
+    let accepted_claim_baseline_reviews = compile_resolved_package_reviews(
+        &accepted_claim_baseline_sources,
+        "windows_x64",
+        &build_root,
+    )
+    .expect("compile accepted-claim baseline");
+
+    write_package(
+        &live,
+        r#"boundary machine trusted_zero() -> u64
+ensures result == 1;
+"#,
+    );
+    let accepted_claim_candidate_sources = resolve_external_local_package_closure(
+        &live,
+        ExternalSourceContext::derive(b"accepted-claim-conflict-test-lock"),
+        &accepted_claim_candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve changed accepted claim");
+    let accepted_claim_candidate_reviews = compile_resolved_package_reviews(
+        &accepted_claim_candidate_sources,
+        "windows_x64",
+        &build_root,
+    )
+    .expect("compile changed accepted claim");
+    let accepted_claim_conflicts = compare_review_only_capabilities(
+        &accepted_claim_baseline_reviews,
+        &accepted_claim_candidate_reviews,
+        &accepted_claim_candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare changed accepted claim");
+    let accepted_claim_conflict = accepted_claim_conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .expect("changed accepted guarantee produces an exact trust conflict");
+    assert_eq!(
+        accepted_claim_conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    assert_eq!(
+        accepted_claim_conflict.risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+    assert!(accepted_claim_conflict.is_blocking());
+    assert!(
+        accepted_claim_conflict
+            .candidate_source()
+            .and_then(PackageReviewCanonicalRowSource::authored_locations)
+            .expect("accepted-claim conflict has declaration provenance")
+            .iter()
+            .any(|location| location.relative_path() == "main.omg")
+    );
+    assert_eq!(
+        triage_review_update(
+            &accepted_claim_baseline_reviews,
+            &accepted_claim_baseline_reviews,
+            &BTreeSet::new(),
+        )
+        .disposition(),
+        PackageTriageDisposition::Admitted,
+        "an unchanged accepted baseline remains visible without blanket reapproval"
+    );
+
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);
     let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(representation_cache);
+    let _ = std::fs::remove_dir_all(accepted_claim_baseline_cache);
+    let _ = std::fs::remove_dir_all(accepted_claim_candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);
 }

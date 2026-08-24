@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 31;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 32;
 const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -114,6 +114,13 @@ fn encode_rows_with_limits(
         .saturating_add(review.public_data.len())
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.callables.len())
+        .saturating_add(
+            review
+                .callables
+                .iter()
+                .filter(|callable| callable.supply == MachineSupplyMode::Accepted)
+                .count(),
+        )
         .saturating_add(review.dangerous_authorities.len())
         .saturating_add(2);
     if required_rows > limits.maximum_rows {
@@ -220,6 +227,22 @@ fn encode_rows_with_limits(
                 |encoder| encode_callable(encoder, callable),
             )?,
         )?;
+        if callable.supply == MachineSupplyMode::Accepted {
+            push_row(
+                &mut rows,
+                &mut total_row_bytes,
+                limits,
+                encode_row(
+                    review,
+                    limits,
+                    PackageReviewCanonicalRowKind::AcceptedClaim,
+                    PackageReviewCanonicalRowRisk::Blocking,
+                    row_source(&review.row_sources.callables, index)?,
+                    |encoder| encode_nominal(encoder, &callable.identity),
+                    |encoder| encode_callable(encoder, callable),
+                )?,
+            )?;
+        }
     }
     for (index, authority) in review.dangerous_authorities.iter().enumerate() {
         push_row(
@@ -353,6 +376,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::Callable => 5,
         PackageReviewCanonicalRowKind::DangerousAuthority => 6,
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
+        PackageReviewCanonicalRowKind::AcceptedClaim => 8,
     }
 }
 

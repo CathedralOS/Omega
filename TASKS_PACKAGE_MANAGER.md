@@ -488,9 +488,14 @@ complete.
   either by text. Callable rows retain the exact checked-body, boundary, or
   accepted supply tier: a bodyless boundary guarantee remains an explicit
   trust-bearing accepted claim, while a claim-free boundary symbol does not
-  become one. Public trait requirements now project unnamed `requires` and
-  `ensures` through the same closed structural fact/expression lane as public
-  callables, joined to exactly one checked `StateSignature` owner. Generic
+  become one. Canonical review now emits an additional blocking
+  `AcceptedClaim` row for each exact accepted callable, carrying its complete
+  published envelope and declaration provenance. This keeps trust admission
+  distinct from ordinary callable compatibility without reconstructing claim
+  semantics in package orchestration. Public trait requirements now project
+  unnamed `requires` and `ensures` through the same closed structural
+  fact/expression lane as public callables, joined to exactly one checked
+  `StateSignature` owner. Generic
   selected-conformance telescopes, invariants, named evidence contracts,
   boundary clauses, and unsupported expression forms still fail closed. Exact
   checked crash capsules keyed by trait and requirement now project each
@@ -579,7 +584,7 @@ complete.
   `Volatile`, including a denied attempt, while pure, console-only, and declared-
   but-unreachable filesystem rows remain `Hermetic`. Console-only granted
   execution no longer installs real filesystem authority. Compiler-issued
-  package review carries this summary outside v31 capability/API comparison
+  package review carries this summary outside v32 capability/API comparison
   bytes. It is explicitly not a receipt and makes no replayability or source-
   rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -610,7 +615,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v31 length-framed binary comparison encoding now covers
+  share a native ABI. A v32 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -673,7 +678,7 @@ complete.
   realized filesystem-touch fact separate from deterministic evaluator usage.
   The compiler derives the static class from exact reachable toolchain service
   identity, retains the versioned Hermetic/Volatile summary through checked and
-  full reports and compiler-issued package review, and keeps it outside v31
+  full reports and compiler-issued package review, and keeps it outside v32
   capability/API comparison bytes. Console-only execution no longer installs
   real filesystem authority. Both statement- and value-position filesystem
   dispatch now require an exact requirement symbol owned by the canonical
@@ -837,6 +842,18 @@ complete.
   rows, stale evidence, and toolchain/source mismatches reject before use or
   persistence.
 
+  Progress 2026-08-24: the review-only candidate join now has one shared
+  validator used by capability comparison and source-review assembly. It
+  rejects duplicate compiler rows, missing or unexpected custody, immutable-
+  resolution disagreement, package/projection identity disagreement, mixed
+  deployment targets, and mixed compiler-executable commitments before rows
+  are compared or source is rendered. Baseline review sets receive the same
+  identity, target, compiler, and duplicate checks; recovered baseline source
+  remains intentionally partial and is checked separately. This is not an
+  accepted-lock validator: conflicting package instances, stale sealed
+  evidence, open/unreachable lock rows, and complete toolchain provenance
+  remain.
+
 ## P5 — Admission, audit, and review
 
 - **CAPABILITY-CONFLICT-MODEL.** Replace whole-section receipt approval with
@@ -862,12 +879,12 @@ complete.
 
   Progress 2026-08-24: the review projection exposes independently framed,
   compiler-owned rows for the projection header, public traits, domains, data,
-  representation TCB, callables, dangerous authority, and the selected-provider
-  set. Package orchestration must compare the complete row bytes and must not
-  parse or reconstruct their semantics. Callable details are initially one
-  exact envelope; selected providers deliberately remain one opaque blocking
-  set even though the compiler retains their sealed identities. The package
-  layer now stores those
+  representation TCB, callables, accepted claims, dangerous authority, and the
+  selected-provider set. Package orchestration must compare the complete row
+  bytes and must not parse or reconstruct their semantics. Callable details
+  are initially one exact envelope; selected providers deliberately remain one
+  opaque blocking set even though the compiler retains their sealed
+  identities. The package layer now stores those
   bounded rows when compiler review is issued, linearly compares exact
   `(kind, key)` coordinates, and emits added/removed/changed review-only
   conflicts without decoding compiler payloads. Each conflict retains complete
@@ -932,7 +949,7 @@ complete.
   `Console` is additionally classified as process authority because reach is
   trait-granular and that canonical trait includes `exit_process`; a
   package-owned `Console` lookalike cannot mint the class. Comparison encoding
-  v31 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
+  v32 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, dynamic
   loading, signing, secrets, executable installation, DMA/IOMMU, and sealed
@@ -956,7 +973,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v31 retains
+  it does not fabricate layout or realization. Comparison encoding v32 retains
   the lane. Exact mechanism/ABI selection, source/toolchain/compiler sealing,
   and admission-policy outcomes remain.
 
@@ -970,8 +987,11 @@ complete.
 
   Progress 2026-08-24: review-only orchestration now derives deterministic
   per-package triage from compiler-issued closure rows rather than legacy
-  manifests or reviewer prose. Initial admission recommends audit for
-  dangerous authority and introduced representation-TCB rows. Updates block
+  manifests or reviewer prose. Initial admission blocks an exact accepted-claim
+  row for root-policy resolution and recommends audit for dangerous authority
+  and introduced representation-TCB rows. Newly introduced transitive packages
+  follow the same rule; an unchanged accepted claim does not demand recurring
+  blanket approval. Updates block
   changed capability/API bytes and source-lineage replacement, retain a
   standalone-audit recommendation when old source is unavailable, and continue
   to recommend audit for unchanged dangerous authority. A fixed-vocabulary
@@ -1063,7 +1083,8 @@ complete.
   normalization, and dependency-version reconciliation conflict.
 
   Progress 2026-08-24: real compiler evidence now covers a pure public package,
-  a bodyless accepted boundary claim, exact filesystem reach/invocation,
+  a bodyless accepted boundary claim with a distinct blocking row and
+  initial-admission source packet, exact filesystem reach/invocation,
   retained network reach without a hidden invocation, exact clock-service
   reach/invocation, capability acquisition/return flow, and a two-dependency
   source graph. `opaque-carrier` adds an exact package-qualified public-data row

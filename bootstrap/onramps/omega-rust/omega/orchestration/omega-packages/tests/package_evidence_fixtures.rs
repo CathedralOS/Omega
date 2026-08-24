@@ -1,9 +1,10 @@
 use omega_compiler::{
     BuildObservationClass, CheckedPackageReviewProjection, PackageReviewCallableRole,
-    PackageReviewCanonicalRowKind, PackageReviewContractExpression, PackageReviewContractFact,
-    PackageReviewContractKind, PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
-    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewDangerousAuthorityClass,
+    PackageReviewNominalOwner, PackageReviewPropositionEvidence,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewSourceLocationRole,
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
@@ -270,6 +271,31 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 application.evidence(),
                 &PackageReviewPropositionEvidence::FactOnly
             );
+            let canonical_rows = review
+                .canonical_rows()
+                .expect("axiom-ledger canonical rows");
+            let accepted_claims = canonical_rows
+                .iter()
+                .filter(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+                .collect::<Vec<_>>();
+            let [accepted_claim] = accepted_claims.as_slice() else {
+                panic!("axiom-ledger exact accepted-claim row")
+            };
+            assert_eq!(
+                accepted_claim.risk(),
+                PackageReviewCanonicalRowRisk::Blocking
+            );
+            assert!(
+                accepted_claim
+                    .source()
+                    .authored_locations()
+                    .expect("accepted claim source")
+                    .iter()
+                    .any(|location| {
+                        location.role() == PackageReviewSourceLocationRole::Declaration
+                            && location.relative_path() == "main.omg"
+                    })
+            );
         }
         "opaque-carrier" => {
             let [opaque] = review.public_data() else {
@@ -399,21 +425,15 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .iter()
             .find(|decision| decision.package_name() == *package)
             .expect("initial triage retains root package");
-        let initial_audit_expected = matches!(
-            *package,
-            "generated-table"
-                | "file-journal"
-                | "process-exit"
-                | "remote-journal"
-                | "opaque-carrier"
-        );
+        let initial_disposition = match *package {
+            "axiom-ledger" => PackageTriageDisposition::BlockedCapabilityChange,
+            "generated-table" | "file-journal" | "process-exit" | "remote-journal"
+            | "opaque-carrier" => PackageTriageDisposition::AdmittedWithAuditRecommended,
+            _ => PackageTriageDisposition::Admitted,
+        };
         assert_eq!(
             initial_root.disposition(),
-            if initial_audit_expected {
-                PackageTriageDisposition::AdmittedWithAuditRecommended
-            } else {
-                PackageTriageDisposition::Admitted
-            },
+            initial_disposition,
             "{package} initial source triage"
         );
         assert!(
@@ -431,7 +451,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .source_patches()
                 .iter()
                 .any(|patch| patch.candidate_key() == closure.graph().root()),
-            initial_audit_expected,
+            initial_disposition != PackageTriageDisposition::Admitted,
             "{package} initial source packet follows compiler-derived audit policy"
         );
         let rendered_initial = initial_review

@@ -79,6 +79,11 @@ changes retain size and content commitments and require standalone audit. The
 review-input join requires a complete candidate closure matching every
 compiler-issued key and immutable resolution, validates each recovered baseline
 custody against its compiler row, and derives missing-old-source state itself.
+One shared review-only validator also rejects duplicate compiler rows,
+package/projection identity mismatch, mixed deployment targets, and mixed
+compiler-executable commitments before capability comparison or source-packet
+assembly. These checks establish review custody only; they do not issue an
+accepted lock or settle complete toolchain provenance.
 Its aggregate bounded renderer frames compiler-only triage separately from
 hostile source lanes. It does not yet invoke a model, and no advisory answer
 can mint admission or prove an audit occurred.
@@ -319,7 +324,11 @@ and canonical rows land. Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
 guarantees remain explicit trust-bearing accepted claims; claim-free boundary
-symbols do not become claims. Signatures retain lifetime arity,
+symbols do not become claims. Each accepted callable additionally emits a
+separate blocking canonical row with the complete callable envelope and exact
+declaration source. Initial admission or a newly introduced package must
+resolve that trust row; an unchanged accepted baseline does not recur as a
+blanket prompt. Signatures retain lifetime arity,
 alpha-normalized type/const parameters, ordered
 parameter names/modes, package-qualified lifetime-sensitive parameter types,
 and result type. Checked realizations of public, ordinary, lifetime-free traits
@@ -363,7 +372,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-31 length-framed binary comparison encoding over this review
+a version-32 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
@@ -482,6 +491,7 @@ omega-packages/
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
+|   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
 |   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.
 |   |-- capability_conflict.rs # Bounded review-only exact row conflicts.

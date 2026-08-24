@@ -339,8 +339,11 @@ Package-owned boundary and ordinary public machines, plus the selected build
 machine, retain the exact canonical entry signature alongside their authority
 rows. Their checked-body, boundary, and accepted supply tiers remain distinct:
 a bodyless boundary guarantee is an explicit trust-bearing accepted claim,
-while a claim-free boundary symbol asserts nothing. This includes lifetime
-arity, alpha-normalized type/const parameters,
+while a claim-free boundary symbol asserts nothing. Canonical review emits a
+separate blocking row for that exact accepted callable and its complete
+published envelope, allowing admission policy to distinguish trust acceptance
+from ordinary callable compatibility without parsing compiler bytes. This
+includes lifetime arity, alpha-normalized type/const parameters,
 ordered parameter names and `const`/mutable/`self` modes, package-qualified
 lifetime-sensitive parameter types, and result type. Renaming binders is
 stable; changing a parameter, result, generic bound, or borrow relationship is
@@ -518,8 +521,11 @@ current use, or omits it merely because it declares no `reaches` service.
 An install compares the new dependency closure against an empty admission
 baseline. A completely checked package with neither blocking evidence nor
 review findings may pass as `admitted`; claim-free opacity alone may complete
-as `admitted-with-audit-recommended`. Suspect authority, trust, executable
-introduction, dangerous contract slack, or build-host reach recommends audit;
+as `admitted-with-audit-recommended`. An accepted-claim row blocks for exact
+root-policy resolution on initial admission or when newly introduced, while an
+unchanged accepted baseline does not require blanket reapproval. Suspect
+authority, trust, executable introduction, dangerous contract slack, or
+build-host reach recommends audit;
 the exact capability, claim, compatibility, or root-policy row determines
 whether admission also blocks.
 
@@ -586,7 +592,10 @@ grammar and byte escaping prevent source from forging renderer structure, but
 cannot prevent semantic prompt injection in code under review. Model invocation
 remains future work. The implemented join requires a bijection between the
 complete candidate closure and compiler rows by exact key and immutable
-resolution, validates every recovered baseline custody against its row, and
+resolution. Its shared validator also rejects duplicate reviews,
+package/projection identity mismatch, mixed deployment targets, and mixed
+compiler-executable commitments before either capability comparison or source
+rendering. It validates every recovered baseline custody against its row and
 derives unavailable-old-source state from absence. Initial and newly transitive
 source packets follow compiler-recommended audit policy; changed or unavailable
 existing update sources receive an exact diff or standalone candidate packet.

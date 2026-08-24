@@ -8,5 +8,7 @@ claim set, and that open deferrals are fatal for package admission.
 Expected package evidence:
 
 - accepted proposition/boundary claim identity and exact argument are recorded;
+- the accepted callable emits a distinct blocking trust row and initial source
+  review packet;
 - open proof deferrals reject release/admission;
 - imported claims cannot self-approve.

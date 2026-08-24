@@ -35,6 +35,7 @@ mod package_source;
 mod resolver;
 #[cfg(test)]
 mod review;
+mod review_closure;
 mod source;
 mod source_adapter;
 mod source_commands;

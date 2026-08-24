@@ -1,3 +1,7 @@
+use crate::review_closure::{
+    ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
+    validate_review_only_set,
+};
 use crate::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageKey, PackageSourceCustody,
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageTriageDecision,
@@ -120,6 +124,25 @@ pub enum PackageSourceReviewError {
         role: PackageSourceReviewCustodyRole,
         package: PackageKey,
     },
+    DuplicateReview {
+        role: PackageSourceReviewCustodyRole,
+        package: PackageKey,
+    },
+    ReviewIdentityMismatch {
+        role: PackageSourceReviewCustodyRole,
+        package: PackageKey,
+    },
+    MixedReviewTarget {
+        role: PackageSourceReviewCustodyRole,
+        first: PackageKey,
+        conflicting: PackageKey,
+    },
+    MixedCompilerExecutableCommitment {
+        role: PackageSourceReviewCustodyRole,
+        first: PackageKey,
+        conflicting: PackageKey,
+    },
+    ClosureValidationAllocationFailed,
     TooManySourcePatches {
         maximum: usize,
         required: usize,
@@ -157,6 +180,43 @@ impl fmt::Display for PackageSourceReviewError {
                 custody_role_token(*role),
                 package.name().as_str()
             ),
+            Self::DuplicateReview { role, package } => write!(
+                formatter,
+                "{} compiler review set repeats package `{}`",
+                custody_role_token(*role),
+                package.name().as_str()
+            ),
+            Self::ReviewIdentityMismatch { role, package } => write!(
+                formatter,
+                "{} compiler review identity does not match package `{}`",
+                custody_role_token(*role),
+                package.name().as_str()
+            ),
+            Self::MixedReviewTarget {
+                role,
+                first,
+                conflicting,
+            } => write!(
+                formatter,
+                "{} compiler review closure mixes targets between `{}` and `{}`",
+                custody_role_token(*role),
+                first.name().as_str(),
+                conflicting.name().as_str()
+            ),
+            Self::MixedCompilerExecutableCommitment {
+                role,
+                first,
+                conflicting,
+            } => write!(
+                formatter,
+                "{} compiler review closure mixes compiler executable commitments between `{}` and `{}`",
+                custody_role_token(*role),
+                first.name().as_str(),
+                conflicting.name().as_str()
+            ),
+            Self::ClosureValidationAllocationFailed => {
+                formatter.write_str("package review closure validation allocation failed")
+            }
             Self::TooManySourcePatches { maximum, required } => write!(
                 formatter,
                 "source review requires {required} patches, exceeding the {maximum}-patch ceiling"
@@ -206,11 +266,9 @@ pub fn assemble_initial_source_review(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
-    validate_complete_custody(
-        candidate_reviews,
-        candidate_sources,
-        PackageSourceReviewCustodyRole::Candidate,
-    )?;
+    validate_review_only_closure(candidate_sources, candidate_reviews).map_err(|error| {
+        map_closure_validation_error(PackageSourceReviewCustodyRole::Candidate, error)
+    })?;
     let triage = triage_initial_install(candidate_reviews);
     assemble_source_patches(triage, &BTreeMap::new(), candidate_sources, limits, true)
 }
@@ -227,11 +285,12 @@ pub fn assemble_update_source_review(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
-    validate_complete_custody(
-        candidate_reviews,
-        candidate_sources,
-        PackageSourceReviewCustodyRole::Candidate,
-    )?;
+    validate_review_only_closure(candidate_sources, candidate_reviews).map_err(|error| {
+        map_closure_validation_error(PackageSourceReviewCustodyRole::Candidate, error)
+    })?;
+    validate_review_only_set(baseline_reviews).map_err(|error| {
+        map_set_validation_error(PackageSourceReviewCustodyRole::Baseline, error)
+    })?;
     let baseline_sources = validate_partial_custody(
         baseline_reviews,
         recovered_baseline_sources,
@@ -247,34 +306,56 @@ pub fn assemble_update_source_review(
     assemble_source_patches(triage, &baseline_sources, candidate_sources, limits, false)
 }
 
-fn validate_complete_custody(
-    reviews: &CompilerIssuedPackageReviewSet,
-    sources: &ResolvedPackageSourceClosure,
+fn map_closure_validation_error(
     role: PackageSourceReviewCustodyRole,
-) -> Result<(), PackageSourceReviewError> {
-    for review in reviews.reviews() {
-        let custody = sources.custody(review.key()).ok_or_else(|| {
-            PackageSourceReviewError::MissingCustody {
+    error: ReviewOnlyClosureValidationError,
+) -> PackageSourceReviewError {
+    match error {
+        ReviewOnlyClosureValidationError::ReviewSet(error) => map_set_validation_error(role, error),
+        ReviewOnlyClosureValidationError::MissingReview { package } => {
+            PackageSourceReviewError::UnexpectedCustody { role, package }
+        }
+        ReviewOnlyClosureValidationError::UnexpectedReview { package } => {
+            PackageSourceReviewError::MissingCustody { role, package }
+        }
+        ReviewOnlyClosureValidationError::ResolutionMismatch { package } => {
+            PackageSourceReviewError::ResolutionMismatch { role, package }
+        }
+        ReviewOnlyClosureValidationError::AllocationFailed => {
+            PackageSourceReviewError::ClosureValidationAllocationFailed
+        }
+    }
+}
+
+fn map_set_validation_error(
+    role: PackageSourceReviewCustodyRole,
+    error: ReviewOnlySetValidationError,
+) -> PackageSourceReviewError {
+    match error {
+        ReviewOnlySetValidationError::DuplicateReview { package } => {
+            PackageSourceReviewError::DuplicateReview { role, package }
+        }
+        ReviewOnlySetValidationError::ProjectionIdentityMismatch { package } => {
+            PackageSourceReviewError::ReviewIdentityMismatch { role, package }
+        }
+        ReviewOnlySetValidationError::MixedTarget { first, conflicting } => {
+            PackageSourceReviewError::MixedReviewTarget {
                 role,
-                package: review.key().clone(),
+                first,
+                conflicting,
             }
-        })?;
-        if custody.resolution() != review.resolution() {
-            return Err(PackageSourceReviewError::ResolutionMismatch {
+        }
+        ReviewOnlySetValidationError::MixedCompilerExecutableCommitment { first, conflicting } => {
+            PackageSourceReviewError::MixedCompilerExecutableCommitment {
                 role,
-                package: review.key().clone(),
-            });
+                first,
+                conflicting,
+            }
+        }
+        ReviewOnlySetValidationError::AllocationFailed => {
+            PackageSourceReviewError::ClosureValidationAllocationFailed
         }
     }
-    for custody in sources.custodies() {
-        if reviews.review(custody.key()).is_none() {
-            return Err(PackageSourceReviewError::UnexpectedCustody {
-                role,
-                package: custody.key().clone(),
-            });
-        }
-    }
-    Ok(())
 }
 
 fn validate_partial_custody<'source>(
@@ -367,7 +448,7 @@ fn source_patch_required(decision: &PackageTriageDecision, initial: bool) -> boo
         return false;
     }
     if initial {
-        return decision.disposition() == PackageTriageDisposition::AdmittedWithAuditRecommended;
+        return decision.disposition() != PackageTriageDisposition::Admitted;
     }
     decision.reasons().iter().any(|reason| {
         matches!(
@@ -376,7 +457,7 @@ fn source_patch_required(decision: &PackageTriageDecision, initial: bool) -> boo
                 | PackageTriageReason::BaselineSourceUnavailable
                 | PackageTriageReason::SourceLineageChanged
         ) || (matches!(reason, PackageTriageReason::NewTransitivePackage)
-            && decision.disposition() == PackageTriageDisposition::AdmittedWithAuditRecommended)
+            && decision.disposition() != PackageTriageDisposition::Admitted)
     })
 }
 
