@@ -227,8 +227,12 @@ alpha-normalized generic carrier/index shape, package-qualified carrier/index
 types, closed compiler-owned classifications, and authorized establishment
 routes with exact package-qualified trait/requirement identities. Transparent
 aliases recursively flatten to canonical package-qualified atoms; compiler
-carry atoms remain explicitly toolchain-unbound. Predicates, semantic roles,
-and operators fail closed until canonical rows land. Reviewed boundary/public
+carry atoms remain explicitly toolchain-unbound. Predicate-body presence and
+the representable structural expression/membership subset retain exact
+domain-carrier, member, and referenced-domain identity through typed facts,
+checked owner rows, and fact-keyed dependency places. Callable/proposition
+applications, semantic roles, and operators fail closed until their authority
+and canonical rows land. Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures: lifetime arity, alpha-normalized type/const parameters, ordered
 parameter names/modes, package-qualified lifetime-sensitive parameter types,

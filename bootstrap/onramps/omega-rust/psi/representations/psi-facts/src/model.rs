@@ -11,6 +11,24 @@ pub type FactContextHandle = Handle<FactContext>;
 pub type PlaceHandle = Handle<Place>;
 pub type PlaceSegmentHandle = Handle<PlaceSegment>;
 
+/// Exact checked ownership retained for one fact authored by a domain
+/// definition. The ordinary semantic fact remains the flow-facing row; this
+/// record binds that row back to its typed fact and retains every structural
+/// expression place used to interpret the public predicate.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainDefinitionFactRecord {
+    pub domain_symbol: SymbolHandle,
+    pub fact: Handle<ProofFact>,
+    pub semantic_fact: FactHandle,
+    pub dependencies: Vec<DomainDefinitionFactDependency>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DomainDefinitionFactDependency {
+    pub expression: ExpressionHandle,
+    pub place: PlaceHandle,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PlaceRoot {
     #[default]

@@ -82,6 +82,7 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
 
     assert_eq!(facts.places.len(), 3);
     assert_eq!(facts.facts.len(), 3);
+    assert_eq!(facts.domain_definition_facts.len(), 2);
     assert_eq!(facts.contexts.len(), 3);
     assert_eq!(facts.symbol_sets.len(), 3);
     assert_eq!(
@@ -109,6 +110,17 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         .expect("domain context");
     assert_eq!(domain_context.boolean_facts().count(), 1);
     assert!(domain_context.proves_domain_membership(expression, valid_domain_symbol));
+    for (_, record) in facts.domain_definition_facts.iter() {
+        assert_eq!(record.domain_symbol, alive_domain_symbol);
+        assert!(record.fact == fact || record.fact == membership);
+        assert!(
+            facts
+                .facts
+                .iter()
+                .any(|(handle, _)| handle == record.semantic_fact)
+        );
+        assert!(record.dependencies.is_empty());
+    }
 
     let invariant_context = facts
         .contexts_at_point(super::ProgramPoint::Definition {

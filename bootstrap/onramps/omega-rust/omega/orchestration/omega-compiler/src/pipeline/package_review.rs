@@ -377,6 +377,8 @@ pub struct PackageReviewDomainShape {
     type_parameters: Vec<PackageReviewTypeParameter>,
     target_type: PackageReviewTypeIdentity,
     index_arguments: Vec<PackageReviewTypeIdentity>,
+    predicate_body: psi_language_semantics::DomainPredicateBody,
+    predicate_facts: Vec<PackageReviewContractFact>,
     alias_expansion: Option<Vec<PackageReviewNominalIdentity>>,
     classification: Option<PackageReviewDomainClassification>,
     establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
@@ -397,6 +399,14 @@ impl PackageReviewDomainShape {
 
     pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
         &self.index_arguments
+    }
+
+    pub const fn predicate_body(&self) -> psi_language_semantics::DomainPredicateBody {
+        self.predicate_body
+    }
+
+    pub fn predicate_facts(&self) -> &[PackageReviewContractFact] {
+        &self.predicate_facts
     }
 
     pub fn alias_expansion(&self) -> Option<&[PackageReviewNominalIdentity]> {
@@ -596,6 +606,8 @@ pub enum PackageReviewCastForm {
 pub enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
+    /// The implicit carrier being classified by a domain predicate.
+    DomainSubject,
     Parameter(u32),
     Result,
     GenericBinder(u32),
@@ -1925,6 +1937,7 @@ fn project_trait_requirement(
             state_symbol: requirement.symbol,
         },
         parameters: contract_parameters,
+        domain_symbol: None,
     };
     let contracts =
         project_trait_requirement_contracts(compilation, requirement, &contract_context, &binders)?;
@@ -2007,13 +2020,6 @@ fn project_public_domains(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if definition.predicate_body.is_present() || !compilation.proof_facts(definition).is_empty()
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses predicate facts not yet represented by package review",
-                identity.path
-            ))]);
-        }
         if !definition.semantic_roles.is_empty() {
             return Err(vec![Diagnostic::error(format!(
                 "public domain `{}` uses semantic roles not yet represented by package review",
@@ -2030,6 +2036,8 @@ fn project_public_domains(
         let parameters = compilation.domain_type_parameters(definition);
         let (binders, type_parameters) =
             project_type_parameters(compilation, parameters, "domain", &identity.path)?;
+        let predicate_facts =
+            project_domain_predicate_facts(compilation, definition, &identity, &binders)?;
         let alias_expansion = definition
             .alias
             .as_ref()
@@ -2062,6 +2070,8 @@ fn project_public_domains(
                 .iter()
                 .map(|argument| review_type_identity_with_binders(compilation, *argument, &binders))
                 .collect(),
+            predicate_body: definition.predicate_body,
+            predicate_facts,
             alias_expansion,
             classification,
             establishment_routes,
@@ -2069,6 +2079,185 @@ fn project_public_domains(
     }
     rows.sort_by(|left, right| left.identity.cmp(&right.identity));
     Ok(rows)
+}
+
+fn project_domain_predicate_facts(
+    compilation: &CheckedCompilation,
+    definition: &psi_typed_trees::domain::DomainDefinition,
+    identity: &PackageReviewNominalIdentity,
+    binders: &[(SymbolHandle, String)],
+) -> Result<Vec<PackageReviewContractFact>, Vec<Diagnostic>> {
+    use psi_typed_trees::domain::ProofFact;
+
+    let context = ContractProjectionContext {
+        subject_kind: "public domain",
+        subject_name: &identity.path,
+        owner: psi_checked_trees::ContractProofFactOwner::Unknown,
+        point: psi_facts::ProgramPoint::Definition {
+            symbol: definition.symbol,
+        },
+        parameters: &[],
+        domain_symbol: Some(definition.symbol),
+    };
+    let reviewed_package = compilation.package_identity().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "domain predicate review requires package-aware checked compilation",
+        )]
+    })?;
+    let mut projected = Vec::new();
+    for offset in 0..definition.facts.count() {
+        let fact_handle = psi_arena::Handle::from_parts(
+            definition
+                .facts
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("domain predicate fact handle index overflow"),
+            definition.facts.start().generation(),
+        );
+        require_exact_checked_domain_fact(compilation, definition.symbol, fact_handle, identity)?;
+        let fact = match compilation.proof_facts.get(fact_handle) {
+            ProofFact::Expression(expression) => {
+                PackageReviewContractFact::Expression(project_contract_expression(
+                    compilation,
+                    &context,
+                    binders,
+                    *expression,
+                    Some(fact_handle),
+                    0,
+                )?)
+            }
+            ProofFact::Membership(membership) => {
+                let domain = compilation
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == membership.domain_symbol)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "public domain `{}` predicate refers to an unresolved domain",
+                            identity.path
+                        ))]
+                    })?;
+                let domain_identity = nominal_identity(compilation, domain.symbol)?;
+                if reviewed_package_owns(&domain_identity, reviewed_package)? && !domain.is_public {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public domain `{}` predicate exposes non-public domain `{}`",
+                        identity.path, domain.name
+                    ))]);
+                }
+                PackageReviewContractFact::Membership {
+                    value: project_contract_expression(
+                        compilation,
+                        &context,
+                        binders,
+                        membership.value,
+                        Some(fact_handle),
+                        0,
+                    )?,
+                    domain: domain_identity,
+                }
+            }
+            ProofFact::Proposition(application) => project_contract_proposition(
+                compilation,
+                &context,
+                binders,
+                application,
+                Some(fact_handle),
+                &[],
+                &[],
+                &mut Vec::new(),
+                0,
+            )?,
+        };
+        projected.push(fact);
+    }
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
+}
+
+fn require_exact_checked_domain_fact(
+    compilation: &CheckedCompilation,
+    domain_symbol: SymbolHandle,
+    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    identity: &PackageReviewNominalIdentity,
+) -> Result<(), Vec<Diagnostic>> {
+    let point = psi_facts::ProgramPoint::Definition {
+        symbol: domain_symbol,
+    };
+    let matching_rows = compilation
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(|(handle, fact)| {
+            (fact.point == point
+                && fact.origin == psi_facts::FactOrigin::DomainDefinition { domain_symbol }
+                && fact.evidence == psi_facts::QualificationEvidence::default()
+                && semantic_fact_matches_domain_fact(compilation, fact, fact_handle))
+            .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    if matching_rows.len() != 1 {
+        return Err(vec![Diagnostic::error(format!(
+            "public domain `{}` predicate fact has {} exact checked definition rows; expected one",
+            identity.path,
+            matching_rows.len()
+        ))]);
+    }
+    let matching_records = compilation
+        .facts
+        .semantic
+        .domain_definition_facts
+        .iter()
+        .filter(|(_, record)| {
+            record.domain_symbol == domain_symbol
+                && record.fact == fact_handle
+                && record.semantic_fact == matching_rows[0]
+        })
+        .count();
+    if matching_records != 1 {
+        return Err(vec![Diagnostic::error(format!(
+            "public domain `{}` predicate fact has {matching_records} exact checked ownership records; expected one",
+            identity.path
+        ))]);
+    }
+    Ok(())
+}
+
+fn semantic_fact_matches_domain_fact(
+    compilation: &CheckedCompilation,
+    semantic_fact: &psi_facts::Fact,
+    fact_handle: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+) -> bool {
+    use psi_facts::FactPayload;
+    use psi_typed_trees::domain::ProofFact;
+
+    match (
+        compilation.proof_facts.get(fact_handle),
+        semantic_fact.payload,
+    ) {
+        (ProofFact::Expression(expected), FactPayload::BooleanExpression(actual)) => {
+            *expected == actual
+        }
+        (
+            ProofFact::Membership(expected),
+            FactPayload::DomainMembership {
+                value,
+                domain,
+                domain_symbol,
+            },
+        ) => {
+            expected.value == value
+                && expected.domain == domain
+                && expected.domain_symbol == domain_symbol
+        }
+        (
+            ProofFact::Proposition(expected),
+            FactPayload::PropositionApplication { fact, proposition },
+        ) => fact == fact_handle && proposition == expected.proposition,
+        _ => false,
+    }
 }
 
 fn project_domain_alias_expansion(
@@ -2923,6 +3112,7 @@ struct ContractProjectionContext<'a> {
     owner: psi_checked_trees::ContractProofFactOwner,
     point: psi_facts::ProgramPoint,
     parameters: &'a [psi_typed_trees::signature::StateParameter],
+    domain_symbol: Option<SymbolHandle>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2948,6 +3138,7 @@ fn project_callable_contracts(
             machine_symbol: machine.symbol,
         },
         parameters,
+        domain_symbol: None,
     };
     project_contracts(
         compilation,
@@ -3075,6 +3266,7 @@ fn project_contracts(
                     context,
                     binders,
                     application,
+                    Some(fact_handle),
                     &[],
                     &[],
                     &mut Vec::new(),
@@ -3236,6 +3428,7 @@ fn project_contract_proposition(
     context: &ContractProjectionContext<'_>,
     callable_binders: &[(SymbolHandle, String)],
     application: &psi_typed_trees::proposition::PropositionApplication,
+    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
     binder_substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
     value_substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
     visiting: &mut Vec<SymbolHandle>,
@@ -3320,7 +3513,7 @@ fn project_contract_proposition(
                 callable_binders,
                 *argument,
                 value_substitutions,
-                None,
+                checked_fact,
                 0,
             )
         })
@@ -3362,6 +3555,7 @@ fn project_contract_proposition(
                     context,
                     callable_binders,
                     expansion,
+                    checked_fact,
                     &nested_binders,
                     &nested_values,
                     visiting,
@@ -3374,7 +3568,7 @@ fn project_contract_proposition(
                         callable_binders,
                         *expression,
                         &nested_values,
-                        None,
+                        checked_fact,
                         0,
                     )
                     .map(PackageReviewContractFact::Expression)
@@ -3878,6 +4072,7 @@ fn project_contract_expression_with_substitutions(
             compilation,
             context,
             binders,
+            expression,
             path,
             substitutions,
             checked_fact,
@@ -3897,20 +4092,20 @@ fn project_contract_expression_with_substitutions(
                     context.subject_kind, context.subject_name
                 ))]);
             };
-            let root_symbol =
-                contract_member_path_root_symbol(compilation, context, root_expression)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "reviewed {} `{}` contract member path has no exact symbol root",
-                            context.subject_kind, context.subject_name
-                        ))]
-                    })?;
+            let root = contract_member_path_root(compilation, context, root_expression)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contract member path has no exact semantic root",
+                        context.subject_kind, context.subject_name
+                    ))]
+                })?;
             let receiver = child(root_expression)?;
             checked_contract_member_path(
                 compilation,
                 context,
                 checked_fact,
-                root_symbol,
+                expression,
+                root,
                 &source_members,
             )?
             .into_iter()
@@ -4000,6 +4195,7 @@ fn project_contract_name_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
+    expression: psi_typed_trees::expression::ExpressionHandle,
     path: &psi_typed_trees::expression::TableNamePath,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
     checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
@@ -4017,11 +4213,15 @@ fn project_contract_name_expression(
     let parameter_position = context.parameters.iter().position(|parameter| {
         parameter.symbol == root_symbol || root_name.is_some_and(|name| name == &parameter.name)
     });
+    let is_domain_subject =
+        context.domain_symbol.is_some() && root_name.is_some_and(|name| name.as_str() == "self");
     let binder_position = binders
         .iter()
         .position(|(symbol, _)| *symbol == root_symbol);
     let root = if let Some(substitution) = substitution_root {
         Some(substitution)
+    } else if is_domain_subject {
+        Some(PackageReviewContractExpression::DomainSubject)
     } else if let Some(position) = parameter_position {
         Some(PackageReviewContractExpression::Parameter(
             portable_parameter_position(position)?,
@@ -4055,12 +4255,20 @@ fn project_contract_name_expression(
             context.subject_kind, context.subject_name
         ))]);
     };
-    let semantic_root = parameter_position
-        .map(|position| context.parameters[position].symbol)
-        .or_else(|| root_symbol.is_valid().then_some(root_symbol))
+    let semantic_root = is_domain_subject
+        .then_some(psi_facts::PlaceRoot::Expression(expression))
+        .or_else(|| {
+            parameter_position
+                .map(|position| psi_facts::PlaceRoot::Symbol(context.parameters[position].symbol))
+        })
+        .or_else(|| {
+            root_symbol
+                .is_valid()
+                .then_some(psi_facts::PlaceRoot::Symbol(root_symbol))
+        })
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract name-path member has no exact symbol root",
+                "reviewed {} `{}` contract name-path member has no exact semantic root",
                 context.subject_kind, context.subject_name
             ))]
         })?;
@@ -4068,6 +4276,7 @@ fn project_contract_name_expression(
         compilation,
         context,
         checked_fact,
+        expression,
         semantic_root,
         &members[1..],
     )?
@@ -4133,11 +4342,11 @@ fn contract_member_path_source(
     }
 }
 
-fn contract_member_path_root_symbol(
+fn contract_member_path_root(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     expression: psi_typed_trees::expression::ExpressionHandle,
-) -> Option<SymbolHandle> {
+) -> Option<psi_facts::PlaceRoot> {
     let psi_typed_trees::expression::ExpressionNode::Name(path) =
         compilation.expression_table.expression(expression)
     else {
@@ -4148,79 +4357,100 @@ fn contract_member_path_root_symbol(
         .is_valid()
         .then_some(path.head_symbol)
         .or_else(|| path.symbol.is_valid().then_some(path.symbol));
-    if resolved.is_some() {
-        return resolved;
+    if let Some(symbol) = resolved {
+        return Some(psi_facts::PlaceRoot::Symbol(symbol));
     }
     let [name] = compilation.expression_table.name_path_members(path.members) else {
         return None;
     };
+    if context.domain_symbol.is_some() && name.as_str() == "self" {
+        return Some(psi_facts::PlaceRoot::Expression(expression));
+    }
     context
         .parameters
         .iter()
         .find(|parameter| parameter.name == *name)
-        .map(|parameter| parameter.symbol)
+        .map(|parameter| psi_facts::PlaceRoot::Symbol(parameter.symbol))
 }
 
 fn checked_contract_member_path(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     checked_fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
-    root_symbol: SymbolHandle,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    root: psi_facts::PlaceRoot,
     source_members: &[psi_typed_trees::name::Identifier],
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
-    use psi_facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
+    use psi_facts::{FactPayload, FactPlace};
+
+    if let Some(domain_symbol) = context.domain_symbol {
+        let mut candidates = Vec::new();
+        for (_, record) in compilation
+            .facts
+            .semantic
+            .domain_definition_facts
+            .iter()
+            .filter(|(_, record)| {
+                record.domain_symbol == domain_symbol && record.fact == checked_fact
+            })
+        {
+            for dependency in record
+                .dependencies
+                .iter()
+                .filter(|dependency| dependency.expression == expression)
+            {
+                let Some((_, place)) = compilation
+                    .facts
+                    .semantic
+                    .places
+                    .iter()
+                    .find(|(handle, _)| *handle == dependency.place)
+                else {
+                    continue;
+                };
+                if place.root != root {
+                    continue;
+                }
+                if let Some(selected) =
+                    checked_member_segments(compilation, place.segments, source_members)
+                {
+                    candidates.push(selected);
+                }
+            }
+        }
+        let [selected] = candidates.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` contract member path resolves to {} exact checked dependency records; expected one",
+                context.subject_kind,
+                context.subject_name,
+                candidates.len()
+            ))]);
+        };
+        return Ok(selected.clone());
+    }
 
     let mut candidates = Vec::new();
     for (_, semantic_fact) in compilation.facts.semantic.facts.iter() {
-        if semantic_fact.point != context.point
-            || !matches!(
-                semantic_fact.payload,
-                FactPayload::ContractBooleanExpression { fact, .. }
-                    | FactPayload::ContractDomainMembership { fact, .. }
-                    if fact == checked_fact
-            )
-        {
+        let contract_fact_matches = matches!(
+            semantic_fact.payload,
+            FactPayload::ContractBooleanExpression { fact, .. }
+                | FactPayload::ContractDomainMembership { fact, .. }
+                if fact == checked_fact
+        );
+        if semantic_fact.point != context.point || !contract_fact_matches {
             continue;
         }
         let FactPlace::Place(place_handle) = semantic_fact.place else {
             continue;
         };
         let place = compilation.facts.semantic.places.get(place_handle);
-        if place.root != PlaceRoot::Symbol(root_symbol) {
+        if place.root != root {
             continue;
         }
-        let mut selected = Vec::new();
-        let mut pending_case = None;
-        let mut valid = true;
-        for segment in compilation
-            .facts
-            .semantic
-            .place_segments
-            .span_or_empty(place.segments)
-        {
-            match *segment {
-                PlaceSegment::Case { variant } if pending_case.is_none() => {
-                    pending_case = Some(variant);
-                }
-                PlaceSegment::Field { symbol } if symbol.is_valid() => {
-                    selected.push((pending_case.take(), symbol));
-                }
-                _ => {
-                    valid = false;
-                    break;
-                }
-            }
-        }
-        if !valid || pending_case.is_some() || selected.len() != source_members.len() {
+        let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
+        else {
             continue;
-        }
-        if selected
-            .iter()
-            .zip(source_members)
-            .any(|((_, symbol), name)| compilation.symbols.name(*symbol) != name.as_str())
-        {
-            continue;
-        }
+        };
         if !candidates.contains(&selected) {
             candidates.push(selected);
         }
@@ -4234,6 +4464,44 @@ fn checked_contract_member_path(
         ))]);
     };
     Ok(selected.clone())
+}
+
+fn checked_member_segments(
+    compilation: &CheckedCompilation,
+    segments: psi_arena::HandleSpan<psi_facts::PlaceSegment>,
+    source_members: &[psi_typed_trees::name::Identifier],
+) -> Option<Vec<(Option<SymbolHandle>, SymbolHandle)>> {
+    use psi_facts::PlaceSegment;
+
+    let mut selected = Vec::new();
+    let mut pending_case = None;
+    for segment in compilation
+        .facts
+        .semantic
+        .place_segments
+        .span_or_empty(segments)
+    {
+        match *segment {
+            PlaceSegment::Case { variant } if pending_case.is_none() => {
+                pending_case = Some(variant);
+            }
+            PlaceSegment::Field { symbol } if symbol.is_valid() => {
+                selected.push((pending_case.take(), symbol));
+            }
+            _ => return None,
+        }
+    }
+    if pending_case.is_some() || selected.len() != source_members.len() {
+        return None;
+    }
+    if selected
+        .iter()
+        .zip(source_members)
+        .any(|((_, symbol), name)| compilation.symbols.name(*symbol) != name.as_str())
+    {
+        return None;
+    }
+    Some(selected)
 }
 
 fn portable_parameter_position(position: usize) -> Result<u32, Vec<Diagnostic>> {

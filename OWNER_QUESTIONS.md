@@ -227,3 +227,36 @@ is to retain an exact nominal boundary-level identity through checking when a
 real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
+
+## Q9 — What authority does a callable domain predicate publish?
+
+Omega currently permits a domain predicate to call an ordinary machine, for
+example `requires within_calibration(self)`. A proposition application written
+in the same position also remains call-shaped in the domain's typed expression
+today. Structural comparisons and memberships can be reviewed as declarative
+facts, but a call may mean executable validation, proof-only expansion, or an
+opaque assertion. Those meanings have different reach, effects, capability,
+termination, and compatibility consequences.
+
+Choose the public meaning of call-shaped domain predicates. It must distinguish
+resolved proof formulas from executable machines, retain every authority edge
+needed to evaluate or trust the predicate, and state whether qualification is
+established by proving a proposition, running validation code, or either under
+an explicit route.
+
+Recommended direction: classify resolved primitive/transparent proposition
+applications as proof formulas and retain their structural application just as
+ordinary contracts do. Keep ordinary machine calls out of admitted public
+domain predicates until a real executable-validation customer exists; that
+customer should use a separately declared validator machine with ordinary
+reach, effects, capabilities, and an explicit establishment route. This keeps
+the domain theory declarative without forbidding runtime validation as a
+separate operation.
+
+A coherent larger alternative is to make executable validators part of domain
+identity now and import their complete public signature, reach/effects,
+capabilities, termination, and establishment semantics into the domain row.
+Tempting but wrong alternatives are to encode only the callee name, assume a
+Boolean-returning machine is pure or proof-only, trust the body without an
+authority edge, or treat proposition and machine calls as interchangeable
+because they share surface syntax.
