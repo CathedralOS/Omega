@@ -1,9 +1,11 @@
 use omega_compiler::{
     PACKAGE_REVIEW_ENCODING_VERSION, PackageCompilationInputs, PackageReviewCallableRole,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard, PackageReviewDataMember,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewNominalOwner, PackageReviewSynchronousInvocation, PackageSourceBinding,
-    compile_to_checked_with_packages, project_checked_package_review,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewContractKind, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewDataMember, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentKind, PackageReviewNominalOwner,
+    PackageReviewSynchronousInvocation, PackageSourceBinding, compile_to_checked_with_packages,
+    project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -122,7 +124,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 13);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 14);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -306,6 +308,106 @@ crashes Abort
         provider.rows()[0].binding,
         omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }
     ));
+}
+
+#[test]
+fn review_projects_exact_accepted_boundary_contracts() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let compile_claim = |value: u8| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!("boundary machine trusted_zero() -> u64\nensures result == {value};\n"),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("accepted boundary claim should check");
+        project_checked_package_review(&checked).expect("accepted boundary contract review")
+    };
+
+    let zero = compile_claim(0);
+    let boundary = zero
+        .callables()
+        .iter()
+        .find(|callable| callable.role() == PackageReviewCallableRole::Boundary)
+        .expect("boundary callable row");
+    let [contract] = boundary.contracts() else {
+        panic!("one exact accepted contract row")
+    };
+    assert_eq!(contract.kind(), PackageReviewContractKind::Ensures);
+    assert_eq!(contract.binding(), None);
+    let PackageReviewContractExpression::Binary {
+        operator,
+        left,
+        right,
+    } = contract.expression()
+    else {
+        panic!("exact equality expression")
+    };
+    assert_eq!(*operator, PackageReviewContractBinaryOperator::Equal);
+    assert_eq!(**left, PackageReviewContractExpression::Result);
+    assert_eq!(
+        **right,
+        PackageReviewContractExpression::Integer("0".to_owned())
+    );
+
+    let one = compile_claim(1);
+    assert_ne!(
+        zero.canonical_review_bytes().expect("zero claim encoding"),
+        one.canonical_review_bytes().expect("one claim encoding"),
+        "changing an accepted guarantee must change exact review evidence",
+    );
+}
+
+#[test]
+fn review_rejects_unrepresented_callable_contract_expressions() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"machine computed_zero() -> u64 { 0 }
+boundary machine trusted_zero() -> u64
+ensures result == computed_zero();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("effect-free build-time contract call should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("unrepresented contract expression must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("contract expression form not yet represented")
+    }));
 }
 
 #[test]
@@ -611,7 +713,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v13_comparison_encoding() {
+fn exact_synchronous_invocations_change_v14_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -685,10 +787,7 @@ machine build(builder: &mut Build) { }
         Some(declared)
     );
     assert!(quiet_dispatch.realized_synchronous_invocations().is_empty());
-    assert_eq!(
-        quiet_dispatch.contract_fingerprint(),
-        dispatch.contract_fingerprint()
-    );
+    assert_eq!(quiet_dispatch.contracts(), dispatch.contracts());
     assert_eq!(dispatch.realized_synchronous_invocations(), declared);
     assert_ne!(
         quiet.canonical_review_bytes().expect("quiet encoding"),
@@ -804,7 +903,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v13_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_v14_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -838,7 +937,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v13_comparison_encoding() {
+fn public_domain_shape_changes_change_v14_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(

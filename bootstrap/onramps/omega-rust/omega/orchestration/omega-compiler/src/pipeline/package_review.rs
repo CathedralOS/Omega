@@ -429,6 +429,81 @@ pub enum PackageReviewCallableRole {
     Build,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractKind {
+    Requires,
+    Ensures,
+    Boundary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractBinaryOperator {
+    Add,
+    And,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    Divide,
+    Equal,
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual,
+    Modulo,
+    Multiply,
+    NotEqual,
+    Or,
+    ShiftLeft,
+    ShiftRight,
+    Subtract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractUnaryOperator {
+    BitwiseNot,
+    LogicalNot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractExpression {
+    Boolean(bool),
+    Integer(String),
+    Parameter(u32),
+    Result,
+    GenericBinder(u32),
+    Nominal(PackageReviewNominalIdentity),
+    Binary {
+        operator: PackageReviewContractBinaryOperator,
+        left: Box<PackageReviewContractExpression>,
+        right: Box<PackageReviewContractExpression>,
+    },
+    Unary {
+        operator: PackageReviewContractUnaryOperator,
+        operand: Box<PackageReviewContractExpression>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewCallableContract {
+    kind: PackageReviewContractKind,
+    binding: Option<String>,
+    expression: PackageReviewContractExpression,
+}
+
+impl PackageReviewCallableContract {
+    pub const fn kind(&self) -> PackageReviewContractKind {
+        self.kind
+    }
+
+    pub fn binding(&self) -> Option<&str> {
+        self.binding.as_deref()
+    }
+
+    pub const fn expression(&self) -> &PackageReviewContractExpression {
+        &self.expression
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewSynchronousInvocation {
     Parameter(u32),
@@ -639,7 +714,6 @@ pub struct PackageReviewCrashCall {
     call_ordinal: u32,
     target_machine: PackageReviewNominalIdentity,
     target_state: PackageReviewNominalIdentity,
-    target_contract_fingerprint: u64,
     path_guard_conjuncts: Vec<PackageReviewCrashPredicate>,
     path_guard_consequences: Vec<PackageReviewCrashPredicate>,
     surviving_buckets: Vec<PackageReviewCrashRoute>,
@@ -664,10 +738,6 @@ impl PackageReviewCrashCall {
 
     pub fn target_state(&self) -> &PackageReviewNominalIdentity {
         &self.target_state
-    }
-
-    pub const fn target_contract_fingerprint(&self) -> u64 {
-        self.target_contract_fingerprint
     }
 
     pub fn path_guard_conjuncts(&self) -> &[PackageReviewCrashPredicate] {
@@ -831,7 +901,7 @@ pub struct CheckedPackageCallableReview {
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     conformances: Vec<PackageReviewCallableConformance>,
-    contract_fingerprint: u64,
+    contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
     /// admission must not silently reinterpret it as a public empty promise.
@@ -945,8 +1015,8 @@ impl CheckedPackageCallableReview {
         &self.conformances
     }
 
-    pub const fn contract_fingerprint(&self) -> u64 {
-        self.contract_fingerprint
+    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
+        &self.contracts
     }
 
     pub fn declared_service_reach(&self) -> Option<&[PackageReviewNominalIdentity]> {
@@ -1141,7 +1211,7 @@ pub fn project_checked_package_review(
         left.identity
             .cmp(&right.identity)
             .then(left.role.cmp(&right.role))
-            .then(left.contract_fingerprint.cmp(&right.contract_fingerprint))
+            .then(left.contracts.cmp(&right.contracts))
     });
     let selected_providers = compilation
         .selected_provider_plans()
@@ -2022,6 +2092,7 @@ fn project_callable(
         &machine.lifetime_parameters,
     )?;
     let conformances = project_callable_conformances(compilation, machine, &binders)?;
+    let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
         compilation
             .facts
@@ -2031,16 +2102,6 @@ fn project_callable(
             .filter(|fact| fact.machine == machine.symbol),
         subject,
         "service-reach",
-    )?;
-    let contract = exactly_one(
-        compilation
-            .facts
-            .contract_plans
-            .machines
-            .iter()
-            .filter(|plan| plan.machine == machine.symbol),
-        subject,
-        "contract",
     )?;
     let realized = exactly_one(
         compilation
@@ -2129,7 +2190,7 @@ fn project_callable(
         parameters,
         return_type,
         conformances,
-        contract_fingerprint: contract.fingerprint,
+        contracts,
         declared_service_reach,
         realized_service_reach,
         concrete_service_reach,
@@ -2146,6 +2207,182 @@ fn project_callable(
         checked_crash: project_crash(compilation, &realized.checked_crash)?,
         mutation: project_mutation(compilation, &realized.mutation)?,
     })
+}
+
+fn project_callable_contracts(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
+    use psi_typed_trees::{domain::ProofFact, signature::SignatureContractKind};
+
+    let mut projected = Vec::new();
+    for contract in compilation.machine_contracts(machine) {
+        let kind = match contract.kind {
+            SignatureContractKind::Requires => PackageReviewContractKind::Requires,
+            SignatureContractKind::Ensures => PackageReviewContractKind::Ensures,
+            SignatureContractKind::Boundary => PackageReviewContractKind::Boundary,
+            SignatureContractKind::Crashes { .. } => continue,
+        };
+        let facts = compilation.proof_facts.span_or_empty(contract.facts);
+        if facts.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has an empty public {:?} contract",
+                machine.name, kind
+            ))]);
+        }
+        for fact in facts {
+            let expression = match fact {
+                ProofFact::Expression(expression) => project_contract_expression(
+                    compilation,
+                    machine,
+                    entry,
+                    binders,
+                    *expression,
+                    0,
+                )?,
+                ProofFact::Membership(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` uses a domain-membership contract not yet represented by package review",
+                        machine.name
+                    ))]);
+                }
+                ProofFact::Proposition(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` uses a proposition or named-evidence contract not yet represented by package review",
+                        machine.name
+                    ))]);
+                }
+            };
+            projected.push(PackageReviewCallableContract {
+                kind,
+                binding: contract
+                    .binding
+                    .as_ref()
+                    .map(|binding| binding.as_str().to_owned()),
+                expression,
+            });
+        }
+    }
+    projected.sort();
+    projected.dedup();
+    Ok(projected)
+}
+
+fn project_contract_expression(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    depth: usize,
+) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    if depth >= 256 {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contract expression exceeds the package-review depth limit",
+            machine.name
+        ))]);
+    }
+    let child = |expression| {
+        project_contract_expression(compilation, machine, entry, binders, expression, depth + 1)
+    };
+    match compilation.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => Ok(PackageReviewContractExpression::Boolean(*value)),
+        ExpressionNode::Integer(value) => Ok(PackageReviewContractExpression::Integer(
+            value.text().to_owned(),
+        )),
+        ExpressionNode::Binary(binary) => Ok(PackageReviewContractExpression::Binary {
+            operator: project_contract_binary_operator(binary.operator),
+            left: Box::new(child(binary.left)?),
+            right: Box::new(child(binary.right)?),
+        }),
+        ExpressionNode::Unary(unary) => Ok(PackageReviewContractExpression::Unary {
+            operator: project_contract_unary_operator(unary.operator),
+            operand: Box::new(child(unary.operand)?),
+        }),
+        ExpressionNode::Name(path) => {
+            let members = compilation.expression_table.name_path_members(path.members);
+            let parameters = compilation.state_parameters(entry);
+            if let Some(position) = parameters.iter().position(|parameter| {
+                parameter.symbol == path.symbol
+                    || (members.len() == 1 && members[0] == parameter.name)
+            }) {
+                return portable_parameter_position(position)
+                    .map(PackageReviewContractExpression::Parameter);
+            }
+            if members.len() == 1 && members[0].as_str() == "result" {
+                return Ok(PackageReviewContractExpression::Result);
+            }
+            if let Some(position) = binders
+                .iter()
+                .position(|(symbol, _)| *symbol == path.symbol)
+            {
+                return portable_parameter_position(position)
+                    .map(PackageReviewContractExpression::GenericBinder);
+            }
+            if !path.symbol.is_valid() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` contract contains an unresolved name expression",
+                    machine.name
+                ))]);
+            }
+            nominal_identity(compilation, path.symbol).map(PackageReviewContractExpression::Nominal)
+        }
+        _ => Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` uses a contract expression form not yet represented by package review",
+            machine.name
+        ))]),
+    }
+}
+
+fn portable_parameter_position(position: usize) -> Result<u32, Vec<Diagnostic>> {
+    u32::try_from(position).map_err(|_| {
+        vec![Diagnostic::error(
+            "package review contract parameter ordinal exceeds the portable identity range",
+        )]
+    })
+}
+
+const fn project_contract_binary_operator(
+    operator: psi_typed_trees::expression::BinaryOperator,
+) -> PackageReviewContractBinaryOperator {
+    use psi_typed_trees::expression::BinaryOperator;
+    match operator {
+        BinaryOperator::Add => PackageReviewContractBinaryOperator::Add,
+        BinaryOperator::And => PackageReviewContractBinaryOperator::And,
+        BinaryOperator::BitwiseAnd => PackageReviewContractBinaryOperator::BitwiseAnd,
+        BinaryOperator::BitwiseOr => PackageReviewContractBinaryOperator::BitwiseOr,
+        BinaryOperator::BitwiseXor => PackageReviewContractBinaryOperator::BitwiseXor,
+        BinaryOperator::Divide => PackageReviewContractBinaryOperator::Divide,
+        BinaryOperator::Equal => PackageReviewContractBinaryOperator::Equal,
+        BinaryOperator::Greater => PackageReviewContractBinaryOperator::Greater,
+        BinaryOperator::GreaterOrEqual => PackageReviewContractBinaryOperator::GreaterOrEqual,
+        BinaryOperator::Less => PackageReviewContractBinaryOperator::Less,
+        BinaryOperator::LessOrEqual => PackageReviewContractBinaryOperator::LessOrEqual,
+        BinaryOperator::Modulo => PackageReviewContractBinaryOperator::Modulo,
+        BinaryOperator::Multiply => PackageReviewContractBinaryOperator::Multiply,
+        BinaryOperator::NotEqual => PackageReviewContractBinaryOperator::NotEqual,
+        BinaryOperator::Or => PackageReviewContractBinaryOperator::Or,
+        BinaryOperator::ShiftLeft => PackageReviewContractBinaryOperator::ShiftLeft,
+        BinaryOperator::ShiftRight => PackageReviewContractBinaryOperator::ShiftRight,
+        BinaryOperator::Subtract => PackageReviewContractBinaryOperator::Subtract,
+    }
+}
+
+const fn project_contract_unary_operator(
+    operator: psi_typed_trees::expression::UnaryOperator,
+) -> PackageReviewContractUnaryOperator {
+    match operator {
+        psi_typed_trees::expression::UnaryOperator::BitwiseNot => {
+            PackageReviewContractUnaryOperator::BitwiseNot
+        }
+        psi_typed_trees::expression::UnaryOperator::LogicalNot => {
+            PackageReviewContractUnaryOperator::LogicalNot
+        }
+    }
 }
 
 fn project_callable_conformances(
@@ -2543,7 +2780,6 @@ fn project_crash(
                 call_ordinal: location.call_ordinal(),
                 target_machine: nominal_identity(compilation, call.target_machine())?,
                 target_state: nominal_identity(compilation, call.target_state())?,
-                target_contract_fingerprint: call.target_contract_fingerprint(),
                 path_guard_conjuncts: project_crash_predicates(call.path_guard_conjuncts()),
                 path_guard_consequences: project_crash_predicates(call.path_guard_consequences()),
                 surviving_buckets: project_crash_routes(call.surviving_buckets()),
