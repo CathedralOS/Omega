@@ -109,7 +109,10 @@ live member is the matching strict canonical descendant, and snapshots only
 that member. An explicit external-local closure adapter instead binds every
 relative or absolute local Path request to the same supplied consuming context,
 retains each canonical absolute lineage, and snapshots each package without
-ambient workspace/lock discovery. A transport-neutral recursive resolver
+ambient workspace/lock discovery. A contextual workspace entrypoint may route
+an escaping live-workspace Path row into this lane; the strict entrypoint and
+all fetched Git snapshots remain confined. A transport-neutral recursive
+resolver
 accepts only erased custody derived from these resolved sources, delegates each
 request to an adapter, and
 returns the complete validated `ResolvedPackageClosure` together with every

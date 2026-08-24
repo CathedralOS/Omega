@@ -75,7 +75,10 @@ source-rebuildable release profile. Resolution of an explicitly selected
 external-local root carries one consuming context through its recursive
 relative or absolute local Path closure; each package retains its own canonical
 absolute lineage and immutable snapshot. The resolver does not discover a
-parent workspace or lock from the ambient filesystem. Archive and future
+parent workspace or lock from the ambient filesystem. A live workspace may
+route an escaping Path request into this lane only when its caller supplies the
+same consuming context explicitly; context-free workspace traversal and all
+fetched Git snapshots remain confined. Archive and future
 protocol adapters must define their own canonical lineage and immutable-content
 receipt; an unknown
 URL is never guessed to be Git or delegated to an ambient protocol helper.

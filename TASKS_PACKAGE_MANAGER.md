@@ -236,7 +236,10 @@ complete.
   An explicit external-local closure adapter now preserves that context through
   recursive relative or absolute Path requests, snapshots every selected
   package before projection, and keeps same-content paths distinct by canonical
-  lineage. It performs no ambient workspace or lock discovery.
+  lineage. A separate contextual workspace entrypoint routes only live-workspace
+  escapes into that same external-local lane; strict workspace resolution and
+  every fetched Git snapshot remain confined. Neither entrypoint performs
+  ambient workspace or lock discovery.
   Workspace-member custody now derives the live member solely from its
   normalized root-relative location, verifies it remains a strict canonical
   descendant of the workspace root, and snapshots only that member through the
@@ -376,9 +379,11 @@ complete.
   target access; no parent-directory or protocol discovery occurs. A separate
   explicit external-local root adapter now resolves relative and absolute Path
   dependencies across directory boundaries under one supplied consuming
-  context while preserving non-portable lineage. Allowing a workspace request
-  to escape into that lane, deriving the context from the accepted lock, and
-  additional protocol adapters remain.
+  context while preserving non-portable lineage. A contextual workspace adapter
+  now routes an escaping live-workspace Path request into the same lane, while
+  the context-free adapter still rejects and fetched Git snapshots can never
+  escape. Deriving the context from the accepted lock and additional protocol
+  adapters remain.
 
 ## P3 — Compiler-derived package evidence
 
