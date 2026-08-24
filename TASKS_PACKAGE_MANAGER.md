@@ -301,8 +301,9 @@ complete.
   handoff independently rejects missing/duplicate/overlapping roots, invalid or
   duplicate requester-local aliases, missing targets, unreachable rows, cycles,
   source-root drift, toolchain overlap, dependency `build.omg` imports, and
-  symlink escapes. Translating the package graph into that handoff remains at
-  the CLI/orchestration boundary.
+  symlink escapes. The package side now translates only a validated source-
+  custody closure into those compiler inputs; the compiler independently
+  canonicalizes and revalidates every root and edge. CLI invocation remains.
 
 ## P3 — Compiler-derived package evidence
 
