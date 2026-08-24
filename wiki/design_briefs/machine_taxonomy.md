@@ -117,7 +117,7 @@ machine-body syntax; even a one-expression predicate uses braces. `via` is not
 an expression-body operator. It selects the external-provider supply variant:
 
 ```omega
-windows_x64 machine WindowsBindings::write_file() -> Binding {
+windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
@@ -147,7 +147,7 @@ The realization machine already supplies the canonical Omega symbol.
 resolved realization symbol, normalized signature, and selected target key the
 sealed intrinsic catalog. Other binding operands are ordinary typed compile-time
 values. A DLL locator is one object-format-specific sum case containing all of
-its name, ordinal, or version coordinates as owned `StaticBytes` and scalars.
+its name, ordinal, or version coordinates as fixed byte arrays and scalars.
 The satisfied requirement's `Calling<C, Policy>` relationship separately
 produces the evaluated `CallPlan`; `Binding` neither carries nor reselects it. Raw
 linker bytes are target-package data and never Omega symbols, requirement keys,

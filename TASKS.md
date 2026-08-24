@@ -7346,8 +7346,8 @@ boundary without its corresponding checked law.
   bootstrap with ordinary typed compile-time values.** The intrinsic lane is
   complete: `CompilerIntrinsic` is payloadless and exact realization symbol,
   signature, and target select the sealed catalog entry. For imported leaves,
-  add the owned `StaticBytes` compile-time value and typed object-format locator
-  cases (`PeByName`, `PeByOrdinal`, versioned ELF symbols, and later peers).
+  add const-generic typed object-format locator cases over ordinary fixed byte
+  arrays (`PeByName`, `PeByOrdinal`, versioned ELF symbols, and later peers).
   Target-scoped ordinary machines construct complete `Binding` values; `via`
   evaluates them under the existing hermetic evaluator. The satisfied
   requirement's `Calling<C, Policy>` relationship already produces ordinary
@@ -7486,10 +7486,10 @@ checked-result arithmetic decision listed below.
 - Complete hermetic evaluation with crash refinement, target capsule, separate
   result/usage identities, deterministic progress, and runtime equivalence.
   Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
-  Add owned, structurally comparable `StaticBytes` snapshots with contextual
-  literal construction, then generalize `const` evaluation beyond the current
-  scalar/record corpus to fixed arrays, copy-eligible sums, `StaticBytes`, and
-  aggregates containing them. Keep temporary evaluator references internal.
+  Generalize `const` evaluation beyond the current scalar/record corpus to
+  fixed arrays, copy-eligible sums, and aggregates containing them. Admit exact-
+  width literal-to-fixed-array copying in owned result positions and keep
+  temporary evaluator references internal; do not add a special byte-blob type.
   Derive value-sensitive `ConstEvaluable` and `ConstMaterializable` judgments;
   walk only the realized active case, retain component/origin diagnostics,
   zero layout padding, reject underdetermined observable encodings such as an

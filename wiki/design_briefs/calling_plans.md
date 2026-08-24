@@ -566,7 +566,9 @@ plan. The concrete realization supplies only the external locator binding; no
 callback-specific declaration keyword is added:
 
 ```omega
-windows_x64 machine User32Bindings::register_window_procedure() -> Binding {
+windows_x64 machine User32Bindings::register_window_procedure()
+    -> Binding<10, 16, 0>
+{
     Binding::DllImport {
         import: DllImport::PeByName {
             library: "user32.dll",

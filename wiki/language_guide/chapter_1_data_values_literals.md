@@ -285,7 +285,7 @@ is a *value*, not runtime storage.
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
 pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
-pub const IMPORT_NAME: StaticBytes = "WriteFile";
+pub const IMPORT_NAME: [u8; 9] = "WriteFile";
 ```
 
 - **Free-floating, namespaced by package/module** (the default), resolved by the
@@ -301,8 +301,8 @@ pub const IMPORT_NAME: StaticBytes = "WriteFile";
   a drop/cleanup obligation cannot be a `const`; the restriction is checked from
   the cleanup facts ([Drops And Cleanup](chapter_17_drops_and_cleanup.md)), and
   it is what makes a `const` safe to reference from anywhere without analysis.
-- **Not scalar-only.** Fixed arrays, records, copy-eligible sums, and
-  `StaticBytes` are const-evaluable when their complete types recursively
+- **Not scalar-only.** Fixed arrays, records, and copy-eligible sums are
+  const-evaluable when their complete types recursively
   satisfy the same pure-value/multiplicity rule. An unrestricted active case
   does not make a structurally linear sum eligible. A constant initializer may
   call any ordinary machine whose concrete invocation passes semantic-
@@ -341,19 +341,22 @@ borrowing a state-local owner.
 let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet
 ```
 
-`StaticBytes` is the owned compile-time counterpart. In a constant/evaluator
-result position whose expected type is `StaticBytes`, the same literal copies
-its bytes into that value rather than returning an evaluator reference:
+In an exact-width owned fixed-array constant or evaluator-result position, a
+quoted literal contextually copies its bytes into the array rather than
+returning an evaluator reference:
 
 ```omega
-pub const DLL_NAME: StaticBytes = "kernel32.dll";
+pub const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 
-Its length and every byte are structural value content. Equality and hashing
-are structural; constant-pool interning is an emission optimization with no
-semantic identity. Ordinary temporary references and slices of `StaticBytes`
-may be used inside an evaluated machine, but only an owned value snapshot may
-cross back out of the evaluator.
+The literal byte count must equal the array length; mismatch rejects rather
+than truncating or padding. Length is part of the array type and every byte is
+ordinary structural value content. Constant-pool interning is an emission
+optimization with no semantic identity. Ordinary temporary references and
+slices may be used inside an evaluated machine, but only an owned value
+snapshot may cross back out of the evaluator. Variable-length ownership uses
+ordinary bounded or allocated collection types; literals do not introduce a
+special compile-time byte type.
 
 The rule is **copy, never synthesize or interpret**:
 
