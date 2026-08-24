@@ -191,7 +191,7 @@ pub fn extract_dependency_projection(
     extract_from_source(source)
 }
 
-fn extract_from_source(
+pub(crate) fn extract_from_source(
     source: &str,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
     let tokens = Lexer::new(source)

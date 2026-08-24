@@ -142,9 +142,8 @@ provides a version-2 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
-and sealed,
-locally regenerated compiler evidence plus the hardened resolver receipt are
-wired through end to end. The earlier public
+and sealed, locally regenerated compiler evidence plus the hardened resolver
+receipt are wired through end to end. The earlier public
 `PackageInstance` constructor was removed: the real type must not exist as a
 caller-constructible tuple of arbitrary toolchain and evidence fingerprints.
 
@@ -208,6 +207,7 @@ omega-packages/
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- declaration.rs     # Hermetic PACKAGE extraction.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
+|   |-- dependency_edit.rs # Digest-bound conservative build.omg edit plans.
 |   |-- graph.rs           # Typed pre-admission source reconciliation.
 |   |-- closure_resolution.rs # Bounded recursive immutable source custody.
 |   |-- source_adapter.rs  # Explicit workspace and Git closure policy.

@@ -935,8 +935,10 @@ version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "psi-core",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-syntax-trees",
+ "psi-tokens",
  "psi-tokens-to-syntax-trees",
  "sha2",
 ]

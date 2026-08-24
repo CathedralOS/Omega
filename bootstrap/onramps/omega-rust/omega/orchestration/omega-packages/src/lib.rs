@@ -16,6 +16,7 @@ mod closure_resolution;
 mod commands;
 mod compiler_handoff;
 mod declaration;
+mod dependency_edit;
 mod dependency_projection;
 #[cfg(test)]
 mod diff;
@@ -47,6 +48,11 @@ pub use closure_resolution::{
 };
 pub use compiler_handoff::package_compilation_inputs;
 pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
+pub use dependency_edit::{
+    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
+    BuildDependencyManualReason, BuildFileReplacement, canonical_dependency_statement,
+    plan_dependency_addition, plan_dependency_replacement,
+};
 pub use dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
 };
