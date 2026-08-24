@@ -464,8 +464,13 @@ complete.
   source proposition application's concrete arguments. The local evidence
   alias is deliberately absent. Projection requires matching checked evidence-
   term, interface, and projection facts; checked display strings remain
-  diagnostic only. Unsupported ordinary call, member, cast, and aggregate
-  expression forms still reject rather than falling back to text or a hash.
+  diagnostic only. Direct parameter-rooted member paths in ordinary public
+  contracts retain the receiver ordinal plus each exact package-qualified case
+  and field symbol, joined to one checked semantic-place row. Changing only the
+  receiver therefore changes review identity. Computed members, proposition-
+  argument members without that checked join, and unsupported call, cast, and
+  aggregate expression forms still reject rather than falling back to text or
+  a hash.
   The settled proposition path is a join, not a new nominal stage: typed trees
   supply structural declaration, binder, and value-expression coordinates;
   checked proof facts supply acceptance, evidence-term/interface routing, and
@@ -504,7 +509,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v17 length-framed binary comparison encoding now covers
+  share a native ABI. A v18 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   crash/proof predicate, proposition/witness, authority flow, mutation, and
   selected-provider row.

@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 17;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 18;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {
@@ -575,6 +575,16 @@ fn encode_contract_expression(
         PackageReviewContractExpression::Nominal(identity) => {
             encoder.byte(5);
             encode_nominal(encoder, identity)?;
+        }
+        PackageReviewContractExpression::Member {
+            receiver,
+            member,
+            case_variant,
+        } => {
+            encoder.byte(8);
+            encode_contract_expression(encoder, receiver)?;
+            encode_nominal(encoder, member)?;
+            encoder.option(case_variant.as_ref(), encode_nominal)?;
         }
         PackageReviewContractExpression::Binary {
             operator,

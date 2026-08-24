@@ -289,8 +289,11 @@ requirement-argument template, and exact requirement. The lane binds that
 template to the source proposition application's concrete arguments; the local
 evidence alias is omitted. It is accepted only when checked evidence-term,
 interface, and projection facts all match the structural typed declaration.
-Unsupported ordinary call, member, cast, and aggregate expressions still
-reject rather than falling back to text or a hash.
+Direct parameter-rooted member paths in ordinary contracts retain the receiver
+ordinal and exact package-qualified case/field chain after joining one checked
+semantic-place row. Computed members, proposition-argument members without that
+join, and unsupported call, cast, and aggregate expressions still reject rather
+than falling back to text or a hash.
 This join introduces no report-only Chi stage. A distinct stage remains
 available only if later consumers or transformations expose a real semantic
 boundary.
