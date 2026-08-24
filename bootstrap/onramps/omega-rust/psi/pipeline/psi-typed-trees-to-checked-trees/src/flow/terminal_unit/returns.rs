@@ -695,7 +695,6 @@ pub(super) fn build_boundary_scalar_return_machine(
         structural_signature(program, shapes, machine, state, &binders)?;
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters)
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
-        || !checked_requires_expressions(program, facts, machine.symbol, state.symbol)?.is_empty()
     {
         return None;
     }

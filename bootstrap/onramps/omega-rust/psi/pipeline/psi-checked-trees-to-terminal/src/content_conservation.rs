@@ -2,6 +2,125 @@
 
 use super::*;
 
+/// Publish the exact content carried by whole structural entry claims.
+///
+/// Structural claim identity remains authoritative. A qualification contributes
+/// content only when the checker retained its owner-unique `Content<A>` plan,
+/// and the projection must describe the same carrier as the parameter. This
+/// first bodyless-boundary slice deliberately rejects projected claim paths;
+/// partial custody needs the authored partition/replay lane.
+pub(super) fn lower_whole_content_entry_claims(
+    checked: &CheckedTrees,
+    checked_parameters: &[CheckedUnitStructuralParameterPlan],
+    parameters: &[StructuralParameterDeclaration],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<ContentEntryClaim>, LoweringError> {
+    if checked_parameters.len() != parameters.len() {
+        return unsupported("content entry parameter catalogs disagree");
+    }
+
+    let mut output = Vec::new();
+    for entry_claim in entry_claims {
+        let parameter_index = usize::try_from(entry_claim.parameter_index).map_err(|_| {
+            LoweringError::Unsupported("content entry claim parameter index exceeds usize")
+        })?;
+        let checked_parameter =
+            checked_parameters
+                .get(parameter_index)
+                .ok_or(LoweringError::Unsupported(
+                    "content entry claim has an invalid checked parameter",
+                ))?;
+        let parameter = parameters
+            .get(parameter_index)
+            .ok_or(LoweringError::Unsupported(
+                "content entry claim has an invalid terminal parameter",
+            ))?;
+
+        let mut projections = checked_parameter
+            .qualifications
+            .iter()
+            .filter_map(|qualification| {
+                checked
+                    .facts
+                    .qualifications
+                    .content
+                    .for_semantic_domain(*qualification)
+            })
+            .map(|projection| {
+                if projection.carrier_identity != checked_parameter.type_identity {
+                    return unsupported(
+                        "content projection carrier disagrees with its qualified parameter",
+                    );
+                }
+                if projection.fingerprint == 0 {
+                    return Err(LoweringError::ZeroContentProjectionFingerprint);
+                }
+                let domain = ContentDomainId::new(u64::from(projection.semantic_domain.0))
+                    .ok_or(LoweringError::InvalidContentDomainIdentity)?;
+                let algebra = match &projection.algebra {
+                    CheckedContentAlgebraIdentity::IntervalSet { coordinate_space } => {
+                        ContentAlgebra {
+                            kind: ContentAlgebraKind::IntervalSet,
+                            parameter: coordinate_space.clone(),
+                        }
+                    }
+                    CheckedContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
+                        kind: ContentAlgebraKind::CountedQuantity,
+                        parameter: unit.clone(),
+                    },
+                };
+                Ok(ClaimContentProjection {
+                    projection: ContentProjectionIdentity {
+                        domain,
+                        projection_fingerprint: projection.fingerprint,
+                    },
+                    algebra,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        if projections.is_empty() {
+            continue;
+        }
+        if !entry_claim.path.is_empty() {
+            return unsupported(
+                "bodyless content custody currently requires a whole structural parameter",
+            );
+        }
+        projections.sort();
+        if projections.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(LoweringError::DuplicateContentIdentityProjection);
+        }
+        let claim = lookup_claim_id(claim_bindings, entry_claim.claim_identity)?;
+        output.push(ContentEntryClaim {
+            claim,
+            input: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: parameter.place,
+                segments: Vec::new(),
+            },
+            projections,
+        });
+    }
+
+    output.sort_by_key(|entry| entry.claim);
+    for (index, entry) in output.iter().enumerate() {
+        let expected = ClaimId::new(
+            u64::try_from(index)
+                .expect("an in-memory content claim count fits u64")
+                .checked_add(1)
+                .expect("an in-memory content claim count cannot exhaust u64"),
+        )
+        .expect("dense content claim identities begin at one");
+        if entry.claim != expected {
+            return unsupported(
+                "bodyless content-bearing claims must form the leading claim frontier",
+            );
+        }
+    }
+    Ok(output)
+}
+
 /// Lower a validated checked-tree content equation into the current terminal-Psi
 /// proposition vocabulary. This translation is independent of the narrow
 /// executable source slice so broader terminal lowering can reuse it directly.

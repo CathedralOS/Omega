@@ -223,6 +223,13 @@ pub(super) fn lower_boundary_scalar_return_machine(
         id: value_id(next_value_identity),
         scalar_type,
     };
+    let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
+        checked,
+        &plan.structural_parameters,
+        &parameters,
+        &plan.entry_claims,
+        &claim_bindings,
+    )?;
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -247,7 +254,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             plan.service_reach,
             &service_ids,
         )?,
-        content_entry_claims: Vec::new(),
+        content_entry_claims,
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: block_id(1),

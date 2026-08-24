@@ -1,3 +1,4 @@
+use psi_core::{ContentAlgebraKind, ContentPlaceVersion};
 use psi_language_semantics::Multiplicity;
 use psi_language_semantics::PermissionClaimIdentity;
 use psi_proof_kernel::AdmissionProfile;
@@ -129,6 +130,45 @@ const RESULT_BOUNDARY_CUSTODY_SOURCE: &str = r#"
     {
         let accepted: bool = receipt.settle();
         accepted
+    }
+"#;
+
+const RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE: &str = r#"
+    data ByteUnit {}
+    data CountedQuantity<Unit> { magnitude: u64; }
+    trait Content<A> {
+        machine project(subject: &Self) -> A;
+    }
+
+    data Region [linear] { length: u64; }
+    domain Region::Owned;
+    machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+    satisfies Content<CountedQuantity<ByteUnit>>::project
+    {
+        CountedQuantity { magnitude: region.length }
+    }
+
+    boundary trait PortIo {}
+
+    boundary machine Region::retire(self) -> bool
+    reaches PortIo
+    ensures true;
+
+    boundary machine Region::discard(self)
+    reaches PortIo;
+
+    data Root {}
+    machine Root::enter(region: Region in Owned) -> bool
+    reaches PortIo
+    {
+        let accepted: bool = region.retire();
+        accepted
+    }
+
+    machine Root::exit(region: Region in Owned)
+    reaches PortIo
+    {
+        region.discard();
     }
 "#;
 
@@ -470,6 +510,164 @@ fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
             TerminalScalarValue::Boolean(true)
         ))
+    );
+    assert_eq!(execution.live_claim_frontier().count(), 0);
+    assert_eq!(execution.effects().len(), 1);
+}
+
+#[test]
+fn source_content_custody_exit_retains_projection_and_commits_only_after_success() {
+    let tokens = Lexer::new(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE)
+        .tokenize()
+        .expect("tokenize content custody exit");
+    let syntax = parse_syntax_trees(&tokens).expect("parse content custody exit");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve content custody exit");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type content custody exit");
+    let checked = lower_typed_trees(typed).expect("check content custody exit");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("content-bearing boundary custody should lower");
+    let module = &lowered.semantic_module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("one content custody root machine")
+    };
+    let [structural_claim] = machine.entry_claims.as_slice() else {
+        panic!("one structural entry claim")
+    };
+    let [content_claim] = machine.content_entry_claims.as_slice() else {
+        panic!("one content entry claim")
+    };
+    assert_eq!(content_claim.claim, structural_claim.claim);
+    assert_eq!(content_claim.input.version, ContentPlaceVersion::Entry);
+    assert_eq!(content_claim.input.root, structural_claim.input);
+    assert!(content_claim.input.segments.is_empty());
+    let [projection] = content_claim.projections.as_slice() else {
+        panic!("one owner-unique content projection")
+    };
+    assert_eq!(projection.algebra.kind, ContentAlgebraKind::CountedQuantity);
+    assert_ne!(projection.projection.projection_fingerprint, 0);
+
+    let semantic = encode_module(module).expect("content custody semantics encode");
+    assert_eq!(
+        decode_module(&semantic).expect("content custody semantics decode"),
+        *module
+    );
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("content custody proof encodes");
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("content-bearing boundary custody verifies");
+
+    let mut drifted = module.clone();
+    drifted.machines[0].content_entry_claims[0].input.root =
+        psi_core::PlaceId::new(structural_claim.input.get() + 1).expect("different place");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&drifted),
+        Err(psi_terminal_verifier::ModuleError::ContentEntryClaimRequiresEntryParameter(_))
+            | Err(
+                psi_terminal_verifier::ModuleError::ContentEntryClaimStructuralBindingMismatch(_)
+            )
+    ));
+
+    let parameter = &machine.structural_parameters[0];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 0xc017_e17,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("content custody artifact starts");
+    let initial_claims = execution.live_claim_frontier().collect::<Vec<_>>();
+    assert_eq!(initial_claims, [content_claim.claim]);
+    let mut meter = TerminalFuelMeter::unbounded();
+    let mut rejecting = ResultBoundaryHandler { reject: true };
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut meter, &mut rejecting),
+        Err(TerminalInterpretError::EffectRejected { .. })
+    ));
+    assert_eq!(
+        execution.live_claim_frontier().collect::<Vec<_>>(),
+        initial_claims
+    );
+    assert!(execution.effects().is_empty());
+
+    let mut accepting = ResultBoundaryHandler { reject: false };
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut accepting)
+            .expect("accepted content exit resumes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+    assert_eq!(execution.live_claim_frontier().count(), 0);
+    assert_eq!(execution.effects().len(), 1);
+}
+
+#[test]
+fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
+    let tokens = Lexer::new(RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE)
+        .tokenize()
+        .expect("tokenize Unit content custody exit");
+    let syntax = parse_syntax_trees(&tokens).expect("parse Unit content custody exit");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve Unit content custody exit");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type Unit content custody exit");
+    let checked = lower_typed_trees(typed).expect("check Unit content custody exit");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::exit")
+        .expect("content-bearing Unit boundary custody should lower");
+    let module = &lowered.semantic_module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("one Unit content custody root machine")
+    };
+    let [structural_claim] = machine.entry_claims.as_slice() else {
+        panic!("one Unit structural entry claim")
+    };
+    let [content_claim] = machine.content_entry_claims.as_slice() else {
+        panic!("one Unit content entry claim")
+    };
+    assert_eq!(content_claim.claim, structural_claim.claim);
+    assert_eq!(content_claim.input.version, ContentPlaceVersion::Entry);
+    assert_eq!(content_claim.input.root, structural_claim.input);
+    assert!(content_claim.input.segments.is_empty());
+    assert_eq!(content_claim.projections.len(), 1);
+
+    let semantic = encode_module(module).expect("Unit content custody semantics encode");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("Unit content proof encodes");
+    psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("content-bearing Unit boundary custody verifies");
+
+    let parameter = &machine.structural_parameters[0];
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[TerminalStructuralValue {
+            opaque_identity: 0xc017_017,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        }],
+    )
+    .expect("Unit content custody artifact starts");
+    assert_eq!(execution.live_claim_frontier().count(), 1);
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("Unit content exit runs"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(execution.live_claim_frontier().count(), 0);
     assert_eq!(execution.effects().len(), 1);
