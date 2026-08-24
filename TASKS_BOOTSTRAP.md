@@ -45,10 +45,15 @@ implementations and checks certificates emitted at multiple stages.
 The shape of the hosted edge is settled. Only two source-surface contracts still
 need their exact inventories frozen:
 
-1. **Delta v1**, the literal independent language used to write
-   `omega-bootstrap`.
-2. **`Ωself`**, the incidental ordinary-Omega profile used by the production
-   compiler's own complete source closure.
+| Contract | Evidence that selects it | Working owner | Freeze point |
+| --- | --- | --- | --- |
+| **Delta v1** — the literal independent language used to write `omega-bootstrap` | the bridge's complete deterministic Delta source closure | [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md) | after the complete bridge source exists and unused producer/corpus behavior is pruned |
+| **`Ωself`** — the incidental ordinary-Omega profile used by the production compiler | the product compiler's complete deterministic Omega source closure | [`self_hosting_profile.md`](wiki/architecture/bootstrap_lattice/self_hosting_profile.md) and the bootstrap profile gate | after `OMEGA-PRODUCT-COMPILER-SOURCE` publishes that closure and each disputed feature is measured |
+
+Delta's source manifest decides what its independent language must support;
+Omega's product-source manifest decides what ordinary Omega the bridge must
+accept. Neither manifest is itself a grammar, and neither contract may be
+inferred from the other.
 
 There is no `omega0`, `omega1`, or Epsilon language generation between them.
 O0 and O1 below are bounded vertical-canary labels for the current bridge work,
@@ -193,7 +198,7 @@ Product Psi/Omega implementation work belongs in `TASKS.md`. This file may name
 a required product interface as an input to a lattice gate, but it must not own
 or prescribe work inside the Rust on-ramp or the eventual product compiler.
 
-### Dependency split
+### Two-contract discovery loop
 
 Two source efforts can proceed in parallel:
 
@@ -204,12 +209,12 @@ Two source efforts can proceed in parallel:
   explicit Delta feature ledger and lower-rung meaning for every used
   construct.
 
-The product manifest permits `Ωself` to be derived. `Ωself` then determines the
-complete work of `omega-bootstrap`; that bridge's complete Delta source closure
-provides the evidence from which Delta v1 is pruned and frozen. The contracts
-remain distinct even though discovery is iterative. O0/O1 may continue before
-those joins, but neither current source nor producer acceptance may silently
-define a language contract.
+The product manifest permits `Ωself` to be derived. `Ωself` determines the
+accepted-source work of `omega-bootstrap`; implementing that bridge exposes its
+complete Delta source closure, from which Delta v1 is pruned and frozen. This is
+an iterative discovery loop with two eventual freezes, not a circular runtime
+or build dependency. O0/O1 may continue before those joins, but neither current
+source nor producer acceptance may silently define a language contract.
 
 ### Active work packages and acceptance gates
 
@@ -267,7 +272,8 @@ outside that manifest unless the compiler executable imports them.
   before the profile can freeze. Standard library samples and current Rust
   source cannot substitute for it; provisional bridge work may continue.
   - [ ] measure every feature used by the complete source closure against its
-    production-source benefit and its Delta implementation/assurance cost;
+    production-source benefit and the cost of implementing and assuring it in
+    the Delta-written bridge;
   - [ ] freeze compositional syntax, static-semantics, resource, ABI/layout, and
     lowering rules—not file identities, statement counts, or AST permutations;
   - [ ] presumptively exclude mathematical proof/program syntax and
@@ -275,7 +281,9 @@ outside that manifest unless the compiler executable imports them.
   - [ ] presumptively retain ordinary named fields, payload-bearing sums, and
     basic generics unless source evidence makes their removal cheaper overall;
   - [ ] decide domains, advanced generics, numeric/schema field tags, complex
-    transition payloads, and mixed field-plus-case data from the actual source;
+    transition payloads, and mixed field-plus-case data from the actual source,
+    preferring a simpler discriminant plus explicit context or separate
+    record/sum shapes only when that lowers total source-and-assurance cost;
   - [ ] keep standalone terminal-Psi tools, interpreters, REPLs, proof explorers,
     viewers, and debuggers outside the manifest unless the compiler executable
     imports them; and
@@ -302,6 +310,11 @@ outside that manifest unless the compiler executable imports them.
     direct artifact path in the same milestone; and
   - [ ] compile, rather than duplicate, the production optimizer and advanced
     lowering source.
+
+  This task may grow provisionally against the working `Ωself` policy before
+  the profile freeze. A capability is complete only when its general profile
+  rule, unsupported-form rejection, Rust-free meaning, and artifact path land
+  together; recognizing just the current product source shape does not count.
 
   Acceptance: the bridge compiles every admitted `Ωself` program with exact
   Omega semantics. It need not accept full Omega, optimize its own output, use
