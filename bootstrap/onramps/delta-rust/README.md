@@ -1,6 +1,7 @@
 # Delta Rust on-ramp
 
-The `-rs` suffix marks this as the **throwaway Rust** on-ramp for the Delta rung:
+The `-rust` suffix marks this as the external-language on-ramp for the Delta rung
+(`-rs` survives only in historical compatibility paths):
 it compiles the current experimental `.alp` surface (state **machines**, **data**
 structs, **transition** dispatch, and payload **enums**) to a native binary to
 discover what the bridge language needs. It is an interim producer and

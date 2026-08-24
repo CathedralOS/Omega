@@ -28,12 +28,13 @@ Legend:
 - `[CRATE]` means a Cargo workspace package.
 - Unprefixed folders are ordinary source/module boundaries inside a crate.
 
-This tree reflects the actual Cargo workspace members. Some sub-areas named in
-the placement prose are not yet separate crates: `packages/`, `runtime/startup`,
-`tool_support/`, and several backend object/linker/image writers (per-format
-object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
-folded into other crates or do not exist yet. They are placement intent, not
-current packages.
+This tree is a conceptual placement map anchored in the current Rust on-ramp;
+it is not an exhaustive generated inventory of Cargo workspace members. Some
+sub-areas named in the placement prose are not yet separate crates, while small
+implementation crates may appear in the workspace before this map names them.
+`packages/`, `runtime/startup`, `tool_support/`, and several backend
+object/linker/image writers remain placement intent rather than current
+packages.
 
 > **Ownership boundary.** The current Cargo implementation is explicitly an
 > external-language producer under `bootstrap/onramps/omega-rust/`. Its `psi/`

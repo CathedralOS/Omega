@@ -48,8 +48,8 @@ There are exactly two ways anything becomes trustworthy.
   base validates both the required claims and their derivations. Bad evidence is
   rejected. The producer is not trusted; the artifact verifier, proof kernel,
   canonical semantics, and disclosed admissions are. ("Irrelevant to correctness"
-  is not "fine to keep forever" — see
-  [Two roles for Rust](#two-roles-for-rust-and-why-it-still-dies).)
+  does not make Rust a required dependency — see
+  [Two roles for Rust](#two-roles-for-rust-and-where-it-exits).)
 
 The asymmetry is the whole game:
 
@@ -65,7 +65,7 @@ poisoned dependency yields artifacts that do not check), **layer-2-depending-on-
 layer-6** (layer 2 is trusted because the checker validated it, not because
 layer 6 produced it, so layer 6 can be garbage), and **the Rust lineage** (Rust
 becomes a mere producer whose output is checked — outside the *soundness* base,
-though [it still dies for provenance](#two-roles-for-rust-and-why-it-still-dies)).
+though [it still exits the required build](#two-roles-for-rust-and-where-it-exits)).
 
 The historical reason almost nobody does this is that it demands writing the
 meaning down formally and making producers emit proofs — brutal human labor (a
@@ -213,7 +213,7 @@ You cannot reach zero trust. The honest, finite list:
 The craft is making this set as small, as explicit, and as independently
 re-verified as possible — then deriving or checking *everything else*.
 
-## The fixed language spine and two-stage Omega build
+## The fixed language spine, bridge, and one hosted Omega build
 
 The language names and order are fixed by [D6](decisions.md). Each small
 bootstrap rung adds **one coherent idea** and is implemented in the rung below.
@@ -272,12 +272,13 @@ This architecture does not demote the existing docs; it assigns roles.
   out at {seed, checker, specs, hardware}). This doc is the *construction* that
   reaches it.
 
-## Two roles for Rust (and why it still dies)
+## Two roles for Rust (and where it exits)
 
 Trust-by-checking says the producer's implementation language is irrelevant *to
 the soundness of a checked artifact*. That is true and liberating — but it is
-**not** "Rust is fine forever." Two different guarantees are in play, and Rust
-threatens one of them regardless of checking:
+**not** "Rust may remain required forever." Two different guarantees are in
+play, and a required Rust dependency threatens one of them regardless of
+checking:
 
 - **Semantic correctness of an artifact** — given a sound artifact verifier and
   proof kernel, independent of the producer. A Rust-built Omega compiler whose
@@ -290,8 +291,9 @@ threatens one of them regardless of checking:
   self-sufficient — you still *need* that blob. For an OS aiming at bare-metal
   reproducibility, that dependency is exactly the thing being killed.
 
-So Rust dies completely; checking only sets the **order**, because Rust plays two
-different roles:
+So Rust exits every required trust, bootstrap, and release role; that does not
+require deleting a useful parallel implementation from the repository.
+Checking sets the **order**, because Rust plays two different roles:
 
 - **Rust as the artifact verifier, proof kernel, or meaning implementation** is
   part of the trusted base. The generic proof kernel already has Beta and Gamma
@@ -303,16 +305,18 @@ different roles:
   versioned trusted dependency.
 - **Rust as the producer** (`bootstrap/onramps/omega-rust/{psi,omega}/`) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
-  still dies — for self-sufficiency — but it is the **deferrable** kill; a
-  verified, Rust-built compiler output is a fine interim state.
+  must become omittable for self-sufficiency, but its removal from the repository
+  is unnecessary. It may remain a maintained, non-authoritative differential
+  comparator while its bug-finding value justifies the cost; a verified,
+  Rust-built compiler output is also a fine interim state.
 
 **Where the repo is today:** the low proof kernel exists in Beta and Gamma. The
 current terminal-Psi artifact verifier, terminal interpreter, source proof
 engine, and production compiler are still Rust. Rust therefore remains in the
 explicit trusted path until canonical semantic-ledger reconstruction and
 execution have audited closures. Its current status is recorded rather than
-being implied by successful kernel checks. Removing Rust from the producer
-remains necessary for self-sufficiency, but it is not the same task.
+being implied by successful kernel checks. Removing Rust as a required producer
+remains necessary for self-sufficiency; deleting the parallel comparator is not.
 
 ## Honest edges
 

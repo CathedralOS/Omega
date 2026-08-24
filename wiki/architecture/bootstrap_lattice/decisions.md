@@ -3,7 +3,8 @@
 [Lattice overview](bootstrap_lattice.md)
 
 The overview decides the *principles* (trust-by-checking; meaning = reference
-interpreter; checked refinement across every compiler edge; Rust dies) and deliberately leaves a set of
+interpreter; checked refinement across every compiler edge; Rust exits every
+required trust and bootstrap role) and deliberately leaves a set of
 **open questions**. This document resolves them into standing decisions and an
 execution order. It is the executive layer on top of the design: when the
 overview says "emergent / to be decided," the calls here are the decision.
@@ -15,7 +16,7 @@ implementation under `bootstrap/onramps/omega-rust/psi/` and `bootstrap/onramps/
 
 ---
 
-## D1 — Rust exits by ROLE, not by rung. Kill it as meaning/checker first; as producer last.
+## D1 — Rust exits by ROLE, not by rung: meaning/checker first, required producer last.
 
 The overview's "Two roles for Rust" is the ordering law. Made concrete, per artifact:
 
@@ -219,7 +220,7 @@ The provisional evidence ledger is
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
 Delta source builds `omega-bootstrap`. That compiler is intentionally
-spec-incomplete: it accepts only the Omega self-hosting profile `Ωself`, rejects
+input-incomplete: it accepts only the Omega self-hosting profile `Ωself`, rejects
 everything else, and gives accepted programs their exact normal Omega meaning.
 The production compiler source and all of its transitive dependencies are
 deliberately constrained to `Ωself`, while the resulting production compiler
@@ -250,16 +251,17 @@ manifest proves that the product compiler closes under the profile; the manifest
 does not replace general parsing, checking, lowering, diagnostics, or negative
 coverage for every admitted capability. Thus `omega-bootstrap` is deliberately
 incomplete in what Omega programs it accepts, but exact in the meaning of every
-program it does accept. The production compiler it builds is complete in the
-language it accepts and implements.
+program it does accept. The production compiler it builds accepts full Omega
+and preserves the full specified artifact meaning.
 
-There is one required hosted compile. `omega-bootstrap` may be slow and may
-lower the production compiler conservatively. It must compile the `Ωself`
-source that implements the production optimizer and advanced lowering, but it
-does not implement or run those product passes during this build. The resulting
-compiler has full optimizing functionality even if its own binary is not yet
-optimized. A later production self-rebuild may optimize that binary and provide
-fixed-point/reproducibility evidence; it is not an architectural dependency. As
+There is one required hosted/self-host compile. `omega-bootstrap` may be slow
+and may lower the production compiler conservatively. It must compile the
+`Ωself` source that implements the production optimizer and advanced lowering,
+but it does not implement or run those product passes during this build. The
+resulting compiler has full optimizing functionality even if its own binary is
+not yet optimized. A later production self-rebuild may optimize that binary and
+provide fixed-point/reproducibility evidence; it is product work, not a second
+bootstrap task or architectural dependency. As
 with every hosted edge, a defect can reproduce; proof, meaning, and
 translation-validation gates remain responsible for detecting it.
 
@@ -285,8 +287,9 @@ another Greek bootstrap language.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while its bug-finding value justifies the cost. It grants
-no authority and is never a bootstrap or release dependency. The Beta compiler's
-default construction and downstream use are already Alpha-rooted.
+no authority; once the hosted path closes, it is neither a bootstrap nor a
+release dependency. The Beta compiler's default construction and downstream
+use are already Alpha-rooted.
 
 The exact Delta language inventory and `Ωself` source-profile inventory are
 governed by [`self_hosting_profile.md`](self_hosting_profile.md).

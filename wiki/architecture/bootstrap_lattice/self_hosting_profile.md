@@ -220,8 +220,9 @@ full optimizing compiler, although that compiler's own machine code may still
 be conservatively generated.
 
 ```text
-Delta compiler ──▶ omega-bootstrap (slow binary, Ωself input)
-omega-bootstrap ──▶ production omega (full optimizing compiler; binary may be conservative)
+Delta bridge source ──[Delta compiler]──▶ omega-bootstrap (slow binary)
+Ωself product source ──[omega-bootstrap]──▶ omega (full compiler; conservative binary)
+the same product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
 ```
 
 A later production-Omega rebuild can optimize the compiler binary itself and
