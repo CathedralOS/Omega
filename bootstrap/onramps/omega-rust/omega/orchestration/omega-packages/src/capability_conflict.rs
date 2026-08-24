@@ -13,10 +13,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 2;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 3;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 1;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V2\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -1127,12 +1127,9 @@ fn hash_optional_field(digest: &mut Sha256, bytes: Option<&[u8]>) {
 fn hash_optional_row_source(digest: &mut Sha256, source: Option<&PackageReviewCanonicalRowSource>) {
     match source {
         None => digest.update([0]),
-        Some(PackageReviewCanonicalRowSource::CompilerDerived(kind)) => {
+        Some(source) => {
             digest.update([1]);
-            digest.update([synthetic_source_kind_tag(*kind)]);
-        }
-        Some(PackageReviewCanonicalRowSource::Authored(locations)) => {
-            digest.update([2]);
+            let locations = source.authored_locations().unwrap_or_default();
             digest.update(
                 u64::try_from(locations.len())
                     .expect("bounded source-location count fits u64")
@@ -1154,20 +1151,26 @@ fn hash_optional_row_source(digest: &mut Sha256, source: Option<&PackageReviewCa
                 digest.update(location.end_byte().to_le_bytes());
                 digest.update([source_location_role_tag(location.role())]);
             }
+            digest.update(
+                u64::try_from(source.compiler_derivations().len())
+                    .expect("bounded compiler-derivation count fits u64")
+                    .to_le_bytes(),
+            );
+            for kind in source.compiler_derivations() {
+                digest.update([synthetic_source_kind_tag(*kind)]);
+            }
         }
     }
 }
 
 fn source_metrics(source: &PackageReviewCanonicalRowSource) -> (usize, usize) {
-    match source {
-        PackageReviewCanonicalRowSource::CompilerDerived(_) => (0, 0),
-        PackageReviewCanonicalRowSource::Authored(locations) => (
-            locations.len(),
-            locations.iter().fold(0usize, |bytes, location| {
-                bytes.saturating_add(location.relative_path().len())
-            }),
-        ),
-    }
+    let locations = source.authored_locations().unwrap_or_default();
+    (
+        locations.len(),
+        locations.iter().fold(0usize, |bytes, location| {
+            bytes.saturating_add(location.relative_path().len())
+        }),
+    )
 }
 
 trait ConflictRenderOutput {
@@ -1350,15 +1353,19 @@ fn render_optional_row_source(
     output.push_str("_source ");
     match source {
         None => output.push_str("absent_row\n"),
-        Some(PackageReviewCanonicalRowSource::CompilerDerived(kind)) => {
-            output.push_str("compiler_derived ");
-            output.push_str(synthetic_source_kind_token(*kind));
-            output.push('\n');
-        }
-        Some(PackageReviewCanonicalRowSource::Authored(locations)) => {
-            output.push_str("authored ");
+        Some(source) => {
+            let locations = source.authored_locations().unwrap_or_default();
+            output.push_str("present authored ");
             output.push_str(&locations.len().to_string());
+            output.push_str(" compiler_derived ");
+            output.push_str(&source.compiler_derivations().len().to_string());
             output.push('\n');
+            for kind in source.compiler_derivations() {
+                output.push_str(label);
+                output.push_str("_derivation ");
+                output.push_str(synthetic_source_kind_token(*kind));
+                output.push('\n');
+            }
             for location in locations {
                 output.push_str(label);
                 output.push_str("_location ");
@@ -1389,16 +1396,20 @@ fn render_optional_row_source(
 const fn synthetic_source_kind_tag(kind: PackageReviewSyntheticSourceKind) -> u8 {
     match kind {
         PackageReviewSyntheticSourceKind::ProjectionHeader => 0,
-        PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending => 1,
+        PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => 1,
+        PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => 2,
+        PackageReviewSyntheticSourceKind::FreeExternalProviderType => 3,
     }
 }
 
 const fn synthetic_source_kind_token(kind: PackageReviewSyntheticSourceKind) -> &'static str {
     match kind {
         PackageReviewSyntheticSourceKind::ProjectionHeader => "projection_header",
-        PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending => {
-            "selected_provider_provenance_pending"
+        PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => "empty_selected_provider_set",
+        PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => {
+            "unique_covering_provider_selection"
         }
+        PackageReviewSyntheticSourceKind::FreeExternalProviderType => "free_external_provider_type",
     }
 }
 
@@ -1508,6 +1519,10 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::DerivationOrigin => 1,
         PackageReviewSourceLocationRole::AuthorityDeclaration => 2,
         PackageReviewSourceLocationRole::AuthorityExposure => 3,
+        PackageReviewSourceLocationRole::ProviderSelection => 4,
+        PackageReviewSourceLocationRole::ProviderSchemaDeclaration => 5,
+        PackageReviewSourceLocationRole::ProviderTypeDeclaration => 6,
+        PackageReviewSourceLocationRole::ProviderRealization => 7,
     }
 }
 
@@ -1517,5 +1532,9 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::DerivationOrigin => "derivation_origin",
         PackageReviewSourceLocationRole::AuthorityDeclaration => "authority_declaration",
         PackageReviewSourceLocationRole::AuthorityExposure => "authority_exposure",
+        PackageReviewSourceLocationRole::ProviderSelection => "provider_selection",
+        PackageReviewSourceLocationRole::ProviderSchemaDeclaration => "provider_schema_declaration",
+        PackageReviewSourceLocationRole::ProviderTypeDeclaration => "provider_type_declaration",
+        PackageReviewSourceLocationRole::ProviderRealization => "provider_realization",
     }
 }

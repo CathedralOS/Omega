@@ -1546,12 +1546,18 @@ pub enum PackageReviewSourceLocationRole {
     DerivationOrigin,
     AuthorityDeclaration,
     AuthorityExposure,
+    ProviderSelection,
+    ProviderSchemaDeclaration,
+    ProviderTypeDeclaration,
+    ProviderRealization,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PackageReviewSyntheticSourceKind {
     ProjectionHeader,
-    SelectedProviderProvenancePending,
+    EmptySelectedProviderSet,
+    UniqueCoveringProviderSelection,
+    FreeExternalProviderType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1594,17 +1600,42 @@ impl PackageReviewSourceLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageReviewCanonicalRowSource {
-    Authored(Vec<PackageReviewSourceLocation>),
-    CompilerDerived(PackageReviewSyntheticSourceKind),
+pub struct PackageReviewCanonicalRowSource {
+    authored_locations: Vec<PackageReviewSourceLocation>,
+    compiler_derivations: Vec<PackageReviewSyntheticSourceKind>,
 }
 
 impl PackageReviewCanonicalRowSource {
-    pub fn authored_locations(&self) -> Option<&[PackageReviewSourceLocation]> {
-        match self {
-            Self::Authored(locations) => Some(locations),
-            Self::CompilerDerived(_) => None,
+    fn authored(authored_locations: Vec<PackageReviewSourceLocation>) -> Self {
+        Self {
+            authored_locations,
+            compiler_derivations: Vec::new(),
         }
+    }
+
+    fn compiler_derived(compiler_derivation: PackageReviewSyntheticSourceKind) -> Self {
+        Self {
+            authored_locations: Vec::new(),
+            compiler_derivations: vec![compiler_derivation],
+        }
+    }
+
+    fn mixed(
+        authored_locations: Vec<PackageReviewSourceLocation>,
+        compiler_derivations: Vec<PackageReviewSyntheticSourceKind>,
+    ) -> Self {
+        Self {
+            authored_locations,
+            compiler_derivations,
+        }
+    }
+
+    pub fn authored_locations(&self) -> Option<&[PackageReviewSourceLocation]> {
+        (!self.authored_locations.is_empty()).then_some(&self.authored_locations)
+    }
+
+    pub fn compiler_derivations(&self) -> &[PackageReviewSyntheticSourceKind] {
+        &self.compiler_derivations
     }
 }
 
@@ -1927,7 +1958,7 @@ fn project_canonical_row_sources(
     representation_tcb: &[PackageReviewRepresentationTcb],
     callables: &[CheckedPackageCallableReview],
     dangerous_authorities: &[PackageReviewDangerousAuthority],
-    _selected_providers: &[CheckedPackageProviderReview],
+    selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<PackageReviewCanonicalRowSources, Vec<Diagnostic>> {
     let public_traits = public_traits
         .iter()
@@ -2031,10 +2062,11 @@ fn project_canonical_row_sources(
             }
             locations.sort();
             locations.dedup();
-            Ok(PackageReviewCanonicalRowSource::Authored(locations))
+            Ok(PackageReviewCanonicalRowSource::authored(locations))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
 
+    let selected_provider_set = selected_provider_row_source(compilation, selected_providers)?;
     let sources = PackageReviewCanonicalRowSources {
         public_traits,
         public_domains,
@@ -2042,15 +2074,90 @@ fn project_canonical_row_sources(
         representation_tcb,
         callables: callable_sources,
         dangerous_authorities: dangerous_authority_sources,
-        // Provider selection is compiler-produced reconciliation over several
-        // plans. Until that set has sealed per-provider coordinates, state the
-        // absence instead of inventing one authored location.
-        selected_provider_set: PackageReviewCanonicalRowSource::CompilerDerived(
-            PackageReviewSyntheticSourceKind::SelectedProviderProvenancePending,
-        ),
+        selected_provider_set,
     };
     validate_canonical_row_source_limits(&sources)?;
     Ok(sources)
+}
+
+fn selected_provider_row_source(
+    compilation: &CheckedCompilation,
+    selected_providers: &[CheckedPackageProviderReview],
+) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
+    let selected_plans = compilation.selected_provider_plans().plans();
+    let provenance = compilation.selected_provider_provenance();
+    if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
+    {
+        return Err(vec![Diagnostic::error(
+            "selected-provider review provenance is not aligned with the canonical selected plan set",
+        )]);
+    }
+    if selected_plans.is_empty() {
+        return Ok(PackageReviewCanonicalRowSource::compiler_derived(
+            PackageReviewSyntheticSourceKind::EmptySelectedProviderSet,
+        ));
+    }
+
+    let mut locations = Vec::new();
+    let mut compiler_derivations = Vec::new();
+    for (index, plan) in selected_plans.iter().enumerate() {
+        let retained = &provenance[index];
+        if retained.plan != *plan {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` is not aligned with its retained provenance",
+                plan.name,
+            ))]);
+        }
+
+        match &retained.selected_by {
+            super::provider_plans::ProviderSelectionProvenance::BuildOverride(declarations)
+            | super::provider_plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
+                for declaration in declarations {
+                    locations.push(canonical_source_span_location(
+                        compilation,
+                        declaration.source_span,
+                        PackageReviewSourceLocationRole::ProviderSelection,
+                    )?);
+                }
+            }
+            super::provider_plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
+                compiler_derivations
+                    .push(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection);
+            }
+        }
+
+        locations.push(canonical_source_location(
+            compilation,
+            retained.provider.schema.symbol(),
+            PackageReviewSourceLocationRole::ProviderSchemaDeclaration,
+        )?);
+
+        if let Some(provider_type) = retained.provider.provider_type {
+            locations.push(canonical_source_location(
+                compilation,
+                provider_type,
+                PackageReviewSourceLocationRole::ProviderTypeDeclaration,
+            )?);
+        } else {
+            compiler_derivations.push(PackageReviewSyntheticSourceKind::FreeExternalProviderType);
+        }
+
+        for realization in &retained.provider.row_realizations {
+            locations.push(canonical_source_location(
+                compilation,
+                *realization,
+                PackageReviewSourceLocationRole::ProviderRealization,
+            )?);
+        }
+    }
+    locations.sort();
+    locations.dedup();
+    compiler_derivations.sort();
+    compiler_derivations.dedup();
+    Ok(PackageReviewCanonicalRowSource::mixed(
+        locations,
+        compiler_derivations,
+    ))
 }
 
 const MAX_PACKAGE_REVIEW_SOURCE_LOCATIONS: usize = 262_144;
@@ -2071,17 +2178,21 @@ fn validate_canonical_row_source_limits(
     let mut count = 0usize;
     let mut path_bytes = 0usize;
     for source in all {
-        let PackageReviewCanonicalRowSource::Authored(locations) = source else {
-            continue;
-        };
-        if locations.is_empty() {
+        let locations = &source.authored_locations;
+        let derivations = &source.compiler_derivations;
+        if locations.is_empty() && derivations.is_empty() {
             return Err(vec![Diagnostic::error(
-                "authored package review row has no source locations",
+                "package review row has neither authored source locations nor a compiler derivation",
             )]);
         }
         if locations.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(vec![Diagnostic::error(
                 "authored package review source locations are not strictly canonical",
+            )]);
+        }
+        if derivations.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(vec![Diagnostic::error(
+                "package review compiler derivations are not strictly canonical",
             )]);
         }
         count = count.checked_add(locations.len()).ok_or_else(|| {
@@ -2120,7 +2231,7 @@ fn declaration_row_source(
     subject: &str,
 ) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
     declaration_locations(compilation, identity, symbols, role, subject)
-        .map(PackageReviewCanonicalRowSource::Authored)
+        .map(PackageReviewCanonicalRowSource::authored)
 }
 
 fn declaration_locations(
@@ -2169,6 +2280,14 @@ fn canonical_source_location(
                 compilation.typed.symbols.display_path(symbol, "::")
             ))]
         })?;
+    canonical_source_span_location(compilation, span, role)
+}
+
+fn canonical_source_span_location(
+    compilation: &CheckedCompilation,
+    span: psi_source::SourceSpan,
+    role: PackageReviewSourceLocationRole,
+) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
     let source_file = compilation.typed.symbols.source_file(span).ok_or_else(|| {
         vec![Diagnostic::error(
             "reviewed declaration source span has no retained source file",

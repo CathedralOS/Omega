@@ -693,9 +693,15 @@ capability bytes, but changed-row conflicts bind the exact old/new coordinates
 shown to the reviewer. Dangerous-authority rows include the toolchain authority
 declaration and package exposure declarations. Generated symbols follow their
 authored derivation origin, while compiler-derived rows state a closed reason.
-Nested use sites and selected-provider selection/realization sites remain
-incremental provenance carriers in existing Psi stages or compiler-internal
-sidecars, not a reason to create nominal Chi.
+Provider candidate derivation captures a compiler-internal sidecar beside each
+semantic plan: exact boundary-schema and optional nominal-provider symbols, and
+the exact realizing machine for every external or checked-adapter row. Selection
+and canonical sorting keep that pair intact, adding exact authored build/target-
+default sites or a closed reason for an implicit unique choice. The resulting
+selected-provider row may mix authored coordinates and compiler-derived reasons
+without reconstructing provenance from reduced names, schemas, or fingerprints.
+Nested use sites remain incremental provenance carriers in existing Psi stages
+or compiler-internal sidecars, not a reason to create nominal Chi.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

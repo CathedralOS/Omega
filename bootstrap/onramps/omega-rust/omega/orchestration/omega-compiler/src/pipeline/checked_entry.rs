@@ -22,6 +22,7 @@ pub struct CheckedCompilation {
     selected_program_entry_machine: Option<String>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
     callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
@@ -82,6 +83,12 @@ impl CheckedCompilation {
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
+    }
+
+    pub(super) fn selected_provider_provenance(
+        &self,
+    ) -> &[super::provider_plans::SelectedProviderReviewProvenance] {
+        &self.selected_provider_provenance
     }
 
     pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
@@ -324,8 +331,15 @@ fn compile_to_checked_inner(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans(&typed, target_name);
+    let derived_provider_plans =
+        crate::pipeline::provider_plans::derive_satisfies_plans_with_provenance(
+            &typed,
+            target_name,
+        );
+    let provider_plans = derived_provider_plans
+        .iter()
+        .map(|derived| derived.plan.clone())
+        .collect::<Vec<_>>();
     let selected_target_profile = target_name
         .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
@@ -339,19 +353,26 @@ fn compile_to_checked_inner(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans = crate::pipeline::provider_plans::select_provider_plans(
-        &provider_plans,
-        provider_selection_target,
-        &target_provider_defaults,
-        &build_config.provider_selections,
-    )?;
+    let selected_provider_plans =
+        crate::pipeline::provider_plans::select_provider_plans_with_provenance(
+            &derived_provider_plans,
+            provider_selection_target,
+            &target_provider_defaults,
+            &build_config.provider_selections,
+        )?;
+    let selected_semantic_plans = selected_provider_plans
+        .iter()
+        .map(|selected| selected.derived.plan.clone())
+        .collect::<Vec<_>>();
     crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
         &typed,
-        &selected_provider_plans,
+        &selected_semantic_plans,
     )?;
-    let selected_provider_plan_facts =
-        omega_effects::SelectedProviderPlanFacts::from_selected_plans(selected_provider_plans)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let (selected_provider_plan_facts, selected_provider_provenance) =
+        crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
+            &typed,
+            selected_provider_plans,
+        )?;
     let contract_entailment_stand_downs =
         psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
@@ -418,6 +439,7 @@ fn compile_to_checked_inner(
         selected_program_entry_machine,
         selected_build_machine_symbol,
         selected_provider_plans: selected_provider_plan_facts,
+        selected_provider_provenance,
         component_progress,
         task_activations,
         callback_placements,

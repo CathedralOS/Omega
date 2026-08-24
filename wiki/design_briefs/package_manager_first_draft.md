@@ -240,9 +240,15 @@ coordinates are included in the conflict fingerprint and escaped bounded
 rendering. Dangerous-authority rows identify both the canonical toolchain
 declaration and each reviewed package callable exposing it. Generated symbols
 follow their authored derivation origin; genuinely compiler-derived rows carry
-a closed reason. Exact nested use-site and selected-provider coordinates may be
-added through their existing typed/checked owners and compiler sidecars without
-creating a report-only stage.
+a closed reason. Provider candidate derivation captures a compiler-internal
+sidecar beside each semantic plan: exact schema and optional nominal-provider
+symbols, plus the exact realizing machine for every external or checked-adapter
+row. Selection and sorting preserve the pair and add exact authored build/target-
+default call sites or a closed implicit-selection reason. The selected-provider
+row may therefore mix authored coordinates and compiler-derived reasons without
+reconstructing them from reduced names, schemas, or fingerprints. Exact nested
+use sites may be added through their existing typed/checked owners and compiler
+sidecars without creating a report-only stage.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder

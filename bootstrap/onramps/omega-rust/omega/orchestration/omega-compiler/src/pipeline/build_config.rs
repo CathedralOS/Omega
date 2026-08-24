@@ -953,6 +953,8 @@ pub struct ProviderSelectionIdentity {
 pub struct ProviderSelection {
     pub boundary_trait: ProviderSelectionIdentity,
     pub provider_type: ProviderSelectionIdentity,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: psi_source::SourceSpan,
 }
 
 #[cfg(test)]
@@ -971,6 +973,8 @@ impl ProviderSelection {
                 canonical_path: provider_type.to_owned(),
                 authored_path: provider_type.to_owned(),
             },
+            selecting_machine: SymbolHandle::invalid(),
+            source_span: psi_source::SourceSpan::default(),
         }
     }
 }
@@ -1488,74 +1492,76 @@ fn harvest_provider_selections(
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let mut selections: Vec<ProviderSelection> = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut record =
-        |target: &str, arguments: &[psi_typed_trees::expression::StaticMachineArgument]| {
-            if target != "select_provider" {
-                return;
-            }
-            let [boundary_argument, provider_argument] = arguments else {
-                diagnostics.push(Diagnostic::error(
-                    "provider selection must retain exactly two resolved type paths",
-                ));
-                return;
-            };
-            let project_identity =
-                |argument: &psi_typed_trees::expression::StaticMachineArgument| {
-                    let authored_path = argument
-                        .path
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::");
-                    ProviderSelectionIdentity {
-                        symbol: argument.symbol,
-                        package: typed.symbols.symbol_package_identity(argument.symbol),
-                        canonical_path: typed.symbols.display_path(argument.symbol, "::"),
-                        authored_path,
-                    }
-                };
-            let boundary_trait = project_identity(boundary_argument);
-            let provider_type = project_identity(provider_argument);
-            if !boundary_trait.symbol.is_valid()
-                || typed.symbols.get(boundary_trait.symbol).kind != SymbolKind::Trait
-                || !typed.traits().iter().any(|definition| {
-                    definition.symbol == boundary_trait.symbol && definition.is_boundary
-                })
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "provider selection boundary `{}` does not resolve to an exact boundary trait",
-                    boundary_trait.authored_path
-                )));
-                return;
-            }
-            if !provider_type.symbol.is_valid()
-                || typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "provider selection type `{}` does not resolve to an exact data declaration",
-                    provider_type.authored_path
-                )));
-                return;
-            }
-            if let Some(existing) = selections
-                .iter()
-                .find(|selection| selection.boundary_trait.symbol == boundary_trait.symbol)
-            {
-                if existing.provider_type.symbol != provider_type.symbol {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "build selects two provider types for slot `{}`: `{}` and `{}`",
-                        boundary_trait.canonical_path,
-                        existing.provider_type.canonical_path,
-                        provider_type.canonical_path,
-                    )));
-                }
-                return;
-            }
-            selections.push(ProviderSelection {
-                boundary_trait,
-                provider_type,
-            });
+    let mut record = |target: &str,
+                      arguments: &[psi_typed_trees::expression::StaticMachineArgument],
+                      source_span: psi_source::SourceSpan| {
+        if target != "select_provider" {
+            return;
+        }
+        let [boundary_argument, provider_argument] = arguments else {
+            diagnostics.push(Diagnostic::error(
+                "provider selection must retain exactly two resolved type paths",
+            ));
+            return;
         };
+        let project_identity = |argument: &psi_typed_trees::expression::StaticMachineArgument| {
+            let authored_path = argument
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            ProviderSelectionIdentity {
+                symbol: argument.symbol,
+                package: typed.symbols.symbol_package_identity(argument.symbol),
+                canonical_path: typed.symbols.display_path(argument.symbol, "::"),
+                authored_path,
+            }
+        };
+        let boundary_trait = project_identity(boundary_argument);
+        let provider_type = project_identity(provider_argument);
+        if !boundary_trait.symbol.is_valid()
+            || typed.symbols.get(boundary_trait.symbol).kind != SymbolKind::Trait
+            || !typed.traits().iter().any(|definition| {
+                definition.symbol == boundary_trait.symbol && definition.is_boundary
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider selection boundary `{}` does not resolve to an exact boundary trait",
+                boundary_trait.authored_path
+            )));
+            return;
+        }
+        if !provider_type.symbol.is_valid()
+            || typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider selection type `{}` does not resolve to an exact data declaration",
+                provider_type.authored_path
+            )));
+            return;
+        }
+        if let Some(existing) = selections
+            .iter()
+            .find(|selection| selection.boundary_trait.symbol == boundary_trait.symbol)
+        {
+            if existing.provider_type.symbol != provider_type.symbol {
+                diagnostics.push(Diagnostic::error(format!(
+                    "build selects two provider types for slot `{}`: `{}` and `{}`",
+                    boundary_trait.canonical_path,
+                    existing.provider_type.canonical_path,
+                    provider_type.canonical_path,
+                )));
+                return;
+            }
+        }
+        selections.push(ProviderSelection {
+            boundary_trait,
+            provider_type,
+            selecting_machine: machine.symbol,
+            source_span,
+        });
+    };
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
@@ -1563,11 +1569,19 @@ fn harvest_provider_selections(
                     if let psi_typed_trees::expression::ExpressionNode::Call(call) =
                         typed.expression_table.expression(*expression)
                     {
-                        record(call.target.as_str(), &call.machine_arguments);
+                        record(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            typed.expression_table.source_span(*expression),
+                        );
                     }
                 }
                 psi_typed_trees::statement::StatementNode::Call(call) => {
-                    record(call.target.as_str(), &call.machine_arguments);
+                    record(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        call.source_span,
+                    );
                 }
                 _ => {}
             }

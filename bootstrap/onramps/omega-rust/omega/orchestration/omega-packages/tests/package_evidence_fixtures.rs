@@ -1,9 +1,9 @@
 use omega_compiler::{
     BuildObservationClass, CheckedPackageReviewProjection, PackageReviewCallableRole,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+    PackageReviewCanonicalRowKind, PackageReviewContractExpression, PackageReviewContractFact,
+    PackageReviewContractKind, PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
@@ -202,6 +202,34 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             assert_eq!(provider.provider_type(), "MonotonicClock");
             assert_eq!(provider.service_schema(), "ClockHost");
             assert_eq!(provider.rows().len(), 1);
+            let rows = review
+                .canonical_rows()
+                .expect("provider-switchboard canonical rows");
+            let selected = rows
+                .iter()
+                .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+                .expect("selected-provider canonical row");
+            let locations = selected
+                .source()
+                .authored_locations()
+                .expect("selected-provider row must retain authored provenance");
+            assert!(locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ProviderSelection
+                    && location.relative_path() == "build.omg"
+            }));
+            assert!(locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ProviderSchemaDeclaration
+                    && location.relative_path() == "main.omg"
+            }));
+            assert!(locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ProviderTypeDeclaration
+                    && location.relative_path() == "main.omg"
+            }));
+            assert!(locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ProviderRealization
+                    && location.relative_path() == "main.omg"
+            }));
+            assert!(selected.source().compiler_derivations().is_empty());
         }
         "capability-vault" => assert!(
             !callable.capability_flows().is_empty(),

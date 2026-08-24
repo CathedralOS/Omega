@@ -75,6 +75,56 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 }
 
 #[test]
+fn provider_derivation_retains_every_exact_external_realization_symbol() {
+    let source = r#"
+        boundary trait Pair {
+            machine first();
+            machine second();
+        }
+
+        machine first_leaf()
+        satisfies Pair::first
+        via Binding::VtableSlot(1);
+
+        machine second_leaf()
+        satisfies Pair::second
+        via Binding::VtableSlot(2);
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize two-row provider fixture");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse two-row provider fixture");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve two-row provider fixture");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type two-row provider fixture");
+    let derived = derive_satisfies_plans_with_provenance(&typed, None);
+    let [derived] = derived.as_slice() else {
+        panic!("one two-row external provider plan")
+    };
+    assert_eq!(derived.plan.rows.len(), 2);
+    assert_eq!(derived.provenance.row_realizations.len(), 2);
+    let expected = ["first_leaf", "second_leaf"]
+        .into_iter()
+        .map(|name| {
+            typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap_or_else(|| panic!("missing `{name}` machine"))
+                .symbol
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(expected[0], expected[1]);
+    assert!(
+        expected
+            .iter()
+            .all(|symbol| derived.provenance.row_realizations.contains(symbol))
+    );
+}
+
+#[test]
 fn selected_provider_binds_actual_reach_for_bounded_requirement() {
     let source = r#"
         boundary trait MachineControl {}
@@ -1629,19 +1679,20 @@ fn target_default_resolves_covering_ambiguity() {
 fn duplicate_exact_target_defaults_do_not_conflict() {
     let mut plan = selection_plan("package-provider", &["first"], &["first"]);
     plan.provider_type = "package::FirstProvider".to_owned();
+    let defaults = [
+        crate::pipeline::build_config::ProviderSelection::exact_for_test(
+            "Pair",
+            "package::FirstProvider",
+        ),
+        crate::pipeline::build_config::ProviderSelection::exact_for_test(
+            "Pair",
+            "package::FirstProvider",
+        ),
+    ];
     let selected = select_provider_plans(
-        &[plan],
+        &[plan.clone()],
         omega_target::NativeTarget::host(),
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "package::FirstProvider",
-            ),
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "package::FirstProvider",
-            ),
-        ],
+        &defaults,
         &[],
     )
     .expect("duplicate declarations of one exact provider identity are one target default");
@@ -1649,6 +1700,29 @@ fn duplicate_exact_target_defaults_do_not_conflict() {
         selected_plan_names(&selected),
         vec!["package-provider".to_owned()]
     );
+    let selected = select_provider_plans_with_provenance(
+        &[DerivedProviderPlan {
+            plan,
+            provenance: ProviderPlanProvenance {
+                schema: ProviderSchemaDeclaration::BoundaryTrait(
+                    psi_symbols::SymbolHandle::invalid(),
+                ),
+                provider_type: None,
+                row_realizations: Vec::new(),
+            },
+        }],
+        omega_target::NativeTarget::host(),
+        &defaults,
+        &[],
+    )
+    .expect("selection carries every accepted duplicate default site");
+    let [selected] = selected.as_slice() else {
+        panic!("one selected provider")
+    };
+    let ProviderSelectionProvenance::TargetDefault(declarations) = &selected.selected_by else {
+        panic!("target-default provenance")
+    };
+    assert_eq!(declarations.len(), 2);
 }
 
 #[test]
