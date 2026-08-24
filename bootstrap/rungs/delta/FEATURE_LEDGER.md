@@ -29,6 +29,13 @@ makes the bridge materially safer, clearer, more modular, or easier to assure.
 Conversely, similarity to Omega is a consistency benefit rather than a subset
 requirement.
 
+The design floor is ordinary C-like compiler power with specified behavior:
+structured control, predictable data, explicit memory/resource handling, and
+sealed byte I/O. Delta may exceed the literal token census of one bridge
+revision when a modest companion feature makes that floor coherent. It need not
+inherit Omega's proof surface, dependent types, production allocation model, or
+general host abstractions merely to look more like the product language.
+
 ## Fixed constraints
 
 - deterministic specified behavior, with no undefined behavior;

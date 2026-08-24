@@ -15,8 +15,10 @@ omega-bootstrap  ─────────────────▶  product
 ```
 
 Delta v1 and `Ωself` are the only remaining source-surface contracts in this
-bootstrap design. They are deliberately asymmetric. Do not turn the compiler
-artifacts between them into extra languages:
+bootstrap design. They are deliberately asymmetric: Delta v1 is a literal
+language specification, while `Ωself` is a restriction on source written in an
+already-specified language. Do not turn the compiler artifacts between them
+into extra languages:
 
 `Ωself` is retained as the short symbol for the product compiler's ordinary-
 Omega source profile. The required use of that profile is a cross-language
@@ -167,6 +169,22 @@ That gives the design loop exactly two feature inventories:
 
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
+
+For every disputed `Ωself` facility, use one decision procedure:
+
+1. If the complete production-compiler closure does not use the facility,
+   exclude it and add a phase-appropriate negative canary.
+2. If the closure uses it, compare retaining a general compositional form with
+   refactoring the product source to a simpler form.
+3. Retain it when the source clarity, regularity, reuse, or safety benefit
+   exceeds the measured Delta implementation and assurance cost. Otherwise
+   refactor it out and keep it excluded.
+
+This procedure does not reward feature removal by itself. A small general
+facility is preferable to monomorphic duplication, hand-expanded variants, or
+hard-coded compiler-source shapes when it lowers total cost. Conversely, a
+powerful facility used only incidentally should not enter the bridge merely
+because the production compiler can express itself with it.
 
 The working feature disposition is:
 

@@ -36,6 +36,11 @@ product-compiler source profile `Ωself` and rejects the rest. That bridge
 compiles the `Ωself`-constrained production source into the full optimizing
 compiler. That compiler's own machine code may initially be conservative.
 
+Delta's own self-hosting compiler and `omega-bootstrap` are distinct artifacts.
+The former establishes and exercises the Delta language; the latter is the
+Delta program that compiles `Ωself` Omega source. Success of the former proves
+compiler-host feasibility, not completeness of the latter.
+
 ## Implementation
 
 - `bootstrap/rungs/delta/samples/` is the canonical executable language corpus.

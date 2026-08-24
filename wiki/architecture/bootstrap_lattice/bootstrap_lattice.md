@@ -13,10 +13,11 @@
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md). Target ownership and paths:
 > [Bootstrap repository structure](repository_structure.md).
 
-This is the architecture for how the Psi/Omega toolchain rebuilds *itself*: a
-tower of increasingly capable languages rising from a tiny hand-audited seed.
-Delta builds a profile-limited bridge compiler; that compiler builds the full
-optimizing Omega compiler from deliberately constrained Omega source. It is separate
+This is the architecture for how the Psi/Omega toolchain is rebuilt from a tiny
+hand-audited seed through increasingly capable languages. Delta builds a
+profile-limited bridge compiler; that compiler builds the full optimizing Omega
+compiler from deliberately constrained Omega source. Only the optional final
+Omega-to-Omega rebuild is strict self-hosting. The construction is separate
 from two things it is easy to confuse it with:
 
 - **What Omega means** — the language semantics. Owned by the
