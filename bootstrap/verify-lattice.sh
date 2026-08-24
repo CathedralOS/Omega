@@ -137,6 +137,8 @@ step "omega2gamma termination canary — translator halts on every sample, suppo
 step "lowermachine meaning — real compiler executes through Gamma; exact state/tree/source ceilings fail closed" omega-bootstrap-gates lowermachine-meaning.sh delta-rust gamma
 step "omega-bootstrap source bundle — canonical deterministic multi-file input" omega-bootstrap-gates omega-bootstrap-bundle-test.sh
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
+step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
+step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
 step "omega-bootstrap scalar Call reference (DIFFERENTIAL ONLY) — exact vocabulary-28 fixture, meaning, lowering, and mutation teeth" omega-bootstrap-gates scalar-call-reference.sh omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega-bootstrap Delta scalar-call frontend — table-driven source, native/self-host identity, product validation, and boundaries" omega-bootstrap-gates delta-scalar-call-frontend.sh delta-rust omega-rust psi-rust/semantics/psi-terminal-codec
 step "omega-bootstrap Delta artifact — O1/scalar terminal-Psi to deterministic x86-64 ELF" omega-bootstrap-gates delta-terminal-to-elf.sh delta-rust omega-rust psi-rust/semantics/psi-terminal-codec

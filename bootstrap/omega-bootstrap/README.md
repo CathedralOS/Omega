@@ -60,6 +60,14 @@ compiler cannot be confused with either the current Rust on-ramp or the
   carries the implemented table-driven Delta source tranche through native and
   lowermachine-built frontends plus independent product validation. The fixture
   remains differential evidence, not bootstrap authority.
+- [`compiler/omega-bootstrap-source-custody-check.alp`](compiler/omega-bootstrap-source-custody-check.alp)
+  is the first checkpoint-driven, general raw-unit parser/typechecker cost
+  probe. Its [contract](compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md) and focused
+  [native/self-built](gates/delta-source-custody-frontend.sh) and
+  [Rust-free meaning](gates/delta-source-custody-meaning.sh) gates cover the
+  exact `source.omg` unit, name/order independence, semantic mutations, and
+  declared resources without publishing an artifact or admitting a feature to
+  `Ωself`.
 - [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
   owns the meaning-TV, input-TV, translation-validation, and
   generated-certificate replay gates and their untrusted encoders.
@@ -80,13 +88,14 @@ compiler cannot be confused with either the current Rust on-ramp or the
   `gates/omega-bootstrap-bundle-test.sh` are untrusted packing and conformance
   tools for that format.
 
-These are seed pieces for `omega-bootstrap`, not that compiler itself.
-The next checkpoint-driven work deliberately separates a compositional
-frontend/typechecker cost probe over `compiler/psi/source/source.omg` from the
-later artifact tranche. Current Terminal-Psi vocabulary 28 cannot represent the
-unit's general structural scalar mutation and runtime indexing; the bridge may
-therefore choose a direct checked-IR lowering. A Terminal-Psi vocabulary change
-would be product work, not an assumed prerequisite here.
+These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
+checkpoint-driven compositional frontend/typechecker cost probe over
+`compiler/psi/source/source.omg` is now measured and closed as a checker-only
+claim. The corresponding artifact tranche remains open. Current Terminal-Psi
+vocabulary 28 cannot represent the unit's general structural scalar mutation
+and runtime indexing; the bridge may therefore choose a direct checked-IR
+lowering. A Terminal-Psi vocabulary change would be product work, not an
+assumed prerequisite here.
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,
