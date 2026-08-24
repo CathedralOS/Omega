@@ -90,12 +90,14 @@ compiler cannot be confused with either the current Rust on-ramp or the
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
-`compiler/psi/source/source.omg` is now measured and closed as a checker-only
-claim. The corresponding artifact tranche remains open. Current Terminal-Psi
-vocabulary 28 cannot represent the unit's general structural scalar mutation
-and runtime indexing; the bridge may therefore choose a direct checked-IR
-lowering. A Terminal-Psi vocabulary change would be product work, not an
-assumed prerequisite here.
+`compiler/psi/source/source.omg` is measured and closed as a checker-only
+claim. Its artifact tranche has selected private `CKIR1` plus direct
+conservative lowering because current Terminal-Psi vocabulary 28 cannot express
+the needed general structural scalar mutation and runtime indexing. That
+artifact tranche remains open while its exact format, implementation, and
+required evidence close. `CKIR1` is a private handoff, not Terminal Psi, a
+product IR, a source dialect, or a third feature inventory. A Terminal-Psi
+vocabulary change would be product work, not an assumed prerequisite here.
 [`compiler/omega-bootstrap-frontend.alp`](compiler/omega-bootstrap-frontend.alp)
 is the canonical Delta-written frontend source. It decodes the canonical bundle,
 retains bounded labels and exact source spans, validates every unit independently,

@@ -64,8 +64,9 @@ compiler-host feasibility, not completeness of the latter.
 - `bootstrap/onramps/delta-rust/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
-- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the first actual bridge
-  compiler slice written in Delta. It decodes the complete bounded canonical
+- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the
+  historical O0/O1 and bounded-scalar bridge regression slice written in Delta.
+  It decodes the complete bounded canonical
   bundle, retains unit provenance, validates each unit independently, and admits
   one program-bearing unit plus trivia-only auxiliaries without cross-unit token
   fusion. It then performs exact O0/O1 console checks or bounded scalar-call
@@ -77,10 +78,15 @@ compiler-host feasibility, not completeness of the latter.
   implementation profile, Omega O0/O1 vertical-canary input profiles, and the
   profile-neutral scalar-call conformance slice; the production `Ωself` profile
   remains source-derived.
-- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is the first direct
-  artifact backend. It emits exact O0/O1 and bounded scalar-call Linux x86-64
-  images without a host assembler or linker; general Omega lowering remains
-  open.
+- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is
+  the matching historical direct-artifact backend. It emits exact O0/O1 and
+  bounded scalar-call Linux x86-64 images without a host assembler or linker;
+  general Omega lowering remains open.
+- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-source-custody-check.alp`
+  is the first checkpoint-driven general frontend cost probe. Its corresponding
+  artifact task has selected a private versioned checked IR and direct
+  conservative backend rather than a Terminal-Psi widening. That choice does
+  not freeze Delta v1 or admit its Omega source facilities to `Ωself`.
 
 ## Relationship to Psi and Omega
 
