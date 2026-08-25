@@ -1,12 +1,19 @@
 # Bridge refinement reconstruction
 
-The current additive carrier is [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md):
-`OMGRFND\0` / version 13 binds exact OMGCOMP and least OMGRSW1/2/3 to CKIR11's
-selected canonical `u32 in Trapping` leaf-plus-literal `Add` relation and its
-exact conservative artifact. Eight independent R1–R5 executables consume one
-immutable frame and reconstruct four authored additions, including
-`2147483646 + 1`, inherited CKIR10 widenings, final result 70, and the complete
-carry/range/store backend sequence.
+The current successor carrier is [`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md):
+`OMGRFNE\0` / version 14 binds exact OMGCOMP and OMGRSW4 to CKIR12's bounded
+program-static shared-byte-view relation and its exact conservative artifact.
+Independent R1–R5 executables consume one immutable producer-backed frame for
+both the one-byte true path and empty false path, reconstruct the exact literal,
+descriptor, nonempty guard, deferred head/tail edge, result 70, and complete ELF
+template.
+
+The immediately preceding trapping-add carrier remains
+[`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md): `OMGRFND\0` / version 13 binds
+exact OMGCOMP and least OMGRSW1/2/3 to CKIR11's selected canonical
+`u32 in Trapping` leaf-plus-literal `Add` relation and its exact conservative
+artifact. Its composite remains a required regression rather than being
+relabeled as v14.
 
 The immediately preceding widening carrier remains
 [`OMGRFN12`](OMGCOMP_REFINEMENT_WITNESS_V12.md): `OMGRFNC\0` / version 12 binds

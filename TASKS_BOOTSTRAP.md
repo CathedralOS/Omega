@@ -334,7 +334,7 @@ beside the linked contracts:
 | Responsibility | Current closure | Canonical detail |
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
-| multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
+| multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; source and provider spellings remain opaque, with no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md) |
 | source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
@@ -358,17 +358,18 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is unblocked, while authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
 | generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
-  The next bounded cost slice is the program-static shared-byte-view window
-  already used by `console_write_bytes`: exact literal bytes, immutable
+  OMGRSW4/CKIR12/OMGRFN14 now close the bounded program-static shared-byte-view
+  window used by `console_write_bytes`: exact literal bytes, immutable
   `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
-  subslicing. It must not claim general indexing, mutable slices, allocation,
+  subslicing. Continue from that cost evidence toward the general lane; the
+  closed slice does not claim general indexing, mutable slices, allocation,
   UTF-8 meaning, or resolution of the authored `u32`/`u64` mismatch.
 - [ ] Close the remaining unblocked compiler-control/scalar forms one general
   vertical relation at a time. Preserve the CKIR11 rule that a call may contain
@@ -376,9 +377,12 @@ evidence stay in
   pure/total/nontrapping; do not describe the still-unruled observable-order
   combinations as generally supported.
 - [ ] Close the unblocked source-graph/provider forms without waiting on private
-  cross-module visibility. Start from the exact sealed static provider and
-  `Console::exit_process` path used by the hosted entrypoint; this is product
-  binding support, not admission of general boundary traits to Delta.
+  cross-module visibility. OMGCOMP2 now closes structural custody for the exact
+  Linux-x86-64/native-provider source graph while keeping provider spellings
+  opaque. Next close semantic resolution and lowering for the sealed static
+  provider and `Console::exit_process` path used by the hosted entrypoint; this
+  is product binding support, not admission of general boundary traits to
+  Delta or compilation authority.
 - [ ] Close generated-source custody and resource behavior by binding ordinary
   generated Omega source, its generator and external inputs, rounded ceilings,
   exhaustion, and no-partial-publication behavior. Reuse already-closed

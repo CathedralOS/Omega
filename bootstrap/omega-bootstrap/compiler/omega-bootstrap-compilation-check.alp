@@ -1,4 +1,6 @@
-// Structural checker for the private OMGCOMP version-1 compilation envelope.
+// Structural checker for the private OMGCOMP version-1 and version-2
+// compilation envelopes. V2 retains the V1 tables and binds only the exact
+// selected target/configuration; source contents remain opaque here.
 // This checker grants no resolver authority and performs no source-semantic
 // validation.  It emits no bytes.  Status 251 is malformed/noncanonical input;
 // status 252 is exhaustion of a declared public transport ceiling.
@@ -16,7 +18,8 @@ data Main {
     total_length: i32; bundle_length: i32; string_table_length: i32;
     string_count: i32; package_count: i32; source_count: i32; alias_count: i32;
     root_package: i32; root_source: i32; root_owner_string: i32;
-    root_machine_string: i32; package_table: i32; source_table: i32;
+    root_machine_string: i32; schema_major: i32;
+    package_table: i32; source_table: i32;
     alias_table: i32; string_table: i32; bundle_start: i32;
     total_string_payload: i32; total_label_payload: i32;
     total_content_payload: i32; segment_start: i32; segment_count: i32;
@@ -101,7 +104,8 @@ machine Main::check_header(&mut self) {
     state magic5() { transition self.input[5] == 77 { true -> magic6() _ -> bad() } }
     state magic6() { transition self.input[6] == 80 { true -> magic7() _ -> bad() } }
     state magic7() { transition self.input[7] == 0 { true -> fixed0() _ -> bad() } }
-    state fixed0() { transition self.input[8] == 1 { true -> fixed1() _ -> bad() } }
+    state fixed0() { self.schema_major = self.input[8]; transition self.schema_major >= 1 { true -> fixed0_high() _ -> bad() } }
+    state fixed0_high() { transition self.schema_major <= 2 { true -> fixed1() _ -> bad() } }
     state fixed1() { transition self.input[9] == 0 { true -> fixed2() _ -> bad() } }
     state fixed2() { transition self.input[10] == 0 { true -> fixed3() _ -> bad() } }
     state fixed3() { transition self.input[11] == 0 { true -> fixed4() _ -> bad() } }
@@ -110,7 +114,9 @@ machine Main::check_header(&mut self) {
     state fixed6() { transition self.input[14] == 0 { true -> fixed7() _ -> bad() } }
     state fixed7() { transition self.input[15] == 0 { true -> reserved() _ -> bad() } }
     state reserved() { self.read_u32(60); transition self.status == 0 { true -> reserved_value() _ -> done() } }
-    state reserved_value() { transition self.decoded == 0 { true -> lengths() _ -> bad() } }
+    state reserved_value() { transition self.schema_major == 1 { true -> reserved_v1() _ -> reserved_v2() } }
+    state reserved_v1() { transition self.decoded == 0 { true -> lengths() _ -> bad() } }
+    state reserved_v2() { transition self.decoded == 1 { true -> lengths() _ -> bad() } }
     state lengths() { self.read_u32(16); self.total_length = self.decoded; self.read_u32(20); self.bundle_length = self.decoded; self.read_u32(24); self.string_table_length = self.decoded; transition self.status == 0 { true -> counts() _ -> done() } }
     state counts() { self.read_u32(28); self.string_count = self.decoded; self.read_u32(32); self.package_count = self.decoded; self.read_u32(36); self.source_count = self.decoded; self.read_u32(40); self.alias_count = self.decoded; transition self.status == 0 { true -> roots() _ -> done() } }
     state roots() { self.read_u32(44); self.root_package = self.decoded; self.read_u32(48); self.root_source = self.decoded; self.read_u32(52); self.root_owner_string = self.decoded; self.read_u32(56); self.root_machine_string = self.decoded; transition self.status == 0 { true -> minimum_package() _ -> done() } }
