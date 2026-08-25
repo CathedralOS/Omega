@@ -63,15 +63,23 @@ The top-level lattice normally invokes this gate with
 `BC_BLOCK_FOCUS=root-observation`. That focus independently rebuilds the exact
 canonical prerequisite conjunction and checks the maximal root observation plus
 its phase-isolated teeth in roughly half a minute. `LATTICE_FULL=1` retains the
-complete historical mutation matrix. Within that run, the bounded-emitter,
-fixed/name-continuation, `name_eq`, and lookup responsibilities keep atomic
-content-keyed green receipts after their canonical owners have been freshly
-rebuilt and smoked; unchanged families report a cached timing instead of
-reassembling their teeth. `BC_BLOCK_CACHE=0` physically replays them. No
-receipt recreates an owner capability or executable. The remaining
-per-responsibility extraction/cache work is tracked in `TASKS_BOOTSTRAP.md`.
-On the initial cold replay the five responsibilities took 38s, 1s, less than
-1s, 17s, and 21s; the immediate warm replay reported five exact 0s cache hits.
+complete historical mutation matrix. Sixty responsibility-sized shards keep
+atomic content-keyed green receipts after their canonical owners have been
+freshly rebuilt and smoked. They cover the early theorem teeth, five
+independent historical families, direct and modular Checker-A relations, late
+storage/resource relations, and artifact-custody controls. The Checker-A
+manifest preserves the historical global build-then-reject order; a receipt is
+published only after its family's rejection phase succeeds.
+
+`BC_BLOCK_CACHE=0` physically replays every shard and revokes each prior green
+before its work begins, so an interrupted audit cannot fall back to stale
+success. Keys bind exact generated checkers and bundles, selected teeth code,
+the cache protocol, Alpha stamping implementation, assembler, seed, and
+artifact. Receipts retain no host executable or `BC_OWNER_*` capability. The
+complete cold matrix passed with per-shard heartbeats; the immediate warm
+authoritative gate passed in 18.42s with every responsibility cached. A
+raw-load-module edit reran only that one-second shard. The main harness is now
+1,724 lines rather than the former 3,028-line inline permutation block.
 
 `bc-frame-shape.alpha`, concatenated into that same checker, derives 27
 parameters and 51 function-scoped `let`s directly from the source. It validates
