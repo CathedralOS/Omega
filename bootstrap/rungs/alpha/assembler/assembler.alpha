@@ -652,13 +652,33 @@ eo_maybe_reg:
         jlt   r6, r7, eo_reg   ; digit => register rN
         jmp   eo_label
 eo_reg:
-        ; value = decimal of token[1..TLEN]
+        ; First validate the whole suffix. A nondigit makes the complete token
+        ; a label even when its decimal prefix is already above 255.
         imm   r3, 524304
         load  r4, r3           ; TSTART
         imm   r3, 524312
         load  r5, r3           ; TLEN
-        imm   r6, 0            ; acc
         imm   r7, 1            ; i = 1 (skip 'r')
+er_validate:
+        jlt   r7, r5, er_validate_in
+        jmp   er_parse
+er_validate_in:
+        imm   r8, 1048576
+        add   r8, r4
+        add   r8, r7
+        loadb r9, r8
+        imm   r10, 48
+        jlt   r9, r10, eo_label
+        imm   r10, 58
+        jlt   r9, r10, er_validate_next
+        jmp   eo_label
+er_validate_next:
+        imm   r10, 1
+        add   r7, r10
+        jmp   er_validate
+er_parse:
+        imm   r6, 0            ; value = decimal of token[1..TLEN]
+        imm   r7, 1
 er_loop:
         jlt   r7, r5, er_in
         jmp   er_done
@@ -669,6 +689,15 @@ er_in:
         loadb r9, r8
         imm   r10, 48
         sub   r9, r10
+        ; Reject above r255 before multiplication, avoiding wrapped decimal
+        ; accumulation accidentally re-entering the valid register range.
+        imm   r10, 25
+        jlt   r10, r6, er_bad
+        jlt   r6, r10, er_acc
+        imm   r10, 6
+        jlt   r9, r10, er_acc
+        jmp   er_bad
+er_acc:
         imm   r10, 10
         mul   r6, r10
         add   r6, r9
@@ -679,6 +708,9 @@ er_done:
         imm   r3, 524384
         store r3, r6           ; NUM = register number
         jmp   eo_emit
+er_bad:
+        imm   r0, 7            ; malformed/out-of-range operand token
+        halt  r0
 eo_num:
         call  parse_num
         jmp   eo_emit
