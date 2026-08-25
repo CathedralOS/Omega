@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 46;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 47;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 6;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1309,9 +1309,17 @@ fn encode_contract_static_argument(
             encoder.byte(0);
             encode_type_identity(encoder, identity)?;
         }
-        PackageReviewContractStaticArgument::GenericType { base, arguments } => {
+        PackageReviewContractStaticArgument::GenericType {
+            base,
+            lifetime_arguments,
+            arguments,
+        } => {
             encoder.byte(1);
             encode_type_identity(encoder, base)?;
+            encoder.sequence(lifetime_arguments, |encoder, argument| {
+                encoder.u32(*argument);
+                Ok(())
+            })?;
             encoder.sequence(arguments, encode_contract_static_argument)?;
         }
         PackageReviewContractStaticArgument::ConstInteger(value) => {

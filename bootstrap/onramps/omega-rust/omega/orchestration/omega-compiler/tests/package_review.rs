@@ -1049,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 46);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 6);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 47);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 7);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2347,12 +2347,18 @@ machine build(builder: &mut Build) { }
     else {
         panic!("generic tag call")
     };
-    let [PackageReviewContractStaticArgument::GenericType { base, arguments }] =
-        static_arguments.as_slice()
+    let [
+        PackageReviewContractStaticArgument::GenericType {
+            base,
+            lifetime_arguments,
+            arguments,
+        },
+    ] = static_arguments.as_slice()
     else {
         panic!("one generic data static argument")
     };
     assert!(base.canonical().contains("Wrapper"));
+    assert!(lifetime_arguments.is_empty());
     let [PackageReviewContractStaticArgument::Type(nested)] = arguments.as_slice() else {
         panic!("one nested concrete type argument")
     };
@@ -2369,44 +2375,96 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_lifetime_bearing_nested_type_arguments_until_exactly_represented() {
+fn review_alpha_normalizes_lifetime_bearing_nested_type_arguments() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"data View<'source, Value> { value: &'source Value; }
-machine tag<Value>() -> u64 { 0 }
-pub machine generic_tag<'source>(value: &'source u64) -> u64
-requires tag<View<'source, u64>>() == tag<View<'source, u64>>()
-{
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |view_lifetime: &str, left: &str, right: &str, selected: &str| {
+        format!(
+            r#"data View<'{view_lifetime}, Value> {{ value: &'{view_lifetime} Value; }}
+machine tag<Value>() -> u64 {{ 0 }}
+pub machine generic_tag<'{left}, '{right}>(
+    first: &'{left} u64,
+    second: &'{right} u64
+) -> u64
+requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
+{{
     0
-}
+}}
 "#,
+        )
+    };
+    original.write("main.omg", &source("slot", "left", "right", "left"));
+    renamed.write(
+        "main.omg",
+        &source("renamed_slot", "primary", "secondary", "primary"),
     );
-    package.write(
-        "build.omg",
-        r#"target windows_x64 { }
+    changed.write("main.omg", &source("slot", "left", "right", "right"));
+    let build = r#"target windows_x64 { }
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { }
-"#,
+"#;
+    for package in [&original, &renamed, &changed] {
+        package.write("build.omg", build);
+    }
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("lifetime-bearing nested type contract call should check");
+        project_checked_package_review(&checked)
+            .expect("nested lifetime arguments have canonical binder ordinals")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let changed = project(&changed);
+    let generic_tag = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "generic_tag")
+        .expect("generic tag callable");
+    let [contract] = generic_tag.contracts() else {
+        panic!("one generic-tag contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("generic-tag equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [
+        PackageReviewContractStaticArgument::GenericType {
+            lifetime_arguments, ..
+        },
+    ] = static_arguments.as_slice()
+    else {
+        panic!("one lifetime-bearing generic data argument")
+    };
+    assert_eq!(lifetime_arguments, &[0]);
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming caller and data lifetime binders must preserve package-review identity",
     );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
-    .expect("lifetime-bearing nested type contract call should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("lifetime-bearing nested type arguments remain fail-closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("lifetime arguments not yet represented")
-    }));
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "selecting a different caller lifetime must change package-review identity",
+    );
 }
 
 #[test]
