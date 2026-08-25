@@ -20,6 +20,7 @@ data Main {
     current_visibility: i32; current_record: i32; current_machine: i32;
     current_block: i32; current_parameter_start: i32;
     current_parameter_count: i32; current_receiver_access: i32;
+    parameter_name_start: i32; parameter_name_len: i32;
     seen_state: i32;
     search_package: i32; search_module: i32; string_scan: i32;
 
@@ -672,7 +673,7 @@ machine Main::parse_parameter_list(&mut self, kind: i32, owner: i32) {
     state tail() { transition self.tok==44 { true -> comma() _ -> close() } }
     state comma() { self.next_token(); transition self.current_parameter_count<7 { true -> name() _ -> over() } }
     state name() { transition self.tok==256 { true -> unique() _ -> bad() } }
-    state unique() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.parameter_name_exists(kind,self.saved_start,self.saved_len); transition self.match_ok==0 { true -> capacity_kind() _ -> bad() } }
+    state unique() { self.parameter_name_start=self.tok_start; self.parameter_name_len=self.tok_len; self.parameter_name_exists(kind,self.parameter_name_start,self.parameter_name_len); transition self.match_ok==0 { true -> capacity_kind() _ -> bad() } }
     state capacity_kind() { transition kind==1 { true -> machine_capacity() _ -> block_capacity() } }
     state machine_capacity() { transition self.machine_parameter_count<2048 { true -> syntax() _ -> over() } }
     state block_capacity() { transition self.block_parameter_count<4096 { true -> syntax() _ -> over() } }
@@ -683,16 +684,16 @@ machine Main::parse_parameter_list(&mut self, kind: i32, owner: i32) {
         self.x=self.machine_parameter_count;
         self.tables[59296+self.x]=owner; self.tables[61344+self.x]=self.current_parameter_count;
         self.tables[63392+self.x]=self.raw_type_result;
-        self.tables[67488+self.x]=self.saved_start-self.tables[336+self.current_source];
-        self.tables[69536+self.x]=self.saved_len;
+        self.tables[67488+self.x]=self.parameter_name_start-self.tables[336+self.current_source];
+        self.tables[69536+self.x]=self.parameter_name_len;
         self.machine_parameter_count=self.machine_parameter_count+1; transition 0 { _ -> stored() }
     }
     state store_block() {
         self.x=self.block_parameter_count;
         self.tables[90016+self.x]=owner; self.tables[94112+self.x]=self.current_parameter_count;
         self.tables[98208+self.x]=self.raw_type_result;
-        self.tables[106400+self.x]=self.saved_start-self.tables[336+self.current_source];
-        self.tables[110496+self.x]=self.saved_len;
+        self.tables[106400+self.x]=self.parameter_name_start-self.tables[336+self.current_source];
+        self.tables[110496+self.x]=self.parameter_name_len;
         self.block_parameter_count=self.block_parameter_count+1; transition 0 { _ -> stored() }
     }
     state stored() { self.current_parameter_count=self.current_parameter_count+1; transition 0 { _ -> tail() } }

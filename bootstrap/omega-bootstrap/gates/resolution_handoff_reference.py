@@ -27,6 +27,13 @@ DEP_KEY = "11" * 32
 ROOT_KEY = "22" * 32
 NO_ID = 0xFFFFFFFF
 HEADER = struct.Struct("<8sHHHH14I")
+PARAMETER_SPAN_SOURCE = """data Payload [copy] { value: u8; }
+data Probe { retained: Payload; }
+machine Probe::install(&mut self, runtime_scalar: u8, structural_value: Payload) {
+state carry(&self, runtime_scalar: u8) {}
+}
+machine Probe::run(&mut self) -> u32 { 0 }
+"""
 TABLES = (
     ("units", 36), ("imports", 48), ("bindings", 28),
     ("declarations", 28), ("types", 24), ("records", 24),
@@ -209,6 +216,8 @@ def resource_cases() -> list[tuple[str, int, bytes]]:
     cases: list[tuple[str, int, bytes]] = []
     add = lambda name, status, data: cases.append((name, status, data))
 
+    add("parameter-spans", 0, one_source(PARAMETER_SPAN_SOURCE))
+
     qualified_entries = [
         ("a-model.omg", "module model; pub data Pair [copy] { x: u8; }\n"),
         ("b-app.omg", "module app; data Probe { p: model::Pair; } machine Probe::run(&self) -> u32 { 0 }\n"),
@@ -363,6 +372,24 @@ def build_controls(output: Path) -> None:
 
 def check_control(name: str, witness_path: Path) -> None:
     witness = decode_witness(witness_path.read_bytes())
+    if name == "parameter-spans":
+        sources = source_contents(one_source(PARAMETER_SPAN_SOURCE))
+        machine_names = []
+        for index in range(witness.counts[8]):
+            row = struct.unpack("<6I", witness.row("machine_parameters", index))
+            declaration = struct.unpack_from("<I", witness.row("machines", row[1]), 4)[0]
+            source_id = struct.unpack_from("<I", witness.row("declarations", declaration), 8)[0]
+            machine_names.append(span(sources[source_id], row[4], row[5]))
+        block_names = []
+        for index in range(witness.counts[10]):
+            row = struct.unpack("<6I", witness.row("block_parameters", index))
+            block = witness.row("blocks", row[1])
+            machine = struct.unpack_from("<I", block, 4)[0]
+            declaration = struct.unpack_from("<I", witness.row("machines", machine), 4)[0]
+            source_id = struct.unpack_from("<I", witness.row("declarations", declaration), 8)[0]
+            block_names.append(span(sources[source_id], row[4], row[5]))
+        require(machine_names == [b"runtime_scalar", b"structural_value"], "machine parameter name spans")
+        require(block_names == [b"runtime_scalar"], "block parameter name span")
     if name == "nested-array-resolution":
         types = [struct.unpack("<IBBHIIII", witness.row("types", i)) for i in range(witness.counts[4])]
         require([(row[1], row[4], row[5]) for row in types] == [

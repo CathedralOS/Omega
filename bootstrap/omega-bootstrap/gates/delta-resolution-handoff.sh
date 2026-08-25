@@ -136,6 +136,12 @@ cmp "$T/canonical.native.1" "$T/canonical.self" >/dev/null || {
   echo "resolution handoff: native/self canonical witnesses differ" >&2
   exit 1
 }
+run_expect "$T/resolver.self" "$T/controls/parameter-spans.omgc" 0 "$T/parameter-spans.self" "self-built parameter spans"
+cmp "$T/control-parameter-spans.out" "$T/parameter-spans.self" >/dev/null || {
+  echo "resolution handoff: native/self parameter-span witnesses differ" >&2
+  exit 1
+}
+python3 "$REFERENCE" check-control parameter-spans "$T/parameter-spans.self"
 run_expect "$T/resolver.self" "$T/negatives/private-import/compilation-envelope.bin" 251 "$T/self-251.out" "self-built semantic rejection"
 run_expect "$T/resolver.self" "$T/controls/imports-65.omgc" 252 "$T/self-252.out" "self-built resource exhaustion"
 
