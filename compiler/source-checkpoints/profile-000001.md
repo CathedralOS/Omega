@@ -68,7 +68,7 @@ capacity remain separate gates.
 | state machines, scalar state parameters, mutation, and calls | every lexical scan and hosted adapter loop | retain candidate; branching value-machine results are deliberately unnecessary |
 | explicit result fields for branching operations | bounded appends and lexical predicates | retain candidate source convention pending general bridge call-cost evidence |
 | boundary traits and target-selected realizations | hosted byte input and process exit | retain only the sealed compiler-host byte/exit surface needed by product entrypoints |
-| basic explicit generic calls | standard provider selection in the transitive console closure | measure against a non-generic sealed provider binding |
+| static provider path arguments | sealed `select_provider<Console, ConsoleNativeProvider>` calls in the transitive console closure | measure against a non-generic sealed provider binding; this checkpoint contains no general generic declarations and does not admit them by implication |
 | generated ordinary-Omega data | Unicode XID range arrays | retain generated-source closure rules; generator and external data stay pinned inputs |
 | propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally; likely final exclusion because implementing full-Omega proof checking does not require proof syntax in compiler source |
 | termination/ranking clauses | one ranking clause | retain candidate; ranking is executable compiler control evidence and must not be swept into the proof-surface exclusion |
@@ -113,6 +113,13 @@ cross-carrier comparison or explicit cast. The checkpoint therefore records
 those tested implementation behaviors without treating them as full-Omega
 lexical authority. `TASKS.md` owns the required rulings or product-source
 refactors.
+
+The profile artifact's `unresolved_decisions` array records gaps owned by the
+profile/bridge join; it is not an exhaustive registry of language-design
+questions. The lexical and cross-carrier conflicts above remain explicit
+product-language blockers even though adding them to the hashed profile would
+not settle them. This distinction prevents a bootstrap profile refresh from
+silently acting as a language ruling.
 
 The standard gate now enforces the normalized-syntax and resource portion of
 this provisional `Ωself` profile. Negative fixtures are valid full-Omega

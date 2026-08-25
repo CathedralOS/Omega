@@ -312,9 +312,10 @@ establishes the implementation and assurance cost.
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
-| immutable borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses one general `&[u8]` parameter, `.len`, guarded indexing, and many differently sized keyword literals; compare a shared descriptor path with fixed-buffer-plus-length duplication, without presuming mutable slices, subslicing, `Vec`, or allocation |
+| borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; compare a regular descriptor/view path with fixed-buffer-plus-span duplication, while keeping growable `Vec`-like allocation a separate question and retaining the unresolved `u32` cursor versus `u64` count ruling |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
-| basic generics | presumptively retain | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication |
+| static provider path arguments | measure from checkpoint 000001 | the checkpoint proves only path-valued static arguments to sealed provider selection; it is not evidence for general generic declarations |
+| basic generic declarations and calls | presumptively retain for later source, but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
@@ -489,8 +490,10 @@ benefit and robustness in the production Omega source closure
 implementation + assurance cost in the omega-bootstrap Delta source closure
 ```
 
-Basic generics and payload enums are likely favorable. Proof syntax and
-dependent typing are not. This is a total-cost profile, not a contest to remove
+Payload sums are likely favorable. Basic generics may be as later compiler
+source arrives, but checkpoint 000001 currently proves only static provider path
+arguments, not general generic declarations. Proof syntax and dependent typing
+are not favorable defaults. This is a total-cost profile, not a contest to remove
 the most features: retaining a cheap general facility is preferable to forcing
 large, brittle, monomorphic compiler source. Profile growth is an architectural
 change and must update the profile rules, compiler, meaning route, diagnostics,
