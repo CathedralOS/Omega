@@ -91,6 +91,25 @@ refuse_expr "expression shift count"   "1 << 2 + 1"   "E2G-UNSUPPORTED-shift"
 refuse_expr "nonliteral shift count"   "1 << x"       "E2G-UNSUPPORTED-shift"
 refuse_expr "out-of-profile shift count" "8 >> 32"    "E2G-UNSUPPORTED-shift"
 
+# A terminal structured-array field read can reach the statement-oriented
+# array-write scanner when the source owner is outside the route's Main-rooted
+# structural model. It must stop at the containing block boundary after
+# refusing, rather than scan past `}` to EOF and leave translate_block looping
+# forever. This exact shape previously timed out after already publishing the
+# refusal marker.
+structured_terminal=$(printf '%s\n' \
+  'data Holder { cells: [u8; 1]; }' \
+  'machine Holder::run(&mut self) -> u8 { self.cells[0].payload }' \
+  | perl -e 'alarm 5; exec @ARGV' "$T/omega2gamma.exe" 2>/dev/null)
+structured_status=$?
+if [ "$structured_status" = 142 ] || [ "$structured_status" = 137 ]; then
+  FAIL=$((FAIL+1)); echo "  FAIL structured-array terminal refusal : translator did not terminate"
+elif printf '%s' "$structured_terminal" | grep -q 'E2G-UNSUPPORTED-field-of-scalar-array'; then
+  PASS=$((PASS+1)); echo "  ok   structured-array terminal refusal : refused explicitly"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL structured-array terminal refusal : no explicit refusal"
+fi
+
 for d in "${OMEGA_PATH_CORPUS}"/*/; do
   s=$(basename "$d")
   [ -f "$d/main.omg" ] || continue
