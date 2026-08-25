@@ -259,9 +259,9 @@ beside the linked contracts:
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
-| source resolution | closed through same-module direct-self and direct-field receivers in `OMGRSW2` | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-| checked lowering and composition | closed through CKIR4 for selected calls, constant aggregates, runtime named records, and direct-field receivers, with native, self-built, mixed, and representative Rust-free paths | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md) |
-| lower-rooted artifact reconstruction | closed through the CKIR4 direct-field successor while retaining five distinct responsibility owners and shared bounded decoders | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md) |
+| source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+| checked lowering and composition | closed through CKIR4 for selected calls, records, and direct-field receivers; the independent CKIR5 schema/meaning lane is gated, while the Delta CKIR5 producer and backend remain open | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md) |
+| lower-rooted artifact reconstruction | closed through the CKIR4 direct-field successor; OMGRFN7 exact outer framing/source custody (R1) is gated, while its sum-specific R2–R5 relations remain open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -273,15 +273,20 @@ language coverage or admission to final `Ωself`. Continue with capabilities
 actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
-- [ ] Price a closed payload-bearing-sum tranche as the next checked-IR
-  facility unless a newer product checkpoint changes the measured order. Its
-  versioned ownership and byte contracts are now fixed as
+- [ ] Complete the payload-bearing-sum tranche unless a newer product
+  checkpoint changes the measured order. Its versioned ownership and byte
+  contracts are fixed as
   [`OMGRSW3`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md)
   → `OMGLOW6`/
   [`CKIR5`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
   →
-  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md);
-  implementation and all required evidence remain open. The first slice uses
+  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md).
+  OMGRSW3 production and its focused native/self/least-version/resource gate,
+  the independent CKIR5 checker/meaning fixture, and OMGRFN7 R1 outer custody
+  are landed. The remaining executable order is: finish general OMGLOW6 body
+  lowering and exact CKIR5 publication; extend the conservative backend through
+  construction, structural Copy/Call, exhaustive dispatch, and payload binding;
+  then close OMGRFN7 R2–R5 over one immutable result-70 frame. The first slice uses
   unnumbered pure sums, declaration-order case identity with
   the first case at tag zero, payload-free and payload-bearing cases,
   recursively copyable payloads through the provisional four-field ceiling,

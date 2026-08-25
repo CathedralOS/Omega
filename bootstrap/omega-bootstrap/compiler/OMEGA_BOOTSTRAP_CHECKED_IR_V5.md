@@ -109,6 +109,9 @@ Type kind 6 is `nominal sum`: payload 0 is a sum ID, payload 1 and both range
 endpoints are zero, and flags are zero. Every sum has exactly one nominal type
 and vice versa. Record and sum counts are separately encoded but their sum is
 at most 128. Machines remain attached only to ordinary records in this tranche.
+Nominal records occupy the first `record_count` type IDs in record-ID order;
+nominal sums occupy the next `sum_count` IDs in sum-ID order. The canonical
+`bool` and full admitted `u32` rows immediately follow that combined prefix.
 
 ### Sum row — 20 bytes
 
@@ -321,7 +324,8 @@ limits remain. New table limits are:
 | records plus sums | 128 |
 | cases per sum / total cases | 64 / 4,096 |
 | payload fields per case / total payload fields | 4 / 4,096 |
-| case arms per dispatch / total case arms | 64 / 16,384 |
+| ordinary fields plus payload fields | 8,192 |
+| case arms per dispatch / total case arms | 64 / 4,096 |
 | case-arm arguments | 94,208 minus ordinary operand words |
 
 The complete encoded CKIR remains capped at 2,522,192 bytes. These row ceilings

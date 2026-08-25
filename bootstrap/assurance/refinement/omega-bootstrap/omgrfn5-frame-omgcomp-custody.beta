@@ -1,14 +1,14 @@
-; OMGRFN5/OMGRFN6 responsibility 1: exact versioned framing and complete OMGCOMP
-; source custody. This persisted adapter is compiled with the frozen OMGCOMP
+; OMGRFN5/OMGRFN6/OMGRFN7 responsibility 1: exact versioned framing and
+; complete OMGCOMP source custody. This persisted adapter is compiled with the frozen OMGCOMP
 ; custody core in omgrfn4-frame-omgcomp-custody.beta. It reuses only the
 ; structural parsing procedures: it does not call the OMGRFN4 frame reader or
-; accept an OMGRFN4 conclusion. OMGRSW1, CKIR4, ELF, and claimed results remain
-; untrusted opaque frame components here.
+; accept an OMGRFN4 conclusion. Resolution witnesses, checked IR, ELF, and
+; claimed results remain untrusted opaque frame components here.
 ;
-; OMGRFN5 and OMGRFN6 have the same 40-byte layout and ceilings.  This
+; OMGRFN5, OMGRFN6, and OMGRFN7 have the same 40-byte layout and ceilings. This
 ; responsibility dispatches their exact outer identities while deliberately
-; retaining OMGRSW1/OMGRSW2 and every later component as opaque.  The witness
-; version pair is owned by responsibility 3.
+; retaining OMGRSW1/OMGRSW2/OMGRSW3 and every later component as opaque. The
+; witness version pair is owned by responsibility 3.
 ;
 ; Raw frame bytes: byte[1048576 .. 5546119], maximum 4,497,544 bytes.
 ; The shared custody core's private word/table layout is retained deliberately,
@@ -70,10 +70,12 @@ proc omgrfn5_read() {
     state magic6 {
         to version5_magic when (omgrfn5_byte(6) == '5')
         to version6_magic when (omgrfn5_byte(6) == '6')
+        to version7_magic when (omgrfn5_byte(6) == '7')
         to malformed
     }
     state version5_magic { word[500104] = 5  to magic7 }
     state version6_magic { word[500104] = 6  to magic7 }
+    state version7_magic { word[500104] = 7  to magic7 }
     state magic7 { to version when (omgrfn5_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_u32(8) == word[500104])  to malformed }
     state fields {
@@ -171,3 +173,4 @@ proc omgrfn5_layer1_check() {
 
 ; The shared implementation name remains stable for existing compositions.
 proc omgrfn6_layer1_check() { return omgrfn5_layer1_check() }
+proc omgrfn7_layer1_check() { return omgrfn5_layer1_check() }

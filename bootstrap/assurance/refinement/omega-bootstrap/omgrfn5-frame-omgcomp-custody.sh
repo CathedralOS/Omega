@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused lower-rooted OMGRFN5 responsibility-1 framing and source-custody gate.
+# Focused lower-rooted OMGRFN5/6/7 responsibility-1 framing and source-custody gate.
 set -eu
 
 STARTED=$(date +%s)
@@ -28,13 +28,14 @@ CORE="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4-frame-omgcomp-custody.beta"
 ADAPTER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5-frame-omgcomp-custody.beta"
 PACKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5_bundle.py"
 PACKER6="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn6_bundle.py"
+PACKER7="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn7_bundle.py"
 PACKER4="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4_bundle.py"
 # Frame/source custody needs only the frozen OMGCOMP packer; it deliberately
 # does not depend on an in-progress CKIR4 producer fixture.
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir3-fixture.py"
 SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
 HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-harness.omg"
-for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER6" "$PACKER4" "$FIXTURE" \
+for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER6" "$PACKER7" "$PACKER4" "$FIXTURE" \
   "$SOURCE" "$HARNESS" "$OMEGA_PATH_BETA/bc.beta"; do
   [ -f "$REQUIRED" ] || {
     echo "OMGRFN5 responsibility 1: missing $REQUIRED" >&2
@@ -119,6 +120,12 @@ from pathlib import Path
 import struct, sys
 Path(sys.argv[1]).write_bytes(struct.pack("<8sI", b"OMGRSW2\0", 2))
 PY
+python3 - "$T/witness7" "$T/ckir5" <<'PY'
+from pathlib import Path
+import struct, sys
+Path(sys.argv[1]).write_bytes(struct.pack("<8sHH", b"OMGRSW3\0", 3, 0))
+Path(sys.argv[2]).write_bytes(struct.pack("<8sHH", b"OMGCKIR\0", 5, 0))
+PY
 printf 'opaque-CKIR4' > "$T/ckir"
 printf 'opaque-ELF' > "$T/elf"
 : > "$T/empty"
@@ -130,6 +137,22 @@ python3 "$PACKER6" "$T/exact.omgc" "$T/witness6" "$T/ckir" "$T/elf" \
   --result 70 > "$T/entry6.rfn"
 python3 "$PACKER6" "$T/exact.omgc" "$T/witness6" "$T/ckir" "$T/empty" \
   --library > "$T/library6.rfn"
+python3 "$PACKER7" "$T/exact.omgc" "$T/witness7" "$T/ckir5" "$T/elf" \
+  --result 70 > "$T/entry7.rfn"
+python3 "$PACKER7" "$T/exact.omgc" "$T/witness7" "$T/ckir5" "$T/empty" \
+  --library > "$T/library7.rfn"
+# The untrusted wrapper still enforces its exact inner component identities;
+# R1 below intentionally does not duplicate those checks.
+if python3 "$PACKER7" "$T/exact.omgc" "$T/witness6" "$T/ckir5" "$T/elf" \
+    --result 70 > "$T/wrong-witness7.rfn" 2> "$T/wrong-witness7.err"; then
+  echo "OMGRFN7 packer accepted OMGRSW2" >&2
+  exit 1
+fi
+if python3 "$PACKER7" "$T/exact.omgc" "$T/witness7" "$T/ckir" "$T/elf" \
+    --result 70 > "$T/wrong-ckir7.rfn" 2> "$T/wrong-ckir7.err"; then
+  echo "OMGRFN7 packer accepted non-CKIR5" >&2
+  exit 1
+fi
 python3 "$PACKER4" "$T/exact.omgc" "$T/witness" "$T/ckir" "$T/elf" \
   --result 70 > "$T/version4.rfn"
 
@@ -162,9 +185,13 @@ observe 0 "$T/entry.rfn" "exact source entry frame"
 observe 0 "$T/library.rfn" "exact source library frame"
 observe 0 "$T/entry6.rfn" "exact OMGRFN6 source entry frame"
 observe 0 "$T/library6.rfn" "exact OMGRFN6 source library frame"
+observe 0 "$T/entry7.rfn" "exact OMGRFN7 source entry frame"
+observe 0 "$T/library7.rfn" "exact OMGRFN7 source library frame"
 observe 251 "$T/version4.rfn" "frozen OMGRFN4 cross-version frame"
 observe_one "$T/v4-check" 251 "$T/entry.rfn" \
   "frozen OMGRFN4 checker rejects OMGRFN5"
+observe_one "$T/v4-check" 251 "$T/entry7.rfn" \
+  "frozen OMGRFN4 checker rejects OMGRFN7"
 
 # R1 owns the outer carrier identity, but witness identity remains opaque until
 # R3.  Conversely, mixing the outer magic byte and version word is malformed.
@@ -187,6 +214,54 @@ observe 0 "$T/v6-witness-identity-opaque.rfn" \
   "OMGRFN6 witness identity opaque to responsibility 1"
 observe 251 "$T/v6-magic5-version6.rfn" "OMGRFN5 magic with version 6"
 observe 251 "$T/v6-magic6-version5.rfn" "OMGRFN6 magic with version 5"
+
+# Version 7 changes only R1's exact outer identity. Its OMGRSW3, CKIR5, ELF,
+# and claimed-result components stay opaque here, while every mixed outer
+# magic/version identity remains malformed.
+python3 - "$T/entry7.rfn" "$T/v7-witness-identity-opaque.rfn" \
+  "$T/v7-ckir-identity-opaque.rfn" "$T/v7-elf-opaque.rfn" \
+  "$T/v7-claims-opaque.rfn" "$T/v7-magic5-version7.rfn" \
+  "$T/v7-magic6-version7.rfn" "$T/v7-magic7-version5.rfn" \
+  "$T/v7-magic7-version6.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+
+canonical = Path(sys.argv[1]).read_bytes()
+_, _, _, omgcomp_length, witness_length, ckir_length, elf_length, _, _ = \
+    struct.unpack_from("<8s8I", canonical)
+witness_at = 40 + omgcomp_length
+ckir_at = witness_at + witness_length
+elf_at = ckir_at + ckir_length
+
+raw = bytearray(canonical); raw[witness_at + 6] = ord("X")
+Path(sys.argv[2]).write_bytes(raw)
+raw = bytearray(canonical); raw[ckir_at] ^= 1
+Path(sys.argv[3]).write_bytes(raw)
+raw = bytearray(canonical); raw[elf_at + elf_length - 1] ^= 1
+Path(sys.argv[4]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<II", raw, 32, 71, 71)
+Path(sys.argv[5]).write_bytes(raw)
+raw = bytearray(canonical); raw[6] = ord("5")
+Path(sys.argv[6]).write_bytes(raw)
+raw = bytearray(canonical); raw[6] = ord("6")
+Path(sys.argv[7]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<I", raw, 8, 5)
+Path(sys.argv[8]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<I", raw, 8, 6)
+Path(sys.argv[9]).write_bytes(raw)
+PY
+observe 0 "$T/v7-witness-identity-opaque.rfn" \
+  "OMGRFN7 witness identity opaque to responsibility 1"
+observe 0 "$T/v7-ckir-identity-opaque.rfn" \
+  "OMGRFN7 CKIR identity opaque to responsibility 1"
+observe 0 "$T/v7-elf-opaque.rfn" \
+  "OMGRFN7 ELF bytes opaque to responsibility 1"
+observe 0 "$T/v7-claims-opaque.rfn" \
+  "OMGRFN7 valid claimed result opaque to responsibility 1"
+observe 251 "$T/v7-magic5-version7.rfn" "OMGRFN5 magic with version 7"
+observe 251 "$T/v7-magic6-version7.rfn" "OMGRFN6 magic with version 7"
+observe 251 "$T/v7-magic7-version5.rfn" "OMGRFN7 magic with version 5"
+observe 251 "$T/v7-magic7-version6.rfn" "OMGRFN7 magic with version 6"
 
 # Independently derive every source-ID to nested-bundle content extent and
 # require the persisted checker to publish the same custody projection.
@@ -340,5 +415,5 @@ SOURCE_BYTES=$((
 OMGCOMP_BYTES=$(wc -c < "$T/exact.omgc" | tr -d ' ')
 FRAME_BYTES=$(wc -c < "$T/component-max.rfn" | tr -d ' ')
 ELAPSED=$(( $(date +%s) - STARTED ))
-echo "OMGRFN5/6 responsibility 1: exact source+harness OMGCOMP custody, exact v5/v6 outer dispatch, witness-identity opacity, checked frame adds/EOF, cross-version rejection, opaque joins/claims, exact component and whole-frame teeth passed below Delta"
+echo "OMGRFN5/6/7 responsibility 1: exact source+harness OMGCOMP custody, exact v5/v6/v7 outer dispatch, witness/CKIR/ELF identity opacity, checked frame adds/EOF, cross-version rejection, opaque joins/claims, exact component and whole-frame teeth passed below Delta"
 echo "  source=${SOURCE_BYTES}B procedures=${PROCEDURES}/128 locals=${MAX_LOCALS}/32 tape=${TAPE_BYTES}/262140B bc-self=${BC1_TAPE}B OMGCOMP=${OMGCOMP_BYTES}B component-frame=${FRAME_BYTES}B elapsed=${ELAPSED}s"
