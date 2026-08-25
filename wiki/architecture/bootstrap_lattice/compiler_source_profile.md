@@ -496,10 +496,13 @@ freeze join as distinct milestones:
 4. Implement and assure the retained candidate rules in `omega-bootstrap`,
    feeding measured cost back into the retain/refactor decision. A provisional
    retention is not a final admission until this evidence exists.
-5. Repeat for later source checkpoints, resolve every remaining row, then freeze
-   the final source manifest and `Ωself` together at the completed bridge join;
-   the already-running mechanical enforcement becomes the frozen acceptance
-   gate.
+5. Repeat for later source checkpoints and resolve every remaining row. At the
+   completed product-source/bridge join, freeze both publications: `Ωself`
+   from the final product manifest plus measured bridge cost, and Delta v1 from
+   the final bridge closure plus its explicit compiler-host arguments. The
+   already-running mechanical enforcement becomes the frozen `Ωself`
+   acceptance gate; the Delta conformance and lower-rung gates become the
+   frozen Delta-v1 acceptance gates.
 
 This process classifies facilities, not individual occurrences. A retained
 facility is implemented compositionally for every source admitted by its
@@ -520,16 +523,15 @@ The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
 
-Delta's freeze is adjacent but separate. Its provisional ledger evolves while
-`omega-bootstrap` is written. Once the complete Delta source closure exists,
-prune accidental producer/corpus behavior, publish the general Delta v1 grammar
-and semantics, and prove that exact closure valid under the frozen language. The
-Omega product-source manifest plus measured bridge cost decide `Ωself`; the
-Delta bridge-source manifest plus explicit compiler-host coherence arguments
-decide Delta v1. These are two publications from the same completed
-source-and-bridge join, not sequential language rungs or a circular build
-dependency. Neither manifest substitutes for the corresponding general profile
-or language contract.
+Delta's provisional ledger evolves while `omega-bootstrap` is written. At the
+joint settlement, prune accidental producer/corpus behavior, publish the
+general Delta v1 grammar and semantics, and prove the exact bridge closure valid
+under it. The Omega product-source manifest plus measured bridge cost decide
+`Ωself`; the Delta bridge-source manifest plus explicit compiler-host
+coherence arguments decide Delta v1. They remain separately scoped and
+versioned contracts, but their freeze is one milestone rather than sequential
+language rungs or a circular build dependency. Neither manifest substitutes
+for the corresponding general profile or language contract.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while useful. It is neither a bootstrap dependency nor an

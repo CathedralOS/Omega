@@ -340,13 +340,15 @@ use are already Alpha-rooted.
 The exact Delta language inventory and `Ωself` source-profile inventory are
 governed by [`compiler_source_profile.md`](compiler_source_profile.md).
 
-The two freezes occur at explicit joins. The product compiler's deterministic
-Omega source closure first yields a provisional `Ωself`; that profile freezes
-only after the general Delta-written bridge provides the implementation and
-assurance costs used to settle its retained features. Delta v1 then freezes from
-the bridge's complete Delta source closure plus explicit compiler-host
-coherence, safety, and maintainability arguments. This co-evolution is a design
-discovery loop, not a runtime or build cycle.
+The two contracts settle at one explicit join. Product checkpoints yield a
+provisional `Ωself` while the general Delta-written bridge supplies the
+implementation and assurance costs used to settle its retained features. At
+the completed join, `Ωself` freezes from the final product closure and those
+measured costs, while Delta v1 freezes from the complete bridge closure plus
+explicit compiler-host coherence, safety, and maintainability arguments. The
+publications remain separately scoped and versioned; neither is a language rung
+that must be frozen before the other. This co-evolution is a design discovery
+loop, not a runtime or build cycle.
 
 Terminal Psi follows ordinary source-closure rules. Representation and lowering
 modules linked into the product compiler belong to its manifest; standalone
@@ -395,10 +397,10 @@ execution order.
    admitted capability lands with lower-rung meaning, direct artifact
    refinement, resource behavior, and a negative boundary; reference-producer
    agreement remains diagnostic evidence.
-3. The complete product source and complete general bridge freeze `Ωself`.
-   The complete bridge's Delta source closure plus explicit language-coherence,
-   robustness, safety, and maintainability arguments separately freeze Delta
-   v1.
+3. The complete product source and complete general bridge form one settlement
+   join. It publishes `Ωself` from the product closure plus measured bridge
+   cost, and Delta v1 from the bridge closure plus explicit language-coherence,
+   robustness, safety, and maintainability arguments.
 4. The lattice-built Delta compiler builds the exact validated
    `omega-bootstrap` artifact.
 5. That bridge performs the one required hosted build of the full-spec
