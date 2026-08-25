@@ -10,6 +10,7 @@ pub struct CheckedPropositionVocabulary {
 pub struct CheckedPropositionDeclaration {
     pub symbol: SymbolHandle,
     pub name: String,
+    pub is_public: bool,
     pub binders: Vec<CheckedPropositionBinder>,
     pub parameter_types: Vec<String>,
     pub evidence: CheckedPropositionEvidence,

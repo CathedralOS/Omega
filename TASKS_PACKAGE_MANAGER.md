@@ -698,6 +698,22 @@ complete.
   a public machine, while allowing another package to cite an explicitly public
   measure. Compiler intrinsics remain a closed non-package selection category.
 
+  Milestone 2026-08-25: ordinary `pub proposition` now survives syntax copying,
+  resolved and typed lowering, checked proposition vocabulary, snapshots, and
+  source profiling. Psi validation rejects a public-interface occurrence that
+  selects a private proposition even without package mode; package admission
+  separately rejects private proposition selection across package ownership,
+  including from a declared direct dependency. Review v52 and canonical row
+  v12 emit one blocking `PublicProposition` row for every package-owned public
+  proposition, including unused bodyless declarations. Rows retain
+  alpha-normalized binders, parameter types, witness interfaces, and normalized
+  transparent expansion. Publishing a bodyless declaration creates no checked
+  proposition application or admission. Public transparent aliases remain
+  absent from Terminal proposition identity but are deliberately present as
+  source API compatibility rows. Operator and const visibility must land before
+  public transparent proposition leakage is total; measure remains an
+  independent slice.
+
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
   a public contract selecting a private proposition/const/operator, a public
@@ -1488,7 +1504,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v51
+  create a placeholder `PackageInstance` or bless current incomplete review v52
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

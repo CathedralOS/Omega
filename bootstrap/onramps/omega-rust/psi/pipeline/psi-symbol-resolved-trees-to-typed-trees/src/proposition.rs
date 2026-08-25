@@ -12,6 +12,7 @@ pub(crate) fn lower_proposition_definition(
     let mut typed_proposition = typed::proposition::PropositionDefinition {
         symbol: proposition.symbol,
         name: crate::name::lower_name(&proposition.name),
+        is_public: proposition.is_public,
         binders: Default::default(),
         parameters: Default::default(),
         body: typed::proposition::PropositionBody::Primitive,

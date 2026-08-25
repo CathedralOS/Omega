@@ -434,11 +434,15 @@ impl Census {
             }
             ItemSnapshot::Proposition {
                 name,
+                is_public,
                 type_parameters,
                 parameters,
                 body,
             } => {
                 self.bump("item.proposition");
+                if *is_public {
+                    self.bump("item.proposition.public");
+                }
                 self.identifier(name);
                 self.type_parameters(type_parameters);
                 for parameter in parameters {

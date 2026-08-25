@@ -80,9 +80,7 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     left + right
 }
 
-pub machine identity_u64(value: u64) -> u64 {
-    value
-}
+pub proposition ready();
 "#,
     );
     let candidate_sources = resolve_external_local_package_closure(
@@ -221,9 +219,12 @@ pub machine identity_u64(value: u64) -> u64 {
     assert!(package.dependency_path().steps().is_empty());
     assert_ne!(package.candidate_closure().digest(), [0; 32]);
     let [conflict] = package.conflicts() else {
-        panic!("one added public callable row")
+        panic!("one added public proposition row")
     };
-    assert_eq!(conflict.kind(), PackageReviewCanonicalRowKind::Callable);
+    assert_eq!(
+        conflict.kind(),
+        PackageReviewCanonicalRowKind::PublicProposition
+    );
     assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
     assert_eq!(conflict.change(), ReviewOnlyCapabilityConflictChange::Added);
     assert!(conflict.baseline_row().is_none());
@@ -232,7 +233,7 @@ pub machine identity_u64(value: u64) -> u64 {
     let candidate_locations = conflict
         .candidate_source()
         .and_then(PackageReviewCanonicalRowSource::authored_locations)
-        .expect("added callable has compiler-issued candidate source");
+        .expect("added proposition has compiler-issued candidate source");
     assert_eq!(candidate_locations.len(), 1);
     assert_eq!(candidate_locations[0].relative_path(), "main.omg");
     assert!(conflict.is_blocking());
@@ -255,7 +256,7 @@ pub machine identity_u64(value: u64) -> u64 {
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
     assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n"));
-    assert!(rendered.contains("change added\nkind callable\nrisk blocking\n"));
+    assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
     assert!(!rendered.contains(&live.display().to_string()));

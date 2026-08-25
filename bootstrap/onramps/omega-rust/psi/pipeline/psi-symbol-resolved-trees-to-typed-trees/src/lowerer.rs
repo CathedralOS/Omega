@@ -86,8 +86,10 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for proposition in &symbol_resolved_trees.propositions {
-        let proposition =
-            crate::proposition::lower_proposition_definition(&mut lowerer, proposition)?;
+        let proposition = lowerer.with_type_reference_exposure(
+            declaration_exposure(proposition.is_public),
+            |lowerer| crate::proposition::lower_proposition_definition(lowerer, proposition),
+        )?;
         lowerer.typed_trees.push_proposition(proposition);
     }
 

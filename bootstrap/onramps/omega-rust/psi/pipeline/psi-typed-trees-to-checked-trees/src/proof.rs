@@ -1221,6 +1221,7 @@ fn build_checked_proposition_vocabulary(
             Some(psi_checked_trees::CheckedPropositionDeclaration {
                 symbol: declaration.symbol,
                 name: declaration.name.as_str().to_owned(),
+                is_public: declaration.is_public,
                 binders,
                 parameter_types,
                 evidence,

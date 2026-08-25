@@ -78,6 +78,37 @@ pub(super) fn validate_authored_declaration_selections(
             continue;
         }
 
+        if program.symbols.get(selected).kind == SymbolKind::Proposition {
+            let Some(declaration) = program
+                .propositions()
+                .iter()
+                .find(|declaration| declaration.symbol == selected)
+            else {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "selected proposition `{}` has no retained declaration visibility",
+                        program.symbols.display_path(selected, "::")
+                    ))
+                    .with_source_span(source_span),
+                );
+                continue;
+            };
+            if !declaration.is_public {
+                let owner = program.symbols.symbol_package_identity(selected);
+                if owner != Some(requester) {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "package {} selects private proposition `{}`",
+                            packages.package_label(requester),
+                            program.symbols.display_path(selected, "::"),
+                        ))
+                        .with_source_span(source_span),
+                    );
+                    continue;
+                }
+            }
+        }
+
         if let Some(owner) = program.symbols.symbol_package_identity(selected) {
             if !packages.allows_declaration_selection(requester, owner) {
                 diagnostics.push(

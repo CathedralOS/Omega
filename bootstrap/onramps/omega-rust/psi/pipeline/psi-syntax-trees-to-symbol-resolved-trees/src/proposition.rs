@@ -36,6 +36,7 @@ pub(crate) fn lower_proposition_definition(
     Ok(PropositionDefinition {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&proposition.name),
+        is_public: proposition.is_public,
         binders,
         parameters,
         body,

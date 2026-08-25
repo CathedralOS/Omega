@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 51;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 52;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 11;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -89,6 +89,7 @@ fn encode_with_limits(
     encoder.string(review.target.target_name())?;
     encoder.sequence(&review.public_traits, encode_trait_shape)?;
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
+    encoder.sequence(&review.public_propositions, encode_proposition_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.semantic_dependencies, encode_semantic_dependency)?;
@@ -116,6 +117,7 @@ fn encode_rows_with_limits(
         .public_traits
         .len()
         .saturating_add(review.public_domains.len())
+        .saturating_add(review.public_propositions.len())
         .saturating_add(review.public_data.len())
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.semantic_dependencies.len())
@@ -184,6 +186,22 @@ fn encode_rows_with_limits(
                 row_source(&review.row_sources.public_domains, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_domain_shape(encoder, shape),
+            )?,
+        )?;
+    }
+    for (index, shape) in review.public_propositions.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicProposition,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_propositions, index)?,
+                |encoder| encode_nominal(encoder, &shape.identity),
+                |encoder| encode_proposition_shape(encoder, shape),
             )?,
         )?;
     }
@@ -421,6 +439,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::AcceptedClaim => 8,
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
         PackageReviewCanonicalRowKind::SemanticDependency => 10,
+        PackageReviewCanonicalRowKind::PublicProposition => 11,
     }
 }
 
@@ -1122,18 +1141,7 @@ fn encode_proposition_application(
     application: &PackageReviewPropositionApplication,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &application.declaration)?;
-    encoder.sequence(&application.binders, |encoder, binder| {
-        match &binder.kind {
-            PackageReviewPropositionBinderKind::Type => encoder.byte(0),
-            PackageReviewPropositionBinderKind::Const(type_identity) => {
-                encoder.byte(1);
-                encode_type_identity(encoder, type_identity)?;
-            }
-            PackageReviewPropositionBinderKind::Machine => encoder.byte(2),
-        }
-        encode_data_properties(encoder, binder.bounds);
-        Ok(())
-    })?;
+    encoder.sequence(&application.binders, encode_proposition_binder)?;
     encoder.sequence(&application.parameter_types, encode_type_identity)?;
     encoder.sequence(&application.binder_arguments, |encoder, argument| {
         encoder.byte(match argument.kind {
@@ -1184,16 +1192,60 @@ fn encode_proposition_application(
         PackageReviewPropositionEvidence::FactOnly => encoder.byte(0),
         PackageReviewPropositionEvidence::Witness(interface) => {
             encoder.byte(1);
-            encode_nominal(encoder, &interface.trait_identity)?;
-            encoder.sequence(&interface.arguments, encode_type_identity)?;
-            encoder.sequence(&interface.requirements, |encoder, requirement| {
-                encode_nominal(encoder, &requirement.declaring_trait)?;
-                encoder.sequence(&requirement.declaring_trait_arguments, encode_type_identity)?;
-                encode_nominal(encoder, &requirement.requirement)
-            })?;
+            encode_evidence_interface(encoder, interface)?;
         }
     }
     Ok(())
+}
+
+fn encode_proposition_shape(
+    encoder: &mut Encoder,
+    shape: &PackageReviewPropositionShape,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &shape.identity)?;
+    encoder.sequence(&shape.binders, encode_proposition_binder)?;
+    encoder.sequence(&shape.parameter_types, encode_type_identity)?;
+    match &shape.body {
+        PackageReviewPublicPropositionBody::Primitive => encoder.byte(0),
+        PackageReviewPublicPropositionBody::Witness(interface) => {
+            encoder.byte(1);
+            encode_evidence_interface(encoder, interface)?;
+        }
+        PackageReviewPublicPropositionBody::Transparent(expansion) => {
+            encoder.byte(2);
+            encode_contract_fact(encoder, expansion)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_proposition_binder(
+    encoder: &mut Encoder,
+    binder: &PackageReviewPropositionBinder,
+) -> Result<(), PackageReviewEncodingError> {
+    match &binder.kind {
+        PackageReviewPropositionBinderKind::Type => encoder.byte(0),
+        PackageReviewPropositionBinderKind::Const(type_identity) => {
+            encoder.byte(1);
+            encode_type_identity(encoder, type_identity)?;
+        }
+        PackageReviewPropositionBinderKind::Machine => encoder.byte(2),
+    }
+    encode_data_properties(encoder, binder.bounds);
+    Ok(())
+}
+
+fn encode_evidence_interface(
+    encoder: &mut Encoder,
+    interface: &PackageReviewEvidenceInterface,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &interface.trait_identity)?;
+    encoder.sequence(&interface.arguments, encode_type_identity)?;
+    encoder.sequence(&interface.requirements, |encoder, requirement| {
+        encode_nominal(encoder, &requirement.declaring_trait)?;
+        encoder.sequence(&requirement.declaring_trait_arguments, encode_type_identity)?;
+        encode_nominal(encoder, &requirement.requirement)
+    })
 }
 
 fn encode_contract_expression(
@@ -2025,6 +2077,7 @@ mod tests {
             target: omega_target::TargetProfile::WindowsX64,
             public_traits: Vec::new(),
             public_domains: Vec::new(),
+            public_propositions: Vec::new(),
             public_data: Vec::new(),
             representation_tcb: Vec::new(),
             semantic_dependencies: Vec::new(),
@@ -2035,6 +2088,7 @@ mod tests {
             row_sources: PackageReviewCanonicalRowSources {
                 public_traits: Vec::new(),
                 public_domains: Vec::new(),
+                public_propositions: Vec::new(),
                 public_data: Vec::new(),
                 representation_tcb: Vec::new(),
                 semantic_dependencies: Vec::new(),

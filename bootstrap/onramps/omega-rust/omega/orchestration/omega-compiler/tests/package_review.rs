@@ -10,12 +10,13 @@ use omega_compiler::{
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewMachineParameterContract, PackageReviewNominalOwner,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewSemanticDependencyExposure,
-    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
-    compile_to_checked_with_packages, project_checked_package_review,
+    PackageReviewPropositionEvidence, PackageReviewPublicPropositionBody,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
+    PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
+    project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -1050,8 +1051,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 51);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 11);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 52);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 12);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1555,7 +1556,7 @@ fn review_projects_structural_propositions_and_alpha_normalizes_their_binders() 
     let renamed = TempPackage::new();
     original.write(
         "main.omg",
-        r#"proposition equivalent<Element>(left: Element, right: Element);
+        r#"pub proposition equivalent<Element>(left: Element, right: Element);
 pub machine compare<Value>(left: Value, right: Value)
 requires equivalent<Value>(left, right)
 { }
@@ -1563,7 +1564,7 @@ requires equivalent<Value>(left, right)
     );
     renamed.write(
         "main.omg",
-        r#"proposition equivalent<Item>(left: Item, right: Item);
+        r#"pub proposition equivalent<Item>(left: Item, right: Item);
 pub machine compare<Compared>(left: Compared, right: Compared)
 requires equivalent<Compared>(left, right)
 { }
@@ -1635,6 +1636,76 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_unused_public_proposition_declarations_without_granting_facts() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub proposition ready();
+pub proposition reflexive(value: i32) = value == value;
+proposition hidden();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public proposition declarations should check");
+    assert!(
+        checked
+            .facts
+            .proof
+            .proposition_vocabulary
+            .applications
+            .is_empty(),
+        "publishing a bodyless proposition declaration must not manufacture an application fact"
+    );
+
+    let review = project_checked_package_review(&checked).expect("public proposition review");
+    assert_eq!(review.public_propositions().len(), 2);
+    let ready = review
+        .public_propositions()
+        .iter()
+        .find(|shape| shape.identity().path() == "ready")
+        .expect("unused public primitive proposition row");
+    assert_eq!(ready.body(), &PackageReviewPublicPropositionBody::Primitive);
+    let reflexive = review
+        .public_propositions()
+        .iter()
+        .find(|shape| shape.identity().path() == "reflexive")
+        .expect("public transparent proposition row");
+    assert!(matches!(
+        reflexive.body(),
+        PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+            PackageReviewContractExpression::Binary { .. }
+        ))
+    ));
+    let proposition_rows = review
+        .canonical_rows()
+        .expect("canonical public proposition rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition)
+        .count();
+    assert_eq!(
+        proposition_rows, 2,
+        "private propositions stay out of public API rows"
+    );
+}
+
+#[test]
 fn review_projects_named_witness_interfaces_through_transparent_aliases() {
     let Some(target) = host_target_name() else {
         return;
@@ -1647,7 +1718,7 @@ fn review_projects_named_witness_interfaces_through_transparent_aliases() {
 pub trait Evidence<Element>: EvidenceBase<Element> {
     machine witness(value: Element);
 }
-proposition carries<Element>(value: Element) evidence Evidence<Element>;
+pub proposition carries<Element>(value: Element) evidence Evidence<Element>;
 pub machine consume()
 requires proof: carries<i32>(1)
 { }
@@ -1658,8 +1729,8 @@ requires proof: carries<i32>(1)
 pub trait Evidence<Element>: EvidenceBase<Element> {
     machine witness(value: Element);
 }
-proposition carries<Element>(value: Element) evidence Evidence<Element>;
-proposition forwarded<Item>(value: Item) = carries<Item>(value);
+pub proposition carries<Element>(value: Element) evidence Evidence<Element>;
+pub proposition forwarded<Item>(value: Item) = carries<Item>(value);
 pub machine consume()
 requires evidence: forwarded<i32>(1)
 { }
@@ -1729,14 +1800,30 @@ machine build(builder: &mut Build) { }
             && requirement.requirement().path().contains("inherited")
             && requirement.declaring_trait_arguments().len() == 1
     }));
-    assert_eq!(
+    assert_ne!(
         direct_review
             .canonical_review_bytes()
             .expect("direct witness encoding"),
         aliased_review
             .canonical_review_bytes()
             .expect("aliased witness encoding"),
-        "a transparent proposition alias and local requires-binding rename must not mint package identity",
+        "a published transparent alias is a distinct source API row even though contract semantic identity expands through it",
+    );
+    let direct_contract = direct_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("direct public consumer")
+        .contracts();
+    let aliased_contract = aliased_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("aliased public consumer")
+        .contracts();
+    assert_eq!(
+        direct_contract, aliased_contract,
+        "transparent alias expansion must preserve the consuming contract's semantic row"
     );
 
     let mut diagnostic_spoof = compile(&direct);
@@ -1786,8 +1873,8 @@ fn named_evidence_lane_order_changes_canonical_review_identity() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     let prefix = r#"pub trait Evidence {}
-proposition left_fact() evidence Evidence;
-proposition right_fact() evidence Evidence;
+pub proposition left_fact() evidence Evidence;
+pub proposition right_fact() evidence Evidence;
 "#;
     first.write(
         "main.omg",
@@ -1842,8 +1929,8 @@ fn review_projects_proof_static_evidence_members_by_lane_and_requirement() {
 }}
 pub trait Evidence<Element>: EvidenceBase<Element> {{
 }}
-proposition holds<Element>() evidence Evidence<Element>;
-proposition selected<machine Witness>();
+pub proposition holds<Element>() evidence Evidence<Element>;
+pub proposition selected<machine Witness>();
 pub machine caller()
 requires {binding}: holds<i32>()
 requires selected<{binding}.modulus>()
@@ -5964,7 +6051,7 @@ fn public_trait_named_witness_contracts_retain_exact_lanes_and_selector_identity
                 r#"pub trait Evidence {{
     machine witness();
 }}
-proposition ready() evidence Evidence;
+pub proposition ready() evidence Evidence;
 pub trait Worker {{
     machine relay(value: i32) -> i32
     requires {requires_binding}: ready()

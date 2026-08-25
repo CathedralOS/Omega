@@ -51,6 +51,7 @@ pub(super) fn parse_proposition_definition<'tokens, 'source>(
     Ok((
         PropositionDefinition {
             name,
+            is_public: false,
             type_parameters: generic_parameters.type_parameters,
             parameters,
             body,

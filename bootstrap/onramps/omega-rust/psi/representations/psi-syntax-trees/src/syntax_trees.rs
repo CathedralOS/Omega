@@ -308,6 +308,7 @@ impl SyntaxTrees {
             Item::Proposition(proposition) => {
                 Item::Proposition(crate::item::PropositionDefinition {
                     name: proposition.name.clone(),
+                    is_public: proposition.is_public,
                     type_parameters: self
                         .copy_type_parameter_span(other, proposition.type_parameters),
                     parameters: self
