@@ -17,6 +17,7 @@ use std::fmt;
 pub enum PackageTriageDisposition {
     Admitted,
     AdmittedWithAuditRecommended,
+    BlockedMissingAdmissionBaseline,
     BlockedCapabilityChange,
     BlockedProvenanceChange,
 }
@@ -28,6 +29,7 @@ pub enum PackageTriageReason {
     RemovedPackage,
     SourceChanged,
     BaselineSourceUnavailable,
+    MissingAdmissionBaseline,
     CapabilityOrApiChanged,
     SourceLineageChanged,
     CompilerArtifactChanged,
@@ -172,6 +174,36 @@ pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> Com
                     } else {
                         PackageTriageDisposition::Admitted
                     },
+                    reasons,
+                }
+            })
+            .collect(),
+    }
+}
+
+/// Fail closed when an update has no normalized accepted admission baseline.
+///
+/// This is distinct from initial installation, which deliberately admits a
+/// complete graph against an empty baseline, and from unavailable old source,
+/// where retained accepted rows still govern capability comparison. A caller
+/// may leave this state only by starting the explicit full-graph fresh-
+/// admission flow; it may not reinterpret the update as unchanged.
+pub fn triage_update_without_admission_baseline(
+    candidate: &CompilerIssuedPackageReviewSet,
+) -> CompilerReviewTriage {
+    CompilerReviewTriage {
+        decisions: candidate
+            .reviews()
+            .iter()
+            .map(|review| {
+                let mut reasons = vec![PackageTriageReason::MissingAdmissionBaseline];
+                append_candidate_blocking_reasons(review, &mut reasons);
+                append_candidate_audit_reasons(review, true, &mut reasons);
+                PackageTriageDecision {
+                    package_name: review.key().name().as_str().to_owned(),
+                    baseline_key: None,
+                    candidate_key: Some(review.key().clone()),
+                    disposition: PackageTriageDisposition::BlockedMissingAdmissionBaseline,
                     reasons,
                 }
             })
@@ -501,6 +533,9 @@ const fn disposition_token(disposition: PackageTriageDisposition) -> &'static st
     match disposition {
         PackageTriageDisposition::Admitted => "admitted",
         PackageTriageDisposition::AdmittedWithAuditRecommended => "admitted_with_audit_recommended",
+        PackageTriageDisposition::BlockedMissingAdmissionBaseline => {
+            "blocked_missing_admission_baseline"
+        }
         PackageTriageDisposition::BlockedCapabilityChange => "blocked_capability_change",
         PackageTriageDisposition::BlockedProvenanceChange => "blocked_provenance_change",
     }
@@ -513,6 +548,7 @@ const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::RemovedPackage => "removed_package",
         PackageTriageReason::SourceChanged => "source_changed",
         PackageTriageReason::BaselineSourceUnavailable => "baseline_source_unavailable",
+        PackageTriageReason::MissingAdmissionBaseline => "missing_admission_baseline",
         PackageTriageReason::CapabilityOrApiChanged => "capability_or_api_changed",
         PackageTriageReason::SourceLineageChanged => "source_lineage_changed",
         PackageTriageReason::CompilerArtifactChanged => "compiler_artifact_changed",
@@ -585,8 +621,12 @@ mod tests {
     #[test]
     fn disposition_order_keeps_blockers_above_recommendations() {
         assert!(
-            PackageTriageDisposition::BlockedCapabilityChange
+            PackageTriageDisposition::BlockedMissingAdmissionBaseline
                 > PackageTriageDisposition::AdmittedWithAuditRecommended
+        );
+        assert!(
+            PackageTriageDisposition::BlockedCapabilityChange
+                > PackageTriageDisposition::BlockedMissingAdmissionBaseline
         );
         assert!(
             PackageTriageDisposition::BlockedProvenanceChange
@@ -613,6 +653,10 @@ mod tests {
                 PackageReviewDangerousAuthorityClass::PortIo,
             )),
             "dangerous_authority_slack_port_io"
+        );
+        assert_eq!(
+            reason_token(PackageTriageReason::MissingAdmissionBaseline),
+            "missing_admission_baseline"
         );
         assert_eq!(
             reason_token(PackageTriageReason::AcceptedClaimRequiresResolution),

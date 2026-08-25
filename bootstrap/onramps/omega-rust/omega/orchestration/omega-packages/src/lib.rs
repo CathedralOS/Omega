@@ -133,4 +133,5 @@ pub use source_review::{
 pub use source_triage::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
     TriageRenderError, triage_initial_install, triage_review_update,
+    triage_update_without_admission_baseline,
 };

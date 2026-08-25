@@ -1444,6 +1444,16 @@ complete.
   `blocked-provenance-change`. Organization-specific review completion may be
   attached as policy metadata but is not a compiler-certified result state.
 
+  Progress 2026-08-25: deterministic compiler-review triage represents all five
+  states directly. An update without normalized accepted admission evidence is
+  `blocked-missing-admission-baseline`; it is distinct from unavailable old
+  source (accepted rows still compare and standalone source audit is advised)
+  and from initial install (an explicit complete-graph fresh admission). Its
+  bounded fixed-vocabulary renderer emits no package prose, and candidate risk
+  reasons remain visible without weakening the blocker. Command orchestration
+  must enter this state rather than treating a missing lock as an unchanged
+  update; transition to fresh admission remains part of install/update wiring.
+
 ## P6 — Commands
 
 - **OMEGA-INSTALL.** Implement

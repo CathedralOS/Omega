@@ -8,11 +8,12 @@ use omega_compiler::{
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
-    PackageSourceVerificationPhase, PackageTriageDisposition, ReviewOnlyBaselineCapsule,
-    ReviewOnlyBaselineLimits, SourceLineage, SourceResolveError, WorkspaceMemberPath,
-    assemble_initial_source_review, assemble_update_source_review,
+    PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
+    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits, SourceLineage, SourceResolveError,
+    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compile_resolved_package_reviews,
     resolve_workspace_package_closure, triage_initial_install, triage_review_update,
+    triage_update_without_admission_baseline,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -538,6 +539,17 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             initial_triage.render_bounded(64 * 1024).is_ok(),
             "{package} compiler evidence should fit the bounded triage projection"
         );
+        let missing_baseline = triage_update_without_admission_baseline(&reviews);
+        assert_eq!(
+            missing_baseline.disposition(),
+            PackageTriageDisposition::BlockedMissingAdmissionBaseline,
+            "{package} update without accepted admission evidence"
+        );
+        assert!(missing_baseline.decisions().iter().all(|decision| {
+            decision
+                .reasons()
+                .contains(&PackageTriageReason::MissingAdmissionBaseline)
+        }));
         let initial_review = assemble_initial_source_review(
             &reviews,
             &closure,
