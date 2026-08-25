@@ -80,6 +80,42 @@ build or final composer proves that every import names an exported requirement
 and that normalized contracts match. Separate compilation does not require one
 omniscient source pass.
 
+## Static evidence and replacement granularity
+
+Publication and mediation are different. A public conformance makes one exact
+compile-time evidence or strategy identity selectable; it does not create a
+replaceable call boundary. When a consumer selects executable behavior,
+layout, cleanup, or another runtime-bearing row from that conformance, the
+selected realization becomes a concrete edge in the consumer's closure. A
+corrected provider implementation does not reach the already-built consumer
+without rebuilding it. Proof-only erased evidence retains its theorem and
+certificate dependency but does not by itself pin runtime code.
+
+A public boundary trait selected through `Service<R>` has the opposite update
+shape: the stable requirement application remains at the crossing and new
+calls may resolve a new provider era. Code expected to change independently in
+the field therefore belongs behind a service requirement, while public
+conformances remain appropriate for proofs and deliberately static strategy
+selection.
+
+`CompositionMode::Independent` is a request for a checked deployment cut, not
+a provider property. The composer computes the least fixed point of every
+concrete implementation, selected conformance, layout, cleanup, state, and
+custody edge. If a consumer has fused provider-specific identity, that consumer
+joins the replacement cohort; its own fused consumers join transitively. The
+toolchain never silently calls the originally requested smaller cut
+independent. It either proves that cut, reports the enlarged cohort for explicit
+owner acceptance, or rejects it. The cohort may legitimately become the whole
+program.
+
+Every artifact therefore retains attributable closure edges. A source-backed
+diagnostic names the exact occurrence and span. A prebuilt artifact may lack a
+span, but its manifest still names the consuming artifact and declaration, the
+selected conformance or implementation, and the edge that enlarged the cohort.
+The guarantee is not that every requested hot swap is possible; replacement
+granularity is a computed, visible graph property and every coarsening edge is
+attributable before deployment.
+
 ## Resources and stack provision
 
 Semantic compatibility and resource admission are separate:
@@ -173,12 +209,30 @@ Every replaceable binding publishes an entry contract with these semantics:
 4. reclamation waits for acknowledged quiescence; and
 5. entry and leave publish operational and resource cost.
 
+Values returned across the seam are accounted separately from active calls.
+Call quiescence cannot retire a descriptor, handle, session, callback, cleanup
+plan, state claim, or other value whose meaning still depends on its producing
+era. Such an era-pinning carrier must be affine or linear, carry one compiler-
+accounted era pin, and have an unavoidable terminal disposition that releases
+that pin. It cannot be `[copy]`: implicit duplication has no corresponding pin
+creation or individual terminal event. Checked explicit duplication instead
+returns another non-copy carrier and increments the same era ledger. A copyable
+permanent-gateway value is legal only because it resolves through stable
+process-lifetime state and pins no provider era.
+
+Affine movement transfers one pin; compiler-planned affine cleanup releases it
+on every ordinary terminal edge. A linear carrier's authored terminal protocol
+must release it exactly once. Abnormal process death needs no in-process
+reclamation, while any admitted leak or foreign retention keeps the era live or
+quarantined. Reclamation consults the explicit entry and pin ledgers—never a
+garbage-collector-style search for arbitrary reachable values.
+
 The current generic era-entry ledger binds each era to one exact binding and
 entry contract, admitted plan, and profile-sealed executable manifest. Entry
 linearizes once and retains that era across routing changes. Reclamation
-requires closure to new entry, zero active entries and cohort holds, complete
-dispositions, and a fresh release receipt. RCU, counters, hazards, and similar
-mechanisms remain runtime policy.
+requires closure to new entry, zero active entries, zero era pins and cohort
+holds, complete dispositions, and a fresh release receipt. RCU, counters,
+hazards, and similar mechanisms remain runtime policy.
 
 The algorithm is runtime policy. Epochs, RCU, counters, hazard references, or a
 target-specific single-core scheme may satisfy the same contract. Whether a
@@ -197,6 +251,12 @@ Local `dyn` tables never cross this boundary. A consumer that wants a local
 dynamic interface owns a local proxy whose methods call the boundary binding.
 The proxy localizes the ABI, entry, effect, and resource costs while the
 descriptor remains an ordinary within-artifact two-word value.
+
+Consequently, a replaceable requirement does not return a bare local `dyn`
+descriptor. It returns detached data or an explicit affine/linear handle whose
+hidden descriptor and era pin follow the accounting above. This is stricter
+than an ordinary package API, which may carry a private conformance inside a
+`dyn` value when no independently reclaimable component boundary is crossed.
 
 ## Replacement protocol
 
@@ -320,9 +380,11 @@ Mapping reuse has one rule:
 
 In checked Omega, inert `addr` values and sealed inert `Ptr<T>` carriers cannot
 recreate memory or execution authority; any live authoritative reference
-therefore remains visible to quiescence accounting. Proven quiescence permits
-ordinary virtual-address reuse. An incomplete drain or possible untracked
-opaque holder leaves the range reserved and
+therefore remains visible to entry, installed-root, custody, or era-pin
+accounting. This proof comes from closed ledgers and disposition receipts, not
+from tracing arbitrary reachable values. Proven quiescence permits ordinary
+virtual-address reuse. An incomplete drain or possible untracked opaque holder
+leaves the range reserved and
 unmapped/trapping until a wider isolation domain is retired. Quarantine detects
 stale entry but discharges no lock, claim, or protocol obligation. Repeated
 incomplete replacements consume reserved virtual-address capacity and report
@@ -354,10 +416,13 @@ carry and stack/resource checking. A coarse holder directory can identify the
 component or container, while exact paths are reported when root metadata
 supports them.
 
-A custom dynamic container that transitively stores claim-carrying values must
-provide checked root enumeration before it may appear in independently
-replaceable component state. Failure is a compile error at the state-field
-declaration, not a surprise during deployment.
+A custom dynamic container that transitively stores era-pinning values must
+preserve their checked moves and terminal dispositions, so the era ledger stays
+exact without enumerating arbitrary objects. Checked root enumeration is
+additionally required when a replacement plan promises exact per-value
+migration or custody transfer. Without it, reporting may stop at the containing
+component or container and the outstanding pin keeps its era retained until
+ordinary destruction releases it.
 
 Retention reports name old-era edges and the most precise known holding path,
 for example:

@@ -303,6 +303,7 @@ NamedTraitConformance {
     subject: ConformanceSubject | None,
     trait,
     name: ConformanceName | Home,
+    visibility: Private | Public,
     rows: [(declaring_trait, complete_requirement_overload) -> ConformanceRow],
     laws,
     provenance,
@@ -324,6 +325,13 @@ same map. The declaring package owns the closed row set, while other packages
 may declare separately named conformances under the ordinary visibility and
 collision rules. Public conformances may retain private member identities
 because consumers name and invoke the authorized conformance surface.
+
+Only the complete name-first item creates this selectable identity. An exact
+machine satisfaction edge may carry an `as Name` grouping label for
+requirement-local proof or provider mechanisms, but that label is not a
+`NamedTraitConformance`, cannot satisfy a whole-trait bound, and owns no
+standalone visibility. A dynamic value may carry one selected conformance
+without making its name visible to the receiver.
 
 An exact `machine ... satisfies Trait::requirement` realization is a different
 semantic edge. It can supply a provider slot, operator, establishment route, or

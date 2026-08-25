@@ -7891,7 +7891,11 @@ checked-result arithmetic decision listed below.
     acquire and leave one exact era;
   - extend typed `Build::select_provider<Service, Provider>` with fused versus
     independent mode, exact closed-requirement slot identities, multiple roots
-    per package, and compiler-derived closure/import/export validation;
+    per package, and compiler-derived closure/import/export validation; compute
+    the transitive fixed point of concrete implementation, selected executable
+    conformance, layout, cleanup, state, and custody edges, and require explicit
+    owner acceptance when that fixed point enlarges the requested replacement
+    cohort;
   - emit deployment-agnostic component capsules containing canonical Terminal
     Psi, reconstructed obligation evidence, symbolic imports/exports, target
     dependencies, resource/lifecycle demand, and optional native realizations;
@@ -7906,7 +7910,14 @@ checked-result arithmetic decision listed below.
     graph or authority widening requires a new build/composition transaction;
   - implement linear staged/publication/freeze/retirement/release transitions,
     era-pinned calls and returned custody, continuity-proof selection, and
-    graph-cut diagnostics for shared mutable state or linear custody; and
+    graph-cut diagnostics for shared mutable state or linear custody; reject
+    `[copy]` on directly era-pinning carriers, maintain exact creation/move/
+    explicit-duplication/terminal-release pin accounting for affine and linear
+    carriers, and require zero active entries plus zero era pins for reclaim;
+  - retain an attributable cause for every closure edge so source builds report
+    an exact span and prebuilt artifacts still report the consuming artifact and
+    declaration, selected conformance or implementation, and transitive cohort
+    expansion path; and
   - implement a durable deployment journal with `Prepared`, `Activated`, and
     `Finalized` restart reconciliation. The journal retains accepting envelope,
     evidence, admissions, slot history, and live-era state; it is not assumed

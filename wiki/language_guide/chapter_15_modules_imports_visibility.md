@@ -276,6 +276,21 @@ qualified `Carrier::Evidence` bound, are authored selections. Bounds on public
 machines and traits are public-interface selections, while bounds on private
 declarations remain private implementation.
 
+A complete name-first conformance owns ordinary declaration visibility. It is
+package-private unless marked `pub`; visibility is inherited from neither its
+subject nor its trait. Public-interface citation and authored selection from a
+direct dependent require `pub`. The conformance's normalized public surface may
+retain private member-machine and proof identities because callers select the
+authorized row map rather than those implementations.
+
+An exact `machine ... satisfies Trait::requirement` edge is not a standalone
+conformance declaration and follows the machine's visibility. Its optional
+`as Name` label groups requirement-local satisfiers but does not create a
+package-level selectable declaration. Conversely, a value may carry a private
+dynamic conformance selected by its producer without granting the receiver
+authority to name or select that conformance elsewhere. Carrying compiler-
+selected semantics is not authored declaration selection.
+
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the
 callee declaration, each explicit static conformance argument selects its own

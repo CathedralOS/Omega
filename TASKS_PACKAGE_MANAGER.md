@@ -787,12 +787,16 @@ complete.
   published as structural fields. The language guide and hardware/privilege
   briefs describe the same opaque representation boundary.
 
-  Remaining owner decision: named conformances are top-level selected
-  declarations but currently have no retainable visibility; direct dependency
-  admission therefore makes them accidentally public. `OWNER_QUESTIONS.md` Q1
-  isolates whether they receive ordinary `pub` (recommended) or are explicitly
-  public by definition. Do not close this task or encode a conformance review
-  row until that language rule is settled.
+  Settled 2026-08-25: complete name-first conformances are independently
+  nameable declarations, package-private by default, and publish through
+  ordinary `pub`. Exact `machine ... satisfies Trait::requirement` edges follow
+  machine visibility; an optional `as Name` groups requirement-local satisfiers
+  and does not mint standalone whole-trait evidence. Implement syntax, symbol,
+  typed/checked-tree, authored-selection, snapshot, and package-review retention
+  for the complete item. Add one blocking `PublicConformance` row containing
+  the package-qualified declaration, normalized telescope, optional subject,
+  exact trait application, complete requirement map, laws, and checked evidence
+  interface while excluding member/proof bodies and physical code identity.
 
   Milestone 2026-08-25: one shared typed-tree visibility resolver now gates all
   settled independently nameable declaration families in both public
@@ -805,14 +809,19 @@ complete.
   private domain cannot cross a package boundary through a type annotation.
   Toolchain build vocabulary and the core layout/optional/filesystem/console
   surfaces now mark the APIs they actually publish; implementation helpers
-  remain private. Named conformance remains the sole declaration-visibility
-  family withheld behind Q1.
+  remain private. Named conformance is the remaining settled declaration-
+  visibility implementation slice.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
   a public contract selecting a private proposition/const/operator, a public
   machine with a private ranking witness, parser rejection of `pub measure`,
   and a public bodyless proposition that grants no fact by declaration alone.
+  For conformance specifically, cover private same-package selection, public
+  cross-package selection, private cross-package and public-contract rejection,
+  an `as Name` exact-edge label that cannot satisfy a whole-trait bound, and a
+  public `dyn` return carrying private producer-selected evidence without making
+  that evidence nameable by the receiver.
   Survey every private nominal reachable from an existing public signature:
   publish it only when structural construction is intended, and stop for a
   separate opaque-public-type design if publishing its representation would be

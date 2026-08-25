@@ -68,9 +68,10 @@ resolve to one exact overload. Ambiguity rejects without consulting visible or
 selected satisfiers. The same rule governs nominal static-machine callback
 binders and every other signature-free requirement reference. Adding an
 overload to an existing requirement name is consequently a breaking change for
-distant establishment clauses and binders as well as local callers; compatibility
-reporting surfaces that at the requirement declaration. `as Name` continues to
-name a satisfying conformance and is not an overload selector.
+distant establishment clauses and binders as well as local callers;
+compatibility reporting surfaces that at the requirement declaration.
+`as Name` remains an exact-edge satisfier-set label or a complete-conformance
+selector according to its grammar position; it is never an overload selector.
 
 Predicate-only membership is established by proof, including proof guaranteed
 by a checked validator or accepted under an admitted receipt. Routed
