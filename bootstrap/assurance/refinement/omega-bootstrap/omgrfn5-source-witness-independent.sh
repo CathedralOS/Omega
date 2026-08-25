@@ -35,8 +35,9 @@ BUILDER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir3-fixture.py"
 RESOLVER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp"
 SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
 HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-harness.omg"
+API_HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-api-harness.omg"
 for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER4" "$BUILDER" \
-  "$RESOLVER" "$SOURCE" "$HARNESS" "$OMEGA_PATH_BETA/bc.beta"; do
+  "$RESOLVER" "$SOURCE" "$HARNESS" "$API_HARNESS" "$OMEGA_PATH_BETA/bc.beta"; do
   [ -f "$REQUIRED" ] || {
     echo "OMGRFN5 responsibility 2: missing $REQUIRED" >&2
     exit 1
@@ -124,8 +125,7 @@ build_pair() { # name owner machine source0 source1
 }
 
 build_pair exact SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$HARNESS"
-[ "$(wc -c < "$T/exact.omgc" | tr -d ' ')" -eq 2198 ]
-[ "$(wc -c < "$T/exact.witness" | tr -d ' ')" -eq 1788 ]
+build_pair api SourceUnit bootstrap_source_api_probe "$SOURCE" "$API_HARNESS"
 
 # Resolve parameter spans back through their owning machine/block and source.
 # This locks in the corrected resolver behavior rather than merely comparing
@@ -162,6 +162,55 @@ if observed != [b"id", b"byte", b"index", b"runtime_scalar"]:
     raise SystemExit(f"OMGRFN5 R2 parameter spans: {observed!r}")
 PY
 
+# The second carrier changes the result type, call-binding census, and absence
+# of block parameters without changing the logical module.  Inspect those
+# facts from table relationships rather than relying on fixed IDs.
+python3 - "$T/api.witness" "$SOURCE" "$API_HARNESS" <<'PY'
+from pathlib import Path
+import struct
+import sys
+raw = Path(sys.argv[1]).read_bytes()
+sources = (Path(sys.argv[2]).read_bytes(), Path(sys.argv[3]).read_bytes())
+head = struct.unpack_from("<8sHHHH14I", raw)
+counts = head[6:17]
+strides = (36, 48, 28, 28, 24, 24, 24, 40, 24, 40, 24)
+offsets = []
+at = 72
+for count, stride in zip(counts, strides):
+    offsets.append(at); at += count * stride
+if at != len(raw) or counts[10] != 0:
+    raise SystemExit("OMGRFN5 R2 SourceUnit API extent/block-parameter census")
+bindings, declarations, types, machines = (offsets[i] for i in (2, 3, 4, 7))
+def declaration(did):
+    if did >= counts[3]: raise SystemExit("OMGRFN5 R2 declaration range")
+    return struct.unpack_from("<IBBH5I", raw, declarations + did * 28)
+def declaration_name(did):
+    row = declaration(did)
+    source, start, length = row[4], row[6], row[7]
+    return sources[source][start:start + length]
+role3 = []
+for i in range(counts[2]):
+    row = struct.unpack_from("<IIBBH4I", raw, bindings + i * 28)
+    if row[2] == 3:
+        reference = sources[row[1]][row[5]:row[5] + row[6]]
+        target = declaration_name(row[7])
+        role3.append((reference, target))
+expected = [(b"clear", b"clear"), (b"append", b"append"),
+            (b"byte_or_nul", b"byte_or_nul")]
+if role3 != expected:
+    raise SystemExit(f"OMGRFN5 R2 SourceUnit API role-3 rows: {role3!r}")
+root = head[17]
+if root >= counts[7]: raise SystemExit("OMGRFN5 R2 SourceUnit API root range")
+machine = struct.unpack_from("<3IBBH6I", raw, machines + root * 40)
+if declaration_name(machine[1]) != b"bootstrap_source_api_probe":
+    raise SystemExit("OMGRFN5 R2 SourceUnit API selected root")
+result = machine[6]
+if result >= counts[4]: raise SystemExit("OMGRFN5 R2 SourceUnit API result range")
+type_at = types + result * 24
+if raw[type_at + 4] != 1 or struct.unpack_from("<I", raw, type_at + 20)[0] != 255:
+    raise SystemExit("OMGRFN5 R2 SourceUnit API root result is not derived u8")
+PY
+
 printf 'opaque-CKIR4' > "$T/ckir"
 printf 'opaque-ELF' > "$T/elf"
 : > "$T/empty"
@@ -170,6 +219,19 @@ pack() { # output compilation witness
   python3 "$PACKER" "$2" "$3" "$T/ckir" "$T/elf" --result 70 > "$T/$1.rfn"
 }
 pack exact "$T/exact.omgc" "$T/exact.witness"
+pack api "$T/api.omgc" "$T/api.witness"
+python3 - "$T/api.witness" "$T/api-forged-block-param.witness" <<'PY'
+from pathlib import Path
+import struct
+import sys
+raw = bytearray(Path(sys.argv[1]).read_bytes())
+declared = struct.unpack_from("<I", raw, 16)[0]
+struct.pack_into("<I", raw, 16, declared + 24)
+struct.pack_into("<I", raw, 60, 1)
+raw.extend(struct.pack("<6I", 0, 0, 0, 0, 0, 0))
+Path(sys.argv[2]).write_bytes(raw)
+PY
+pack api-forged-block-param "$T/api.omgc" "$T/api-forged-block-param.witness"
 
 observe_one() { # exe expected input label
   EXE=$1 EXPECTED=$2 INPUT=$3 LABEL=$4
@@ -192,6 +254,9 @@ observe() {
   observe_one "$T/self" "$1" "$2" "$3 (self)"
 }
 observe 0 "$T/exact.rfn" "exact source+harness resolution"
+observe 0 "$T/api.rfn" "complete SourceUnit API resolution"
+observe 251 "$T/api-forged-block-param.rfn" \
+  "forged SourceUnit API block-parameter row/count"
 
 # Fully source-derived identifiers, including every corrected parameter-name
 # span, and an independently authored field reordering.
@@ -265,22 +330,31 @@ observe 0 "$T/reordered.rfn" "authored field reordering"
 
 pack cross-renamed "$T/exact.omgc" "$T/renamed.witness"
 pack cross-reordered "$T/exact.omgc" "$T/reordered.witness"
+pack cross-api "$T/exact.omgc" "$T/api.witness"
+pack api-cross "$T/api.omgc" "$T/exact.witness"
 observe 251 "$T/cross-renamed.rfn" "renamed valid cross-pair"
 observe 251 "$T/cross-reordered.rfn" "reordered valid cross-pair"
+observe 251 "$T/cross-api.rfn" "exact source with SourceUnit API witness"
+observe 251 "$T/api-cross.rfn" "SourceUnit API source with exact witness"
 
-python3 - "$T/exact.witness" "$T/mutations" <<'PY'
+make_mutations() { # carrier name
+python3 - "$T/$1.witness" "$T/$1-mutations" <<'PY'
 from pathlib import Path
 import struct
 import sys
 raw = Path(sys.argv[1]).read_bytes()
 out = Path(sys.argv[2]); out.mkdir()
+names = []
 head = struct.unpack_from("<8sHHHH14I", raw)
 counts = head[6:17]
 strides = (36, 48, 28, 28, 24, 24, 24, 40, 24, 40, 24)
 offsets = []
 at = 72
 for count, stride in zip(counts, strides): offsets.append(at); at += count * stride
-def put(name, data): out.joinpath(name + ".witness").write_bytes(data)
+if at != len(raw): raise SystemExit("OMGRFN5 R2 mutation input extent")
+def put(name, data):
+    out.joinpath(name + ".witness").write_bytes(data)
+    names.append(name)
 def bump(name, offset):
     data = bytearray(raw)
     struct.pack_into("<I", data, offset, struct.unpack_from("<I", data, offset)[0] + 1)
@@ -288,28 +362,42 @@ def bump(name, offset):
 for index in range(counts[8]):
     bump(f"machine-param-{index}-start", offsets[8] + index * 24 + 16)
     bump(f"machine-param-{index}-length", offsets[8] + index * 24 + 20)
-bump("block-param-start", offsets[10] + 16)
-bump("block-param-length", offsets[10] + 20)
+for index in range(counts[10]):
+    bump(f"block-param-{index}-start", offsets[10] + index * 24 + 16)
+    bump(f"block-param-{index}-length", offsets[10] + index * 24 + 20)
 role3 = [i for i in range(counts[2]) if raw[offsets[2] + i * 28 + 8] == 3]
-if len(role3) != 1: raise SystemExit("OMGRFN5 R2 role-3 census")
-r = offsets[2] + role3[0] * 28
-bump("role3-span", r + 12)
-data = bytearray(raw); struct.pack_into("<I", data, r + 20, 0); put("role3-target", data)
-data = bytearray(raw); data[r + 8] = 2; put("role3-role", data)
-left = offsets[2] + (role3[0] - 1) * 28
+for index in role3:
+    r = offsets[2] + index * 28
+    bump(f"role3-{index}-span", r + 12)
+    data = bytearray(raw)
+    target = struct.unpack_from("<I", data, r + 20)[0]
+    struct.pack_into("<I", data, r + 20, target ^ 1)
+    put(f"role3-{index}-target", data)
+    data = bytearray(raw); data[r + 8] = 2; put(f"role3-{index}-role", data)
+if counts[2] < 2: raise SystemExit("OMGRFN5 R2 binding-order mutation needs two rows")
+left = offsets[2]
+r = offsets[2] + 28
 data = bytearray(raw)
 a, b = bytes(data[left + 4:left + 28]), bytes(data[r + 4:r + 28])
 data[left + 4:left + 28], data[r + 4:r + 28] = b, a
 put("binding-order", data)
+root = head[17]
+if root >= counts[7]: raise SystemExit("OMGRFN5 R2 selected root range")
+result = offsets[7] + root * 40 + 16
+if struct.unpack_from("<I", raw, result)[0] != 0xffffffff:
+    bump("root-result", result)
+out.joinpath("manifest").write_text("\n".join(names) + "\n", encoding="ascii")
 PY
-for NAME in \
-  machine-param-0-start machine-param-0-length \
-  machine-param-1-start machine-param-1-length \
-  machine-param-2-start machine-param-2-length \
-  block-param-start block-param-length \
-  role3-span role3-target role3-role binding-order; do
-  pack "mutation-$NAME" "$T/exact.omgc" "$T/mutations/$NAME.witness"
-  observe 251 "$T/mutation-$NAME.rfn" "$NAME mutation"
+}
+make_mutations exact
+make_mutations api
+for CARRIER in exact api; do
+  while IFS= read -r NAME; do
+    pack "$CARRIER-mutation-$NAME" "$T/$CARRIER.omgc" \
+      "$T/$CARRIER-mutations/$NAME.witness"
+    observe 251 "$T/$CARRIER-mutation-$NAME.rfn" \
+      "$CARRIER $NAME mutation"
+  done < "$T/$CARRIER-mutations/manifest"
 done
 
 # Missing role-3 resolution is independently rejected from source, and the
@@ -369,5 +457,5 @@ END_NS=$(python3 -c 'import time; print(time.time_ns())')
 BUILD_MS=$(( (BUILD_NS - START_NS) / 1000000 ))
 RUN_MS=$(( (END_NS - BUILD_NS) / 1000000 ))
 TOTAL_MS=$(( (END_NS - START_NS) / 1000000 ))
-echo "OMGRFN5 responsibility 2: exact source+harness OMGRSW1 (2 units/9 bindings including 1 role-3/8 declarations/10 types/4 records/9 fields/4 machines/3 machine parameters/9 blocks/1 block parameter), corrected parameter spans, renamed/reordered/cross-pair controls, mutations, opacity, V4/V5 separation, and 0/251/252 passed"
+echo "OMGRFN5 responsibility 2: exact and complete-SourceUnit-API source carriers, count-derived OMGRSW1 reconstruction, corrected parameter spans, renamed/reordered/cross-pair controls, mutations, opacity, V4/V5 separation, and 0/251/252 passed"
 echo "OMGRFN5 responsibility 2 resources: ${PROCEDURES}/128 procedures; ${MAX_LOCALS}/32 locals; ${TAPE_BYTES}/262140 checker tape bytes; ${BC1_TAPE}+4/${HOLE_SIZE} self-Beta bytes; 18000 tokens/source; build=${BUILD_MS}ms matrix=${RUN_MS}ms total=${TOTAL_MS}ms"

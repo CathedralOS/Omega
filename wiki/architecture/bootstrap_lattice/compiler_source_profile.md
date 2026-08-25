@@ -423,10 +423,12 @@ parameter, and nested-constructor fields, then canonicalizes authored names to
 declaration ordinals. Native and Delta-self-built producers are byte-identical;
 focused Gamma routes reproduce producer/backend 0/251/252 meaning; independent
 checkers reconstruct objects, result, and every ELF byte; and eight persisted-
-Beta executables compose the five `OMGRFN5` responsibilities over one unchanged
-16,274-byte carrier. This closes the selected implementation/assurance cost for
-ordinary named fields without freezing the final profile or deciding effectful
-constructor-field evaluation order.
+Beta executables compose the five `OMGRFN5` responsibilities over immutable
+16,274-byte opener and 16,417-byte complete-`SourceUnit`-API carriers. The
+second varies calls, bindings, block parameters, root result type, and witness
+extent without changing the frozen formats. This closes the selected
+implementation/assurance cost for ordinary named fields without freezing the
+final profile or deciding effectful constructor-field evaluation order.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

@@ -276,7 +276,11 @@ proc v5_parse_record(expected,mode) {
         to constant_return when (mode==0) to replay_guard
     }
     state constant_return { src_low_gset(62,all_constant) src_low_gset(63,any_array) src_low_gset(61,depth) return 0 }
-    state replay_guard { to constant_return when (all_constant==1) to bad when (any_array==1) i=0 to replay }
+    ; Mode one is a value context.  Even an all-literal record must be a
+    ; runtime constructor there: CKIR3 constants are not source-addressable
+    ; call arguments.  Mode zero above retains constant classification for an
+    ; aggregate assignment destination.
+    state replay_guard { to bad when (any_array==1) i=0 to replay }
     state replay { to emit when (i>=count) word[10000128]=word[20210000+depth*512+i*8] word[524408]=word[20200000+depth*512+i*8] src_next() src_low_gset(61,depth+1) to replay_one }
     state replay_one { to done when (v5_parse_field(src_field(src_record(record,3)+i,3),1)!=0) src_low_gset(61,depth) to bad when (word[524416]!=0) word[20400000+depth*32+i*8]=src_low_g(27) i=i+1 to replay }
     state emit { src_low_gset(50,0) src_low_gset(51,0) src_low_gset(52,0) to stage when (count>0) to emit_op }

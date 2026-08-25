@@ -40,7 +40,7 @@ LOWERER=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolved-to-ckir4.a
 BACKEND=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-v4-to-elf.alp
 FIXTURES=$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records
 EXACT=$OMEGA_REPO_ROOT/compiler/psi/source/source.omg
-for REQUIRED in "$ENVELOPE" "$BASE" "$MODEL" "$COMMON" "$V3" "$V4OPS" "$V4RESULT" "$R4" "$PACKER" "$BUILDER" "$LOW_FRAME" "$RESOLVER" "$LOWERER" "$BACKEND" "$EXACT" "$FIXTURES/source-unit-harness.omg"; do
+for REQUIRED in "$ENVELOPE" "$BASE" "$MODEL" "$COMMON" "$V3" "$V4OPS" "$V4RESULT" "$R4" "$PACKER" "$BUILDER" "$LOW_FRAME" "$RESOLVER" "$LOWERER" "$BACKEND" "$EXACT" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/source-unit-api-analogue.omg" "$FIXTURES/constant-assignment.omg"; do
   [ -f "$REQUIRED" ] || { echo "OMGRFN5 responsibility 4: missing $REQUIRED" >&2; exit 1; }
 done
 
@@ -304,16 +304,80 @@ build_case() { # name owner machine source...
 }
 
 build_case exact SourceUnit bootstrap_runtime_record_probe "$EXACT" "$FIXTURES/source-unit-harness.omg"
+build_case source_api SourceUnit bootstrap_source_api_probe "$EXACT" "$FIXTURES/source-unit-api-harness.omg"
+
+# Mode-one literal records are runtime values, but the pre-existing aggregate
+# assignment path remains a CKIR3 constant copy.  Keep that distinction local
+# and explicit so broadening call arguments cannot silently rewrite assignment.
+build_case constant ConstantPairProbe run "$FIXTURES/constant-assignment.omg"
+python3 -B - "$T/constant.ckir" <<'PY'
+from pathlib import Path
+import struct, sys
+b = Path(sys.argv[1]).read_bytes()
+counts = struct.unpack_from("<14I", b, 24)
+at = 80
+for count, size in zip(counts[:7], (24, 20, 16, 36, 20, 32, 20)):
+    at += count * size
+at += counts[12] * 24 + counts[13] * 4
+opcodes = [b[at + row * 40 + 12] for row in range(counts[7])]
+if 11 not in opcodes or 13 in opcodes:
+    raise SystemExit("constant assignment must use CopyAggregateConst without ConstructRecord")
+PY
+observe "$T/lowering" "$T/constant.rfn" 0 constant-lowering
+observe "$T/source-lowering" "$T/constant.rfn" 0 constant-source-lowering
+# OMGRFN4 owns constant-assignment source meaning; this R4 regression row does
+# not enlarge the artifact-free source-result evaluator.
+
+# This responsibility-local analogue varies every nominal/machine spelling and
+# adds an unrelated fifth machine without changing the admitted API shape.
+build_case renamed_api BootstrapBuffer exercise "$FIXTURES/source-unit-api-analogue.omg"
 build_case authored RuntimePairProbe run "$FIXTURES/authored-declaration-order.omg"
 build_case reordered RuntimePairProbe run "$FIXTURES/declaration-order.omg"
 build_case nested NestedRuntimeProbe run "$FIXTURES/nested-runtime.omg"
 build_case direct DirectCallProbe run "$FIXTURES/direct-call.omg"
-for CASE in exact authored reordered nested direct; do
+for CASE in exact source_api renamed_api authored reordered nested direct; do
   observe "$T/lowering" "$T/$CASE.rfn" 0 "$CASE-lowering"
   observe "$T/source-lowering" "$T/$CASE.rfn" 0 "$CASE-source-lowering"
   observe "$T/source-result" "$T/$CASE.rfn" 0 "$CASE-source-result"
 done
 cmp "$T/authored.ckir" "$T/reordered.ckir" >/dev/null
+
+# The exact SourceUnit API is sensitive to ordinary call order.  This valid
+# carrier clears after appending and therefore returns zero; lowering accepts
+# it while the artifact-free result owner rejects the deliberately false 70.
+python3 -B - "$FIXTURES/source-unit-api-harness.omg" "$T/source-unit-api-order.omg" <<'PY'
+from pathlib import Path
+import sys
+s = Path(sys.argv[1]).read_text(encoding="ascii")
+s = s.replace("bootstrap_source_api_probe", "bootstrap_source_api_order_probe")
+s = s.replace(
+    "        self.clear(SourceId { value: 1 });\n        self.append(70);",
+    "        self.append(70);\n        self.clear(SourceId { value: 1 });",
+)
+Path(sys.argv[2]).write_text(s, encoding="ascii")
+PY
+build_case source_api_order SourceUnit bootstrap_source_api_order_probe "$EXACT" "$T/source-unit-api-order.omg"
+observe "$T/lowering" "$T/source_api_order.rfn" 0 source-api-order-lowering
+observe "$T/source-lowering" "$T/source_api_order.rfn" 0 source-api-order-source-lowering
+observe "$T/source-result" "$T/source_api_order.rfn" 251 source-api-order-source-result
+
+# A same-result source mutation changes the constructor literal and therefore
+# the CKIR bytes without changing the final byte observation.  Pairing that
+# source/witness with the original artifact must fail only the source/artifact
+# join; both artifact-free R4 owners still accept it.
+python3 -B - "$FIXTURES/source-unit-api-harness.omg" "$T/source-unit-api-id2.omg" <<'PY'
+from pathlib import Path
+import sys
+s = Path(sys.argv[1]).read_text(encoding="ascii")
+s = s.replace("bootstrap_source_api_probe", "bootstrap_source_api_id2_probe")
+s = s.replace("SourceId { value: 1 }", "SourceId { value: 2 }")
+Path(sys.argv[2]).write_text(s, encoding="ascii")
+PY
+build_case source_api_id2 SourceUnit bootstrap_source_api_id2_probe "$EXACT" "$T/source-unit-api-id2.omg"
+python3 -B "$PACKER" "$T/source_api_id2.omgc" "$T/source_api_id2.witness" "$T/source_api.ckir" "$T/source_api.elf" --result 70 > "$T/source-api-cross.rfn"
+observe "$T/lowering" "$T/source-api-cross.rfn" 251 source-api-cross-lowering
+observe "$T/source-lowering" "$T/source-api-cross.rfn" 0 source-api-cross-source-lowering
+observe "$T/source-result" "$T/source-api-cross.rfn" 0 source-api-cross-source-result
 
 # Valid cross-pair and phase-local opacity controls.
 python3 -B "$PACKER" "$T/authored.omgc" "$T/authored.witness" "$T/nested.ckir" "$T/nested.elf" --result 70 > "$T/cross.rfn"
@@ -391,5 +455,5 @@ observe "$T/source-result" "$T/v4.rfn" 251 v4-source-result-separation
 
 END_NS=$(python3 -c 'import time; print(time.time_ns())')
 TOTAL_MS=$(((END_NS-START_NS)/1000000))
-echo "OMGRFN5 responsibility 4: exact source+harness result 70, declaration-order runtime records, nested construction, Call/Copy, cross-pairs, mutations, phase opacity, four/five precedence, and V4/V5 separation passed native/self"
+echo "OMGRFN5 responsibility 4: original exact 0/0/0, SourceUnit API 0/0/0, renamed/count-varied API 0/0/0; constant assignment retains CKIR3 CopyAggregateConst without ConstructRecord (lowering/source-lowering 0/0; source-result outside this row); order mutation 0/0/251; same-result API cross-pair 251/0/0; existing negatives passed native/self"
 echo "OMGRFN5 responsibility 4 resources: lowering ${LOWER_PROCS}/128 procs ${LOWER_LOCALS}/32 locals ${lowering_TAPE}/262140 tape; source-lowering ${SOURCE_LOWERING_PROCS}/128 procs ${SOURCE_LOWERING_LOCALS}/32 locals ${source_lowering_TAPE}/262140 tape; source-result ${SOURCE_RESULT_PROCS}/128 procs ${SOURCE_RESULT_LOCALS}/32 locals ${source_result_TAPE}/262140 tape; total=${TOTAL_MS}ms"

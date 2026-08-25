@@ -415,22 +415,27 @@ requires:
    compiler remains differential evidence only.
 7. Lower-rooted refinement uses the distinct
    [`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md)
-   carrier embedding one
-   exact unchanged OMGCOMP, exact unchanged OMGRSW1, CKIR4, ELF, and claimed
+   carrier embedding each selected exact unchanged OMGCOMP, exact unchanged
+   OMGRSW1, CKIR4, ELF, and claimed
    result. Independent responsibilities establish: frame/component custody;
    source-to-OMGRSW1 reconstruction; OMGRSW1-to-CKIR4 tables; source-body-to-
    opcode-13 lowering with declaration-order canonicalization; source-only result
    without CKIR/ELF access; and CKIR4-only result plus exact ELF reconstruction.
    Responsibility-specific executables are permitted and required when one
    lower-rung procedure/local/tape ceiling cannot contain the conjunction.
-8. One same-exact-frame composite invokes every lower-rooted responsibility
-   over one immutable canonical carrier. Phase-local mutations and valid-but-
-   mismatched source/witness, witness/CKIR, CKIR/ELF, and result cross-pairs
-   isolate each join. The source-only result executable is physically pruned of
-   CKIR, ELF, and artifact-derived evaluator access; artifact-only checkers do
-   not read source bodies beyond their stated envelope/table premises. The
-   composite reports each component's build/run time and procedure, local, and
-   tape usage rather than hiding a resource failure in fixture products.
+8. One same-carrier composite invokes every lower-rooted responsibility over
+   each immutable canonical carrier. It covers both the original runtime-record
+   opener and a second complete-current-`SourceUnit`-API program built entirely
+   from already-admitted CKIR4 forms. The second changes call count, block-
+   parameter count, selected result type, binding count, and witness extent so
+   fixture-census recognition cannot satisfy the relation. Phase-local
+   mutations and valid-but-mismatched source/witness, witness/CKIR, CKIR/ELF,
+   and result cross-pairs isolate each join. The source-only result executable
+   is physically pruned of CKIR, ELF, and artifact-derived evaluator access;
+   artifact-only checkers do not read source bodies beyond their stated
+   envelope/table premises. The composite reports each component's build/run
+   time and procedure, local, and tape usage rather than hiding a resource
+   failure in fixture products.
 
 Only that evidence closes this bounded runtime named-record-construction
 source-to-artifact relation. It does not close slices, payload sums, boundary

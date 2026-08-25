@@ -47,14 +47,14 @@ proc omgrfn5_r2_read_frame() {
 ;   203: trapping u32; 204: u32 [0..=65536]; 205: trapping [u8;65536].
 proc omgrfn5_r2_type_id(raw) {
     state nominal0 { to nominal1 when (raw>=100) to bad }
-    state nominal1 { to nominal when (raw<104) to bool }
+    state nominal1 { to nominal when (raw<100+word[879008]) to bool }
     state nominal { return raw-100 }
-    state bool { to x4 when (raw==200) to u8 } state x4 { return 4 }
-    state u8 { to x7 when (raw==201) to full } state x7 { return 7 }
-    state full { to x5 when (raw==202) to trap } state x5 { return 5 }
-    state trap { to x6 when (raw==203) to range } state x6 { return 6 }
-    state range { to x8 when (raw==204) to array } state x8 { return 8 }
-    state array { to x9 when (raw==205) to bad } state x9 { return 9 }
+    state bool { to x4 when (raw==200) to u8 } state x4 { return word[879008] }
+    state u8 { to x7 when (raw==201) to full } state x7 { return word[879008]+3 }
+    state full { to x5 when (raw==202) to trap } state x5 { return word[879008]+1 }
+    state trap { to x6 when (raw==203) to range } state x6 { return word[879008]+2 }
+    state range { to x8 when (raw==204) to array } state x8 { return word[879008]+4 }
+    state array { to x9 when (raw==205) to bad } state x9 { return word[879008]+5 }
     state bad { return 4294967295 }
 }
 
@@ -217,11 +217,7 @@ proc omgrfn5_r2_parse_source(source_id) {
 
 proc omgrfn5_r2_resolve() {
     let i=0 let j=0 let found=0 let at=0 let id=0
-    state exact {
-        to bad when (word[879008]!=4) to bad when (word[879016]!=9) to bad when (word[879024]!=4)
-        to bad when (word[879032]!=3) to bad when (word[879040]!=9) to bad when (word[879048]!=1)
-        to bad when (word[879056]!=8) to bad when (word[879064]!=1) i=0 to record_names
-    }
+    state exact { i=0 to record_names }
     state record_names { to record_outer when (i<word[879008]) i=0 to machine_names }
     state record_outer { j=i+1 to record_inner }
     state record_inner { to record_compare when (j<word[879008]) i=i+1 to record_names }
@@ -240,7 +236,7 @@ proc omgrfn5_r2_resolve() {
     state results { to result when (i<word[879024]) i=0 to calls }
     state result { at=884000+i*128 to result_next when (word[at+40]==4294967295) id=omgrfn5_r2_type_id(word[at+40]) to bad when (id==4294967295) word[at+40]=id to result_next }
     state result_next { i=i+1 to results }
-    state calls { to call when (i<word[879064]) to root }
+    state calls { to call when (i<word[879064]) found=0 j=0 to root_search }
     state call { at=894000+i*48 found=0 j=0 to call_search }
     state call_search { to candidate when (j<word[879024]) to bad when (found!=1) i=i+1 to calls }
     state candidate {
@@ -251,13 +247,15 @@ proc omgrfn5_r2_resolve() {
         found=found+1 word[at+32]=j to call_next
     }
     state call_next { j=j+1 to call_search }
-    state root {
-        to bad when (word[500336]!=0) to bad when (word[500344]!=1)
-        to bad when (word[884000+3*128]!=1)
-        to bad when (omgrfn4_r2_span_string(1,omgrfn4_r2_tstart(1,word[884008+3*128]),omgrfn4_r2_tlen(1,word[884008+3*128]),word[500352])==0)
-        to bad when (omgrfn4_r2_span_string(1,omgrfn4_r2_tstart(1,word[884024+3*128]),omgrfn4_r2_tlen(1,word[884024+3*128]),word[500360])==0)
-        to bad when (word[884040+3*128]!=5) to bad when (word[884056+3*128]!=0) return 0
+    state root_search { to root_candidate when (j<word[879024]) to bad when (found!=1) word[879080]=id return 0 }
+    state root_candidate {
+        at=884000+j*128
+        to root_next when (word[at]!=word[500344])
+        to root_next when (omgrfn4_r2_span_string(word[at],omgrfn4_r2_tstart(word[at],word[at+8]),omgrfn4_r2_tlen(word[at],word[at+8]),word[500352])==0)
+        to root_next when (omgrfn4_r2_span_string(word[at],omgrfn4_r2_tstart(word[at],word[at+24]),omgrfn4_r2_tlen(word[at],word[at+24]),word[500360])==0)
+        found=found+1 id=j to root_next
     }
+    state root_next { j=j+1 to root_search }
     state bad { return omgrfn4_l2_reject() }
 }
 
@@ -265,16 +263,16 @@ proc omgrfn5_r2_build_bindings() {
     let i=0 let j=0 let k=0 let v=0 let at=0 let rid=0 let mid=0
     word[879072]=0
     state fields { to field when (i<word[879016]) i=0 to parameters }
-    state field { at=882000+i*64 to field_next when (word[at+16]>=4) rid=word[at+16] word[879500]=word[at+48] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at+48],word[at+56]) word[879532]=omgrfn4_r2_tlen(word[at+48],word[at+56]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to field_next }
+    state field { at=882000+i*64 to field_next when (word[at+16]>=word[879008]) rid=word[at+16] word[879500]=word[at+48] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at+48],word[at+56]) word[879532]=omgrfn4_r2_tlen(word[at+48],word[at+56]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to field_next }
     state field_next { i=i+1 to fields }
     state parameters { to parameter when (i<word[879032]) i=0 to machines }
-    state parameter { at=886000+i*48 to parameter_next when (word[at+16]>=4) mid=word[at] rid=word[at+16] word[879500]=word[884000+mid*128] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[905000+i*16],word[905008+i*16]) word[879532]=omgrfn4_r2_tlen(word[905000+i*16],word[905008+i*16]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to parameter_next }
+    state parameter { at=886000+i*48 to parameter_next when (word[at+16]>=word[879008]) mid=word[at] rid=word[at+16] word[879500]=word[884000+mid*128] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[905000+i*16],word[905008+i*16]) word[879532]=omgrfn4_r2_tlen(word[905000+i*16],word[905008+i*16]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to parameter_next }
     state parameter_next { i=i+1 to parameters }
     state machines { to machine when (i<word[879024]) i=0 to calls }
     state machine { at=884000+i*128 rid=word[at+88] word[879500]=word[at] word[879508]=2 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at],word[at+8]) word[879532]=omgrfn4_r2_tlen(word[at],word[at+8]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) i=i+1 to machines }
     state calls { to call when (i<word[879064]) i=0 to sort_outer }
     state call { at=894000+i*48 mid=word[at+32] word[879500]=word[at] word[879508]=3 word[879516]=2 word[879524]=word[at+8] word[879532]=word[at+16] word[879540]=word[884080+mid*128] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) i=i+1 to calls }
-    state sort_outer { to sort_start when (i+1<word[879072]) to exact }
+    state sort_outer { to sort_start when (i+1<word[879072]) to done }
     state sort_start { j=0 to sort_inner }
     state sort_inner { to compare when (j+1<word[879072]-i) i=i+1 to sort_outer }
     state compare { at=897000+j*56 to swap when (word[at]>word[at+56]) to next when (word[at]<word[at+56]) to swap when (word[at+24]>word[at+80]) to next when (word[at+24]<word[at+80]) to swap when (word[at+8]>word[at+64]) to next }
@@ -282,41 +280,42 @@ proc omgrfn5_r2_build_bindings() {
     state swap_loop { to swap_one when (k<7) to next }
     state swap_one { v=word[at+k*8] word[at+k*8]=word[at+56+k*8] word[at+56+k*8]=v k=k+1 to swap_loop }
     state next { j=j+1 to sort_inner }
-    state exact { to bad when (word[879072]!=9) return 0 }
+    state done { return 0 }
     state bad { return omgrfn4_l2_reject() }
 }
 
 proc omgrfn5_r2_emit_type(id) {
     let kind=0 let flags=0 let a=0 let b=0 let lo=0 let hi=0
-    state select { to nominal when (id<4) to bool when (id==4) to full when (id==5) to trap when (id==6) to u8 when (id==7) to range when (id==8) to array }
+    state select { to nominal when (id<word[879008]) to bool when (id==word[879008]) to full when (id==word[879008]+1) to trap when (id==word[879008]+2) to u8 when (id==word[879008]+3) to range when (id==word[879008]+4) to array when (id==word[879008]+5) to bad }
     state nominal { kind=4 a=id to emit }
     state bool { kind=3 hi=1 to emit }
     state full { kind=2 hi=2147483647 to emit }
     state trap { kind=2 flags=1 hi=2147483647 to emit }
     state u8 { kind=1 hi=255 to emit }
     state range { kind=2 hi=65536 to emit }
-    state array { kind=5 flags=1 a=7 b=65536 to emit }
+    state array { kind=5 flags=1 a=word[879008]+3 b=65536 to emit }
     state emit { omgrfn4_l2_put_u32(id) omgrfn4_l2_put_byte(kind) omgrfn4_l2_put_byte(flags) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(a) omgrfn4_l2_put_u32(b) omgrfn4_l2_put_u32(lo) omgrfn4_l2_put_u32(hi) return 0 }
+    state bad { return omgrfn4_l2_reject() }
 }
 
 proc omgrfn5_r2_emit_expected() {
     let i=0 let at=0 let expected=0
     word[700048]=0
-    expected=72+2*36+word[879072]*28+word[879056]*28+10*24+word[879008]*24+word[879016]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24
+    expected=72+2*36+word[879072]*28+word[879056]*28+(word[879008]+6)*24+word[879008]*24+word[879016]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24
     omgrfn4_l2_put_byte('O') omgrfn4_l2_put_byte('M') omgrfn4_l2_put_byte('G') omgrfn4_l2_put_byte('R')
     omgrfn4_l2_put_byte('S') omgrfn4_l2_put_byte('W') omgrfn4_l2_put_byte('1') omgrfn4_l2_put_byte(0)
     omgrfn4_l2_put_u16(1) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(72)
     omgrfn4_l2_put_u32(expected) omgrfn4_l2_put_u32(2) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879072])
-    omgrfn4_l2_put_u32(word[879056]) omgrfn4_l2_put_u32(10) omgrfn4_l2_put_u32(word[879008]) omgrfn4_l2_put_u32(word[879016])
+    omgrfn4_l2_put_u32(word[879056]) omgrfn4_l2_put_u32(word[879008]+6) omgrfn4_l2_put_u32(word[879008]) omgrfn4_l2_put_u32(word[879016])
     omgrfn4_l2_put_u32(word[879024]) omgrfn4_l2_put_u32(word[879032]) omgrfn4_l2_put_u32(word[879040]) omgrfn4_l2_put_u32(word[879048])
-    omgrfn4_l2_put_u32(3) omgrfn4_l2_put_u32(0)
+    omgrfn4_l2_put_u32(word[879080]) omgrfn4_l2_put_u32(0)
     state units { to unit when (i<2) i=0 to bindings }
     state unit { omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[600640+i*8]) omgrfn4_l2_put_u32(4294967295) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879400+i*16]) omgrfn4_l2_put_u32(word[879408+i*16]) i=i+1 to units }
     state bindings { to binding when (i<word[879072]) i=0 to declarations }
     state binding { at=897000+i*56 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_byte(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(4294967295) i=i+1 to bindings }
     state declarations { to declaration when (i<word[879056]) i=0 to types }
     state declaration { at=895000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_byte(word[at]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to declarations }
-    state types { to type when (i<10) i=0 to records }
+    state types { to type when (i<word[879008]+6) i=0 to records }
     state type { omgrfn5_r2_emit_type(i) i=i+1 to types }
     state records { to record when (i<word[879008]) i=0 to fields }
     state record { at=881000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) i=i+1 to records }
@@ -330,7 +329,7 @@ proc omgrfn5_r2_emit_expected() {
     state block { at=888000+i*96 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) omgrfn4_l2_put_u32(word[at+56]) omgrfn4_l2_put_u32(word[at+64]) i=i+1 to blocks }
     state bparams { to bparam when (i<word[879048]) i=0 to length }
     state bparam { at=893000+i*48 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) i=i+1 to bparams }
-    state length { to bad when (expected!=1788) to bad when (word[700048]!=expected) return 0 }
+    state length { to bad when (word[700048]!=expected) return 0 }
     state bad { return omgrfn4_l2_reject() }
 }
 
