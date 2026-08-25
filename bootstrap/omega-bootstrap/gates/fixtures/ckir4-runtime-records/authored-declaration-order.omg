@@ -1,0 +1,15 @@
+data RuntimePair [copy] {
+    first: u8;
+    second: u8;
+}
+
+data RuntimePairProbe {
+    pair: RuntimePair;
+    scalar: u8;
+}
+
+machine RuntimePairProbe::run(&mut self) -> u8 {
+    self.scalar = 70;
+    self.pair = RuntimePair { second: 11, first: self.scalar };
+    self.pair.first
+}
