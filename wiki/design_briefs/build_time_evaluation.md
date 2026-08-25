@@ -425,57 +425,64 @@ canonical toolchain filesystem requirement symbol before the provider is
 entered; a package-authored lookalike remains an ordinary unsupported call even
 under granted execution. The selected canonical signature then maps to a
 closed, explicitly tagged operation identity exhaustively handled by both
-filesystem providers. ABI aliases remain distinct. Rooted transcripts retain
-`canonicalize` and `final_path_name_by_handle` only when they reconstruct one
-lossless result under the same root. `read_link` payload is retained as inert
-data and acquires no rooted authority without checked resolution. Observation
-schema v10 carries operation-attempt schema v9, retaining in call-start order
+filesystem providers. ABI aliases remain distinct. Package-rooted execution
+rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
+absolute paths. `read_link` payload remains inert and acquires no rooted
+authority without checked resolution. Observation
+schema v14 carries operation-attempt schema v14, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
 ordinal, read/write access, closed Source/Output root, and canonical
 slash-separated relative UTF-8 bytes without a host absolute prefix. Grant-gate
 denials remain distinct; ordinary host errors do not fabricate one and retain
-any authorization that preceded the host failure. Prepared handle operands are
-classified as Descriptor, Native, or Find and retain exact Resolved, Null, or
-Unknown disposition. Successful created and duplicated outputs mint monotonic
-logical lifetime IDs; a repeated borrowed native conversion reuses its live
-alias, while both duplicate and borrowed views retain their source. Successful
-closes retain every invalidated lifetime, raw provider-token reuse never reuses
-an ID, and failed closes retire nothing. A token live in another logical domain
-rejects before provider access; provider acceptance of an otherwise Unknown
-token traps instead of publishing contradictory lineage.
+any authorization that preceded the host failure. Descriptor, Native, and Find
+operands are normalized immediately to exact Resolved, Null, or Unknown logical
+lifetimes, so later preparation failure keeps the completed prefix. A fully
+prepared call must reproduce that exact plan. Successful created and duplicated
+outputs mint monotonic logical lifetime IDs; a repeated borrowed native
+conversion reuses its live alias, while duplicate and borrowed views retain
+their source. Successful closes retain every invalidated lifetime, raw provider-
+token reuse never reuses an ID, and failed closes retire nothing. A token live
+in another logical domain rejects before provider access; provider acceptance
+of an otherwise Unknown token traps instead of publishing contradictory lineage.
 The hermetic duplicate model shares one open-file cursor with its source. Real
 descriptors retain rooted write authority across duplicate and borrowed views,
 and deny content, extent, metadata, ownership, or host-lock mutation before
 sponsor or host access when opened under source-read authority alone.
 `open_at`/`unlink_at` accept only one nonempty portable relative component, and
-real-provider path outputs reconstruct lossless root-relative values or reject.
+real-provider path-byte conversion is lossless or rejects.
 Successful descriptor/find/native-handle results retain only their logical
 identity in observation evidence; provider token integers do not survive.
 Non-handle results and failed handle-result sentinels remain exact scalar
 values, with both lanes type-tagged by package commitment framing.
-Fully prepared calls whose evidence reservation succeeds retain ordinal-ordered
-non-handle scalars with explicit I32/U32/I64/U64 identity, complete authored
-immutable write/FILETIME payloads, and exact validated at-family components.
-Rooted/path-alias spellings remain out of the payload lane. Mutable byte
-carriers retain their complete pre/post capacity, including unchanged tails;
-mutable i64 carriers retain exact pre/post values. Pre-state follows evaluation
-of every authored argument, while post-state follows provider return or halt.
-Input-only mutable ABI carriers remain explicit even when unchanged. A separate
-256 MiB aggregate operand-evidence sponsor reserves immutable bytes and both
-mutable copies before that call's provider access. Exhaustion halts that call;
+Every successfully typed non-handle scalar, immutable payload, non-rooted path-
+like operand, compiler-rooted path, and mutable carrier is retained as argument
+preparation advances. Later failure keeps that exact ordinal prefix. Fully
+prepared calls cross-check compiler-private semantic sidecars before provider
+access. Scalars retain explicit I32/U32/I64/U64 identity; immutable write and
+FILETIME payloads retain complete authored bytes; at-family components,
+directory-entry names, symlink targets, and find patterns retain exact portable
+bytes in role-specific lanes. Raw rooted/path-alias spellings never enter the
+payload lane. Rooted input rows instead carry closed Source/Output identity and
+canonical relative bytes before physical provider-path lowering. They are not
+authorization rows: a later grant check separately carries access and may
+select a different canonical rooted location after symlink or nested-root
+resolution. Mutable byte and i64 carriers retain distinct resolution-time and
+provider pre/post state. Provider pre-state follows every authored argument
+because a later argument may alias an earlier carrier; post-state follows
+provider return or halt. Input-only mutable ABI carriers remain explicit. A
+separate 256 MiB aggregate operand-evidence sponsor covers immutable, path-like,
+rooted-resolution, and all mutable byte copies. Exhaustion halts that call;
 prior or nested staging effects remain cleanup-contained. Package commitment
-framing hashes immutable and mutable evidence without rendering it.
+framing hashes every lane without rendering bytes as text.
 A granted evaluation failure
 retains partial usage and observations with an explicit returned/evaluator-halt
 outcome; worker creation or panic marks evidence unavailable. Omega emits only
 fixed non-admission counts and no review row on failure. Duplicate identities,
 conflicting equal roots, unresolved roots, unrepresentable rooted paths, and
-the 16 MiB aggregate retained-path ceiling reject before host access. Complete
-path-like byte operands not represented by rooted evidence, retained
-returned-path bytes, preparation-failure operand prefixes,
-and complete content custody are absent. It is an incomplete operation trace,
+the 16 MiB aggregate authorized-path ceiling reject before host access. Retained
+returned-path bytes and complete content custody remain absent. It is an incomplete operation trace,
 not a transcript or receipt, and makes no replayability or source-
 rebuildability claim.
 
