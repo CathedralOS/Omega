@@ -1,0 +1,21 @@
+// The declared u32 interval is intentionally too broad for direct indexing.
+// Only the true arm's `index < 2` fact makes its edge argument admissible, so
+// the lowerer must install that fact before checking and lowering the argument.
+
+data ArmArgumentProbe {
+    values: [u8; 2] in Trapping;
+}
+
+machine ArmArgumentProbe::run(&mut self) -> u8 {
+    70
+
+    state bounded(&mut self, index: u32 in Trapping) {
+        transition index < 2 {
+            true -> accept(self.values[index])
+            _ -> fail()
+        }
+    }
+
+    state accept(&mut self, value: u8) { 70 }
+    state fail(&mut self) { 71 }
+}

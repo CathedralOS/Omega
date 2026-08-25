@@ -13,6 +13,8 @@ versioned lowering/checked-IR contracts.
 | `renamed-reordered-nested.omg` | Standalone source unit. | status 0 from compilation and executable result 70 |
 | `guardless-transition.omg` | Standalone focused control. | status 0, one canonical CKIR `Jump`, and executable result 70 |
 | `cyclic-range-custody.omg` | Standalone renamed and declaration-reordered control. | status 0 from compilation and executable result 70 |
+| `arm-local-edge-argument.omg` | Standalone true-arm custody control. | status 0 from compilation and executable result 70 |
+| `stale-parameter-custody.omg` | Standalone target-parameter identity control. | status 0 from compilation and executable result 70 |
 
 `unicode-harness.omg` deliberately adds an attached machine to the private
 `UnicodeTables` declaration instead of copying or editing the generated source.
@@ -32,8 +34,20 @@ and this fixture does not make either unrelated capability part of the tranche.
 
 `guardless-transition.omg` isolates the ordinary one-wildcard-arm source form.
 It lowers to the inherited CKIR `Jump` with no synthetic Boolean value or
-operation. `cyclic-range-custody.omg` isolates the Unicode lookup loop's other
-control obligations without using Unicode names or dimensions: its entry is a
+operation. The producer gate derives a same-result authored-`true` transition
+from this fixture and requires an ordinary CKIR `Branch` with one authored
+Boolean constant instead; the two publications must be byte-distinct.
+
+`arm-local-edge-argument.omg` makes a dynamic indexed load legal only in the
+true arm of `<`, including while that arm's target arguments are checked. The
+gate derives a negative variant that moves the same indexed load into the
+fallback arm, where no narrowing fact applies. `stale-parameter-custody.omg`
+uses distinct names and identities for a predecessor parameter and its target
+parameter. The proven interval must map by target ordinal rather than retaining
+the stale predecessor identity.
+
+`cyclic-range-custody.omg` isolates the Unicode lookup loop's other control
+obligations without using Unicode names or dimensions: its entry is a
 guardless jump; `<` narrows a scalar before that scalar enters a target state;
 the target uses it for dynamic indexing; a later state forwards it; `<=` is
 exercised; and a second `<` proves `index + 1` safe on the cyclic back edge. The
@@ -67,6 +81,12 @@ lowering, checked-IR, or artifact bytes.
 | `negative-less-equal-mixed-carrier.omg` | `<=` mixes numeric `u8` and `u32` carriers |
 | `negative-less-equal-missing-rhs.omg` | `<=` has no right operand |
 | `negative-less-equal-chain.omg` | a second `<=` follows a completed comparison without an admitted Boolean-comparison form |
+| `negative-missing-cycle-predecessor.omg` | joining entry index 0 with cyclic predecessor index 2 makes a two-element array access unsafe |
+
+The gate also derives a declaration-reordered form of
+`negative-missing-cycle-predecessor.omg`; both orders must reject. This pairs
+missing-predecessor custody with fixed-point declaration-order independence
+without duplicating the source fixture.
 
 Named record literals have no positional arity form in the admitted source
 grammar. Their arity failures are therefore covered honestly by the isolated
