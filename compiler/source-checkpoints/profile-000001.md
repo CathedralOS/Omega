@@ -125,3 +125,8 @@ indexed initializer statements, but the current backend still expands the
 large aggregate heavily. Follow-up performance work should therefore measure a
 general static/generated-data representation and Stage-08 expansion rather
 than treating test parallelism or HTML report suppression as the primary fix.
+The selected bootstrap slice and its semantic, resource, and refinement
+acceptance are tracked in
+[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md); that implementation evidence
+does not by itself freeze records, arrays, or generated data into final
+`Ωself`.
