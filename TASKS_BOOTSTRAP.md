@@ -317,7 +317,7 @@ work.
 
 ## Gate and performance discipline
 
-- [ ] Shard and cache the historical mutation work in
+- [x] Shard and cache the historical mutation work in
   `bootstrap/assurance/refinement/beta/bc-block-control.sh`. Preserve the full
   negative inventory and `LATTICE_FULL=1` coverage, but give each independent
   responsibility its own content-keyed artifact/result and timing heartbeat so
@@ -328,24 +328,20 @@ work.
   measured 103 seconds in `independent-historical-teeth` alone and then spent
   more than four additional minutes in the unreported
   `checker-a-historical-mutations` phase before the unrelated run was stopped.
-  The ordinary lattice now runs the existing maximal-root-observation focus,
-  including its independently rebuilt canonical prerequisites and root teeth,
-  in about 33 seconds; `LATTICE_FULL=1` retains the complete historical matrix,
-  with its still-unsharded responsibilities remaining monolithic until this
-  work lands.
-
-  Progress 2026-08-24: the first exhaustive tranche now caches five disjoint
-  historical responsibilities after rebuilding and smoking their canonical
-  owners in the same process: bounded emitters, the fixed and `name_eq`
-  continuation bridges, `name_eq`, and lookup. Each atomic green receipt binds
-  its exact generated checker, canonical bundle, harness, toolchain inputs, and
-  case inventory; `BC_BLOCK_CACHE=0` forces a physical cold replay. The
-  2026-08-24 cold replay measured these shards at 38s, 1s, <1s, 17s, and
-  21s respectively; the immediate warm replay reported all five as exact 0s
-  cache hits. The ordinary root-observation focus remained green in 34s. The
-  large inline Checker-A matrix and the other already modular teeth remain to
-  be extracted into the same responsibility-sized protocol before this item
-  may close.
+  Closed 2026-08-24: sixty responsibility-sized receipts cover the early
+  theorem teeth, the five independent historical families, the direct and
+  already modular Checker-A families, late storage/resource relations, and
+  artifact-custody controls. Canonical theorem owners are always rebuilt and
+  smoked in-process; receipts retain no executable or `BC_OWNER_*` state. A
+  forced or changed-key replay revokes the prior green before work begins, and
+  every key binds the exact checker/bundle, selected teeth module, cache
+  protocol, Alpha stamping implementation, assembler, seed, and artifact.
+  `BC_BLOCK_CACHE=0` passed the complete cold matrix with a timing heartbeat for
+  every shard. The immediate warm authoritative gate passed in 18.42s with all
+  sixty responsibilities cached. Editing only the raw-load teeth module reran
+  only that one-second shard while the other Checker-A shards remained cached.
+  The driver fell from 3,028 to 1,724 lines; extracted modules preserve the
+  historical global build-then-reject order and full negative inventory.
 
 - Keep one focused gate per active capability; run the full lattice gate only
   at coherent milestones.
