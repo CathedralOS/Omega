@@ -876,11 +876,13 @@ complete.
   published envelope and declaration provenance. This keeps trust admission
   distinct from ordinary callable compatibility without reconstructing claim
   semantics in package orchestration. Public trait requirements now project
-  unnamed `requires` and `ensures` through the same closed structural
-  fact/expression lane as public callables, joined to exactly one checked
-  `StateSignature` owner. Generic
-  selected-conformance telescopes, named evidence contracts, and unsupported
-  expression forms still fail closed. Trailing `boundary host` / `boundary
+  named and unnamed `requires` and `ensures` through the same closed structural
+  fact/expression and evidence lane as public callables, joined to exactly one
+  checked `StateSignature` owner. Named inputs retain ordered proposition and
+  evidence-interface identity while treating their source aliases as local;
+  named outputs additionally retain their public selector identity. Generic
+  selected-conformance telescopes and unsupported expression forms still fail
+  closed. Trailing `boundary host` / `boundary
   Name` clauses are retired at the source grammar rather than awaiting a
   package row. Exact
   checked crash capsules keyed by trait and requirement now project each
@@ -888,8 +890,7 @@ complete.
   fabricating realized body sites or calls; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. The remaining
-  named public-trait contract lanes, call-bearing domain
-  predicates, semantic-role/operator lanes,
+  call-bearing domain predicates, semantic-role/operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, exact semantic-subject commitments,
   non-provider trust ownership, receipted build-operation transcripts, staged-
@@ -1313,6 +1314,18 @@ complete.
   pedigree while retaining both as replay provenance. Acceptance: tampered,
   missing, stale-schema, dependency-hidden, or admission-laundered evidence
   rejects under local replay.
+
+  Ratified design decision 2026-08-25: local reconstruction may consume the
+  earliest coherent compiler-owned IR in which each obligation is semantically
+  complete, including private pre-Psi or pre-Terminal state. The checker moves
+  with compiler internals and need not reconstruct reduced meaning from public
+  Psi merely for layer purity. Persist only the versioned canonical obligation
+  ledger, exact subjects, certificates, results, and open obligations; never
+  persist private handles or make that IR a package format. Do not introduce a
+  nominal Chi stage solely to stabilize this internal checker seam. Add a stage
+  only if implementation discovers a genuine reusable semantic boundary, and
+  collapse work into an existing coherent stage such as Exact when that makes
+  the reconstruction smaller without losing meaning.
 
 - **ACCEPTED-LOCK-SCHEMA.** Replace name-keyed/fingerprint-only lock entries.
 

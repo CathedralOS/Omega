@@ -167,13 +167,68 @@ pub(crate) fn append_state_signature_contract_facts(
     owner_symbol: SymbolHandle,
     signatures: &[psi_typed_trees::signature::StateSignature],
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
+    evidence_terms: &mut psi_arena::Arena<CheckedEvidenceTerm>,
 ) {
     for signature in signatures {
+        let owner = ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol: signature.symbol,
+        };
+        let mut requires_position = 0usize;
+        let mut ensures_position = 0usize;
         for contract in program.state_signature_contracts(signature) {
             let Some(kind) = super::contract_fact_kind(&contract.kind) else {
                 continue;
             };
             for fact in super::fact_handles(contract.facts) {
+                let evidence_term = contract.binding.as_ref().map(|binding| {
+                    let lane_position = match kind {
+                        ContractProofFactKind::Requires => {
+                            let position = requires_position;
+                            requires_position += 1;
+                            position
+                        }
+                        ContractProofFactKind::Ensures => {
+                            let position = ensures_position;
+                            ensures_position += 1;
+                            position
+                        }
+                        ContractProofFactKind::Boundary => {
+                            unreachable!("validated named contracts are requires or ensures")
+                        }
+                    };
+                    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+                        program.proof_facts.get(fact)
+                    else {
+                        unreachable!("validated named signature contract must bind a proposition")
+                    };
+                    let normalized = program
+                        .normalize_nominal_proposition_application(application)
+                        .expect(
+                            "validated named signature contract must have a nominal proposition endpoint",
+                        );
+                    let (evidence_type, evidence_interface) = match &normalized.classification {
+                        psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                            evidence,
+                            interface,
+                        } => (
+                            evidence.clone(),
+                            interface.as_ref().map(super::lower_checked_evidence_interface),
+                        ),
+                        psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                            unreachable!("validated named signature contract must bind witness evidence")
+                        }
+                    };
+                    evidence_terms.append(CheckedEvidenceTerm {
+                        name: binding.as_str().to_owned(),
+                        owner,
+                        kind,
+                        lane_position,
+                        proposition: super::lower_checked_proposition_application(normalized),
+                        evidence_type,
+                        evidence_interface,
+                    })
+                });
                 let qualification_authorization =
                     crate::qualification_evidence::boundary_qualification_authorization(
                         program,
@@ -184,12 +239,9 @@ pub(crate) fn append_state_signature_contract_facts(
                     );
                 contract_facts.append(ContractProofFact {
                     kind,
-                    owner: ContractProofFactOwner::StateSignature {
-                        owner_symbol,
-                        state_symbol: signature.symbol,
-                    },
+                    owner,
                     fact,
-                    evidence_term: None,
+                    evidence_term,
                     qualification_authorization,
                 });
             }

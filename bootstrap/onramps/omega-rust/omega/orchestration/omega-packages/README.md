@@ -434,13 +434,16 @@ arguments. Binder-free requirements do not fabricate evidence. Non-generic
 selected conformances retain exact package-qualified conformance, carrier, and
 underlying public-trait identities plus carrier/trait applications. Their
 semantic declarations retain exact carrier/trait symbols. Public trait
-requirements retain unnamed `requires` and `ensures` through the same closed
-structural fact/expression vocabulary as public callables and join every fact to
-its exact checked state-signature owner. Abstract trait-requirement crash
+requirements retain named and unnamed `requires` and `ensures` through the same
+closed structural fact/expression and evidence vocabulary as public callables
+and join every fact to its exact checked state-signature owner. Named inputs
+retain ordered proposition and evidence-interface identity while treating their
+source aliases as local; named outputs additionally retain their public selector
+identity. Abstract trait-requirement crash
 ceilings retain canonical cause-and-guard routes from exactly one checked
 trait/requirement capsule without inventing realized body sites or calls.
-Generic selected-conformance telescopes, named evidence contracts, boundary
-clauses, and unsupported expression forms fail closed until complete rows land.
+Generic selected-conformance telescopes, boundary clauses, and unsupported
+expression forms fail closed until complete rows land.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

@@ -800,6 +800,16 @@ proof routes, and kernel dependencies remain derivation provenance; semantic
 identity records the subjects, obligation applications, discharge results, and
 open assumptions.
 
+Local obligation reconstruction may consume the earliest coherent
+compiler-owned representation in which each obligation is semantically
+complete, including private pre-Psi or pre-Terminal state. This checker seam may
+move with compiler internals. Only the versioned canonical obligation ledger,
+exact replay subjects, certificates, results, and open obligations persist; raw
+IR and compiler-private handles do not. A nominal Chi stage is not created just
+to stabilize that seam. It becomes warranted only if implementation discovers a
+real reusable semantic boundary; an existing coherent stage such as Exact is
+preferred whenever it preserves the same meaning with less machinery.
+
 The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked
 dependency obligations compose upward, while open obligations remain visible

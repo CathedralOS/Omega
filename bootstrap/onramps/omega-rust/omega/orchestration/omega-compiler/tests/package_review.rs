@@ -4243,6 +4243,92 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn public_trait_named_witness_contracts_retain_exact_lanes_and_selector_identity() {
+    let project = |requires_binding: &str, ensures_binding: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub trait Evidence {{
+    machine witness();
+}}
+proposition ready() evidence Evidence;
+pub trait Worker {{
+    machine relay(value: i32) -> i32
+    requires {requires_binding}: ready()
+    ensures {ensures_binding}: ready()
+    {{
+        {ensures_binding} = {requires_binding};
+    }}
+}}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("named public-trait witness fixture should check");
+        project_checked_package_review(&checked)
+            .expect("named public-trait witness contracts should project")
+    };
+
+    let original = project("input_proof", "output_proof");
+    let renamed_requires = project("renamed_local_input", "output_proof");
+    let renamed_ensures = project("input_proof", "renamed_public_output");
+    let worker = original
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Worker")
+        .expect("worker trait row");
+    let [relay] = worker.requirements() else {
+        panic!("one worker requirement")
+    };
+    assert_eq!(relay.contracts().len(), 2);
+    for contract in relay.contracts() {
+        assert!(contract.evidence_lane_position().is_some());
+        let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+            panic!("named witness contract must retain proposition identity")
+        };
+        assert_eq!(application.declaration().path(), "ready");
+        let PackageReviewPropositionEvidence::Witness(interface) = application.evidence() else {
+            panic!("named witness contract must retain its evidence interface")
+        };
+        assert_eq!(interface.trait_identity().path(), "Evidence");
+        assert_eq!(interface.requirements().len(), 1);
+    }
+    let requires = relay
+        .contracts()
+        .iter()
+        .find(|contract| contract.kind() == PackageReviewContractKind::Requires)
+        .expect("named requires row");
+    let ensures = relay
+        .contracts()
+        .iter()
+        .find(|contract| contract.kind() == PackageReviewContractKind::Ensures)
+        .expect("named ensures row");
+    assert_eq!(requires.binding(), None, "requires binding is local");
+    assert_eq!(ensures.binding(), Some("output_proof"));
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed_requires.canonical_review_bytes().unwrap(),
+        "renaming a local requires evidence alias must preserve review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        renamed_ensures.canonical_review_bytes().unwrap(),
+        "renaming a public ensures selector must change review identity",
+    );
+}
+
+#[test]
 fn public_trait_member_contracts_join_exact_state_signature_places() {
     let package = TempPackage::new();
     package.write(

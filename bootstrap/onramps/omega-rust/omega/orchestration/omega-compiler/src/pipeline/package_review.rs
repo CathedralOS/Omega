@@ -4188,13 +4188,6 @@ fn project_contracts(
     })?;
     let mut projected = Vec::new();
     for contract in contracts {
-        if policy == ContractProjectionPolicy::PublicTraitRequirement && contract.binding.is_some()
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` uses a named contract not yet represented by public-trait review",
-                context.subject_kind, context.subject_name
-            ))]);
-        }
         let kind = match contract.kind {
             SignatureContractKind::Requires => PackageReviewContractKind::Requires,
             SignatureContractKind::Ensures => PackageReviewContractKind::Ensures,
