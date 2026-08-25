@@ -839,11 +839,97 @@ fn authored_operand_type(
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Name(path) => program.state_parameters.iter().find_map(|(_, parameter)| {
-            (parameter.symbol == path.symbol).then_some(parameter.type_reference)
-        }),
+        ExpressionNode::Name(path) => program
+            .state_parameters
+            .iter()
+            .find_map(|(_, parameter)| {
+                (path.symbol.is_valid() && parameter.symbol == path.symbol)
+                    .then_some(parameter.type_reference)
+            })
+            .or_else(|| operator_contract_parameter_type(program, expression, path)),
         _ => None,
     }
+}
+
+fn operator_contract_parameter_type(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    path: &psi_typed_trees::expression::TableNamePath,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    let name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str();
+    let mut types = program
+        .operators()
+        .iter()
+        .chain(
+            program
+                .domain_definitions()
+                .iter()
+                .flat_map(|domain| program.domain_operators(domain)),
+        )
+        .filter(|operator| {
+            program.operator_contracts(operator).iter().any(|contract| {
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| match fact {
+                        psi_typed_trees::domain::ProofFact::Expression(root) => {
+                            expression_tree_contains(program, *root, expression)
+                        }
+                        psi_typed_trees::domain::ProofFact::Membership(membership) => {
+                            expression_tree_contains(program, membership.value, expression)
+                        }
+                        psi_typed_trees::domain::ProofFact::Proposition(_) => false,
+                    })
+            })
+        })
+        .filter_map(|operator| {
+            program
+                .operator_parameters(operator)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == name)
+                .map(|parameter| parameter.type_reference)
+        });
+    let first = types.next()?;
+    types
+        .all(|type_reference| type_reference == first)
+        .then_some(first)
+}
+
+fn expression_tree_contains(
+    program: &TypedTrees,
+    root: psi_typed_trees::expression::ExpressionHandle,
+    target: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if expression == target {
+            return true;
+        }
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Atomic(atomic) => pending.push(atomic.value),
+            ExpressionNode::Binary(binary) => {
+                pending.push(binary.left);
+                pending.push(binary.right);
+            }
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            _ => {}
+        }
+    }
+    false
 }
 
 fn operator_has_no_authored_spelling_candidate(

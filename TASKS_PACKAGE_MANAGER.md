@@ -747,10 +747,22 @@ complete.
   exact typed operands select one declaration, then the ordinary visibility
   gate is repeated after checked finalization. Package admission rejects a
   private operator selected across package ownership while allowing private
-  implementation use by its owner. The blocking standalone `PublicOperator`
-  review row remains open: it needs an overload-safe coordinate and direct
-  declaration-contract projection, including fixed-token spelling, before
-  unused public operators can be compatibility-complete.
+  implementation use by its owner.
+
+  Milestone 2026-08-25: review v54 and canonical row v14 complete the
+  standalone blocking `PublicOperator` lane. Its key is the package-qualified
+  declaration family plus the compiler's canonical operand and result-dispatch
+  identities, so overload matching is exactly the checked language rule rather
+  than a package-manager reconstruction. The row retains boundary status,
+  fixed-token spelling, lifetime/static telescopes, parameter modes and types,
+  return type, and directly projected declaration contracts even when the
+  operator is unused. Binary public-contract expressions now distinguish an
+  exact declared overload from compiler-owned builtin meaning; a bare token no
+  longer substitutes for semantic selection. Public operator changes render as
+  source-backed blocking conflicts. Unsupported operator crash contracts and
+  proof-static member selections which checking cannot finalize still reject
+  closed instead of producing partial rows; those are compiler coverage work,
+  not an open package-manager design choice.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
@@ -1542,7 +1554,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v53
+  create a placeholder `PackageInstance` or bless current incomplete review v54
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

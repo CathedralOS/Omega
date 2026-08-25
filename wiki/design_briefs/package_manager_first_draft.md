@@ -587,9 +587,13 @@ declaration-owned metadata, independent of a carrier-qualified path. The
 operator symbol keeps its own authored source provenance, and proof-static
 late selections may finalize only from exact typed operands before visibility
 is checked again. Cross-package private selection rejects; same-owner private
-implementation use remains legal. Public-operator compatibility projection is
-the remaining slice: its coordinate must distinguish overloads and its row must
-project unused declaration contracts plus fixed-token spelling directly.
+implementation use remains legal. Review v54 and canonical row v14 add a
+blocking `PublicOperator` row keyed by package-qualified declaration identity
+plus the compiler's canonical operand and result-dispatch identities. The row
+retains boundary status, fixed spelling, complete signature shape, and directly
+projected declaration contracts even when unused. Binary contract expressions
+now name the exact declared overload or explicit builtin meaning. Unsupported
+operator crash contracts and unresolved proof-static selections reject closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
