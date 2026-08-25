@@ -35,6 +35,12 @@ Everything to its right is a compiler artifact or a build edge; the `omega`
 artifacts implement the already-specified full Omega language rather than
 introducing another bootstrap dialect.
 
+The corresponding language-capability view is simply
+`Alpha → Beta → Gamma → Delta → Omega`. `omega-bootstrap` appears only in the
+artifact view because it is a Delta-written compiler, not a language. The
+bracketed second `omega` is the same product source rebuilt for executable
+quality, not another feature surface or compiler generation.
+
 Only two source contracts remain open:
 
 | Surface | Kind | Required closure |
@@ -110,6 +116,20 @@ Delta's compiler-host feasibility, self-host, and bounded bridge canaries exist.
 The general `omega-bootstrap`, frozen Delta v1, frozen `Ωself`, and hosted
 production build do not. Canaries and D0 are discovery evidence, not numbered
 steps toward `Ωself` or definitions of Delta v1.
+
+Current state, without extrapolating from bounded canaries:
+
+| Component | What exists | What is still missing |
+| --- | --- | --- |
+| Delta language | executable corpus, native compiler path, self-host evidence, and a growing Delta→Gamma meaning route | a frozen v1 specification justified by both complete required Delta source closures, plus complete lower-rung coverage |
+| canonical Delta compiler | a Delta-written self-hosting compiler and bounded lower-rung executions | publication of the exact final compiler artifact from its complete source through Gamma, joined to refinement |
+| `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→ELF→refinement slices through CKIR11/OMGRFN13 | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
+| production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
+| hosted production build | bounded bridge canaries only | the first validated build of full production `omega`; no optional self-rebuild is required to close bootstrap |
+
+This table is the stopping-point summary. A row is not promoted by a nearby
+fixture or format version: only its stated whole-source and acceptance join
+closes it.
 
 Two lanes co-evolve until their join:
 

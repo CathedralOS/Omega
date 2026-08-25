@@ -10,6 +10,13 @@ profile-limited bridge compiler and one production compiler. Written as build
 actions rather than artifact shorthand:
 
 ```text
+language capability: Alpha → Beta → Gamma → Delta → Omega
+```
+
+The build inserts `omega-bootstrap` before the production artifact; that does
+not insert another language into this progression:
+
+```text
 Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
 Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap (accepts Ωself)
 Ωself source ──[omega-bootstrap]──▶ omega (implements full Ω)

@@ -36,6 +36,12 @@ language specification, while `Ωself` is an incidental authoring restriction
 on source written in an already-specified language. Do not turn the compiler
 artifacts between them into extra languages.
 
+Equivalently, the increasingly capable language view is
+`Alpha → Beta → Gamma → Delta → Omega`; the executable build view inserts the
+Delta-written `omega-bootstrap` between Delta and the first production
+`omega`. The optional second `omega` is a rebuild of the same source, not a
+third feature inventory.
+
 Two source-surface selections therefore discharge three required artifact
 obligations. The Delta compiler must first be published through the lower-rung
 Delta→Gamma route and accept both required Delta closures under one language

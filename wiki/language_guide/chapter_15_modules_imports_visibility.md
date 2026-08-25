@@ -331,8 +331,8 @@ Declarations are private by default unless marked `pub`. Independently
 nameable data, domains, traits, machines, wire schemas, operators,
 propositions, and constants support that rule. A declared ranking measure is
 private proof machinery for `terminates by`; the parser rejects `pub measure`.
-Named-conformance publication remains a separate unsettled language question,
-not an implicit exception granted by qualification or direct dependency.
+Complete name-first conformances follow the package-private/explicit-`pub` rule
+stated above; qualification or direct dependency grants no implicit exception.
 
 Qualification does not imply visibility inheritance. A declaration such as
 `Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant is
