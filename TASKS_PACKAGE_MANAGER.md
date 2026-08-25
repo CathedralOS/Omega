@@ -1470,6 +1470,21 @@ complete.
   rejection. Successful evidence retains exact Source/Output occurrence plus
   canonical relative bytes.
 
+  Progress 2026-08-25: the canonical filesystem build prelude now exposes
+  ordinary zero-field `BuildSource` and `BuildOutput` facets whose exact
+  toolchain `resolve` machines produce interpreter-private rooted path values.
+  Rooted mode rejects bare paths, package-authored resolver lookalikes,
+  absolute/traversing/ambiguous/host-specific spellings, Source-root writes,
+  and the host-absolute results of `canonicalize` and
+  `final_path_name_by_handle`. Existing scoped-provider custody still resolves
+  symlinks and emits exact Source/Output root identities plus canonical
+  relative bytes. The checker now retains exact parameter-field receiver calls
+  and statement-scoped local selections needed by package admission. Full
+  checker/interpreter suites and the granted-build integration pass. Remaining
+  here: `BuildOutput::include_source`, the frozen build-only prepass/final-pass
+  handoff, generated-source fixture migration, and output-without-handoff and
+  failed-publication canaries.
+
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
   authority, claim-free opaque representation, dangerous-mechanism escalation,
@@ -1530,10 +1545,10 @@ complete.
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
   normalization remain. Successful portable fixture execution now depends on
-  `BUILD-ROOTED-PATH-SURFACE`: the semantic direction is settled and the
-  executor already has exact physical Source/Output grants, but the
-  package-facing capability, resolver, and explicit generated-tree handoff are
-  not implemented.
+  the remaining `BUILD-ROOTED-PATH-SURFACE` handoff: package-facing
+  Source/Output resolution and exact rooted evidence are implemented, while
+  explicit generated-source publication and the frozen build/final compilation
+  split are not.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

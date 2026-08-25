@@ -60,7 +60,15 @@ pub(crate) fn call_receiver_parts(
     match program.expression_table.expression(receiver) {
         ExpressionNode::Borrow(inner) => call_receiver_parts(program, inner.target),
         ExpressionNode::Name(path) => (
-            path.symbol,
+            resolve_name_path_member_symbol(
+                program,
+                path,
+                program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    .saturating_sub(1),
+            ),
             Some(NamePath::resolved_from_iter(
                 program
                     .expression_table
@@ -68,17 +76,72 @@ pub(crate) fn call_receiver_parts(
                     .iter()
                     .cloned(),
                 path.head_symbol,
-                path.symbol,
+                resolve_name_path_member_symbol(
+                    program,
+                    path,
+                    program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        .saturating_sub(1),
+                ),
             )),
         ),
         ExpressionNode::Member(member) => {
             let (_, path) = call_receiver_parts(program, member.receiver);
             let mut path = path.unwrap_or_default();
-            path.push_resolved(member.member.clone(), member.member_symbol);
-            (member.member_symbol, Some(path))
+            let member_symbol =
+                crate::flow::effective_member_symbol(program, member.receiver, member);
+            path.push_resolved(member.member.clone(), member_symbol);
+            (member_symbol, Some(path))
         }
         _ => (SymbolHandle::invalid(), None),
     }
+}
+
+pub(crate) fn resolve_name_path_member_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    path: &psi_typed_trees::expression::TableNamePath,
+    target_index: usize,
+) -> SymbolHandle {
+    let members = program.expression_table.name_path_members(path.members);
+    let authored = program
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
+    let mut selected = SymbolHandle::invalid();
+
+    for (index, member) in members.iter().enumerate() {
+        let mut direct = authored
+            .get(index)
+            .copied()
+            .unwrap_or_else(SymbolHandle::invalid);
+        if !direct.is_valid() && index == 0 {
+            direct = path.head_symbol;
+        }
+        if !direct.is_valid() && index + 1 == members.len() {
+            direct = path.symbol;
+        }
+        selected = if direct.is_valid() {
+            direct
+        } else {
+            crate::flow::symbol_type_symbol(program, selected)
+                .and_then(|type_symbol| {
+                    crate::flow::resolve_member_symbol_from_type_symbol(
+                        program,
+                        type_symbol,
+                        member.as_str(),
+                    )
+                })
+                .unwrap_or_else(SymbolHandle::invalid)
+        };
+        if index == target_index {
+            return selected;
+        }
+        if !selected.is_valid() {
+            break;
+        }
+    }
+    SymbolHandle::invalid()
 }
 
 pub(crate) fn resolve_state_call_target(
@@ -120,6 +183,7 @@ pub(crate) fn resolve_state_call_target(
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
         .or_else(|| receiver_field_type_machine_symbol(program, machine, receiver_symbol))
+        .or_else(|| crate::flow::symbol_type_symbol(program, receiver_symbol))
         .unwrap_or_else(SymbolHandle::invalid);
     if type_symbol.is_valid()
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)

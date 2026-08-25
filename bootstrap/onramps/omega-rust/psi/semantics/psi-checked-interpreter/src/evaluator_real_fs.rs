@@ -162,6 +162,13 @@ impl Grants {
                     .cmp(&right.path.components().count())
             })
     }
+
+    fn root(&self, identity: FilesystemGrantRootIdentity) -> Option<&GrantRoot> {
+        self.write_roots
+            .iter()
+            .chain(self.read_roots.iter())
+            .find(|root| root.identity == identity)
+    }
 }
 
 fn canonical_grants(grants: crate::FsGrants) -> Result<Grants, String> {
@@ -249,6 +256,16 @@ impl RealFs {
 
     pub(super) fn is_scoped(&self) -> bool {
         self.grants.is_some()
+    }
+
+    pub(super) fn rooted_path_bytes(
+        &self,
+        identity: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Option<Vec<u8>> {
+        let root = self.grants.as_ref()?.root(identity)?;
+        let relative = real_path(relative)?;
+        real_os_bytes(root.path.join(relative).as_os_str())
     }
 
     fn insert(

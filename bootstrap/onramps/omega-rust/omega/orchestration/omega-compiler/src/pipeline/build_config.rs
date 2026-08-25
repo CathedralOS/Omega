@@ -1424,6 +1424,22 @@ fn is_exact_toolchain_build_service(
             })
 }
 
+fn has_exact_toolchain_build_root_facets(typed: &TypedTrees) -> bool {
+    ["BuildSource", "BuildOutput"].into_iter().all(|name| {
+        typed.data_definitions().iter().any(|definition| {
+            definition.name.as_str() == name
+                && typed
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == psi_source::SourceOrigin::Toolchain
+                            && file.path == std::path::Path::new("<build-prelude>")
+                    })
+        })
+    })
+}
+
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(
@@ -1549,23 +1565,45 @@ pub(crate) fn compute_build_config(
         ))]);
     }
 
-    let zero_build = BuildTimeValue::Struct {
-        type_name: "Build".to_owned(),
-        fields: vec![
-            (
-                "subsystem".to_owned(),
-                BuildTimeValue::Case {
-                    variant: "Console".to_owned(),
-                    payload: Vec::new(),
-                },
-            ),
-            ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
-        ],
-    };
-
     let filesystem_reachable = transitive.iter().any(|service| {
         is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
     });
+
+    let mut build_fields = vec![
+        (
+            "subsystem".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Console".to_owned(),
+                payload: Vec::new(),
+            },
+        ),
+        ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
+    ];
+    if has_exact_toolchain_build_root_facets(typed) {
+        let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
+            BuildTimeValue::Struct {
+                type_name: type_name.to_owned(),
+                fields: vec![(
+                    "root".to_owned(),
+                    BuildTimeValue::Int(i64::from(root.get())),
+                )],
+            }
+        };
+        build_fields.extend([
+            (
+                "source".to_owned(),
+                root_facet("$OmegaBuildSourceRoot", BUILD_SOURCE_ROOT_IDENTITY),
+            ),
+            (
+                "output".to_owned(),
+                root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
+            ),
+        ]);
+    }
+    let zero_build = BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: build_fields,
+    };
 
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
     // entry selected by that explicit mode. Console needs the granted entry so

@@ -47,7 +47,12 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => declaration_target(call.target_symbol),
+                ) => declaration_target(checked_call_target(
+                    program,
+                    facts,
+                    expression,
+                    call.target_symbol,
+                )),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
@@ -59,17 +64,12 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
-                ) => declaration_target(
-                    expressions
-                        .name_path_member_symbols(path.member_symbols)
-                        .get(late_binding_ordinal(
-                            program,
-                            &occurrences[..occurrence_offset],
-                            binding,
-                        ))
-                        .copied()
-                        .unwrap_or_else(SymbolHandle::invalid),
-                ),
+                ) => declaration_target(checked_name_path_segment_target(
+                    program,
+                    expression,
+                    path,
+                    late_binding_ordinal(program, &occurrences[..occurrence_offset], binding),
+                )),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
                     ExpressionNode::StructLiteral(literal),
@@ -127,6 +127,180 @@ pub(crate) fn finalize_checked_authored_selections(
     }
     program.retain_authored_declaration_selections(selections);
     Ok(())
+}
+
+fn checked_call_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    authored_target: SymbolHandle,
+) -> SymbolHandle {
+    if authored_target.is_valid() {
+        return authored_target;
+    }
+    for (_, state) in facts.flow.control.states.iter() {
+        for call in facts.flow.control.calls.span_or_empty(state.calls) {
+            if let Some(crate::semantic_calls::CallSite::Expression {
+                expression: candidate,
+                ..
+            }) = crate::semantic_calls::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            ) && candidate == expression
+                && call.target_symbol.is_valid()
+            {
+                return call.target_symbol;
+            }
+        }
+    }
+    SymbolHandle::invalid()
+}
+
+fn checked_name_path_segment_target(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    path: &psi_typed_trees::expression::TableNamePath,
+    target_index: usize,
+) -> SymbolHandle {
+    let direct = crate::lookup::resolve_name_path_member_symbol(program, path, target_index);
+    if direct.is_valid() {
+        return direct;
+    }
+
+    let mut contextual_root = None;
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let mut expressions = Vec::new();
+                crate::monomorphization::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+                if !expressions.contains(&expression) {
+                    continue;
+                }
+                let Some(crate::flow::CanonicalPlace {
+                    root: psi_facts::PlaceRoot::Symbol(root),
+                    ..
+                }) = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    expression,
+                )
+                else {
+                    continue;
+                };
+                let root = authored_contextual_root(program, machine, state, statement_index, root);
+                if contextual_root.is_some_and(|candidate| candidate != root) {
+                    return SymbolHandle::invalid();
+                }
+                contextual_root = Some(root);
+            }
+        }
+    }
+
+    let Some(mut selected) = contextual_root else {
+        return SymbolHandle::invalid();
+    };
+    if target_index == 0 {
+        return selected;
+    }
+    for member in program
+        .expression_table
+        .name_path_members(path.members)
+        .iter()
+        .skip(1)
+        .take(target_index)
+    {
+        selected = crate::flow::symbol_type_symbol(program, selected)
+            .and_then(|type_symbol| {
+                crate::flow::resolve_member_symbol_from_type_symbol(
+                    program,
+                    type_symbol,
+                    member.as_str(),
+                )
+            })
+            .unwrap_or_else(SymbolHandle::invalid);
+        if !selected.is_valid() {
+            break;
+        }
+    }
+    selected
+}
+
+fn authored_contextual_root(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statement_index: usize,
+    selected: SymbolHandle,
+) -> SymbolHandle {
+    let Some(template_symbol) = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            specialization.instance == machine.symbol
+                && specialization.template != specialization.instance
+        })
+        .map(|specialization| specialization.template)
+    else {
+        return selected;
+    };
+    let Some(template) = crate::lookup::machine_by_symbol(program, template_symbol) else {
+        return selected;
+    };
+    let Some(state_ordinal) = program
+        .machine_states(machine)
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)
+    else {
+        return selected;
+    };
+    let Some(template_state) = program.machine_states(template).get(state_ordinal) else {
+        return selected;
+    };
+
+    if let Some(parameter_ordinal) = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == selected)
+    {
+        return program
+            .state_parameters(template_state)
+            .get(parameter_ordinal)
+            .map_or(selected, |parameter| parameter.symbol);
+    }
+
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let template_statements = program
+        .statement_table
+        .statements(template_state.statement_nodes);
+    for (ordinal, statement) in statements.iter().take(statement_index).enumerate() {
+        let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.symbol != selected {
+            continue;
+        }
+        return template_statements
+            .get(ordinal)
+            .and_then(|statement| match statement {
+                psi_typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
+            })
+            .unwrap_or(selected);
+    }
+    selected
 }
 
 fn declaration_target(symbol: SymbolHandle) -> Option<CheckedResolutionTarget> {

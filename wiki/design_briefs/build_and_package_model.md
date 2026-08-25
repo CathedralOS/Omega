@@ -111,18 +111,19 @@ invokes FilesystemHost;
         Application::start
     );
 
-    // Illustrative ordinary-library spellings; BUILD-ROOTED-PATH-SURFACE owns
-    // the final names, not new grammar.
-    let input = builder.source.resolve("assets/font.bin");
-    let generated = builder.output.resolve("font.bin");
-    BuildFilesystem::copy(input, generated);
-    builder.include_generated(generated);
+    let input: &[u8] in Path = builder.source.resolve("assets/font.bin");
+    let generated: &[u8] in Path = builder.output.resolve("font.generated.omg");
+    let filesystem: Filesystem;
+    let scratch: [u8; 4096];
+    let copied: IoResult = filesystem.copy(input, generated, &mut scratch, 4096);
+    builder.output.include_source(generated);
 }
 ```
 
-The filesystem calls above show the settled roles; their final ordinary-library
-names remain implementation work, not new grammar. Resolving a path and
-publishing a generated output are separate operations.
+`BuildSource::resolve`, `BuildOutput::resolve`, and the ordinary `Filesystem`
+surface are settled. `BuildOutput::include_source` is the explicit generated-
+source handoff still to be implemented. Resolving a path and publishing a
+generated output remain separate operations.
 
 The dependency's own `PACKAGE` supplies its name. Its default local import
 alias is derived mechanically from kebab-case to snake_case; only a real local

@@ -288,6 +288,40 @@ machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 "#;
 
+const FILESYSTEM_BUILD_PRELUDE: &str = r#"
+// Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
+data Subsystem {
+    case Console;
+    case Gui;
+    case EfiApplication;
+    case Unspecified(value: u16);
+}
+data BuildSource {
+}
+data BuildOutput {
+}
+data Build {
+    subsystem: Subsystem;
+    freestanding: bool;
+    source: BuildSource;
+    output: BuildOutput;
+}
+data Source {
+    case Path(location: &[u8]);
+    case Git(repository: &[u8], revision: &[u8]);
+}
+machine Build::depend(&mut self, source: Source) {
+}
+machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+}
+machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
+    relative
+}
+machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
+    relative
+}
+"#;
+
 const PACKAGE_PRELUDE: &str = r#"
 // Toolchain-provided package declaration vocabulary.
 data Package {
@@ -302,6 +336,7 @@ fn inject_build_prelude(
     let mut has_build_machine = false;
     let mut has_build_data = false;
     let mut has_package_declaration = false;
+    let mut build_reaches_filesystem = false;
     for (_, file) in source_storage.files.iter() {
         let is_build_file =
             file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg");
@@ -313,6 +348,12 @@ fn inject_build_prelude(
                             || machine.name.as_str().ends_with("::build")) =>
                 {
                     has_build_machine = true;
+                    build_reaches_filesystem |= source_storage
+                        .syntax_trees
+                        .items
+                        .identifier_path_members(machine.service_reaches)
+                        .iter()
+                        .any(|service| service.as_str() == "FilesystemHost");
                 }
                 psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
                     has_build_data = true;
@@ -333,9 +374,14 @@ fn inject_build_prelude(
         return Ok(());
     }
 
+    let build_prelude = if build_reaches_filesystem {
+        FILESYSTEM_BUILD_PRELUDE
+    } else {
+        BUILD_PRELUDE
+    };
     let prelude = match (inject_build_vocabulary, has_package_declaration) {
-        (true, true) => format!("{BUILD_PRELUDE}\n{PACKAGE_PRELUDE}"),
-        (true, false) => BUILD_PRELUDE.to_owned(),
+        (true, true) => format!("{build_prelude}\n{PACKAGE_PRELUDE}"),
+        (true, false) => build_prelude.to_owned(),
         (false, true) => PACKAGE_PRELUDE.to_owned(),
         (false, false) => unreachable!("empty prelude was handled above"),
     };

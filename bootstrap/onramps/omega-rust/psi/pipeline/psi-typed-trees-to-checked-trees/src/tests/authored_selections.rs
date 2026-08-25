@@ -124,3 +124,57 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
     }));
     assert!(selections.all_finalized(), "selections={selections:#?}");
 }
+
+#[test]
+fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
+    let source = r#"
+        domain [u8]::Path requires no_nul(self);
+        data BuildSource {}
+        data Build { source: BuildSource; }
+        machine BuildSource::resolve<'path>(
+            &self,
+            relative: &'path [u8] in Path
+        ) -> &'path [u8] in Path {
+            relative
+        }
+        machine build(builder: &mut Build) {
+            let resolved: &[u8] in Path = builder.source.resolve("input.txt");
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}
+
+#[test]
+fn successful_checking_canonicalizes_local_selections_across_specializations() {
+    let source = r#"
+        data Light [copy] { weight: i32; }
+        data Main { light: Light; number: i32; }
+        machine Main::pick<T [copy]>(&self, value: &T) -> i32 {
+            let selected: i32 = 7;
+            transition { _ -> selected }
+        }
+        machine Main::use_both(&mut self) {
+            let from_light: i32 = self.pick(&self.light);
+            let from_number: i32 = self.pick(&self.number);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}

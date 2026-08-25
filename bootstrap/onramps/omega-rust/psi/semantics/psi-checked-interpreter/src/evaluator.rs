@@ -847,6 +847,10 @@ struct Evaluator<'program> {
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
     real_fs: Option<real_fs::RealFs>,
+    /// The canonical Build activation carried Source/Output facets. In this
+    /// mode path-taking host operations require interpreter-retained rooted
+    /// provenance; bare byte spellings cannot select a grant root.
+    rooted_build_paths_required: bool,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -890,6 +894,9 @@ struct Evaluator<'program> {
 
 #[path = "evaluator/boundary_console.rs"]
 mod boundary_console;
+#[path = "evaluator/build_paths.rs"]
+mod build_paths;
+use build_paths::ROOTED_BUILD_PATH_TYPE;
 #[path = "evaluator/casts_and_recasts.rs"]
 mod casts_and_recasts;
 #[path = "evaluator/execution.rs"]
