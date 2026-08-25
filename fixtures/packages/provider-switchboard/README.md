@@ -8,4 +8,6 @@ Expected package evidence:
 
 - provider requirement identity is recorded;
 - selected provider origin and plan identity are recorded;
-- update rejects if provider origin or selected-plan evidence changes.
+- the fixture-derived update canary selects `WallClock` instead and proves the
+  exact selected-provider-set row changes under real resolver/compiler custody;
+- that change is opaque-blocking and triage rejects the update.

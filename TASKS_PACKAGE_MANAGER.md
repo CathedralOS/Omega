@@ -1207,13 +1207,17 @@ complete.
   collapsed distinct lineages onto one physical compiler root. Missing old
   source is covered both with live review state and a reopened review-only
   baseline; missing accepted-lock state remains blocked on Q7 rather than being
-  simulated with that non-admitting capsule. Fixture-
+  simulated with that non-admitting capsule. A fixture-derived
+  `provider-switchboard` update now changes only the canonical build selection
+  from `MonotonicClock` to `WallClock`; compiler-issued package-qualified
+  projections prove both endpoints, and reconciliation emits one changed,
+  opaque-blocking selected-provider-set conflict with baseline/candidate source
+  locations before triage blocks the update. Fixture-
   executed build-provider operations, canonical observation transcripts/
   receipts, sealed representation
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
-  normalization, provider-selection update conflicts, and real-custody
-  reconciliation conflicts remain.
+  normalization, and real-custody reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

@@ -586,3 +586,7 @@ A separate production-path canary resolves two byte-identical packages with
 the same declared name and provider symbols from distinct lineages. Local
 snapshot custody keeps separate physical compiler roots, and selected-provider
 evidence remains bound to the explicitly imported package identity.
+A fixture-derived `provider-switchboard` update also changes the selected type
+under separate immutable baseline/candidate custody. The compiler-owned row is
+reported as one opaque-blocking conflict with exact authored provenance, and
+update triage blocks it.
