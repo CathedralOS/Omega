@@ -1048,8 +1048,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 41);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 42);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 2);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1700,6 +1700,13 @@ machine build(builder: &mut Build) { }
         panic!("witness proposition application")
     };
     assert_eq!(application.declaration().path(), "carries");
+    let [binder_argument] = application.binder_arguments() else {
+        panic!("one witness proposition type argument")
+    };
+    let PackageReviewPropositionBinderValue::Type(type_identity) = binder_argument.value() else {
+        panic!("concrete proposition type argument must use structural type identity")
+    };
+    assert!(type_identity.canonical().contains("compiler-type"));
     let PackageReviewPropositionEvidence::Witness(interface) = application.evidence() else {
         panic!("witness interface")
     };

@@ -476,6 +476,11 @@ declared const parameter. Const binders must reconcile uniquely to the projected
 alpha-normalized telescope; residual const declarations and unrelated textual
 leaves reject. Neither the legacy atom nor a binder spelling enters review
 identity.
+Review v42 and canonical row v2 close the proposition-binder distinction:
+concrete type arguments use exact structural type identity, including closed compiler builtin atoms,
+while machine arguments remain exact nominal declarations. Unresolved ownership
+may remain visible to ordinary compiler-local diagnostics, but exact package
+review rejects it during type projection and again at canonical encoding.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
@@ -919,7 +924,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v41 bytes cannot be promoted merely because the future artifact reuses
+review-v42 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

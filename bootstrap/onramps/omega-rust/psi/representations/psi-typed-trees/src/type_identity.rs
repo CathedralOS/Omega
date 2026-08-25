@@ -174,7 +174,7 @@ impl TypedTrees {
                 binders,
                 substitutions: &[],
                 exact_toolchain_sources: &[],
-                missing_exact_toolchain_source: None,
+                missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::Ordinary,
             },
         ))
@@ -214,7 +214,7 @@ impl TypedTrees {
                 binders,
                 substitutions: &[],
                 exact_toolchain_sources: &[],
-                missing_exact_toolchain_source: None,
+                missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ))
@@ -222,15 +222,16 @@ impl TypedTrees {
 
     /// Package-review counterpart that replaces the generic toolchain marker
     /// with the exact compiler-validated source identity for every source-
-    /// backed toolchain nominal. `SourceId` remains an internal join key and
-    /// never enters the normalized output.
+    /// backed toolchain nominal. Every other non-binder nominal must have a
+    /// managed package owner; unresolved ownership fails closed. `SourceId`
+    /// remains an internal join key and never enters the normalized output.
     pub fn package_qualified_type_identity_with_binders_and_toolchain_sources(
         &self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
     ) -> Option<NormalizedTypeIdentity> {
-        let missing_exact_toolchain_source = Cell::new(false);
+        let missing_exact_nominal_owner = Cell::new(false);
         let identity = NormalizedTypeIdentity(normalize_type_reference(
             self,
             type_reference,
@@ -238,11 +239,40 @@ impl TypedTrees {
                 binders,
                 substitutions: &[],
                 exact_toolchain_sources,
-                missing_exact_toolchain_source: Some(&missing_exact_toolchain_source),
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ));
-        (!missing_exact_toolchain_source.get()).then_some(identity)
+        (!missing_exact_nominal_owner.get()).then_some(identity)
+    }
+
+    /// Exact-owner identity for one already-resolved concrete type symbol.
+    /// Compiler builtin types use their closed semantic atom; authored
+    /// nominals require a managed package owner or exact toolchain source.
+    pub fn package_qualified_nominal_type_identity_with_toolchain_sources(
+        &self,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
+    ) -> Option<NormalizedTypeIdentity> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let path = self.symbols.display_path(symbol, "::");
+        if path.is_empty() {
+            return None;
+        }
+        let missing_exact_nominal_owner = Cell::new(false);
+        let identity = NormalizedTypeIdentity(
+            TypeIdentityContext {
+                binders: &[],
+                substitutions: &[],
+                exact_toolchain_sources,
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
+                qualification: TypeIdentityQualification::PackageQualified,
+            }
+            .qualify_non_binder_name(self, symbol, path),
+        );
+        (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
     /// Binder-aware identity after replacing exact type-parameter symbols with
@@ -262,7 +292,7 @@ impl TypedTrees {
                 binders,
                 substitutions,
                 exact_toolchain_sources: &[],
-                missing_exact_toolchain_source: None,
+                missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::Ordinary,
             },
         ))
@@ -285,14 +315,16 @@ impl TypedTrees {
                 binders,
                 substitutions,
                 exact_toolchain_sources: &[],
-                missing_exact_toolchain_source: None,
+                missing_exact_nominal_owner: None,
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ))
     }
 
-    /// Exact-toolchain counterpart for a closed structural instance with
-    /// concrete type substitutions.
+    /// Exact-owner counterpart for a closed structural instance with concrete
+    /// type substitutions. Source-backed toolchain nominals require an exact
+    /// source identity and every other non-binder nominal requires a managed
+    /// package owner.
     pub fn package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
         &self,
         type_reference: TypeReferenceHandle,
@@ -300,7 +332,7 @@ impl TypedTrees {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
     ) -> Option<NormalizedTypeIdentity> {
-        let missing_exact_toolchain_source = Cell::new(false);
+        let missing_exact_nominal_owner = Cell::new(false);
         let identity = NormalizedTypeIdentity(normalize_type_reference(
             self,
             type_reference,
@@ -308,11 +340,11 @@ impl TypedTrees {
                 binders,
                 substitutions,
                 exact_toolchain_sources,
-                missing_exact_toolchain_source: Some(&missing_exact_toolchain_source),
+                missing_exact_nominal_owner: Some(&missing_exact_nominal_owner),
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ));
-        (!missing_exact_toolchain_source.get()).then_some(identity)
+        (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
     pub fn normalized_domain_expression(
@@ -642,7 +674,7 @@ struct TypeIdentityContext<'binders> {
     binders: &'binders [(SymbolHandle, String)],
     substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
     exact_toolchain_sources: &'binders [(psi_source::SourceId, [u8; 32])],
-    missing_exact_toolchain_source: Option<&'binders Cell<bool>>,
+    missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     qualification: TypeIdentityQualification,
 }
 
@@ -730,12 +762,15 @@ impl TypeIdentityContext<'_> {
                 })
                 .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
                 .unwrap_or_else(|| {
-                    if let Some(missing) = self.missing_exact_toolchain_source {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
                         missing.set(true);
                     }
                     PackageQualifiedNominalOwner::Toolchain
                 })
         } else {
+            if let Some(missing) = self.missing_exact_nominal_owner {
+                missing.set(true);
+            }
             PackageQualifiedNominalOwner::Unresolved
         };
         package_qualified_nominal_name(owner, &path)
@@ -1730,6 +1765,23 @@ mod tests {
                 )
                 .is_none(),
             "exact package identity must fail closed when toolchain custody is missing"
+        );
+
+        let unresolved_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("SourceFree"),
+            });
+        assert!(
+            program
+                .package_qualified_type_identity_with_binders_and_toolchain_sources(
+                    unresolved_type,
+                    &[],
+                    &[(source_id, [0x33; 32])],
+                )
+                .is_none(),
+            "exact package identity must reject unresolved nominal ownership"
         );
     }
 
