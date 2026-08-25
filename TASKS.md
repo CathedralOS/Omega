@@ -124,10 +124,11 @@ Remaining:
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
   escapes even though the guide forbids codepoint-to-byte escapes, and accepts
   raw strings whose delimiter/content rules are not yet normative there. Its
-  `u32` cursors also compare directly with slice `.len`, whose specified count
-  type is `u64`, without a settled heterogeneous-comparison or explicit-cast
-  rule. The language owner must rule these forms and update the guide or
-  refactor the product source and preserve rejection canaries. Until then, the
+  `u32` cursors also flow into fixed-array indexing and compare directly with
+  slice `.len`, while the specified `Array`/`Slice` index and count interfaces
+  use `u64`, without a settled exact-widening, heterogeneous-comparison, or
+  explicit-cast rule. The language owner must rule these forms and update the
+  guide or refactor the product source and preserve rejection canaries. Until then, the
   checkpoint records tested implementation behavior but does not claim
   full-spec lexical conformance for those forms.
 

@@ -163,9 +163,11 @@ and do not depend on this ruling.
 Checkpoint 000001's product lexer also conflicts with the current language
 guide: Unicode XID identifiers contradict its ASCII-transparent wording,
 `\u{...}` escapes contradict its explicit prohibition, raw-string semantics
-are absent, and `u32` cursors compare directly with the specified-`u64` slice
-length without a settled cross-carrier rule. Those are product-language ruling
-blockers recorded under `OMEGA-PRODUCT-COMPILER-SOURCE` in
+are absent, and `u32` cursors are used directly where the specified `Array` and
+`Slice` indexing/count interfaces require `u64`, without a settled exact
+widening, cross-carrier comparison, or explicit-cast rule. Those are
+product-language ruling blockers recorded under
+`OMEGA-PRODUCT-COMPILER-SOURCE` in
 [`TASKS.md`](TASKS.md). They do not block bridge implementation for source
 forms whose meaning is already settled, as the closed same-module runtime-
 record tranche demonstrates. No implementation or engineering difficulty below
@@ -307,8 +309,9 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; `u32` cursor versus `u64` slice count is language-blocked |
-| compiler control and scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic/casts, and the observed ranking clause | observable call-argument order is language-blocked; closed finite calls do not imply broader receivers, recursion, or packages |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts are language-blocked |
+| primitive scalar comparisons | same-carrier primitive `==`, `>`, and `>=`, composed with the already-carried `<`, `<=`, `!`, `&&`, and `||` forms | exact `bool` equality and same-carrier `u8`/`u32` meaning are settled; cross-carrier and `u64` widening remain separate; structural/sum equality requires its own dispatch and representation work |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic/casts, and the observed ranking clause | observable call-argument order is language-blocked; closed finite calls do not imply broader receivers, recursion, or packages |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
 | generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
 
@@ -316,6 +319,15 @@ evidence stay in
   parsing, resolution, checking, diagnostics, conservative lowering, and
   artifact reconstruction. Preserve existing versioned-call ownership; a
   transport change alone does not widen accepted source.
+- [ ] Take exact `bool` and same-carrier `u8`/`u32` primitive `==` as the
+  smallest current successor to CKIR7/OMGRFN9, then close same-carrier
+  `>`/`>=`. Keep these compiler-owned
+  primitive routes separate from general `Equatable` synthesis, payload-free
+  or payload-bearing sum equality, record equality, `!=`, `u64`, and
+  cross-carrier conversion. Admit only the already-defined pure, terminating,
+  nontrapping scalar-expression closure until observable operand order is
+  ruled; preserve authored precedence, left association, operand order, and one
+  checked operation per authored operator token.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
