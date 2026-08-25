@@ -239,7 +239,7 @@ emit_literal_restore:
 enqueue_fallthrough_roots_init:
         imm r10, 0
 enqueue_fallthrough_roots_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, enqueue_fallthrough_candidate
         jmp cfg_work_loop
 enqueue_fallthrough_candidate:
@@ -257,7 +257,7 @@ enqueue_next_proc_init:
         imm r1, 1
         add r11, r1
 enqueue_next_proc_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r11, r1, enqueue_next_proc_candidate
         imm r1, 524296
         load r7, r1
@@ -292,7 +292,7 @@ enqueue_fallthrough_next:
 read_effect_pcs_init:
         imm r10, 0
 read_effect_pc:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, read_effect_pc_one
         jmp read_local_access_pcs_init
 read_effect_pc_one:
@@ -325,7 +325,7 @@ effect_pc_block_range:
         jlt r14, r6, reject
         imm r1, 1
         add r4, r1
-        imm r1, 355
+        imm r1, 359
         jlt r4, r1, effect_pc_next_block
         imm r1, 524296
         load r7, r1
@@ -638,7 +638,7 @@ helper_own_effects:
 validate_fallthrough_init:
         imm r10, 0
 validate_fallthrough_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, validate_fallthrough_candidate
         jmp validate_events_init
 validate_fallthrough_candidate:
@@ -656,7 +656,7 @@ find_next_proc_init:
         imm r1, 1
         add r11, r1
 find_next_proc:
-        imm r1, 355
+        imm r1, 359
         jlt r11, r1, find_next_proc_candidate
         imm r1, 524296
         load r7, r1
@@ -692,7 +692,7 @@ validate_fallthrough_next:
 validate_events_init:
         imm r10, 0
 validate_event_loop:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, validate_event_one
         jmp validate_local_accesses_init
 validate_event_one:
@@ -1160,11 +1160,11 @@ scan_owned_write_count:
         jeq r13, r1, scan_owned_call_count
         jmp reject
 scan_owned_call_count:
-        imm r1, 424
+        imm r1, 425
         jeq r14, r1, scan_owned_ret_count
         jmp reject
 scan_owned_ret_count:
-        imm r1, 254
+        imm r1, 258
         jeq r15, r1, accept
         jmp reject
 
@@ -1172,7 +1172,7 @@ scan_owned_ret_count:
 resolve_proc_pc:
         imm r10, 0
 resolve_proc_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, resolve_proc_candidate
         jmp reject
 resolve_proc_candidate:
@@ -1214,7 +1214,7 @@ resolve_proc_found:
 find_main_pc:
         imm r10, 0
 find_main_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, find_main_candidate
         jmp reject
 find_main_candidate:

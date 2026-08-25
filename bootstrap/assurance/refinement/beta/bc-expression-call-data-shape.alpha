@@ -332,83 +332,68 @@ expression_call_data_require_pushes:
         ; Binary-left pushes.
         imm r20, 98
         imm r21, 151
-        imm r22, 1
         imm r23, 21711
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 99
         imm r21, 153
-        imm r22, 1
         imm r23, 21872
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 100
         imm r21, 155
-        imm r22, 1
         imm r23, 22033
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 101
         imm r21, 158
-        imm r22, 1
         imm r23, 22356
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 102
         imm r21, 159
-        imm r22, 1
         imm r23, 22488
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 103
         imm r21, 160
-        imm r22, 1
         imm r23, 22699
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 104
         imm r21, 160
-        imm r22, 1
         imm r23, 22831
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 105
         imm r21, 160
-        imm r22, 1
         imm r23, 22916
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 106
         imm r21, 164
-        imm r22, 1
         imm r23, 23161
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 107
         imm r21, 165
-        imm r22, 1
         imm r23, 23293
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; Source-call argument pushes.
-        imm r20, 308
-        imm r21, 157
-        imm r22, 2
-        imm r23, 22259
-        call transfer_require_push
-        imm r20, 309
-        imm r21, 165
-        imm r22, 2
-        imm r23, 23379
-        call transfer_require_push
         imm r20, 310
-        imm r21, 166
-        imm r22, 2
-        imm r23, 23491
-        call transfer_require_push
+        imm r21, 157
+        imm r23, 22259
+        call exact_require_argument_push
         imm r20, 311
+        imm r21, 165
+        imm r23, 23379
+        call exact_require_argument_push
+        imm r20, 312
         imm r21, 166
-        imm r22, 2
+        imm r23, 23491
+        call exact_require_argument_push
+        imm r20, 313
+        imm r21, 166
         imm r23, 23526
-        call transfer_require_push
+        call exact_require_argument_push
 
         ; RESOURCE_FAIL store-address push.
-        imm r20, 381
+        imm r20, 383
         imm r21, 159
-        imm r22, 3
         imm r23, 22602
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 expression_call_data_require_censuses:
@@ -429,9 +414,9 @@ expression_call_data_require_censuses:
         imm r23, 424
         imm r24, 98
         imm r25, 108
-        imm r26, 308
-        imm r27, 312
-        imm r28, 381
-        imm r29, 382
+        imm r26, 310
+        imm r27, 314
+        imm r28, 383
+        imm r29, 384
         call summary_require_expr_census
         ret

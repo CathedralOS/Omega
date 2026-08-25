@@ -76,16 +76,14 @@ statement_state_label_require_current_slice:
         imm r23, 8
         imm r24, 45513
         call transfer_require_memory
-        imm r20, 345
+        imm r20, 347
         imm r21, 316
-        imm r22, 2
         imm r23, 45487
-        call transfer_require_push
-        imm r20, 346
+        call exact_require_argument_push
+        imm r20, 348
         imm r21, 316
-        imm r22, 2
         imm r23, 45516
-        call transfer_require_push
+        call exact_require_argument_push
         imm r1, 549648
         imm r2, 1                     ; exact current-procedure slice
         store r1, r2
@@ -143,16 +141,14 @@ statement_state_label_require_target_slice:
         imm r23, 1
         imm r24, 45648
         call transfer_require_local
-        imm r20, 347
+        imm r20, 349
         imm r21, 316
-        imm r22, 2
         imm r23, 45632
-        call transfer_require_push
-        imm r20, 348
+        call exact_require_argument_push
+        imm r20, 350
         imm r21, 316
-        imm r22, 2
         imm r23, 45667
-        call transfer_require_push
+        call exact_require_argument_push
         imm r1, 549672
         imm r2, 1                     ; exact target parameter slice
         store r1, r2

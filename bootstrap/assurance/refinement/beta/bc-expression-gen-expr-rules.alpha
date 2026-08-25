@@ -173,9 +173,8 @@ expression_gen_expr_require_counter_flow:
         call transfer_require_primitive
         imm r20, 202
         imm r21, 304
-        imm r22, 1
         imm r23, 43217
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; Accepted entry stores D+1 exactly once.
         imm r20, 59
@@ -198,9 +197,8 @@ expression_gen_expr_require_counter_flow:
         call transfer_require_primitive
         imm r20, 203
         imm r21, 305
-        imm r22, 1
         imm r23, 43451
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; Both terminal branches subtract one and store D exactly once.
         imm r20, 60
@@ -223,9 +221,8 @@ expression_gen_expr_require_counter_flow:
         call transfer_require_primitive
         imm r20, 205
         imm r21, 306
-        imm r22, 1
         imm r23, 43735
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 62
         imm r21, 307
         imm r22, 2
@@ -246,9 +243,8 @@ expression_gen_expr_require_counter_flow:
         call transfer_require_primitive
         imm r20, 206
         imm r21, 307
-        imm r22, 1
         imm r23, 43949
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 ; Table row R, 48 bytes: R,D,child-R,complete,status cases,BCS9 live.

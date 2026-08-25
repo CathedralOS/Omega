@@ -528,54 +528,44 @@ cmp_op_require_primitives:
 cmp_op_require_pushes:
         imm r20, 185
         imm r21, 274
-        imm r22, 1
         imm r23, 39376
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 186
         imm r21, 275
-        imm r22, 1
         imm r23, 39507
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 187
         imm r21, 277
-        imm r22, 1
         imm r23, 39699
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 188
         imm r21, 278
-        imm r22, 1
         imm r23, 39830
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 189
         imm r21, 280
-        imm r22, 1
         imm r23, 40022
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 190
         imm r21, 282
-        imm r22, 1
         imm r23, 40202
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 191
         imm r21, 282
-        imm r22, 1
         imm r23, 40316
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 192
         imm r21, 283
-        imm r22, 1
         imm r23, 40434
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 193
         imm r21, 283
-        imm r22, 1
         imm r23, 40612
-        call transfer_require_push
-        imm r20, 387
+        call exact_require_binary_push
+        imm r20, 389
         imm r21, 283
-        imm r22, 3
         imm r23, 40548              ; restore-CUR address push
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 cmp_op_require_censuses:
@@ -596,10 +586,10 @@ cmp_op_require_censuses:
         imm r23, 656                 ; exclusive primitive row
         imm r24, 185
         imm r25, 194                 ; exclusive binary-push row
-        imm r26, 339                 ; exact empty argument-push start
-        imm r27, 339                 ; exact empty argument-push interval
-        imm r28, 387
-        imm r29, 388                 ; exact restore-CUR store push
+        imm r26, 341                 ; exact empty argument-push start
+        imm r27, 341                 ; exact empty argument-push interval
+        imm r28, 389
+        imm r29, 390                 ; exact restore-CUR store push
         call summary_require_expr_census
         imm r20, 39297
         imm r21, 40739

@@ -199,26 +199,22 @@ parse_proc_require_entry_primitives:
         ret
 
 parse_proc_require_entry_pushes:
-        imm r20, 363
+        imm r20, 365
         imm r21, 338
-        imm r22, 2
         imm r23, 49318
-        call transfer_require_push
-        imm r20, 398
-        imm r21, 338
-        imm r22, 3
-        imm r23, 49035
-        call transfer_require_push
-        imm r20, 399
-        imm r21, 338
-        imm r22, 3
-        imm r23, 49190
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 400
         imm r21, 338
-        imm r22, 3
+        imm r23, 49035
+        call exact_require_store_push
+        imm r20, 401
+        imm r21, 338
+        imm r23, 49190
+        call exact_require_store_push
+        imm r20, 402
+        imm r21, 338
         imm r23, 49254
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 parse_proc_require_entry_censuses:
@@ -239,10 +235,10 @@ parse_proc_require_entry_censuses:
         imm r23, 779
         imm r24, 224
         imm r25, 224
-        imm r26, 363
-        imm r27, 364
-        imm r28, 398
-        imm r29, 401
+        imm r26, 365
+        imm r27, 366
+        imm r28, 400
+        imm r29, 403
         call summary_require_expr_census
         ret
 

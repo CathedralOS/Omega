@@ -205,29 +205,24 @@ read_ident_require_primitives:
 read_ident_require_pushes:
         imm r20, 25
         imm r21, 44
-        imm r22, 1
         imm r23, 5344
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 26
         imm r21, 46
-        imm r22, 1
         imm r23, 5514
-        call transfer_require_push
-        imm r20, 239
+        call exact_require_binary_push
+        imm r20, 241
         imm r21, 44
-        imm r22, 2
         imm r23, 5303               ; checked cbyte-to-alnum argument
-        call transfer_require_push
-        imm r20, 379
+        call exact_require_argument_push
+        imm r20, 381
         imm r21, 43
-        imm r22, 3
         imm r23, 5246
-        call transfer_require_push
-        imm r20, 380
+        call exact_require_store_push
+        imm r20, 382
         imm r21, 46
-        imm r22, 3
         imm r23, 5485
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 read_ident_require_censuses:
@@ -250,10 +245,10 @@ read_ident_require_censuses:
         imm r23, 95                  ; checked exclusive read_ident primitive row
         imm r24, 25
         imm r25, 27
-        imm r26, 239
-        imm r27, 240
-        imm r28, 379
-        imm r29, 381
+        imm r26, 241
+        imm r27, 242
+        imm r28, 381
+        imm r29, 383
         call summary_require_expr_census
 
         imm r20, 5217

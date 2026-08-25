@@ -278,54 +278,44 @@ declare_require_primitives:
 declare_require_pushes:
         imm r20, 112
         imm r21, 171
-        imm r22, 1
         imm r23, 24228
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 113
         imm r21, 172
-        imm r22, 1
         imm r23, 24427
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 114
         imm r21, 172
-        imm r22, 1
         imm r23, 24462
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 115
         imm r21, 172
-        imm r22, 1
         imm r23, 24590
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 116
         imm r21, 172
-        imm r22, 1
         imm r23, 24625
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 117
         imm r21, 172
-        imm r22, 1
         imm r23, 24788
-        call transfer_require_push
-        imm r20, 382
-        imm r21, 171
-        imm r22, 3
-        imm r23, 24342
-        call transfer_require_push
-        imm r20, 383
-        imm r21, 172
-        imm r22, 3
-        imm r23, 24532
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 384
-        imm r21, 172
-        imm r22, 3
-        imm r23, 24695
-        call transfer_require_push
+        imm r21, 171
+        imm r23, 24342
+        call exact_require_store_push
         imm r20, 385
         imm r21, 172
-        imm r22, 3
+        imm r23, 24532
+        call exact_require_store_push
+        imm r20, 386
+        imm r21, 172
+        imm r23, 24695
+        call exact_require_store_push
+        imm r20, 387
+        imm r21, 172
         imm r23, 24753
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 declare_require_censuses:
@@ -348,8 +338,8 @@ declare_require_censuses:
         imm r25, 118
         imm r26, 0
         imm r27, 0
-        imm r28, 382
-        imm r29, 386
+        imm r28, 384
+        imm r29, 388
         call summary_require_expr_census
         imm r20, 24145
         imm r21, 24914

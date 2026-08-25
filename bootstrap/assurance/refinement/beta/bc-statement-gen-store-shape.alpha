@@ -232,29 +232,24 @@ statement_gen_store_require_data:
         ; Binary-left and call-argument pushes.
         imm r20, 92
         imm r21, 137
-        imm r22, 1
         imm r23, 18486
-        call transfer_require_push
-        imm r20, 293
-        imm r21, 136
-        imm r22, 2
-        imm r23, 18246
-        call transfer_require_push
-        imm r20, 294
-        imm r21, 136
-        imm r22, 2
-        imm r23, 18306
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 295
         imm r21, 136
-        imm r22, 2
-        imm r23, 18366
-        call transfer_require_push
+        imm r23, 18246
+        call exact_require_argument_push
         imm r20, 296
         imm r21, 136
-        imm r22, 2
+        imm r23, 18306
+        call exact_require_argument_push
+        imm r20, 297
+        imm r21, 136
+        imm r23, 18366
+        call exact_require_argument_push
+        imm r20, 298
+        imm r21, 136
         imm r23, 18426
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 statement_gen_store_require_censuses:
@@ -275,10 +270,10 @@ statement_gen_store_require_censuses:
         imm r23, 370
         imm r24, 92
         imm r25, 93
-        imm r26, 293
-        imm r27, 297
-        imm r28, 381
-        imm r29, 381
+        imm r26, 295
+        imm r27, 299
+        imm r28, 383
+        imm r29, 383
         call summary_require_expr_census
         ret
 

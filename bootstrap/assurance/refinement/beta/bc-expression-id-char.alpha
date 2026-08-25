@@ -85,14 +85,12 @@ expression_id_char_require_block:
 
         imm r20, 27
         imm r21, 47
-        imm r22, 1
         imm r23, 5695
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 28
         imm r21, 47
-        imm r22, 1
         imm r23, 5746
-        call transfer_require_push
+        call exact_require_binary_push
 
         imm r20, 47
         imm r21, 47

@@ -208,7 +208,7 @@ increment_memory_width:
 read_memory_site_pcs_init:
         imm r10, 0
 read_memory_site_pc:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, read_memory_site_pc_one
         jmp read_expr_primitive_pcs_init
 read_memory_site_pc_one:
@@ -241,7 +241,7 @@ memory_site_pc_block:
         jlt r14, r6, reject
         imm r1, 1
         add r4, r1
-        imm r1, 355
+        imm r1, 359
         jlt r4, r1, memory_site_pc_next_block
         imm r1, 524296
         load r7, r1
@@ -267,7 +267,7 @@ memory_site_pc_store:
 validate_memory_sites_init:
         imm r10, 0
 validate_memory_site_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, validate_memory_site_one
         jmp validate_expr_primitives_init
 validate_memory_site_one:

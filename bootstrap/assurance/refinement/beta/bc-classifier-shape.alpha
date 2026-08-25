@@ -474,56 +474,46 @@ classifier_require_pushes:
         ; Binary-left pushes for every comparison.
         imm r20, 8
         imm r21, 13
-        imm r22, 1
         imm r23, 2154
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 9
         imm r21, 14
-        imm r22, 1
         imm r23, 2286
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 10
         imm r21, 17
-        imm r22, 1
         imm r23, 2540
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 11
         imm r21, 18
-        imm r22, 1
         imm r23, 2672
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 12
         imm r21, 19
-        imm r22, 1
         imm r23, 2804
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 13
         imm r21, 20
-        imm r22, 1
         imm r23, 2936
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 14
         imm r21, 21
-        imm r22, 1
         imm r23, 3068
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 15
         imm r21, 25
-        imm r22, 1
         imm r23, 3393
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; Same c parameter staged into both nested calls.
-        imm r20, 236
+        imm r20, 238
         imm r21, 25
-        imm r22, 2
         imm r23, 3352               ; checked alpha argument handoff
-        call transfer_require_push
-        imm r20, 237
+        call exact_require_argument_push
+        imm r20, 239
         imm r21, 25
-        imm r22, 2
         imm r23, 3516               ; checked digit argument handoff
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 classifier_require_censuses:
@@ -567,8 +557,8 @@ classifier_require_censuses:
         imm r23, 61                  ; checked exclusive classifier primitive row
         imm r24, 8
         imm r25, 16
-        imm r26, 236
-        imm r27, 238
+        imm r26, 238
+        imm r27, 240
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census

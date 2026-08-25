@@ -164,16 +164,14 @@ statement_gen_state_require_data:
         imm r23, 0
         imm r24, 46048
         call transfer_require_primitive
-        imm r20, 349
+        imm r20, 351
         imm r21, 317
-        imm r22, 2
         imm r23, 45907
-        call transfer_require_push
-        imm r20, 350
+        call exact_require_argument_push
+        imm r20, 352
         imm r21, 317
-        imm r22, 2
         imm r23, 45942
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 statement_gen_state_require_censuses:
@@ -194,10 +192,10 @@ statement_gen_state_require_censuses:
         imm r23, 733
         imm r24, 215
         imm r25, 215
-        imm r26, 349
-        imm r27, 351
-        imm r28, 397
-        imm r29, 397
+        imm r26, 351
+        imm r27, 353
+        imm r28, 399
+        imm r29, 399
         call summary_require_expr_census
         ret
 

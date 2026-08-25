@@ -146,9 +146,8 @@ main_slurp_require_shape:
         ; Exact left staging, literal one, equality macro, and failure value.
         imm r20, 232
         imm r21, 350
-        imm r22, 1
         imm r23, 51092
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 806
         imm r21, 350
         imm r22, 3

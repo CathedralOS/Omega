@@ -244,75 +244,61 @@ statement_gen_stmt_require_pushes:
         ; Eight classifier/comparison left operands.
         imm r20, 216
         imm r21, 323
-        imm r22, 1
         imm r23, 47280
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 217
         imm r21, 324
-        imm r22, 1
         imm r23, 47452
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 218
         imm r21, 326
-        imm r22, 1
         imm r23, 47745
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 219
         imm r21, 328
-        imm r22, 1
         imm r23, 47915
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 220
         imm r21, 330
-        imm r22, 1
         imm r23, 48076
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 221
         imm r21, 332
-        imm r22, 1
         imm r23, 48237
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 222
         imm r21, 334
-        imm r22, 1
         imm r23, 48440
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 223
         imm r21, 336
-        imm r22, 1
         imm r23, 48652
-        call transfer_require_push
+        call exact_require_binary_push
         ; Six ordinary call arguments.
-        imm r20, 357
-        imm r21, 324
-        imm r22, 2
-        imm r23, 47566
-        call transfer_require_push
-        imm r20, 358
-        imm r21, 324
-        imm r22, 2
-        imm r23, 47635
-        call transfer_require_push
         imm r20, 359
-        imm r21, 333
-        imm r22, 2
-        imm r23, 48360
-        call transfer_require_push
+        imm r21, 324
+        imm r23, 47566
+        call exact_require_argument_push
         imm r20, 360
-        imm r21, 335
-        imm r22, 2
-        imm r23, 48563
-        call transfer_require_push
+        imm r21, 324
+        imm r23, 47635
+        call exact_require_argument_push
         imm r20, 361
-        imm r21, 336
-        imm r22, 2
-        imm r23, 48794
-        call transfer_require_push
+        imm r21, 333
+        imm r23, 48360
+        call exact_require_argument_push
         imm r20, 362
+        imm r21, 335
+        imm r23, 48563
+        call exact_require_argument_push
+        imm r20, 363
         imm r21, 336
-        imm r22, 2
+        imm r23, 48794
+        call exact_require_argument_push
+        imm r20, 364
+        imm r21, 336
         imm r23, 48863
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 statement_gen_stmt_require_censuses:
@@ -333,10 +319,10 @@ statement_gen_stmt_require_censuses:
         imm r23, 772
         imm r24, 216
         imm r25, 224
-        imm r26, 357
-        imm r27, 363
-        imm r28, 398
-        imm r29, 398
+        imm r26, 359
+        imm r27, 365
+        imm r28, 400
+        imm r29, 400
         call summary_require_expr_census
         ret
 

@@ -377,55 +377,45 @@ expression_gen_expr_require_pushes:
         ; Binary-left operands.
         imm r20, 202
         imm r21, 304
-        imm r22, 1
         imm r23, 43217
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 203
         imm r21, 305
-        imm r22, 1
         imm r23, 43451
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 204
         imm r21, 306
-        imm r22, 1
         imm r23, 43592
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 205
         imm r21, 306
-        imm r22, 1
         imm r23, 43735
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 206
         imm r21, 307
-        imm r22, 1
         imm r23, 43949
-        call transfer_require_push
+        call exact_require_binary_push
         ; emit_cmp argument and four store-address evaluations.
-        imm r20, 343
+        imm r20, 345
         imm r21, 307
-        imm r22, 2
         imm r23, 43869
-        call transfer_require_push
-        imm r20, 388
-        imm r21, 304
-        imm r22, 3
-        imm r23, 43331
-        call transfer_require_push
-        imm r20, 389
-        imm r21, 305
-        imm r22, 3
-        imm r23, 43416
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 390
-        imm r21, 306
-        imm r22, 3
-        imm r23, 43706
-        call transfer_require_push
+        imm r21, 304
+        imm r23, 43331
+        call exact_require_store_push
         imm r20, 391
+        imm r21, 305
+        imm r23, 43416
+        call exact_require_store_push
+        imm r20, 392
+        imm r21, 306
+        imm r23, 43706
+        call exact_require_store_push
+        imm r20, 393
         imm r21, 307
-        imm r22, 3
         imm r23, 43920
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 expression_gen_expr_require_censuses:
@@ -446,10 +436,10 @@ expression_gen_expr_require_censuses:
         imm r23, 694
         imm r24, 202
         imm r25, 207
-        imm r26, 343
-        imm r27, 344
-        imm r28, 388
-        imm r29, 392
+        imm r26, 345
+        imm r27, 346
+        imm r28, 390
+        imm r29, 394
         call summary_require_expr_census
         ret
 

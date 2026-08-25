@@ -121,9 +121,8 @@ label_counter_prove_successor:
         call transfer_require_local
         imm r20, 4
         imm r21, 5
-        imm r22, 1
         imm r23, 1240
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 27
         imm r21, 5
         imm r22, 1
@@ -170,11 +169,10 @@ label_counter_prove_update:
         imm r23, 2097104
         imm r24, 1195
         call transfer_require_primitive
-        imm r20, 377
+        imm r20, 379
         imm r21, 5
-        imm r22, 3
         imm r23, 1205
-        call transfer_require_push
+        call exact_require_store_push
         imm r1, 535176
         imm r2, 1                    ; load/store select identical LBL word
         store r1, r2

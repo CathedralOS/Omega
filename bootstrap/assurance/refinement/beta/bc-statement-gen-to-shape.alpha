@@ -385,44 +385,36 @@ statement_gen_to_require_primitives:
 statement_gen_to_require_pushes:
         imm r20, 215
         imm r21, 319
-        imm r22, 1
         imm r23, 46271
-        call transfer_require_push
-        imm r20, 351
-        imm r21, 320
-        imm r22, 2
-        imm r23, 46484
-        call transfer_require_push
-        imm r20, 352
-        imm r21, 320
-        imm r22, 2
-        imm r23, 46625
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 353
         imm r21, 320
-        imm r22, 2
-        imm r23, 46660
-        call transfer_require_push
+        imm r23, 46484
+        call exact_require_argument_push
         imm r20, 354
         imm r21, 320
-        imm r22, 2
-        imm r23, 46775
-        call transfer_require_push
+        imm r23, 46625
+        call exact_require_argument_push
         imm r20, 355
-        imm r21, 321
-        imm r22, 2
-        imm r23, 47011
-        call transfer_require_push
+        imm r21, 320
+        imm r23, 46660
+        call exact_require_argument_push
         imm r20, 356
+        imm r21, 320
+        imm r23, 46775
+        call exact_require_argument_push
+        imm r20, 357
         imm r21, 321
-        imm r22, 2
+        imm r23, 47011
+        call exact_require_argument_push
+        imm r20, 358
+        imm r21, 321
         imm r23, 47046
-        call transfer_require_push
-        imm r20, 397
+        call exact_require_argument_push
+        imm r20, 399
         imm r21, 321
-        imm r22, 3
         imm r23, 46896
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 statement_gen_to_require_censuses:
@@ -443,10 +435,10 @@ statement_gen_to_require_censuses:
         imm r23, 741
         imm r24, 215
         imm r25, 216
-        imm r26, 351
-        imm r27, 357
-        imm r28, 397
-        imm r29, 398
+        imm r26, 353
+        imm r27, 359
+        imm r28, 399
+        imm r29, 400
         call summary_require_expr_census
         ret
 

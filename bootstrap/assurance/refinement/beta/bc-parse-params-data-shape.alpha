@@ -219,49 +219,40 @@ parse_params_require_primitives:
 parse_params_require_pushes:
         imm r20, 224
         imm r21, 339
-        imm r22, 1
         imm r23, 49377
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 225
         imm r21, 340
-        imm r22, 1
         imm r23, 49503
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 226
         imm r21, 341
-        imm r22, 1
         imm r23, 49723
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 227
         imm r21, 341
-        imm r22, 1
         imm r23, 49845
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 228
         imm r21, 344
-        imm r22, 1
         imm r23, 50126              ; nparams held across count_lets call
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 229
         imm r21, 344
-        imm r22, 1
         imm r23, 50211
-        call transfer_require_push
-        imm r20, 364
+        call exact_require_binary_push
+        imm r20, 366
         imm r21, 344
-        imm r22, 2
         imm r23, 50066              ; checked '{' argument push
-        call transfer_require_push
-        imm r20, 401
+        call exact_require_argument_push
+        imm r20, 403
         imm r21, 340
-        imm r22, 3
         imm r23, 49617
-        call transfer_require_push
-        imm r20, 402
+        call exact_require_store_push
+        imm r20, 404
         imm r21, 344
-        imm r22, 3
         imm r23, 50325
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 parse_params_require_expr_census:
@@ -271,9 +262,9 @@ parse_params_require_expr_census:
         imm r23, 801                 ; checked exclusive params primitive row
         imm r24, 224
         imm r25, 230
-        imm r26, 364
-        imm r27, 365
-        imm r28, 401
-        imm r29, 403
+        imm r26, 366
+        imm r27, 367
+        imm r28, 403
+        imm r29, 405
         call summary_require_expr_census
         ret

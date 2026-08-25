@@ -29,7 +29,7 @@ fixed_keyword_select_return:
 	imm r26, 24                   ; return memory row
 	imm r27, 116                  ; return primitive row
 	imm r28, 33                   ; return binary-push row
-	imm r29, 243                  ; return argument-push row
+	imm r29, 245                  ; return argument-push row
 	imm r30, fixed_keyword_literal_return
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_state:
@@ -41,7 +41,7 @@ fixed_keyword_select_state:
 	imm r26, 25
 	imm r27, 145
 	imm r28, 40
-	imm r29, 249
+	imm r29, 251
 	imm r30, fixed_keyword_literal_state
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_to:
@@ -53,7 +53,7 @@ fixed_keyword_select_to:
 	imm r26, 26
 	imm r27, 170
 	imm r28, 46
-	imm r29, 254
+	imm r29, 256
 	imm r30, fixed_keyword_literal_to
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_when:
@@ -65,7 +65,7 @@ fixed_keyword_select_when:
 	imm r26, 27
 	imm r27, 183
 	imm r28, 49
-	imm r29, 256
+	imm r29, 258
 	imm r30, fixed_keyword_literal_when
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_byte:
@@ -77,7 +77,7 @@ fixed_keyword_select_byte:
 	imm r26, 28
 	imm r27, 204
 	imm r28, 54
-	imm r29, 260
+	imm r29, 262
 	imm r30, fixed_keyword_literal_byte
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_word:
@@ -89,7 +89,7 @@ fixed_keyword_select_word:
 	imm r26, 29
 	imm r27, 225
 	imm r28, 59
-	imm r29, 264
+	imm r29, 266
 	imm r30, fixed_keyword_literal_word
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_read_byte:
@@ -101,7 +101,7 @@ fixed_keyword_select_read_byte:
 	imm r26, 30
 	imm r27, 246
 	imm r28, 64
-	imm r29, 268
+	imm r29, 270
 	imm r30, fixed_keyword_literal_read_byte
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_write_byte:
@@ -113,7 +113,7 @@ fixed_keyword_select_write_byte:
 	imm r26, 31
 	imm r27, 287
 	imm r28, 74
-	imm r29, 277
+	imm r29, 279
 	imm r30, fixed_keyword_literal_write_byte
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_emit:
@@ -125,7 +125,7 @@ fixed_keyword_select_emit:
 	imm r26, 32
 	imm r27, 332
 	imm r28, 85
-	imm r29, 287
+	imm r29, 289
 	imm r30, fixed_keyword_literal_emit
 
 fixed_keyword_store_metadata:

@@ -66,13 +66,11 @@ counter_require_comparison:
         ret
 
 counter_require_binary_push:
-        imm r22, 1
         ; r20 row, r21 block, r22 kind, r23 pc
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 counter_require_store_push:
-        imm r22, 3
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 counter_require_selected_rows:
@@ -91,7 +89,7 @@ counter_require_selected_rows:
         imm r23, 0
         imm r24, 942
         call counter_require_literal
-        imm r20, 374
+        imm r20, 376
         imm r21, 4
         imm r23, 926
         call counter_require_store_push
@@ -110,7 +108,7 @@ counter_require_selected_rows:
         imm r23, 0
         imm r24, 1052
         call counter_require_literal
-        imm r20, 376
+        imm r20, 378
         imm r21, 4
         imm r23, 1036
         call counter_require_store_push
@@ -179,7 +177,7 @@ counter_require_selected_rows:
         imm r21, 305
         imm r23, 43451
         call counter_require_binary_push
-        imm r20, 389
+        imm r20, 391
         imm r21, 305
         imm r23, 43416
         call counter_require_store_push
@@ -217,7 +215,7 @@ counter_require_selected_rows:
         imm r21, 306
         imm r23, 43735
         call counter_require_binary_push
-        imm r20, 390
+        imm r20, 392
         imm r21, 306
         imm r23, 43706
         call counter_require_store_push
@@ -255,7 +253,7 @@ counter_require_selected_rows:
         imm r21, 307
         imm r23, 43949
         call counter_require_binary_push
-        imm r20, 391
+        imm r20, 393
         imm r21, 307
         imm r23, 43920
         call counter_require_store_push
@@ -324,7 +322,7 @@ counter_require_selected_rows:
         imm r21, 310
         imm r23, 44383
         call counter_require_binary_push
-        imm r20, 393
+        imm r20, 395
         imm r21, 310
         imm r23, 44348
         call counter_require_store_push
@@ -362,7 +360,7 @@ counter_require_selected_rows:
         imm r21, 311
         imm r23, 44746
         call counter_require_binary_push
-        imm r20, 394
+        imm r20, 396
         imm r21, 311
         imm r23, 44717
         call counter_require_store_push
@@ -399,7 +397,7 @@ counter_require_selected_rows:
         imm r21, 313
         imm r23, 45022
         call counter_require_binary_push
-        imm r20, 395
+        imm r20, 397
         imm r21, 313
         imm r23, 44993
         call counter_require_store_push
@@ -436,7 +434,7 @@ counter_require_selected_rows:
         imm r21, 314
         imm r23, 45158
         call counter_require_binary_push
-        imm r20, 396
+        imm r20, 398
         imm r21, 314
         imm r23, 45129
         call counter_require_store_push
@@ -458,7 +456,7 @@ counter_require_selected_rows:
         imm r23, 0
         imm r24, 997
         call counter_require_literal
-        imm r20, 375
+        imm r20, 377
         imm r21, 4
         imm r23, 981
         call counter_require_store_push
@@ -477,7 +475,7 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 22618
         call counter_require_literal
-        imm r20, 381
+        imm r20, 383
         imm r21, 159
         imm r23, 22602
         call counter_require_store_push
@@ -496,7 +494,7 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 24358
         call counter_require_literal
-        imm r20, 382
+        imm r20, 384
         imm r21, 171
         imm r23, 24342
         call counter_require_store_push
@@ -515,7 +513,7 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 43347
         call counter_require_literal
-        imm r20, 388
+        imm r20, 390
         imm r21, 304
         imm r23, 43331
         call counter_require_store_push
@@ -534,7 +532,7 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 44279
         call counter_require_literal
-        imm r20, 392
+        imm r20, 394
         imm r21, 309
         imm r23, 44263
         call counter_require_store_push
@@ -553,7 +551,7 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 49633
         call counter_require_literal
-        imm r20, 401
+        imm r20, 403
         imm r21, 340
         imm r23, 49617
         call counter_require_store_push
@@ -572,9 +570,29 @@ counter_require_selected_rows:
         imm r23, 252
         imm r24, 50341
         call counter_require_literal
-        imm r20, 402
+        imm r20, 404
         imm r21, 344
         imm r23, 50325
+        call counter_require_store_push
+
+        ; Appended gen_item malformed-input status writer.
+        imm r20, 98
+        imm r21, 358
+        imm r24, 52030
+        call counter_require_memory_store
+        imm r20, 824
+        imm r21, 358
+        imm r23, 2097072
+        imm r24, 51978
+        call counter_require_literal
+        imm r20, 825
+        imm r21, 358
+        imm r23, 251
+        imm r24, 52004
+        call counter_require_literal
+        imm r20, 405
+        imm r21, 358
+        imm r23, 51988
         call counter_require_store_push
         ret
 
@@ -588,7 +606,7 @@ counter_count_protected_writers:
         imm r13, 0                     ; BLOCKDEPTH
         imm r14, 0                     ; RESOURCE
 counter_writer_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, counter_writer_row
         jmp counter_writer_counts
 counter_writer_row:
@@ -653,7 +671,7 @@ counter_writer_block_count:
         jeq r13, r1, counter_writer_resource_count
         jmp reject
 counter_writer_resource_count:
-        imm r1, 7
+        imm r1, 8
         jeq r14, r1, counter_writer_counts_ok
         jmp reject
 counter_writer_counts_ok:
@@ -813,7 +831,7 @@ counter_context_build_row:
         ; Touch the exact already-validated BCS9 cutpoint cells in this row.
         ; gen_expr is proc61 and gen_stmts is proc62.
         mov r12, r10
-        imm r1, 70
+        imm r1, 71
         mul r12, r1
         imm r1, 61
         add r12, r1
@@ -822,7 +840,7 @@ counter_context_build_row:
         imm r1, 10051584
         add r1, r12
         load r6, r1                    ; expr explicit potential
-        imm r1, 10087424
+        imm r1, 10087936
         add r1, r12
         load r7, r1                    ; expr hidden potential
         imm r1, 23
@@ -836,10 +854,10 @@ counter_context_block_cell:
         ; Move from proc61 to adjacent proc62 in the same row.
         imm r1, 8
         add r12, r1
-        imm r1, 10123264
+        imm r1, 10124288
         add r1, r12
         load r8, r1                    ; block explicit potential
-        imm r1, 10159104
+        imm r1, 10160640
         add r1, r12
         load r9, r1                    ; block hidden potential
         imm r1, 15

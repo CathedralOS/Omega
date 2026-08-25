@@ -341,34 +341,28 @@ expression_levels_require_data:
         ; One classifier operand and two ordinary arguments per loop.
         imm r20, 183
         imm r21, 268
-        imm r22, 1
         imm r23, 38623
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 184
         imm r21, 271
-        imm r22, 1
         imm r23, 39010
-        call transfer_require_push
-        imm r20, 335
-        imm r21, 268
-        imm r22, 2
-        imm r23, 38582
-        call transfer_require_push
-        imm r20, 336
-        imm r21, 269
-        imm r22, 2
-        imm r23, 38831
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 337
-        imm r21, 271
-        imm r22, 2
-        imm r23, 38969
-        call transfer_require_push
+        imm r21, 268
+        imm r23, 38582
+        call exact_require_argument_push
         imm r20, 338
+        imm r21, 269
+        imm r23, 38831
+        call exact_require_argument_push
+        imm r20, 339
+        imm r21, 271
+        imm r23, 38969
+        call exact_require_argument_push
+        imm r20, 340
         imm r21, 272
-        imm r22, 2
         imm r23, 39218
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 expression_levels_require_censuses:
@@ -389,10 +383,10 @@ expression_levels_require_censuses:
         imm r23, 625
         imm r24, 183
         imm r25, 184
-        imm r26, 335
-        imm r27, 337
-        imm r28, 387
-        imm r29, 387
+        imm r26, 337
+        imm r27, 339
+        imm r28, 389
+        imm r29, 389
         call summary_require_expr_census
         imm r20, 270
         imm r21, 272
@@ -411,10 +405,10 @@ expression_levels_require_censuses:
         imm r23, 628
         imm r24, 184
         imm r25, 185
-        imm r26, 337
-        imm r27, 339
-        imm r28, 387
-        imm r29, 387
+        imm r26, 339
+        imm r27, 341
+        imm r28, 389
+        imm r29, 389
         call summary_require_expr_census
         ret
 

@@ -26,7 +26,7 @@
 ;   2097136 LEN    source length       2097128 NLOC   declared local count
 ;   2097120 IDOFF  last ident offset    2097112 IDLEN  last ident length
 ;   2097104 LBL    label counter        2097096 CURPROC off  2097088 CURPROC len
-;   2097080 EXPRDEPTH                   2097072 RESOURCE_FAIL (0 or exit 252)
+;   2097080 EXPRDEPTH            2097072 RESOURCE_FAIL (0 or exit 251 or 252)
 ;   2097064 BLOCKDEPTH
 ;   3145728 NAMEOFF[i] (word)          3153920 NAMELEN[i] (word)   ; i = slot
 
@@ -849,7 +849,7 @@ proc gen_stmts() {               ; parse statements until '}', consume the '}'
     }
     state body {
         to eof when (cbyte() == 0)
-        gen_stmt()
+        gen_item()
         skip_ws()
         to loop
     }
@@ -1030,4 +1030,22 @@ proc main() {
         to loop
     }
     state resource { return word[2097072] }
+}
+
+; Keep malformed statement dispatch fail-closed without perturbing the frozen
+; gen_stmts layout: the equal-length call above targets this appended helper.
+proc gen_item() {
+    let before = word[2097144]
+    gen_stmt()
+    state check {
+        to failed when (word[2097072] != 0)
+        to malformed when (word[2097144] == before)
+        return 0
+    }
+    state failed { return 0 }
+    state malformed {
+        word[2097072] = 251
+        word[2097144] = word[2097136]
+        return 0
+    }
 }

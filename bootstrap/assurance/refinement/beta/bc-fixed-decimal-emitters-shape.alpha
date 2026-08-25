@@ -280,39 +280,32 @@ fixed_decimal_shape_primitives:
 fixed_decimal_shape_pushes:
         imm r20, 152
         imm r21, 210
-        imm r22, 1
         imm r23, 30171
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 153
         imm r21, 211
-        imm r22, 1
         imm r23, 30369
-        call transfer_require_push
-        imm r20, 316
+        call exact_require_binary_push
+        imm r20, 318
         imm r21, 211
-        imm r22, 2
         imm r23, 30417
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 154
         imm r21, 212
-        imm r22, 1
         imm r23, 30751
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 155
         imm r21, 212
-        imm r22, 1
         imm r23, 30777
-        call transfer_require_push
-        imm r20, 317
+        call exact_require_binary_push
+        imm r20, 319
         imm r21, 212
-        imm r22, 2
         imm r23, 30856
-        call transfer_require_push
-        imm r20, 318
+        call exact_require_argument_push
+        imm r20, 320
         imm r21, 212
-        imm r22, 2
         imm r23, 31051
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 fixed_decimal_shape_censuses:
@@ -333,8 +326,8 @@ fixed_decimal_shape_censuses:
         imm r23, 538
         imm r24, 152
         imm r25, 154
-        imm r26, 316
-        imm r27, 317
+        imm r26, 318
+        imm r27, 319
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
@@ -356,8 +349,8 @@ fixed_decimal_shape_censuses:
         imm r23, 542                 ; exclusive parameter primitive row
         imm r24, 154
         imm r25, 156
-        imm r26, 317
-        imm r27, 319
+        imm r26, 319
+        imm r27, 321
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census

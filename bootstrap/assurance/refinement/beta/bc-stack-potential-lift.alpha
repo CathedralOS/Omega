@@ -85,7 +85,7 @@ stack_lift_find_proc_entry:
         imm r11, 0                    ; match count
         imm r0, 0
 stack_lift_find_proc_entry_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, stack_lift_find_proc_entry_cell
         imm r1, 1
         jeq r11, r1, stack_lift_find_proc_entry_done
@@ -147,22 +147,22 @@ stack_lift_imm_done:
 ; least one frame/hidden return, and fits the reserved B_bc1 extents.
 stack_lift_check_expr_contexts:
         imm r20, 10051584              ; explicit table
-        imm r21, 10087424              ; hidden table
-        imm r22, 4480
+        imm r21, 10087936              ; hidden table
+        imm r22, 4544
         call stack_lift_check_context_table
         ret
 
 stack_lift_check_block_contexts:
-        imm r20, 10123264
-        imm r21, 10159104
-        imm r22, 4480
+        imm r20, 10124288
+        imm r21, 10160640
+        imm r22, 4544
         call stack_lift_check_context_table
         ret
 
 stack_lift_check_root_contexts:
-        imm r20, 10194944
-        imm r21, 10195504
-        imm r22, 70
+        imm r20, 10196992
+        imm r21, 10197560
+        imm r22, 71
         call stack_lift_check_context_table
         ret
 
@@ -218,11 +218,11 @@ stack_lift_instantiate_main:
         imm r20, 3
         imm r21, 0
         call call_bounds_load_pair
-        imm r1, 12720
+        imm r1, 13744
         jeq r0, r1, stack_lift_main_hidden
         jmp reject
 stack_lift_main_hidden:
-        imm r1, 662
+        imm r1, 726
         jeq r7, r1, stack_lift_main_explicit_low
         jmp reject
 
@@ -231,7 +231,7 @@ stack_lift_main_hidden:
 stack_lift_main_explicit_low:
         imm r2, 1048576
         sub r2, r0
-        imm r3, 1035856
+        imm r3, 1034832
         jeq r2, r3, stack_lift_main_explicit_reserved
         jmp reject
 stack_lift_main_explicit_reserved:
@@ -250,7 +250,7 @@ stack_lift_main_hidden_low:
         mul r2, r3
         imm r3, 67108864
         sub r3, r2
-        imm r4, 67103568
+        imm r4, 67103056
         jeq r3, r4, stack_lift_main_hidden_disjoint
         jmp reject
 stack_lift_main_hidden_disjoint:

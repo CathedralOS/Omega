@@ -185,29 +185,24 @@ parse_number_require_primitives:
 parse_number_require_pushes:
         imm r20, 108
         imm r21, 168
-        imm r22, 1
         imm r23, 23783              ; classifier result
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 109
         imm r21, 169
-        imm r22, 1
         imm r23, 23945              ; prior v
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 110
         imm r21, 169
-        imm r22, 1
         imm r23, 23993              ; second cbyte result
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 111
         imm r21, 169
-        imm r22, 1
         imm r23, 24018              ; wrapped product
-        call transfer_require_push
-        imm r20, 312
+        call exact_require_binary_push
+        imm r20, 314
         imm r21, 168
-        imm r22, 2
         imm r23, 23742              ; cbyte-to-is_digit argument
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 parse_number_require_censuses:
@@ -228,8 +223,8 @@ parse_number_require_censuses:
         imm r23, 432                 ; exclusive primitive row
         imm r24, 108
         imm r25, 112                 ; exclusive binary-push row
-        imm r26, 312
-        imm r27, 313                 ; exclusive argument-push row
+        imm r26, 314
+        imm r27, 315                 ; exclusive argument-push row
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census

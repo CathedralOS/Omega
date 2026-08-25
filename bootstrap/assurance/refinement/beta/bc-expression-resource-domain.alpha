@@ -17,13 +17,13 @@ expression_resource_count_protected:
         imm r11, 0                     ; EXPRDEPTH writer count
         imm r12, 0                     ; RESOURCE writer count
 expression_resource_count_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, expression_resource_count_row
         imm r1, 4
         jeq r11, r1, expression_resource_count_status
         jmp reject
 expression_resource_count_status:
-        imm r1, 7
+        imm r1, 8
         jeq r12, r1, expression_resource_count_done
         jmp reject
 expression_resource_count_row:
@@ -100,9 +100,8 @@ expression_resource_require_writer:
         call transfer_require_primitive
         mov r20, r38
         mov r21, r31
-        imm r22, 3
         mov r23, r39
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 expression_resource_require_writers:
@@ -115,7 +114,7 @@ expression_resource_require_writers:
         imm r25, 20
         imm r26, 0
         imm r27, 997
-        imm r28, 375
+        imm r28, 377
         imm r29, 981
         call expression_resource_require_writer
         ; Every remaining protected writer stores literal252.
@@ -127,7 +126,7 @@ expression_resource_require_writers:
         imm r25, 409
         imm r26, 252
         imm r27, 22618
-        imm r28, 381
+        imm r28, 383
         imm r29, 22602
         call expression_resource_require_writer
         imm r20, 38
@@ -138,7 +137,7 @@ expression_resource_require_writers:
         imm r25, 436
         imm r26, 252
         imm r27, 24358
-        imm r28, 382
+        imm r28, 384
         imm r29, 24342
         call expression_resource_require_writer
         imm r20, 58
@@ -149,7 +148,7 @@ expression_resource_require_writers:
         imm r25, 677
         imm r26, 252
         imm r27, 43347
-        imm r28, 388
+        imm r28, 390
         imm r29, 43331
         call expression_resource_require_writer
         imm r20, 65
@@ -160,7 +159,7 @@ expression_resource_require_writers:
         imm r25, 698
         imm r26, 252
         imm r27, 44279
-        imm r28, 392
+        imm r28, 394
         imm r29, 44263
         call expression_resource_require_writer
         imm r20, 89
@@ -171,7 +170,7 @@ expression_resource_require_writers:
         imm r25, 785
         imm r26, 252
         imm r27, 49633
-        imm r28, 401
+        imm r28, 403
         imm r29, 49617
         call expression_resource_require_writer
         imm r20, 92
@@ -182,11 +181,23 @@ expression_resource_require_writers:
         imm r25, 799
         imm r26, 252
         imm r27, 50341
-        imm r28, 402
+        imm r28, 404
         imm r29, 50325
         call expression_resource_require_writer
+        ; gen_item malformed-input no-progress writer stores literal251.
+        imm r20, 98
+        imm r21, 358
+        imm r22, 52030
+        imm r23, 824
+        imm r24, 51978
+        imm r25, 825
+        imm r26, 251
+        imm r27, 52004
+        imm r28, 405
+        imm r29, 51988
+        call expression_resource_require_writer
         imm r1, 545608
-        imm r2, 7                     ; exhaustive {zero, six literal252}
+        imm r2, 8                     ; zero, literal251, and six literal252
         store r1, r2
         ret
 
@@ -242,7 +253,7 @@ expression_resource_require_depth_writers:
         imm r2, 4
         store r1, r2
         imm r20, 545608
-        imm r21, 7
+        imm r21, 8
         call exact_require_cell
         imm r20, 545616
         imm r21, 4

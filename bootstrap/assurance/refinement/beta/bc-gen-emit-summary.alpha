@@ -97,11 +97,10 @@ gen_emit_compose_opening:
         imm r23, 40
         imm r24, 19588
         call transfer_require_primitive
-        imm r20, 297
+        imm r20, 299
         imm r21, 146
-        imm r22, 2
         imm r23, 19598
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 198
         imm r21, 146
         imm r22, 19630
@@ -257,9 +256,8 @@ gen_emit_append_lref:
         call transfer_require_local
         mov r20, r33
         imm r21, 146
-        imm r22, 2
         mov r23, r34
-        call transfer_require_push
+        call exact_require_argument_push
         mov r20, r35
         imm r21, 146
         mov r22, r36
@@ -331,7 +329,7 @@ gen_emit_compose_output:
         imm r20, 46
         imm r21, 19746
         imm r22, 1
-        imm r23, 298
+        imm r23, 300
         imm r24, 19765
         imm r25, 203
         imm r26, 19797
@@ -352,7 +350,7 @@ gen_emit_compose_output:
         imm r20, 47
         imm r21, 19845
         imm r22, 0
-        imm r23, 299
+        imm r23, 301
         imm r24, 19864
         imm r25, 205
         imm r26, 19896
@@ -424,7 +422,7 @@ gen_emit_compose_output:
         imm r20, 49
         imm r21, 20055
         imm r22, 1
-        imm r23, 300
+        imm r23, 302
         imm r24, 20074
         imm r25, 210
         imm r26, 20106
@@ -450,7 +448,7 @@ gen_emit_compose_output:
         imm r20, 50
         imm r21, 20200
         imm r22, 0
-        imm r23, 301
+        imm r23, 303
         imm r24, 20219
         imm r25, 213
         imm r26, 20251
@@ -479,11 +477,10 @@ gen_emit_compose_output:
         imm r23, 2
         imm r24, 20344
         call transfer_require_local
-        imm r20, 302
+        imm r20, 304
         imm r21, 146
-        imm r22, 2
         imm r23, 20363
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 216
         imm r21, 146
         imm r22, 20395
@@ -584,11 +581,10 @@ gen_emit_compose_final_expect:
         imm r23, 41
         imm r24, 20498
         call transfer_require_primitive
-        imm r20, 303
+        imm r20, 305
         imm r21, 146
-        imm r22, 2
         imm r23, 20508
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 219
         imm r21, 146
         imm r22, 20540

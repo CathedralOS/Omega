@@ -186,70 +186,57 @@ expression_factor_data_require_pushes:
         ; Comparison operands.
         imm r20, 172
         imm r21, 244
-        imm r22, 1
         imm r23, 35969
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 173
         imm r21, 246
-        imm r22, 1
         imm r23, 36241
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 174
         imm r21, 247
-        imm r22, 1
         imm r23, 36372
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 175
         imm r21, 249
-        imm r22, 1
         imm r23, 36575
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 176
         imm r21, 251
-        imm r22, 1
         imm r23, 36787
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 177
         imm r21, 253
-        imm r22, 1
         imm r23, 37029
-        call transfer_require_push
+        call exact_require_binary_push
         ; Ordinary call arguments.
-        imm r20, 328
-        imm r21, 245
-        imm r22, 2
-        imm r23, 36110
-        call transfer_require_push
-        imm r20, 329
-        imm r21, 246
-        imm r22, 2
-        imm r23, 36200
-        call transfer_require_push
         imm r20, 330
-        imm r21, 248
-        imm r22, 2
-        imm r23, 36495
-        call transfer_require_push
+        imm r21, 245
+        imm r23, 36110
+        call exact_require_argument_push
         imm r20, 331
-        imm r21, 250
-        imm r22, 2
-        imm r23, 36698
-        call transfer_require_push
+        imm r21, 246
+        imm r23, 36200
+        call exact_require_argument_push
         imm r20, 332
-        imm r21, 251
-        imm r22, 2
-        imm r23, 36900
-        call transfer_require_push
+        imm r21, 248
+        imm r23, 36495
+        call exact_require_argument_push
         imm r20, 333
-        imm r21, 254
-        imm r22, 2
-        imm r23, 37196
-        call transfer_require_push
+        imm r21, 250
+        imm r23, 36698
+        call exact_require_argument_push
         imm r20, 334
+        imm r21, 251
+        imm r23, 36900
+        call exact_require_argument_push
+        imm r20, 335
+        imm r21, 254
+        imm r23, 37196
+        call exact_require_argument_push
+        imm r20, 336
         imm r21, 255
-        imm r22, 2
         imm r23, 37398
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 expression_factor_data_require_censuses:
@@ -270,10 +257,10 @@ expression_factor_data_require_censuses:
         imm r23, 608
         imm r24, 172
         imm r25, 178
-        imm r26, 328
-        imm r27, 335
-        imm r28, 387
-        imm r29, 387
+        imm r26, 330
+        imm r27, 337
+        imm r28, 389
+        imm r29, 389
         call summary_require_expr_census
         ret
 

@@ -59,7 +59,7 @@ fs_store_clear_byte:
 fs_store_clear_done:
         imm r10, 0
 fs_store_saved_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, fs_store_saved_block
         jmp fs_store_push_init
 fs_store_saved_block:
@@ -88,7 +88,7 @@ fs_store_saved_next:
 fs_store_push_init:
         imm r10, 0
 fs_store_push_loop:
-        imm r1, 403
+        imm r1, 407
         jlt r10, r1, fs_store_push_row
         jmp fs_store_local_init
 fs_store_push_row:
@@ -109,7 +109,7 @@ fs_store_push_row:
 fs_store_local_init:
         imm r10, 0
 fs_store_local_loop:
-        imm r1, 242
+        imm r1, 244
         jlt r10, r1, fs_store_local_row
         jmp fs_store_raw_init
 fs_store_local_row:
@@ -138,7 +138,7 @@ fs_store_local_next:
 fs_store_raw_init:
         imm r10, 0
 fs_store_raw_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, fs_store_raw_row
         jmp fs_store_param_init
 fs_store_raw_row:
@@ -166,7 +166,7 @@ fs_store_raw_next:
 fs_store_param_init:
         imm r10, 0
 fs_store_param_block_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, fs_store_param_block
         jmp fs_store_counts
 fs_store_param_block:
@@ -307,31 +307,31 @@ fs_increment:
 fs_store_counts:
         imm r1, 525360
         load r2, r1
-        imm r3, 607
+        imm r3, 615
         jeq r2, r3, fs_store_saved_count
         jmp reject
 fs_store_saved_count:
         imm r1, 525368
         load r2, r1
-        imm r3, 70
+        imm r3, 71
         jeq r2, r3, fs_store_push_count
         jmp reject
 fs_store_push_count:
         imm r1, 525376
         load r2, r1
-        imm r3, 403
+        imm r3, 407
         jeq r2, r3, fs_store_local_count
         jmp reject
 fs_store_local_count:
         imm r1, 525384
         load r2, r1
-        imm r3, 73
+        imm r3, 74
         jeq r2, r3, fs_store_raw_count
         jmp reject
 fs_store_raw_count:
         imm r1, 525392
         load r2, r1
-        imm r3, 34
+        imm r3, 36
         jeq r2, r3, fs_store_param_count
         jmp reject
 fs_store_param_count:
@@ -350,7 +350,7 @@ fs_store_scan_loop:
         jlt r10, r2, fs_store_scan_pc
         imm r1, 525408
         load r2, r1
-        imm r3, 607
+        imm r3, 615
         jeq r2, r3, fs_store_union_done
         jmp reject
 fs_store_scan_pc:
@@ -395,7 +395,7 @@ fs_store_union_done:
 fs_proc_scan_init:
         imm r10, 0
 fs_proc_scan_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, fs_proc_scan_block
         jmp fs_proc_done
 fs_proc_scan_block:
@@ -425,7 +425,7 @@ fs_proc_prepare:
         imm r1, 1
         add r11, r1
 fs_proc_find_end:
-        imm r1, 355
+        imm r1, 359
         jlt r11, r1, fs_proc_find_end_block
         imm r1, 524296
         load r21, r1
@@ -787,7 +787,7 @@ fs_call_site_init:
         imm r11, 0
         imm r12, 0                     ; matches
 fs_call_site_loop:
-        imm r1, 613
+        imm r1, 617
         jlt r11, r1, fs_call_site_row
         imm r1, 1
         jeq r12, r1, fs_call_next

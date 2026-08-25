@@ -123,33 +123,29 @@ lookup_require_primitives:
 lookup_require_pushes:
         imm r20, 130
         imm r21, 180
-        imm r22, 1
         imm r23, 26226
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 131
         imm r21, 181
-        imm r22, 1
         imm r23, 26429
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 132
         imm r21, 181
-        imm r22, 1
         imm r23, 26552
-        call transfer_require_push
-        imm r20, 313
+        call exact_require_binary_push
+        imm r20, 315
         imm r21, 181
-        imm r22, 2
         imm r23, 26388                ; exact name_eq argument push
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 179
         imm r21, 182
         imm r22, 477
         imm r23, 485
         imm r24, 130
         imm r25, 133
-        imm r26, 313
-        imm r27, 314
-        imm r28, 387                  ; exact empty store-address interval
-        imm r29, 387
+        imm r26, 315
+        imm r27, 316
+        imm r28, 389                  ; exact empty store-address interval
+        imm r29, 389
         call summary_require_expr_census
         ret

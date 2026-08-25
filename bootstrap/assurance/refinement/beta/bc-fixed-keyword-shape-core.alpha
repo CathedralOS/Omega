@@ -484,12 +484,11 @@ fixed_keyword_require_pushes:
 	load r21, r1
 	imm r2, 1
 	add r21, r2
-	imm r22, 1
 	imm r1, 530376
 	load r23, r1
 	imm r2, 32
 	add r23, r2
-	call transfer_require_push
+	call exact_require_binary_push
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -511,7 +510,6 @@ fixed_keyword_push_char:
 	imm r2, 1
 	add r20, r2
 	add r20, r30
-	imm r22, 1
 	imm r1, 530376
 	load r23, r1
 	imm r2, 217
@@ -520,12 +518,11 @@ fixed_keyword_push_char:
 	imm r3, 185
 	mul r2, r3
 	add r23, r2
-	call transfer_require_push
+	call exact_require_binary_push
 	mov r21, r26
 	imm r1, 530432
 	load r20, r1
 	add r20, r30
-	imm r22, 2
 	imm r1, 530376
 	load r23, r1
 	imm r2, 176
@@ -534,7 +531,7 @@ fixed_keyword_push_char:
 	imm r3, 185
 	mul r2, r3
 	add r23, r2
-	call transfer_require_push
+	call exact_require_argument_push
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_push_loop
 
@@ -606,8 +603,8 @@ fixed_keyword_require_censuses:
 	imm r1, 530368
 	load r2, r1
 	add r27, r2
-	imm r28, 381
-	imm r29, 381                 ; exact empty store-push interval
+	imm r28, 383
+	imm r29, 383                 ; exact empty store-push interval
 	call summary_require_expr_census
 
 	imm r1, 530376

@@ -145,14 +145,12 @@ cursor_require_cbyte_shape:
         call transfer_require_primitive
         imm r20, 5
         imm r21, 9
-        imm r22, 1
         imm r23, 1692
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 6
         imm r21, 10
-        imm r22, 1
         imm r23, 1839
-        call transfer_require_push
+        call exact_require_binary_push
 
         imm r20, 8
         imm r21, 9
@@ -364,14 +362,12 @@ cursor_require_adv_shape:
         call transfer_require_primitive
         imm r20, 7
         imm r21, 11
-        imm r22, 1
         imm r23, 1997
-        call transfer_require_push
-        imm r20, 378
+        call exact_require_binary_push
+        imm r20, 380
         imm r21, 11
-        imm r22, 3
         imm r23, 1968
-        call transfer_require_push
+        call exact_require_store_push
         imm r20, 2064
         imm r21, 2083
         call exact_require_epilogue
@@ -608,24 +604,20 @@ cursor_require_space_shape:
 
         imm r20, 16
         imm r21, 28
-        imm r22, 1
         imm r23, 3697
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 17
         imm r21, 29
-        imm r22, 1
         imm r23, 3829
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 18
         imm r21, 30
-        imm r22, 1
         imm r23, 3961
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 19
         imm r21, 31
-        imm r22, 1
         imm r23, 4093
-        call transfer_require_push
+        call exact_require_binary_push
 
         imm r20, 19
         imm r21, 31
