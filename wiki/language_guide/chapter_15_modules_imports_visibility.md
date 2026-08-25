@@ -221,6 +221,21 @@ compatibility identity. Whole-package dependency keying is a sound conservative
 implementation because it only over-rejects reuse; exact declaration edges are
 the normative form.
 
+The compiler retains authored selection occurrences while source spans and
+public-versus-private position are still exact, then joins each occurrence to
+its final selected declaration after successful checking. Static paths and
+ordinary members may settle during resolution; receiver-dispatched calls,
+overloads, operators, and inferred conformances may settle later. This is one
+compiler-internal ledger finalized from the stages that own those facts, not a
+new language-visible IR stage. An unresolved or unjoinable authored occurrence
+rejects rather than disappearing from the gate.
+
+Only authored selection rows are checked against the direct dependency set.
+Carried nominal identity, compiler-planned layout and move/copy behavior, and
+automatic cleanup produce semantic dependency evidence but never manufacture
+authored selection authority. No package or build-time code selected by such an
+occurrence may execute before the finalized selection gate succeeds.
+
 ## Visibility
 
 Declarations are private by default unless marked public.

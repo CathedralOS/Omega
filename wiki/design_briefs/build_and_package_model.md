@@ -924,6 +924,24 @@ whole-package edge is a sound over-rejecting implementation until exact
 declaration edges land. `pub` exposes only declarations owned by the current
 package; there is no `export` item that relabels a dependency declaration.
 
+Implementation uses a package-agnostic authored-selection ledger captured while
+resolution still owns exact source spans and public/private syntactic position.
+It is finalized only after successful checking, where late-bound receiver
+calls, overloads, operators, and inferred conformances have exact selected
+declarations. Static rows may be complete earlier; each row is joined from the
+earliest coherent owner of its facts. Missing, ambiguous, or unjoinable rows
+reject. The ledger is a compiler-internal sidecar and does not justify nominal
+Chi.
+
+The direct-dependency gate consumes only finalized authored-selection rows.
+Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
+separate exact semantic-dependency set with private/public disposition. They
+affect artifact and compatibility identity without widening source
+nameability. Compilation must finalize and admit authored selections before
+executing selected package or build-time code; an implementation whose current
+evaluation order is earlier must reorder or split that work rather than weaken
+the gate.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type
