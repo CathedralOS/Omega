@@ -134,6 +134,13 @@ cross-package access and same-module private access remain unblocked, including
 the current two-package nominal-data artifact. No other item below is presently
 design-blocked merely because it is large or difficult.
 
+The compilation-authority join is separately waiting on the package/security
+owner, not on a bootstrap language ruling. There is not yet a canonical accepted
+lock/closure wire, acceptance root, or accepted-lock-to-`OMGCOMP` projection for
+the bridge to consume. Continue fixture-driven resolution, checking, lowering,
+and refinement while that owner closes `ACCEPTED-LOCK-SCHEMA`; do not invent a
+bridge-local receipt and call it authority.
+
 ### Rolling invariant — maintain the provisional Delta ledger
 
 At every bridge milestone:
@@ -210,24 +217,37 @@ as one growing verifier:
 | resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
 | lower-rooted `OMGRFN2` reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through five responsibility-specific persisted-Beta gates and their lattice conjunction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
-| compilation authority | open: accepted resolver commitment plus exact envelope SHA-256 still required | compilation and witness contracts above |
+| compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
 makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
-- [ ] Join the structurally checked multi-unit
+- [ ] After the package/security owner publishes the canonical accepted-lock
+  projection, join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to an independently accepted resolver/lock commitment and compare the exact
   envelope SHA-256. Structural validity alone is never compilation authority.
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
+- [ ] Version the private checked-IR handoff for the next general body tranche.
+  Make its entry machine ID an explicit projection of the exact
+  `OMGCOMP`/`OMGRSW1` selected root instead of inferring the entry through
+  CKIR1's global candidate-cardinality convention, and add
+  a typed machine-call operation for finite acyclic internal and cross-unit
+  calls. Reuse the existing role-3 static machine bindings rather than repeating
+  name resolution in lowering. Carry the widening through source, witness,
+  checked IR, conservative artifact, and complete result on native,
+  Delta-self-built, Rust-free meaning, and lower-rooted refinement paths, with
+  phase-isolated root/callee/signature/order/cycle/resource negatives. This is a
+  versioned bridge implementation slice, not admission of recursion or any
+  source family to final `Ωself`.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
-  by candidate `Ωself`. Cross-unit machine calls wait for a versioned CKIR call
-  operation; transport work does not imply that widening.
+  by candidate `Ωself`. The dedicated versioned-call tranche above owns
+  cross-unit calls; transport work alone does not imply that widening.
 - [ ] Carry each admitted capability's compositional rules, negative boundary,
   resource teeth, Rust-free meaning, and direct artifact path in the same
   milestone. A bounded frontend-only cost probe is evidence, not bridge
@@ -316,32 +336,6 @@ generated conservatively. This closes the required lattice. A later
 work.
 
 ## Gate and performance discipline
-
-- [x] Shard and cache the historical mutation work in
-  `bootstrap/assurance/refinement/beta/bc-block-control.sh`. Preserve the full
-  negative inventory and `LATTICE_FULL=1` coverage, but give each independent
-  responsibility its own content-keyed artifact/result and timing heartbeat so
-  an unrelated bootstrap change does not reassemble and rerun the entire
-  historical matrix. Acceptance: a cold run reports every shard and its timing;
-  a warm incremental lattice run skips unchanged shards; changing one shard
-  reruns that shard and its real dependents only. The 2026-08-24 broad replay
-  measured 103 seconds in `independent-historical-teeth` alone and then spent
-  more than four additional minutes in the unreported
-  `checker-a-historical-mutations` phase before the unrelated run was stopped.
-  Closed 2026-08-24: sixty responsibility-sized receipts cover the early
-  theorem teeth, the five independent historical families, the direct and
-  already modular Checker-A families, late storage/resource relations, and
-  artifact-custody controls. Canonical theorem owners are always rebuilt and
-  smoked in-process; receipts retain no executable or `BC_OWNER_*` state. A
-  forced or changed-key replay revokes the prior green before work begins, and
-  every key binds the exact checker/bundle, selected teeth module, cache
-  protocol, Alpha stamping implementation, assembler, seed, and artifact.
-  `BC_BLOCK_CACHE=0` passed the complete cold matrix with a timing heartbeat for
-  every shard. The immediate warm authoritative gate passed in 18.42s with all
-  sixty responsibilities cached. Editing only the raw-load teeth module reran
-  only that one-second shard while the other Checker-A shards remained cached.
-  The driver fell from 3,028 to 1,724 lines; extracted modules preserve the
-  historical global build-then-reject order and full negative inventory.
 
 - Keep one focused gate per active capability; run the full lattice gate only
   at coherent milestones.

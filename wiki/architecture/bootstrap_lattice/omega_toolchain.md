@@ -17,8 +17,8 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 
 `omega-bootstrap` is written in Delta and accepts only the compositional
 Psi/Omega source surface required by the production source closure. It is
-permitted to reject proofs, dependent/linear types, and any other Omega
-construct excluded from `Ωself`. Accepted constructs retain exact Omega
+permitted to reject proof syntax, dependent or proof-indexed types, and any
+other Omega construct excluded from `Ωself`. Accepted constructs retain exact Omega
 semantics; this is not a bootstrap dialect. The production compiler is written
 in Omega constrained to that `Ωself` profile and implements the full
 specification for users.
