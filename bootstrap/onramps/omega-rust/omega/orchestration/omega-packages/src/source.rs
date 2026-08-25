@@ -3118,9 +3118,7 @@ impl CacheEntryLock {
             let _ = file.unlock();
             return Err(error);
         }
-        require_regular_file(path, "cache lock was replaced while being acquired")?;
-        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-        verify_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &metadata)?;
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
         Ok(Self { file })
     }
 
@@ -3128,9 +3126,7 @@ impl CacheEntryLock {
     fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
         let file = Self::open_git(path)?;
         file.lock().map_err(|error| io_error(path, error))?;
-        require_regular_file(path, "cache lock was replaced while being acquired")?;
-        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-        verify_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &metadata)?;
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
         Ok(Self { file })
     }
 
@@ -3151,16 +3147,61 @@ impl CacheEntryLock {
             .open(path)
             .map_err(|error| io_error(path, error))?;
         file.lock().map_err(|error| io_error(path, error))?;
-        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-        if metadata.file_type().is_symlink() || !metadata.is_file() {
-            return Err(local_snapshot_invalid(
-                path,
-                "cache lock was replaced while being acquired",
-            ));
-        }
-        verify_cache_node_owner_and_mode(CacheCustodyKind::LocalSnapshot, path, &metadata)?;
+        verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, path, &file)?;
         Ok(Self { file })
     }
+}
+
+fn verify_cache_lock_path_identity(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let path_metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+    if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock was replaced while being acquired",
+        ));
+    }
+    let handle_metadata = file.metadata().map_err(|error| io_error(path, error))?;
+    if !handle_metadata.is_file() || !same_file_identity(&handle_metadata, &path_metadata) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock path does not identify the locked file",
+        ));
+    }
+    verify_cache_node_owner_and_mode(kind, path, &path_metadata)
+}
+
+#[cfg(unix)]
+fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(windows)]
+fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    matches!(
+        (
+            left.volume_serial_number(),
+            left.file_index(),
+            right.volume_serial_number(),
+            right.file_index(),
+        ),
+        (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
+            if left_volume == right_volume && left_index == right_index
+    )
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_file_identity(_left: &std::fs::Metadata, _right: &std::fs::Metadata) -> bool {
+    false
 }
 
 impl Drop for CacheEntryLock {
@@ -6575,6 +6616,52 @@ mod tests {
         waiter.join().expect("join lock waiter");
         assert!(lock_path.is_file());
 
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_cache_rejects_a_replaced_locked_path() {
+        let cache = temp_root("git-lock-replaced");
+        std::fs::create_dir_all(&cache).expect("create cache");
+        let lock_path = cache.join("entry.lock");
+        let displaced_path = cache.join("entry.lock.displaced");
+        let file = CacheEntryLock::open_git(&lock_path).expect("open cache lock");
+        file.lock().expect("lock cache entry");
+        std::fs::rename(&lock_path, &displaced_path).expect("displace locked path");
+        std::fs::write(&lock_path, []).expect("replace lock path");
+
+        assert!(matches!(
+            verify_cache_lock_path_identity(CacheCustodyKind::Git, &lock_path, &file),
+            Err(SourceResolveError::GitCacheInvalid { .. })
+        ));
+
+        file.unlock().expect("unlock displaced cache entry");
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn local_cache_rejects_a_replaced_locked_path() {
+        let cache = temp_root("local-lock-replaced");
+        std::fs::create_dir_all(&cache).expect("create cache");
+        let lock_path = cache.join("entry.lock");
+        let displaced_path = cache.join("entry.lock.displaced");
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .expect("open local cache lock");
+        file.lock().expect("lock local cache entry");
+        std::fs::rename(&lock_path, &displaced_path).expect("displace locked path");
+        std::fs::write(&lock_path, []).expect("replace lock path");
+
+        assert!(matches!(
+            verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, &lock_path, &file,),
+            Err(SourceResolveError::LocalSnapshotInvalid { .. })
+        ));
+
+        file.unlock().expect("unlock displaced cache entry");
         let _ = std::fs::remove_dir_all(&cache);
     }
 

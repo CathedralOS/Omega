@@ -198,13 +198,18 @@ symlink logical lengths. Git entries reject above
 `min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
 ceilings for resident cache state, not during-write disk quotas or transferred-
 byte measurements: an unconfined helper may still exhaust storage before the
-parent can reject its output. On Unix each cache entry and lock must be
-owned by the resolver's effective user and not group- or other-writable;
+parent can reject its output. After acquiring every Git or local publication
+lock, the resolver compares the locked handle with the current lock pathname
+using device/inode identity on Unix or volume/file-index identity on Windows;
+a pathname replacement while opening or waiting cannot split synchronization
+across two lock objects. On Unix each cache entry and lock must be owned by the
+resolver's effective user and not group- or other-writable;
 canonical ancestry must be root/resolver-owned and cannot be replaceable
 through a non-sticky writable directory; unsupported filesystem kinds reject.
 This closes ordinary cross-user
 ownership/configuration substitution on Unix. It does not prevent the owning
-user from racing observations, establish Windows ownership/DACL policy, or
+user from replacing a path after an observation, establish Windows
+ownership/DACL policy, or
 replace native isolation. Git path and symlink preflight rejects Windows
 drive/alternate-stream colons, forbidden characters and controls, trailing
 dots/spaces, and reserved device names independently of the host path parser.

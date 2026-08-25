@@ -285,6 +285,14 @@ complete.
   but not hostile same-user racing, platform ACL policy, or native process
   isolation.
 
+  Milestone 2026-08-25: every Git and local publication lock now proves that
+  its opened, locked handle still identifies the current lock pathname after
+  acquisition, using device/inode identity on Unix and volume/file-index
+  identity on Windows. Path replacement while opening or waiting rejects
+  instead of silently splitting synchronization across old and new lock
+  objects. This does not claim handle-relative cache custody or protection
+  against a same-user replacement after the checked observation.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
