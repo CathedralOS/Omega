@@ -113,12 +113,14 @@ The complete design is in:
 
 ## Trust status
 
-The current crate is exploratory scaffolding, not an accepted package-admission
-implementation. No current manifest-file, receipt-file, lock-assembly, or plan
-CLI is a production trust boundary.
+The crate is not yet an accepted end-to-end package-admission implementation,
+but its release surface contains reviewed corrected-model source, identity,
+closure, compiler-review, conflict, baseline, and triage building blocks. No
+manifest-file, receipt-file, lock-assembly, or plan CLI is a production trust
+boundary.
 
-The following assumptions are superseded and must be removed before
-`omega install` or `omega update` can mutate project state:
+The following superseded assumptions remain quarantined to isolated crate tests
+and must not return to the release path:
 
 - locks keyed by package-authored name alone;
 - mandatory caller-supplied alias and package name;
@@ -129,9 +131,9 @@ The following assumptions are superseded and must be removed before
 - treating the legacy standalone local-Path compatibility scanner as package
   dependency authority.
 
-Source fetching, content hashing, traversal limits, normalization, and graph
-algorithms may be reusable only after focused review against the corrected
-model.
+The production source-custody and typed graph paths have received focused
+review; the hardened native resolver boundary, sealed admission projection, and
+accepted-lock path remain incomplete.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
@@ -159,6 +161,14 @@ an admission boundary. Reuse re-authenticates the selected Git graph and compare
 the published snapshot directly with the resulting source identity. Rewritable
 snapshot metadata is checked for consistency but never acts as the content
 baseline.
+Git cache repositories no longer persist a remote origin. Fetch receives the
+exact resolver request directly, and the parent writes and byte-compares one
+canonical SHA-1 or SHA-256 bare-repository configuration without asking Git to
+describe it. Git and local cache trees receive a bounded parent-owned custody
+walk before and after use. Unix nodes and locks must belong to the effective
+user and reject group/other write authority, replaceable non-sticky ancestry,
+or special kinds. Hostile same-user racing, Windows ownership/DACL enforcement,
+and native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.

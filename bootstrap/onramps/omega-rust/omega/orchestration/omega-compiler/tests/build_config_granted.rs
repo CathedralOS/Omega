@@ -1,13 +1,10 @@
-//! The GRANTED build.omg round trip (owner answers #2/#4, OWNER_QUESTIONS
-//! 2026-07-11i; gate landed 2026-07-11j): a build machine with a declared
-//! `FilesystemHost` service ceiling runs at compile time through the granted
-//! interpreter entry (real filesystem, scoped to source reads and build-dir
-//! writes) and stages an asset itself, while the augmented
-//! Build's image facts flow into the pipeline. Console rows (#5) are
-//! served: a declared `Console` boundary write passes the gate, the
-//! granted evaluator serves it, and the bytes flush to the compiler's
-//! real streams. The fail halves live in canaries/fail/build
-//! (undeclared services; unpinned custom boundary).
+//! Granted build-host staging round trip: a build machine with a declared exact
+//! toolchain `FilesystemHost` service ceiling runs at compile time through the
+//! granted interpreter entry, scoped to source reads and build-output writes,
+//! and stages an asset itself while its ordinary `Build` image facts flow into
+//! the pipeline. A declared exact toolchain `Console` boundary write is served
+//! without incidentally supplying filesystem authority. Fail canaries cover
+//! undeclared services and package-authored boundary lookalikes.
 
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,

@@ -1177,11 +1177,13 @@ the build tool discovers the nearest enclosing workspace/build entry.
 ## Current engineering delta
 
 The scoped filesystem executor and real/virtual filesystem modes are the live
-foundation. The current Rust package crate is exploratory scaffolding and is
-not an accepted admission implementation: it keys locks by package name,
-accepts caller-constructed manifest JSON, requires caller-supplied aliases and
-package names, stores fingerprints without a complete accepted baseline, and
-uses free-form review receipts. Legacy standalone compilation also retains a
+foundation. The Rust package crate now has reviewed production building blocks
+for immutable source custody, typed identity/closure, compiler handoff/review,
+row conflicts, restart-stable review baselines, and triage, but it is not yet an
+accepted admission implementation. Name-keyed locks, caller-constructed
+manifest JSON, mandatory caller-supplied names/aliases, fingerprint-only
+baselines, and free-form receipts survive only in quarantined crate tests.
+Legacy standalone compilation also retains a
 syntactic local-Path compatibility scanner that may skip malformed rows;
 package-aware compilation never consults it, and no admission path may treat it
 as authoritative dependency projection. This seam must be removed before
