@@ -216,8 +216,9 @@ language, generation, or architectural role; new documentation and work use
   evaluated CKIR result. The distinct
   [`OMGRFN4`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md)
   carrier, exact 4,497,544-byte simultaneous ceiling, and five-responsibility
-  ownership split are frozen without widening earlier frames. The five lower-
-  rooted CKIR3 implementations/composition remain a separate open seam.
+  ownership split are frozen without widening earlier frames. Its first
+  persisted-Beta checker now closes exact frame and source custody; the other
+  four responsibilities and their composition remain a separate open seam.
 
   The meaning gates deliberately reuse one elaboration and do not duplicate
   the native/self fixture or mutation matrices. On the measured Darwin-arm64
