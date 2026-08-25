@@ -452,6 +452,41 @@ impl TypedTrees {
         &self.tables.authored_declaration_selections
     }
 
+    pub fn record_resolved_authored_declaration_selection_once(
+        &mut self,
+        source_span: psi_source::SourceSpan,
+        exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        kind: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+        selected_symbol: psi_symbols::SymbolHandle,
+    ) -> Result<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionRecordError,
+    > {
+        if let Some(existing) = self
+            .tables
+            .authored_declaration_selections
+            .iter()
+            .find(|selection| {
+                selection.source_span() == source_span
+                    && selection.exposure() == exposure
+                    && selection.kind() == kind
+                    && matches!(
+                        selection.target(),
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if target.selected_symbol() == selected_symbol
+                    )
+            })
+        {
+            return Ok(existing.occurrence_id());
+        }
+        self.tables.authored_declaration_selections.record_resolved(
+            source_span,
+            exposure,
+            kind,
+            selected_symbol,
+        )
+    }
+
     /// Record a schema's derived wire plan: placements land contiguously in
     /// the placement arena; the plan holds their span.
     pub fn record_wire_schema_plan(

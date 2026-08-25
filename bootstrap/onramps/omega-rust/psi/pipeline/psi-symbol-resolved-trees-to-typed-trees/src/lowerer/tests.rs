@@ -4,6 +4,60 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_exact_nominal_type_selections_with_declaration_exposure() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        pub data Dependency { }
+        pub data PublicApi { value: Dependency; }
+        data PrivateState { value: Dependency; }
+        pub machine expose(value: Dependency) {
+            transition { _ -> hidden(value) }
+            state hidden(value: Dependency) { }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let dependency = resolved
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Dependency")
+        .expect("Dependency data")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut exposures = typed
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            (selection.kind() == Kind::TypeReference
+                && matches!(
+                    selection.target(),
+                    Target::Resolved(target) if target.selected_symbol() == dependency
+                ))
+            .then_some(selection.exposure())
+        })
+        .collect::<Vec<_>>();
+    exposures.sort_by_key(|exposure| match exposure {
+        Exposure::PrivateImplementation => 0,
+        Exposure::PublicInterface => 1,
+    });
+
+    assert_eq!(
+        exposures,
+        vec![
+            Exposure::PrivateImplementation,
+            Exposure::PrivateImplementation,
+            Exposure::PublicInterface,
+            Exposure::PublicInterface,
+        ]
+    );
+}
+
+#[test]
 fn retains_public_data_trait_and_wire_visibility_in_typed_trees() {
     let tokens = Lexer::new(
         "pub data PublicRecord { value: u32; } pub data Packet { #1 value: u32; } pub trait PublicTrait {}",

@@ -88,6 +88,11 @@ Must own:
   subject and trait application, and selected row map. Non-lifetime arguments
   are explicit; ordinary lifetime elision is resolved before the fact is
   published.
+- Finalized authored-selection custody for checked calls, members, operators,
+  and conformances. Operators with no declaration-spelling surface—logical,
+  bitwise, and shifts—finalize as compiler intrinsics after ordinary type
+  checking, including when their operands are nested expressions without an
+  independent value-origin type reference.
 
 Must not own:
 

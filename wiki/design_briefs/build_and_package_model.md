@@ -1078,6 +1078,18 @@ because checker and representation evolve together. This does not introduce
 nominal Chi; such a stage would require an actual semantic boundary rather than
 the desire for a stable report shape.
 
+Explicit nominal type selections are retained during symbol-resolved-to-typed
+lowering. At that point the selected symbol is exact and the enclosing
+declaration still determines whether the occurrence belongs to a public
+interface or private implementation. Public data, domain, machine-head,
+trait, and wire type positions are public; private declarations, internal state
+signatures, local type annotations, casts, and public-machine owned storage are private. Generic bases
+and named dynamic-trait conformances retain exact custody. Primitive types,
+binders, locals, and source-free compiler nodes do not acquire fictional package
+provenance. These authored rows enforce direct source authority; they do not
+replace the separate carried-type dependency rows needed for artifact and API
+compatibility identity.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type

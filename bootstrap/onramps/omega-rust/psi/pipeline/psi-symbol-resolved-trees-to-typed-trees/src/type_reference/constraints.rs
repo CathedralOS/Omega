@@ -10,6 +10,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraintNode>,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -35,6 +36,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                             source_trees,
                             typed_trees,
                             *argument,
+                            exposure,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -74,13 +76,19 @@ pub(crate) fn lower_type_constraints(
     lowerer: &mut Lowerer,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
-    lower_type_constraints_with_context(lowerer.source_trees, &mut lowerer.typed_trees, constraints)
+    lower_type_constraints_with_context(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        constraints,
+        lowerer.type_reference_exposure,
+    )
 }
 
 pub(crate) fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -90,8 +98,12 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
         .constraints
         .span_or_empty(constraints)
     {
-        let constraint =
-            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        let constraint = lower_type_constraint_node_with_context(
+            source_trees,
+            typed_trees,
+            constraint,
+            exposure,
+        )?;
         typed_trees
             .type_reference_table
             .push_constraint(&mut span, constraint);
@@ -122,8 +134,12 @@ pub(crate) fn lower_element_applicable_constraints(
         if matches!(constraint, resolved::types::TypeConstraint::Domain(_)) {
             continue;
         }
-        let constraint =
-            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        let constraint = lower_type_constraint_node_with_context(
+            source_trees,
+            typed_trees,
+            constraint,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        )?;
         typed_trees
             .type_reference_table
             .push_constraint(&mut span, constraint);
@@ -136,6 +152,7 @@ fn lower_type_constraints_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
@@ -145,8 +162,12 @@ fn lower_type_constraints_with_context(
         .constraints
         .span_or_empty(constraints)
     {
-        let constraint =
-            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        let constraint = lower_type_constraint_node_with_context(
+            source_trees,
+            typed_trees,
+            constraint,
+            exposure,
+        )?;
         typed_trees
             .type_reference_table
             .push_constraint(&mut span, constraint);
@@ -159,6 +180,7 @@ fn lower_type_constraint_node_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraint: &resolved::types::TypeConstraint,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
     match constraint {
         resolved::types::TypeConstraint::Named(name) => Ok(
@@ -172,10 +194,11 @@ fn lower_type_constraint_node_with_context(
                 .span_or_empty(domain.arguments)
                 .iter()
                 .map(|argument| {
-                    crate::type_reference::lower_type_reference_into_trees(
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
                         source_trees,
                         typed_trees,
                         argument,
+                        exposure,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;

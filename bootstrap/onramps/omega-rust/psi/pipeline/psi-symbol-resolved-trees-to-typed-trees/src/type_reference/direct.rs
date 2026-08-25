@@ -10,6 +10,7 @@ pub(super) fn lower_type_reference_handle_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: &resolved::types::TypeReference,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     match type_reference {
         resolved::types::TypeReference::Reference(reference) => {
@@ -17,6 +18,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(reference.referee),
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Reference {
@@ -31,11 +33,13 @@ pub(super) fn lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(constrained.base_type),
+                exposure,
             )?;
             let constraints = lower_type_constraint_node_span_with_context(
                 source_trees,
                 typed_trees,
                 constrained.constraints,
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Constrained {
@@ -49,6 +53,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(fixed_array.element_type),
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::FixedArray {
@@ -62,6 +67,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(slice.element_type),
+                exposure,
             )?;
             Ok(typed_trees
                 .type_reference_table
@@ -70,13 +76,25 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::Generic(generic) => {
             let mut arguments = HandleSpan::empty();
             for argument in source_trees.child_type_references(generic.arguments) {
-                let argument =
-                    lower_type_reference_handle_with_context(source_trees, typed_trees, argument)?;
+                let argument = lower_type_reference_handle_with_context(
+                    source_trees,
+                    typed_trees,
+                    argument,
+                    exposure,
+                )?;
                 typed_trees
                     .type_reference_table
                     .push_type_reference_handle(&mut arguments, argument);
             }
 
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                &generic.base_name,
+                generic.base_symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
             Ok(typed_trees
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Generic {
@@ -106,21 +124,53 @@ pub(super) fn lower_type_reference_handle_with_context(
             conformance,
             conformance_carrier,
             conformance_name,
-        } => Ok(typed_trees.type_reference_table.insert(
-            typed::types::TypeReferenceNode::DynamicTrait {
-                symbol: *symbol,
-                name: crate::name::lower_name(name),
-                conformance: *conformance,
-                conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
-                conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
-            },
-        )),
-        resolved::types::TypeReference::Named { symbol, name } => Ok(typed_trees
-            .type_reference_table
-            .insert(typed::types::TypeReferenceNode::Named {
-                symbol: *symbol,
-                name: crate::name::lower_name(name),
-            })),
+        } => {
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                name,
+                *symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
+            if let (Some(conformance), Some(conformance_name)) =
+                (*conformance, conformance_name.as_ref())
+            {
+                super::retain_type_reference_selection(
+                    source_trees,
+                    typed_trees,
+                    conformance_name,
+                    conformance,
+                    exposure,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
+                )?;
+            }
+            Ok(typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: crate::name::lower_name(name),
+                    conformance: *conformance,
+                    conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
+                    conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
+                },
+            ))
+        }
+        resolved::types::TypeReference::Named { symbol, name } => {
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                name,
+                *symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
+            Ok(typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::Named {
+                    symbol: *symbol,
+                    name: crate::name::lower_name(name),
+                }))
+        }
         resolved::types::TypeReference::SelfType { symbol } => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {

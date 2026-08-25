@@ -126,6 +126,36 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
 }
 
 #[test]
+fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
+    let source = r#"
+        data Reading { value: i64; minimum: i64; maximum: i64; }
+
+        machine within_calibration(reading: Reading) -> bool {
+            reading.value >= reading.minimum && reading.value <= reading.maximum
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let operators = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+
+    assert_eq!(operators.len(), 3);
+    assert!(operators.iter().all(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            )
+    }));
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
 fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
     let source = r#"
         domain [u8]::Path requires no_nul(self);
