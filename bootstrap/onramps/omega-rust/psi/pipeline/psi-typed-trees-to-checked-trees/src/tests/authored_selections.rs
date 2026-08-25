@@ -154,6 +154,46 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
 }
 
 #[test]
+fn successful_checking_binds_boundary_calls_through_parameter_fields() {
+    let source = r#"
+        boundary trait FilesystemHost {
+            machine open(&self, path: &[u8], flags: i32) -> i32
+            reaches FilesystemHost;
+        }
+        data Build { filesystem: FilesystemHost; }
+        machine build(builder: &mut Build)
+        reaches FilesystemHost
+        {
+            let descriptor: i32 = builder.filesystem.open("input.txt", 0);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let call = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "open" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("boundary call");
+    let requirement = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "FilesystemHost")
+        .and_then(|definition| checked.trait_machine_signatures(definition).first())
+        .expect("filesystem requirement");
+    assert_eq!(call.target_symbol, requirement.symbol);
+}
+
+#[test]
 fn successful_checking_canonicalizes_local_selections_across_specializations() {
     let source = r#"
         data Light [copy] { weight: i32; }

@@ -185,6 +185,13 @@ Downloaded code never receives resolver fetch/archive authority, the root
 package's providers, or authority to alter its own dependency graph during
 build execution.
 
+Implemented package-review sequencing freezes the resolved source closure,
+executes the selected build prepass exactly once, and joins only explicit
+Output-rooted `include_source` handoffs to retained staged-tree bytes. Those
+bytes receive ordinary final parsing, resolution, typing, and checking without
+rerunning dependency discovery or build execution. The native-image command
+remains gated until it consumes the same sponsored package transaction.
+
 ## Authored requests versus accepted lock state
 
 `build.omg` records update intent: source locator, revision selector, explicit

@@ -77,10 +77,28 @@ pub(super) fn derive(
     })
 }
 
-pub(super) fn verify_current_files(program: &CheckedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(super) fn verify_current_files(
+    program: &CheckedTrees,
+    generated_sources: &[(
+        psi_source::SourceId,
+        super::build_staged_output::BuildStagedSource,
+    )],
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for source in program.typed.symbols.source_files() {
         if source.origin == SourceOrigin::Toolchain && is_virtual_toolchain_path(&source.path) {
+            continue;
+        }
+        if let Some((_, generated)) = generated_sources
+            .iter()
+            .find(|(source_id, _)| *source_id == source.source_id)
+        {
+            if source.source.as_bytes() != generated.bytes() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "compiler-retained generated source `{}` drifted from staged-output custody",
+                    source.path.display()
+                )));
+            }
             continue;
         }
         match std::fs::read(&source.path) {

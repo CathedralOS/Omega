@@ -1,7 +1,1 @@
-// The canonical build contract names the toolchain-owned service. Executed
-// operations wait for provider injection into the free package build entry.
-use omega::language::std::filesystem_host;
-
-pub machine table_size() -> u64 {
-    3
-}
+// `table_size` is generated from inputs/table.txt by the package build.

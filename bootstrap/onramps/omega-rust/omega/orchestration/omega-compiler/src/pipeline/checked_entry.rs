@@ -17,6 +17,10 @@ pub struct CheckedCompilation {
     program: CheckedTrees,
     package_identity: Option<psi_core::PackageKeyIdentity>,
     source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
+    generated_source_custody: Vec<(
+        psi_source::SourceId,
+        super::build_staged_output::BuildStagedSource,
+    )>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
@@ -47,12 +51,16 @@ impl CheckedCompilation {
         self.source_consumption_commitment
     }
 
-    /// Re-read every physical source path and require it to equal the bytes
-    /// retained by the frontend. Resolver orchestration calls this around its
-    /// own whole-snapshot verification; hostile same-user races still require
-    /// an OS isolation boundary.
+    /// Re-read every ordinary physical source path and require it to equal the
+    /// bytes retained by the frontend. Generated sources are instead checked
+    /// against their compiler-retained staged-output custody. Resolver
+    /// orchestration calls this around its own whole-snapshot verification;
+    /// hostile same-user races still require an OS isolation boundary.
     pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
-        super::package_source_consumption::verify_current_files(&self.program)
+        super::package_source_consumption::verify_current_files(
+            &self.program,
+            &self.generated_source_custody,
+        )
     }
 
     /// Exact native target selected for this checked compilation. Semantic-only
@@ -235,6 +243,62 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     })
 }
 
+struct CheckedFrontend {
+    typed: psi_typed_trees::TypedTrees,
+    target_default_machine_names: Vec<String>,
+    build_file_machine_names: Vec<String>,
+    boundary_calling_plan_realizations:
+        Vec<crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization>,
+}
+
+fn lower_checked_frontend(
+    mut syntax: crate::pipeline::stages::AssembledSyntax,
+    target_name: Option<&str>,
+    timings: &mut CompileTimings,
+) -> Result<CheckedFrontend, Vec<Diagnostic>> {
+    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
+        syntax.syntax_trees,
+        syntax.sources.clone(),
+    )?;
+    syntax.syntax_trees = evaluated.syntax_trees;
+    let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
+        &mut syntax.syntax_trees,
+        target_name,
+    )?;
+    let build_file_machine_names = syntax
+        .files
+        .iter()
+        .filter(|file| file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
+        .flat_map(|file| file.root_items.iter())
+        .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
+            psi_syntax_trees::item::Item::Machine(machine) => {
+                Some(machine.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect();
+    let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
+    let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
+    psi_build_time_evaluation::evaluate_pre_check(
+        &mut typed,
+        &evaluated.plan_laid_records,
+        &evaluated.placed_view_records,
+    )?;
+    // Build evaluation consumes this coherent private typed stage before the
+    // final checked-tree lowering. Bind trait-valued parameter-field calls now
+    // so the evaluator receives the same exact requirement identity that the
+    // checker will subsequently validate and retain.
+    psi_validation::resolve_dynamic_call_targets(&mut typed)?;
+    let boundary_calling_plan_realizations =
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+    Ok(CheckedFrontend {
+        typed,
+        target_default_machine_names,
+        build_file_machine_names,
+        boundary_calling_plan_realizations,
+    })
+}
+
 fn compile_to_checked_inner(
     root_path: &Path,
     target_name: Option<&str>,
@@ -247,47 +311,15 @@ fn compile_to_checked_inner(
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
     // provider; only the native-image pipeline substitutes target providers.
-    let (_source_file_count, mut syntax) = source_files_to_syntax_trees_for_engine(
+    let (_source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
         root_path,
         target_name,
         false,
         package_inputs,
         &mut timings,
     )?;
-    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
-        syntax.syntax_trees,
-        syntax.sources.clone(),
-    )?;
-    syntax.syntax_trees = evaluated.syntax_trees;
-    let placed_view_records = evaluated.placed_view_records;
-    let plan_laid_records = evaluated.plan_laid_records;
-    // TARGET-SCOPED MACHINES -- exactly as the full `compile` pipeline does:
-    // the interpreter runs the SELECTED target's implementations.
-    let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
-        &mut syntax.syntax_trees,
-        target_name,
-    )?;
-    let build_file_machine_names: Vec<String> = syntax
-        .files
-        .iter()
-        .filter(|file| file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
-        .flat_map(|file| file.root_items.iter())
-        .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
-            psi_syntax_trees::item::Item::Machine(machine) => {
-                Some(machine.name.as_str().to_owned())
-            }
-            _ => None,
-        })
-        .collect();
-    let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
-    let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-    psi_build_time_evaluation::evaluate_pre_check(
-        &mut typed,
-        &plan_laid_records,
-        &placed_view_records,
-    )?;
-    let boundary_calling_plan_realizations =
-        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+    let frozen_syntax = syntax.clone();
+    let mut frontend = lower_checked_frontend(syntax, target_name, &mut timings)?;
     let build_machine_filesystem_scope =
         crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
             root_path,
@@ -301,14 +333,83 @@ fn compile_to_checked_inner(
             filesystem_sponsor,
         );
     let computed_build_config = crate::pipeline::build_config::compute_build_config(
-        &typed,
-        &build_file_machine_names,
+        &frontend.typed,
+        &frontend.build_file_machine_names,
         &build_machine_filesystem_scope,
     )?;
-    crate::pipeline::build_config::reject_uncompiled_generated_sources(&computed_build_config)?;
+    let prepass_build_identity = computed_build_config
+        .selected_build_machine_symbol
+        .map(|symbol| -> Result<_, Vec<Diagnostic>> {
+            let source_span = frontend
+                .typed
+                .symbols
+                .symbol_source_span(symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected build machine has no exact authored source occurrence",
+                    )]
+                })?;
+            let name = frontend
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+                .map(|machine| machine.name.as_str().to_owned())
+                .ok_or_else(|| vec![Diagnostic::error("selected build machine disappeared")])?;
+            Ok((source_span, name))
+        })
+        .transpose()?;
+    let mut generated_source_custody = Vec::new();
+    let selected_build_machine_symbol = if computed_build_config.generated_sources.is_empty() {
+        computed_build_config.selected_build_machine_symbol
+    } else {
+        let package_inputs = package_inputs.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "generated-source final compilation requires package-aware source custody",
+            )]
+        })?;
+        let package_root = package_inputs
+            .package_root(package_inputs.root())
+            .expect("validated package inputs retain their root package");
+        let mut final_syntax = frozen_syntax;
+        generated_source_custody = crate::pipeline::stages::append_retained_generated_sources(
+            &mut final_syntax,
+            package_root,
+            Some(package_inputs.root()),
+            &computed_build_config.generated_sources,
+        )?;
+        frontend = lower_checked_frontend(final_syntax, target_name, &mut timings)?;
+        let Some((source_span, name)) = prepass_build_identity else {
+            return Err(vec![Diagnostic::error(
+                "generated-source handoff has no selected build machine to rebind",
+            )]);
+        };
+        let matching = frontend
+            .typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.name.as_str() == name
+                    && frontend.typed.symbols.symbol_source_span(machine.symbol)
+                        == Some(source_span)
+            })
+            .map(|machine| machine.symbol)
+            .collect::<Vec<_>>();
+        let [selected] = matching.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "final compilation could not exactly rebind the build machine executed by the frozen prepass",
+            )]);
+        };
+        Some(*selected)
+    };
+    let CheckedFrontend {
+        typed,
+        target_default_machine_names,
+        boundary_calling_plan_realizations,
+        ..
+    } = frontend;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_observation_summary = computed_build_config.observation_summary;
-    let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let build_config = computed_build_config.config;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
@@ -438,12 +539,16 @@ fn compile_to_checked_inner(
         .map(|inputs| super::package_source_consumption::derive(&program, inputs))
         .transpose()?;
     if source_consumption_commitment.is_some() {
-        super::package_source_consumption::verify_current_files(&program)?;
+        super::package_source_consumption::verify_current_files(
+            &program,
+            &generated_source_custody,
+        )?;
     }
     Ok(CheckedCompilation {
         program,
         package_identity,
         source_consumption_commitment,
+        generated_source_custody,
         selected_target_profile,
         selected_native_target,
         selected_program_entry_machine,
