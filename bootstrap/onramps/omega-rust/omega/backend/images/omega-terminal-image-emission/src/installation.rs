@@ -9,7 +9,8 @@ use crate::{
     completion_receipts::{CompletionCustodyError, validate_completion_custody},
 };
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
 };
 use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -71,7 +72,37 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 37;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 38;
+
+fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
+    if placement.shape.class != ValueClass::Integer
+        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
+            || (9..=16).contains(&placement.shape.byte_size))
+        || !(1..=2).contains(&placement.locations.len())
+    {
+        return false;
+    }
+    let mut expected_offset = 0_u16;
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return false;
+        };
+        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return false;
+        }
+        let Some(next) = expected_offset.checked_add(byte_size) else {
+            return false;
+        };
+        expected_offset = next;
+    }
+    expected_offset == placement.shape.byte_size
+}
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -642,7 +673,7 @@ where
     Ok(record)
 }
 
-/// Rejoin a decoded format-37 record to the exact replayed metered image.
+/// Rejoin a decoded format-38 record to the exact replayed metered image.
 /// The common semantic rows validate against the retained source artifact;
 /// this second half validates the independent physical coordinate map.
 pub fn validate_terminal_native_fuel_installation_record(
@@ -1561,9 +1592,13 @@ fn validate_record_shape(
             || returned.source.structural_type != returned.result.structural_type
             || returned.source.qualifications != returned.result.qualifications
             || returned.source.place == returned.result.place
-            || returned.shape != ValueShape::integer(8, 8)
+            || returned.shape.class != ValueClass::Integer
+            || !((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
+                || (9..=16).contains(&returned.shape.byte_size))
             || returned.source_placement.shape != returned.shape
             || returned.result_placement.shape != returned.shape
+            || !direct_structural_return_placement(&returned.source_placement)
+            || !direct_structural_return_placement(&returned.result_placement)
             || returned.parameters.first() != Some(&returned.source)
             || returned.parameters.iter().skip(1).any(|parameter| {
                 parameter.place == returned.source.place

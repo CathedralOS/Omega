@@ -5962,6 +5962,219 @@ fn direct_structural_result_call_reaches_every_native_artifact() {
     }
 }
 
+#[test]
+fn two_fragment_structural_result_call_is_exact_on_direct_aggregate_abis() {
+    let checked = checked_source();
+    let lowered = lower_machine(&checked, "Main::through_call_wide")
+        .expect("two-fragment structural-result call reaches terminal Psi");
+    let semantic = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry = lowered.semantic_module.entry;
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("wide structural-result call crosses the Omega boundary");
+    let TerminalAbstractOperation::CallStructural { callee, .. } = &abstract_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == entry)
+        .expect("abstract wide caller")
+        .operations[0]
+    else {
+        panic!("wide caller retains one structural call")
+    };
+    let callee = *callee;
+
+    for case in target_cases() {
+        let target_plan = match case.policy {
+            CallingPolicy::MicrosoftX64 => {
+                assert!(
+                    lower_to_target_operations(&abstract_plan, case.target).is_err(),
+                    "{:?} keeps its indirect 16-byte result fenced",
+                    case.target
+                );
+                continue;
+            }
+            CallingPolicy::SystemVAMD64 | CallingPolicy::Aapcs64 => {
+                lower_to_target_operations(&abstract_plan, case.target).unwrap_or_else(|error| {
+                    panic!("{:?} wide target lowering failed: {error:?}", case.target)
+                })
+            }
+            _ => unreachable!("target canary uses only native user calling policies"),
+        };
+        let caller_target = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == entry)
+            .expect("target wide caller");
+        let TerminalTargetOperation::ReturnStructuralCall {
+            call_plan,
+            callee_call_plan,
+            ..
+        } = &caller_target.operation
+        else {
+            panic!("wide target caller retains structural-result operation")
+        };
+        for placement in [
+            &call_plan.parameters[0],
+            call_plan.result.as_ref().expect("caller wide result"),
+            &callee_call_plan.parameters[0],
+            callee_call_plan
+                .result
+                .as_ref()
+                .expect("callee wide result"),
+        ] {
+            assert_eq!(placement.shape, ValueShape::integer(16, 8));
+            assert_eq!(placement.locations.len(), 2);
+            assert!(
+                placement
+                    .locations
+                    .iter()
+                    .enumerate()
+                    .all(|(index, location)| {
+                        matches!(
+                            location,
+                            ValueLocation::Register {
+                                value_byte_offset,
+                                byte_size: 8,
+                                ..
+                            } if usize::from(*value_byte_offset) == index * 8
+                        )
+                    })
+            );
+        }
+
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} wide assignment failed: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::ReturnStructuralCall { .. })
+        ));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} wide emission failed: {error:?}", case.target));
+        let caller = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry)
+            .expect("emitted wide caller");
+        let [call] = caller.internal_unit_calls.as_slice() else {
+            panic!("one exact wide structural call custody row")
+        };
+        let result = call
+            .structural_result
+            .as_ref()
+            .expect("wide call retains structural result custody");
+        assert_eq!(result.caller_result_placement.locations.len(), 2);
+        assert_eq!(result.callee_result_placement.locations.len(), 2);
+        let callee_code = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == callee)
+            .expect("emitted wide callee");
+        let returned = callee_code
+            .structural_return
+            .as_ref()
+            .expect("wide callee retains structural return custody");
+        assert_eq!(returned.source_placement.locations.len(), 2);
+        assert_eq!(returned.result_placement.locations.len(), 2);
+        match case.policy {
+            CallingPolicy::SystemVAMD64 => assert_eq!(
+                callee_code.bytes,
+                [0x48, 0x89, 0xf8, 0x48, 0x89, 0xf2, 0xc3]
+            ),
+            CallingPolicy::Aapcs64 => assert_eq!(callee_code.bytes, AAPCS64_RETURN),
+            _ => unreachable!(),
+        }
+
+        let mut reordered_callee = machine_code.clone();
+        reordered_callee
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == callee)
+            .and_then(|function| function.structural_return.as_mut())
+            .expect("mutable wide callee return")
+            .result_placement
+            .locations
+            .swap(0, 1);
+        assert!(
+            build_terminal_object_artifact(&reordered_callee).is_err(),
+            "{:?} object replay rejects reordered wide result fragments",
+            case.target
+        );
+
+        let mut reordered_call = machine_code.clone();
+        reordered_call
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry)
+            .and_then(|function| function.internal_unit_calls[0].structural_result.as_mut())
+            .expect("mutable wide call result")
+            .caller_result_placement
+            .locations
+            .swap(0, 1);
+        assert!(
+            build_terminal_object_artifact(&reordered_call).is_err(),
+            "{:?} object replay rejects reordered caller result fragments",
+            case.target
+        );
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} wide object failed: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} wide image failed: {error:?}", case.target));
+        assert_eq!(
+            image
+                .functions()
+                .iter()
+                .find(|function| function.machine == callee)
+                .and_then(|function| function.structural_return.as_ref())
+                .map(|record| record.result_placement.locations.len()),
+            Some(2),
+            "image retains both independently validated result fragments"
+        );
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} wide installation failed: {error:?}", case.target));
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("canonical wide structural installation");
+        assert_eq!(
+            decode_terminal_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+
+        let mut reordered_installation = encoded.clone();
+        let location_count = 2_u32.to_le_bytes();
+        let fragment_start = reordered_installation
+            .windows(16)
+            .position(|window| {
+                window[0..4] == location_count
+                    && window[4] == 1
+                    && window[6..8] == 0_u16.to_le_bytes()
+                    && window[8..10] == 8_u16.to_le_bytes()
+                    && window[10] == 1
+                    && window[12..14] == 8_u16.to_le_bytes()
+                    && window[14..16] == 8_u16.to_le_bytes()
+            })
+            .expect("wide installation contains a two-fragment placement")
+            + 4;
+        let first = reordered_installation[fragment_start..fragment_start + 6].to_vec();
+        let second = reordered_installation[fragment_start + 6..fragment_start + 12].to_vec();
+        reordered_installation[fragment_start..fragment_start + 6].copy_from_slice(&second);
+        reordered_installation[fragment_start + 6..fragment_start + 12].copy_from_slice(&first);
+        let decoded = decode_terminal_installation_record(&reordered_installation)
+            .expect("reordered fragments remain syntactically decodable");
+        assert!(
+            validate_terminal_installation_record(&decoded, &image).is_err(),
+            "{:?} installation replay rejects reordered wide fragments",
+            case.target
+        );
+    }
+}
+
 #[cfg(unix)]
 fn host_structural_round_trip(bytes: &[u8], value: u64, cleanup_count: usize) -> bool {
     let nonce = SystemTime::now()

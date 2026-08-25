@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-use omega_calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueClass, ValueLocation, evaluate_call_plan,
+};
 use omega_target::{Architecture, NativeTarget};
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedAggregateCopy, TerminalAssignedBooleanControl,
@@ -411,9 +413,21 @@ fn assign_function(
                 ));
             }
             for (parameter, placement) in parameters.iter().zip(&call_plan.parameters) {
-                validate_structural_placement(parameter.place, placement, architecture)?;
+                if parameter.place == source.place {
+                    validate_direct_structural_return_placement(
+                        parameter.place,
+                        placement,
+                        architecture,
+                    )?;
+                } else {
+                    validate_structural_placement(parameter.place, placement, architecture)?;
+                }
             }
-            validate_structural_placement(result.place, result_placement, architecture)?;
+            validate_direct_structural_return_placement(
+                result.place,
+                result_placement,
+                architecture,
+            )?;
             TerminalAssignedOperation::ReturnStructuralParameter {
                 call_plan: call_plan.clone(),
                 parameters: parameters.clone(),
@@ -731,6 +745,56 @@ fn validate_structural_placement(
             _ => Err(AssignmentError::UnsupportedStructuralPlacement(place)),
         };
     };
+    validate_structural_register(place, *register, architecture)
+}
+
+fn validate_direct_structural_return_placement(
+    place: psi_core::PlaceId,
+    placement: &omega_calling_conventions::ValuePlacement,
+    architecture: Architecture,
+) -> Result<(), AssignmentError> {
+    if placement.shape.class != ValueClass::Integer
+        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
+            || (9..=16).contains(&placement.shape.byte_size))
+    {
+        return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+    }
+    if placement.locations.len() == 1 {
+        return validate_structural_placement(place, placement, architecture);
+    }
+    if placement.locations.len() != 2 || !(9..=16).contains(&placement.shape.byte_size) {
+        return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+    }
+    let mut expected_offset = 0_u16;
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            register,
+            value_byte_offset,
+            byte_size,
+        } = *location
+        else {
+            return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+        };
+        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+        }
+        validate_structural_register(place, register, architecture)?;
+        expected_offset = expected_offset
+            .checked_add(byte_size)
+            .ok_or(AssignmentError::UnsupportedStructuralPlacement(place))?;
+    }
+    if expected_offset != placement.shape.byte_size {
+        return Err(AssignmentError::UnsupportedStructuralPlacement(place));
+    }
+    Ok(())
+}
+
+fn validate_structural_register(
+    place: psi_core::PlaceId,
+    register: MachineRegister,
+    architecture: Architecture,
+) -> Result<(), AssignmentError> {
     let matches_architecture = match (architecture, register) {
         (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rax)
         | (Architecture::X86_64, omega_terminal_target_operations::MachineRegister::X86Rcx)
@@ -757,7 +821,7 @@ fn validate_structural_placement(
     if !matches_architecture {
         return Err(AssignmentError::StructuralRegisterArchitectureMismatch {
             place,
-            register: *register,
+            register,
             architecture,
         });
     }

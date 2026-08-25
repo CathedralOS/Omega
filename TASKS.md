@@ -671,8 +671,15 @@ Remaining:
   Canonical format 27/vocabulary 29, independent verification, interpretation,
   and fixed-fuel derivation preserve that transfer; the result and its claims
   become live only after successful callee return, and crash produces neither.
-  Bodyless results, projections, local staging, multiple claims, and wider
-  native aggregate ABI lowering remain fenced. The verifier now uses one
+  Bodyless results, projections, and local staging remain fenced. Checked
+  source production still emits the bounded one-claim form. Canonical Terminal
+  Psi, independent verification, and interpretation now admit one whole-root
+  structural argument carrying an exact nonempty finite claim map: caller
+  transfers, callee entry claims, every successful callee return, returned
+  transfers, and result bindings must form path-preserving bijections. Missing,
+  duplicate, swapped, overlapping, or path-mismatched rows reject; suspension
+  replays no transfer and crash abandons only the exact live frontier. The
+  verifier now uses one
   multiplicity-independent partial-custody frontier: a projected owned move
   blocks whole-root use and return, overlapping moves reject, and the bounded
   dense linear-array slice closes only after every sibling has transferred.
@@ -682,8 +689,13 @@ Remaining:
   root-only source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
-  exact one-fragment native ABI path and all artifact/install layers, with claim
-  identity retained as zero-runtime metadata. Exact whole-parameter content
+  exact direct native ABI path and all artifact/install layers, with claim
+  identity retained as zero-runtime metadata. The native path now covers one
+  8-byte fragment and direct 9--16-byte integer-class aggregates split across
+  two canonical registers on System V AMD64 and AAPCS64. Microsoft x64's
+  indirect aggregate plan, wider or non-integer-class shapes, multiple roots or
+  claims, projections, staging, and bodyless calls remain fenced. Exact
+  whole-parameter content
   custody now also lowers from a real qualified source declaration through both
   Unit and primitive-result bodyless exits. The source-derived terminal entry
   row retains the checked claim, callable-entry-revision subject, owner-unique

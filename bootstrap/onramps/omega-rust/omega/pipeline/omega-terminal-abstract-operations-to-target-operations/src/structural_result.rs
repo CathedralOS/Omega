@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, ValueClass, ValueShape, evaluate_call_plan,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{TerminalAbstractFunction, TerminalAbstractOperation};
@@ -14,7 +14,7 @@ use omega_terminal_target_operations::{
 use psi_core::{MachineId, StructuralTypeId};
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration};
 
-use super::{LoweringError, require_one_direct_structural_fragment, structural_shape};
+use super::{LoweringError, require_direct_structural_fragments, structural_shape};
 
 pub(super) fn lower_direct_return(
     function: &TerminalAbstractFunction,
@@ -143,7 +143,9 @@ pub(super) fn lower_direct_return(
         &mut cache,
         &mut active,
     )?;
-    if shape.byte_size != 8 || shape.alignment != 8 {
+    if shape.class != ValueClass::Integer
+        || !((shape.byte_size == 8 && shape.alignment == 8) || (9..=16).contains(&shape.byte_size))
+    {
         return Err(LoweringError::UnsupportedStructuralReturnShape {
             machine: function.machine,
             byte_size: shape.byte_size,
@@ -171,10 +173,10 @@ pub(super) fn lower_direct_return(
         .result
         .clone()
         .ok_or(LoweringError::UnsupportedStructuralReturn(function.machine))?;
-    require_one_direct_structural_fragment(function.machine, &source_placement)?;
-    require_one_direct_structural_fragment(function.machine, &destination)?;
-    require_one_direct_structural_fragment(function.machine, &caller_result)?;
-    require_one_direct_structural_fragment(function.machine, &callee_result_placement)?;
+    require_direct_structural_fragments(function.machine, &source_placement)?;
+    require_direct_structural_fragments(function.machine, &destination)?;
+    require_direct_structural_fragments(function.machine, &caller_result)?;
+    require_direct_structural_fragments(function.machine, &callee_result_placement)?;
     if caller_result != callee_result_placement {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }

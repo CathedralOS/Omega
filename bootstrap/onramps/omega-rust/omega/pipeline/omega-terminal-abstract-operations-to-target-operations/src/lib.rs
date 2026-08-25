@@ -6,8 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
-    CallSignature, CallingPolicy, PlanDiagnostic, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
+    CallSignature, CallingPolicy, PlanDiagnostic, ValueClass, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_abstract_operations::{
@@ -2130,7 +2130,9 @@ fn lower_structural_return_function(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let shape = parameter_shapes[source_index];
-    if shape.byte_size != 8 || shape.alignment != 8 {
+    if shape.class != ValueClass::Integer
+        || !((shape.byte_size == 8 && shape.alignment == 8) || (9..=16).contains(&shape.byte_size))
+    {
         return Err(LoweringError::UnsupportedStructuralReturnShape {
             machine: function.machine,
             byte_size: shape.byte_size,
@@ -2153,8 +2155,8 @@ fn lower_structural_return_function(
     let Some(result_placement) = call_plan.result.as_ref() else {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     };
-    require_one_direct_structural_fragment(function.machine, source_placement)?;
-    require_one_direct_structural_fragment(function.machine, result_placement)?;
+    require_direct_structural_fragments(function.machine, source_placement)?;
+    require_direct_structural_fragments(function.machine, result_placement)?;
     Ok(TerminalTargetFunction {
         machine: function.machine,
         attachment: function.attachment,
@@ -2181,20 +2183,39 @@ fn lower_structural_return_function(
     })
 }
 
-fn require_one_direct_structural_fragment(
+fn require_direct_structural_fragments(
     machine: MachineId,
     placement: &ValuePlacement,
 ) -> Result<(), LoweringError> {
-    match placement.locations.as_slice() {
-        [
-            ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size: 8,
-                ..
-            },
-        ] if placement.shape.byte_size == 8 => Ok(()),
-        _ => Err(LoweringError::UnsupportedStructuralReturnPlacement(machine)),
+    if placement.shape.class != ValueClass::Integer
+        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
+            || (9..=16).contains(&placement.shape.byte_size))
+        || !(1..=2).contains(&placement.locations.len())
+    {
+        return Err(LoweringError::UnsupportedStructuralReturnPlacement(machine));
     }
+    let mut expected_offset = 0_u16;
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return Err(LoweringError::UnsupportedStructuralReturnPlacement(machine));
+        };
+        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return Err(LoweringError::UnsupportedStructuralReturnPlacement(machine));
+        }
+        expected_offset = expected_offset
+            .checked_add(byte_size)
+            .ok_or(LoweringError::UnsupportedStructuralReturnPlacement(machine))?;
+    }
+    if expected_offset != placement.shape.byte_size {
+        return Err(LoweringError::UnsupportedStructuralReturnPlacement(machine));
+    }
+    Ok(())
 }
 
 fn lower_unit_function(

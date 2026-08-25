@@ -1,5 +1,6 @@
 //! Emission adapter for the bounded whole-root structural-call/result carrier.
 
+use omega_calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
 use omega_target::NativeTarget;
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedFunction, TerminalAssignedOperation, TerminalAssignedUnitBody,
@@ -43,6 +44,8 @@ pub(super) fn emit(
         EmissionError::UnsupportedStructuralReturnPlacement(operation_result.place),
     )?;
     if caller_result_placement != callee_result_placement
+        || !direct_fragments(&caller_result_placement)
+        || !direct_fragments(&callee_result_placement)
         || operation_result.structural_type != result.structural_type
         || operation_result.multiplicity != result.multiplicity
         || operation_result.qualifications != result.qualifications
@@ -50,6 +53,9 @@ pub(super) fn emit(
         || claim_transfers.len() != 1
         || returned_claim_transfers.len() != 1
         || returned_claims.len() != 1
+        || copies.first().is_none_or(|copy| {
+            !direct_fragments(&copy.source) || !direct_fragments(&copy.destination)
+        })
     {
         return Err(EmissionError::UnsupportedStructuralReturnPlacement(
             operation_result.place,
@@ -96,4 +102,34 @@ pub(super) fn emit(
         callee_result_placement,
     });
     Ok(emitted)
+}
+
+fn direct_fragments(placement: &ValuePlacement) -> bool {
+    if placement.shape.class != ValueClass::Integer
+        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
+            || (9..=16).contains(&placement.shape.byte_size))
+        || !(1..=2).contains(&placement.locations.len())
+    {
+        return false;
+    }
+    let mut expected_offset = 0_u16;
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return false;
+        };
+        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return false;
+        }
+        let Some(next) = expected_offset.checked_add(byte_size) else {
+            return false;
+        };
+        expected_offset = next;
+    }
+    expected_offset == placement.shape.byte_size
 }
