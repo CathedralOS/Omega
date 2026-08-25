@@ -72,8 +72,12 @@ Remaining:
   authoring bias is to avoid proof-program mathematics and advanced dependent
   or proof-indexed typing in the compiler's own source. Measure ordinary
   ownership/multiplicity, records, payload sums, basic generics, and domains
-  rather than preemptively banning them. Keep adjacent tools outside the
-  closure unless the compiler executable imports them.
+  rather than preemptively banning them. Treat numeric schema tags, mixed
+  field-plus-case declarations, and aggregate transition payloads as measured
+  simplification candidates; do not conflate numeric tags with ordinary named
+  fields, or force a split representation when it makes the source worse.
+  Keep adjacent tools outside the closure unless the compiler executable
+  imports them.
 
   Deriving and enforcing `Ωself`, implementing the Delta-written bridge, and
   validating the hosted build remain in `TASKS_BOOTSTRAP.md`; do not duplicate

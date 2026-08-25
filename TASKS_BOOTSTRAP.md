@@ -216,33 +216,25 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
-| lower-rooted `OMGRFN2` reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through five responsibility-specific persisted-Beta gates and their lattice conjunction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
+| lower-rooted artifact reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through independent persisted-Beta responsibility gates | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
 | compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
 makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
-- [ ] After the package/security owner publishes the canonical accepted-lock
-  projection, join the structurally checked multi-unit
-  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-  to an independently accepted resolver/lock commitment and compare the exact
-  envelope SHA-256. Structural validity alone is never compilation authority.
-  This join blocks final artifact acceptance, not fixture-driven implementation
-  and testing of resolution, checking, or lowering against structurally valid
-  envelopes.
+The next actionable bridge work is the versioned call/root slice below, followed
+by the remaining capabilities actually used by published product checkpoints.
+Do not idle on the separately blocked compilation-authority join.
+
 - [ ] Version the private checked-IR handoff for the next general body tranche.
-  Make its entry machine ID an explicit projection of the exact
-  `OMGCOMP`/`OMGRSW1` selected root instead of inferring the entry through
-  CKIR1's global candidate-cardinality convention, and add
-  a typed machine-call operation for finite acyclic internal and cross-unit
-  calls. Reuse the existing role-3 static machine bindings rather than repeating
-  name resolution in lowering. Carry the widening through source, witness,
-  checked IR, conservative artifact, and complete result on native,
-  Delta-self-built, Rust-free meaning, and lower-rooted refinement paths, with
-  phase-isolated root/callee/signature/order/cycle/resource negatives. This is a
-  versioned bridge implementation slice, not admission of recursion or any
-  source family to final `Ωself`.
+  Project the exact selected root rather than inferring entry from candidate
+  counts, and support typed finite acyclic internal and cross-unit calls from
+  the resolver's existing static machine bindings. Carry the change through
+  source, witness, checked IR, conservative artifact, result, Rust-free meaning,
+  and lower-rooted refinement, with responsibility-local negatives for root,
+  target, signature, order, cycle, and resources. This is a versioned bridge
+  slice, not admission of recursion or a final `Ωself` ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
@@ -256,6 +248,13 @@ compiler implementation remain product work in `TASKS.md`.
   `omega-bootstrap`, including every transitive source and build input. Prove
   it valid under the provisional Delta ledger; final validity belongs to the
   Delta-v1 freeze.
+- [ ] Once the package/security owner publishes the canonical accepted-lock
+  projection, join the structurally checked multi-unit
+  [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
+  to that independently accepted commitment and compare the exact envelope
+  SHA-256. Structural validity alone is never compilation authority. This item
+  is externally gated; it blocks final acceptance, not the implementation work
+  above.
 
 Acceptance: the bridge compiles the complete product-source manifest and every
 program admitted by the general candidate profile with exact Omega semantics.
