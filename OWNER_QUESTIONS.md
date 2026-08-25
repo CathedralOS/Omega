@@ -202,3 +202,49 @@ reproduction or an explicit admitted-binary trust tier to bind the executing
 producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
+
+## Q8 — How does `build.omg` name its package-scoped filesystem roots?
+
+The build executor already gives each package an immutable source root and a
+fresh writable staging root, and the checked interpreter enforces those grants.
+Package source cannot name either root portably, however. Relative paths resolve
+against the compiler process's working directory, while the only successful
+filesystem build test embeds a temporary host absolute path into generated
+Omega source. A checked-in package fixture therefore cannot honestly read its
+own input and write its staged output without depending on ambient host layout.
+
+Choose the portable build-filesystem surface. It must:
+
+- preserve the package's explicit `reaches FilesystemHost` ceiling and local
+  admission rather than making filesystem authority ambient;
+- name the immutable source and writable staging roots without exposing host
+  absolute paths or the compiler's current working directory;
+- map every accepted path to exactly one grant root, reject traversal and
+  symlink escape before host access, and retain the stable rooted spelling in
+  observation evidence;
+- define cross-platform path bytes and the behavior of operations that return
+  paths, including `canonicalize`, `read_link`, and final-path queries; and
+- let generated outputs enter compilation only through an explicit staged-tree
+  handoff after successful evaluation and evidence custody.
+
+Recommended direction: give the build-time filesystem provider a fixed virtual
+namespace with compiler-owned roots such as `/source` and `/output`. Package
+code continues to use the ordinary canonical `FilesystemHost` operations; the
+build evaluator maps those virtual roots to its private physical grants and
+never reveals the mapping. Returned paths are rewritten into the same virtual
+namespace or reject when no lossless rooted representation exists. This adds no
+package grammar and gives canonical observation transcripts stable path bytes.
+
+A coherent larger alternative is a typed build-directory capability supplied
+through the ordinary `Build` value, with relative operations rooted by
+construction. It may be preferable if implementation shows that virtual path
+spellings repeatedly recreate host-path ambiguity. A narrower acceptable first
+rung is to expose only the operations required by the generated-file fixture
+through that typed value, then grow it from concrete use.
+
+Tempting but wrong alternatives are to embed host absolute paths into package
+source, change the compiler process's working directory, treat arbitrary
+relative paths as source- or output-relative by operation, expose an unrestricted
+real filesystem provider and rely on post-hoc evidence, or call a denied
+operation sufficient coverage for a fixture whose purpose is successful
+generation.
