@@ -286,15 +286,18 @@ complete.
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
-  slice is one validated typed Git request accepted by every public resolver
-  route: validate and sanitize lineage before persistence or launch, make raw
-  resolver entrypoints private, enforce one explicit protocol/request policy,
-  and apply compiler-owned absolute size ceilings. Remaining P0 work is native
-  fetch/materialization confinement, effective endpoint and SSH credential
-  custody, during-operation resource quotas, handle-relative cache custody,
-  canonical build-observable source metadata, and a locally reconstructed
-  opaque strict receipt. Redirect, helper, local-fixture, and diagnostic routes
-  must not bypass the same request validator.
+  slice was one validated typed Git request accepted by every public resolver
+  route. Completed 2026-08-24: public Git resolution now requires a validated
+  `GitSourceRequest`; accepts only HTTPS, SSH URLs, and SCP-like SSH locators;
+  rejects ambient local paths, insecure protocols, embedded credentials,
+  malformed locators, and refspec-shaped revisions; persists only sanitized
+  lineage; and applies compiler-owned locator, revision, entry, byte, and depth
+  ceilings. The local-repository route is explicitly test-only. Remaining P0
+  work is native fetch/materialization confinement, effective endpoint and SSH
+  credential custody, during-operation resource quotas, handle-relative cache
+  custody, canonical build-observable source metadata, and a locally
+  reconstructed opaque strict receipt. Redirect, helper, diagnostic, and future
+  resolver routes must not bypass the same request validator.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
@@ -497,14 +500,27 @@ complete.
   diagnostics while exact package identity remains the gate key. A
   deterministic compiler-owned authored-selection occurrence ledger survives
   resolved, typed, copied, specialized, and checked trees, and expression
-  handles retain every associated occurrence. Build-time const-generic and
-  placed-view probes now lower with the assembled package source map instead of
-  losing source ownership. Production capture still must populate every
-  authored occurrence with lexical exposure, late checked facts must finalize
-  it, the direct-dependency and pre-execution gates must consume it, and exact
-  carried-semantic-dependency evidence must be emitted. Visibility for
-  independently selectable roots that currently reject `pub` remains owner
-  question Q2.
+  handles retain every associated occurrence. Private state-body expressions
+  now capture exact paths, members, calls, struct types/cases/fields, domain
+  membership, and operators while source ownership and exposure are present.
+  Checked lowering finalizes calls, members, paths, struct rows, declared
+  operators, and explicitly classified compiler intrinsics by exact occurrence;
+  inconsistent clone resolution rejects transactionally. Package-aware checked
+  and native compilation then reject every finalized user-package selection
+  whose owner is neither the requester nor one direct dependency; a three-
+  package canary rejects `root -> middle -> leaf` transitive-only selection.
+  Build-time const-generic and placed-view probes lower with the assembled
+  package source map instead of losing source ownership.
+
+  This is deliberately not yet total admission. Toolchain-authored bodies are
+  outside package admission, and still-late rows are temporarily deferred while
+  remaining authored forms and generated/default-span distinctions are closed.
+  The package manager stays disabled until every package-authored occurrence is
+  captured and finalized, late rows reject, public-interface exposure is
+  retained, and the same gate runs before any selected package or build-time
+  code can execute. Exact carried-semantic-dependency evidence also remains.
+  Visibility for independently selectable roots that currently reject `pub`
+  remains owner question Q1.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
