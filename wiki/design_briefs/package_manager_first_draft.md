@@ -395,11 +395,14 @@ service declaration and exact exposing callable symbols; no later source join
 reconstructs them from reduced nominal identity. Provider candidate derivation
 captures a compiler-internal
 sidecar beside each semantic plan: exact schema and optional nominal-provider
-symbols, plus the exact realizing machine for every external or checked-adapter
-row. Selection and sorting preserve the pair and add exact authored build/target-
-default call sites or a closed implicit-selection reason. The selected-provider
-row may therefore mix authored coordinates and compiler-derived reasons without
-reconstructing them from reduced names, schemas, or fingerprints. Exact nested
+symbols, plus the exact requirement and realizing machine for every external or
+checked-adapter row. Review v36 encodes those declarations as exact
+package-qualified nominal identities; readable plan and overload strings remain
+operational/audit data. Selection and sorting preserve the pair and add exact
+authored build/target-default call sites or a closed implicit-selection reason.
+The selected-provider row may therefore mix authored coordinates and compiler-
+derived reasons without reconstructing them from reduced names, schemas, or
+fingerprints. Exact nested
 use sites may be added through their existing typed/checked owners and compiler
 sidecars without creating a report-only stage.
 
@@ -879,7 +882,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v35 bytes cannot be promoted merely because the future artifact reuses
+review-v36 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

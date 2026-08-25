@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 35);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 36);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -1221,7 +1221,13 @@ crashes Abort
         panic!("one selected provider review row")
     };
     assert_eq!(provider.realizing_package(), Some(package_identity()));
+    assert_eq!(provider.schema_declaration().path(), "Host");
+    assert_eq!(
+        provider.schema_declaration().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
     assert_eq!(provider.provider_type_package(), None);
+    assert_eq!(provider.provider_type_declaration(), None);
     assert_eq!(provider.service_schema(), "Host");
     assert_eq!(
         provider.schema().trait_package_identity,
@@ -1232,6 +1238,19 @@ crashes Abort
         Some(package_identity())
     );
     assert_eq!(provider.rows().len(), 1);
+    let [provider_declarations] = provider.row_declarations() else {
+        panic!("one exact requirement/realization declaration pair")
+    };
+    assert_eq!(provider_declarations.requirement().path(), "Host::ping");
+    assert_eq!(
+        provider_declarations.requirement().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(provider_declarations.realization().path(), "ping_leaf");
+    assert_eq!(
+        provider_declarations.realization().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
     assert!(matches!(
         provider.rows()[0].binding,
         omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 1 }

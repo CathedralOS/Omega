@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 35;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 36;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -1706,11 +1706,17 @@ fn encode_provider(
     encoder.string(&provider.plan_name)?;
     encoder.u64(provider.plan_fingerprint);
     encoder.optional_package_identity(provider.realizing_package);
+    encode_nominal(encoder, &provider.schema_declaration)?;
     encoder.string(&provider.provider_type)?;
     encoder.optional_package_identity(provider.provider_type_package);
+    encoder.option(provider.provider_type_declaration.as_ref(), encode_nominal)?;
     encode_service_schema(encoder, &provider.schema)?;
     encoder.string(&provider.target)?;
-    encoder.sequence(&provider.rows, encode_provider_row)
+    encoder.sequence(&provider.rows, encode_provider_row)?;
+    encoder.sequence(&provider.row_declarations, |encoder, row| {
+        encode_nominal(encoder, &row.requirement)?;
+        encode_nominal(encoder, &row.realization)
+    })
 }
 
 fn encode_service_schema(

@@ -382,7 +382,10 @@ derivation origin, while truly source-free symbols remain unresolved and
 compiler-intrinsic atoms remain explicitly toolchain-unbound. The projection
 includes selected provider mechanisms, and provider plans/trust rows retain
 exact package owners for the realizing machine, provider type, service schema,
-and requirement owner.
+and requirement owner. Review v36 additionally binds the exact schema,
+provider-type, requirement, and realizing-machine declarations as canonical
+nominal identities, so readable plan/overload strings are never declaration
+identity.
 Checked-adapter bindings resolve by canonical overload plus exact package owner
 without a short-name fallback. Authored provider choices retain two structural
 type paths, resolve to exact typed trait/data symbols, and match plans only by
@@ -401,7 +404,7 @@ that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. Exact source-body presence survives
-resolved and typed copies. Review v35 uses inferred transitive reach only for
+resolved and typed copies. Review v36 uses inferred transitive reach only for
 actual checked bodies and records bodyless supply explicitly instead of copying
 its published ceiling into a false realization. Its concrete row retains the
 preselection body base rather than reconstructing it from the current callable;
@@ -546,7 +549,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v35 projection therefore
+remain separately bound. The current incomplete review-v36 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
@@ -653,7 +656,8 @@ declaration and exact exposing callables during derivation. Source issuance no
 longer rescans typed trees by reduced nominal identity. Provider candidates now
 carry compiler-internal provenance
 beside their semantic plans: exact schema and optional nominal-provider symbols,
-plus the exact realizing machine for every external or checked-adapter row.
+plus the exact requirement and realizing machine for every external or
+checked-adapter row.
 Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
