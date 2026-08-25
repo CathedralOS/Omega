@@ -4,6 +4,7 @@
 
 pub mod boundary;
 pub mod byte_predicates;
+pub mod constant;
 pub mod data;
 pub mod dependent_ranges;
 pub mod domain;

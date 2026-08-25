@@ -345,6 +345,7 @@ pub struct TypedTreeTables {
     /// opaque occurrence identities in this ledger, never source rendering.
     authored_declaration_selections:
         psi_language_semantics::declaration_selection::AuthoredDeclarationSelections,
+    pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
@@ -379,6 +380,7 @@ pub struct TypedTreeTables {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTreeRoots {
+    pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
     pub invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
@@ -401,6 +403,7 @@ impl TypedTreeRoots {
         traits: HandleSpan<trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            const_declarations: HandleSpan::default(),
             data_definitions,
             domain_definitions,
             invariant_definitions,
@@ -453,6 +456,18 @@ impl TypedTrees {
         &self,
     ) -> &psi_language_semantics::declaration_selection::AuthoredDeclarationSelections {
         &self.tables.authored_declaration_selections
+    }
+
+    pub fn push_const_declaration(&mut self, declaration: crate::constant::ConstDeclaration) {
+        self.tables
+            .const_declarations
+            .append_to_span(&mut self.roots.const_declarations, declaration);
+    }
+
+    pub fn const_declarations(&self) -> &[crate::constant::ConstDeclaration] {
+        self.tables
+            .const_declarations
+            .span_or_empty(self.roots.const_declarations)
     }
 
     pub fn record_resolved_authored_declaration_selection_once(

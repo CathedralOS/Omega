@@ -83,6 +83,7 @@ pub enum ItemSnapshot {
     Const {
         scope: IdentifierSnapshot,
         name: IdentifierSnapshot,
+        is_public: bool,
         type_reference: TypeReferenceSnapshot,
         value: Box<ExpressionSnapshot>,
     },
@@ -887,6 +888,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Const(value) => ItemSnapshot::Const {
             scope: snapshot_identifier(&value.scope),
             name: snapshot_identifier(&value.name),
+            is_public: value.is_public,
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             value: Box::new(snapshot_expression_handle(syntax_trees, value.value)),
         },

@@ -710,9 +710,23 @@ complete.
   transparent expansion. Publishing a bodyless declaration creates no checked
   proposition application or admission. Public transparent aliases remain
   absent from Terminal proposition identity but are deliberately present as
-  source API compatibility rows. Operator and const visibility must land before
-  public transparent proposition leakage is total; measure remains an
-  independent slice.
+  source API compatibility rows. Operator visibility and const declaration-
+  site compatibility must land before public transparent proposition leakage
+  is total; measure remains an independent slice.
+
+  Milestone 2026-08-25: ordinary `pub const` now survives syntax copying,
+  resolved declaration-symbol retention, typed/checked trees, snapshots, and
+  source profiling without introducing runtime const storage or value identity.
+  Psi validation rejects a public-interface occurrence selecting a private
+  const in ordinary compilation; package admission separately rejects a
+  private const selected across package ownership even when the owner is a
+  direct dependency. Const substitution continues to retain the exact selected
+  declaration symbol, so value erasure cannot erase this gate. Package-review
+  compatibility remains open: const-v0 still treats an unused declaration's
+  written type as documentation, and no trusted public-const row may be emitted
+  until declaration-site typing and exact semantic type/value identity land.
+  Reusing source-spelled const-generic encoding without that semantic join
+  would be tempting but unsound in a reconciled multi-package closure.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,

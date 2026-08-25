@@ -2,6 +2,7 @@
 
 //! Source-shaped Psi trees after name and symbol identity resolution.
 
+pub mod constant;
 pub mod data;
 pub mod declaration_selection {
     pub use psi_language_semantics::declaration_selection::*;

@@ -17,27 +17,39 @@ pub(crate) fn validate_declaration_visibility(
             continue;
         };
         let symbol = target.selected_symbol();
-        if program.symbols.get(symbol).kind != SymbolKind::Proposition {
-            continue;
-        }
-        let Some(declaration) = program
-            .propositions()
-            .iter()
-            .find(|declaration| declaration.symbol == symbol)
-        else {
+        let (kind, is_public) = match program.symbols.get(symbol).kind {
+            SymbolKind::Proposition => (
+                "proposition",
+                program
+                    .propositions()
+                    .iter()
+                    .find(|declaration| declaration.symbol == symbol)
+                    .map(|declaration| declaration.is_public),
+            ),
+            SymbolKind::Const => (
+                "const",
+                program
+                    .const_declarations()
+                    .iter()
+                    .find(|declaration| declaration.symbol == symbol)
+                    .map(|declaration| declaration.is_public),
+            ),
+            _ => continue,
+        };
+        let Some(is_public) = is_public else {
             diagnostics.push(
                 Diagnostic::error(format!(
-                    "public interface selects proposition `{}` without retained declaration visibility",
+                    "public interface selects {kind} `{}` without retained declaration visibility",
                     program.symbols.display_path(symbol, "::")
                 ))
                 .with_source_span(selection.source_span()),
             );
             continue;
         };
-        if !declaration.is_public {
+        if !is_public {
             diagnostics.push(
                 Diagnostic::error(format!(
-                    "public interface selects private proposition `{}`",
+                    "public interface selects private {kind} `{}`",
                     program.symbols.display_path(symbol, "::")
                 ))
                 .with_source_span(selection.source_span()),

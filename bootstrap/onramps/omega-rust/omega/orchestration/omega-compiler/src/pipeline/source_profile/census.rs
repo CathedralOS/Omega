@@ -231,10 +231,14 @@ impl Census {
             ItemSnapshot::Const {
                 scope,
                 name,
+                is_public,
                 type_reference,
                 value,
             } => {
                 self.bump("item.const");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.identifier(scope);
                 self.identifier(name);
                 self.type_reference(type_reference);

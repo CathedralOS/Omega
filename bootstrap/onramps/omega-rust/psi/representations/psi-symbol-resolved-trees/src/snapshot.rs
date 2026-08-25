@@ -57,6 +57,17 @@ impl SymbolResolvedTreesSnapshot {
     pub fn from_symbol_resolved_trees(symbol_resolved_trees: &SymbolResolvedTrees) -> Self {
         Self {
             roots: SymbolResolvedRootsSnapshot {
+                const_declarations: symbol_resolved_trees
+                    .const_declarations
+                    .iter()
+                    .map(|declaration| ConstDeclarationSnapshot {
+                        has_symbol: declaration.symbol.is_valid(),
+                        name: symbol_resolved_trees
+                            .symbols
+                            .display_path(declaration.symbol, "::"),
+                        is_public: declaration.is_public,
+                    })
+                    .collect(),
                 data_definitions: symbol_resolved_trees
                     .data_definitions
                     .iter()
@@ -153,6 +164,7 @@ impl SymbolResolvedTreesSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SymbolResolvedRootsSnapshot {
+    pub const_declarations: Vec<ConstDeclarationSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
@@ -162,6 +174,13 @@ pub struct SymbolResolvedRootsSnapshot {
     pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConstDeclarationSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub is_public: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

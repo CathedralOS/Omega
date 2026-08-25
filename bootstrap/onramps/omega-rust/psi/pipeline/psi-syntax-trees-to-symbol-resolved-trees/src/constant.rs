@@ -298,6 +298,36 @@ pub(crate) fn finalize_const_selections(
     Ok(())
 }
 
+/// Bind retained const declarations to the symbols minted from the parallel
+/// pending declaration list. Value substitution is independent of this root:
+/// only source identity and visibility survive here.
+pub(crate) fn finalize_const_declarations(
+    program: &mut SymbolResolvedTrees,
+    pending: &[crate::lowerer::PendingConstDeclaration],
+) -> Result<(), Diagnostic> {
+    let const_symbols = program
+        .symbols
+        .child_handles(program.symbols.root())
+        .into_iter()
+        .flatten()
+        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
+        .collect::<Vec<_>>();
+    if const_symbols.len() != pending.len() {
+        return Err(Diagnostic::error(
+            "failed to retain const declaration visibility provenance",
+        ));
+    }
+    for (symbol, declaration) in const_symbols.into_iter().zip(pending) {
+        program.roots.const_declarations.push(
+            psi_symbol_resolved_trees::constant::ConstDeclaration {
+                symbol,
+                is_public: declaration.is_public,
+            },
+        );
+    }
+    Ok(())
+}
+
 fn const_selection_record_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagnostic {
     Diagnostic::error(format!(
         "failed to retain const declaration selection: {error:?}"

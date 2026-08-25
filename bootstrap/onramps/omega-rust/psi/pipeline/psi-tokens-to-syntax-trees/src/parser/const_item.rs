@@ -35,6 +35,7 @@ pub(super) fn parse_const_definition<'tokens, 'source>(
         ConstDefinition {
             scope,
             name,
+            is_public: false,
             type_reference,
             value,
         },

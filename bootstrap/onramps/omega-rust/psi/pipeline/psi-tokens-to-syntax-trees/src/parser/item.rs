@@ -41,6 +41,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         // retain it as source-level API metadata independent of trait identity.
         let (mut item, rest) = parse_item(syntax_trees, input)?;
         match &mut item {
+            Item::Const(constant) => constant.is_public = true,
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,

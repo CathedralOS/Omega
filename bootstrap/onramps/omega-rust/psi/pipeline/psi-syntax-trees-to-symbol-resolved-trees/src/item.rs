@@ -215,6 +215,7 @@ fn lower_item_with_exposure(
                 .push(crate::lowerer::PendingConstDeclaration {
                     semantic_name: crate::constant::semantic_const_name(definition),
                     source_span: definition.name.source_span(),
+                    is_public: definition.is_public,
                 });
         }
         syntax::item::Item::Capability(_)

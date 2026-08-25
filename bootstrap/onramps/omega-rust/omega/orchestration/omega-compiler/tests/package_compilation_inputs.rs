@@ -664,6 +664,84 @@ fn proposition_visibility_gates_public_and_cross_package_selection() {
 }
 
 #[test]
+fn const_visibility_gates_public_and_cross_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use leaf::leaf;\npub proposition within_limit() = LEAF_LIMIT == 4;\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "const LEAF_LIMIT: u64 = 4;\n");
+
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct const dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a direct dependency does not publish its private const");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private const")
+                && diagnostic.message.contains("LEAF_LIMIT")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(leaf.join("leaf.omg"), "pub const LEAF_LIMIT: u64 = 4;\n");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("an explicitly public const should be nameable by a direct dependent");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "const LOCAL_LIMIT: u64 = 4;\npub proposition within_limit() = LOCAL_LIMIT == 4;\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a public interface may not expose its package-private const");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private const")
+                && diagnostic.message.contains("LOCAL_LIMIT")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "const LOCAL_LIMIT: u64 = 4;\nmachine within_limit() -> bool { LOCAL_LIMIT == 4 }\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only private implementation graph should validate");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect("private implementation may select its package-private const");
+}
+
+#[test]
 fn public_callable_bound_requires_the_named_conformance_owner() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -1500,7 +1578,7 @@ machine build(builder: &mut Build) {
 }
 "#,
     );
-    TempTree::write(admitted.join("values.omg"), "const ANSWER: u32 = 42;\n");
+    TempTree::write(admitted.join("values.omg"), "pub const ANSWER: u32 = 42;\n");
     TempTree::write(malicious.join("values.omg"), "this is not Omega source\n");
 
     let inputs = PackageCompilationInputs::new(

@@ -31,6 +31,7 @@ pub struct SymbolResolvedTrees {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedRoots {
+    pub const_declarations: OrderedRootArena<crate::constant::ConstDeclaration>,
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
@@ -53,6 +54,7 @@ impl SymbolResolvedRoots {
         traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
     ) -> Self {
         Self {
+            const_declarations: OrderedRootArena::default(),
             data_definitions,
             domain_definitions,
             invariant_definitions,

@@ -897,6 +897,27 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
 }
 
 #[test]
+fn const_declaration_visibility_survives_typed_lowering_and_snapshots() {
+    let source = r#"
+        pub const PUBLIC_LIMIT: u64 = 4;
+        const Limits::PRIVATE_LIMIT: u64 = 2;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const visibility");
+    let syntax = parse_syntax_trees(&tokens).expect("parse const visibility");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve const visibility");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type const visibility");
+
+    assert_eq!(typed.const_declarations().len(), 2);
+    assert!(typed.const_declarations()[0].is_public);
+    assert!(!typed.const_declarations()[1].is_public);
+    let snapshot = typed.snapshot_json().expect("typed const snapshot");
+    assert!(snapshot.contains("\"name\":\"PUBLIC_LIMIT\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+}
+
+#[test]
 fn proposition_type_and_const_arguments_retain_categories_and_identity() {
     let source = r#"
         proposition indexed<T, const N: i32>();
