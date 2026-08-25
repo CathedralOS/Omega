@@ -3,6 +3,7 @@
 //! Source-shaped Psi trees after name and symbol identity resolution.
 
 pub mod data;
+pub mod declaration_selection;
 pub mod domain;
 pub mod expression;
 pub mod identity;
@@ -22,6 +23,12 @@ pub mod trait_definition;
 pub mod types;
 pub mod wire;
 
+pub use declaration_selection::{
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
+    AuthoredDeclarationSelectionHandle, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelections, ResolvedAuthoredDeclarationSelection,
+};
 pub use psi_arena::OrderedRootArena;
 pub use snapshot::SymbolResolvedTreesSnapshot;
 pub use symbol_resolved_trees::{
