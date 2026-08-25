@@ -201,7 +201,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 12);
+    assert_eq!(checked_observations.schema_version(), 13);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -212,7 +212,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        12
+        13
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -338,6 +338,11 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let [read_buffer] = read.mutable_byte_operands() else {
         panic!("read must retain its complete mutable buffer")
     };
+    let [read_buffer_resolution] = read.mutable_byte_operand_resolutions() else {
+        panic!("read must retain its mutable buffer at operand resolution")
+    };
+    assert_eq!(read_buffer_resolution.operand_ordinal(), 1);
+    assert_eq!(read_buffer_resolution.bytes(), &[0; 6]);
     assert_eq!(read_buffer.operand_ordinal(), 1);
     assert_eq!(read_buffer.pre_bytes(), &[0; 6]);
     assert_eq!(read_buffer.post_bytes(), b"table\n");
@@ -1079,6 +1084,10 @@ fn failed_filesystem_preparation_retains_the_completed_logical_handle_prefix() {
     assert!(
         rendered.contains("1 logical-handle operand(s)"),
         "the completed find handle must survive the later buffer-capacity failure: {rendered}"
+    );
+    assert!(
+        rendered.contains("1 mutable-carrier operand(s)"),
+        "the completed find-data carrier must survive its capacity failure: {rendered}"
     );
     let _ = std::fs::remove_dir_all(&project);
 }

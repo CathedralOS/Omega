@@ -1,5 +1,8 @@
 use super::*;
-use crate::{FilesystemByteOperand, FilesystemPathLikeOperand, FilesystemScalarOperand};
+use crate::{
+    FilesystemByteOperand, FilesystemMutableByteOperandResolution,
+    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand, FilesystemScalarOperand,
+};
 
 fn checked_observation_evidence_total(current: usize, additional: usize) -> Option<usize> {
     current
@@ -170,6 +173,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         }
+        self.validate_incremental_mutable_operand_resolutions(attempt_index, mutable_plan)?;
         let retained_bytes = mutable_plan.reserved_bytes();
         let Some(next_total) = retained_bytes.and_then(|bytes| {
             checked_observation_evidence_total(self.filesystem_observation_evidence_bytes, bytes)
@@ -184,6 +188,25 @@ impl<'program> Evaluator<'program> {
         attempt.mutable_byte_operands = mutable_byte_operands;
         attempt.mutable_i64_operands = mutable_i64_operands;
         Ok(())
+    }
+
+    fn validate_incremental_mutable_operand_resolutions(
+        &self,
+        attempt_index: usize,
+        plan: &PreparedFilesystemMutableObservationPlan,
+    ) -> EvalResult<()> {
+        let attempt = &self.filesystem_operation_attempts[attempt_index];
+        if plan.matches_resolution_roles(
+            &attempt.mutable_byte_operand_resolutions,
+            &attempt.mutable_i64_operand_resolutions,
+        ) {
+            Ok(())
+        } else {
+            Err(Halt::Trap(
+                "incremental filesystem mutable-carrier resolution evidence disagrees with the fully prepared call"
+                    .to_owned(),
+            ))
+        }
     }
 
     pub(super) fn record_prepared_filesystem_scalar_operand(
@@ -234,6 +257,45 @@ impl<'program> Evaluator<'program> {
             .path_like_operands
             .push(operand);
         Ok(())
+    }
+
+    pub(super) fn record_prepared_filesystem_mutable_byte_operand_resolution(
+        &mut self,
+        attempt_index: usize,
+        operand_ordinal: u8,
+        output: &PreparedByteOutput,
+    ) -> EvalResult<()> {
+        let bytes = output.snapshot()?;
+        let Some(next_total) = checked_observation_evidence_total(
+            self.filesystem_observation_evidence_bytes,
+            bytes.len(),
+        ) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
+            )));
+        };
+        self.filesystem_observation_evidence_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .mutable_byte_operand_resolutions
+            .push(FilesystemMutableByteOperandResolution {
+                operand_ordinal,
+                bytes,
+            });
+        Ok(())
+    }
+
+    pub(super) fn record_prepared_filesystem_mutable_i64_operand_resolution(
+        &mut self,
+        attempt_index: usize,
+        operand_ordinal: u8,
+        value: i64,
+    ) {
+        self.filesystem_operation_attempts[attempt_index]
+            .mutable_i64_operand_resolutions
+            .push(FilesystemMutableI64OperandResolution {
+                operand_ordinal,
+                value,
+            });
     }
 
     fn complete_mutable_observations(
@@ -1731,6 +1793,106 @@ mod tests {
             None
         );
         assert_eq!(checked_observation_evidence_total(usize::MAX, 1), None);
+    }
+
+    fn mutable_byte_output(bytes: &[u8]) -> PreparedByteOutput {
+        PreparedByteOutput::Array(
+            bytes
+                .iter()
+                .map(|byte| Value::Int(i64::from(*byte)).cell())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn mutable_resolution_prefix_survives_its_own_capacity_failure() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let output = mutable_byte_output(&[3, 1, 4]);
+
+        evaluator
+            .record_prepared_filesystem_mutable_byte_operand_resolution(0, 5, &output)
+            .unwrap_or_else(|_| panic!("resolution fixture must be representable"));
+        evaluator.record_prepared_filesystem_mutable_i64_operand_resolution(0, 6, -9);
+        assert!(output.require_capacity(4).is_err());
+
+        let attempt = &evaluator.filesystem_operation_attempts[0];
+        assert_eq!(attempt.mutable_byte_operand_resolutions.len(), 1);
+        assert_eq!(
+            attempt.mutable_byte_operand_resolutions[0].operand_ordinal(),
+            5
+        );
+        assert_eq!(
+            attempt.mutable_byte_operand_resolutions[0].bytes(),
+            &[3, 1, 4]
+        );
+        assert_eq!(attempt.mutable_i64_operand_resolutions.len(), 1);
+        assert_eq!(
+            attempt.mutable_i64_operand_resolutions[0].operand_ordinal(),
+            6
+        );
+        assert_eq!(attempt.mutable_i64_operand_resolutions[0].value(), -9);
+        assert!(attempt.mutable_byte_operands.is_empty());
+        assert!(attempt.mutable_i64_operands.is_empty());
+        assert_eq!(evaluator.filesystem_observation_evidence_bytes, 3);
+    }
+
+    #[test]
+    fn completed_mutable_plan_accepts_alias_drift_and_retains_all_three_byte_snapshots() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let output = mutable_byte_output(&[1, 2]);
+        evaluator
+            .record_prepared_filesystem_mutable_byte_operand_resolution(0, 1, &output)
+            .unwrap_or_else(|_| panic!("resolution fixture must be representable"));
+
+        output
+            .write(&[8, 9])
+            .unwrap_or_else(|_| panic!("alias fixture write must fit"));
+        let call = PreparedFilesystemCall::Read {
+            fd: 3,
+            buffer: output.clone(),
+            count: PreparedTransferCount { raw: 1, host: 1 },
+        };
+        let (scalar_operands, byte_operands, path_like_operands) = call.operand_observation_plan();
+        evaluator.filesystem_operation_attempts[0].scalar_operands = scalar_operands.clone();
+        let plan = call
+            .mutable_observation_plan()
+            .unwrap_or_else(|_| panic!("mutable fixture must be representable"));
+        evaluator
+            .record_operand_observations(
+                0,
+                scalar_operands,
+                byte_operands,
+                path_like_operands,
+                &plan,
+            )
+            .unwrap_or_else(|_| panic!("matching resolution roles must validate"));
+
+        assert_eq!(
+            evaluator.filesystem_operation_attempts[0].mutable_byte_operand_resolutions[0].bytes(),
+            &[1, 2],
+            "resolution-time contents must not be overwritten by provider pre-state"
+        );
+        assert_eq!(
+            evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0].pre_bytes(),
+            &[8, 9]
+        );
+        assert_eq!(
+            evaluator.filesystem_observation_evidence_bytes, 6,
+            "resolution, provider pre-state, and provider post-state share one sponsor"
+        );
+
+        output
+            .write(&[7])
+            .unwrap_or_else(|_| panic!("provider fixture write must fit"));
+        evaluator
+            .complete_mutable_observations(0, &plan)
+            .unwrap_or_else(|_| panic!("completed fixture must be representable"));
+        let attempt = &evaluator.filesystem_operation_attempts[0];
+        assert_eq!(attempt.mutable_byte_operand_resolutions[0].bytes(), &[1, 2]);
+        assert_eq!(attempt.mutable_byte_operands[0].pre_bytes(), &[8, 9]);
+        assert_eq!(attempt.mutable_byte_operands[0].post_bytes(), &[7, 9]);
     }
 
     #[test]

@@ -654,7 +654,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v12 carries operation-attempt schema v12: an ordered
+Observation schema v13 carries operation-attempt schema v13: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -687,13 +687,17 @@ package commitments type-tag both result lanes. Fully prepared calls whose
 evidence reservation succeeds retain ordinal-ordered non-handle
 I32/U32/I64/U64 scalars plus exact immutable write/FILETIME payloads;
 validated at-family components retain their exact portable bytes. Rooted and
-path-alias spellings never enter the payload lane. Mutable byte carriers retain
-their complete pre/post capacity, including unchanged tails, and mutable i64
-carriers retain exact pre/post values. Pre-state follows evaluation of every
-authored argument; post-state follows provider return or halt, including
-unchanged input-only ABI carriers. A separate 256 MiB aggregate operand-
-evidence sponsor reserves immutable bytes, exact path-like bytes, and both
-mutable copies before that call's provider access. Directory-entry names,
+path-alias spellings never enter the payload lane. Mutable byte and i64 carriers
+retain a distinct complete resolution-time snapshot as their operands are
+evaluated, so a later preparation halt keeps the prefix. Mutable byte carriers
+separately retain complete provider pre/post capacity, including unchanged
+tails, and mutable i64 carriers retain exact provider pre/post values. Provider
+pre-state follows all authored argument evaluation because a later argument may
+alias an earlier carrier; the snapshots need not match. Post-state follows
+provider return or halt, including unchanged input-only ABI carriers. A
+separate 256 MiB aggregate operand-evidence sponsor reserves immutable bytes,
+exact path-like bytes, one resolution copy, and both provider copies before
+that call's provider access. Directory-entry names,
 symlink targets, find patterns, and other non-rooted path-like operands occupy
 their own ordinal-tagged lane rather than impersonating rooted authorization or
 payload. Each successfully typed non-handle scalar, immutable payload, and
@@ -701,8 +705,8 @@ path-like operand is retained as preparation advances, so a later preparation
 halt keeps the completed ordinal prefix; a fully prepared call must reproduce those rows
 exactly before provider access. Prior or nested staging effects remain cleanup-
 contained. Package commitments frame these rows without rendering payload
-bytes as text. Preparation-failure rooted-path/mutable prefixes, retained
-returned-path bytes, and complete observed-input content remain
+bytes as text. Preparation-failure rooted-path prefixes, retained returned-path
+bytes, and complete observed-input content remain
 absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/

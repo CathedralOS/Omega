@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
-    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableI64Operand,
-    FilesystemPathLikeOperand, FilesystemScalarOperand, FilesystemScalarOperandValue,
+    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableByteOperandResolution,
+    FilesystemMutableI64Operand, FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
+    FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
@@ -515,6 +516,30 @@ pub(super) struct PreparedFilesystemMutableObservationPlan {
 }
 
 impl PreparedFilesystemMutableObservationPlan {
+    /// Resolution evidence describes the earlier argument-preparation instant,
+    /// while this plan describes provider-visible state after all authored
+    /// arguments have run. Cross-check only the stable operand role and carrier
+    /// capacity: later argument evaluation may legitimately alter contents.
+    pub(super) fn matches_resolution_roles(
+        &self,
+        byte_resolutions: &[FilesystemMutableByteOperandResolution],
+        i64_resolutions: &[FilesystemMutableI64OperandResolution],
+    ) -> bool {
+        byte_resolutions.len() == self.byte_operands.len()
+            && byte_resolutions
+                .iter()
+                .zip(&self.byte_operands)
+                .all(|(resolution, operand)| {
+                    resolution.operand_ordinal == operand.operand_ordinal
+                        && resolution.bytes.len() == operand.output.capacity()
+                })
+            && i64_resolutions.len() == self.i64_operands.len()
+            && i64_resolutions
+                .iter()
+                .zip(&self.i64_operands)
+                .all(|(resolution, operand)| resolution.operand_ordinal == operand.operand_ordinal)
+    }
+
     pub(super) fn reserved_bytes(&self) -> Option<usize> {
         self.byte_operands
             .iter()
@@ -1779,6 +1804,52 @@ mod tests {
     }
 
     #[test]
+    fn mutable_resolution_validation_uses_only_ordered_role_and_capacity() {
+        let position = mutable_i64();
+        let call = PreparedFilesystemCall::ReadDir {
+            fd: 3,
+            buffer: array_output(2),
+            count: transfer_count(),
+            position,
+        };
+        let plan = call
+            .mutable_observation_plan()
+            .unwrap_or_else(|_| panic!("mutable fixture must be representable"));
+        let matching_bytes = vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: vec![91, 92],
+        }];
+        let matching_i64 = vec![FilesystemMutableI64OperandResolution {
+            operand_ordinal: 3,
+            value: i64::MIN,
+        }];
+        assert!(
+            plan.matches_resolution_roles(&matching_bytes, &matching_i64),
+            "resolution values may differ from provider pre-state after aliasing"
+        );
+
+        let wrong_byte_role = vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 0,
+            bytes: vec![91, 92],
+        }];
+        assert!(!plan.matches_resolution_roles(&wrong_byte_role, &matching_i64));
+
+        let wrong_capacity = vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: vec![91],
+        }];
+        assert!(!plan.matches_resolution_roles(&wrong_capacity, &matching_i64));
+
+        let wrong_i64_role = vec![FilesystemMutableI64OperandResolution {
+            operand_ordinal: 2,
+            value: 7,
+        }];
+        assert!(!plan.matches_resolution_roles(&matching_bytes, &wrong_i64_role));
+        assert!(!plan.matches_resolution_roles(&[], &matching_i64));
+        assert!(!plan.matches_resolution_roles(&matching_bytes, &[]));
+    }
+
+    #[test]
     fn operation_attempt_encloses_canonical_preparation() {
         let source = include_str!("filesystem.rs");
         let push = source.find("push(attempt_index)").expect("attempt push");
@@ -2056,36 +2127,52 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {
-        let (_, handle) = self.next()?;
+        let (operand_ordinal, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
-        match &*cell.borrow() {
-            Value::Str(text) => {
-                let capacity = text.borrow().len();
-                check_byte_len(capacity)?;
-                Ok(PreparedByteOutput::Text {
-                    text: std::rc::Rc::clone(text),
-                    capacity,
-                })
+        let output = {
+            let value = cell.borrow();
+            match &*value {
+                Value::Str(text) => {
+                    let capacity = text.borrow().len();
+                    check_byte_len(capacity)?;
+                    Ok(PreparedByteOutput::Text {
+                        text: std::rc::Rc::clone(text),
+                        capacity,
+                    })
+                }
+                Value::Array(cells) => {
+                    check_byte_len(cells.len())?;
+                    Ok(PreparedByteOutput::Array(cells.clone()))
+                }
+                other => trap(format!(
+                    "filesystem mutable byte operand has invalid shape {other:?}"
+                )),
             }
-            Value::Array(cells) => {
-                check_byte_len(cells.len())?;
-                Ok(PreparedByteOutput::Array(cells.clone()))
-            }
-            other => trap(format!(
-                "filesystem mutable byte operand has invalid shape {other:?}"
-            )),
-        }
+        }?;
+        self.evaluator
+            .record_prepared_filesystem_mutable_byte_operand_resolution(
+                self.attempt_index,
+                operand_ordinal,
+                &output,
+            )?;
+        Ok(output)
     }
 
     fn mutable_i64(&mut self) -> EvalResult<PreparedI64Output> {
-        let (_, handle) = self.next()?;
+        let (operand_ordinal, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
         let initial = match *cell.borrow() {
             Value::Int(value) => value,
             _ => return trap("filesystem mutable scalar operand is not an integer"),
         };
+        self.evaluator
+            .record_prepared_filesystem_mutable_i64_operand_resolution(
+                self.attempt_index,
+                operand_ordinal,
+                initial,
+            );
         Ok(PreparedI64Output { cell, initial })
     }
 

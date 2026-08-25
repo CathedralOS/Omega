@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v12
-  carries operation-attempt schema v12: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v13
+  carries operation-attempt schema v13: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1407,7 +1407,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v12 retains each successfully typed non-handle
+  Operation-attempt schema v13 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1419,14 +1419,18 @@ complete.
   signedness. Immutable write/FILETIME payloads retain exact authored bytes,
   including trailing bytes beyond the provider's minimum read, while validated
   `open_at`/`unlink_at` components retain their exact portable spelling. Raw
-  rooted/path-alias spellings never enter this payload lane. Mutable byte
-  carriers retain their complete capacity before and after the provider call,
-  including unchanged tails; mutable i64 carriers retain exact pre/post values.
-  Pre-state is captured only after every authored argument has been evaluated,
-  and post-state is captured after either provider return or provider halt.
-  Input-only ABI carriers remain explicit even when unchanged. A separate 256
-  MiB aggregate operand-evidence sponsor reserves immutable bytes plus both
-  copies of every mutable carrier before that call's provider access;
+  rooted/path-alias spellings never enter this payload lane. Each mutable byte
+  or i64 carrier retains a distinct complete resolution-time snapshot as its
+  operand is evaluated, so a later preparation failure keeps the prefix.
+  Mutable byte carriers separately retain their complete capacity before and
+  after the provider call, including unchanged tails; mutable i64 carriers
+  retain exact provider pre/post values. Provider pre-state is captured only
+  after every authored argument has been evaluated, because a later argument
+  may alias and mutate an earlier carrier; the resolution and provider snapshots
+  are deliberately not required to match. Post-state follows provider return or
+  provider halt. Input-only ABI carriers remain explicit even when unchanged. A
+  separate 256 MiB aggregate operand-evidence sponsor reserves immutable bytes,
+  one resolution copy, and both provider copies of every mutable byte carrier;
   exhaustion non-catchably halts that call. Prior or nested
   staging effects remain cleanup-contained rather than being denied
   retroactively. Package review commitments frame scalar tags, ordinals,
@@ -1439,7 +1443,7 @@ complete.
   are cross-checked against the fully prepared call; they never masquerade as
   rooted grant paths or immutable payloads. This deliberately incomplete trace
   still omits retained returned-path bytes, preparation-failure prefixes for
-  rooted-path and mutable-carrier operands, and complete input content custody.
+  rooted-path operands, and complete input content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

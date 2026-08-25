@@ -267,6 +267,24 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, operand.bytes());
         }
         digest.update(
+            u64::try_from(attempt.mutable_byte_operand_resolutions().len())
+                .expect("build observation mutable-byte-resolution count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.mutable_byte_operand_resolutions() {
+            digest.update([operand.operand_ordinal()]);
+            hash_bytes(&mut digest, operand.bytes());
+        }
+        digest.update(
+            u64::try_from(attempt.mutable_i64_operand_resolutions().len())
+                .expect("build observation mutable-i64-resolution count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.mutable_i64_operand_resolutions() {
+            digest.update([operand.operand_ordinal()]);
+            digest.update(operand.value().to_le_bytes());
+        }
+        digest.update(
             u64::try_from(attempt.mutable_byte_operands().len())
                 .expect("build observation mutable-byte-operand count fits u64")
                 .to_le_bytes(),
@@ -619,8 +637,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 12);
-        assert_eq!(first.filesystem_operation_schema_version(), 12);
+        assert_eq!(first.schema_version(), 13);
+        assert_eq!(first.filesystem_operation_schema_version(), 13);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
@@ -713,6 +731,14 @@ reaches FilesystemHost
         let changed = compiled_read_observation("bravo\n");
         let first_read = &first.filesystem_operation_attempts()[1];
         let changed_read = &changed.filesystem_operation_attempts()[1];
+        assert_eq!(
+            first_read.mutable_byte_operand_resolutions()[0].bytes(),
+            &[0; 6]
+        );
+        assert_eq!(
+            changed_read.mutable_byte_operand_resolutions()[0].bytes(),
+            &[0; 6]
+        );
         assert_eq!(first_read.mutable_byte_operands()[0].pre_bytes(), &[0; 6]);
         assert_eq!(changed_read.mutable_byte_operands()[0].pre_bytes(), &[0; 6]);
         assert_eq!(
