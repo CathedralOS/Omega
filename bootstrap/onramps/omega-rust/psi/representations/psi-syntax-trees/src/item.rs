@@ -438,6 +438,9 @@ pub struct DataDefinition {
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
+    /// Exact structural origin for a concrete generic instance synthesized by
+    /// normalization. Authored data declarations never populate this field.
+    pub generic_instance: Option<crate::types::TypeReferenceHandle>,
     pub properties: DataProperties,
     /// N6: a proof-only quotient declaration (`data Q = Carrier % relation;`).
     /// Quotients have no authored members: their values are equivalence classes

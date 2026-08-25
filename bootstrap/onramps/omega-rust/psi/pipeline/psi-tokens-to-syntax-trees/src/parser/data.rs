@@ -94,6 +94,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters,
                 type_parameters,
+                generic_instance: None,
                 properties,
                 quotient: Some(QuotientDefinition {
                     carrier,
@@ -169,6 +170,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
             lifetime_parameters,
             type_parameters,
+            generic_instance: None,
             properties,
             quotient: None,
             where_facts,
@@ -245,6 +247,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             supply_mode: psi_language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,
+            generic_instance: None,
             properties,
             quotient: None,
             where_facts: HandleSpan::empty(),

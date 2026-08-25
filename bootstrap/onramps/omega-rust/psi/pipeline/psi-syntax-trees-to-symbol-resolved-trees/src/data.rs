@@ -124,6 +124,10 @@ pub(crate) fn lower_data_definition(
                 .map(crate::name::lower_name)
                 .collect(),
             type_parameters,
+            generic_instance: data_definition
+                .generic_instance
+                .map(|origin| lower_type_reference_handle(lowerer, syntax_trees, origin))
+                .transpose()?,
             properties: DataProperties {
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,

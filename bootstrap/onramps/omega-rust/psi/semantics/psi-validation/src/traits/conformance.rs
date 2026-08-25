@@ -1465,10 +1465,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                 matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
                     parameter_symbol: required.symbol,
                     parameter_name: required.name.as_str().to_owned(),
-                    target: TraitTypeBindingTarget::Parameter {
-                        symbol: actual.symbol,
-                        name: actual.name.as_str().to_owned(),
-                    },
+                    target: TraitTypeBindingTarget::Parameter(actual.symbol),
                 })
             }),
     );
@@ -1672,7 +1669,7 @@ struct TraitTypeBinding {
 #[derive(Debug, Clone)]
 enum TraitTypeBindingTarget {
     Type(TypeReferenceHandle),
-    Parameter { symbol: SymbolHandle, name: String },
+    Parameter(SymbolHandle),
 }
 
 fn type_references_match_with_trait_bindings(
@@ -1799,17 +1796,18 @@ fn type_references_match_with_trait_bindings(
         ),
         (
             TypeReferenceNode::Generic {
-                base_name: actual_base,
+                base_symbol: actual_base_symbol,
                 arguments: actual_arguments,
                 ..
             },
             TypeReferenceNode::Generic {
-                base_name: required_base,
+                base_symbol: required_base_symbol,
                 arguments: required_arguments,
                 ..
             },
         ) => {
-            actual_base == required_base
+            actual_base_symbol.is_valid()
+                && actual_base_symbol == required_base_symbol
                 && actual_arguments.count() == required_arguments.count()
                 && program
                     .type_reference_table
@@ -1831,6 +1829,26 @@ fn type_references_match_with_trait_bindings(
                         )
                     })
         }
+        (
+            TypeReferenceNode::Named {
+                symbol: actual_symbol,
+                ..
+            },
+            TypeReferenceNode::Generic { .. },
+        ) if actual_symbol.is_valid() => program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *actual_symbol)
+            .and_then(|definition| definition.generic_instance)
+            .is_some_and(|origin| {
+                type_references_match_with_trait_bindings(
+                    program,
+                    origin,
+                    required,
+                    trait_type_parameters,
+                    bindings,
+                )
+            }),
         _ => type_references_match(program, actual, required),
     }
 }
@@ -1841,17 +1859,34 @@ fn binding_matches_actual(
     actual: TypeReferenceHandle,
 ) -> bool {
     match &binding.target {
-        TraitTypeBindingTarget::Type(expected) => {
-            type_references_match(program, actual, *expected)
-                || type_reference_is_instance_of_family(program, actual, *expected)
-        }
-        TraitTypeBindingTarget::Parameter { symbol, name } => matches!(
+        TraitTypeBindingTarget::Type(expected) => match (
+            program.type_reference_table.type_reference(actual),
+            program.type_reference_table.type_reference(*expected),
+        ) {
+            (
+                TypeReferenceNode::Named {
+                    symbol: actual_symbol,
+                    ..
+                },
+                TypeReferenceNode::Named {
+                    symbol: expected_symbol,
+                    ..
+                },
+            ) if actual_symbol.is_valid() && expected_symbol.is_valid() => {
+                actual_symbol == expected_symbol
+                    || type_reference_is_instance_of_family(program, actual, *expected)
+            }
+            _ => {
+                type_references_match(program, actual, *expected)
+                    || type_reference_is_instance_of_family(program, actual, *expected)
+            }
+        },
+        TraitTypeBindingTarget::Parameter(symbol) => matches!(
             program.type_reference_table.type_reference(actual),
             TypeReferenceNode::Named {
                 symbol: actual_symbol,
-                name: actual_name,
+                ..
             } if (*symbol).is_valid() && *actual_symbol == *symbol
-                || actual_name.as_str() == name
         ),
     }
 }
@@ -1944,16 +1979,16 @@ fn required_trait_type_parameter<'program>(
     required: TypeReferenceHandle,
     trait_type_parameters: &'program [TypeParameter],
 ) -> Option<&'program TypeParameter> {
-    let TypeReferenceNode::Named { symbol, name } =
+    let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(required)
     else {
         return None;
     };
 
-    trait_type_parameters.iter().find(|parameter| {
-        (parameter.symbol.is_valid() && parameter.symbol == *symbol)
-            || parameter.name.as_str() == name.as_str()
-    })
+    symbol.is_valid().then_some(())?;
+    trait_type_parameters
+        .iter()
+        .find(|parameter| parameter.symbol.is_valid() && parameter.symbol == *symbol)
 }
 
 fn parameter_shape_label(program: &TypedTrees, parameter: &StateParameter) -> String {
@@ -1966,5 +2001,155 @@ fn parameter_shape_label(program: &TypedTrees, parameter: &StateParameter) -> St
             parameter.name,
             type_reference_label(program, parameter.type_reference)
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        TraitTypeBinding, TraitTypeBindingTarget, type_references_match_with_trait_bindings,
+    };
+    use psi_symbols::SymbolHandle;
+    use psi_typed_trees::TypedTrees;
+    use psi_typed_trees::data::{DataDefinition, TypeParameter};
+    use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    fn named(program: &mut TypedTrees, symbol: SymbolHandle, name: &str) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(name),
+            })
+    }
+
+    fn generic(
+        program: &mut TypedTrees,
+        base_symbol: SymbolHandle,
+        base_name: &str,
+        arguments: impl IntoIterator<Item = TypeReferenceHandle>,
+    ) -> TypeReferenceHandle {
+        let arguments = program
+            .type_reference_table
+            .insert_type_reference_handles(arguments);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol,
+                base_name: Identifier::generated(base_name),
+                lifetime_arguments: Vec::new(),
+                arguments,
+            })
+    }
+
+    fn generated_instance(
+        program: &mut TypedTrees,
+        symbol: SymbolHandle,
+        diagnostic_name: &str,
+        origin: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        program.push_data_definition(DataDefinition {
+            symbol,
+            name: Identifier::generated(diagnostic_name),
+            generic_instance: Some(origin),
+            ..DataDefinition::default()
+        });
+        named(program, symbol, diagnostic_name)
+    }
+
+    fn value_binding(
+        parameter_symbol: SymbolHandle,
+        concrete: TypeReferenceHandle,
+    ) -> Vec<TraitTypeBinding> {
+        vec![TraitTypeBinding {
+            parameter_symbol,
+            parameter_name: "Value".to_owned(),
+            target: TraitTypeBindingTarget::Type(concrete),
+        }]
+    }
+
+    #[test]
+    fn generated_nested_generic_origin_substitutes_exact_trait_argument() {
+        let mut program = TypedTrees::default();
+        let value_symbol = SymbolHandle::from_arena_index(10);
+        let outer_symbol = SymbolHandle::from_arena_index(20);
+        let inner_symbol = SymbolHandle::from_arena_index(21);
+        let message_symbol = SymbolHandle::from_arena_index(30);
+        let message = named(&mut program, message_symbol, "Message");
+        let value = named(&mut program, value_symbol, "Value");
+        let actual_inner_origin = generic(&mut program, inner_symbol, "ignored-inner", [message]);
+        let actual_inner = generated_instance(
+            &mut program,
+            SymbolHandle::from_arena_index(40),
+            "untrusted synthetic spelling",
+            actual_inner_origin,
+        );
+        let actual_outer_origin =
+            generic(&mut program, outer_symbol, "ignored-outer", [actual_inner]);
+        let actual = generated_instance(
+            &mut program,
+            SymbolHandle::from_arena_index(41),
+            "another irrelevant spelling",
+            actual_outer_origin,
+        );
+        let required_inner = generic(&mut program, inner_symbol, "Relayed", [value]);
+        let required = generic(&mut program, outer_symbol, "DecodeResult", [required_inner]);
+        let parameters = [TypeParameter {
+            symbol: value_symbol,
+            name: Identifier::generated("Value"),
+            ..TypeParameter::default()
+        }];
+
+        assert!(type_references_match_with_trait_bindings(
+            &program,
+            actual,
+            required,
+            &parameters,
+            &mut value_binding(value_symbol, message),
+        ));
+    }
+
+    #[test]
+    fn generated_nested_generic_origin_rejects_mismatched_concrete_argument() {
+        let mut program = TypedTrees::default();
+        let value_symbol = SymbolHandle::from_arena_index(10);
+        let outer_symbol = SymbolHandle::from_arena_index(20);
+        let inner_symbol = SymbolHandle::from_arena_index(21);
+        let message_symbol = SymbolHandle::from_arena_index(30);
+        let other_symbol = SymbolHandle::from_arena_index(31);
+        let message = named(&mut program, message_symbol, "SameDisplayName");
+        let other = named(&mut program, other_symbol, "SameDisplayName");
+        let value = named(&mut program, value_symbol, "Value");
+        let actual_inner_origin = generic(&mut program, inner_symbol, "Relayed", [other]);
+        let actual_inner = generated_instance(
+            &mut program,
+            SymbolHandle::from_arena_index(40),
+            "Relayed<SameDisplayName>",
+            actual_inner_origin,
+        );
+        let actual_outer_origin =
+            generic(&mut program, outer_symbol, "DecodeResult", [actual_inner]);
+        let actual = generated_instance(
+            &mut program,
+            SymbolHandle::from_arena_index(41),
+            "DecodeResult<Relayed<SameDisplayName>>",
+            actual_outer_origin,
+        );
+        let required_inner = generic(&mut program, inner_symbol, "Relayed", [value]);
+        let required = generic(&mut program, outer_symbol, "DecodeResult", [required_inner]);
+        let parameters = [TypeParameter {
+            symbol: value_symbol,
+            name: Identifier::generated("Value"),
+            ..TypeParameter::default()
+        }];
+
+        assert!(!type_references_match_with_trait_bindings(
+            &program,
+            actual,
+            required,
+            &parameters,
+            &mut value_binding(value_symbol, message),
+        ));
     }
 }

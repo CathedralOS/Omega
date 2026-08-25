@@ -21,6 +21,7 @@ fn syntax_trees_extend_from_preserves_data_visibility() {
         supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        generic_instance: None,
         properties: Default::default(),
         quotient: None,
         where_facts: HandleSpan::empty(),
@@ -34,6 +35,54 @@ fn syntax_trees_extend_from_preserves_data_visibility() {
         panic!("expected data root item");
     };
     assert!(data.is_public);
+}
+
+#[test]
+fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let argument = source
+        .type_references
+        .insert(TypeReferenceNode::Named(Identifier::generated("Message")));
+    let arguments = source
+        .type_references
+        .insert_type_reference_handles([argument]);
+    let origin = source.type_references.insert(TypeReferenceNode::Generic {
+        base_name: Identifier::generated("Carrier"),
+        lifetime_arguments: Vec::new(),
+        arguments,
+    });
+    source.push_root_item(Item::Data(DataDefinition {
+        name: Identifier::generated("irrelevant synthetic name"),
+        is_public: false,
+        supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        generic_instance: Some(origin),
+        properties: Default::default(),
+        quotient: None,
+        where_facts: HandleSpan::empty(),
+        members: HandleSpan::empty(),
+    }));
+
+    let mut copied = SyntaxTrees::new(Default::default());
+    copied.extend_from(&source);
+    let Item::Data(data) = copied.root_items().next().expect("copied data") else {
+        panic!("copied root must remain data");
+    };
+    let origin = data.generic_instance.expect("copied generic origin");
+    assert!(matches!(
+        copied.type_references.type_reference(origin),
+        TypeReferenceNode::Generic { base_name, .. } if base_name.as_str() == "Carrier"
+    ));
+
+    let snapshot = copied.snapshot();
+    assert!(matches!(
+        &snapshot.root_items[0],
+        ItemSnapshot::Data {
+            generic_instance: Some(crate::snapshot::TypeReferenceSnapshot::Generic { .. }),
+            ..
+        }
+    ));
 }
 
 #[test]

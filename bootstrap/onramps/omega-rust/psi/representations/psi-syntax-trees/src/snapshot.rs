@@ -93,6 +93,8 @@ pub enum ItemSnapshot {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        generic_instance: Option<TypeReferenceSnapshot>,
         properties: DataPropertiesSnapshot,
         #[serde(skip_serializing_if = "Option::is_none")]
         quotient: Option<QuotientSnapshot>,
@@ -905,6 +907,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
+            generic_instance: value
+                .generic_instance
+                .map(|origin| snapshot_type_reference_handle(syntax_trees, origin)),
             properties: snapshot_data_properties(value.properties),
             quotient: value.quotient.as_ref().map(|quotient| QuotientSnapshot {
                 carrier: snapshot_type_reference_handle(syntax_trees, quotient.carrier),

@@ -11,6 +11,9 @@ pub struct DataDefinition {
     pub supply_mode: psi_language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
+    /// Exact, resolved structural origin of a generated concrete generic
+    /// instance. The generated nominal symbol remains the runtime carrier.
+    pub generic_instance: Option<TypeReferenceHandle>,
     pub properties: DataProperties,
     /// N6 proof-only quotient metadata, retained through typing so proof and
     /// validation consumers share the exact carrier/relation identity.
@@ -35,6 +38,7 @@ impl Default for DataDefinition {
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
+            generic_instance: None,
             properties: DataProperties::default(),
             quotient: None,
             where_facts: HandleSpan::empty(),

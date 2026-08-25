@@ -51,6 +51,15 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 &type_parameters,
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
             );
+            if let Some(generic_instance) = &mut data_definition.generic_instance {
+                assign_type_reference_symbol_with_locals_and_constraints(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &type_parameters,
+                    generic_instance,
+                );
+            }
             if let Some(quotient) = &mut data_definition.quotient {
                 assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,

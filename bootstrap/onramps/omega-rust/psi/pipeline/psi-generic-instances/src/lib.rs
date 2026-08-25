@@ -442,6 +442,21 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
             replace_const_expression_names_from(syntax, fact_expression_watermark, &const_literals);
             let where_facts = HandleSpan::from_parts(first_fact, fact_count);
 
+            // Retain the authored generic application as structural evidence.
+            // The synthesized display name is diagnostic-only; downstream
+            // identity and substitution resolve this base and argument tuple.
+            let origin_arguments = syntax
+                .tables
+                .type_references
+                .insert_type_reference_handles(instance.argument_handles.iter().copied());
+            let generic_instance = syntax.tables.type_references.insert(
+                psi_syntax_trees::types::TypeReferenceNode::Generic {
+                    base_name: Identifier::generated(instance.base_name.as_str()),
+                    lifetime_arguments: Vec::new(),
+                    arguments: origin_arguments,
+                },
+            );
+
             let members: Vec<DataMember> =
                 syntax.tables.items.data_members(base_info.members).to_vec();
             let properties = base_info.properties;
@@ -461,6 +476,7 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                 supply_mode: base_info.supply_mode,
                 lifetime_parameters: base_info.lifetime_parameters.clone(),
                 type_parameters: HandleSpan::default(),
+                generic_instance: Some(generic_instance),
                 properties,
                 where_facts,
                 members: HandleSpan::from_parts(first, count),

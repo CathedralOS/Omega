@@ -73,6 +73,7 @@ pub(crate) fn data_definition_from_wire_schema(
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: Vec::new(),
             type_parameters: psi_arena::HandleSpan::empty(),
+            generic_instance: None,
             quotient: None,
             where_facts: psi_arena::HandleSpan::empty(),
             zero_gated: false,
