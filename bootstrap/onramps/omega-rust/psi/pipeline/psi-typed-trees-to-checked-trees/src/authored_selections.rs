@@ -331,6 +331,29 @@ fn checked_operator_target(
     expression: psi_typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
 ) -> Option<CheckedResolutionTarget> {
+    // These operators have no authored declaration/spelling surface. Once
+    // ordinary checking accepts their operand types, their exact meaning is
+    // necessarily compiler intrinsic; nested-expression origins need not
+    // recover a synthetic type reference merely to finalize custody.
+    if matches!(
+        node,
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                psi_typed_trees::expression::BinaryOperator::And
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseOr
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseXor
+                    | psi_typed_trees::expression::BinaryOperator::Or
+                    | psi_typed_trees::expression::BinaryOperator::ShiftLeft
+                    | psi_typed_trees::expression::BinaryOperator::ShiftRight
+            )
+    ) {
+        return Some(CheckedResolutionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        ));
+    }
+
     let uses = facts
         .operators
         .uses

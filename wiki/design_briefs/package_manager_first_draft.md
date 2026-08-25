@@ -217,7 +217,18 @@ where those facts exist. It is compiler-internal and may move with the compiler;
 it neither waits for Terminal Psi nor creates nominal Chi. A distinct stage is
 warranted only by a real shared invariant, transformation boundary, or
 independent consumer. Production package mutation remains disabled for the
-separate incomplete public-interface and authored conformance/cleanup coverage.
+remaining public-expression and authored conformance/cleanup coverage.
+
+Nominal type spellings now enter the same ledger at symbol-resolved-to-typed
+lowering, where both the exact symbol and declaration exposure are coherent.
+Type references in public data, domains, machine-head signatures, traits, and
+wire surfaces are public-interface selections; private declarations, internal
+state signatures, local type annotations, casts, and a public machine's owned
+storage are private-implementation selections. Generic bases and explicitly named dynamic-trait
+conformances follow the same rule. Binders, locals, primitive types, and
+source-free compiler nodes are not package selections. This closes explicit
+nominal type custody, including a public API's direct-dependency gate, without
+claiming the separate carried-semantic-dependency projection is complete.
 
 ## Authored requests versus accepted lock state
 

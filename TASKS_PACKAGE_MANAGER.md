@@ -572,11 +572,27 @@ complete.
   one only if later implementation discovers an independent consumer, shared
   invariant, or transformation boundary with actual semantics.
 
+  Milestone 2026-08-25: symbol-resolved nominal type references now retain
+  exact authored-selection rows as they enter typed trees. Public `data`,
+  `domain`, machine-head signatures, traits, and wire surfaces record public-
+  interface exposure; private declarations, internal state signatures, local
+  type annotations, casts, and public-machine owned storage record private-
+  implementation exposure. Generic
+  bases and named dynamic-trait conformances retain the same custody, while
+  binders, locals, primitives, and source-free compiler nodes do not pretend to
+  be package declarations. A root-middle-leaf canary rejects a public API that
+  explicitly names a transitive-only leaf type and accepts it once the leaf is
+  a direct dependency. Checked finalization also classifies logical, bitwise,
+  and shift operators as compiler intrinsics directly: these operators have no
+  declaration-spelling surface, so nested expression origins no longer leave
+  an ordinary `&&` occurrence unresolved at package admission.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
-  outside package admission, and complete capture still covers only private
-  state-body expression forms. The package manager stays disabled until public-
-  interface exposure and remaining authored conformance/cleanup forms are
-  complete. Exact carried-semantic-dependency evidence also remains. Visibility for
+  outside package admission. Capture now covers private state-body expression
+  forms and nominal type references on public/private declaration surfaces;
+  public expression positions and remaining authored conformance/cleanup forms
+  are not yet total. The package manager stays disabled until those gaps close.
+  Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.
 

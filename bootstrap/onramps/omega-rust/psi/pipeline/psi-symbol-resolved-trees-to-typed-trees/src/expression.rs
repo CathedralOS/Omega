@@ -18,6 +18,7 @@ pub(crate) fn lower_expression_handle(
         typed_trees,
         source_trees,
         equality_scope,
+        ..
     } = lowerer;
     let source = &source_trees.tables.bodies.expressions;
     table::lower_expression_handle_from_table_in_scope(

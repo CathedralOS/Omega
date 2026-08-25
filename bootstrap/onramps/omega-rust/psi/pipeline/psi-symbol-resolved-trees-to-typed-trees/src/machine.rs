@@ -54,17 +54,25 @@ pub(crate) fn lower_machine(
     }
 
     for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {
-        let owned_data = typed::machine::OwnedData {
-            symbol: owned_data.symbol,
-            name: crate::name::lower_name(&owned_data.name),
-            type_reference: lower_type_reference_into_table(lowerer, &owned_data.type_reference)?,
-            initial_value: owned_data
-                .initial_value
-                .is_valid()
-                .then(|| lower_expression_handle(lowerer, owned_data.initial_value))
-                .transpose()?
-                .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
-        };
+        let owned_data = lowerer.with_type_reference_exposure(
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            |lowerer| {
+                Ok::<_, Diagnostic>(typed::machine::OwnedData {
+                    symbol: owned_data.symbol,
+                    name: crate::name::lower_name(&owned_data.name),
+                    type_reference: lower_type_reference_into_table(
+                        lowerer,
+                        &owned_data.type_reference,
+                    )?,
+                    initial_value: owned_data
+                        .initial_value
+                        .is_valid()
+                        .then(|| lower_expression_handle(lowerer, owned_data.initial_value))
+                        .transpose()?
+                        .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
+                })
+            },
+        )?;
         lowerer
             .typed_trees
             .push_machine_owned_data(&mut typed_machine, owned_data);
@@ -165,7 +173,12 @@ pub(crate) fn lower_machine(
         );
     }
 
-    for state in lowerer.source_trees.machine_state_handles(machine.states) {
+    for (state_index, state) in lowerer
+        .source_trees
+        .machine_state_handles(machine.states)
+        .iter()
+        .enumerate()
+    {
         let state = lowerer.source_trees.machine_state(*state);
         // The state body's value-typing scope lets `==` lowering find an
         // operand's data type for structural-equality expansion.
@@ -174,7 +187,14 @@ pub(crate) fn lower_machine(
             machine,
             state,
         ));
-        let state = lower_state(lowerer, machine.attached_data.as_ref(), state)?;
+        let exposure = if machine.is_public && state_index == 0 {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        } else {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        };
+        let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
+            lower_state(lowerer, machine.attached_data.as_ref(), state)
+        })?;
         lowerer.equality_scope = None;
         lowerer
             .typed_trees

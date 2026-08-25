@@ -11,6 +11,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: resolved::types::TypeReferenceHandle,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     match source_trees
         .tables
@@ -27,6 +28,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 source_trees,
                 typed_trees,
                 *referee,
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Reference {
@@ -44,11 +46,13 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 source_trees,
                 typed_trees,
                 *base_type,
+                exposure,
             )?;
             let constraints = lower_type_constraint_node_span_from_table(
                 source_trees,
                 typed_trees,
                 *constraints,
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::Constrained {
@@ -65,6 +69,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 source_trees,
                 typed_trees,
                 *element_type,
+                exposure,
             )?;
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::FixedArray {
@@ -78,6 +83,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 source_trees,
                 typed_trees,
                 *element_type,
+                exposure,
             )?;
             Ok(typed_trees
                 .type_reference_table
@@ -100,12 +106,21 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                     source_trees,
                     typed_trees,
                     *argument,
+                    exposure,
                 )?;
                 typed_trees
                     .type_reference_table
                     .push_type_reference_handle(&mut lowered_arguments, argument);
             }
 
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                base_name,
+                *base_symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
             Ok(typed_trees
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::Generic {
@@ -134,21 +149,53 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             conformance,
             conformance_carrier,
             conformance_name,
-        } => Ok(typed_trees.type_reference_table.insert(
-            typed::types::TypeReferenceNode::DynamicTrait {
-                symbol: *symbol,
-                name: crate::name::lower_name(name),
-                conformance: *conformance,
-                conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
-                conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
-            },
-        )),
-        resolved::types::TypeReferenceNode::Named { symbol, name } => Ok(typed_trees
-            .type_reference_table
-            .insert(typed::types::TypeReferenceNode::Named {
-                symbol: *symbol,
-                name: crate::name::lower_name(name),
-            })),
+        } => {
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                name,
+                *symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
+            if let (Some(conformance), Some(conformance_name)) =
+                (*conformance, conformance_name.as_ref())
+            {
+                super::retain_type_reference_selection(
+                    source_trees,
+                    typed_trees,
+                    conformance_name,
+                    conformance,
+                    exposure,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
+                )?;
+            }
+            Ok(typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: crate::name::lower_name(name),
+                    conformance: *conformance,
+                    conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
+                    conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
+                },
+            ))
+        }
+        resolved::types::TypeReferenceNode::Named { symbol, name } => {
+            super::retain_type_reference_selection(
+                source_trees,
+                typed_trees,
+                name,
+                *symbol,
+                exposure,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+            )?;
+            Ok(typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::Named {
+                    symbol: *symbol,
+                    name: crate::name::lower_name(name),
+                }))
+        }
         resolved::types::TypeReferenceNode::SelfType { symbol } => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {

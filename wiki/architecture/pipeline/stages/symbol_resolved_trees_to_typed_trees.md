@@ -54,6 +54,12 @@ Must own:
   target, never omitted conformance arguments.
 - Typed named transitions retain their erased evidence-identifier lane without
   assigning it a runtime argument type or storage position.
+- Authored nominal type spellings retain their exact resolved declaration in
+  the package-agnostic selection ledger. The lowering context classifies public
+  data, domain, machine-head, trait, and wire positions separately from private
+  declarations, internal state signatures, locals, and casts. Primitive types,
+  local binders, and source-free compiler nodes do not become package
+  selections.
 
 Must not own:
 
@@ -102,7 +108,9 @@ surfaces visible by file:
 - `type_reference.rs` owns type-reference shape lowering for reference, slice,
   constrained, generic, fixed-array, named, self, and unit type surfaces.
   `type_reference/direct.rs` lowers inline resolved type references, while
-  `type_reference/table.rs` lowers table-backed type-reference handles.
+  `type_reference/table.rs` lowers table-backed type-reference handles. Both
+  retain exact source-backed nominal selections and thread their public/private
+  declaration exposure through nested type shapes.
 - `type_reference/constraints.rs` owns typed constraint lowering, including
   named constraints and range constraints whose bounds lower through typed
   expressions.

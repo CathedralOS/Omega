@@ -32,6 +32,8 @@ pub fn lower_symbol_resolved_trees(
         typed_trees: TypedTrees::default(),
         source_trees: symbol_resolved_trees,
         equality_scope: None,
+        type_reference_exposure:
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
     };
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
@@ -66,12 +68,18 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for data_definition in &symbol_resolved_trees.data_definitions {
-        let data_definition = lower_data_definition(&mut lowerer, data_definition)?;
+        let data_definition = lowerer.with_type_reference_exposure(
+            declaration_exposure(data_definition.is_public),
+            |lowerer| lower_data_definition(lowerer, data_definition),
+        )?;
         lowerer.typed_trees.push_data_definition(data_definition);
     }
 
     for domain_definition in &symbol_resolved_trees.domain_definitions {
-        let domain_definition = lower_domain_definition(&mut lowerer, domain_definition)?;
+        let domain_definition = lowerer.with_type_reference_exposure(
+            declaration_exposure(domain_definition.is_public),
+            |lowerer| lower_domain_definition(lowerer, domain_definition),
+        )?;
         lowerer
             .typed_trees
             .push_domain_definition(domain_definition);
@@ -84,7 +92,10 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for machine in &symbol_resolved_trees.machines {
-        let machine = lower_machine(&mut lowerer, machine)?;
+        let machine = lowerer
+            .with_type_reference_exposure(declaration_exposure(machine.is_public), |lowerer| {
+                lower_machine(lowerer, machine)
+            })?;
         lowerer.typed_trees.push_machine(machine);
     }
 
@@ -99,7 +110,10 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for trait_definition in &symbol_resolved_trees.traits {
-        let trait_definition = lower_trait_definition(&mut lowerer, trait_definition)?;
+        let trait_definition = lowerer.with_type_reference_exposure(
+            declaration_exposure(trait_definition.is_public),
+            |lowerer| lower_trait_definition(lowerer, trait_definition),
+        )?;
         lowerer.typed_trees.push_trait_definition(trait_definition);
     }
 
@@ -207,11 +221,26 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for wire_schema in &symbol_resolved_trees.wire_schemas {
-        let wire_schema = crate::wire::lower_wire_schema(&mut lowerer, wire_schema)?;
+        let wire_schema = lowerer.with_type_reference_exposure(
+            declaration_exposure(wire_schema.is_public),
+            |lowerer| crate::wire::lower_wire_schema(lowerer, wire_schema),
+        )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
 
     lowerer.finish()
+}
+
+fn declaration_exposure(
+    is_public: bool,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+
+    if is_public {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
 }
 
 pub fn lower_symbol_resolved_trees_owned(
@@ -228,9 +257,22 @@ pub(crate) struct Lowerer<'source> {
     /// The value-typing scope of the state body currently being lowered;
     /// `==` expansion uses it to find an operand's data type.
     pub(crate) equality_scope: Option<crate::equatable::EqualityScope>,
+    pub(crate) type_reference_exposure:
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 }
 
 impl Lowerer<'_> {
+    pub(crate) fn with_type_reference_exposure<T>(
+        &mut self,
+        exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = std::mem::replace(&mut self.type_reference_exposure, exposure);
+        let result = operation(self);
+        self.type_reference_exposure = previous;
+        result
+    }
+
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
         crate::progress::normalize_progress_premises(&mut self.typed_trees)?;
