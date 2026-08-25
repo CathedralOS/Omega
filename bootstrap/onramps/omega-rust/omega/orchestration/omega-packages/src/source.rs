@@ -4541,7 +4541,7 @@ fn sealed_git_command(
         .env("LANG", "C")
         .env("LC_ALL", "C")
         .env("PATH", git_helper_path(&executor.identity.path))
-        .env("GIT_ALLOW_PROTOCOL", "file:https:http:ssh:git")
+        .env("GIT_ALLOW_PROTOCOL", "file:https:ssh")
         .env("GIT_ATTR_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", null_device())
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -4562,15 +4562,17 @@ fn sealed_git_command(
             "-c",
             "protocol.file.allow=always",
             "-c",
-            "protocol.http.allow=always",
+            "protocol.http.allow=never",
             "-c",
             "protocol.https.allow=always",
             "-c",
             "protocol.ssh.allow=always",
             "-c",
-            "protocol.git.allow=always",
+            "protocol.git.allow=never",
             "-c",
             "protocol.ext.allow=never",
+            "-c",
+            "http.followRedirects=false",
             "-c",
             "core.fsmonitor=false",
             "-c",
@@ -6839,7 +6841,7 @@ mod tests {
         let expected_environment = std::collections::BTreeMap::from([
             (
                 OsString::from("GIT_ALLOW_PROTOCOL"),
-                Some(OsString::from("file:https:http:ssh:git")),
+                Some(OsString::from("file:https:ssh")),
             ),
             (
                 OsString::from("GIT_ATTR_NOSYSTEM"),
@@ -6897,6 +6899,21 @@ mod tests {
             arguments
                 .iter()
                 .any(|argument| argument == "protocol.ext.allow=never")
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "protocol.http.allow=never")
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "protocol.git.allow=never")
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "http.followRedirects=false")
         );
         assert!(
             arguments

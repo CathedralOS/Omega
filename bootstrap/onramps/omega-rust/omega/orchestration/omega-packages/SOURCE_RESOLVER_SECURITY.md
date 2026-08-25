@@ -217,6 +217,15 @@ custody remain ambient and unsuitable for strict admission. Those conditions
 keep the resolver diagnostic-only until native helper confinement, hostile-
 process custody, during-write resource ceilings, and opaque-receipt work land.
 
+Public requests admit only HTTPS and SSH transports. The sealed Git executor
+also disables HTTP, unauthenticated `git://`, and HTTP redirects; the file
+transport remains available solely for the explicit test-only local-repository
+adapter. This prevents a validated HTTPS request from silently acquiring a
+second redirect-selected endpoint. It does not yet retain the effective socket
+endpoint, pin TLS trust, or confine DNS and network access to the requested
+host, so complete endpoint custody still belongs to the native resolver
+boundary and its receipt.
+
 Parent-owned selected-object-graph authentication supplies real evidence for a
 later strict receipt but does not itself make the resolver admissible. Native
 isolation, hostile same-user and Windows ACL cache custody, resource ceilings,
