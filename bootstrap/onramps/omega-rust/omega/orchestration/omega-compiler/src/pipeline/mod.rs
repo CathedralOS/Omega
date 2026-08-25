@@ -16,6 +16,7 @@ pub mod frontend;
 mod operator_adapter_dispatch;
 mod output;
 mod package_compilation;
+mod package_declaration_admission;
 mod package_review;
 mod package_source_consumption;
 mod program_entry_physical;

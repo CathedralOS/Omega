@@ -379,6 +379,12 @@ fn compile_to_checked_inner(
     let contract_entailment_stand_downs =
         psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+    if let Some(package_inputs) = package_inputs {
+        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+            &checked.program,
+            package_inputs,
+        )?;
+    }
     let callback_placements =
         crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
             &checked.program,
