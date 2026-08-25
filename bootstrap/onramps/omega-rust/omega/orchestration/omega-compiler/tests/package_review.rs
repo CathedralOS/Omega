@@ -54,6 +54,7 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),
+            "review-fixture",
             root.to_owned(),
         )],
         Vec::new(),
@@ -190,8 +191,12 @@ target macos_arm64 { }
         PackageCompilationInputs::new(
             root_identity,
             vec![
-                PackageSourceBinding::new(root_identity, graph_root.0.clone()),
-                PackageSourceBinding::new(dependency_identity, dependency.0.clone()),
+                PackageSourceBinding::new(root_identity, "graph-root", graph_root.0.clone()),
+                PackageSourceBinding::new(
+                    dependency_identity,
+                    "graph-dependency",
+                    dependency.0.clone(),
+                ),
             ],
             vec![PackageDependencyBinding::new(
                 root_identity,

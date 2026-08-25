@@ -78,6 +78,7 @@ fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
         root_identity,
         vec![PackageSourceBinding::new(
             root_identity,
+            "checked-build-identity",
             project.root().to_owned(),
         )],
         Vec::new(),

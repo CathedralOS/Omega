@@ -4,24 +4,36 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-/// One stable package identity and the canonical source root from which this
-/// compilation may load it. The path is custody/routing data, not identity.
+/// One stable package identity, its canonical declared name, and the canonical
+/// source root from which this compilation may load it. The name is validated
+/// diagnostic metadata and the path is custody/routing data; neither replaces
+/// the opaque identity in semantic comparisons.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourceBinding {
     identity: PackageKeyIdentity,
+    canonical_name: String,
     source_root: PathBuf,
 }
 
 impl PackageSourceBinding {
-    pub fn new(identity: PackageKeyIdentity, source_root: PathBuf) -> Self {
+    pub fn new(
+        identity: PackageKeyIdentity,
+        canonical_name: impl Into<String>,
+        source_root: PathBuf,
+    ) -> Self {
         Self {
             identity,
+            canonical_name: canonical_name.into(),
             source_root,
         }
     }
 
     pub const fn identity(&self) -> PackageKeyIdentity {
         self.identity
+    }
+
+    pub fn canonical_name(&self) -> &str {
+        &self.canonical_name
     }
 
     pub fn source_root(&self) -> &Path {
@@ -70,6 +82,9 @@ impl PackageDependencyBinding {
 pub struct PackageCompilationInputs {
     root: PackageKeyIdentity,
     packages: BTreeMap<PackageKeyIdentity, PathBuf>,
+    /// Canonical declared names retained solely for human-facing package
+    /// diagnostics. Security decisions continue to compare exact identities.
+    package_names: BTreeMap<PackageKeyIdentity, String>,
     dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
 }
 
@@ -81,9 +96,16 @@ impl PackageCompilationInputs {
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let mut errors = Vec::new();
         let mut canonical_packages = BTreeMap::new();
+        let mut canonical_names = BTreeMap::new();
         let mut roots = BTreeMap::<PathBuf, PackageKeyIdentity>::new();
 
         for package in packages {
+            if !is_kebab_case(&package.canonical_name) {
+                errors.push(PackageCompilationInputError::InvalidPackageName {
+                    identity: package.identity,
+                    name: package.canonical_name.clone(),
+                });
+            }
             let canonical_root = match canonical_source_root(&package.source_root) {
                 Ok(root) => root,
                 Err(reason) => {
@@ -104,6 +126,7 @@ impl PackageCompilationInputs {
                     identity: package.identity,
                 });
             }
+            canonical_names.insert(package.identity, package.canonical_name);
             if let Some(first) = roots.insert(canonical_root.clone(), package.identity) {
                 errors.push(PackageCompilationInputError::DuplicateSourceRoot {
                     first,
@@ -189,6 +212,7 @@ impl PackageCompilationInputs {
             Ok(Self {
                 root,
                 packages: canonical_packages,
+                package_names: canonical_names,
                 dependencies: canonical_dependencies,
             })
         } else {
@@ -202,6 +226,10 @@ impl PackageCompilationInputs {
 
     pub fn package_root(&self, identity: PackageKeyIdentity) -> Option<&Path> {
         self.packages.get(&identity).map(PathBuf::as_path)
+    }
+
+    pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {
+        self.package_names.get(&identity).map(String::as_str)
     }
 
     pub fn packages(&self) -> impl Iterator<Item = (PackageKeyIdentity, &Path)> {
@@ -229,6 +257,25 @@ impl PackageCompilationInputs {
             .get(&requester)
             .and_then(|aliases| aliases.get(alias))
             .copied()
+    }
+
+    pub(crate) fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        requester == owner
+            || self
+                .dependencies
+                .get(&requester)
+                .is_some_and(|aliases| aliases.values().any(|target| *target == owner))
+    }
+
+    pub(crate) fn package_label(&self, identity: PackageKeyIdentity) -> String {
+        match self.package_name(identity) {
+            Some(name) => format!("`{name}` ({})", display_identity(identity)),
+            None => display_identity(identity),
+        }
     }
 
     pub(crate) fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
@@ -304,6 +351,10 @@ impl PackageCompilationInputs {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageCompilationInputError {
+    InvalidPackageName {
+        identity: PackageKeyIdentity,
+        name: String,
+    },
     InvalidSourceRoot {
         identity: PackageKeyIdentity,
         path: PathBuf,
@@ -353,6 +404,11 @@ pub enum PackageCompilationInputError {
 impl fmt::Display for PackageCompilationInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidPackageName { identity, name } => write!(
+                formatter,
+                "package identity {} has invalid canonical name `{name}`; expected lowercase kebab-case",
+                display_identity(*identity)
+            ),
             Self::InvalidSourceRoot {
                 identity,
                 path,
@@ -460,6 +516,28 @@ fn is_snake_case(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn is_kebab_case(value: &str) -> bool {
+    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('-') {
+        return false;
+    }
+
+    let mut previous_separator = false;
+    for byte in value.bytes() {
+        if byte == b'-' {
+            if previous_separator {
+                return false;
+            }
+            previous_separator = true;
+            continue;
+        }
+        previous_separator = false;
+        if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() {
+            return false;
+        }
+    }
+    true
 }
 
 fn reachable_packages(
@@ -582,7 +660,11 @@ mod tests {
         let tree = TempTree::new();
         let packages = (1..=4)
             .map(|marker| {
-                PackageSourceBinding::new(identity(marker), tree.package(&marker.to_string()))
+                PackageSourceBinding::new(
+                    identity(marker),
+                    format!("package-{marker}"),
+                    tree.package(&marker.to_string()),
+                )
             })
             .collect();
         let inputs = PackageCompilationInputs::new(
@@ -604,6 +686,37 @@ mod tests {
             inputs.dependency_target(identity(2), "shared"),
             Some(identity(3))
         );
+        assert_eq!(inputs.package_name(identity(1)), Some("package-1"));
+        assert!(inputs.allows_declaration_selection(identity(1), identity(1)));
+        assert!(inputs.allows_declaration_selection(identity(1), identity(2)));
+        assert!(!inputs.allows_declaration_selection(identity(1), identity(3)));
+        assert!(inputs.allows_declaration_selection(identity(2), identity(3)));
+        assert!(
+            inputs
+                .package_label(identity(1))
+                .starts_with("`package-1` (")
+        );
+    }
+
+    #[test]
+    fn noncanonical_package_names_reject_at_compiler_handoff() {
+        let tree = TempTree::new();
+        let errors = PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(
+                identity(1),
+                "not_canonical",
+                tree.package("root"),
+            )],
+            Vec::new(),
+        )
+        .expect_err("compiler inputs must independently reject noncanonical package names");
+
+        assert!(errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::InvalidPackageName { identity: found, name }
+                if *found == identity(1) && name == "not_canonical"
+        )));
     }
 
     #[test]
@@ -612,9 +725,9 @@ mod tests {
         let errors = PackageCompilationInputs::new(
             identity(1),
             vec![
-                PackageSourceBinding::new(identity(1), tree.package("root")),
-                PackageSourceBinding::new(identity(2), tree.package("first")),
-                PackageSourceBinding::new(identity(3), tree.package("second")),
+                PackageSourceBinding::new(identity(1), "root", tree.package("root")),
+                PackageSourceBinding::new(identity(2), "first", tree.package("first")),
+                PackageSourceBinding::new(identity(3), "second", tree.package("second")),
             ],
             vec![
                 PackageDependencyBinding::new(identity(1), "dep", identity(2)),
@@ -643,8 +756,8 @@ mod tests {
         let errors = PackageCompilationInputs::new(
             identity(1),
             vec![
-                PackageSourceBinding::new(identity(1), root),
-                PackageSourceBinding::new(identity(2), nested),
+                PackageSourceBinding::new(identity(1), "root", root),
+                PackageSourceBinding::new(identity(2), "nested", nested),
             ],
             vec![
                 PackageDependencyBinding::new(identity(1), "child", identity(2)),
@@ -670,7 +783,7 @@ mod tests {
         let missing = tree.0.join("missing");
         let errors = PackageCompilationInputs::new(
             identity(1),
-            vec![PackageSourceBinding::new(identity(1), missing)],
+            vec![PackageSourceBinding::new(identity(1), "root", missing)],
             Vec::new(),
         )
         .expect_err("missing source root must reject");
@@ -687,7 +800,7 @@ mod tests {
             symlink(actual, &linked).expect("create source-root symlink");
             let errors = PackageCompilationInputs::new(
                 identity(1),
-                vec![PackageSourceBinding::new(identity(1), linked)],
+                vec![PackageSourceBinding::new(identity(1), "root", linked)],
                 Vec::new(),
             )
             .expect_err("symlink source root must reject");

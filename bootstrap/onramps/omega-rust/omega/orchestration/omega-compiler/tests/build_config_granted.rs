@@ -397,7 +397,11 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let package = PackageKeyIdentity::from_digest([91; 32]).expect("nonzero package identity");
     let package_inputs = PackageCompilationInputs::new(
         package,
-        vec![PackageSourceBinding::new(package, project.clone())],
+        vec![PackageSourceBinding::new(
+            package,
+            "sponsored-build",
+            project.clone(),
+        )],
         Vec::new(),
     )
     .expect("single-package compiler input");
@@ -927,7 +931,11 @@ reaches Console
     let package = PackageKeyIdentity::from_digest([83; 32]).expect("nonzero package identity");
     let package_inputs = PackageCompilationInputs::new(
         package,
-        vec![PackageSourceBinding::new(package, project.clone())],
+        vec![PackageSourceBinding::new(
+            package,
+            "console-build",
+            project.clone(),
+        )],
         Vec::new(),
     )
     .expect("single-package compiler input");
