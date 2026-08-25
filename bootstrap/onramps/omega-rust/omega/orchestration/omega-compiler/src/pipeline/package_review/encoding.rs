@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 41;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 42;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1079,8 +1079,12 @@ fn encode_proposition_application(
             psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => 2,
         });
         match &argument.value {
-            PackageReviewPropositionBinderValue::Nominal(identity) => {
+            PackageReviewPropositionBinderValue::Type(identity) => {
                 encoder.byte(0);
+                encode_type_identity(encoder, identity)?;
+            }
+            PackageReviewPropositionBinderValue::Machine(identity) => {
+                encoder.byte(4);
                 encode_nominal(encoder, identity)?;
             }
             PackageReviewPropositionBinderValue::GenericBinder(position) => {
@@ -1272,7 +1276,11 @@ fn encode_nominal(
             encoder.byte(1);
             encoder.fixed_bytes(&source.digest());
         }
-        PackageReviewNominalOwner::Unresolved => encoder.byte(2),
+        PackageReviewNominalOwner::Unresolved => {
+            return Err(PackageReviewEncodingError::new(
+                "package review cannot encode unresolved nominal ownership",
+            ));
+        }
     }
     encoder.string(&identity.path)
 }
@@ -1948,6 +1956,20 @@ mod tests {
                 PackageReviewEncodingLimits::new(256, 2, 64, 256, 1),
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn canonical_encoding_rejects_unresolved_nominal_ownership() {
+        let identity = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Unresolved,
+            path: "source_free::nominal".to_owned(),
+        };
+        let error = encode_nominal(&mut Encoder::bounded(1024), &identity)
+            .expect_err("unresolved ownership must not enter canonical review bytes");
+        assert_eq!(
+            error.to_string(),
+            "package review cannot encode unresolved nominal ownership"
         );
     }
 }

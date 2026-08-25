@@ -54,9 +54,10 @@ complete.
   use checked diagnostic renderings as identity. If an exact binder, argument,
   or witness coordinate is not retained structurally, extend the existing
   typed/checked carrier that owns it rather than adding a report-only IR stage.
-- Public type identities in package evidence qualify every non-binder nominal
-  with its exact package, toolchain, or unresolved owner. Generic binders are
-  alpha-normalized without inventing an owner.
+- Ordinary compiler-internal package-qualified type identities distinguish an
+  exact package, toolchain source, or unresolved owner. Exact package-review
+  projection rejects unresolved ownership; generic binders are alpha-normalized
+  in their separate owner-free lane.
 - Numbered fields and retired identities on ordinary public `data` are the wire
   contract. The retired standalone `wire data` representation is not a second
   package API surface.
@@ -941,8 +942,13 @@ complete.
   expression binders must reconcile uniquely to the exact projected telescope
   and become alpha-normalized ordinals; residual const declarations and other
   source-spelled leaves reject. The legacy atom remains internal transport and
-  never enters review bytes. Any remaining source-free compiler semantics still
-  need equivalent closed treatment.
+  never enters review bytes. Review v42 and canonical row v2 separate concrete
+  proposition type arguments from machine-declaration arguments: types use the same exact
+  structural identity, including closed compiler builtin atoms, while machines
+  remain exact owned declarations. Any unresolved nominal owner now rejects
+  both exact structural type projection and final canonical encoding; it is no
+  longer serializable review evidence. Any remaining source-free compiler
+  semantics still need equivalent closed treatment.
   Exact
   provenance for each provider schema, provider type, requirement declaration,
   and realizing machine is retained from derivation through review; readable
@@ -1029,7 +1035,7 @@ complete.
   `Volatile`, including a denied attempt, while pure, console-only, and declared-
   but-unreachable filesystem rows remain `Hermetic`. Console-only granted
   execution no longer installs real filesystem authority. Compiler-issued
-  package review carries this summary outside v41 capability/API comparison
+  package review carries this summary outside v42 capability/API comparison
   bytes. It is explicitly not a receipt and makes no replayability or source-
   rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -1378,7 +1384,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v41
+  create a placeholder `PackageInstance` or bless current incomplete review v42
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

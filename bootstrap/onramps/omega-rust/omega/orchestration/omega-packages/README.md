@@ -444,8 +444,12 @@ The review includes public and
 boundary callables plus the selected build machine, excludes private machines,
 and projects invocation targets as exact parameter ordinals or package-qualified
 service identities. Package-qualified type identity gives every non-binder
-nominal an exact package, toolchain, or unresolved owner while preserving
-owner-free alpha-normalized binders. Package-owned public data is now projected
+nominal an exact package or authored toolchain-source owner while preserving
+owner-free alpha-normalized binders. Review v42 and canonical row v2 also encode
+concrete proposition type arguments through that structural lane, so compiler builtins use closed
+atoms rather than declaration-shaped placeholders. Unresolved nominal ownership
+rejects exact type projection and canonical encoding instead of becoming
+serializable review evidence. Package-owned public data is now projected
 with supply, generic shape, properties, stable field/variant identities,
 retired identities, relevance, lifetime arity, and exact lifetime-sensitive
 field/payload types. Numbered ordinary data is the wire contract; the retired
@@ -578,7 +582,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v41 projection therefore
+remain separately bound. The current incomplete review-v42 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

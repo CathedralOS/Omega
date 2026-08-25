@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v41 rows are not promoted
+subjects or provenance. The current incomplete review-v42 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -960,6 +960,13 @@ exact declared const parameter; fixed-array and open-expression binders must
 reconcile uniquely to the exact alpha-normalized telescope. Residual const
 declarations and unrelated source-spelled leaves reject. The transport atom is
 never itself package identity.
+Review v42 and canonical row v2 close the corresponding proposition-binder
+split. A concrete type argument is a structural type identity, so compiler builtins use closed atoms
+and authored nominals require exact package/toolchain-source ownership. A
+machine argument remains an exact nominal declaration. Unresolved ownership is
+diagnostic state inside ordinary compiler identity only: exact review type
+projection returns no identity, and the canonical encoder rejects any unresolved
+nominal that reaches it.
 Public data projects its supply, generic shape, properties,
 fields/variants/payloads, relevance, and stable numbered and retired identities.
 Those numbered ordinary-data identities are

@@ -728,7 +728,8 @@ impl PackageReviewPropositionBinder {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewPropositionBinderValue {
-    Nominal(PackageReviewNominalIdentity),
+    Type(PackageReviewTypeIdentity),
+    Machine(PackageReviewNominalIdentity),
     GenericBinder(u32),
     Integer(String),
     EvidenceProjection {
@@ -4194,7 +4195,7 @@ fn validate_package_index_expression(
 
 fn missing_exact_toolchain_type_owner() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
-        "package review structural type identity is missing exact source-backed toolchain ownership",
+        "package review structural type identity has unresolved nominal ownership or is missing exact source-backed toolchain ownership",
     )]
 }
 
@@ -5152,10 +5153,31 @@ fn project_proposition_binder_argument(
     {
         PackageReviewPropositionBinderValue::GenericBinder(portable_parameter_position(position)?)
     } else if argument.symbol.is_valid() {
-        PackageReviewPropositionBinderValue::Nominal(nominal_identity(
-            compilation,
-            argument.symbol,
-        )?)
+        match argument.kind {
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+                let identity = compilation
+                    .package_qualified_nominal_type_identity_with_toolchain_sources(
+                        argument.symbol,
+                        compilation.exact_toolchain_sources(),
+                    )
+                    .ok_or_else(missing_exact_toolchain_type_owner)?;
+                PackageReviewPropositionBinderValue::Type(PackageReviewTypeIdentity {
+                    canonical: identity.into_string(),
+                })
+            }
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                PackageReviewPropositionBinderValue::Machine(nominal_identity(
+                    compilation,
+                    argument.symbol,
+                )?)
+            }
+            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` proposition contains a non-literal const binder argument without an exact caller binder",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+        }
     } else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` proposition contains an unresolved binder argument",
@@ -5300,9 +5322,10 @@ fn proposition_binder_value_expression(
     argument: &PackageReviewPropositionBinderArgument,
 ) -> Option<PackageReviewContractExpression> {
     match &argument.value {
-        PackageReviewPropositionBinderValue::Nominal(identity) => {
+        PackageReviewPropositionBinderValue::Machine(identity) => {
             Some(PackageReviewContractExpression::Nominal(identity.clone()))
         }
+        PackageReviewPropositionBinderValue::Type(_) => None,
         PackageReviewPropositionBinderValue::GenericBinder(position) => {
             Some(PackageReviewContractExpression::GenericBinder(*position))
         }
