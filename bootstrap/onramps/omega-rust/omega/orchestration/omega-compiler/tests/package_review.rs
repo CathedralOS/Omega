@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 39);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 40);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -2329,6 +2329,89 @@ machine build(builder: &mut Build) { }
             .expect("original encoding"),
         changed.canonical_review_bytes().expect("changed encoding"),
         "changing the result's borrow relationship must alter canonical review evidence",
+    );
+}
+
+#[test]
+fn public_signatures_encode_closed_compiler_domains_and_exact_layout_schema() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Save {
+    #1 value: u32;
+}
+
+pub machine inspect(
+    number: f64 in Finite,
+    token: u64 in Carry::AnyCpu,
+    bytes: &[u8] in OmegaLayout<Save>
+) { }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("closed compiler-domain fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("closed compiler domains should project without textual fallback");
+    let inspect = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("inspect"))
+        .expect("inspect callable review row");
+    let [number, token, bytes] = inspect.parameters() else {
+        panic!("three inspect parameters")
+    };
+    assert!(
+        number
+            .type_identity()
+            .canonical()
+            .contains("compiler-domain")
+    );
+    assert!(number.type_identity().canonical().contains("finite"));
+    assert!(
+        !number
+            .type_identity()
+            .canonical()
+            .contains("unresolved-owner")
+    );
+    assert!(
+        token
+            .type_identity()
+            .canonical()
+            .contains("compiler-domain")
+    );
+    assert!(token.type_identity().canonical().contains("any-cpu"));
+    assert!(
+        !token
+            .type_identity()
+            .canonical()
+            .contains("unresolved-owner")
+    );
+    assert!(bytes.type_identity().canonical().contains("omega-layout"));
+    assert!(bytes.type_identity().canonical().contains("derived"));
+    assert!(bytes.type_identity().canonical().contains("Save"));
+    assert!(bytes.type_identity().canonical().contains("package-owner"));
+    assert!(
+        !bytes
+            .type_identity()
+            .canonical()
+            .contains("unresolved-owner")
     );
 }
 

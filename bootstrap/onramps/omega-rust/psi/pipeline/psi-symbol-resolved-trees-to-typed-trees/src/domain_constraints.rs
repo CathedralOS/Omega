@@ -2,7 +2,7 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::name::Identifier;
-use psi_typed_trees::types::{DomainConstraint, TypeConstraintNode};
+use psi_typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
 
 /// Bind and expand every declared-domain type constraint after the complete
 /// typed program exists. Carrier-aware lookup precedes transparent-alias
@@ -123,6 +123,7 @@ fn normalize_constraint_span(
             normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                 name: domain_constraint.name,
                 arguments: domain_constraint.arguments,
+                subject: DomainConstraintSubject::Declared,
                 symbol: domain.symbol,
                 semantic_id,
                 classification: domain.classification,
@@ -162,9 +163,17 @@ fn normalize_constraint_span(
                 .domain_definitions()
                 .iter()
                 .find(|candidate| candidate.symbol == atom.symbol);
+            let subject = if atom.symbol.is_valid() {
+                DomainConstraintSubject::Declared
+            } else {
+                psi_language_semantics::CarryPermission::from_name(name.as_str())
+                    .map(DomainConstraintSubject::Carry)
+                    .unwrap_or_default()
+            };
             normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                 name,
                 arguments: Vec::new(),
+                subject,
                 symbol: atom.symbol,
                 semantic_id: declaration
                     .map(|domain| domain.semantic_id)

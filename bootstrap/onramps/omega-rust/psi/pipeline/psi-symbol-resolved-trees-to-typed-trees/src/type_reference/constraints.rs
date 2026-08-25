@@ -40,8 +40,10 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+                let name = crate::name::lower_name(&domain.name);
                 typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
-                    name: crate::name::lower_name(&domain.name),
+                    subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
+                    name,
                     arguments,
                     ..Default::default()
                 })
@@ -202,9 +204,11 @@ fn lower_type_constraint_node_with_context(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            let name = crate::name::lower_name(&domain.name);
             Ok(typed::types::TypeConstraintNode::Domain(
                 typed::types::DomainConstraint {
-                    name: crate::name::lower_name(&domain.name),
+                    subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
+                    name,
                     arguments,
                     ..Default::default()
                 },
@@ -226,6 +230,70 @@ fn lower_type_constraint_node_with_context(
         }
         resolved::types::TypeConstraint::ArithmeticDomain(domain) => {
             Ok(typed::types::TypeConstraintNode::ArithmeticDomain(*domain))
+        }
+    }
+}
+
+pub(crate) fn classify_domain_constraint_subject(
+    name: &str,
+    argument_count: usize,
+) -> typed::types::DomainConstraintSubject {
+    use typed::types::{DomainConstraintSubject, OmegaLayoutGrammar};
+
+    if argument_count == 0 {
+        if let Some(permission) = psi_language_semantics::CarryPermission::from_name(name) {
+            return DomainConstraintSubject::Carry(permission);
+        }
+        if let Some(domain) = psi_language_semantics::value_domain::ValueDomain::from_name(name) {
+            return DomainConstraintSubject::Value(domain);
+        }
+    }
+    if name == "OmegaLayout" && argument_count == 1 {
+        return DomainConstraintSubject::OmegaLayout {
+            grammar: OmegaLayoutGrammar::Derived,
+        };
+    }
+    DomainConstraintSubject::Declared
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_domain_constraint_subject;
+    use psi_language_semantics::CarryPermission;
+    use psi_language_semantics::value_domain::ValueDomain;
+    use psi_typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
+
+    #[test]
+    fn classifies_only_closed_compiler_domain_shapes() {
+        assert_eq!(
+            classify_domain_constraint_subject("Carry::AnyCpu", 0),
+            DomainConstraintSubject::Carry(CarryPermission::AnyCpu)
+        );
+        assert_eq!(
+            classify_domain_constraint_subject("Finite", 0),
+            DomainConstraintSubject::Value(ValueDomain::Finite)
+        );
+        assert_eq!(
+            classify_domain_constraint_subject("OmegaLayout", 1),
+            DomainConstraintSubject::OmegaLayout {
+                grammar: OmegaLayoutGrammar::Derived,
+            }
+        );
+
+        for (name, arguments) in [
+            ("Carry::AnyCpu", 1),
+            ("Finite", 1),
+            ("OmegaLayout", 0),
+            ("OmegaLayout", 2),
+            ("OmegaLayout<Schema>", 0),
+            ("Carry::Anywhere", 0),
+            ("finite", 0),
+        ] {
+            assert_eq!(
+                classify_domain_constraint_subject(name, arguments),
+                DomainConstraintSubject::Declared,
+                "{name} with {arguments} argument(s) must remain unclassified"
+            );
         }
     }
 }

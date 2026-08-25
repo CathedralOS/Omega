@@ -107,6 +107,7 @@ mod tests {
                 .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
                     arguments: Vec::new(),
                     name: Identifier::generated("Positive"),
+                    subject: Default::default(),
                     symbol: SymbolHandle::invalid(),
                     semantic_id: positive,
                     classification: None,

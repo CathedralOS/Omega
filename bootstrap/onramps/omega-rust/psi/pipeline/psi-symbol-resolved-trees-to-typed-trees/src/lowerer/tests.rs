@@ -1778,6 +1778,196 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
 }
 
 #[test]
+fn retains_closed_compiler_domain_subjects_and_layout_schema_identity() {
+    use psi_typed_trees::types::{
+        DomainConstraintSubject, OmegaLayoutGrammar, TypeConstraintNode, TypeReferenceNode,
+    };
+
+    let source = r#"
+    data Save {
+        #1 value: u32;
+    }
+
+    data Holder {
+        finite: f64 in Finite;
+        carry: u64 in Carry::AnyCpu;
+        layout: [u8; 32] in OmegaLayout<Save>;
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let holder = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder")
+        .expect("Holder");
+    let fields = typed
+        .data_members(holder)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) => {
+                Some((field.name.as_str(), field.type_reference))
+            }
+            psi_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    let domain_for = |type_reference| {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            typed.type_reference_table.type_reference(type_reference)
+        else {
+            panic!("constrained field")
+        };
+        let [TypeConstraintNode::Domain(domain)] =
+            typed.type_reference_table.constraints(*constraints)
+        else {
+            panic!("one domain constraint")
+        };
+        domain
+    };
+
+    assert_eq!(
+        domain_for(fields["finite"]).subject,
+        DomainConstraintSubject::Value(psi_language_semantics::value_domain::ValueDomain::Finite)
+    );
+    assert_eq!(
+        domain_for(fields["carry"]).subject,
+        DomainConstraintSubject::Carry(psi_language_semantics::CarryPermission::AnyCpu)
+    );
+    let layout = domain_for(fields["layout"]);
+    assert_eq!(
+        layout.subject,
+        DomainConstraintSubject::OmegaLayout {
+            grammar: OmegaLayoutGrammar::Derived,
+        }
+    );
+    let [schema] = layout.arguments.as_slice() else {
+        panic!("one structural layout schema")
+    };
+    let save = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Save")
+        .expect("Save");
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*schema),
+        TypeReferenceNode::Named { symbol, name }
+            if *symbol == save.symbol && name.as_str() == "Save"
+    ));
+
+    let finite_identity = typed.normalized_type_identity(fields["finite"]);
+    assert!(finite_identity.as_str().contains("compiler-domain"));
+    assert!(finite_identity.as_str().contains("finite"));
+    assert!(!finite_identity.as_str().contains("Finite"));
+    let carry_identity = typed.normalized_type_identity(fields["carry"]);
+    assert!(carry_identity.as_str().contains("any-cpu"));
+    assert!(!carry_identity.as_str().contains("Carry::AnyCpu"));
+    let layout_identity = typed.normalized_type_identity(fields["layout"]);
+    assert!(layout_identity.as_str().contains("omega-layout"));
+    assert!(layout_identity.as_str().contains("derived"));
+    assert!(layout_identity.as_str().contains("Save"));
+    assert!(!layout_identity.as_str().contains("OmegaLayout"));
+}
+
+#[test]
+fn symbol_backed_domain_spelling_cannot_spoof_compiler_subject() {
+    let source = r#"
+    data Holder {
+        value: f64 in Finite;
+    }
+
+    domain f64::Finite;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let holder = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder")
+        .expect("Holder");
+    let field = typed
+        .data_members(holder)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) => Some(field),
+            psi_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .expect("value field");
+    let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("constrained field")
+    };
+    let [psi_typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        typed.type_reference_table.constraints(*constraints)
+    else {
+        panic!("one domain constraint")
+    };
+
+    assert!(domain.symbol.is_valid());
+    assert_eq!(
+        domain.subject,
+        psi_typed_trees::types::DomainConstraintSubject::Declared
+    );
+}
+
+#[test]
+fn carry_alias_expansion_retains_closed_invalid_symbol_atoms() {
+    let source = r#"
+    data Token {}
+    data Holder {
+        value: Token in Token::Portable;
+    }
+    domain Token::Portable = Carry::Portable;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let holder = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder")
+        .expect("Holder");
+    let field = typed
+        .data_members(holder)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) => Some(field),
+            psi_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .expect("value field");
+    let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("constrained field")
+    };
+    let subjects = typed
+        .type_reference_table
+        .constraints(*constraints)
+        .iter()
+        .map(|constraint| match constraint {
+            psi_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                assert!(!domain.symbol.is_valid());
+                domain.subject
+            }
+            _ => panic!("carry alias must expand only to domain constraints"),
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        subjects,
+        psi_language_semantics::CarryPermission::ALL
+            .map(psi_typed_trees::types::DomainConstraintSubject::Carry)
+    );
+}
+
+#[test]
 fn expands_transparent_domain_aliases_before_semantic_normalization() {
     let source = r#"
     data Socket {

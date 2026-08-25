@@ -13,7 +13,9 @@ use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::trait_definition::TraitDefinition;
-use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use crate::types::{
+    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1007,6 +1009,7 @@ pub enum TypeConstraintSnapshot {
     },
     Domain {
         name: String,
+        subject: DomainConstraintSubjectSnapshot,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         arguments: Vec<TypeReferenceSnapshot>,
         symbol: u32,
@@ -1024,6 +1027,15 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DomainConstraintSubjectSnapshot {
+    Declared,
+    Carry { permission: &'static str },
+    Value { domain: &'static str },
+    OmegaLayout { grammar: &'static str },
 }
 
 fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> DataDefinitionSnapshot {
@@ -2073,6 +2085,24 @@ fn type_constraint_snapshot(
         },
         TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
             name: domain.name.to_string(),
+            subject: match domain.subject {
+                DomainConstraintSubject::Declared => DomainConstraintSubjectSnapshot::Declared,
+                DomainConstraintSubject::Carry(permission) => {
+                    DomainConstraintSubjectSnapshot::Carry {
+                        permission: permission.name(),
+                    }
+                }
+                DomainConstraintSubject::Value(value_domain) => {
+                    DomainConstraintSubjectSnapshot::Value {
+                        domain: value_domain.name(),
+                    }
+                }
+                DomainConstraintSubject::OmegaLayout { grammar } => {
+                    DomainConstraintSubjectSnapshot::OmegaLayout {
+                        grammar: grammar.as_str(),
+                    }
+                }
+            },
             arguments: domain
                 .arguments
                 .iter()

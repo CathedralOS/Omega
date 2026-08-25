@@ -812,9 +812,44 @@ pub enum TypeConstraintNode {
     Domain(DomainConstraint),
 }
 
+/// One closed semantic subject for a domain constraint.
+///
+/// `DomainConstraint::name` is retained only for diagnostics. Compiler-owned
+/// meaning must travel through this enum rather than an invalid symbol paired
+/// with a significant string. A symbol-backed package declaration always
+/// remains `Declared`, regardless of its diagnostic spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DomainConstraintSubject {
+    #[default]
+    Declared,
+    Carry(psi_language_semantics::CarryPermission),
+    Value(psi_language_semantics::value_domain::ValueDomain),
+    OmegaLayout {
+        grammar: OmegaLayoutGrammar,
+    },
+}
+
+/// The closed grammar selected by a compiler-owned `OmegaLayout` constraint.
+///
+/// The canonical one-argument surface selects `Derived`. Explicit grammar
+/// arguments remain unclassified until the language implements them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmegaLayoutGrammar {
+    Derived,
+}
+
+impl OmegaLayoutGrammar {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Derived => "derived",
+        }
+    }
+}
+
 /// DOM1's normalized binding-site carrier. The authored short name remains
-/// for diagnostics and compiler-known pseudo-domains; a valid symbol marks a
-/// declared, carrier-compatible domain resolved after all typed roots exist.
+/// diagnostics-only; `subject` retains compiler-owned meaning, while a valid
+/// symbol marks a declared, carrier-compatible domain resolved after all typed
+/// roots exist.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DomainConstraint {
     pub name: Identifier,
@@ -822,6 +857,7 @@ pub struct DomainConstraint {
     /// generic template remains structural. These handles live in the owning
     /// typed type-reference table and erase with the domain constraint.
     pub arguments: Vec<TypeReferenceHandle>,
+    pub subject: DomainConstraintSubject,
     pub symbol: SymbolHandle,
     pub semantic_id: psi_language_semantics::SemanticDomainId,
     pub classification: Option<psi_language_semantics::DomainClassification>,

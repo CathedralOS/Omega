@@ -1,12 +1,16 @@
 use super::{
-    MachineSupplySnapshot, TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot,
+    DomainConstraintSubjectSnapshot, MachineSupplySnapshot, TypeConstraintSnapshot,
+    TypedTreesSnapshot, type_constraint_snapshot,
 };
 use crate::TypedTrees;
 use crate::data::DataDefinition;
 use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
 use crate::machine::Machine;
 use crate::name::Identifier;
-use crate::types::{DomainConstraint, TypeConstraintNode};
+use crate::types::{
+    DomainConstraint, DomainConstraintSubject, OmegaLayoutGrammar, TypeConstraintNode,
+    TypeReferenceNode,
+};
 
 #[test]
 fn snapshots_empty_typed_tree_as_json() {
@@ -117,6 +121,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
         &TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated("Utf8"),
             arguments: Vec::new(),
+            subject: DomainConstraintSubject::Declared,
             symbol,
             semantic_id,
             classification: None,
@@ -138,6 +143,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
         snapshot,
         TypeConstraintSnapshot::Domain {
             name,
+            subject: DomainConstraintSubjectSnapshot::Declared,
             arguments,
             symbol: 31,
             semantic_id: 7,
@@ -155,6 +161,40 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
                 source_symbol: 32,
                 requirement_symbol: Some(33),
             }]
+    ));
+}
+
+#[test]
+fn snapshots_closed_compiler_domain_subject_and_structural_schema() {
+    let mut program = TypedTrees::default();
+    let schema_symbol = psi_symbols::SymbolHandle::from_arena_index(41);
+    let schema = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: schema_symbol,
+            name: Identifier::generated("Save"),
+        });
+    let snapshot = type_constraint_snapshot(
+        &program,
+        &TypeConstraintNode::Domain(DomainConstraint {
+            name: Identifier::generated("diagnostic layout name"),
+            arguments: vec![schema],
+            subject: DomainConstraintSubject::OmegaLayout {
+                grammar: OmegaLayoutGrammar::Derived,
+            },
+            ..DomainConstraint::default()
+        }),
+    );
+
+    assert!(matches!(
+        snapshot,
+        TypeConstraintSnapshot::Domain {
+            name,
+            subject: DomainConstraintSubjectSnapshot::OmegaLayout { grammar: "derived" },
+            arguments,
+            ..
+        } if name == "diagnostic layout name"
+            && matches!(arguments.as_slice(), [super::TypeReferenceSnapshot::Named { name }] if name == "Save")
     ));
 }
 
