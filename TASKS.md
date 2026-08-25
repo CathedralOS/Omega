@@ -53,9 +53,12 @@ Remaining:
   full Omega specification, including the production optimizer and lowering
   pipeline, passes the applicable product compiler and language suites, and
   contains no Rust implementation under the
-  reserved product roots. Publish a deterministic manifest of every transitive
-  compiler module, library, generated/compile-time source, build input, and tool
-  imported by that build.
+  reserved product roots. "Full" governs accepted Omega and emitted-artifact
+  meaning; it does not require standalone interpreters, REPLs, proof explorers,
+  viewers, debuggers, or other adjacent tools unless the compiler executable
+  imports them. Publish a deterministic manifest of every transitive compiler
+  module, library, generated/compile-time source, build input, and tool imported
+  by that build.
 
   The first required build of this source is hosted by the Delta-written
   `omega-bootstrap`; it is not itself an Omega-to-Omega self-rebuild. Once that

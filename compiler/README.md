@@ -10,8 +10,9 @@ Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstra
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
-Delta is an independent compiler-host language, not necessarily an Omega
-subset. `omega-bootstrap` accepts only the Omega product-compiler source
+Delta is an independently specified compiler-host language; shared Omega-like
+spelling does not make it an Omega subset. `omega-bootstrap` accepts only the
+Omega product-compiler source
 profile `Ωself` required by the exact product source closure and rejects the
 rest. The product source is normal Omega constrained to that profile; the
 resulting compiler implements full Omega. This hosted dependency replaces a

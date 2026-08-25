@@ -197,10 +197,12 @@ be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
 it is not required to be a syntactic or semantic Omega subset.
 
 Delta v1 and `Ωself` are separate and asymmetric contracts. Delta v1 is a
-literal independent language discovered from the complete `omega-bootstrap`
-source closure. `Ωself` is an incidental subset of ordinary Omega discovered
-from the production compiler's own complete source closure. Neither manifest
-substitutes for a general language/profile definition.
+literal independent language selected from the complete `omega-bootstrap`
+source closure plus explicit compiler-host coherence, robustness, safety, and
+maintainability arguments. `Ωself` is an incidental subset of ordinary Omega
+selected from the production compiler's own complete source closure and the
+measured retain/refactor tradeoff. Neither manifest substitutes for a general
+language/profile definition.
 
 These are the only two feature inventories being selected. The source used to
 write `omega-bootstrap` is governed by Delta v1; the Omega source it accepts is

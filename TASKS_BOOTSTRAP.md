@@ -42,7 +42,7 @@ Omega editions or two implementations of the same language:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
-| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` |
+| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
 
 `omega-bootstrap` is written in Delta and need only accept `Ωself`. The
@@ -75,8 +75,10 @@ These standing rulings are not tasks:
 - The proof kernel is cross-cutting assurance, with Beta and Gamma
   implementations; Gamma is not the proof-checker rung.
 - Direct lower-rooted source-to-artifact refinement grants compiler authority.
-  Compiler multiplicity, cross-build agreement, and byte agreement are not
-  trust requirements.
+  Diverse double compilation (DDC), compiler multiplicity, cross-build
+  agreement, and byte agreement are not trust requirements; retain a second
+  producer only for measured bug-finding value. See
+  [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
   `compiler/{psi,omega}/` owns Omega-written product source.
@@ -213,7 +215,7 @@ as one growing verifier:
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
-| source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+| source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
 | lower-rooted artifact reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through independent persisted-Beta responsibility gates | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
