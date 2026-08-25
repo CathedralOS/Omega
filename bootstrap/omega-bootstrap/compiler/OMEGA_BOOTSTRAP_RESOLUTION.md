@@ -45,6 +45,9 @@ product ABI, or a trust grant. CKIR remains the sole input to the native backend
 - alias-versus-same-package-top-level-module ambiguity;
 - declaration namespaces, duplicate rejection, and visibility;
 - every non-builtin static binding and normalized source type;
+- exact same-owner attached-machine bindings for ordinary `self.name(...)`
+  calls, including calls across source files contributing to one logical
+  module;
 - exact selected-root lookup within the selected package, source, and module;
   and
 - canonical `OMGRSW1` publication only after the complete result fits.
@@ -150,11 +153,14 @@ nominal-data surface already represented by CKIR1:
 - every static nominal binding and the exact selected root; and
 - the existing finite, acyclic, returning body/lowering profile.
 
-Cross-unit machine calls remain reserved until a versioned CKIR call operation
-lands. Same-package private access across distinct modules is not admitted until
-the language visibility rule is specified. A final-name collision between an
-import and a same-module declaration fails closed in this tranche. Neither gap
-blocks the public cross-package nominal-data artifact.
+OMGRSW1 now resolves role-3 machine targets for ordinary same-owner
+`self.name(...)` calls, including calls across files in one logical module. The
+frozen CKIR1 artifact remains call-free; the versioned CKIR successor consumes
+those bindings. Field receivers, imported machine calls, and same-package
+private access across distinct modules remain unsupported rather than acquiring
+guessed resolution rules. A final-name collision between an import and a
+same-module declaration also fails closed. None of these exclusions blocks the
+public cross-package nominal-data artifact.
 
 Every implementation milestone carries phase-isolated semantic negatives,
 exact/adjacent resources, deterministic output, native and Delta-self-built
