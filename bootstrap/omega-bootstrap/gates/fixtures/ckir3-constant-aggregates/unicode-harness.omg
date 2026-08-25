@@ -1,0 +1,183 @@
+// Compose this source as a distinct source unit in the same logical module as
+// the exact compiler/psi/generated/unicode_tables.omg source. The sole scalar
+// result machine is the executable adapter for the focused bootstrap gate.
+
+machine UnicodeTables::bootstrap_constant_aggregate_probe(&mut self) -> u8 {
+    self.initialize();
+    transition self.xid_start[0].first <= 65 {
+        true -> start_first_first_low()
+        _ -> fail()
+    }
+
+    state start_first_first_low(&mut self) {
+        transition 65 <= self.xid_start[0].first {
+            true -> start_first_last_high()
+            _ -> fail()
+        }
+    }
+
+    state start_first_last_high(&mut self) {
+        transition self.xid_start[0].last <= 90 {
+            true -> start_first_last_low()
+            _ -> fail()
+        }
+    }
+
+    state start_first_last_low(&mut self) {
+        transition 90 <= self.xid_start[0].last {
+            true -> start_final_first_high()
+            _ -> fail()
+        }
+    }
+
+    state start_final_first_high(&mut self) {
+        transition self.xid_start[690].first <= 201552 {
+            true -> start_final_first_low()
+            _ -> fail()
+        }
+    }
+
+    state start_final_first_low(&mut self) {
+        transition 201552 <= self.xid_start[690].first {
+            true -> start_final_last_high()
+            _ -> fail()
+        }
+    }
+
+    state start_final_last_high(&mut self) {
+        transition self.xid_start[690].last <= 210041 {
+            true -> start_final_last_low()
+            _ -> fail()
+        }
+    }
+
+    state start_final_last_low(&mut self) {
+        transition 210041 <= self.xid_start[690].last {
+            true -> continue_first_first_high()
+            _ -> fail()
+        }
+    }
+
+    state continue_first_first_high(&mut self) {
+        transition self.xid_continue[0].first <= 48 {
+            true -> continue_first_first_low()
+            _ -> fail()
+        }
+    }
+
+    state continue_first_first_low(&mut self) {
+        transition 48 <= self.xid_continue[0].first {
+            true -> continue_first_last_high()
+            _ -> fail()
+        }
+    }
+
+    state continue_first_last_high(&mut self) {
+        transition self.xid_continue[0].last <= 57 {
+            true -> continue_first_last_low()
+            _ -> fail()
+        }
+    }
+
+    state continue_first_last_low(&mut self) {
+        transition 57 <= self.xid_continue[0].last {
+            true -> continue_final_first_high()
+            _ -> fail()
+        }
+    }
+
+    state continue_final_first_high(&mut self) {
+        transition self.xid_continue[805].first <= 917760 {
+            true -> continue_final_first_low()
+            _ -> fail()
+        }
+    }
+
+    state continue_final_first_low(&mut self) {
+        transition 917760 <= self.xid_continue[805].first {
+            true -> continue_final_last_high()
+            _ -> fail()
+        }
+    }
+
+    state continue_final_last_high(&mut self) {
+        transition self.xid_continue[805].last <= 917999 {
+            true -> continue_final_last_low()
+            _ -> fail()
+        }
+    }
+
+    state continue_final_last_low(&mut self) {
+        transition 917999 <= self.xid_continue[805].last {
+            true -> lookup_start_first()
+            _ -> fail()
+        }
+    }
+
+    state lookup_start_first(&mut self) {
+        self.is_xid_start(65);
+        transition self.last_result {
+            true -> lookup_start_before()
+            _ -> fail()
+        }
+    }
+
+    state lookup_start_before(&mut self) {
+        self.is_xid_start(64);
+        transition self.last_result {
+            true -> fail()
+            _ -> lookup_start_last()
+        }
+    }
+
+    state lookup_start_last(&mut self) {
+        self.is_xid_start(210041);
+        transition self.last_result {
+            true -> lookup_start_after()
+            _ -> fail()
+        }
+    }
+
+    state lookup_start_after(&mut self) {
+        self.is_xid_start(210042);
+        transition self.last_result {
+            true -> fail()
+            _ -> lookup_continue_first()
+        }
+    }
+
+    state lookup_continue_first(&mut self) {
+        self.is_xid_continue(48);
+        transition self.last_result {
+            true -> lookup_continue_before()
+            _ -> fail()
+        }
+    }
+
+    state lookup_continue_before(&mut self) {
+        self.is_xid_continue(47);
+        transition self.last_result {
+            true -> fail()
+            _ -> lookup_continue_last()
+        }
+    }
+
+    state lookup_continue_last(&mut self) {
+        self.is_xid_continue(917999);
+        transition self.last_result {
+            true -> lookup_continue_after()
+            _ -> fail()
+        }
+    }
+
+    state lookup_continue_after(&mut self) {
+        self.is_xid_continue(918000);
+        transition self.last_result {
+            true -> fail()
+            _ -> pass()
+        }
+    }
+
+    state pass(&mut self) { 70 }
+    state fail(&mut self) { 71 }
+}

@@ -1,0 +1,13 @@
+data AffineParcel {
+    code: u8;
+}
+
+data NoncopyAggregateProbe {
+    parcel: AffineParcel;
+}
+
+machine NoncopyAggregateProbe::run(&mut self) -> u8 {
+    let pending: AffineParcel = AffineParcel { code: 70 };
+    self.parcel = move pending;
+    self.parcel.code
+}

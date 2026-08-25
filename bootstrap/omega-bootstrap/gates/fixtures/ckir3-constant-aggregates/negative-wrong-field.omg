@@ -1,0 +1,13 @@
+data FieldPair [copy] {
+    first: u8;
+    last: u8;
+}
+
+data WrongFieldProbe {
+    pair: FieldPair;
+}
+
+machine WrongFieldProbe::run(&mut self) -> u8 {
+    self.pair = FieldPair { first: 35, finish: 70 };
+    self.pair.first
+}
