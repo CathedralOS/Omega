@@ -219,6 +219,63 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn package_compilation_rejects_authored_reserved_cleanup_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"
+data Resource { value: i32; }
+machine Resource::drop(&mut self) {}
+machine misuse(resource: &mut Resource) {
+    resource.drop();
+}
+"#,
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        "target windows_x64 { }\ntarget linux_x64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let checked_diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
+            .expect_err("package source may not invoke its reserved cleanup hook");
+    assert!(
+        checked_diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("reserved cleanup machine `Resource::drop` is compiler-selected")),
+        "unexpected checked diagnostics: {checked_diagnostics:#?}"
+    );
+
+    if let Some(target_name) = host_target_name() {
+        let native_diagnostics = compile_with_packages(
+            CompileOptions {
+                root_path: root.join("main.omg"),
+                build_dir: Some(tree.0.join("native-build")),
+                target_name: Some(target_name.to_owned()),
+                write_output: false,
+            },
+            inputs,
+        )
+        .expect_err("native package compilation must apply the same cleanup gate");
+        assert!(
+            native_diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("reserved cleanup machine `Resource::drop` is compiler-selected")),
+            "unexpected native diagnostics: {native_diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn carried_transitive_type_is_legal_and_retains_its_exact_owner() {
     let tree = TempTree::new();
     let root = tree.package("root");

@@ -108,6 +108,7 @@ pub(crate) fn lower_typed_trees(
 
     crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
         .map_err(|diagnostic| vec![diagnostic])?;
+    psi_validation::validate_reserved_cleanup_selections(&program)?;
     psi_validation::validate_declaration_visibility(&program)?;
 
     Ok(CheckedTrees::with_roots(program, facts))

@@ -96,6 +96,52 @@ fn accepts_exact_five_call_executable_cleanup_shape() {
 }
 
 #[test]
+fn rejects_authored_method_selection_of_reserved_cleanup() {
+    rejects(
+        r#"
+            data Resource { value: i32; }
+            machine Resource::drop(&mut self) {}
+            machine misuse(resource: &mut Resource) {
+                resource.drop();
+            }
+        "#,
+        "reserved cleanup machine `Resource::drop` is compiler-selected",
+    );
+}
+
+#[test]
+fn rejects_authored_qualified_selection_of_reserved_cleanup() {
+    rejects(
+        r#"
+            data Resource { value: i32; }
+            machine Resource::drop(&mut self) {}
+            machine misuse(resource: &mut Resource) {
+                Resource::drop(resource);
+            }
+        "#,
+        "reserved cleanup machine `Resource::drop` is compiler-selected",
+    );
+}
+
+#[test]
+fn ordinary_drop_spelling_remains_callable() {
+    let source = r#"
+        data Resource { value: i32; }
+        machine Resource::drop_counter(&mut self) {}
+        machine drop(resource: &mut Resource) {}
+        machine use_drop_names(resource: &mut Resource) {
+            resource.drop_counter();
+            drop(resource);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("ordinary drop spellings should remain callable");
+}
+
+#[test]
 fn executable_cleanup_rejects_repeated_nonempty_or_argumented_helpers() {
     rejects(
         r#"

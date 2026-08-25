@@ -679,15 +679,24 @@ complete.
   conformances, checked trait-operator conformances, and declaration-owned
   expression positions whose visibility is settled, and named conformance
   selectors in callable and trait bounds. Visibility-dependent nested positions
-  and reserved-cleanup rejection are not yet total. Today an authored
-  `value.drop()` may still behave as an ordinary mutable call and be followed by
-  automatic cleanup; reject every source selection of that exact owner-attached
-  hook, and treat `omega::core::drop(value)` as an ordinary consuming call. The
-  package manager stays disabled until those gaps close.
+  are not yet total. The package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
   artifact/lock admission are not complete. Visibility implementation for all
   independently selectable roots remains in the task below.
+
+  Milestone 2026-08-25: one exact-symbol validation pass now rejects every
+  finalized authored selection of the reserved owner-attached `T::drop` hook.
+  It runs before checked evaluation for already-resolved selections and again
+  after checked finalization for receiver-dispatched and other late-bound
+  selections. Calls, qualified paths, static arguments, and forwarded/static
+  paths therefore share one rule; compiler-planned automatic cleanup is absent
+  from the authored ledger, while free `drop`, `omega::core::drop`, and
+  same-owner names such as `drop_counter` do not match by spelling. Real-source
+  and package checked/native canaries cover the callable paths. The ordinary
+  consuming `omega::core::drop<T>(value)` implementation remains separately
+  sequenced after generic cleanup-row lowering under
+  `CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP` in `TASKS.md`.
 
 - [ ] **COMPLETE-STANDALONE-DECLARATION-VISIBILITY.** Extend ordinary `pub`
   retention through syntax, symbols, typed/checked trees, snapshots, package
