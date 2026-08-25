@@ -1,0 +1,26 @@
+data FieldValue [copy] {
+    value: u8;
+}
+
+data FieldCell {
+    retained: FieldValue;
+}
+
+data FieldReceiverProbe {
+    prefix: u8;
+    cell: FieldCell;
+}
+
+machine FieldCell::install(&mut self, value: FieldValue) {
+    self.retained = value;
+}
+
+machine FieldCell::read(&self) -> u8 {
+    self.retained.value
+}
+
+machine FieldReceiverProbe::run(&mut self) -> u8 {
+    self.prefix = 1;
+    self.cell.install(FieldValue { value: 70 });
+    self.cell.read()
+}

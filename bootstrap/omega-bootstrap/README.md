@@ -272,6 +272,19 @@ language, generation, or architectural role; new documentation and work use
   resource, and 0/251/252 controls remain intact. This is assurance hardening
   over already-admitted forms. The selected runtime-record tranche is closed;
   general bridge coverage and final `Ωself` disposition remain open.
+- [`compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md)
+  and
+  [`compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md`](compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md)
+  version only the direct field-receiver source/resolution relation. Sources
+  using `self.field.machine(...)` receive OMGRSW2 and an OMGLOW5 frame; inherited
+  sources remain byte-identical OMGRSW1/OMGLOW4. Both paths share the resolver
+  and CKIR4 lowerer implementation, but cross-pairs reject and CKIR remains
+  schema 4. The focused native/self producer gate composes the complete current
+  `SourceUnit` API through a nonzero-offset field and independently observes
+  result 70; the compact Rust-free carrier also transports a runtime record
+  argument. This is a producer/meaning checkpoint, not lower-rooted closure:
+  OMGRFN6, source-only receiver-base evaluation, complete mutations/resources,
+  and exact artifact reconstruction remain open.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

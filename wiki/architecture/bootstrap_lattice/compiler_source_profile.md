@@ -430,6 +430,19 @@ extent without changing the frozen formats. This closes the selected
 implementation/assurance cost for ordinary named fields without freezing the
 final profile or deciding effectful constructor-field evaluation order.
 
+The next measured source relation retains CKIR4 and versions resolution instead
+of manufacturing a new artifact schema. OMGRSW2 admits only direct same-module
+`self.field.machine(...)`; OMGLOW5 pairs that witness with exact source and
+lowers the existing `SelfPlace`, `FieldPlace`, and `Call` operations. A shared
+implementation emits the least required version, preserving byte-identical
+OMGRSW1/OMGLOW4 for inherited sources. Native and Delta-self-built routes now
+compose the complete current `SourceUnit` API through a nonzero-offset field to
+result 70, with exact receiver-shape and version-cross-pair negatives. Focused
+Rust-free producer meaning uses a compact runtime-record argument carrier.
+This is provisional producer/meaning cost evidence only; OMGRFN6 lower-rooted
+reconstruction and the distinct-module visibility ruling remain open before
+the capability can close or affect final `Ωself` disposition.
+
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
 debuggers, and other product tooling are presumptively outside the hosted

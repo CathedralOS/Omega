@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused OMGLOW4 resolved-source to CKIR4 runtime-record producer gate."""
+"""Focused OMGLOW4/5 resolved-source to CKIR4 producer gate."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ def inspect_ckir(raw: bytes) -> dict[str, object]:
 def assert_parameter_spans(envelope: bytes, witness: bytes, *,
                            machine_names: tuple[bytes, ...] = (),
                            block_names: tuple[bytes, ...] = ()) -> None:
-    if witness[:8] != b"OMGRSW1\0" or len(witness) < 72:
+    if witness[:8] not in (b"OMGRSW1\0", b"OMGRSW2\0") or len(witness) < 72:
         raise ValueError("parameter control witness header")
     counts = struct.unpack_from("<11I", witness, 20)
     offsets: dict[str, int] = {}
@@ -115,6 +115,39 @@ def assert_parameter_spans(envelope: bytes, witness: bytes, *,
         raise ValueError(f"machine parameter name spans {observed_machine!r}")
     if any(name not in observed_block for name in block_names):
         raise ValueError(f"block parameter name spans {observed_block!r}")
+
+
+def assert_role3_receivers(envelope: bytes, witness: bytes,
+                           expected: tuple[tuple[bytes, bytes], ...]) -> None:
+    counts = struct.unpack_from("<11I", witness, 20)
+    offsets: dict[str, int] = {}
+    at = 72
+    for (name, stride), count in zip(WITNESS_TABLES, counts):
+        offsets[name] = at; at += stride * count
+    decoded = compilation.decode(envelope)
+    sources = tuple(decoded.bundle_entries[row.bundle_entry_id].content for row in decoded.sources)
+
+    def declaration_name(declaration: int) -> bytes:
+        row = offsets["declarations"] + 28 * declaration
+        source = struct.unpack_from("<I", witness, row + 8)[0]
+        start, length = struct.unpack_from("<2I", witness, row + 16)
+        return sources[source][start:start + length]
+
+    observed = []
+    for binding in range(counts[2]):
+        row = offsets["bindings"] + 28 * binding
+        if witness[row + 8] != 3:
+            continue
+        source = struct.unpack_from("<I", witness, row + 4)[0]
+        start, length, declaration, import_id = struct.unpack_from("<4I", witness, row + 12)
+        if witness[row + 9] != 2 or import_id != NO_ID:
+            raise ValueError("field role-3 target kind/import")
+        machine = struct.unpack_from("<I", witness, offsets["declarations"] + 28 * declaration + 24)[0]
+        owner = struct.unpack_from("<I", witness, offsets["machines"] + 40 * machine + 8)[0]
+        record_declaration = struct.unpack_from("<I", witness, offsets["records"] + 24 * owner + 4)[0]
+        observed.append((sources[source][start:start + length], declaration_name(record_declaration)))
+    if tuple(observed) != expected:
+        raise ValueError(f"field role-3 receivers {observed!r}, expected {expected!r}")
 
 
 def record_source(count: int, body: str | None = None) -> str:
@@ -182,20 +215,44 @@ def gate() -> None:
                              str(temp / "self.s")], check=True)
         subprocess.run(["codesign", "-f", "-s", "-", str(temp / "self")], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with (temp / "resolver-self.s").open("wb") as output:
+            result = timed("lowermachine-resolver", [str(temp / "lowermachine")],
+                           input=self_host_source(resolver_source), stdout=output)
+        if result.returncode:
+            raise ValueError("lowermachine resolver source")
+        timed("clang-resolver-self", ["clang", "-arch", "arm64", "-o", str(temp / "resolver-self"),
+                                      str(temp / "resolver-self.s")], check=True)
+        subprocess.run(["codesign", "-f", "-s", "-", str(temp / "resolver-self")], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         def prepare(name: str, owner: str, machine: str, sources: list[Path],
                     machine_names: tuple[bytes, ...] = (),
-                    block_names: tuple[bytes, ...] = ()) -> bytes:
+                    block_names: tuple[bytes, ...] = (), relation: int = 1,
+                    role3_receivers: tuple[tuple[bytes, bytes], ...] = ()) -> bytes:
             envelope = temp / f"{name}.omgc"; build(envelope, owner, machine, sources)
-            witness_result = subprocess.run([str(temp / "resolver")], input=envelope.read_bytes(),
-                                            stdout=subprocess.PIPE)
-            if witness_result.returncode:
-                raise ValueError(f"resolver rejected {name}: {witness_result.returncode}")
-            assert_parameter_spans(envelope.read_bytes(), witness_result.stdout,
+            witness_outputs = []
+            for resolver in (temp / "resolver", temp / "resolver-self"):
+                witness_result = subprocess.run([str(resolver)], input=envelope.read_bytes(),
+                                                stdout=subprocess.PIPE)
+                if witness_result.returncode:
+                    raise ValueError(f"{resolver.name} rejected {name}: {witness_result.returncode}")
+                witness_outputs.append(witness_result.stdout)
+            if witness_outputs[0] != witness_outputs[1]:
+                raise ValueError(f"resolver native/self divergence for {name}")
+            expected_witness = b"OMGRSW1\0" if relation == 1 else b"OMGRSW2\0"
+            expected_frame = b"OMGLOW4\0" if relation == 1 else b"OMGLOW5\0"
+            if witness_outputs[0][:8] != expected_witness:
+                raise ValueError(f"{name} resolution relation")
+            assert_parameter_spans(envelope.read_bytes(), witness_outputs[0],
                                    machine_names=machine_names, block_names=block_names)
-            witness = temp / f"{name}.omgrsw1"; witness.write_bytes(witness_result.stdout)
-            return subprocess.run([sys.executable, str(frame_tool), "pack", str(envelope), str(witness)],
-                                  check=True, stdout=subprocess.PIPE).stdout
+            if role3_receivers:
+                assert_role3_receivers(envelope.read_bytes(), witness_outputs[0], role3_receivers)
+            witness = temp / f"{name}.omgrsw{relation}"; witness.write_bytes(witness_outputs[0])
+            frame = subprocess.run([sys.executable, str(frame_tool), "pack", str(envelope), str(witness)],
+                                   check=True, stdout=subprocess.PIPE).stdout
+            if frame[:8] != expected_frame:
+                raise ValueError(f"{name} lowering relation")
+            return frame
 
         def expect(name: str, frame: bytes, status: int, result_value: int | None = None) -> bytes:
             outputs, statuses = [], []
@@ -220,18 +277,46 @@ def gate() -> None:
                     raise ValueError(f"{name} result {observed!r}, expected {result_value}")
             return outputs[0]
 
+        def expect_resolver(name: str, owner: str, machine: str,
+                            sources: list[Path], status: int) -> None:
+            envelope = temp / f"{name}.omgc"; build(envelope, owner, machine, sources)
+            outputs = []
+            statuses = []
+            for resolver in (temp / "resolver", temp / "resolver-self"):
+                result = subprocess.run([str(resolver)], input=envelope.read_bytes(), stdout=subprocess.PIPE)
+                statuses.append(result.returncode); outputs.append(result.stdout)
+            if statuses != [status, status] or outputs[0] != outputs[1]:
+                raise ValueError(f"{name} resolver native/self={statuses}")
+            if status and outputs[0]:
+                raise ValueError(f"{name} resolver published rejection bytes")
+
         positives = (
             ("authored", "RuntimePairProbe", "run", [fixtures / "authored-declaration-order.omg"], (), ()),
             ("reordered", "RuntimePairProbe", "run", [fixtures / "declaration-order.omg"], (), ()),
             ("constant", "ConstantPairProbe", "run", [fixtures / "constant-assignment.omg"], (), ()),
             ("nested", "NestedRuntimeProbe", "run", [fixtures / "nested-runtime.omg"], (b"value",), ()),
             ("direct", "DirectCallProbe", "run", [fixtures / "direct-call.omg"], (b"value",), ()),
+            ("field-receiver", "FieldReceiverProbe", "run",
+             [fixtures / "direct-field-receiver.omg"], (b"value",), (), 2,
+             ((b"install", b"FieldCell"), (b"read", b"FieldCell"))),
+            ("field-source-api", "SourceHost", "run",
+             [exact_source, fixtures / "source-unit-field-harness.omg"], (), (), 2,
+             ((b"clear", b"SourceUnit"), (b"append", b"SourceUnit"),
+              (b"byte_or_nul", b"SourceUnit"))),
             ("exact-source", "SourceUnit", "bootstrap_runtime_record_probe",
              [exact_source, fixtures / "source-unit-harness.omg"], (), (b"runtime_scalar",)),
         )
         outputs: dict[str, bytes] = {}
-        for name, owner, machine, sources, machine_names, block_names in positives:
-            outputs[name] = expect(name, prepare(name, owner, machine, sources, machine_names, block_names), 0, 70)
+        for positive in positives:
+            name, owner, machine, sources, machine_names, block_names, *successor = positive
+            relation = successor[0] if successor else 1
+            role3_receivers = successor[1] if len(successor) > 1 else ()
+            outputs[name] = expect(
+                name,
+                prepare(name, owner, machine, sources, machine_names, block_names,
+                        relation, role3_receivers),
+                0, 70,
+            )
         if outputs["authored"] != outputs["reordered"]:
             raise ValueError("authored/declaration-order CKIR4 differs")
         for name in ("authored", "reordered", "nested", "direct", "exact-source"):
@@ -240,6 +325,79 @@ def gate() -> None:
         constant_ops = inspect_ckir(outputs["constant"])["opcodes"]
         if 11 not in constant_ops or 13 in constant_ops:
             raise ValueError(f"constant assignment opcode path {constant_ops}")
+        for field_name in ("field-receiver", "field-source-api"):
+            field_ops = inspect_ckir(outputs[field_name])["opcodes"]
+            if 10 not in field_ops or not any(field_ops[index:index + 2] == [2, 3]
+                                              for index in range(len(field_ops) - 1)):
+                raise ValueError(
+                    f"{field_name} omitted SelfPlace/FieldPlace/Call chain {field_ops}"
+                )
+        direct_field_ops = inspect_ckir(outputs["field-receiver"])["opcodes"]
+        if not any(direct_field_ops[index:index + 3] == [2, 3, 10]
+                   for index in range(len(direct_field_ops) - 2)):
+            raise ValueError("zero-argument field call lost direct operation adjacency")
+        if 13 not in inspect_ckir(outputs["field-source-api"])["opcodes"]:
+            raise ValueError("field SourceUnit API omitted runtime SourceId construction")
+
+        # The two source relations are canonical, not interchangeable spellings.
+        # Changing only the witness identity selects the paired frame identity,
+        # then the lowerer must reject source that belongs to the other relation.
+        for name, source_relation, target_relation in (
+            ("field-downgrade", 2, 1), ("direct-upgrade", 1, 2),
+        ):
+            base = "field-receiver" if source_relation == 2 else "direct"
+            witness = bytearray((temp / f"{base}.omgrsw{source_relation}").read_bytes())
+            witness[6] = 48 + target_relation
+            struct.pack_into("<H", witness, 8, target_relation)
+            changed = temp / f"{name}.omgrsw{target_relation}"; changed.write_bytes(witness)
+            frame = subprocess.run(
+                [sys.executable, str(frame_tool), "pack", str(temp / f"{base}.omgc"), str(changed)],
+                check=True, stdout=subprocess.PIPE,
+            ).stdout
+            expect(name, frame, 251)
+
+        resolver_negative_sources = {
+            "field-unknown": """data Cell { value: u8; }
+data Probe { cell: Cell; }
+machine Cell::read(&self) -> u8 { self.value }
+machine Probe::run(&mut self) -> u8 { self.missing.read() }
+""",
+            "field-scalar": """data Probe { scalar: u8; }
+machine Probe::run(&mut self) -> u8 { self.scalar.read() }
+""",
+            "field-wrong-owner": """data Cell { value: u8; }
+data Other { value: u8; }
+data Probe { cell: Cell; }
+machine Other::read(&self) -> u8 { self.value }
+machine Probe::run(&mut self) -> u8 { self.cell.read() }
+""",
+        }
+        for name, text in resolver_negative_sources.items():
+            source = temp / f"{name}.omg"; source.write_text(text, encoding="ascii")
+            expect_resolver(name, "Probe", "run", [source], 251)
+
+        lowering_negative_sources = {
+            "field-shared-mutable": """data Cell { value: u8; }
+data Probe { cell: Cell; }
+machine Cell::clear(&mut self) { self.value = 0; }
+machine Probe::run(&self) -> u8 { self.cell.clear(); 0 }
+""",
+            "field-parenthesized": """data Cell { value: u8; }
+data Probe { cell: Cell; }
+machine Cell::read(&self) -> u8 { self.value }
+machine Probe::run(&mut self) -> u8 { (self.cell).read() }
+""",
+            "field-chained": """data Cell { value: u8; }
+data Outer { cell: Cell; }
+data Probe { outer: Outer; }
+machine Cell::read(&self) -> u8 { self.value }
+machine Probe::run(&mut self) -> u8 { self.outer.cell.read() }
+""",
+        }
+        for name, text in lowering_negative_sources.items():
+            source = temp / f"{name}.omg"; source.write_text(text, encoding="ascii")
+            relation = 2 if name == "field-shared-mutable" else 1
+            expect(name, prepare(name, "Probe", "run", [source], relation=relation), 251)
 
         generated: dict[str, tuple[str, int]] = {
             "record-4": (record_source(4), 0),
@@ -267,8 +425,10 @@ def gate() -> None:
 
         print(f"resolved-to-CKIR4: procedures={procedures}/128 fields={fields}/255 "
               f"locals={locals_used}/32 exact-source={len(outputs['exact-source'])}B")
-        print("resolved-to-CKIR4: runtime-record positives=6 native/self exact; "
-              "record-4=0 record-5=252 semantic-before-5=251 missing-field-bound=251; result=70")
+        print("resolved-to-CKIR4: runtime-record positives=8 native/self exact; "
+              "OMGRSW1/2 and OMGLOW4/5 canonical/cross-pair controls; "
+              "direct-field shape/owner/access negatives; record-4=0 record-5=252 "
+              "semantic-before-5=251 missing-field-bound=251; result=70")
         print("resolved-to-CKIR4 timings: " + " ".join(
             f"{name}={seconds:.3f}s" for name, seconds in sorted(timings.items())
             if name.startswith("compile-") or name in ("lowermachine-source", "native-exact-source", "self-exact-source")))
