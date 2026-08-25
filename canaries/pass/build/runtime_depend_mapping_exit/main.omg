@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. M2 blocker 3
 // (depend-mapping, landed 2026-07-11): the companion build.omg's
-// `b.depend("mylib", path("lib"))` row maps the alias, `use
-// mylib::values` resolves INTO the aliased directory (not
+// canonical `builder.depend_as("mylib", Source::Path { ... })` row maps the
+// alias, `use mylib::values` resolves INTO the aliased directory (not
 // root-relative), and the depended package's free const substitutes
 // (composing with blocker 4). Dependency packages' own build.omgs are
 // read AS DATA for their transitive depend rows -- their `build`
