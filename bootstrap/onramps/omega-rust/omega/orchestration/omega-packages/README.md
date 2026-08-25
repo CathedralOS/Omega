@@ -272,7 +272,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v9 carries operation-attempt schema v9, retaining exact
+Observation schema v10 carries operation-attempt schema v9, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -351,15 +351,20 @@ UTF-8 slash paths, explicit directory/file/executable/symlink modes, file length
 and content digest, and exact validated relative symlink spelling. Empty
 directories participate; timestamps, ownership, ACLs, ambient permission bits,
 host roots, inode numbers, and hard-link topology do not. Sponsor namespace
-groups and extents are cross-checked, hard-linked content is counted once, and
+groups and extents are cross-checked, byte-identical content is counted once
+without retaining hard-link topology, and
 unknown kinds, external symlinks, non-portable paths, open descriptors, prepared
 transactions, custody mismatches, or ceiling excess reject review. The initial
 ceilings are 4,096 entries, 256 MiB unique file content, and 16 MiB aggregate
 path/target bytes. Ordinary caller-owned build roots are not claimed as package
 output trees. The package observation commitment binds the tree digest and
 counts, so a change recommends review through the existing build-observation
-triage lane. Content is not retained and no replay or generated-output handoff
-is claimed; hostile same-user racing remains outside this custody rung.
+triage lane. Review now retains that canonical content behind a compiler-owned
+carrier after the physical session is deleted. It can materialize into an
+existing empty concrete directory and independently re-inspect every path,
+kind, mode, symlink target, and file byte before returning the same commitment.
+This is staged-tree replay, not operation replay, a receipt, or generated-output
+handoff; hostile same-user racing remains outside this custody rung.
 Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection

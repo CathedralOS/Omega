@@ -70,14 +70,17 @@ organization policy records; none is a portable proof that a human or LLM
 performed a sound audit.
 
 The compiler derives the ordinary admission baseline from the earliest coherent
-checked state for each evidence row through a total internal package-admission
-projection. Different rows may use different compiler-private representations;
-the lock stores only the final versioned canonical rows. This does not make any
-checked IR a public compatibility surface or require another nominal IR stage.
-Those representations remain inside the Psi-owned semantic pipeline; "earlier"
-means earlier than Terminal Psi, not outside Psi. Terminal Psi evidence is
-additional and is required only for claims about final realization or by a
-hardened profile; absence of that evidence never implies a weaker Terminal
+compiler-owned representation in which each evidence fact is semantically
+established, through a total internal package-admission projection. Different
+rows may use different private representations; the lock stores only the final
+versioned canonical rows. This does not make any internal IR a public
+compatibility surface or require another nominal IR stage.
+The projector may use private pre-Psi typed or resolved structure when that is
+where an exact identity is semantically established, then join checked
+acceptance, effects, proofs, and realization from the stage that establishes
+them after successful compilation. Terminal Psi evidence is additional and is
+required only for claims about final realization or by a hardened profile;
+absence of that evidence never implies a weaker Terminal
 guarantee. A new named stage is warranted only by a reusable semantic boundary,
 not by package-report format stability.
 

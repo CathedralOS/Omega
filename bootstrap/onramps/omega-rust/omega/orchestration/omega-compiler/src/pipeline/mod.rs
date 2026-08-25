@@ -66,7 +66,9 @@ pub use build_config::{
     BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue, BuildObservationClass,
     BuildObservationSummary,
 };
-pub use build_staged_output::BuildStagedOutputTreeCommitment;
+pub use build_staged_output::{
+    BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
+};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

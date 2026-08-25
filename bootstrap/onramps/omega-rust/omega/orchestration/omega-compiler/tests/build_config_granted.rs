@@ -120,7 +120,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 9);
+    assert_eq!(checked_observations.schema_version(), 10);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile

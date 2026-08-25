@@ -126,8 +126,10 @@ Package-aware compiler entrypoints now consume a closed requester-local graph
 of alias-to-opaque-`PackageKey` bindings and canonical source roots. That mode
 does not scan or combine package-authored dependency rows during import
 discovery; source paths route loading but do not become nominal identity.
-Orchestration still needs to translate the resolved package closure into this
-handoff. Legacy standalone compilation retains only a narrow explicit
+Package orchestration now translates only a validated resolver-custody closure
+into that handoff, re-roots each package over exactly its transitive dependency
+subgraph, and compiles the complete closure in deterministic dependency-first
+order. Legacy standalone compilation retains only a narrow explicit
 `depend_as(..., Source::Path { ... })` compatibility scanner until its canaries
 migrate.
 
@@ -574,7 +576,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v9 carries operation-attempt schema v9: an ordered
+Observation schema v10 carries operation-attempt schema v9: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -653,10 +655,16 @@ permissions, inode identity, and hard-link topology. Capture requires a
 quiescent sponsor and cross-checks namespace kinds, extents, and object groups;
 unknown kinds, external symlinks, custody disagreement, and bounded-resource
 excess reject. An empty successful tree is committed explicitly. The package
-observation commitment binds its digest and counts, but does not retain the
-tree. A `Receipted` row still requires a canonical operation transcript,
-retained input and staged-output bytes, and a replay checker. This custody rung
-does not exclude a hostile same-user process racing the review session.
+observation commitment binds its digest and topology-independent unique-content
+count. The compiler-owned review row retains the complete canonical tree behind
+private fields and can materialize it into an existing empty concrete directory,
+then independently re-inspect exact paths, kinds, modes, targets, and bytes
+before returning the same commitment. Hard-link topology is neither retained
+nor leaked through the count. This is output-tree custody and replay only. A
+`Receipted` row still requires canonical operation replay, retained observed
+inputs, generated-output handoff, and a complete record replay checker. This
+custody rung does not exclude a hostile same-user process racing the review
+session.
 
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires

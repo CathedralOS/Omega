@@ -449,7 +449,7 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v9
+stay separate from capability/API comparison bytes. Observation schema v10
 carries operation-attempt schema v9, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
@@ -500,10 +500,16 @@ metadata, inode identity, and hard-link topology are excluded. The compiler
 cross-checks sponsor namespace kinds, extents, hard-link groups, and quiescence;
 review rejects mismatch, unknown kinds, external symlinks, or ceiling excess. A
 successful empty build has an explicit empty-tree commitment. Package
-observation identity binds the tree digest and counts, but the bytes are not
-retained. Canonical operation transcripts, recorded inputs, retained staged
-content, output handoff, and replay checking remain required before any
-`Receipted` verdict. This rung does not claim hostile same-user race exclusion.
+observation identity binds the tree digest and topology-independent unique-
+content count. The compiler-owned review row now retains the complete canonical
+tree behind private fields and can materialize it into an existing empty
+concrete directory, then independently re-inspect exact paths, kinds, modes,
+targets, and bytes before returning the same commitment. Hard-link topology is
+neither retained nor leaked through the count. This is output-tree custody and
+replay only. Canonical operation replay, recorded observed inputs, generated-
+output handoff, and the complete record replay checker remain required before
+any `Receipted` verdict. This rung does not claim hostile same-user race
+exclusion.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

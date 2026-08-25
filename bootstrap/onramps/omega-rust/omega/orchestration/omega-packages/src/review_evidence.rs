@@ -572,7 +572,7 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 9);
+        assert_eq!(first.schema_version(), 10);
         assert_eq!(first.filesystem_operation_schema_version(), 9);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());

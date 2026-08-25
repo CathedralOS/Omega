@@ -436,7 +436,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             [0; 32],
             "review set must identify its observed producer executable"
         );
-        for node in closure.graph().packages() {
+        for (package_index, node) in closure.graph().packages().iter().enumerate() {
             let custody = closure
                 .custody(node.source().key())
                 .expect("resolved graph package retains source custody");
@@ -473,6 +473,16 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .expect("sponsored package review commits even an empty staged-output tree");
             assert_eq!(staged_output.entry_count(), 0);
             assert_eq!(staged_output.file_bytes(), 0);
+            let replay_root = cache.join(format!("review-output-replay-{package_index}"));
+            std::fs::create_dir(&replay_root).expect("create fresh retained-output replay root");
+            assert_eq!(
+                staged_output
+                    .materialize_into(&replay_root)
+                    .expect("retained output must replay after review-session disposal"),
+                staged_output.commitment()
+            );
+            std::fs::remove_dir(&replay_root)
+                .expect("empty retained-output replay root remains removable");
             assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",

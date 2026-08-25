@@ -776,21 +776,24 @@ that classification. Package review rejects impossible internal combinations:
 checked supply requires a body, accepted/requirement/external supply forbids
 one, and boundary supply alone permits either form.
 
-The ordinary rows are derived from the earliest coherent checked state for each
-row by a total internal package-admission projection. Rows may use different
-compiler-private representations; totality is required of the final projection,
-not of one nominal intermediate stage. Unresolved or unprojectable required
-facts reject; the compiler does not serialize raw internal IR or fill gaps with a
-“complete enough” marker. Terminal Psi is required separately when a row claims
+The ordinary rows are derived from the earliest coherent compiler-owned
+representation in which each fact is semantically established. Exact
+structural identity may come from private pre-Psi typed or resolved state, then
+join checked acceptance, effects, proofs, and realization from the stage that
+establishes them after successful compilation. Rows may use different private
+representations; totality is required of the final projection, not of one
+nominal intermediate stage. Unresolved or unprojectable required facts reject;
+the compiler does not serialize raw internal IR or fill gaps with a “complete
+enough” marker. Terminal Psi is required separately when a row claims
 a checked property of final executable realization, lowering, ABI realization,
 or fixed native resources, and when a hardened profile explicitly requests that
 evidence. Opaque executable supply may remain an explicit trust/TCB row making
 no Terminal claim. Terminal evidence is not a blanket prerequisite for checked
-reach and authority admission. The earlier checked representations used for
-ordinary rows remain Psi-owned semantic state; this choice does not establish a
-pre-Psi path or another semantic owner. The package checker moves with these
-private representations. It does not require a nominal report-only stage unless
-independent semantics or consumers later establish one.
+reach and authority admission. The package checker moves with the private
+representations it consumes; their instability is internal compiler coupling,
+not a package-format promise. It does not require a nominal report-only stage
+unless independent semantics, shared invariants, transformations, or consumers
+later establish one.
 
 Generated Omega source carries no build authority into the resulting program.
 It is checked under the consuming artifact's ordinary runtime reach, crash,
