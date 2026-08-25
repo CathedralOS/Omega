@@ -407,7 +407,12 @@ complete.
   fingerprint remains review/execution compatibility data, not sealed package
   admission identity. Post-resolution compiler symbols now require an existing
   derivation-origin symbol and inherit its exact package/toolchain provenance;
-  source-free symbols remain deliberately unresolved. Authored toolchain
+  source-free symbols remain deliberately unresolved. Pre-resolution generic
+  normalization now retains each generated concrete data instance's exact base
+  declaration and ordered structural arguments through resolved, typed, copied,
+  and snapshot forms. Conformance matching unfolds only that retained origin;
+  it neither parses synthetic names nor accepts same-spelled foreign symbols.
+  Authored toolchain
   nominals in package review now bind a domain-separated SHA-256 commitment to
   the canonical toolchain-relative source path and exact source bytes;
   canonical virtual prelude coordinates use the same framing. Source-free
