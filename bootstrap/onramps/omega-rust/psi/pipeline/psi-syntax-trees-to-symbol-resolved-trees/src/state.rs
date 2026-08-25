@@ -475,8 +475,10 @@ pub(crate) fn build_synthesized_arm_state(
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let mut members = HandleSpan::empty();
     expressions.push_name_path_member(&mut members, hoist_name);
+    let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
     let terminal = expressions.insert(ExpressionNode::Name(TableNamePath {
         members,
+        member_symbols,
         is_self_value: false,
         head_symbol: SymbolHandle::invalid(),
         symbol: SymbolHandle::invalid(),
@@ -584,8 +586,10 @@ pub(crate) fn build_synthesized_transition_argument_state(
         let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
         let mut members = HandleSpan::empty();
         expressions.push_name_path_member(&mut members, hoist_name);
+        let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
         let result = expressions.insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),

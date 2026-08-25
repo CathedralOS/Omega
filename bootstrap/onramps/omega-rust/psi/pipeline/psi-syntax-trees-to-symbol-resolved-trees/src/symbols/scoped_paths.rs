@@ -23,6 +23,75 @@ pub(super) fn resolve_state_scoped_table_path(
     )
 }
 
+/// Resolve every authored segment of a table name path. An empty result means
+/// that at least one segment could not be resolved; callers must not retain a
+/// partially valid path because that would hide the exact failed selection.
+pub(super) fn resolve_state_scoped_table_path_member_symbols(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &psi_symbol_resolved_trees::expression::ExpressionTable,
+    path: &psi_symbol_resolved_trees::expression::TableNamePath,
+) -> Vec<SymbolHandle> {
+    let members = expression_table.name_path_members(path.members);
+    if members.is_empty() {
+        return Vec::new();
+    }
+
+    let mut resolved = Vec::with_capacity(members.len());
+    let mut index = 0usize;
+    let mut current = SymbolHandle::invalid();
+
+    if path.is_self_value {
+        current = machine_symbol;
+        resolved.push(current);
+        index = 1;
+    }
+
+    if index < members.len() && !current.is_valid() {
+        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index]);
+        if !current.is_valid() {
+            return Vec::new();
+        }
+        resolved.push(current);
+        index += 1;
+    } else if index < members.len() {
+        current = child_or_attached_data_child_symbol_by_kinds(
+            symbols,
+            current,
+            &[SymbolKind::Field, SymbolKind::State],
+            members[index].as_str(),
+        );
+        if !current.is_valid() {
+            return Vec::new();
+        }
+        resolved.push(current);
+        index += 1;
+    }
+
+    for member in &members[index..] {
+        current = child_or_attached_data_child_symbol_by_kinds(
+            symbols,
+            current,
+            &[
+                SymbolKind::Field,
+                SymbolKind::State,
+                SymbolKind::Parameter,
+                SymbolKind::Variant,
+            ],
+            member.as_str(),
+        );
+        if !current.is_valid() {
+            return Vec::new();
+        }
+        resolved.push(current);
+    }
+
+    (resolved.len() == members.len())
+        .then_some(resolved)
+        .unwrap_or_default()
+}
+
 pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,

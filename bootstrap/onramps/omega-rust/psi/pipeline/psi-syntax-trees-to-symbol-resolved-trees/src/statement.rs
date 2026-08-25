@@ -571,6 +571,8 @@ fn rewrite_children(
                     value,
                     domain: membership.domain,
                     domain_symbol: membership.domain_symbol,
+                    case_type_symbol: membership.case_type_symbol,
+                    case_symbol: membership.case_symbol,
                 }),
             );
         }
@@ -969,6 +971,12 @@ fn hoist_scalar_value_call_comparison(
         .bodies
         .expressions
         .push_name_path_member(&mut members, name);
+    let member_symbols = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .reserve_name_path_member_symbols(members.count());
     let name_reference = lowerer
         .symbol_resolved_trees
         .tables
@@ -976,6 +984,7 @@ fn hoist_scalar_value_call_comparison(
         .expressions
         .insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
@@ -1049,8 +1058,10 @@ fn hoist_terminal_value_machine_call(
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let mut members = HandleSpan::empty();
     expressions.push_name_path_member(&mut members, name);
+    let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
     expressions.insert(ExpressionNode::Name(TableNamePath {
         members,
+        member_symbols,
         is_self_value: false,
         head_symbol: SymbolHandle::invalid(),
         symbol: SymbolHandle::invalid(),
@@ -1127,8 +1138,10 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
     for (name, _) in &parameters {
         let mut members = HandleSpan::empty();
         expressions.push_name_path_member(&mut members, DiagnosticName::generated(name.clone()));
+        let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
         let fresh = expressions.insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
@@ -1236,8 +1249,10 @@ fn rewrite_guarded_transition_argument_calls(
     for (name, _, _) in &parameters {
         let mut members = HandleSpan::empty();
         expressions.push_name_path_member(&mut members, DiagnosticName::generated(name.clone()));
+        let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
         let fresh = expressions.insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
@@ -1520,6 +1535,12 @@ fn hoist_into_temp(
         .bodies
         .expressions
         .push_name_path_member(&mut members, name);
+    let member_symbols = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .reserve_name_path_member_symbols(members.count());
     lowerer
         .symbol_resolved_trees
         .tables
@@ -1527,6 +1548,7 @@ fn hoist_into_temp(
         .expressions
         .insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
@@ -1685,6 +1707,12 @@ fn hoist_membership_match_subject(
         .bodies
         .expressions
         .push_name_path_member(&mut members, name);
+    let member_symbols = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .reserve_name_path_member_symbols(members.count());
     let name_reference = lowerer
         .symbol_resolved_trees
         .tables
@@ -1692,6 +1720,7 @@ fn hoist_membership_match_subject(
         .expressions
         .insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
@@ -1703,6 +1732,8 @@ fn hoist_membership_match_subject(
             value: name_reference,
             domain: membership.domain,
             domain_symbol: membership.domain_symbol,
+            case_type_symbol: membership.case_type_symbol,
+            case_symbol: membership.case_symbol,
         }),
     );
 }
@@ -1830,6 +1861,12 @@ fn hoist_comparison_match_subject(
         .bodies
         .expressions
         .push_name_path_member(&mut members, name);
+    let member_symbols = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .reserve_name_path_member_symbols(members.count());
     let name_reference = lowerer
         .symbol_resolved_trees
         .tables
@@ -1837,6 +1874,7 @@ fn hoist_comparison_match_subject(
         .expressions
         .insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),

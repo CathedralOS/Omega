@@ -3,6 +3,7 @@ use psi_symbols::{SymbolHandle, SymbolTable};
 
 use super::references::{
     assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
+    assign_struct_literal_symbols,
 };
 use crate::symbols::scope::MachineScope;
 
@@ -305,6 +306,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                     field.value,
                 );
             }
+            assign_struct_literal_symbols(symbols, expression_table, expression);
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
             let mut target_type = child_type_references.get(type_reference).clone();

@@ -620,6 +620,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                     offset,
                     psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
+                        field_symbol: field.field_symbol,
                         value: resolved.expression,
                     },
                 );
@@ -632,7 +633,9 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                     ExpressionNode::StructLiteral(
                         psi_checked_trees::expression::TableStructLiteral {
                             type_name: struct_literal.type_name.clone(),
+                            type_symbol: struct_literal.type_symbol,
                             case_name: struct_literal.case_name.clone(),
+                            case_symbol: struct_literal.case_symbol,
                             fields: copied_fields,
                         },
                     ),
@@ -957,6 +960,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     offset,
                     psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
+                        field_symbol: field.field_symbol,
                         value,
                     },
                 );
@@ -964,7 +968,9 @@ fn resolve_leaf_binding_expression_handle_at_depth(
             table.insert(ExpressionNode::StructLiteral(
                 psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name.clone(),
+                    case_symbol: struct_literal.case_symbol,
                     fields: copied_fields,
                 },
             ))
@@ -1209,6 +1215,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                     offset,
                     psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
+                        field_symbol: field.field_symbol,
                         value,
                     },
                 );
@@ -1216,7 +1223,9 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
             table.insert(ExpressionNode::StructLiteral(
                 psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name.clone(),
+                    case_symbol: struct_literal.case_symbol,
                     fields: copied_fields,
                 },
             ))

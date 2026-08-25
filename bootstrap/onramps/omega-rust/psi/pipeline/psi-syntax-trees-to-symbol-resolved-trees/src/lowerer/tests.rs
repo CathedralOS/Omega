@@ -1241,6 +1241,98 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
 }
 
 #[test]
+fn retains_exact_expression_selection_symbols() {
+    let source = r#"
+        data Token {
+            value: u32;
+            case Issued(code: u32);
+        }
+        machine path() -> u32 { Token::Issued::code }
+        machine record() -> Token { Token { value: 1 } }
+        machine issue() -> Token { Token::Issued { code: 2 } }
+        machine is_issued(token: Token) -> bool { token in Token::Issued }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize exact selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse exact selections");
+    let program = lower_syntax_trees(&syntax).expect("resolve exact selections");
+    let expressions = &program.tables.bodies.expressions;
+
+    let path = expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                if expressions.name_path_members(path.members).len() == 3 =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .expect("three-segment case payload path");
+    let path_symbols = expressions.name_path_member_symbols(path.member_symbols);
+    assert_eq!(path_symbols.len(), 3);
+    assert!(path_symbols.iter().all(|symbol| symbol.is_valid()));
+    assert_eq!(
+        program.symbols.get(path_symbols[0]).kind,
+        psi_symbols::SymbolKind::Data
+    );
+    assert_eq!(
+        program.symbols.get(path_symbols[1]).kind,
+        psi_symbols::SymbolKind::Variant
+    );
+    assert_eq!(
+        program.symbols.get(path_symbols[2]).kind,
+        psi_symbols::SymbolKind::Field
+    );
+
+    let literals = expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                Some(literal)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(literals.len(), 2);
+    for literal in literals {
+        assert!(literal.type_symbol.is_valid());
+        assert_eq!(
+            literal.case_name.is_some(),
+            literal.case_symbol.is_some_and(|symbol| symbol.is_valid())
+        );
+        assert!(
+            expressions
+                .struct_fields(literal.fields)
+                .iter()
+                .all(|field| field.field_symbol.is_valid())
+        );
+    }
+
+    let membership = expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+                Some(membership)
+            }
+            _ => None,
+        })
+        .expect("case membership");
+    assert!(!membership.domain_symbol.is_valid());
+    assert!(membership.case_type_symbol.is_valid());
+    assert!(membership.case_symbol.is_valid());
+    assert_eq!(
+        program.symbols.get(membership.case_type_symbol).kind,
+        psi_symbols::SymbolKind::Data
+    );
+    assert_eq!(
+        program.symbols.get(membership.case_symbol).kind,
+        psi_symbols::SymbolKind::Variant
+    );
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

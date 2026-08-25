@@ -329,6 +329,8 @@ fn lower_expression_node_into_table(
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
+                    case_type_symbol: SymbolHandle::invalid(),
+                    case_symbol: SymbolHandle::invalid(),
                 },
             )))
         }
@@ -370,9 +372,12 @@ fn lower_expression_node_into_table(
             for member in syntax_trees.expressions.identifier_path_members(*path) {
                 expression_table(lowerer).push_name_path_member(&mut members, lower_name(member));
             }
+            let member_symbols =
+                expression_table(lowerer).reserve_name_path_member_symbols(members.count());
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     is_self_value: false,
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
@@ -406,9 +411,12 @@ fn lower_expression_node_into_table(
                 &mut members,
                 psi_symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
             );
+            let member_symbols =
+                expression_table(lowerer).reserve_name_path_member_symbols(members.count());
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     is_self_value: true,
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
@@ -458,6 +466,7 @@ fn lower_expression_node_into_table(
                         .expect("struct literal field span count overflow"),
                     TableStructLiteralField {
                         name: lower_name(&field.name),
+                        field_symbol: SymbolHandle::invalid(),
                         value,
                     },
                 );
@@ -468,7 +477,9 @@ fn lower_expression_node_into_table(
                 expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                     TableStructLiteral {
                         type_name,
+                        type_symbol: SymbolHandle::invalid(),
                         case_name,
+                        case_symbol: None,
                         fields,
                     },
                 )),

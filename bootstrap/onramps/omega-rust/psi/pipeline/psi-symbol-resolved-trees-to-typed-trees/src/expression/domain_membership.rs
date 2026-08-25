@@ -20,12 +20,16 @@ pub(super) fn lower_case_membership_expression(
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain: psi_arena::HandleSpan<resolved::name::DiagnosticName>,
+    type_symbol: psi_symbols::SymbolHandle,
+    case_symbol: psi_symbols::SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
     lower_case_membership_expression_from_members(
         program,
         target,
         value,
         source.name_path_members(domain),
+        type_symbol,
+        case_symbol,
     )
 }
 
@@ -34,26 +38,27 @@ fn lower_case_membership_expression_from_members(
     target: &mut typed::TypedTrees,
     value: typed::expression::ExpressionHandle,
     domain_members: &[resolved::name::DiagnosticName],
+    type_symbol: psi_symbols::SymbolHandle,
+    case_symbol: psi_symbols::SymbolHandle,
 ) -> Option<typed::expression::ExpressionHandle> {
-    let [type_name, case_name] = domain_members else {
+    let [_type_name, _case_name] = domain_members else {
         return None;
     };
+    if !type_symbol.is_valid() || !case_symbol.is_valid() {
+        return None;
+    }
 
     let data_definition = program
         .data_definitions
         .iter()
-        .find(|definition| definition.name.as_str() == type_name.as_str())?;
-    let variant_symbol = program
+        .find(|definition| definition.symbol == type_symbol)?;
+    let exact_case_belongs_to_type = program
         .data_members(data_definition.members)
         .iter()
-        .find_map(|member| match member {
-            resolved::data::DataMember::Variant(variant)
-                if variant.name.as_str() == case_name.as_str() =>
-            {
-                Some(variant.symbol)
-            }
-            _ => None,
-        })?;
+        .any(|member| matches!(member, resolved::data::DataMember::Variant(variant) if variant.symbol == case_symbol));
+    if !exact_case_belongs_to_type {
+        return None;
+    }
 
     // The case reference must carry its symbols: the backend's guard tag
     // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
@@ -66,18 +71,18 @@ fn lower_case_membership_expression_from_members(
     let mut member_symbols = psi_arena::HandleSpan::empty();
     target
         .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, data_definition.symbol);
+        .push_name_path_member_symbol(&mut member_symbols, type_symbol);
     target
         .expression_table
-        .push_name_path_member_symbol(&mut member_symbols, variant_symbol);
+        .push_name_path_member_symbol(&mut member_symbols, case_symbol);
     let case_reference = target
         .expression_table
         .insert(typed::expression::ExpressionNode::Name(
             typed::expression::TableNamePath {
                 members,
                 member_symbols,
-                head_symbol: data_definition.symbol,
-                symbol: variant_symbol,
+                head_symbol: type_symbol,
+                symbol: case_symbol,
             },
         ));
 
@@ -165,11 +170,15 @@ fn lower_atomic_domain_membership_expression(
                     membership.value,
                     Some(value),
                 )?;
+                let (case_type_symbol, case_symbol) =
+                    case_symbols_for_domain_fact(program, membership.domain);
                 if let Some(case_membership) = lower_case_membership_expression_from_members(
                     program,
                     target,
                     nested_value,
                     program.domain_path_members(membership.domain),
+                    case_type_symbol,
+                    case_symbol,
                 ) {
                     case_membership
                 } else {
@@ -186,6 +195,41 @@ fn lower_atomic_domain_membership_expression(
     }
 
     combine_conjunction(target, lowered_facts)
+}
+
+fn case_symbols_for_domain_fact(
+    program: &resolved::SymbolResolvedTrees,
+    domain: psi_arena::HandleSpan<resolved::name::DiagnosticName>,
+) -> (psi_symbols::SymbolHandle, psi_symbols::SymbolHandle) {
+    let [type_name, case_name] = program.domain_path_members(domain) else {
+        return (
+            psi_symbols::SymbolHandle::invalid(),
+            psi_symbols::SymbolHandle::invalid(),
+        );
+    };
+    let Some(data) = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == type_name.as_str())
+    else {
+        return (
+            psi_symbols::SymbolHandle::invalid(),
+            psi_symbols::SymbolHandle::invalid(),
+        );
+    };
+    let case_symbol = program
+        .data_members(data.members)
+        .iter()
+        .find_map(|member| match member {
+            resolved::data::DataMember::Variant(variant)
+                if variant.name.as_str() == case_name.as_str() =>
+            {
+                Some(variant.symbol)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(psi_symbols::SymbolHandle::invalid);
+    (data.symbol, case_symbol)
 }
 
 fn combine_conjunction(
