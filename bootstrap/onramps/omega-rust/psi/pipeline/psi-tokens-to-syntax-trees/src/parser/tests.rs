@@ -2119,6 +2119,50 @@ fn rejects_named_contract_with_multiple_propositions() {
 }
 
 #[test]
+fn parses_named_bodyless_signature_contract_bindings() {
+    let source = r#"
+        trait Evidence { machine witness(); }
+        proposition ready() evidence Evidence;
+        trait Worker {
+            machine relay()
+            requires input_proof: ready()
+            ensures output_proof: ready();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("named signature contracts parse");
+    let worker = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .find(|definition| definition.name.as_str() == "Worker")
+        .expect("worker trait");
+    let [requirement] = parsed.items.state_signatures(worker.machines) else {
+        panic!("one worker requirement")
+    };
+    let contracts = parsed
+        .items
+        .capability_contracts(parsed.items.state_signature(*requirement).contracts);
+    assert_eq!(contracts.len(), 2);
+    assert_eq!(
+        contracts[0]
+            .binding
+            .as_ref()
+            .map(|binding| binding.as_str()),
+        Some("input_proof")
+    );
+    assert_eq!(
+        contracts[1]
+            .binding
+            .as_ref()
+            .map(|binding| binding.as_str()),
+        Some("output_proof")
+    );
+}
+
+#[test]
 fn parses_explicit_state_arrival_requires() {
     let source = r#"
         machine walk(value: i32) {

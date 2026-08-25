@@ -867,6 +867,15 @@ than authority supplied by either compiler or verifier. Certificate identity,
 proof route, and checking dependencies remain derivation provenance outside
 semantic compatibility identity.
 
+That local reconstruction may read the earliest coherent compiler-owned IR in
+which an obligation is semantically complete, including private pre-Psi or
+pre-Terminal state. The checker is part of the compiler and may move with those
+internals; only its versioned canonical obligation ledger and exact replay
+subjects cross the persistence boundary. There is no nominal Chi stage merely
+to stabilize this seam. Add one only if implementation discovers a genuine
+reusable semantic boundary, and prefer an existing coherent stage such as Exact
+when it can carry the same meaning with less machinery.
+
 Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity because one closure may contain evidence produced
 under several versions. Checked obligations compose upward. Missing or

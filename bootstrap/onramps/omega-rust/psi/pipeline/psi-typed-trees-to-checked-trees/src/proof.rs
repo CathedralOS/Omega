@@ -66,6 +66,7 @@ pub(crate) fn build_proof_facts_with_operators(
                 parameter.symbol,
                 std::slice::from_ref(contract),
                 &mut contract_facts,
+                &mut evidence_terms,
             );
         }
     }
@@ -75,6 +76,7 @@ pub(crate) fn build_proof_facts_with_operators(
             trait_definition.symbol,
             program.trait_machine_signatures(trait_definition),
             &mut contract_facts,
+            &mut evidence_terms,
         );
     }
     let (mut contract_fact_refs, contract_calls) =

@@ -582,8 +582,19 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 input = input.take_contextual("ensures")?;
                 CapabilityContractKind::Ensures
             };
+            let (binding, fact_input) = if let Ok((binding, after_binding)) =
+                input.take_identifier()
+                && after_binding.at_punctuation(PunctuationKind::Colon)
+            {
+                (
+                    Some(binding),
+                    after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
+                )
+            } else {
+                (None, input)
+            };
             let ((facts, token_count), rest) =
-                parse_proof_facts_until(syntax_trees, input, |input| {
+                parse_proof_facts_until(syntax_trees, fact_input, |input| {
                     input.at_punctuation(PunctuationKind::Semicolon)
                         || input.at_punctuation(PunctuationKind::LeftBrace)
                         || input.at_contextual("requires")
@@ -598,11 +609,16 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                         || input.at_contextual("where")
                         || input.tokens.is_empty()
                 })?;
+            if binding.is_some() && facts.count() != 1 {
+                return Err(fact_input.error_here(
+                    "a named bodyless-signature contract must contain exactly one proposition",
+                ));
+            }
             let handle = syntax_trees
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind,
-                    binding: None,
+                    binding,
                     facts,
                     token_count,
                 });
