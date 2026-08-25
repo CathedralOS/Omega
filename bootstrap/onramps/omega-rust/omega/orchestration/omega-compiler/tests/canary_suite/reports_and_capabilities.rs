@@ -16,6 +16,31 @@ fn assert_native_exit_code(report: &CompileReport, expected: i32, fixture: &str)
     );
 }
 
+fn assert_toolchain_build_source_drops(report: &str) {
+    for machine in ["Build::depend", "Build::depend_as"] {
+        let state = machine
+            .strip_prefix("Build::")
+            .expect("toolchain build machine should have its qualified prefix");
+        let expected =
+            format!("- AffineDrop `source` in machine `{machine}` state `{state}` at state exit");
+        let event = report
+            .lines()
+            .find(|line| line.starts_with(&expected))
+            .unwrap_or_else(|| panic!("missing toolchain `{machine}` Source drop\n{report}"));
+        assert!(
+            event.contains("multiplicity=Affine, access=Owned")
+                && event.contains("claim=unknown, provenance=unknown, obligation_live=false")
+                && event.contains("realization=checked-no-code(trivial-affine-drop)"),
+            "toolchain `{machine}` Source drop must remain a complete no-code affine cleanup, got:\n{event}"
+        );
+        assert_eq!(
+            report.matches(&expected).count(),
+            1,
+            "toolchain `{machine}` must contribute exactly one Source drop\n{report}"
+        );
+    }
+}
+
 #[test]
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
@@ -449,13 +474,14 @@ fn backend_report_renders_ownership_summary_events() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permissions: 10"),
+        report.contains("permissions: 12"),
         "spine should retain the complete permission ledger\n{}",
         report
     );
     assert!(
-        report.contains("permission realizations: 10 (complete)"),
+        report.contains("permission realizations: 12 (complete)"),
         "every permission event should have a normalized realization\n{}",
         report
     );
@@ -528,9 +554,10 @@ fn backend_report_renders_transparent_record_claim_paths() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permissions: 22")
-            && report.contains("permission realizations: 22 (complete)"),
+        report.contains("permissions: 24")
+            && report.contains("permission realizations: 24 (complete)"),
         "both contained claims must retain complete event realizations\n{report}"
     );
     for place in ["<unnamed>.left", "<unnamed>.right"] {
@@ -588,8 +615,9 @@ fn backend_report_realizes_state_call_entry_at_call_site() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permission realizations: 10 (complete)"),
+        report.contains("permission realizations: 12 (complete)"),
         "the state-call permission ledger should be complete\n{}",
         report
     );
@@ -637,8 +665,9 @@ fn backend_report_separates_transition_and_nested_call_ordinals() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permission realizations: 16 (complete)"),
+        report.contains("permission realizations: 18 (complete)"),
         "the multi-call transition permission ledger should be complete\n{}",
         report
     );
@@ -701,8 +730,9 @@ fn backend_report_separates_repeated_transition_call_ordinals() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permission realizations: 16 (complete)"),
+        report.contains("permission realizations: 18 (complete)"),
         "the repeated-target permission ledger should be complete\n{}",
         report
     );
@@ -770,8 +800,9 @@ fn backend_report_realizes_linear_boundary_entry_from_prologue() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permission realizations: 2 (complete)"),
+        report.contains("permission realizations: 4 (complete)"),
         "the boundary-entry permission ledger should be complete\n{}",
         report
     );
@@ -894,8 +925,9 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permission realizations: 10 (complete)")
+        report.contains("permission realizations: 12 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the fresh state-call result ledger must remain complete\n{}",
@@ -943,9 +975,10 @@ fn backend_report_preserves_path_aligned_multi_claim_state_result() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permissions: 22")
-            && report.contains("permission realizations: 22 (complete)")
+        report.contains("permissions: 24")
+            && report.contains("permission realizations: 24 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the multi-claim result ledger must remain complete\n{report}"
@@ -980,9 +1013,10 @@ fn backend_report_preserves_direct_aggregate_state_result_mapping() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permissions: 18")
-            && report.contains("permission realizations: 18 (complete)")
+        report.contains("permissions: 20")
+            && report.contains("permission realizations: 20 (complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the aggregate-result permission ledger must remain complete\n{report}"
