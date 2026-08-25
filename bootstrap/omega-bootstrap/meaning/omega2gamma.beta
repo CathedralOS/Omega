@@ -209,22 +209,6 @@ proc is_pathchar(c) {
     state yes { return 1 }
 }
 
-; do the dotted field paths at SRC offsets o1 and o2 match? (name_eq2 over path chars)
-proc name_eq_path(o1, o2) {
-    let i = 0
-    state loop {
-        let c1 = byte[2097152 + o1 + i]
-        let c2 = byte[2097152 + o2 + i]
-        to c1end when (is_pathchar(c1) == 0)
-        to mism when (is_pathchar(c2) == 0)
-        to mism when (c1 != c2)
-        i = i + 1
-        to loop
-    }
-    state c1end { to mism when (is_pathchar(c2) == 1)  return 1 }
-    state mism { return 0 }
-}
-
 ; advance CUR past a dotted path (idchars and '.'), returning the offset of its LAST segment.
 proc skip_path() {
     let seg = word[2097144]
@@ -1980,49 +1964,6 @@ proc do_list_write(arr) {              ; CUR at '='; bind the array slot to a ge
     state esemi { adv()  return 1 }
 }
 
-proc do_string_write(arr) {            ; CUR at the opening '"' (caller verified)
-    adv()
-    let n = 0
-    state srd {
-        to send when (cbyte() == '"')
-        to seof when (word[2097144] >= word[2097136])
-        byte[6900000 + n] = cbyte()
-        n = n + 1
-        adv()
-        to srd
-    }
-    state seof { emit("E2G-UNSUPPORTED-unterminated-string ")  return 0 }
-    state send {
-        adv()                          ; consume closing '"'
-        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
-        let k = 0
-        to sopen
-    }
-    state sopen {                      ; (Cons b0 (Cons b1 .. Nil)) — first byte is the list head
-        to sclose when (k == n)
-        emit("(Cons ")  emit_dec(byte[6900000 + k])  write_byte(' ')
-        k = k + 1
-        to sopen
-    }
-    state sclose { emit("Nil")  let j = 0  to sparens }
-    state sparens { to sfin when (j == n)  write_byte(')')  j = j + 1  to sparens }
-    state sfin {
-        write_byte(' ')
-        word[6440000 + arr * 8] = 1    ; A_KIND = t
-        word[6450000 + arr * 8] = word[6000016]
-        word[6000016] = word[6000016] + 1
-        to ssemi
-    }
-    state ssemi {
-        to sdone when (word[2097144] >= word[2097136])
-        to seat when (cbyte() == ';')
-        adv()
-        to ssemi
-    }
-    state seat { adv()  return 1 }
-    state sdone { return 1 }
-}
-
 proc hoist_calls() {
     let dep = 0
     let rst = word[2097144]            ; the RHS start: rescan from here after every hoist
@@ -3393,7 +3334,13 @@ proc do_array_write(arr) {
         to weq
     }
     state wbad { emit("E2G-UNSUPPORTED-field-of-scalar-array ")  to weq0 }
-    state weq0 { to wskip when (cbyte() == ';')  to wend0 when (word[2097144] >= word[2097136])  adv()  to weq0 }
+    state weq0 {
+        to wskip when (cbyte() == ';')
+        to wend0 when (cbyte() == '}')
+        to wend0 when (word[2097144] >= word[2097136])
+        adv()
+        to weq0
+    }
     state wskip { adv()  return 0 }
     state wend0 { return 0 }
     state weq { to weat when (cbyte() == '=')  adv()  to weq }
