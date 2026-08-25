@@ -14,9 +14,11 @@ service used by producers and artifact verifiers throughout the build lattice.
 Its canonical owner is `bootstrap/assurance/proof-kernel/`. Beta, Gamma, and
 executable reference implementations live under `implementations/`; untrusted automation,
 fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
-The
-product-specific `psi-proof-kernel` remains under Psi semantics; it checks Psi
-judgments and is not this generic bootstrap derivation checker.
+The currently named product crate `psi-proof-kernel` remains under Psi semantics;
+it checks Psi judgments and is not this generic bootstrap derivation checker.
+Its product-local rename is tracked in
+[`TASKS.md`](../../../TASKS.md) and does not move it into the bootstrap
+assurance owner.
 
 ```text
 Alpha → Beta → Gamma → Delta                   language spine

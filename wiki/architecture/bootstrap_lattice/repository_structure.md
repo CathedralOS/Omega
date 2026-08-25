@@ -101,9 +101,11 @@ suffix marks an on-ramp, not every source directory.
 - `compiler/source-checkpoints/` owns exact deterministic product-source
   closures and distinct provisional `Ωself` censuses.
 - `apps/omega-compiler/` owns the hosted product compiler entrypoint.
-- The Rust producer's `psi-proof-kernel` checks Psi judgments and admissions;
-  it is distinct from the bootstrap derivation checker under
-  `bootstrap/assurance/`.
+- The Rust producer's currently named `psi-proof-kernel` checks product-local
+  Psi judgments and admissions; it is distinct from the bootstrap derivation
+  checker under `bootstrap/assurance/`. Its pending rename to a product-local
+  admission/checking name is ordinary on-ramp work in
+  [`TASKS.md`](../../../TASKS.md), not bootstrap-lattice work.
 - Shared corpora belong at the narrowest common owner. A fixture used by several
   rungs or assurance seams belongs in `bootstrap/corpus/`, not in whichever gate
   happened to be written first.

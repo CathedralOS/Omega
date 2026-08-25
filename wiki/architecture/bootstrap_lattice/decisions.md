@@ -143,6 +143,13 @@ artifacts, while two incorrect compilers may agree. Requiring byte identity
 between implementations unnecessarily creates a second compiler to maintain and
 conflates reproducibility with correctness.
 
+Applied across the full Alpha-to-production-Omega chain, this directly answers
+the source-correspondence question DDC would otherwise be introduced to ask,
+and answers it independently at every edge. DDC therefore has no residual
+bootstrap or release role. A maintained Rust Omega compiler can still provide
+useful differential tests, but that is ordinary bug finding rather than a
+second provenance construction.
+
 The current `bc` cold start no longer passes through
 `bootstrap/onramps/beta-rust/`. An Alpha-written compiler accepts the exact
 pinned `bc.beta` surface,
