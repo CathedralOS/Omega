@@ -274,8 +274,15 @@ actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
 - [ ] Price a closed payload-bearing-sum tranche as the next checked-IR
-  facility unless a newer product checkpoint changes the measured order. The
-  first slice may use unnumbered pure sums, declaration-order case identity with
+  facility unless a newer product checkpoint changes the measured order. Its
+  versioned ownership and byte contracts are now fixed as
+  [`OMGRSW3`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md)
+  → `OMGLOW6`/
+  [`CKIR5`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
+  →
+  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md);
+  implementation and all required evidence remain open. The first slice uses
+  unnumbered pure sums, declaration-order case identity with
   the first case at tag zero, payload-free and payload-bearing cases,
   recursively copyable payloads through the provisional four-field ceiling,
   construction, Copy/Call arguments, tag dispatch, and payload binding. Its

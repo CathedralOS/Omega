@@ -292,6 +292,15 @@ language, generation, or architectural role; new documentation and work use
   calls, while version cross-pairs, receiver-shape/address mutations, resources,
   result, and exact ELF remain responsibility-local. This closes the selected
   same-module tranche, not distinct-module visibility or final `Ωself` retention.
+- [`compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md)
+  and
+  [`compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
+  freeze the next pure-sum ownership and byte contracts: OMGRSW3 carries exact
+  sum/case/payload identities, OMGLOW6 lowers them, and CKIR5 represents runtime
+  case construction plus exhaustive selected-edge payload binding without
+  reading inactive payloads or claiming a public Omega ABI. Implementation,
+  native/self/Rust-free gates, and the corresponding OMGRFN7 refinement remain
+  open; these documents are not a closure claim.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact
