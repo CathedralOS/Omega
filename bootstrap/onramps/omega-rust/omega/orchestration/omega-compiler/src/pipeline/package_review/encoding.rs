@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 38;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 39;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -631,7 +631,7 @@ fn encode_domain_shape(
         None => encoder.byte(0),
         Some(atoms) => {
             encoder.byte(1);
-            encoder.sequence(atoms, encode_nominal)?;
+            encoder.sequence(atoms, encode_domain_alias_atom)?;
         }
     }
     match shape.classification {
@@ -642,6 +642,28 @@ fn encode_domain_shape(
         &shape.establishment_routes,
         encode_domain_establishment_route,
     )
+}
+
+fn encode_domain_alias_atom(
+    encoder: &mut Encoder,
+    atom: &PackageReviewDomainAliasAtom,
+) -> Result<(), PackageReviewEncodingError> {
+    match atom {
+        PackageReviewDomainAliasAtom::Declared(identity) => {
+            encoder.byte(0);
+            encode_nominal(encoder, identity)
+        }
+        PackageReviewDomainAliasAtom::Carry(permission) => {
+            encoder.byte(1);
+            encoder.byte(match permission {
+                psi_language_semantics::CarryPermission::AcrossSuspend => 0,
+                psi_language_semantics::CarryPermission::AnyCpu => 1,
+                psi_language_semantics::CarryPermission::AnyThread => 2,
+                psi_language_semantics::CarryPermission::MovableAddress => 3,
+            });
+            Ok(())
+        }
+    }
 }
 
 fn encode_domain_establishment_route(
@@ -1250,8 +1272,7 @@ fn encode_nominal(
             encoder.byte(1);
             encoder.fixed_bytes(&source.digest());
         }
-        PackageReviewNominalOwner::ToolchainUnbound => encoder.byte(2),
-        PackageReviewNominalOwner::Unresolved => encoder.byte(3),
+        PackageReviewNominalOwner::Unresolved => encoder.byte(2),
     }
     encoder.string(&identity.path)
 }

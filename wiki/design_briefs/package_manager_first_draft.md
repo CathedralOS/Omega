@@ -396,7 +396,7 @@ reconstructs them from reduced nominal identity. Provider candidate derivation
 captures a compiler-internal
 sidecar beside each semantic plan: exact schema and optional nominal-provider
 symbols, plus the exact requirement and realizing machine for every external or
-checked-adapter row. Review v38 encodes those declarations as exact
+checked-adapter row. Review v39 encodes those declarations as exact
 package-qualified nominal identities; readable plan and overload strings remain
 operational/audit data. Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
@@ -445,14 +445,25 @@ that supplies package provenance. Transparent aliases recursively flatten to
 sorted, deduplicated package-qualified atomic domains. Authored toolchain
 nominals bind a canonical toolchain-relative source path plus exact source-byte
 commitment in review evidence; this records semantic origin without making
-producer pedigree authoritative. Compiler carry aliases expand to explicit
-toolchain-unbound atoms until their exact compiler-owned semantic subject and
-obligation origin land. Predicate-body presence and the currently representable
+producer pedigree authoritative. Compiler carry aliases expand to closed
+`CarryPermission` atoms in a distinct tagged lane, not fabricated nominal
+declarations. Only compiler-reserved unresolved constituents enter that lane;
+a valid package declaration remains package-owned regardless of a resembling
+diagnostic path. Whole compiler/toolchain commitment remains separate.
+Predicate-body presence and the currently representable
 structural expression/membership facts retain the domain carrier, package-qualified
 members/domains, and canonical fact ordering. Each fact joins its exact typed
 handle to one checked definition row and one checked ownership record; nested
 members additionally require exact fact-keyed dependency places. Missing,
 duplicate, wrong-origin, private-domain, and member-spoofed evidence rejects.
+Arithmetic domains and aggregate carry policy are already closed compiler enums;
+their diagnostic labels are not package authority. The next source-free carrier
+belongs in typed trees and distinguishes carry constraints, value domains such
+as `Finite`, and `OmegaLayout` with exact schema-symbol identity and a closed
+grammar. Package projection rejects legacy flattened layout names, residual
+unevaluated const calls, unsupported index sentinels, and missing checked index
+selections rather than committing fallback strings. This remains an internal
+checked-compilation join, not a reason for nominal Chi.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
@@ -896,7 +907,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v38 bytes cannot be promoted merely because the future artifact reuses
+review-v39 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

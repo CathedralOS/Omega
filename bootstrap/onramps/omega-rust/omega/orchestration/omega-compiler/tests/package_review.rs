@@ -5,7 +5,7 @@ use omega_compiler::{
     PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
-    PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
+    PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 38);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 39);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -3266,14 +3266,18 @@ machine build(builder: &mut Build) { }
     assert_eq!(
         usable_atoms
             .iter()
-            .map(|atom| atom.path())
+            .map(|atom| match atom {
+                PackageReviewDomainAliasAtom::Declared(identity) => identity.path(),
+                PackageReviewDomainAliasAtom::Carry(_) => panic!("ordinary domain became carry"),
+            })
             .collect::<Vec<_>>(),
         ["Socket::Authenticated", "Socket::Connected"]
     );
     assert!(usable_atoms.iter().all(|atom| {
         matches!(
-            atom.owner(),
-            PackageReviewNominalOwner::Package(identity) if identity == package_identity()
+            atom,
+            PackageReviewDomainAliasAtom::Declared(identity)
+                if identity.owner() == PackageReviewNominalOwner::Package(package_identity())
         )
     }));
 
@@ -3285,11 +3289,10 @@ machine build(builder: &mut Build) { }
     let portable_atoms = portable
         .alias_expansion()
         .expect("portable alias expansion");
-    assert_eq!(portable_atoms.len(), 4);
-    assert!(portable_atoms.iter().all(|atom| {
-        matches!(atom.owner(), PackageReviewNominalOwner::ToolchainUnbound)
-            && atom.path().starts_with("Carry::")
-    }));
+    assert_eq!(
+        portable_atoms,
+        &psi_language_semantics::CarryPermission::ALL.map(PackageReviewDomainAliasAtom::Carry)
+    );
 
     assert_eq!(
         first_review
