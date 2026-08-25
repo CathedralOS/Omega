@@ -967,6 +967,27 @@ fn canonical_build_roots_reject_unrooted_and_noncanonical_paths() {
             r#"    let path: &[u8] in Path = builder.output.resolve("C:input.txt");"#,
             "absolute or host-specific spelling",
         ),
+        (
+            "source-handoff",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    builder.output.include_source(path);"#,
+            "belongs to a different build root",
+        ),
+        (
+            "fake-handoff",
+            r#"    let path: &[u8] in Path = self.fake.resolve("generated.omg");
+    builder.output.include_source(path);"#,
+            "requires an Output-rooted path",
+        ),
+        (
+            "duplicate-handoff",
+            r#"    let path: &[u8] in Path = builder.output.resolve("generated.omg");
+    self.descriptor = self.filesystem.create(path, 438);
+    self.descriptor = self.filesystem.close(self.descriptor);
+    builder.output.include_source(path);
+    builder.output.include_source(path);"#,
+            "names the same path more than once",
+        ),
     ];
 
     for (label, body, expected) in cases {
@@ -1051,6 +1072,84 @@ fn canonical_build_roots_reject_host_absolute_path_results() {
         );
         let _ = std::fs::remove_dir_all(&project);
     }
+}
+
+#[test]
+fn generated_source_handoff_requires_custody_and_reaches_the_final_pass_gate() {
+    let (project, profile) = rooted_build_probe_project(
+        "included-source",
+        r#"    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Generated {}\n");
+    self.descriptor = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+
+    let unsponsored = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("generated source cannot leave an uncaptured output root");
+    let unsponsored = unsponsored
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        unsponsored.contains("without sponsored staged-output custody"),
+        "{unsponsored}"
+    );
+
+    let session = project.join("sponsored-review");
+    std::fs::create_dir(&session).expect("create generated-source review session");
+    let session = std::fs::canonicalize(session).expect("canonicalize review session");
+    let sponsor = FilesystemSponsor::new(&session).expect("create generated-source sponsor");
+    let build_dir = session.join("output");
+    let bound = sponsor
+        .bind_path(&build_dir)
+        .expect("bind generated output");
+    let prepared = sponsor
+        .prepare_create_directory(&bound)
+        .expect("prepare generated output");
+    std::fs::create_dir(&build_dir).expect("create generated output");
+    prepared.commit().expect("commit generated output");
+
+    let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
+    let package_inputs = PackageCompilationInputs::new(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "generated-source",
+            project.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("single-package generated-source input");
+    let diagnostics = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.join("main.omg"),
+        &build_dir,
+        Some(profile.target_name()),
+        package_inputs,
+        sponsor,
+    )
+    .expect_err("captured generated source must stop at the pending final-pass gate");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("1 captured generated source(s)"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("generated.omg"), "{rendered}");
+    assert!(
+        rendered.contains("frozen final compilation pass is not implemented yet"),
+        "{rendered}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(build_dir.join("generated.omg")).unwrap(),
+        "data Generated {}\n"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
 }
 
 #[test]

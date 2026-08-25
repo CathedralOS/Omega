@@ -402,6 +402,9 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
+        if self.try_build_output_include_source_statement(call, frame)? {
+            return Ok(Value::Unit);
+        }
 
         // Host boundary call? (e.g. self.console.exit_process(70))
         if let Some(value) = self.try_host_call(call, frame)? {

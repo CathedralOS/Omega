@@ -56,6 +56,31 @@ pub struct BuildStagedOutputTree {
     entries: Vec<RetainedStagedOutputEntry>,
 }
 
+/// Exact regular Omega source retained from one explicit successful
+/// `BuildOutput::include_source` handoff. This value is produced only by
+/// matching the interpreter's Output-rooted coordinate against sponsored
+/// staged-tree custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BuildStagedSource {
+    relative_path: Vec<u8>,
+    bytes: Arc<[u8]>,
+    digest: [u8; 32],
+}
+
+impl BuildStagedSource {
+    pub(crate) fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub(crate) const fn digest(&self) -> [u8; 32] {
+        self.digest
+    }
+}
+
 impl BuildStagedOutputTree {
     pub const fn commitment(&self) -> BuildStagedOutputTreeCommitment {
         self.commitment
@@ -162,6 +187,54 @@ struct HostFileIdentity;
 
 pub(super) fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
+}
+
+pub(super) fn select_included_sources(
+    tree: &BuildStagedOutputTree,
+    relative_paths: &[Vec<u8>],
+) -> Result<Vec<BuildStagedSource>, Vec<Diagnostic>> {
+    let mut selected = Vec::with_capacity(relative_paths.len());
+    for relative_path in relative_paths {
+        let is_omega_source = relative_path
+            .rsplit(|byte| *byte == b'/')
+            .next()
+            .is_some_and(|name| name.ends_with(b".omg") && name.len() > 4);
+        if !is_omega_source {
+            return Err(diagnostics(format!(
+                "included build source `{}` must name a regular .omg file",
+                String::from_utf8_lossy(relative_path)
+            )));
+        }
+        let Some(entry) = tree
+            .entries
+            .iter()
+            .find(|entry| entry.relative_path == *relative_path)
+        else {
+            return Err(diagnostics(format!(
+                "included build source `{}` is absent from the captured staged-output tree",
+                String::from_utf8_lossy(relative_path)
+            )));
+        };
+        let RetainedStagedOutputEntryKind::File { bytes, executable } = &entry.kind else {
+            return Err(diagnostics(format!(
+                "included build source `{}` is not a regular file",
+                String::from_utf8_lossy(relative_path)
+            )));
+        };
+        if *executable {
+            return Err(diagnostics(format!(
+                "included build source `{}` must not be executable",
+                String::from_utf8_lossy(relative_path)
+            )));
+        }
+        let digest: [u8; 32] = Sha256::digest(bytes.as_ref()).into();
+        selected.push(BuildStagedSource {
+            relative_path: relative_path.clone(),
+            bytes: Arc::clone(bytes),
+            digest,
+        });
+    }
+    Ok(selected)
 }
 
 pub(super) fn capture(
@@ -1519,6 +1592,33 @@ mod tests {
         assert_eq!(first_commitment.entry_count(), 3);
         assert_eq!(first_commitment.file_bytes(), 7);
         assert_ne!(first_commitment.digest(), changed_commitment.digest());
+    }
+
+    #[test]
+    fn included_sources_require_captured_regular_non_executable_omega_files() {
+        let fixture = Fixture::new("included-source");
+        fixture.create_file(Path::new("generated.omg"), b"data Generated {}\n");
+        fixture.create_file(Path::new("artifact.bin"), b"bytes");
+        fixture.create_directory(Path::new("directory.omg"));
+        let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
+
+        let selected = select_included_sources(&retained, &[b"generated.omg".to_vec()]).unwrap();
+        let [selected] = selected.as_slice() else {
+            panic!("one explicit handoff retains one source")
+        };
+        assert_eq!(selected.relative_path(), b"generated.omg");
+        assert_eq!(selected.bytes(), b"data Generated {}\n");
+        assert_eq!(
+            selected.digest(),
+            <[u8; 32]>::from(Sha256::digest(b"data Generated {}\n"))
+        );
+
+        for rejected in ["missing.omg", "artifact.bin", "directory.omg"] {
+            assert!(
+                select_included_sources(&retained, &[rejected.as_bytes().to_vec()]).is_err(),
+                "{rejected} must not enter generated-source custody"
+            );
+        }
     }
 
     #[cfg(unix)]

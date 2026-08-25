@@ -28,6 +28,7 @@ impl<'program> Evaluator<'program> {
             virtual_errno: 0,
             real_fs: None,
             rooted_build_paths_required: false,
+            build_included_sources: Vec::new(),
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
             filesystem_operation_attempts: Vec::new(),

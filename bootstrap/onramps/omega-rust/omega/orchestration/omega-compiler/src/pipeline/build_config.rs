@@ -39,7 +39,9 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 
-use super::build_staged_output::{BuildStagedOutputTree, capture, empty};
+use super::build_staged_output::{
+    BuildStagedOutputTree, BuildStagedSource, capture, empty, select_included_sources,
+};
 
 const BUILD_MACHINE: &str = "build";
 const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
@@ -688,6 +690,26 @@ pub(crate) struct ComputedBuildConfig {
     pub evaluation_usage: Option<BuildEvaluationUsage>,
     pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
+    pub generated_sources: Vec<BuildStagedSource>,
+}
+
+pub(crate) fn reject_uncompiled_generated_sources(
+    computed: &ComputedBuildConfig,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(first) = computed.generated_sources.first() else {
+        return Ok(());
+    };
+    let digest = first.digest();
+    Err(vec![Diagnostic::error(format!(
+        "build handed off {} captured generated source(s), beginning with `{}` ({} bytes, sha256 {:02x}{:02x}{:02x}{:02x}), but the frozen final compilation pass is not implemented yet",
+        computed.generated_sources.len(),
+        String::from_utf8_lossy(first.relative_path()),
+        first.bytes().len(),
+        digest[0],
+        digest[1],
+        digest[2],
+        digest[3],
+    ))])
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1460,6 +1482,7 @@ pub(crate) fn compute_build_config(
             evaluation_usage: None,
             observation_summary: None,
             selected_build_machine_symbol: None,
+            generated_sources: Vec::new(),
         });
     };
     if let Some(second) = build_machines.next() {
@@ -1826,6 +1849,20 @@ pub(crate) fn compute_build_config(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let included_source_paths = measured
+        .observations()
+        .build_included_sources()
+        .iter()
+        .map(|source| {
+            if source.root() != BUILD_OUTPUT_ROOT_IDENTITY {
+                return Err(Diagnostic::error(format!(
+                    "build-time evaluation of `{machine_name}` handed off a generated source outside the compiler-issued Output root"
+                )));
+            }
+            Ok(source.relative_path().to_vec())
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -1843,6 +1880,16 @@ pub(crate) fn compute_build_config(
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
     let staged_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
+    let generated_sources = if included_source_paths.is_empty() {
+        Vec::new()
+    } else {
+        let tree = staged_output_tree.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` handed off generated source without sponsored staged-output custody"
+            ))]
+        })?;
+        select_included_sources(tree, &included_source_paths)?
+    };
     Ok(ComputedBuildConfig {
         config,
         evaluation_usage: Some(BuildEvaluationUsage {
@@ -1860,6 +1907,7 @@ pub(crate) fn compute_build_config(
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
+        generated_sources,
     })
 }
 

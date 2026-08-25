@@ -473,6 +473,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                 let mut usage = evaluator.usage;
                 let observations = EvaluationObservations::from_filesystem_operation_attempts(
                     std::mem::take(&mut evaluator.filesystem_operation_attempts),
+                    std::mem::take(&mut evaluator.build_included_sources),
                 );
                 match result {
                     Ok(values) => {
@@ -851,6 +852,10 @@ struct Evaluator<'program> {
     /// mode path-taking host operations require interpreter-retained rooted
     /// provenance; bare byte spellings cannot select a grant root.
     rooted_build_paths_required: bool,
+    /// Explicit Output-rooted source coordinates recorded by the exact
+    /// toolchain handoff machine. Orchestration validates these against its
+    /// captured sponsored tree before using any bytes.
+    build_included_sources: Vec<crate::BuildIncludedSource>,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -896,7 +901,7 @@ struct Evaluator<'program> {
 mod boundary_console;
 #[path = "evaluator/build_paths.rs"]
 mod build_paths;
-use build_paths::ROOTED_BUILD_PATH_TYPE;
+use build_paths::rooted_build_path_parts;
 #[path = "evaluator/casts_and_recasts.rs"]
 mod casts_and_recasts;
 #[path = "evaluator/execution.rs"]
