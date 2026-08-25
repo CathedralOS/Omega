@@ -346,8 +346,8 @@ Every row still resolves by the same measured whole-bootstrap cost test; none
 is a ruling merely because it appears in this table.
 
 The current closed cost evidence reaches selected finite calls, constant
-aggregates, runtime named records, and same-module direct-field receivers
-through CKIR4.
+aggregates, runtime named records, same-module direct-field receivers through
+CKIR4, and payload-bearing pure sums through CKIR5.
 Each selected slice has native/self-built production, representative Rust-free
 meaning, independent result/artifact reconstruction, resource and mutation
 teeth, and responsibility-local lower-rooted composition. This establishes
@@ -365,11 +365,12 @@ resolution, general OMGLOW6 construction/Copy/Call/dispatch lowering, exact
 CKIR5 publication, independent CKIR5 checking and meaning, and conservative
 CKIR5-to-ELF emission all pass native/self result-70 and adjacent resource
 controls. OMGRFN7 outer custody, independent source→OMGRSW3 reconstruction,
-and the witness→CKIR5 declaration/layout/intrinsic join are executable; the
-remaining lower-rooted R4/R5 joins and same-frame
-composition are still open. This replaces the intuition-only estimate with a
-measured bounded cost, but does not retain payload sums in final `Ωself` before
-the complete product-source/profile join.
+the witness→CKIR5 declaration/layout/intrinsic join are executable. Exact
+source→CKIR5 lowering, artifact-free source result, CKIR5 structure/result,
+exact ELF reconstruction, and their immutable same-frame composition close the
+remaining OMGRFN7 responsibilities. This replaces the intuition-only estimate
+with a measured bounded cost, but does not retain payload sums in final
+`Ωself` before the complete product-source/profile join.
 
 Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).

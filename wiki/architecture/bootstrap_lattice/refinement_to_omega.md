@@ -46,7 +46,12 @@ independent low-rung proof kernel checks, not by trusting the Rust producer.
    delta's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates
    results; the climb is from "results checked" to "compilation obligations discharged."
 
-## Execution order (long view)
+## Capability progression (not a second work queue)
+
+These are reusable assurance dependencies, not language rungs or an alternate
+bootstrap schedule. The live order and concrete acceptance conditions remain in
+[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md); a capability below becomes
+active only when a named compiler-edge task needs it.
 
 1. **Conditional terms** in the meaning language (unblocks: match-arm meanings, buffer segments, zz/monus
    trip guards). Kernel impact: likely a constructor family + evaluator branches; certs stay refl where

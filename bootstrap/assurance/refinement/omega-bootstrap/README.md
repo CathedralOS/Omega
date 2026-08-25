@@ -125,8 +125,13 @@ keeping successor components opaque; responsibility 2 independently
 reconstructs the pure-sum OMGRSW3 ownership, nominal-prefix, copy, and
 direct-field relations; responsibility 3 independently joins OMGRSW3 to CKIR5
 declarations, private layout, opcode-14 envelopes, exhaustive case arms, and
-selected payload references. Responsibilities 4/5 and immutable same-frame
-composition remain open.
+selected payload references. Responsibility 4 separately reconstructs exact
+source→CKIR5 lowering and artifact-free source result 70. Responsibility 5
+separately validates CKIR5 structure/result and reconstructs its exact ELF.
+All five consume one immutable frame native/self with phase opacity,
+cross-pairs, mutations, and resource teeth. This closes the selected bounded
+payload-sum relation, not general payload-sum coverage or final `Ωself`
+admission.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

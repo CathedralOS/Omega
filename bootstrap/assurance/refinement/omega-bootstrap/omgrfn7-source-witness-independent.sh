@@ -46,6 +46,42 @@ ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 awk '1' "$CORE" "$CHECKER" > "$T/core.beta"
 printf '%s\n' 'proc main() { return omgrfn5_r2_check() }' > "$T/main.beta"
 awk '1' "$T/core.beta" "$T/main.beta" > "$T/check.beta"
+python3 -B - "$T/check.beta" "$T/check-pruned.beta" <<'PY'
+from pathlib import Path
+import re, sys
+
+source = Path(sys.argv[1]).read_text(encoding="ascii")
+procedures = {}
+order = []
+for match in re.finditer(r"(?m)^proc\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{", source):
+    depth = 1
+    cursor = match.end()
+    while depth:
+        depth += (source[cursor] == "{") - (source[cursor] == "}")
+        cursor += 1
+    name = match.group(1)
+    if name in procedures:
+        raise SystemExit("duplicate procedure " + name)
+    procedures[name] = source[match.start():cursor].rstrip() + "\n"
+    order.append(name)
+reachable = set()
+pending = ["main"]
+while pending:
+    name = pending.pop()
+    if name in reachable:
+        continue
+    if name not in procedures:
+        raise SystemExit("missing reachable procedure " + name)
+    reachable.add(name)
+    for called in re.findall(r"\b([A-Za-z_]\w*)\s*\(", procedures[name]):
+        if called in procedures and called not in reachable:
+            pending.append(called)
+Path(sys.argv[2]).write_text(
+    "\n".join(procedures[name] for name in order if name in reachable),
+    encoding="ascii",
+)
+PY
+mv "$T/check-pruned.beta" "$T/check.beta"
 PROCEDURES=$(awk '/^proc / { n += 1 } END { print n + 0 }' "$T/check.beta")
 [ "$PROCEDURES" -le 128 ] || { echo "OMGRFN7 R2 procedures $PROCEDURES" >&2; exit 1; }
 MAX_LOCALS=$(python3 - "$T/check.beta" <<'PY'

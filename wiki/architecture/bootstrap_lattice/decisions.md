@@ -2,9 +2,10 @@
 
 [Lattice overview](bootstrap_lattice.md)
 
-The overview decides the *principles* (trust-by-checking; meaning = reference
-interpreter; checked refinement across every compiler edge; Rust exits every
-required trust and bootstrap role) and deliberately leaves a set of
+The overview decides the *principles* (trust-by-checking; meaning follows each
+rung's canonical written or evaluator route; checked refinement crosses every
+compiler edge; Rust exits every required trust and bootstrap role) and
+deliberately leaves a set of
 **open questions**. This document resolves them into standing decisions and an
 execution order. It is the executive layer on top of the design: when the
 overview says "emergent / to be decided," the calls here are the decision.

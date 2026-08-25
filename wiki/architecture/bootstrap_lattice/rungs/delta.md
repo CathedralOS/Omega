@@ -20,7 +20,8 @@ mutable storage, state machines, arenas, effects, and boundary declarations,
 but none of those mechanisms is admitted to v1 merely because it exists today.
 Delta remains an independently specified, deterministic compiler-host language;
 it should resemble Omega where consistency is cheap, but shared spelling does
-not make it an Omega subset. It may be slow and conservatively lowered.
+not make it an Omega subset. Delta compiler artifacts may be slow and
+conservatively lowered; those are artifact properties, not language features.
 
 Delta v1 is designed around the complete `omega-bootstrap` source closure plus
 explicit coherence, safety, robustness, and maintainability arguments. D0, the

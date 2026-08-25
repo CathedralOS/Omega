@@ -61,6 +61,12 @@ contains are still complete. Only the optional bracketed edge is an Omega
 self-rebuild. Detailed rationale and the feature-disposition procedure live in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
+Use the role names precisely in tasks and status reports. `omega-bootstrap` is
+the deliberately input-incomplete bridge compiler, not an “Omega 0” generation.
+The first `omega` it produces is already the full-spec production compiler; a
+later rebuild changes the quality of that compiler's executable, not its source
+language, implementation obligations, or generation number.
+
 Guardrails for this queue:
 
 - The proof kernel is cross-cutting assurance, with Beta and Gamma
@@ -262,8 +268,8 @@ beside the linked contracts:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-| checked lowering and composition | closed through CKIR4 for selected calls, records, and direct-field receivers; the selected pure-sum OMGLOW6→CKIR5 producer and conservative CKIR5→ELF backend now pass native/self, independent-meaning, result-70, and 251/252 gates; composed lower-rooted closure remains open | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5_BACKEND.md), [`OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md) |
-| lower-rooted artifact reconstruction | closed through the CKIR4 direct-field successor; OMGRFN7 R1 exact outer/source custody, R2 independent source→OMGRSW3 reconstruction, and R3 independent OMGRSW3→CKIR5 declaration/layout/intrinsic joins are gated, while R4/R5 and same-frame composition remain open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
+| checked lowering and composition | closed through CKIR4 for selected calls, records, and direct-field receivers; the selected pure-sum OMGLOW6→CKIR5 producer and conservative CKIR5→ELF backend pass native/self, independent-meaning, result-70, 251/252, and composed lower-rooted gates | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5_BACKEND.md), [`OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md) |
+| lower-rooted artifact reconstruction | closed through the selected CKIR5 payload-sum successor: OMGRFN7 R1–R5 and their immutable result-70 same-frame composition are gated, with independent source resolution, lowering, source meaning, CKIR/result checking, and exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -275,19 +281,17 @@ language coverage or admission to final `Ωself`. Continue with capabilities
 actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
-- [ ] Complete the selected payload-bearing-sum tranche unless a newer product
-  checkpoint changes the measured order. Production, checking, meaning, and
-  conservative emission are landed through `OMGRSW3 → OMGLOW6/CKIR5`;
-  lower-rooted `OMGRFN7` responsibilities R1–R3 are landed. Close R4, R5, and
-  their immutable result-70 same-frame composition. The versioned
-  [`OMGRSW3`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md),
-  [`CKIR5`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md),
-  and
-  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md)
-  contracts own the admitted shape, exclusions, byte layout, resources, and
-  mutation matrix. Do not duplicate those details here. Closure measures the
-  bounded cost of a provisional `Ωself` candidate; it is not a final profile or
-  public-ABI ruling.
+- [ ] Implement boolean logical negation, the next smallest observed
+  checkpoint-000001 capability, as one complete vertical slice. The admitted
+  form is bool-only `!`: false becomes true and true becomes false; integer
+  truthiness and bitwise complement are excluded. Carry production and
+  independent checking, native/self execution, Rust-free meaning,
+  lower-rooted reconstruction, mutation/resource teeth, and immutable
+  composition together while preserving every frozen earlier byte format.
+  Keep the resolution-format version distinct from the private checked-IR
+  schema version, and reuse existing scratch/capacity where the current
+  lowerer is already at a carrier ceiling. This measures another provisional
+  `Ωself` candidate; it is not final profile admission.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

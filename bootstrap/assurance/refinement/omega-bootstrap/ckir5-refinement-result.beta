@@ -1,0 +1,699 @@
+; Lower-rooted CKIR5 selected-result evaluator.
+; Concatenate after omgrfn7-component-envelope-r5.beta and
+; ckir5-refinement-artifact.beta with the structure checker's main removed.
+; This suffix reuses only state independently reconstructed in the same process;
+; no conclusion or memory crosses between the result and ELF executables.
+
+proc ckir_runtime_load(type_id, address) {
+    state word_kind { to word_value when (ckir_type_byte(type_id, 4) == 2)  to byte_value }
+    state word_value {
+        return byte[9400000 + address]
+            + byte[9400000 + address + 1] * 256
+            + byte[9400000 + address + 2] * 65536
+            + byte[9400000 + address + 3] * 16777216
+    }
+    state byte_value { return byte[9400000 + address] }
+}
+
+proc ckir_runtime_store(type_id, address, value) {
+    state range {
+        to trap when (value < ckir_type_word(type_id, 16))
+        to trap when (value > ckir_type_word(type_id, 20))
+        to word_kind when (ckir_type_byte(type_id, 4) == 2)
+        byte[9400000 + address] = value
+        return 0
+    }
+    state word_kind {
+        byte[9400000 + address] = value % 256
+        byte[9400000 + address + 1] = (value / 256) % 256
+        byte[9400000 + address + 2] = (value / 65536) % 256
+        byte[9400000 + address + 3] = (value / 16777216) % 256
+        return 0
+    }
+    state trap { return 251 }
+}
+
+proc ckir_snapshot_type(type_id, source, relative) {
+    let kind = ckir_type_byte(type_id, 4)
+    let i = 0
+    let count = 0
+    let child = 0
+    let record = 0
+    let field = 0
+    let end = 0
+    let size = 0
+    let case_id = 0
+    let sum_id = 0
+    let tag = 0
+    state scalar { to compound when (kind > 3)  to scalar_copy }
+    state scalar_copy {
+        size = word[6000000 + type_id * 8]
+        to scalar_word when (size == 4)
+        byte[9600000 + relative] = byte[9400000 + source]
+        return 0
+    }
+    state scalar_word {
+        byte[9600000 + relative] = byte[9400000 + source]
+        byte[9600000 + relative + 1] = byte[9400000 + source + 1]
+        byte[9600000 + relative + 2] = byte[9400000 + source + 2]
+        byte[9600000 + relative + 3] = byte[9400000 + source + 3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  to sum_begin when (kind == 6)  to record_begin }
+    state array {
+        child = ckir_type_word(type_id, 8)
+        count = ckir_type_word(type_id, 12)
+        to array_loop
+    }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one {
+        size = word[6000000 + child * 8] * i
+        to bad when (ckir_snapshot_type(child, source + size, relative + size) != 0)
+        i = i + 1
+        to array_loop
+    }
+    state record_begin {
+        record = ckir_type_word(type_id, 8)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one {
+        child = ckir_field_word(field, 12)
+        size = word[6200000 + field * 8]
+        to bad when (ckir_snapshot_type(child, source + size, relative + size) != 0)
+        field = field + 1
+        to fields
+    }
+    state sum_begin {
+        sum_id = ckir_type_word(type_id, 8)
+        tag = byte[9400000 + source]
+            + byte[9400000 + source + 1] * 256
+            + byte[9400000 + source + 2] * 65536
+            + byte[9400000 + source + 3] * 16777216
+        to bad when (tag >= ckir_sum_word(sum_id, 12))
+        byte[9600000 + relative] = byte[9400000 + source]
+        byte[9600000 + relative + 1] = byte[9400000 + source + 1]
+        byte[9600000 + relative + 2] = byte[9400000 + source + 2]
+        byte[9600000 + relative + 3] = byte[9400000 + source + 3]
+        case_id = ckir_sum_word(sum_id, 8) + tag
+        field = ckir_case_word(case_id, 12)
+        end = field + ckir_case_word(case_id, 16)
+        to sum_fields
+    }
+    state sum_fields { to sum_field when (field < end) return 0 }
+    state sum_field {
+        child = ckir_payload_word(field, 12)
+        size = word[14100000 + sum_id * 8] + word[14000000 + field * 8]
+        to bad when (ckir_snapshot_type(child, source + size, relative + size) != 0)
+        field = field + 1
+        to sum_fields
+    }
+    state bad { return 251 }
+}
+
+proc ckir_commit_type(type_id, destination, relative) {
+    let kind = ckir_type_byte(type_id, 4)
+    let i = 0
+    let count = 0
+    let child = 0
+    let record = 0
+    let field = 0
+    let end = 0
+    let size = 0
+    let case_id = 0
+    let sum_id = 0
+    let tag = 0
+    state scalar { to compound when (kind > 3)  to scalar_copy }
+    state scalar_copy {
+        size = word[6000000 + type_id * 8]
+        to scalar_word when (size == 4)
+        byte[9400000 + destination] = byte[9600000 + relative]
+        return 0
+    }
+    state scalar_word {
+        byte[9400000 + destination] = byte[9600000 + relative]
+        byte[9400000 + destination + 1] = byte[9600000 + relative + 1]
+        byte[9400000 + destination + 2] = byte[9600000 + relative + 2]
+        byte[9400000 + destination + 3] = byte[9600000 + relative + 3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  to sum_begin when (kind == 6)  to record_begin }
+    state array { child = ckir_type_word(type_id, 8)  count = ckir_type_word(type_id, 12)  to array_loop }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one {
+        size = word[6000000 + child * 8] * i
+        to bad when (ckir_commit_type(child, destination + size, relative + size) != 0)
+        i = i + 1
+        to array_loop
+    }
+    state record_begin {
+        record = ckir_type_word(type_id, 8)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one {
+        child = ckir_field_word(field, 12)
+        size = word[6200000 + field * 8]
+        to bad when (ckir_commit_type(child, destination + size, relative + size) != 0)
+        field = field + 1
+        to fields
+    }
+    state sum_begin {
+        sum_id = ckir_type_word(type_id, 8)
+        tag = byte[9600000 + relative]
+            + byte[9600000 + relative + 1] * 256
+            + byte[9600000 + relative + 2] * 65536
+            + byte[9600000 + relative + 3] * 16777216
+        to bad when (tag >= ckir_sum_word(sum_id, 12))
+        byte[9400000 + destination] = byte[9600000 + relative]
+        byte[9400000 + destination + 1] = byte[9600000 + relative + 1]
+        byte[9400000 + destination + 2] = byte[9600000 + relative + 2]
+        byte[9400000 + destination + 3] = byte[9600000 + relative + 3]
+        case_id = ckir_sum_word(sum_id, 8) + tag
+        field = ckir_case_word(case_id, 12)
+        end = field + ckir_case_word(case_id, 16)
+        to sum_fields
+    }
+    state sum_fields { to sum_field when (field < end) return 0 }
+    state sum_field {
+        child = ckir_payload_word(field, 12)
+        size = word[14100000 + sum_id * 8] + word[14000000 + field * 8]
+        to bad when (ckir_commit_type(child, destination + size, relative + size) != 0)
+        field = field + 1
+        to sum_fields
+    }
+    state bad { return 251 }
+}
+
+proc ckir_runtime_copy(type_id, destination, source) {
+    state snapshot { to bad when (ckir_snapshot_type(type_id, source, 0) != 0)  to commit }
+    state commit { return ckir_commit_type(type_id, destination, 0) }
+    state bad { return 251 }
+}
+
+proc ckir_runtime_edge(target, start, count) {
+    let i = 0
+    let value_id = 0
+    let parameter_id = 0
+    let parameter_value = 0
+    let type_id = 0
+    state stage { to stage_one when (i < count)  to commit_begin }
+    state stage_one {
+        value_id = ckir_operand(start + i)
+        word[9700000 + i * 8] = word[8800000 + value_id * 8]
+        i = i + 1
+        to stage
+    }
+    state commit_begin { i = 0  to commit }
+    state commit { to commit_one when (i < count)  return 0 }
+    state commit_one {
+        parameter_id = ckir_block_word(target, 12) + i
+        parameter_value = ckir_bparam_word(parameter_id, 16)
+        type_id = ckir_bparam_word(parameter_id, 12)
+        to scalar when (ckir_type_byte(type_id, 4) < 4)
+        word[8800000 + parameter_value * 8] = word[9700000 + i * 8]
+        to next
+    }
+    state scalar {
+        to trap when (word[9700000 + i * 8] < ckir_type_word(type_id, 16))
+        to trap when (word[9700000 + i * 8] > ckir_type_word(type_id, 20))
+        word[8800000 + parameter_value * 8] = word[9700000 + i * 8]
+        to next
+    }
+    state next { i = i + 1  to commit }
+    state trap { return 251 }
+}
+
+; Selected case ID is passed through private cell 14550000 to keep Beta's
+; four-parameter procedure ceiling explicit.
+proc ckir_runtime_case_edge(target, start, count, subject) {
+    let i=0 let arg=0 let kind=0 let ref=0 let type_id=0 let value=0
+    let parameter=0 let parameter_value=0 let address=0 let case_id=word[14550000]
+    let sum_id=ckir_case_word(case_id,4)
+    state stage { to stage_one when (i<count) i=0 to commit }
+    state stage_one {
+        arg=start+i kind=ckir_arm_arg_byte(arg,4) ref=ckir_arm_arg_word(arg,8)
+        to ordinary when (kind==1) to payload
+    }
+    state ordinary { word[9700000+i*8]=word[8800000+ref*8] i=i+1 to stage }
+    state payload {
+        type_id=ckir_payload_word(ref,12)
+        address=subject+word[14100000+sum_id*8]+word[14000000+ref*8]
+        to payload_structural when (ckir_type_byte(type_id,4)>3)
+        word[9700000+i*8]=ckir_runtime_load(type_id,address)
+        i=i+1 to stage
+    }
+    state payload_structural {
+        value=word[14500000+arg*8]
+        to trap when (ckir_runtime_copy(type_id,value,address)!=0)
+        word[9700000+i*8]=value i=i+1 to stage
+    }
+    state commit { to commit_one when (i<count) return 0 }
+    state commit_one {
+        parameter=ckir_block_word(target,12)+i
+        parameter_value=ckir_bparam_word(parameter,16)
+        type_id=ckir_bparam_word(parameter,12)
+        to scalar when (ckir_type_byte(type_id,4)<4)
+        word[8800000+parameter_value*8]=word[9700000+i*8]
+        i=i+1 to commit
+    }
+    state scalar {
+        value=word[9700000+i*8]
+        to trap when (value<ckir_type_word(type_id,16))
+        to trap when (value>ckir_type_word(type_id,20))
+        word[8800000+parameter_value*8]=value i=i+1 to commit
+    }
+    state trap { return 251 }
+}
+
+; Give each constructor result and selected structural payload binding a
+; distinct, aligned evaluator address in its
+; owning machine's private 256-KiB window above the evaluator's owner/snapshot/
+; staging regions. The exact native frame displacement
+; is independently derived by the ELF suffix; this map exists only to model
+; completed immutable object identity and overlapping caller/callee lifetimes.
+proc ckir_assign_binding_objects(machine) {
+    let arm=0 let arg=0 let end=0 let type_id=0 let size=0
+    state arms { to arm_one when (arm<ckir_arm_count()) return 0 }
+    state arm_one {
+        to arm_next when (ckir_term_word(ckir_arm_word(arm,4),4)!=machine)
+        arg=ckir_arm_word(arm,16) end=arg+ckir_arm_word(arm,20) to args
+    }
+    state args { to arg_one when (arg<end) to arm_next }
+    state arg_one {
+        to arg_next when (ckir_arm_arg_byte(arg,4)!=2)
+        type_id=ckir_payload_word(ckir_arm_arg_word(arg,8),12)
+        to arg_next when (ckir_type_byte(type_id,4)<4)
+        word[14560008]=ckir_align(word[14560008],word[6100000+type_id*8])
+        size=word[6000000+type_id*8]
+        to anchor when (size==0) to bound
+    }
+    state anchor { size=1 to bound }
+    state bound {
+        to exhausted when (size>262144-word[14560008])
+        word[14500000+arg*8]=5000000+machine*262144+word[14560008]
+        word[14560008]=word[14560008]+size to arg_next
+    }
+    state arg_next { arg=arg+1 to args }
+    state arm_next { arm=arm+1 to arms }
+    state exhausted { return 252 }
+}
+
+proc ckir_assign_constructor_objects() {
+    let machine = 0
+    let operation = 0
+    let cursor = 0
+    let result = 0
+    let type_id = 0
+    let size = 0
+    let alignment = 0
+    state machines { to machine_one when (machine < ckir_count(3))  return 0 }
+    state machine_one { cursor = 1 word[14560008]=1 operation = 0  to operations }
+    state operations { to operation_one when (operation < ckir_count(9))  to machine_next }
+    state operation_one {
+        to constructor when (ckir_op_byte(operation, 12) == 13)
+        to constructor when (ckir_op_byte(operation, 12) == 14)
+        to operation_next
+    }
+    state constructor {
+        to operation_next when (ckir_op_word(operation, 4) != machine)
+        result = ckir_op_word(operation, 16)
+        type_id = ckir_op_word(operation, 20)
+        alignment = word[6100000 + type_id * 8]
+        cursor = ckir_align(cursor, alignment)
+        size = word[6000000 + type_id * 8]
+        to anchor when (size == 0)
+        to bound
+    }
+    state anchor { size = 1  to bound }
+    state bound { to exhausted when (size > 262144 - cursor)  cursor = cursor + size  to keep }
+    state keep {
+        word[13900000 + result * 8] = 5000000 + machine * 262144 + cursor - size
+        to operation_next
+    }
+    state operation_next { operation = operation + 1  to operations }
+    state machine_next { word[14560008]=cursor to bindings }
+    state bindings { to exhausted when(ckir_assign_binding_objects(machine)!=0) cursor=word[14560008] machine=machine+1 to machines }
+    state exhausted { return 252 }
+}
+
+proc ckir_interpret_selected() {
+    let entry = ckir_entry()
+    let block = 0
+    let op = 0
+    let op_end = 0
+    let opcode = 0
+    let result = 0
+    let result_type = 0
+    let start = 0
+    let a = 0
+    let b = 0
+    let value = 0
+    let address = 0
+    let base_type = 0
+    let field = 0
+    let target = 0
+    let count = 0
+    let steps = 0
+    let clear = 0
+    let owner_size = 0
+    let receiver = 0
+    let depth = 0
+    let callee = 0
+    let argument = 0
+    let parameter = 0
+    let j = 0
+    let case_id = 0
+    let tag = 0
+    let arm = 0
+    state library { to entry_begin when (entry != 4294967295)  return 0 }
+    state entry_begin {
+        owner_size = word[6000000 + ckir_record_word(ckir_machine_word(entry, 4), 4) * 8]
+        clear = 0
+        to clear_owner
+    }
+    state clear_owner { to clear_one when (clear < owner_size)  to entry_ready }
+    state clear_one {
+        byte[9400000 + clear] = 0
+        clear = clear + 1
+        to clear_owner
+    }
+    state entry_ready {
+        receiver = 0
+        depth = 0
+        block = ckir_machine_word(entry, 32)
+        to block_begin
+    }
+    state block_begin {
+        steps = steps + 1
+        to exhausted when (steps > 65536)
+        op = ckir_block_word(block, 20)
+        op_end = op + ckir_block_word(block, 24)
+        to operations
+    }
+    state operations { to operation when (op < op_end)  to terminator }
+    state operation {
+        opcode = ckir_op_byte(op, 12)
+        result = ckir_op_word(op, 16)
+        result_type = ckir_op_word(op, 20)
+        start = ckir_op_word(op, 24)
+        to constant when (opcode == 1)
+        to self_place when (opcode == 2)
+        to field_place when (opcode == 3)
+        to index_place when (opcode == 4)
+        to load when (opcode == 5)
+        to store when (opcode == 6)
+        to copy when (opcode == 7)
+        to add when (opcode == 8)
+        to call when (opcode == 10)
+        to copy_const when (opcode == 11)
+        to less_equal when (opcode == 12)
+        to constructor when (opcode == 13)
+        to case_constructor when (opcode == 14)
+        to less
+    }
+    state constant { word[8800000 + result * 8] = ckir_op_word(op, 32)  to op_next }
+    state self_place { word[9100000 + result * 8] = receiver  to op_next }
+    state field_place {
+        a = ckir_operand(start)
+        field = ckir_op_word(op, 32)
+        word[9100000 + result * 8] = word[9100000 + a * 8] + word[6200000 + field * 8]
+        to op_next
+    }
+    state index_place {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = word[8800000 + b * 8]
+        base_type = ckir_place_type(a)
+        to trap when (value >= ckir_type_word(base_type, 12))
+        word[9100000 + result * 8] = word[9100000 + a * 8]
+            + value * word[6000000 + ckir_type_word(base_type, 8) * 8]
+        to op_next
+    }
+    state load {
+        a = ckir_operand(start)
+        address = word[9100000 + a * 8]
+        word[8800000 + result * 8] = ckir_runtime_load(result_type, address)
+        to op_next
+    }
+    state store {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        address = word[9100000 + a * 8]
+        value = word[8800000 + b * 8]
+        to trap when (ckir_runtime_store(ckir_place_type(a), address, value) != 0)
+        to op_next
+    }
+    state copy {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        address = word[9100000 + a * 8]
+        base_type = ckir_op_word(op, 32)
+        to copy_value when (base_type == 1)
+        value = word[9100000 + b * 8]
+        to copy_ready
+    }
+    state copy_value { value = word[8800000 + b * 8] to copy_ready }
+    state copy_ready { base_type=ckir_place_type(a) to copy_typed }
+    state copy_typed { to trap when(ckir_runtime_copy(base_type,address,value)!=0) to op_next }
+    state copy_const {
+        a = ckir_operand(start)
+        address = word[9100000 + a * 8]
+        value = word[13400000 + ckir_op_word(op, 32) * 8]
+        count = word[6000000 + ckir_place_type(a) * 8]
+        clear = 0
+        to copy_const_loop
+    }
+    state copy_const_loop {
+        to op_next when (clear >= count)
+        byte[9400000 + address + clear] = byte[13700000 + value + clear]
+        clear = clear + 1
+        to copy_const_loop
+    }
+    state constructor {
+        address = word[13900000 + result * 8]
+        base_type = ckir_type_word(result_type, 8)
+        field = ckir_record_word(base_type, 8)
+        count = 0
+        to constructor_fields
+    }
+    state constructor_fields {
+        to constructor_field when (count < ckir_op_word(op, 28))
+        word[8800000 + result * 8] = address
+        to op_next
+    }
+    state constructor_field {
+        a = ckir_operand(start + count)
+        field = ckir_record_word(base_type, 8) + count
+        result_type = ckir_field_word(field, 12)
+        to constructor_structural when (ckir_type_byte(result_type, 4) > 3)
+        value = word[8800000 + a * 8]
+        to trap when (ckir_runtime_store(result_type, address + word[6200000 + field * 8], value) != 0)
+        to constructor_next
+    }
+    state constructor_structural {
+        value = word[8800000 + a * 8]
+        to trap when (ckir_runtime_copy(result_type, address + word[6200000 + field * 8], value) != 0)
+        to constructor_next
+    }
+    state constructor_next { count = count + 1  to constructor_fields }
+    state case_constructor {
+        address=word[13900000+result*8]
+        case_id=ckir_op_word(op,32)
+        base_type=ckir_case_word(case_id,4)
+        tag=ckir_case_word(case_id,8)
+        byte[9400000+address]=tag%256
+        byte[9400000+address+1]=(tag/256)%256
+        byte[9400000+address+2]=(tag/65536)%256
+        byte[9400000+address+3]=(tag/16777216)%256
+        count=0 to case_constructor_fields
+    }
+    state case_constructor_fields { to case_constructor_field when (count<ckir_op_word(op,28)) word[8800000+result*8]=word[13900000+result*8] to op_next }
+    state case_constructor_field {
+        a=ckir_operand(start+count)
+        field=ckir_case_word(case_id,12)+count
+        result_type=ckir_payload_word(field,12)
+        address=word[13900000+result*8]+word[14100000+base_type*8]+word[14000000+field*8]
+        to case_constructor_structural when (ckir_type_byte(result_type,4)>3)
+        value=word[8800000+a*8]
+        to trap when (ckir_runtime_store(result_type,address,value)!=0)
+        count=count+1 to case_constructor_fields
+    }
+    state case_constructor_structural {
+        value=word[8800000+a*8]
+        to trap when (ckir_runtime_copy(result_type,address,value)!=0)
+        count=count+1 to case_constructor_fields
+    }
+    state add {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = word[8800000 + a * 8] + word[8800000 + b * 8]
+        to byte_overflow when (ckir_type_byte(result_type, 4) == 1)
+        to word_overflow
+    }
+    state byte_overflow { to trap when (value > 255)  to add_range }
+    state word_overflow { to trap when (value > 4294967295)  to add_range }
+    state add_range {
+        to trap when (value < ckir_type_word(result_type, 16))
+        to trap when (value > ckir_type_word(result_type, 20))
+        word[8800000 + result * 8] = value
+        to op_next
+    }
+    state less {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = 0
+        to less_true when (word[8800000 + a * 8] < word[8800000 + b * 8])
+        word[8800000 + result * 8] = 0
+        to op_next
+    }
+    state less_true { word[8800000 + result * 8] = 1  to op_next }
+    state less_equal {
+        a=ckir_operand(start) b=ckir_operand(start+1)
+        word[8800000+result*8]=0
+        to less_equal_true when (word[8800000+a*8] <= word[8800000+b*8])
+        to op_next
+    }
+    state less_equal_true { word[8800000+result*8]=1 to op_next }
+    state call {
+        ; The selected root is active at depth zero. Entering a call while 63
+        ; continuations are retained would create the forbidden 65th frame.
+        to exhausted when (depth >= 63)
+        callee = ckir_op_word(op, 32)
+        a = ckir_operand(start)
+        address = word[9100000 + a * 8]
+        ; Preserve the caller continuation and receiver.  Values and places
+        ; have globally dense IDs, while this stack supplies distinct active
+        ; machine frames over the one shared owner memory.
+        word[10610000 + depth * 8] = block
+        word[10611000 + depth * 8] = op + 1
+        word[10612000 + depth * 8] = op_end
+        word[10613000 + depth * 8] = receiver
+        word[10614000 + depth * 8] = result
+        j = 0
+        to call_stage
+    }
+    state call_stage { to call_stage_one when (j < ckir_machine_word(callee, 20)) j = 0 to call_commit }
+    state call_stage_one {
+        argument = ckir_operand(start + 1 + j)
+        word[10620000 + j * 8] = word[8800000 + argument * 8]
+        j = j + 1
+        to call_stage
+    }
+    state call_commit { to call_commit_one when (j < ckir_machine_word(callee, 20)) to call_enter }
+    state call_commit_one {
+        parameter = ckir_machine_word(callee, 16) + j
+        word[8800000 + ckir_mparam_word(parameter, 16) * 8] = word[10620000 + j * 8]
+        j = j + 1
+        to call_commit
+    }
+    state call_enter {
+        depth = depth + 1
+        receiver = address
+        block = ckir_machine_word(callee, 32)
+        to block_begin
+    }
+    state op_next { op = op + 1  to operations }
+    state terminator {
+        opcode = ckir_term_byte(block, 12)
+        to jump when (opcode == 1)
+        to branch when (opcode == 2)
+        to return_unit when (opcode == 3)
+        to return_value when (opcode == 4)
+        to case_dispatch
+    }
+    state jump {
+        target = ckir_term_word(block, 20)
+        start = ckir_term_word(block, 24)
+        count = ckir_term_word(block, 28)
+        to transfer
+    }
+    state branch {
+        value = word[8800000 + ckir_term_word(block, 16) * 8]
+        to branch_true when (value != 0)
+        target = ckir_term_word(block, 32)
+        start = ckir_term_word(block, 36)
+        count = ckir_term_word(block, 40)
+        to transfer
+    }
+    state branch_true {
+        target = ckir_term_word(block, 20)
+        start = ckir_term_word(block, 24)
+        count = ckir_term_word(block, 28)
+        to transfer
+    }
+    state transfer {
+        to trap when (ckir_runtime_edge(target, start, count) != 0)
+        block = target
+        to block_begin
+    }
+    state case_dispatch {
+        a=ckir_term_word(block,16)
+        to case_dispatch_value when (ckir_term_byte(block,13)==1)
+        address=word[9100000+a*8]
+        to case_dispatch_tag
+    }
+    state case_dispatch_value { address=word[8800000+a*8] to case_dispatch_tag }
+    state case_dispatch_tag {
+        tag=byte[9400000+address]+byte[9400000+address+1]*256+byte[9400000+address+2]*65536+byte[9400000+address+3]*16777216
+        to trap when (tag>=ckir_term_word(block,48))
+        arm=ckir_term_word(block,44)+tag
+        case_id=ckir_arm_word(arm,8)
+        target=ckir_arm_word(arm,12)
+        start=ckir_arm_word(arm,16)
+        count=ckir_arm_word(arm,20)
+        word[14550000]=case_id
+        to trap when (ckir_runtime_case_edge(target,start,count,address)!=0)
+        block=target to block_begin
+    }
+    state return_value {
+        value = word[8800000 + ckir_term_word(block, 16) * 8]
+        result_type = ckir_machine_word(ckir_block_word(block, 4), 12)
+        to trap when (value < ckir_type_word(result_type, 16))
+        to trap when (value > ckir_type_word(result_type, 20))
+        to return_call_value when (depth > 0)
+        word[525232] = value
+        to bad_claim when (value != word[524360])
+        return 0
+    }
+    state return_call_value {
+        depth = depth - 1
+        result = word[10614000 + depth * 8]
+        word[8800000 + result * 8] = value
+        block = word[10610000 + depth * 8]
+        op = word[10611000 + depth * 8]
+        op_end = word[10612000 + depth * 8]
+        receiver = word[10613000 + depth * 8]
+        to operations
+    }
+    state return_unit {
+        to trap when (depth == 0)
+        depth = depth - 1
+        block = word[10610000 + depth * 8]
+        op = word[10611000 + depth * 8]
+        op_end = word[10612000 + depth * 8]
+        receiver = word[10613000 + depth * 8]
+        to operations
+    }
+    state bad_claim { return 251 }
+    state exhausted { return 252 }
+    state trap { return 251 }
+}
+
+
+proc ckir5_refinement_artifact_check() {
+    let status = ckir5_refinement_structure_check()
+    state structure { to done when (status != 0)  status = ckir_assign_constructor_objects() to objects }
+    state objects { to done when (status != 0) status = ckir_interpret_selected() to done }
+    state done { return status }
+}
+
+proc main() {
+    let status = omgrfn5_component_read()
+    state envelope { to done when (status != 0)  status = ckir5_refinement_artifact_check() to done }
+    state done { return status }
+}
