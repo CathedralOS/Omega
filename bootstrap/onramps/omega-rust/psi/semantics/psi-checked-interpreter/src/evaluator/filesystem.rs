@@ -26,12 +26,18 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Value> {
-        let provider = match self.real_fs.as_ref() {
-            None => FilesystemObservationProvider::Virtual,
-            Some(filesystem) if filesystem.is_scoped() => FilesystemObservationProvider::RealScoped,
-            Some(_) => FilesystemObservationProvider::RealUnscoped,
-        };
         let attempt_index = self.filesystem_operation_attempts.len();
+        let replay_expected = self.expected_filesystem_replay_attempt(attempt_index, operation)?;
+        let provider = replay_expected.as_ref().map_or_else(
+            || match self.real_fs.as_ref() {
+                None => FilesystemObservationProvider::Virtual,
+                Some(filesystem) if filesystem.is_scoped() => {
+                    FilesystemObservationProvider::RealScoped
+                }
+                Some(_) => FilesystemObservationProvider::RealUnscoped,
+            },
+            |expected| expected.provider(),
+        );
         self.filesystem_operation_attempts
             .push(FilesystemOperationAttempt::pending(
                 operation.operation_tag(),
@@ -68,7 +74,14 @@ impl<'program> Evaluator<'program> {
                             }) {
                             Err(halt) => Err(halt),
                             Ok(()) => {
-                                let served = self.serve_filesystem_call(call);
+                                let served = match replay_expected.as_ref() {
+                                    Some(expected) => self.serve_replayed_filesystem_call(
+                                        attempt_index,
+                                        &mutable_plan,
+                                        expected,
+                                    ),
+                                    None => self.serve_filesystem_call(call),
+                                };
                                 let completed = self
                                     .complete_mutable_observations(attempt_index, &mutable_plan);
                                 match (served, completed) {
@@ -165,6 +178,15 @@ impl<'program> Evaluator<'program> {
                         result: observation_result,
                         post_error,
                     });
+                if let Some(expected) = replay_expected.as_ref()
+                    && &self.filesystem_operation_attempts[attempt_index] != expected
+                {
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                            FilesystemEvaluationHaltKind::Trap,
+                        ));
+                    return trap(format!("filesystem replay event {attempt_index} changed"));
+                }
                 Ok(value)
             }
             Err(halt) => {
@@ -179,6 +201,85 @@ impl<'program> Evaluator<'program> {
                 Err(halt)
             }
         }
+    }
+
+    pub(super) fn finish_filesystem_replay(&self) -> EvalResult<()> {
+        let Some(replay) = &self.filesystem_replay else {
+            return Ok(());
+        };
+        if self.filesystem_operation_attempts.len() != replay.attempts().len() {
+            return trap(format!(
+                "filesystem replay ended after {} event(s), but the record contains {}",
+                self.filesystem_operation_attempts.len(),
+                replay.attempts().len()
+            ));
+        }
+        Ok(())
+    }
+
+    fn expected_filesystem_replay_attempt(
+        &self,
+        attempt_index: usize,
+        operation: FilesystemHostOperation,
+    ) -> EvalResult<Option<FilesystemOperationAttempt>> {
+        let Some(replay) = self.filesystem_replay.as_ref() else {
+            return Ok(None);
+        };
+        let Some(expected) = replay.attempts().get(attempt_index) else {
+            return trap(format!(
+                "filesystem replay encountered extra event {attempt_index} ({operation})"
+            ));
+        };
+        if expected.operation_tag() != operation.operation_tag() {
+            return trap(format!(
+                "filesystem replay event {attempt_index} changed order: expected tag {}, got {}",
+                expected.operation_tag(),
+                operation.operation_tag()
+            ));
+        }
+        Ok(Some(expected.clone()))
+    }
+
+    fn serve_replayed_filesystem_call(
+        &mut self,
+        attempt_index: usize,
+        mutable_plan: &PreparedFilesystemMutableObservationPlan,
+        expected: &FilesystemOperationAttempt,
+    ) -> EvalResult<Value> {
+        let current = &self.filesystem_operation_attempts[attempt_index];
+        if !replay_prepared_inputs_match(current, expected) {
+            return trap(format!(
+                "filesystem replay event {attempt_index} prepared inputs changed"
+            ));
+        }
+        mutable_plan.apply_replay_post_state(
+            &expected.mutable_byte_operands,
+            &expected.mutable_i64_operands,
+        )?;
+        let current = &mut self.filesystem_operation_attempts[attempt_index];
+        current.returned_paths = expected.returned_paths.clone();
+        current.observed_byte_regions = expected.observed_byte_regions.clone();
+        current.metadata_observations = expected.metadata_observations.clone();
+        current.authorized_paths = expected.authorized_paths.clone();
+        current.grant_refusals = expected.grant_refusals.clone();
+        let Some(FilesystemOperationAttemptOutcome::Returned { result, post_error }) =
+            expected.outcome
+        else {
+            return trap(format!(
+                "filesystem replay event {attempt_index} has no returned outcome"
+            ));
+        };
+        self.virtual_errno = post_error;
+        let raw = match result {
+            FilesystemOperationResult::Scalar(value) => value,
+            FilesystemOperationResult::LogicalHandle(identity) => i64::try_from(identity.get())
+                .map_err(|_| {
+                    Halt::Trap(format!(
+                        "filesystem replay event {attempt_index} logical handle exceeds i64"
+                    ))
+                })?,
+        };
+        Ok(Value::Int(raw))
     }
 
     fn record_operand_observations(
@@ -2119,6 +2220,43 @@ impl<'program> Evaluator<'program> {
     }
 }
 
+fn replay_prepared_inputs_match(
+    current: &FilesystemOperationAttempt,
+    expected: &FilesystemOperationAttempt,
+) -> bool {
+    let byte_pre_matches = current.mutable_byte_operands.len()
+        == expected.mutable_byte_operands.len()
+        && current
+            .mutable_byte_operands
+            .iter()
+            .zip(&expected.mutable_byte_operands)
+            .all(|(actual, recorded)| {
+                actual.operand_ordinal == recorded.operand_ordinal
+                    && actual.pre_bytes == recorded.pre_bytes
+            });
+    let scalar_pre_matches = current.mutable_i64_operands.len()
+        == expected.mutable_i64_operands.len()
+        && current
+            .mutable_i64_operands
+            .iter()
+            .zip(&expected.mutable_i64_operands)
+            .all(|(actual, recorded)| {
+                actual.operand_ordinal == recorded.operand_ordinal
+                    && actual.pre_value == recorded.pre_value
+            });
+    current.operation_tag == expected.operation_tag
+        && current.provider == expected.provider
+        && current.scalar_operands == expected.scalar_operands
+        && current.byte_operands == expected.byte_operands
+        && current.path_like_operands == expected.path_like_operands
+        && current.rooted_path_operand_resolutions == expected.rooted_path_operand_resolutions
+        && current.mutable_byte_operand_resolutions == expected.mutable_byte_operand_resolutions
+        && current.mutable_i64_operand_resolutions == expected.mutable_i64_operand_resolutions
+        && current.logical_handle_inputs == expected.logical_handle_inputs
+        && byte_pre_matches
+        && scalar_pre_matches
+}
+
 fn filesystem_logical_handle_halt(
     error: filesystem_logical_handles::FilesystemLogicalHandleError,
 ) -> Halt {
@@ -2144,6 +2282,7 @@ mod tests {
         PreparedI64Output, PreparedTransferCount, checked_filesystem_transfer_count,
     };
     use super::*;
+    use crate::{FilesystemGrantRootIdentity, FilesystemScalarOperandValue};
 
     fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
         let mut evaluator = Evaluator::new(program, &[]);
@@ -2154,6 +2293,70 @@ mod tests {
                 FilesystemObservationProvider::Virtual,
             ));
         evaluator
+    }
+
+    fn returned_attempt(operation: FilesystemHostOperation) -> FilesystemOperationAttempt {
+        let mut attempt = FilesystemOperationAttempt::pending(
+            operation.operation_tag(),
+            FilesystemObservationProvider::RealScoped,
+        );
+        attempt.outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: 0,
+        });
+        attempt
+    }
+
+    #[test]
+    fn replay_cursor_rejects_reordered_extra_and_missing_events() {
+        let program = TypedTrees::default();
+        let expected = returned_attempt(FilesystemHostOperation::Open);
+        let mut evaluator = Evaluator::new(&program, &[]);
+        evaluator.filesystem_replay = Some(crate::FilesystemReplay {
+            attempts: vec![expected.clone()],
+        });
+
+        assert!(matches!(
+            evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::Open),
+            Ok(Some(actual)) if actual == expected
+        ));
+        assert!(matches!(
+            evaluator.expected_filesystem_replay_attempt(0, FilesystemHostOperation::Read),
+            Err(Halt::Trap(message)) if message.contains("changed order")
+        ));
+        assert!(matches!(
+            evaluator.expected_filesystem_replay_attempt(1, FilesystemHostOperation::Open),
+            Err(Halt::Trap(message)) if message.contains("extra event")
+        ));
+        assert!(matches!(
+            evaluator.finish_filesystem_replay(),
+            Err(Halt::Trap(message)) if message.contains("record contains 1")
+        ));
+        evaluator.filesystem_operation_attempts.push(expected);
+        assert!(evaluator.finish_filesystem_replay().is_ok());
+    }
+
+    #[test]
+    fn replay_preparation_comparison_rejects_changed_input_lanes() {
+        let mut current = returned_attempt(FilesystemHostOperation::Open);
+        current.scalar_operands.push(FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(0),
+        });
+        let mut changed = current.clone();
+        changed.scalar_operands[0].value = FilesystemScalarOperandValue::I32(1);
+        assert!(replay_prepared_inputs_match(&current, &current));
+        assert!(!replay_prepared_inputs_match(&current, &changed));
+
+        changed = current.clone();
+        changed
+            .rooted_path_operand_resolutions
+            .push(FilesystemRootedPathOperandResolution {
+                operand_ordinal: 0,
+                root: FilesystemGrantRootIdentity::new(1).unwrap(),
+                relative_path: b"changed.omg".to_vec(),
+            });
+        assert!(!replay_prepared_inputs_match(&current, &changed));
     }
 
     #[test]

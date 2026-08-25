@@ -674,7 +674,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v18 carries operation-attempt schema v18: an ordered
+Observation-summary schema v19 carries operation-attempt schema v18: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -755,8 +755,16 @@ carrier (whose API minimum is 144 bytes) through that layout and checks it
 against the semantic row; package
 commitment binds both. Filesystem-reaching builds load and check the standard
 layout policy before execution. This private seam does not create a public IR
-contract or nominal Chi. Replay execution remains absent, so the row remains
-non-replayable.
+contract or nominal Chi. Complete replay remains absent, so the record remains
+non-receipted.
+The first bounded replay rung handles exactly one successful Source-rooted,
+flags-zero `open` -> `read` -> `close` chain. It reruns the build without any
+filesystem provider, supplies recorded results and read bytes, reconstructs
+logical descriptors, and requires exact event order, inputs, outputs,
+exhaustion, and final result. The summary binds this successful partial replay.
+It does not change the observation class: broad operation replay, durable
+record custody, output-tree reproduction, and a complete replay verdict remain
+absent.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

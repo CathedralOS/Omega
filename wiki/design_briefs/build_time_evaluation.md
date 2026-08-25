@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-schema v18 carries operation-attempt schema v18, retaining in call-start order
+summary schema v19 carries operation-attempt schema v18, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -506,9 +506,18 @@ zeroes and serializes the complete authored ABI carrier (whose API minimum is
 Filesystem-reaching builds load and
 check the standard filesystem layout policy before execution; console-only
 builds need no such layout. This is an internal checker seam, not a public IR
-contract or reason to add nominal Chi. Replay execution remains absent. It is
+contract or reason to add nominal Chi. Complete replay remains absent. It is
 an incomplete operation trace, not a transcript or receipt, and makes no
 replayability or source-rebuildability claim.
+The first bounded replay executor accepts exactly one successful Source-rooted,
+flags-zero `open` -> `read` -> `close` chain. It reruns the build without a
+filesystem provider, uses inert rooted coordinates, supplies the recorded
+scalar/logical results and mutable read bytes, reconstructs descriptor
+lifetimes, and rejects the first extra, reordered, changed, or missing event.
+Exact result and complete-record equality are required. The summary binds
+successful partial replay, but the build remains `Volatile` until all
+operations, durable record custody, staged output reproduction, and the
+complete replay verdict are implemented.
 
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities

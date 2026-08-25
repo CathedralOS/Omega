@@ -1368,8 +1368,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v18
-  carries operation-attempt schema v18: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation-summary
+  schema v19 carries operation-attempt schema v18: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1488,7 +1488,17 @@ complete.
   A filesystem-reaching build therefore loads and checks the standard
   filesystem layout policy before execution; console-only execution does not
   require it. This does not expose the private IR or introduce nominal Chi.
-  The trace still lacks the replay executor and makes no receipt claim.
+  The trace still lacks a complete replay executor and makes no receipt claim.
+  Milestone 2026-08-25: the first bounded replay executor consumes exactly one
+  successful Source-rooted, flags-zero `open` -> `read` -> `close` chain. It
+  installs no virtual or real filesystem provider, lowers rooted values only
+  to inert replay coordinates, supplies recorded results and mutable output
+  bytes, reconstructs
+  logical descriptor lifetimes, rejects the first extra, reordered, changed, or
+  missing event, and requires exact result and complete-record equality. Summary
+  v19 binds whether this replay succeeded. The build remains `Volatile`: other
+  operations, durable record custody, output mutation replay, staged-tree
+  reproduction, and a complete replay verdict remain open.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -1532,7 +1542,7 @@ complete.
   destinations, write failure, extra/missing state, and drift reject. Hard-link
   topology is neither retained nor leaked through the content count. This is
   staged-tree custody and replay only: complete remaining preparation-failure
-  evidence, operation replay, retained observed inputs, generated-output
+  evidence, full operation replay, retained observed inputs, generated-output
   handoff, and a `Receipted` verdict remain. Same-user host racing is not solved by this
   custody rung. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw

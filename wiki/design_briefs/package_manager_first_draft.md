@@ -768,7 +768,7 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v18
+Observation-summary schema v19
 carries operation-attempt schema v18, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
@@ -844,10 +844,10 @@ already-checked `StatLayout<StatRecord>` from its earliest coherent private
 typed/layout state, then gives only that closed descriptor to the Psi evaluator.
 The evaluator zeroes and serializes the complete authored ABI carrier (whose
 API minimum is 144 bytes) through the descriptor and checks it against the
-semantic row; package commitment binds both representations. Filesystem-reaching
-builds load and check the standard
-layout policy before execution. This does not publish an internal IR contract
-or justify nominal Chi. Replay execution remains absent, so this makes no
+semantic row; package commitment binds both representations. Filesystem-
+reaching builds load and check the standard layout policy before execution.
+This does not publish an internal IR contract
+or justify nominal Chi. Complete replay remains absent, so this makes no
 receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.
@@ -868,6 +868,13 @@ replay only. Canonical operation replay, recorded observed inputs, generated-
 output handoff, and the complete record replay checker remain required before
 any `Receipted` verdict. This rung does not claim hostile same-user race
 exclusion.
+For exactly one successful Source-rooted, flags-zero `open` -> `read` ->
+`close` chain, the compiler performs one bounded replay with no filesystem
+provider. It consumes rows in order, supplies recorded results and read bytes,
+reconstructs logical descriptors, and requires exact event exhaustion,
+observations, and final result. Summary v19 binds that partial replay fact. The
+package remains `Volatile`; this is not durable custody, full operation replay,
+staged-output reproduction, or a `Receipted` verdict.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
