@@ -1,0 +1,26 @@
+// `inspect` has two incoming intervals: 0 from entry and 2 from the cyclic
+// predecessor. Their join cannot safely index a two-element array. A lowerer
+// that omits the cyclic predecessor may incorrectly retain only the safe entry
+// interval and accept this source.
+
+data MissingCycleProbe {
+    values: [u8; 2] in Trapping;
+}
+
+machine MissingCycleProbe::run(&mut self) -> u8 {
+    self.values = [70, 70];
+    transition { _ -> inspect(0) }
+
+    state inspect(&mut self, index: u32 in Trapping) {
+        transition self.values[index] < 255 {
+            true -> back()
+            _ -> fail()
+        }
+    }
+
+    state back(&mut self) {
+        transition { _ -> inspect(2) }
+    }
+
+    state fail(&mut self) { 71 }
+}

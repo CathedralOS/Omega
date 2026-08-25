@@ -155,6 +155,13 @@ machine ResourceProbe::run(&mut self) -> u8 {{
 """
 
 
+def replace_once(source: Path, output: Path, old: str, new: str) -> None:
+    text = source.read_text(encoding="utf-8")
+    if text.count(old) != 1:
+        raise ValueError(f"source replacement anchor in {source.name}")
+    output.write_text(text.replace(old, new), encoding="utf-8")
+
+
 def gate() -> None:
     import os
     import platform
@@ -170,6 +177,7 @@ def gate() -> None:
     delta_manifest = repo / "bootstrap/onramps/delta-rust/Cargo.toml"
     delta = repo / "bootstrap/onramps/delta-rust/target/debug/delta"
     fixtures = HERE / "fixtures/ckir3-constant-aggregates"
+    reference = HERE / "checked_ir_v3_reference.py"
     unicode_source = repo / "compiler/psi/generated/unicode_tables.omg"
     fields, locals_used = producer_metadata(producer)
     if fields >= 256 or locals_used > 32:
@@ -232,8 +240,64 @@ def gate() -> None:
                 raise ValueError(f"{name} published bytes on rejection")
             return native_output
 
+        def expect_result(name: str, output: bytes, expected: int) -> None:
+            path = temp / f"{name}.ckir3"
+            path.write_bytes(output)
+            inspect_ckir(path)
+            result = subprocess.run(
+                [sys.executable, "-B", str(reference), "run", str(path)],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            observed = result.stdout.decode("ascii", errors="replace").strip()
+            if result.returncode or observed != str(expected):
+                detail = result.stderr.decode(errors="replace")[-1000:]
+                raise ValueError(
+                    f"{name} independent result status={result.returncode} "
+                    f"value={observed!r}, expected {expected}: {detail}"
+                )
+
+        authored_true = temp / "authored-true-transition.omg"
+        replace_once(
+            fixtures / "guardless-transition.omg", authored_true,
+            "    transition { _ -> pass() }",
+            "    transition true {\n        true -> pass()\n        _ -> pass()\n    }",
+        )
+        arm_no_fact = temp / "arm-local-edge-argument-no-fact.omg"
+        replace_once(
+            fixtures / "arm-local-edge-argument.omg", arm_no_fact,
+            "            true -> accept(self.values[index])\n            _ -> fail()",
+            "            true -> accept(70)\n            _ -> accept(self.values[index])",
+        )
+        missing_cycle_reordered = temp / "negative-missing-cycle-predecessor-reordered.omg"
+        replace_once(
+            fixtures / "negative-missing-cycle-predecessor.omg", missing_cycle_reordered,
+            """    state inspect(&mut self, index: u32 in Trapping) {
+        transition self.values[index] < 255 {
+            true -> back()
+            _ -> fail()
+        }
+    }
+
+    state back(&mut self) {
+        transition { _ -> inspect(2) }
+    }""",
+            """    state back(&mut self) {
+        transition { _ -> inspect(2) }
+    }
+
+    state inspect(&mut self, index: u32 in Trapping) {
+        transition self.values[index] < 255 {
+            true -> back()
+            _ -> fail()
+        }
+    }""",
+        )
+
         positives = [
             ("guardless", "GuardlessProbe", "run", [fixtures / "guardless-transition.omg"]),
+            ("authored-true", "GuardlessProbe", "run", [authored_true]),
+            ("arm-local-edge", "ArmArgumentProbe", "run", [fixtures / "arm-local-edge-argument.omg"]),
+            ("stale-parameter", "StaleIdentityProbe", "run", [fixtures / "stale-parameter-custody.omg"]),
             ("cyclic", "CustodyCycle", "run", [fixtures / "cyclic-range-custody.omg"]),
             ("renamed", "AggregateProbe", "run", [fixtures / "renamed-reordered-nested.omg"]),
             ("unicode", "UnicodeTables", "bootstrap_constant_aggregate_probe",
@@ -244,15 +308,21 @@ def gate() -> None:
         for name, owner, machine, sources in positives:
             frames[name] = prepare(name, owner, machine, sources)
             outputs[name] = expect(name, frames[name], 0)
-            path = temp / f"{name}.ckir3"
-            path.write_bytes(outputs[name])
-            inspect_ckir(path)
+            expect_result(name, outputs[name], 70)
         metrics = {name: ckir_metrics(output) for name, output in outputs.items()}
         guardless = metrics["guardless"]
         if (guardless["constants"], guardless["children"], guardless["operations"]) != (0, 0, 1):
             raise ValueError(f"guardless operation shape {guardless}")
-        if guardless["opcodes"] != [1] or guardless["const_immediates"] != [70] or sorted(guardless["term_kinds"]) != [1, 4]:
+        if guardless["opcodes"] != [1] or guardless["const_immediates"] != [70] or guardless["term_kinds"] != [1, 4]:
             raise ValueError(f"guardless must be Jump plus authored result Const(70), got {guardless}")
+        authored = metrics["authored-true"]
+        if (authored["constants"], authored["children"], authored["operations"]) != (0, 0, 2):
+            raise ValueError(f"authored-true operation shape {authored}")
+        if (authored["opcodes"] != [1, 1] or authored["const_immediates"] != [1, 70]
+                or authored["term_kinds"] != [2, 4]):
+            raise ValueError(f"authored true must be Branch plus Const(1) and Const(70), got {authored}")
+        if outputs["guardless"] == outputs["authored-true"]:
+            raise ValueError("guardless Jump and authored-true Branch publications are not distinct")
         cyclic = metrics["cyclic"]
         if (cyclic["constants"], cyclic["children"], cyclic["operations"]) != (8, 9, 30):
             raise ValueError(f"cyclic exact counts {cyclic}")
@@ -294,6 +364,16 @@ def gate() -> None:
             frame = prepare(fixture, owner, "run", [fixtures / f"{fixture}.omg"])
             expect(fixture, frame, status)
 
+        interval_negatives = (
+            ("arm-local-edge-no-fact", "ArmArgumentProbe", arm_no_fact),
+            ("missing-cycle-predecessor", "MissingCycleProbe",
+             fixtures / "negative-missing-cycle-predecessor.omg"),
+            ("missing-cycle-predecessor-reordered", "MissingCycleProbe", missing_cycle_reordered),
+        )
+        for name, owner, source in interval_negatives:
+            frame = prepare(name, owner, "run", [source])
+            expect(name, frame, 251)
+
         for kind, status in (("array-1024", 0), ("array-1025", 252), ("record-4", 0), ("record-5", 252)):
             source = temp / f"{kind}.omg"
             source.write_text(resource_source(kind), encoding="ascii")
@@ -318,7 +398,7 @@ def gate() -> None:
         semantic_252 = sum(status == 252 for _, _, status in source_negatives)
         print("resolved-to-CKIR3 controls: array-1024=0 array-1025=252 record-4=0 record-5=252 "
               f"comp-cap=252 witness-cap=252 source-251={semantic_251} source-252={semantic_252} "
-              "wrong-identity=251 wrong-major=251")
+              "interval-custody-251=3 wrong-identity=251 wrong-major=251")
         print("resolved-to-CKIR3 timings: " + " ".join(
             f"{name}={seconds:.3f}s" for name, seconds in sorted(timings.items())
             if name.startswith("compile-") or name in ("lowermachine-source", "native-unicode", "self-unicode")

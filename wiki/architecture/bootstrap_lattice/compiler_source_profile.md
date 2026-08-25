@@ -399,9 +399,13 @@ evaluated result and independently reconstructed ELF. Its lower-rooted evidence
 uses the distinct private `OMGRFN4` carrier with five independent responsibility
 owners; that transport and ownership contract is frozen. Focused Rust-free
 Gamma routes now reproduce representative producer and backend 0/251/252
-observations exactly, while the lower-rooted implementations remain open. This
-progress does not decide the final disposition of records, arrays, generated
-source, or any later checkpoint feature.
+observations exactly. Focused native/self controls also distinguish a canonical
+guardless jump from an authored-true branch, install arm-local facts before
+checking edge arguments, transfer intervals by target ordinal, join every
+cyclic predecessor, and preserve the result across declaration order. The
+lower-rooted implementations remain open. This progress does not decide the
+final disposition of records, arrays, generated source, or any later checkpoint
+feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

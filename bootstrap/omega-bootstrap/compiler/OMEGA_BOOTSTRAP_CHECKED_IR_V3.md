@@ -459,12 +459,14 @@ obligations remain mandatory. CKIR3 additionally requires:
    filename, Unicode version, 1,497 literal count, or 691/806 table lengths.
 3. Guardless-transition controls require canonical `Jump` bytes and reject a
    semantically equivalent synthetic-true `Branch` as noncanonical.
-   Focused cyclic controls require arm-local `<` and `<=` narrowing, ordinal
-   argument-to-parameter interval transfer, predecessor joins, forwarding,
-   declaration reordering, and the exact `scan → check → upper → scan(index +
-   1)` recurrence. A stale predecessor parameter ID, a fact applied only after
-   argument checking, a missing predecessor, or a declaration-order-dependent
-   result must reject or disagree with the canonical relation.
+   An authored `transition true` remains an ordinary `Branch` and must not be
+   collapsed into the guardless encoding. Focused cyclic controls require
+   arm-local `<` and `<=` narrowing, ordinal argument-to-parameter interval
+   transfer, predecessor joins, forwarding, declaration reordering, and the
+   exact `scan → check → upper → scan(index + 1)` recurrence. A stale
+   predecessor parameter ID, a fact applied only after argument checking, a
+   missing predecessor, or a declaration-order-dependent result must reject or
+   disagree with the canonical relation.
 4. Phase-isolated source negatives cover missing/duplicate/unknown record
    fields, scalar and structural type mismatch, array arity, an out-of-range
    literal, a nonconstant child, a noncopyable root, shared-place mutation,
