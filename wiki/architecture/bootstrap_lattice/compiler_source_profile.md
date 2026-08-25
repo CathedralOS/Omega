@@ -393,8 +393,10 @@ slice directly prices generated ordinary-Omega data and the measured Stage-08
 expansion hotspot. Its focused Delta-written producer and backend pass native/
 Delta-self-built byte-identity gates independently: the producer lowers the
 exact Unicode unit plus general controls to CKIR3, and the backend validates
-that private graph and derives the read-only image and ELF. Their composition,
-Rust-free meaning, and lower-rooted reconstruction remain open. This progress
+that private graph and derives the read-only image and ELF. All native, self-
+built, and mixed producer/backend pairs now compose to the same independently
+evaluated result and independently reconstructed ELF. Rust-free Gamma meaning
+and lower-rooted reconstruction remain open. This progress
 does not decide the final disposition of records, arrays, generated source, or
 any later checkpoint feature.
 

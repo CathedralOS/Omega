@@ -178,9 +178,17 @@ language, generation, or architectural role; new documentation and work use
   boundaries. The independent
   [`gates/delta-checked-ir-v3-backend.sh`](gates/delta-checked-ir-v3-backend.sh)
   validates the constant graph, derives layout and a private read-only image,
-  and emits native/self-identical two- or three-segment ELF bytes. These are
-  separate focused seams: producer-to-backend execution/composition, Rust-free
-  meaning, and lower-rooted CKIR3 refinement remain open.
+  and emits native/self-identical two- or three-segment ELF bytes. The focused
+  [`gates/delta-ckir3-composite.sh`](gates/delta-ckir3-composite.sh) runs every
+  native/self producer/backend pairing over exact source frames, derives
+  results 70 and 71 through the independent
+  [`checked_ir_v3_reference.py`](gates/checked_ir_v3_reference.py), reconstructs
+  every ELF byte through
+  [`checked_elf_v3_reference.py`](gates/checked_elf_v3_reference.py), and rejects
+  valid-but-mismatched CKIR/ELF pairs. Darwin does not execute the Linux image;
+  exact reconstruction binds its exit shim and code to the independently
+  evaluated CKIR result. Rust-free Gamma meaning and lower-rooted CKIR3
+  refinement remain separate open seams.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

@@ -246,7 +246,7 @@ as one growing verifier:
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes; the focused CKIR3 producer now closes constant aggregates, `<=`, guardless jumps, and cyclic interval custody across native/self bytes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) |
-| producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result; CKIR3 producer and backend pass independently but are not yet composed | bridge gates and the contracts above |
+| producer composition | CKIR1 and CKIR2 remain closed; focused CKIR3 native, self-built, and mixed producer/backend pairs now yield exact CKIR3, independently evaluated result, and independently reconstructed ELF | bridge gates and the contracts above |
 | lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
@@ -275,7 +275,7 @@ on the separately blocked compilation-authority join.
   - [x] Independently validate CKIR3, derive constant layout/read-only image,
     and emit identical conservative ELF through native and Delta-self-built
     backend paths.
-  - [ ] Compose native, self-built, and mixed producer/backend pairs; bind the
+  - [x] Compose native, self-built, and mixed producer/backend pairs; bind the
     exact CKIR and ELF to the source result 70 without treating Darwin's
     inability to execute a Linux ELF as semantic evidence.
   - [ ] Add the Rust-free Gamma meaning route for representative success,

@@ -29,8 +29,10 @@ done
 
 BACKEND="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-v3-to-elf.alp"
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-checked-ir-v3-backend-fixture.py"
+IR_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v3_reference.py"
+ELF_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_elf_v3_reference.py"
 LOWERMACHINE="$OMEGA_PATH_DELTA/samples/lowermachine.alp"
-for REQUIRED in "$BACKEND" "$FIXTURE" "$LOWERMACHINE"; do
+for REQUIRED in "$BACKEND" "$FIXTURE" "$IR_REFERENCE" "$ELF_REFERENCE" "$LOWERMACHINE"; do
   [ -f "$REQUIRED" ] || {
     echo "checked-IR-v3 backend: required input absent: $REQUIRED" >&2
     exit 1
@@ -97,6 +99,11 @@ cmp "$T/image-boundary.backend.native.elf" "$T/image-boundary.backend.self.elf"
 python3 -B "$FIXTURE" check-elf "$T/canonical.ckir3" "$T/canonical.backend.native.elf" >/dev/null
 python3 -B "$FIXTURE" check-no-pool-elf "$T/no-pool.ckir3" "$T/no-pool.backend.native.elf" >/dev/null
 python3 -B "$FIXTURE" check-image-boundary-elf "$T/image-boundary.ckir3" "$T/image-boundary.backend.native.elf" >/dev/null
+[ "$(python3 -B "$IR_REFERENCE" run "$T/canonical.ckir3")" = 70 ]
+[ "$(python3 -B "$IR_REFERENCE" run "$T/no-pool.ckir3")" = 70 ]
+python3 -B "$ELF_REFERENCE" mutation-sweep "$T/canonical.ckir3" "$T/canonical.backend.native.elf" >/dev/null
+python3 -B "$ELF_REFERENCE" check "$T/no-pool.ckir3" "$T/no-pool.backend.native.elf" >/dev/null
+python3 -B "$ELF_REFERENCE" check "$T/image-boundary.ckir3" "$T/image-boundary.backend.native.elf" >/dev/null
 
 # Repeated publication must be byte-identical.
 run_expect "$T/backend.native" "$T/canonical.ckir3" 0 "$T/canonical.repeat.elf" "canonical repeat"
@@ -107,10 +114,20 @@ for CASE in schema-major constant-scalar-type constant-order-duplicate \
   less-equal-result-type; do
   run_expect "$T/backend.native" "$T/cases/$CASE.ckir3" 251 "$T/$CASE.native.out" "$CASE native"
   run_expect "$T/backend.self" "$T/cases/$CASE.ckir3" 251 "$T/$CASE.self.out" "$CASE self"
+  if python3 -B "$IR_REFERENCE" validate "$T/cases/$CASE.ckir3" \
+      > "$T/$CASE.reference.out" 2> "$T/$CASE.reference.stderr"; then
+    echo "checked-IR-v3 backend FAIL - independent reference accepted $CASE" >&2
+    exit 1
+  fi
 done
 for CASE in constant-node-resource constant-child-resource encoded-byte-resource; do
   run_expect "$T/backend.native" "$T/cases/$CASE.ckir3" 252 "$T/$CASE.native.out" "$CASE native"
   run_expect "$T/backend.self" "$T/cases/$CASE.ckir3" 252 "$T/$CASE.self.out" "$CASE self"
+  if python3 -B "$IR_REFERENCE" validate "$T/cases/$CASE.ckir3" \
+      > "$T/$CASE.reference.out" 2> "$T/$CASE.reference.stderr"; then
+    echo "checked-IR-v3 backend FAIL - independent reference accepted $CASE" >&2
+    exit 1
+  fi
 done
 
 FINISHED=$(python3 -c 'import time; print(time.time())')
