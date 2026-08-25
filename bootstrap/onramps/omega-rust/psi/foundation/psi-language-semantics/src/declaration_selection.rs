@@ -24,6 +24,7 @@ pub enum AuthoredDeclarationSelectionKind {
     StructLiteralField,
     CaseReference,
     CaseMembership,
+    DomainMembership,
     Call,
     Operator,
     Conformance,
@@ -37,6 +38,12 @@ pub enum AuthoredDeclarationSelectionKind {
 /// a resolved target containing an invalid symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionLateBinding {
+    CheckedStaticPathSegment,
+    CheckedMember,
+    CheckedStructLiteralType,
+    CheckedStructLiteralCase,
+    CheckedStructLiteralField,
+    CheckedCaseMembership,
     CheckedCall,
     CheckedOperator,
     CheckedConformance,

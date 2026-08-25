@@ -1330,6 +1330,64 @@ fn retains_exact_expression_selection_symbols() {
         program.symbols.get(membership.case_symbol).kind,
         psi_symbols::SymbolKind::Variant
     );
+
+    let selections = program.authored_declaration_selections();
+    assert!(!selections.is_empty());
+    assert!(selections.iter().all(|selection| {
+        selection.exposure()
+            == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }));
+    for required_kind in [
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralType,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralCase,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StructLiteralField,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseReference,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::CaseMembership,
+    ] {
+        assert!(
+            selections
+                .iter()
+                .any(|selection| selection.kind() == required_kind),
+            "missing authored selection kind {required_kind:?}"
+        );
+    }
+    assert!(expressions.iter_expressions().any(|(expression, _)| {
+        expressions
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_some()
+    }));
+}
+
+#[test]
+fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
+    let source = r#"
+        machine identity(value: u32) -> u32 { value }
+        machine calculate(value: u32) -> u32 { identity(value) + 1 }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize authored selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse authored selections");
+    let program = lower_syntax_trees(&syntax).expect("resolve authored selections");
+    let selections = program.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(selections.iter().any(|selection| {
+        selection.kind()
+            == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+            && selection.target()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
+                    psi_symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                )
+    }));
 }
 
 #[test]

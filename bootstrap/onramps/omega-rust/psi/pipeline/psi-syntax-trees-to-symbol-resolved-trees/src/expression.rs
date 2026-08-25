@@ -26,7 +26,32 @@ pub(crate) fn lower_expression_into_table(
         syntax_trees.expressions.expression(expression),
     )?;
     expression_table(lowerer).set_source_span(lowered, source_span);
+    if let Some(exposure) = lowerer.current_authored_expression_exposure {
+        lowerer
+            .pending_authored_expressions
+            .push(crate::lowerer::PendingAuthoredExpression {
+                expression: lowered,
+                exposure,
+            });
+    }
     Ok(lowered)
+}
+
+/// Lower an authored state-body expression and retain it for package
+/// declaration-selection admission. The temporary context propagates through
+/// every recursively lowered syntax child; direct compiler-generated inserts
+/// remain outside the authored set.
+pub(crate) fn lower_private_expression_into_table(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+) -> Result<ExpressionHandle, Diagnostic> {
+    let previous = lowerer.current_authored_expression_exposure.replace(
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+    );
+    let result = lower_expression_into_table(lowerer, syntax_trees, expression);
+    lowerer.current_authored_expression_exposure = previous;
+    result
 }
 
 fn lower_expression_node_into_table(

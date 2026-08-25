@@ -2,6 +2,7 @@
 
 //! Resolves names in parsed Omega source into stable Psi symbol identities.
 
+mod authored_selections;
 mod conformance_blocks;
 mod constant;
 mod data;
