@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 34;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 35;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -1168,6 +1168,16 @@ fn encode_contract_expression(
                 PackageReviewCastForm::RecastShared => 1,
                 PackageReviewCastForm::RecastMutable => 2,
             });
+        }
+        PackageReviewContractExpression::Call {
+            receiver,
+            target,
+            arguments,
+        } => {
+            encoder.byte(11);
+            encoder.option(receiver.as_deref(), encode_contract_expression)?;
+            encode_nominal(encoder, target)?;
+            encoder.sequence(arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
             operator,

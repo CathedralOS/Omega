@@ -401,7 +401,7 @@ that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. Exact source-body presence survives
-resolved and typed copies. Review v34 uses inferred transitive reach only for
+resolved and typed copies. Review v35 uses inferred transitive reach only for
 actual checked bodies and records bodyless supply explicitly instead of copying
 its published ceiling into a false realization. Its concrete row retains the
 preselection body base rather than reconstructing it from the current callable;
@@ -456,9 +456,14 @@ aliases recursively flatten to canonical package-qualified atoms; compiler
 carry atoms remain explicitly toolchain-unbound. Predicate-body presence and
 the representable structural expression/membership subset retain exact
 domain-carrier, member, and referenced-domain identity through typed facts,
-checked owner rows, and fact-keyed dependency places. Callable/proposition
-applications, semantic roles, and operators fail closed until their authority
-and canonical rows land. Reviewed boundary/public
+checked owner rows, and fact-keyed dependency places. Proposition applications
+use their exact checked rows. A simple total, pure call retains its optional
+receiver, exact checked package-qualified entry target, and ordinary arguments
+after joining one public-interface declaration-selection row. The separate
+whole-source commitment pins the helper body; a callable signature is not body
+identity. Static/generic, quotient, evidence-lane, and compiler-intrinsic calls,
+semantic roles, and operators remain fail-closed until complete rows land.
+Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
 guarantees remain explicit trust-bearing accepted claims; claim-free boundary
@@ -496,10 +501,10 @@ the local evidence alias is not identity. Matching checked evidence-term,
 interface, and projection facts are mandatory. Direct parameter-rooted member
 paths retain the receiver ordinal and exact package-qualified case/field chain
 only when a unique checked semantic-place row agrees. Computed members,
-proposition-argument members without that join, and unsupported call and
-aggregate expressions still fail closed. Contract casts retain the structural
-operand, alpha-normalized target, arithmetic policy, package-qualified semantic
-domain and arguments, and value/recast form. Diagnostic spellings are excluded;
+proposition-argument members without that join, unsupported advanced call
+forms, and aggregate expressions still fail closed. Contract casts retain the
+structural operand, alpha-normalized target, arithmetic policy, package-qualified
+semantic domain and arguments, and value/recast form. Diagnostic spellings are excluded;
 private package domains reject when exposed by a public cast.
 This join does not create a nominal Chi stage.
 Ordinary standalone checked compilation still takes a caller-owned writable
@@ -541,7 +546,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v34 projection therefore
+remain separately bound. The current incomplete review-v35 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

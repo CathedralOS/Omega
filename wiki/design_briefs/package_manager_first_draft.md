@@ -443,9 +443,14 @@ members/domains, and canonical fact ordering. Each fact joins its exact typed
 handle to one checked definition row and one checked ownership record; nested
 members additionally require exact fact-keyed dependency places. Missing,
 duplicate, wrong-origin, private-domain, and member-spoofed evidence rejects.
-Callable/proposition-shaped applications, semantic roles, and domain operators
-reject until their authority and exact rows are settled; none is inferred from
-the domain name. Compiler-owned
+Proposition applications use their exact checked rows. A simple total, pure
+callable application retains its optional receiver, exact checked package-
+qualified entry target, and ordinary arguments after joining one public-
+interface declaration-selection row. The whole-source commitment separately
+pins the helper body; a callable signature is not body identity. Static/generic,
+quotient, evidence-lane, and compiler-intrinsic calls, semantic roles, and
+domain operators reject until their complete rows are settled; none is inferred
+from the domain name. Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
 package-qualified trait/requirement identities; alternative routes normalize
 as a sorted set.
@@ -535,8 +540,8 @@ interface, and projection facts all match the structural typed declaration.
 Direct parameter-rooted member paths in ordinary contracts retain the receiver
 ordinal and exact package-qualified case/field chain after joining one checked
 semantic-place row. Computed members, proposition-argument members without that
-join, and unsupported call and aggregate expressions still reject rather than
-falling back to text or a hash. Contract casts retain their structural operand,
+join, unsupported advanced call forms, and aggregate expressions still reject
+rather than falling back to text or a hash. Contract casts retain their structural operand,
 alpha-normalized target type, arithmetic policy, package-qualified semantic
 domain and arguments, and value/recast form. Diagnostic spellings are omitted;
 a private package domain cannot be exposed through a public cast.
@@ -874,7 +879,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v34 bytes cannot be promoted merely because the future artifact reuses
+review-v35 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

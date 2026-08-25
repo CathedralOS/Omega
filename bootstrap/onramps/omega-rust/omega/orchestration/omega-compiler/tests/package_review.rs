@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 34);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 35);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -1906,9 +1906,14 @@ fn review_rejects_unrepresented_callable_contract_expressions() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"machine computed_zero() -> u64 { 0 }
+        r#"machine chosen(value: u64) -> u64 { value }
+machine apply<machine Selected>(value: u64) -> u64
+where machine Selected(value: u64) -> u64
+{
+    Selected(value)
+}
 boundary machine trusted_zero() -> u64
-ensures result == computed_zero();
+ensures result == apply<chosen>(0);
 "#,
     );
     package.write(
@@ -1925,13 +1930,13 @@ machine build(builder: &mut Build) { }
         Some(target),
         package_inputs(&package.0),
     )
-    .expect("effect-free build-time contract call should check");
+    .expect("effect-free static contract call should check");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("unrepresented contract expression must fail closed");
+        .expect_err("unrepresented static call arguments must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("contract expression form not yet represented")
+            .contains("static arguments not yet represented")
     }));
 }
 
@@ -2756,7 +2761,7 @@ invokes waiting;
 }
 
 #[test]
-fn exact_synchronous_invocations_change_v33_comparison_encoding() {
+fn exact_synchronous_invocations_change_comparison_encoding() {
     let quiet = TempPackage::new();
     let invoking = TempPackage::new();
     quiet.write(
@@ -2946,7 +2951,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_data_and_numbered_wire_shape_changes_change_v33_comparison_encoding() {
+fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -2980,7 +2985,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_domain_shape_changes_change_v33_comparison_encoding() {
+fn public_domain_shape_changes_change_comparison_encoding() {
     let first = TempPackage::new();
     let second = TempPackage::new();
     first.write(
@@ -3881,7 +3886,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
 }
 
 #[test]
-fn review_rejects_callable_domain_predicates_until_their_authority_is_defined() {
+fn review_projects_callable_domain_predicates_through_exact_checked_selection() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -3908,12 +3913,69 @@ requires
         package_inputs(&package.0),
     )
     .expect("callable domain predicate fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("simple checked callable predicates have an exact review row");
+    let [domain] = review.public_domains() else {
+        panic!("one public domain row")
+    };
+    let [
+        PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
+            receiver,
+            target,
+            arguments,
+        }),
+    ] = domain.predicate_facts()
+    else {
+        panic!("one callable domain predicate")
+    };
+    assert!(receiver.is_none());
+    assert_eq!(target.path(), "within_calibration::entry");
+    assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
+}
+
+#[test]
+fn callable_domain_predicate_review_rejects_checked_target_spoof() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Reading { value: i64; }
+pub machine is_zero(reading: Reading) -> bool { reading.value == 0 }
+pub domain Reading::Zero requires is_zero(self);
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("callable predicate spoof fixture should check");
+    let call_expression = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, psi_typed_trees::expression::ExpressionNode::Call(_))
+                .then_some(expression)
+        })
+        .expect("domain predicate call expression");
+    let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+        .typed
+        .expression_table
+        .expression_mut(call_expression)
+    else {
+        panic!("call expression")
+    };
+    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("callable predicate authority is not yet a review claim");
+        .expect_err("a typed call target cannot diverge from checked selection custody");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("contract expression form not yet represented")
+            .contains("target disagrees with its exact checked call-selection row")
     }));
 }
 
@@ -4511,41 +4573,52 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn public_trait_unsupported_contract_expressions_remain_fail_closed() {
-    let reject = |source: &str, expected: &str| {
-        let package = TempPackage::new();
-        package.write("main.omg", source);
-        package.write(
-            "build.omg",
-            r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
-"#,
-        );
-        let checked = compile_to_checked_with_packages(
-            &package.0.join("main.omg"),
-            Some("windows_x64"),
-            package_inputs(&package.0),
-        )
-        .expect("fail-closed trait contract fixture should reach checked trees");
-        let diagnostics = project_checked_package_review(&checked)
-            .expect_err("unrepresented public trait contract lane must reject");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(expected)),
-            "expected `{expected}` rejection, found {diagnostics:#?}"
-        );
-    };
-
-    reject(
+fn public_trait_contract_calls_use_the_same_checked_projection() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
         r#"machine computed_zero() -> u64 { 0 }
 pub trait Worker {
     machine wait() -> u64
     ensures result == computed_zero();
 }
 "#,
-        "contract expression form not yet represented by package review",
     );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public trait contract call fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public trait contract calls use the checked call row");
+    let [trait_shape] = review.public_traits() else {
+        panic!("one public trait")
+    };
+    let [requirement] = trait_shape.requirements() else {
+        panic!("one trait requirement")
+    };
+    let [contract] = requirement.contracts() else {
+        panic!("one trait requirement contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("binary trait guarantee")
+    };
+    assert!(matches!(
+        right.as_ref(),
+        PackageReviewContractExpression::Call { target, .. }
+            if target.path() == "computed_zero::entry"
+    ));
 }
 
 #[test]
