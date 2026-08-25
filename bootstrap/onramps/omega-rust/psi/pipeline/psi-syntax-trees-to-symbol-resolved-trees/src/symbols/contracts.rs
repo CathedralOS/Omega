@@ -2,6 +2,10 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expression_paths::resolve_expression_table_call_target_symbol;
+use super::expressions::{
+    assign_member_symbol, assign_membership_symbol, assign_name_symbol,
+    assign_struct_literal_symbols,
+};
 use super::scope::MachineScope;
 use super::targets::assign_static_argument_symbols;
 
@@ -283,24 +287,38 @@ fn assign_contract_call_symbols(
                 );
             }
         }
-        ExpressionNode::Member(member) => assign_contract_call_symbols(
-            symbols,
-            machine,
-            parameters,
-            state_symbol,
-            expression_table,
-            child_type_references,
-            member.receiver,
-        ),
-        ExpressionNode::Membership(membership) => assign_contract_call_symbols(
-            symbols,
-            machine,
-            parameters,
-            state_symbol,
-            expression_table,
-            child_type_references,
-            membership.value,
-        ),
+        ExpressionNode::Member(member) => {
+            assign_contract_call_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                member.receiver,
+            );
+            assign_member_symbol(
+                symbols,
+                machine,
+                state_symbol,
+                expression_table,
+                member.receiver,
+                &member.member,
+                expression,
+            );
+        }
+        ExpressionNode::Membership(membership) => {
+            assign_contract_call_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                membership.value,
+            );
+            assign_membership_symbol(symbols, expression_table, membership.domain, expression);
+        }
         ExpressionNode::Borrow(inner) => assign_contract_call_symbols(
             symbols,
             machine,
@@ -336,6 +354,7 @@ fn assign_contract_call_symbols(
                     field.value,
                 );
             }
+            assign_struct_literal_symbols(symbols, expression_table, expression);
         }
         ExpressionNode::Unary(unary) => assign_contract_call_symbols(
             symbols,
@@ -357,10 +376,17 @@ fn assign_contract_call_symbols(
             );
             *child_type_references.get_mut(type_reference) = target_type;
         }
+        ExpressionNode::Name(path) => assign_name_symbol(
+            symbols,
+            machine.symbol,
+            state_symbol,
+            expression_table,
+            &path,
+            expression,
+        ),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => {}
     }
 }
