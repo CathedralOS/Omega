@@ -1,0 +1,158 @@
+; OMGRFN5 responsibility 1: exact version-5 framing and complete OMGCOMP
+; source custody. This persisted adapter is compiled with the frozen OMGCOMP
+; custody core in omgrfn4-frame-omgcomp-custody.beta. It reuses only the
+; structural parsing procedures: it does not call the OMGRFN4 frame reader or
+; accept an OMGRFN4 conclusion. OMGRSW1, CKIR4, ELF, and claimed results remain
+; untrusted opaque frame components here.
+;
+; Raw frame bytes: byte[1048576 .. 5546119], maximum 4,497,544 bytes.
+; The shared custody core's private word/table layout is retained deliberately,
+; including source-ID content extents at 607040/607168.
+
+proc omgrfn5_byte(index) { return byte[1048576 + index] }
+proc omgrfn5_source_content_start(source_id) { return word[607040 + source_id * 8] }
+proc omgrfn5_source_content_length(source_id) { return word[607168 + source_id * 8] }
+
+proc omgrfn5_u32(at) {
+    return omgrfn5_byte(at)
+        + omgrfn5_byte(at + 1) * 256
+        + omgrfn5_byte(at + 2) * 65536
+        + omgrfn5_byte(at + 3) * 16777216
+}
+
+proc omgrfn5_read() {
+    let n = 0
+    let overflow = 0
+    let c = read_byte()
+    let flags = 0
+    let omgcomp_length = 0
+    let witness_length = 0
+    let ckir_length = 0
+    let elf_length = 0
+    let result = 0
+    let exit_projection = 0
+    let cursor = 0
+    state loop {
+        to body when (c >= 0)
+        to finish
+    }
+    state body {
+        to exhausted_byte when (n >= 4497544)
+        byte[1048576 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state exhausted_byte {
+        overflow = 1
+        c = read_byte()
+        to loop
+    }
+    state finish {
+        word[500000] = n
+        word[500008] = 0
+        to exhausted when (overflow == 1)
+        to magic0 when (n >= 40)
+        to malformed
+    }
+    state magic0 { to magic1 when (omgrfn5_byte(0) == 'O')  to malformed }
+    state magic1 { to magic2 when (omgrfn5_byte(1) == 'M')  to malformed }
+    state magic2 { to magic3 when (omgrfn5_byte(2) == 'G')  to malformed }
+    state magic3 { to magic4 when (omgrfn5_byte(3) == 'R')  to malformed }
+    state magic4 { to magic5 when (omgrfn5_byte(4) == 'F')  to malformed }
+    state magic5 { to magic6 when (omgrfn5_byte(5) == 'N')  to malformed }
+    state magic6 { to magic7 when (omgrfn5_byte(6) == '5')  to malformed }
+    state magic7 { to version when (omgrfn5_byte(7) == 0)  to malformed }
+    state version { to fields when (omgrfn5_u32(8) == 5)  to malformed }
+    state fields {
+        flags = omgrfn5_u32(12)
+        omgcomp_length = omgrfn5_u32(16)
+        witness_length = omgrfn5_u32(20)
+        ckir_length = omgrfn5_u32(24)
+        elf_length = omgrfn5_u32(28)
+        result = omgrfn5_u32(32)
+        exit_projection = omgrfn5_u32(36)
+        to malformed when (flags > 1)
+        to malformed when (omgcomp_length < 1)
+        to malformed when (witness_length < 1)
+        to malformed when (ckir_length < 1)
+        to exhausted when (omgcomp_length > 267280)
+        to exhausted when (witness_length > 524288)
+        to exhausted when (ckir_length > 2522192)
+        to exhausted when (elf_length > 1183744)
+        cursor = 40
+        to add_omgcomp when (omgcomp_length <= 4497544 - cursor)
+        to malformed
+    }
+    state add_omgcomp {
+        word[500024] = cursor
+        word[500032] = omgcomp_length
+        cursor = cursor + omgcomp_length
+        to add_witness when (witness_length <= 4497544 - cursor)
+        to malformed
+    }
+    state add_witness {
+        word[500040] = cursor
+        word[500048] = witness_length
+        cursor = cursor + witness_length
+        to add_ckir when (ckir_length <= 4497544 - cursor)
+        to malformed
+    }
+    state add_ckir {
+        word[500056] = cursor
+        word[500064] = ckir_length
+        cursor = cursor + ckir_length
+        to add_elf when (elf_length <= 4497544 - cursor)
+        to malformed
+    }
+    state add_elf {
+        word[500072] = cursor
+        word[500080] = elf_length
+        cursor = cursor + elf_length
+        word[500016] = flags
+        word[500088] = result
+        word[500096] = exit_projection
+        to malformed when (n != cursor)
+        to library when (flags == 0)
+        to entry
+    }
+    state library {
+        to malformed when (elf_length != 0)
+        to malformed when (result != 4294967295)
+        to malformed when (exit_projection != 4294967295)
+        return 0
+    }
+    state entry {
+        to malformed when (elf_length < 1)
+        to malformed when (exit_projection > 255)
+        to malformed when (exit_projection != (result % 256))
+        return 0
+    }
+    state exhausted { word[500008] = 252  return 252 }
+    state malformed { word[500008] = 251  return 251 }
+}
+
+proc omgrfn5_layer1_check() {
+    word[500008] = 0
+    omgrfn5_read()
+    to omgcomp_start when (word[500008] == 0)
+    to done
+    state omgcomp_start {
+        word[500128] = 0
+        word[500144] = word[500032]
+        omgcomp_check_header()
+        to packages when (word[500128] == 0)
+        to omgcomp_failed
+    }
+    state packages { omgcomp_check_packages()   to sources when (word[500128] == 0)  to omgcomp_failed }
+    state sources { omgcomp_check_sources()   to aliases when (word[500128] == 0)  to omgcomp_failed }
+    state aliases { omgcomp_check_alias_rows()   to strings when (word[500128] == 0)  to omgcomp_failed }
+    state strings { omgcomp_check_strings()   to roles when (word[500128] == 0)  to omgcomp_failed }
+    state roles { omgcomp_check_string_roles()   to graph when (word[500128] == 0)  to omgcomp_failed }
+    state graph { omgcomp_check_alias_order_graph()   to bundle when (word[500128] == 0)  to omgcomp_failed }
+    state bundle { omgcomp_check_bundle()   to source_order when (word[500128] == 0)  to omgcomp_failed }
+    state source_order { omgcomp_check_source_label_order()   to extents when (word[500128] == 0)  to omgcomp_failed }
+    state extents { omgcomp_finalize_source_extents()   to done }
+    state omgcomp_failed { word[500008] = word[500128]   to done }
+    state done { return word[500008] }
+}
