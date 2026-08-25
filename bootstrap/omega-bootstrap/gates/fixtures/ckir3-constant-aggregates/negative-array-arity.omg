@@ -1,0 +1,15 @@
+data ArityPair [copy] {
+    first: u8;
+    last: u8;
+}
+
+data WrongArityProbe {
+    pairs: [ArityPair; 2] in Trapping;
+}
+
+machine WrongArityProbe::run(&mut self) -> u8 {
+    self.pairs = [
+        ArityPair { first: 35, last: 70 }
+    ];
+    self.pairs[0].last
+}

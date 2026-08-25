@@ -1,0 +1,54 @@
+// The owner precedes its element declaration intentionally: declaration order
+// must not become interval-custody or lowering meaning.
+
+data CustodyCycle {
+    cells: [CustodyCell; 3] in Trapping;
+}
+
+machine CustodyCycle::run(&mut self) -> u8 {
+    self.cells = [
+        CustodyCell { ceiling: 70, payload: 11 },
+        CustodyCell { ceiling: 70, payload: 29 },
+        CustodyCell { ceiling: 70, payload: 70 }
+    ];
+    transition { _ -> narrow(0) }
+
+    state narrow(&mut self, index: u32 in Trapping) {
+        transition index < 3 {
+            true -> indexed(index)
+            _ -> fail()
+        }
+    }
+
+    state indexed(&mut self, index: u32 in Trapping) {
+        transition self.cells[index].ceiling <= 70 {
+            true -> forward(index)
+            _ -> fail()
+        }
+    }
+
+    state forward(&mut self, index: u32 in Trapping) {
+        transition index < 2 {
+            true -> narrow(index + 1)
+            _ -> final(index)
+        }
+    }
+
+    state final(&mut self, index: u32 in Trapping) {
+        transition self.cells[index].payload <= 70 {
+            true -> pass(index)
+            _ -> fail()
+        }
+    }
+
+    state pass(&mut self, index: u32 in Trapping) {
+        self.cells[index].payload
+    }
+
+    state fail(&mut self) { 71 }
+}
+
+data CustodyCell [copy] {
+    payload: u8;
+    ceiling: u32 in Trapping;
+}

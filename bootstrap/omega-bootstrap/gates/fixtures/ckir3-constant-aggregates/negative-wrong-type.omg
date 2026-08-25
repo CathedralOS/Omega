@@ -1,0 +1,13 @@
+data TypedPair [copy] {
+    first: u8;
+    last: u8;
+}
+
+data WrongTypeProbe {
+    pair: TypedPair;
+}
+
+machine WrongTypeProbe::run(&mut self) -> u8 {
+    self.pair = TypedPair { first: true, last: 70 };
+    self.pair.last
+}

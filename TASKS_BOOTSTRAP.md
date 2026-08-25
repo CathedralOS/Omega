@@ -257,19 +257,25 @@ on the separately blocked compilation-authority join.
 
 - [ ] Close the next checkpoint-000001 vertical slice: recursively constant
   scalar/record/fixed-array values, copying a completed aggregate into mutable
-  storage, nested aggregate indexing, and scalar `<=`. Exercise the exact
+  storage, nested aggregate indexing, scalar `<=`, guardless transitions, and
+  state-edge interval custody across cyclic control flow. Exercise the exact
   standalone `compiler/psi/generated/unicode_tables.omg` source with a
   same-module result harness, but specify and test a general source family
   rather than that filename, its 1,497 record literals, or its two exact table
-  sizes. Version the frozen `OMGLOW2`/CKIR2 handoff instead of reinterpreting
-  it. Prefer a typed semantic constant graph or pool plus aggregate copy whose
-  layout is derived by the backend; do not expand the tables into thousands of
+  sizes. The versioned source/IR/backend contract is
+  [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md):
+  it succeeds the frozen `OMGLOW2`/CKIR2 handoff rather than reinterpreting it,
+  and uses a typed semantic constant graph plus aggregate copy whose layout is
+  derived by the backend. Do not expand the tables into thousands of
   source-shaped store operations or accept producer-selected layout bytes.
 
   Acceptance: the exact Unicode source and harness produce result 70; renamed,
   reordered, smaller, and nested positives preserve ordinary Omega meaning;
-  field/type/arity/nonconstant/copy/layout/`<=` negatives reject 251; adjacent
-  source, pool, graph, checked-IR, image, frame, and runtime limits reject 252
+  field/type/arity/nonconstant/copy/layout/`<=` negatives reject 251; focused
+  controls prove arm-local `<`/`<=` facts, ordinal state-argument transfer,
+  declaration-order-independent joins, and the exact
+  `scan → check → upper → scan(index + 1)` fixed point; adjacent source, pool,
+  graph, checked-IR, image, frame, and runtime limits reject 252
   before publication, including the provisional 1,024/1,025 array-literal and
   four/five record-field boundaries; native, Delta-self-built, and Rust-free
   meaning routes agree on bytes and 0/251/252 observations; and a new versioned

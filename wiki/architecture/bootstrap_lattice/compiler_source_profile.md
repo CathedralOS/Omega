@@ -379,16 +379,19 @@ decision.
 
 The next selected checkpoint-000001 semantic/artifact tranche is recursively
 constant scalar, record, and fixed-array construction from the exact standalone
-`compiler/psi/generated/unicode_tables.omg` unit, together with scalar `<=` and
-a same-module behavioral harness. The general capability is a typed semantic
-constant graph or pool, aggregate copy, and nested indexing—not recognition of
-the generated filename, its exact literal count, or its two table lengths. A
-versioned successor to the frozen CKIR2 handoff must let the backend derive
-layout and materialize private read-only data without exploding the source into
-thousands of place/store operations or accepting producer-selected layout
-bytes. This slice directly prices generated ordinary-Omega data and the
-measured Stage-08 expansion hotspot; it does not decide the final disposition
-of records, arrays, generated source, or any later checkpoint feature.
+`compiler/psi/generated/unicode_tables.omg` unit, together with scalar `<=`,
+guardless transitions, cyclic state-parameter interval custody, and a
+same-module behavioral harness. The general capability is a typed semantic
+constant graph or pool, aggregate copy, nested indexing, canonical
+unconditional control, and declaration-order-independent propagation of
+arm-local range facts across state edges—not recognition of the generated
+filename, its exact literal count, or its two table lengths. A versioned
+successor to the frozen CKIR2 handoff must let the backend derive layout and
+materialize private read-only data without exploding the source into thousands
+of place/store operations or accepting producer-selected layout bytes. This
+slice directly prices generated ordinary-Omega data and the measured Stage-08
+expansion hotspot; it does not decide the final disposition of records, arrays,
+generated source, or any later checkpoint feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
