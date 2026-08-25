@@ -72,7 +72,11 @@ The first persisted-Beta responsibility closes exact version-4 framing and
 complete `OMGCOMP` structure/source custody while keeping later components
 opaque. The second independently reconstructs the complete `OMGRSW1` for the
 selected two-source Unicode constant-aggregate family, including every role-3
-binding, while keeping CKIR3, ELF, and result claims opaque. Intrinsic tables,
+binding, while keeping CKIR3, ELF, and result claims opaque. The third joins
+the complete inherited declaration/type/layout tables and
+selected entry-machine root to CKIR3, then independently validates the
+intrinsic constant DAG for both the Unicode carrier and a compact nested
+positive. Source-body constant correspondence, opcode-11 roots/reachability,
 source lowering and meaning, CKIR/result/artifact reconstruction, and the
 same-frame composition gate remain open. No earlier OMGRFN checker is widened
 to provide CKIR3 evidence.
