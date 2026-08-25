@@ -534,6 +534,16 @@ capability/API obligations, source-to-artifact binding, transitive open rows,
 and schema-delta composition remain to be built before `PackageInstance` can
 exist honestly.
 
+For ordinary package claims, “produced artifact” means the complete canonical
+package-admission semantic row set under an exact package, target, dependency
+closure, and obligation schema. It is not native code and it is not the
+compiler-issued review object. Review may carry candidate bytes in the same
+vocabulary, but a consumer must regenerate the total row set from exact source
+and compare it exactly before those bytes can participate in accepted evidence.
+Source, certificates, proof routes, compiler observations, and local decisions
+remain separately bound. The current incomplete review-v34 projection therefore
+does not become a package artifact or `PackageInstance` by renaming it.
+
 ## Target command surface
 
 ```text

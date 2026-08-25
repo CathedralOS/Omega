@@ -1297,6 +1297,24 @@ complete.
 
 ## P4 — Lock and baseline
 
+- **ORDINARY-PACKAGE-ARTIFACT-SUBJECT.** Finish and name the canonical semantic
+  subject for ordinary package claims. It is the total versioned
+  package-admission row set under one exact package key, target, dependency
+  closure, and obligation-semantics schema. The compiler-issued review may
+  carry candidate bytes in this same vocabulary, but review provenance and a
+  matching hash confer no authority. A consumer accepts the artifact only by
+  independently reconstructing the complete row set from the exact source
+  subject and requiring byte-for-byte equality.
+
+  Acceptance: the subject is source-handle-free, compiler-IR-free, proof-route-
+  free, and complete for ordinary capability/API/build-contract obligations;
+  unknown or omitted rows reject. Source bytes, compiler/process observations,
+  certificates, decisions, and explanatory coordinates remain separately bound
+  subjects or provenance. Native code and Terminal evidence are additional
+  final-realization subjects rather than the ordinary package artifact. Do not
+  create a placeholder `PackageInstance` or bless current incomplete review v34
+  bytes merely because the future artifact reuses their canonical vocabulary.
+
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is
   deliberately absent from compiler-issued review. For every closure subject,
   retain the exact requested source, exact produced artifact, obligation-

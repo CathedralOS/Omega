@@ -794,6 +794,14 @@ set under the selected semantics, and checks the exact retained certificates.
 The produced subject is the canonical package artifact for ordinary package
 claims; final-realization claims additionally bind the exact native artifact and
 Terminal evidence. It is never merely a compiler-authored verdict packet.
+Concretely, the ordinary artifact is the complete versioned package-admission
+semantic row set under one exact package key, target, dependency closure, and
+obligation schema. Compiler review may emit candidate bytes in that same
+vocabulary, but only independent reconstruction from the exact source subject
+and byte-for-byte comparison gives them evidentiary force. Source bytes,
+certificates, proof routes, compiler observations, and decisions remain separate
+subjects or provenance. The current incomplete review-v34 rows are not promoted
+by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
 proof routes, and kernel dependencies remain derivation provenance; semantic
