@@ -66,6 +66,11 @@ impl SymbolResolvedTreesSnapshot {
                             .symbols
                             .display_path(declaration.symbol, "::"),
                         is_public: declaration.is_public,
+                        declared_type: type_reference_snapshot(
+                            symbol_resolved_trees,
+                            &declaration.declared_type,
+                        ),
+                        canonical_value_encoding: declaration.canonical_value_encoding.clone(),
                     })
                     .collect(),
                 data_definitions: symbol_resolved_trees
@@ -181,6 +186,9 @@ pub struct ConstDeclarationSnapshot {
     pub has_symbol: bool,
     pub name: String,
     pub is_public: bool,
+    pub declared_type: TypeReferenceSnapshot,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_value_encoding: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

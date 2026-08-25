@@ -45,11 +45,22 @@ pub fn lower_symbol_resolved_trees(
             .clone(),
     );
     for declaration in &symbol_resolved_trees.const_declarations {
+        let declared_type = lowerer.with_type_reference_exposure(
+            declaration_exposure(declaration.is_public),
+            |lowerer| {
+                crate::type_reference::lower_type_reference_into_table(
+                    lowerer,
+                    &declaration.declared_type,
+                )
+            },
+        )?;
         lowerer
             .typed_trees
             .push_const_declaration(psi_typed_trees::constant::ConstDeclaration {
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
+                declared_type,
+                canonical_value_encoding: declaration.canonical_value_encoding.clone(),
             });
     }
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees

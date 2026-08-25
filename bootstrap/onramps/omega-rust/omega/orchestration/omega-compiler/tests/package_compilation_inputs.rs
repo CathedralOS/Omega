@@ -739,6 +739,39 @@ fn const_visibility_gates_public_and_cross_package_selection() {
     .expect("root-only private implementation graph should validate");
     compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
         .expect("private implementation may select its package-private const");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data LocalToken { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only public const graph should validate structurally");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a public const may not expose its package-private data type");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("public const `TOKEN`")
+                && diagnostic.message.contains("private data `LocalToken`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "pub data LocalToken { value: u64; }\npub const TOKEN: LocalToken = LocalToken { value: 4 };\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only published public const graph should validate");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect("a public const may expose an explicitly public structural data type");
 }
 
 #[test]

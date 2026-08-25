@@ -1049,6 +1049,27 @@ impl PackageReviewPropositionShape {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewConstShape {
+    identity: PackageReviewNominalIdentity,
+    declared_type: PackageReviewTypeIdentity,
+    canonical_value_encoding: String,
+}
+
+impl PackageReviewConstShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub const fn declared_type(&self) -> &PackageReviewTypeIdentity {
+        &self.declared_type
+    }
+
+    pub fn canonical_value_encoding(&self) -> &str {
+        &self.canonical_value_encoding
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionApplication {
     declaration: PackageReviewNominalIdentity,
     binders: Vec<PackageReviewPropositionBinder>,
@@ -1886,6 +1907,7 @@ pub struct CheckedPackageReviewProjection {
     public_traits: Vec<PackageReviewTraitShape>,
     public_domains: Vec<PackageReviewDomainShape>,
     public_propositions: Vec<PackageReviewPropositionShape>,
+    public_consts: Vec<PackageReviewConstShape>,
     public_data: Vec<PackageReviewDataShape>,
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     semantic_dependencies: Vec<PackageReviewSemanticDependency>,
@@ -1903,6 +1925,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.public_traits == other.public_traits
             && self.public_domains == other.public_domains
             && self.public_propositions == other.public_propositions
+            && self.public_consts == other.public_consts
             && self.public_data == other.public_data
             && self.representation_tcb == other.representation_tcb
             && self.semantic_dependencies == other.semantic_dependencies
@@ -1920,6 +1943,7 @@ struct PackageReviewCanonicalRowSources {
     public_traits: Vec<PackageReviewCanonicalRowSource>,
     public_domains: Vec<PackageReviewCanonicalRowSource>,
     public_propositions: Vec<PackageReviewCanonicalRowSource>,
+    public_consts: Vec<PackageReviewCanonicalRowSource>,
     public_data: Vec<PackageReviewCanonicalRowSource>,
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
@@ -1984,6 +2008,7 @@ pub enum PackageReviewCanonicalRowKind {
     DangerousAuthoritySlack,
     SemanticDependency,
     PublicProposition,
+    PublicConst,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2163,6 +2188,10 @@ impl CheckedPackageReviewProjection {
         &self.public_propositions
     }
 
+    pub fn public_consts(&self) -> &[PackageReviewConstShape] {
+        &self.public_consts
+    }
+
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
         &self.public_data
     }
@@ -2250,6 +2279,7 @@ pub fn project_checked_package_review(
     let public_traits = project_public_traits(compilation, package)?;
     let public_domains = project_public_domains(compilation, package)?;
     let public_propositions = project_public_propositions(compilation, package)?;
+    let public_consts = project_public_consts(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
@@ -2425,6 +2455,11 @@ pub fn project_checked_package_review(
         public_propositions,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (public_consts, public_const_sources) = finalize_projected_rows(
+        compilation,
+        public_consts,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
     let (public_data, public_data_sources) = finalize_projected_rows(
         compilation,
         public_data,
@@ -2450,6 +2485,7 @@ pub fn project_checked_package_review(
         public_traits: public_trait_sources,
         public_domains: public_domain_sources,
         public_propositions: public_proposition_sources,
+        public_consts: public_const_sources,
         public_data: public_data_sources,
         representation_tcb: representation_tcb_sources,
         semantic_dependencies: semantic_dependency_sources,
@@ -2466,6 +2502,7 @@ pub fn project_checked_package_review(
         public_traits,
         public_domains,
         public_propositions,
+        public_consts,
         public_data,
         representation_tcb,
         semantic_dependencies,
@@ -2932,6 +2969,7 @@ fn validate_canonical_row_source_limits(
         .iter()
         .chain(&sources.public_domains)
         .chain(&sources.public_propositions)
+        .chain(&sources.public_consts)
         .chain(&sources.public_data)
         .chain(&sources.representation_tcb)
         .chain(&sources.semantic_dependencies)
@@ -3540,6 +3578,43 @@ fn project_public_propositions(
                 binders,
                 parameter_types,
                 body,
+            },
+            declaration: declaration.symbol,
+        });
+    }
+    rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
+    Ok(rows)
+}
+
+fn project_public_consts(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<ProjectedReviewRow<PackageReviewConstShape>>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    for declaration in compilation
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.is_public)
+    {
+        let identity = nominal_identity(compilation, declaration.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        let Some(canonical_value_encoding) = declaration.canonical_value_encoding.clone() else {
+            return Err(vec![Diagnostic::error(format!(
+                "public const `{}` has no canonical declaration value",
+                identity.path
+            ))]);
+        };
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewConstShape {
+                identity,
+                declared_type: review_type_identity_with_binders(
+                    compilation,
+                    declaration.declared_type,
+                    &[],
+                )?,
+                canonical_value_encoding,
             },
             declaration: declaration.symbol,
         });

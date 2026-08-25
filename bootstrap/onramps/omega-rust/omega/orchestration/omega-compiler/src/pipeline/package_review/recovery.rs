@@ -497,6 +497,7 @@ const fn canonical_risk(kind: PackageReviewCanonicalRowKind) -> PackageReviewCan
         | PackageReviewCanonicalRowKind::PublicDomain
         | PackageReviewCanonicalRowKind::PublicData
         | PackageReviewCanonicalRowKind::PublicProposition
+        | PackageReviewCanonicalRowKind::PublicConst
         | PackageReviewCanonicalRowKind::Callable
         | PackageReviewCanonicalRowKind::DangerousAuthority
         | PackageReviewCanonicalRowKind::AcceptedClaim
@@ -522,6 +523,7 @@ fn decode_kind(
         9 => Ok(PackageReviewCanonicalRowKind::DangerousAuthoritySlack),
         10 => Ok(PackageReviewCanonicalRowKind::SemanticDependency),
         11 => Ok(PackageReviewCanonicalRowKind::PublicProposition),
+        12 => Ok(PackageReviewCanonicalRowKind::PublicConst),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical package-review row contains an unknown kind tag",
         )),

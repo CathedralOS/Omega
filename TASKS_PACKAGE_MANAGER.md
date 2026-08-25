@@ -721,12 +721,20 @@ complete.
   const in ordinary compilation; package admission separately rejects a
   private const selected across package ownership even when the owner is a
   direct dependency. Const substitution continues to retain the exact selected
-  declaration symbol, so value erasure cannot erase this gate. Package-review
-  compatibility remains open: const-v0 still treats an unused declaration's
-  written type as documentation, and no trusted public-const row may be emitted
-  until declaration-site typing and exact semantic type/value identity land.
-  Reusing source-spelled const-generic encoding without that semantic join
-  would be tempting but unsound in a reconciled multi-package closure.
+  declaration symbol, so value erasure cannot erase this gate.
+
+  Milestone 2026-08-25: review v53 and canonical row v13 emit one blocking
+  `PublicConst` row for every package-owned public const, including unused
+  declarations. The row binds the exact package-qualified declaration, exact
+  typed declared-type identity, and canonical structural declaration value;
+  source initializer text, display text, and runtime storage identity are not
+  compatibility material. Declared types recursively reject private data.
+  Public const forms for which the compiler cannot establish this identity,
+  including constrained declarations pending declaration-site proof checking,
+  reject instead of falling back to source spelling. Private const-v0 behavior
+  remains unchanged. Changing the declared type or canonical value therefore
+  produces a blocking compatibility conflict and a source-backed
+  `public_const` review row.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
@@ -1518,7 +1526,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v52
+  create a placeholder `PackageInstance` or bless current incomplete review v53
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

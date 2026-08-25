@@ -578,6 +578,15 @@ name/signature API row, never a fact or admission; witness interfaces and
 transparent expansions are structural compatibility content. A published
 transparent alias remains source API even though normalized proposition
 applications expand through it.
+Review v53 and canonical row v13 add one blocking `PublicConst` row for every
+package-owned public const, whether used or unused. The row contains the exact
+package-qualified declaration identity, exact typed declared-type identity,
+and canonical structural value encoding. It never substitutes source
+initializer text, display text, or runtime storage identity. Public consts
+whose declared type exposes private data, or whose value cannot yet be given
+that exact semantic identity, reject rather than weakening the row. A type or
+value change consequently enters source-backed conflict review as
+`public_const`; private const-v0 declarations remain outside this API surface.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

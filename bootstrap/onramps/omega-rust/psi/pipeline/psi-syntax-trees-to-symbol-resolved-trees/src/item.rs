@@ -210,6 +210,37 @@ fn lower_item_with_exposure(
         // authored-selection and package-authority custody.
         syntax::item::Item::Const(definition) => {
             crate::constant::validate_const_definition(syntax_trees, definition)?;
+            let canonical_value_encoding = if definition.is_public {
+                Some(
+                    psi_generic_instances::canonicalize_declared_const_definition(
+                        syntax_trees,
+                        definition,
+                    )
+                    .map_err(|reason| {
+                        psi_diagnostics::Diagnostic::error(format!(
+                            "public const `{}` has no canonical declaration identity: {reason}",
+                            crate::constant::semantic_const_name(definition),
+                        ))
+                        .with_source_span(definition.name.source_span())
+                    })?
+                    .encoding,
+                )
+            } else {
+                None
+            };
+            let declared_type = crate::type_reference::lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                definition.type_reference,
+            )?;
+            lowerer.symbol_resolved_trees.roots.const_declarations.push(
+                psi_symbol_resolved_trees::constant::ConstDeclaration {
+                    symbol: psi_symbols::SymbolHandle::invalid(),
+                    is_public: definition.is_public,
+                    declared_type,
+                    canonical_value_encoding,
+                },
+            );
             lowerer
                 .pending_const_declarations
                 .push(crate::lowerer::PendingConstDeclaration {

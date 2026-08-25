@@ -568,6 +568,15 @@ or normalized transparent expansion. A primitive row publishes vocabulary and
 does not create a checked fact or admission. Transparent aliases remain source
 compatibility surface even though proposition applications normalize through
 their expansion.
+Review v53 and canonical row v13 add one blocking `PublicConst` row for every
+package-owned public const, including an unused declaration. Its compatibility
+identity is the exact package-qualified declaration, exact typed declared
+type, and canonical structural value. Source spelling, rendered values, and
+runtime storage identity do not enter the row. If the declared type exposes
+private data or the compiler cannot yet canonicalize the declaration value,
+publication rejects instead of manufacturing a weak identity. Type or value
+changes therefore become source-backed `public_const` conflicts; private
+const-v0 declarations remain unchanged and unprojected.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
