@@ -109,11 +109,12 @@ wording; the current lexer accepts `\u{...}` and encodes the scalar as UTF-8
 while the guide explicitly forbids that escape; raw-string delimiter/content
 rules are not normative there; and `u32` index/cursor expressions feed fixed-
 array indexing and compare directly with slice `.len`, while the specified
-`Array`/`Slice` index and count interfaces use `u64`, without a settled exact
-widening, cross-carrier comparison, or explicit cast. The checkpoint therefore
-records those tested implementation behaviors without treating them as
-full-Omega lexical authority. `TASKS.md` owns the required rulings or product-source
-refactors.
+`Array`/`Slice` index and count interfaces use `u64`. Chapter 5 now specifies
+explicit denotation-preserving integer widening with `as` and forbids implicit
+widening; it does not authorize those direct cross-carrier uses. The checkpoint
+therefore records those tested implementation behaviors without treating them
+as full-Omega lexical authority. `TASKS.md` owns the required rulings or
+product-source refactors.
 
 The profile artifact's `unresolved_decisions` array records gaps owned by the
 profile/bridge join; it is not an exhaustive registry of language-design

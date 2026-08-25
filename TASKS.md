@@ -126,9 +126,11 @@ Remaining:
   raw strings whose delimiter/content rules are not yet normative there. Its
   `u32` cursors also flow into fixed-array indexing and compare directly with
   slice `.len`, while the specified `Array`/`Slice` index and count interfaces
-  use `u64`, without a settled exact-widening, heterogeneous-comparison, or
-  explicit-cast rule. The language owner must rule these forms and update the
-  guide or refactor the product source and preserve rejection canaries. Until then, the
+  use `u64`. Chapter 5 now settles explicit denotation-preserving integer
+  widening with `as` and separately forbids implicit widening; it does not make
+  these direct `u32`/`u64` uses valid. The product owner must refactor them to
+  explicit conversions or obtain a distinct heterogeneous-conversion/comparison
+  ruling, then preserve the corresponding rejection canaries. Until then, the
   checkpoint records tested implementation behavior but does not claim
   full-spec lexical conformance for those forms.
 

@@ -125,128 +125,23 @@ scale: one explicitly reserved typed extent is partitioned into integer-offset
 logical tables, while source bytes reserve contiguous cells at runtime in a
 separate byte backing. Checked exhaustion cannot compile a retained prefix.
 
-## `Ωself` — production compiler source profile (open)
+## `Ωself` is not a canary profile
 
-`Ωself` is a strict profile of valid Omega source, not a bootstrap dialect or a
-new rung. `omega-bootstrap` will accept exactly this profile; the compiler built
-from it must nevertheless implement the full Omega specification. Every
-accepted construct keeps its ordinary Omega semantics, ABI, layout, and
-artifact contract, and unsupported constructs reject explicitly.
+This file does not define `Ωself`. It freezes the executable D0, O0, O1, and
+profile-neutral scalar-call regression contracts below. `Ωself` is instead
+the open, compositional ordinary-Omega profile of the complete production
+compiler source. It is derived from product-source checkpoints and measured
+bridge cost, not by extending the numbered canaries.
 
-It is one of only two open feature inventories. Delta v1 governs the source
-used to implement `omega-bootstrap`; `Ωself` governs the Omega source that
-compiler accepts. There is no third bridge-language profile, and the
-full-Omega features implemented by the resulting product compiler are not
-re-selected here. Executable optimization quality is likewise outside this
-source-profile inventory.
-
-Checkpoint 000001 now supplies the first coherent Omega-written compiler closure
-and a separately hashed, mechanically enforced provisional normalized-syntax/
-resource
-[profile](../../../compiler/source-checkpoints/profile-000001.json). Later
-versioned checkpoints update and deepen that profile. Typed semantics,
-ABI/layout, lowering, Delta capacity behavior, and measured bridge costs remain
-open. The profile cannot be frozen until the final source closure exists and the
-general bridge supplies the implementation and assurance evidence used to
-settle them. Absence from an early checkpoint can justify rejection by that
-checkpoint's candidate gate, but not a final exclusion while later compiler
-phases remain unwritten. The working authoring and measurement biases for the
-compiler's own source are:
-
-- avoid the math/proof surface and advanced dependent/proof-indexed types in
-  new compiler source, and presumptively exclude them from the final profile
-  unless the complete closure establishes a real implementation need;
-- measure ordinary ownership, linearity, and multiplicity separately rather
-  than treating routine resource discipline as proof-oriented typing;
-- retain ordinary named fields, payload-bearing enums/sum data, and basic
-  generics unless evidence shows that their Delta implementation and assurance
-  cost exceeds their source-level benefit;
-- measure concrete domains, domain polymorphism, advanced generic facilities,
-  numeric/schema field tags such as `0:`, complex transition payloads, and
-  mixed field-plus-case data against the actual compiler source before
-  admitting them. Numeric tags are distinct from ordinary named fields. Simple
-  discriminants plus explicit context and separate record/sum shapes are
-  comparison points, not preselected restrictions.
-
-The hosted source closure separately omits terminal-Psi interpreters, REPLs,
-proof explorers, viewers, debuggers, and other product tools unless the compiler
-executable imports them. Tool membership is not an Omega language feature.
-The current compiler architecture does import Terminal-Psi representation and
-lowering modules, so those ordinary source modules belong to the manifest. That
-does not require the bridge to contain or run the standalone Terminal-Psi
-interpreter, verifier, viewer, or debugging tools, or to use Terminal Psi as its
-own internal IR. A direct checked-IR conservative lowering path is valid;
-Terminal-Psi validation is a bridge requirement only if that representation is
-explicitly selected on total-cost grounds.
-
-Candidate measurement does not itself settle this profile. A bounded
-frontend/typechecker probe may be used to price a provisionally retained source
-facility before its artifact representation is chosen. The facility is finally
-retained only when its compositional rule, negative boundary, Rust-free meaning,
-and selected artifact path are all enforced.
-
-### Checkpoint 000001 source-custody frontend measurement
-
-The first such measurement is now closed under
-[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](SOURCE_CUSTODY_FRONTEND_PROBE.md).
-The Delta-written raw-unit checker generally parses, resolves, and type-checks
-the record/field, fixed-array/index, attached-machine, receiver-mutation,
-Trapping/range, scalar-result, and guarded-transition families isolated by
-`compiler/psi/source/source.omg`. It accepts the exact unit and a renamed/
-reordered equivalent, rejects phase-isolated semantic mutations, and carries
-the applicable public resource ceilings. It deliberately does not claim the
-checkpoint's qualified-name `path.components` resource merely from postfix
-member nodes.
-
-The checker is 78,450 bytes of Delta source with 5,395,760 bytes of fixed
-zero-initialized table backing. Native and lowermachine-built observations are
-millisecond-scale. Rust-free elaboration produces 626,059 bytes of Gamma under
-the 1 MiB ceiling; canonical interpretation of the exact unit takes about two
-minutes, so the meaning gate repeats the exact positive plus one semantic
-rejection and one exhaustion observation rather than another equivalent large
-positive. Its current signed-`i32` interval carrier admits only authored `u32`
-literal/range endpoints through 2,147,483,647; larger endpoints remain explicit
-unsupported input.
-
-This checker-only measurement remains cost and feasibility evidence. Its
-corresponding artifact tranche has since selected and implemented private
-versioned `CKIR1` plus direct conservative ELF lowering. Exact native/self
-bytes, canonical-Gamma status/publication meaning, exhaustive CKIR resource and
-relation teeth, product fixture behavior, and exact independent reference
-reconstruction of every selected ELF byte and relation are closed. A
-persisted-Beta checker now
-independently validates CKIR1 and recomputes the selected result across the real
-fixture/library, valid structural controls, and all 142 schema mutations;
-another persisted-Beta checker reconstructs the exact lower-rooted
-CKIR1→limited-ELF relation and selected observation. Persisted-Beta source
-checkers also reconstruct declarations, types, signatures, copy/layout,
-body operations and operands, terminators, transition facts, canonical
-evaluation order, and the full selected source result independently of CKIR
-and ELF storage. Valid source/artifact and CKIR/ELF cross-pairs close the first
-finite, acyclic, returning source→artifact tranche. Cycles, traps, divergence,
-and later source-profile facilities remain later checkpoint obligations.
-ABI/layout/lowering are private tranche rules rather than Omega ABI promises,
-and the final
-retain-versus-refactor disposition remains open. The raw-unit interface also
-avoids silently widening the frozen O0/O1
-bundle transport ceiling; eventual bridge admission must compose the measured
-rules with the canonical bundle frontend.
-
-These exclusions describe syntax used by the compiler implementation, not
-features implemented for compiler users. For example, the product source may
-avoid proof syntax and dependent types while ordinary records, sums, tables,
-and procedures in that same source implement full proof parsing, checking, and
-lowering. Full-Omega suites validate the resulting compiler independently of
-the `Ωself` source census.
-
-Each checkpoint gate must compile that checkpoint's complete manifest under
-explicit compositional profile rules and carry a negative canary for every
-rejected feature. The candidate profile may be enforced before the bridge is
-complete, but it freezes only when the final source closure and general bridge
-implementation supply the evidence used to settle every row. The profile
-includes all transitive libraries, generated and compile-time source, build
-behavior, and compiler-imported tools. See
-[`../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+The single architectural policy and feature-disposition table live in
+[`compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+Checkpoint 000001's exact closure and provisional census live under
+[`compiler/source-checkpoints/`](../../../compiler/source-checkpoints/), while
+the first Delta frontend cost measurement and its exact resource observations
+live in [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](SOURCE_CUSTODY_FRONTEND_PROBE.md).
+The versioned checked-IR and refinement contracts own later selected artifact
+paths. None of those bounded measurements changes the canary contracts below,
+freezes `Ωself`, or creates another language rung.
 
 ## Legacy O0 canary — fixed console acceptance
 

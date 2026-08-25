@@ -1,0 +1,24 @@
+data ByteChoice [copy] {
+    case Value(value: u8);
+    case Empty;
+}
+
+data SumProducer {
+    byte: u8;
+    wide: u32 in Trapping;
+    choice: ByteChoice;
+}
+
+machine SumProducer::run(&mut self) -> u8 {
+    self.choice = ByteChoice::Value { value: 70 };
+    transition self.choice {
+        ByteChoice::Value { value } -> widened(value)
+        ByteChoice::Empty -> failed()
+    }
+    state widened(&mut self, value: u8) {
+        self.wide = (value) as u32 in Trapping;
+        transition self.wide == 70 { true -> passed() false -> failed() }
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}

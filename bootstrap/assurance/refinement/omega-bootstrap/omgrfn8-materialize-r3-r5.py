@@ -162,7 +162,7 @@ def write_checked(output: Path, name: str, source: str) -> str:
 
 
 def materialize(output: Path, outer: int = 8) -> None:
-    if outer not in (8, 9, 10, 11):
+    if outer not in (8, 9, 10, 11, 12):
         raise ValueError(f"unsupported OMGRFN outer version: {outer}")
     output.mkdir(parents=True, exist_ok=True)
 
@@ -203,7 +203,7 @@ proc ckir_record_call_edge(a,b){return 0}
 proc ckir_validate_call_graph(){return 0}
 proc main(){let s=omgrfn5_component_read() state a { to z when(s!=0) s=ckir_decode_header() to z when(s!=0) to bad when(ckir_count(7)!=0) s=ckir_validate_types_records() to z when(s!=0) s=ckir_validate_machines_blocks() to z when(s!=0) s=ckir_validate_operations() to z when(s!=0) s=ckir_validate_terminators_root() to z when(s!=0) s=ckir_assign_constructor_objects() to z when(s!=0) s=ckir_decode_header() to z when(s!=0) s=ckir_interpret_selected() to z } state bad{return 251} state z{return s}}
 """
-    r5_elf = (
+    r5_elf = prune(
         envelope
         + before(artifact, "proc ckir_constant_key_after")
         + between(artifact, "proc ckir_value_type", "proc ckir_initialize_call_graph")
@@ -227,7 +227,7 @@ proc main(){let s=omgrfn5_component_read() state a { to z when(s!=0) s=ckir_deco
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
-    parser.add_argument("--outer", type=int, choices=(8, 9, 10, 11), default=8)
+    parser.add_argument("--outer", type=int, choices=(8, 9, 10, 11, 12), default=8)
     args = parser.parse_args()
     materialize(args.output, args.outer)
 
