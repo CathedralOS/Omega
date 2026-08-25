@@ -31,6 +31,13 @@ struct PendingMembership {
 /// Evaluate direct `machine(self)` facts for literal memberships copied
 /// into synthesized const-generic data definitions.
 pub fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    evaluate_const_domain_facts_with_authority(typed, None)
+}
+
+pub fn evaluate_const_domain_facts_with_authority(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for data in typed.data_definitions() {
         // The unspecialized template has no angle-bracket spelling and must
@@ -64,7 +71,8 @@ pub fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), Vec<Dia
         return Ok(());
     }
 
-    let admission = BuildTimeAdmissionPlan::infer(typed);
+    let admission =
+        BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority);
     let mut replacements = Vec::new();
     let mut affected_data = Vec::new();
     let mut diagnostics = Vec::new();

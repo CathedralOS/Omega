@@ -14,12 +14,50 @@ pub fn compute_plan_laid_layouts(
     typed: &mut TypedTrees,
     records: &[PlanLaidRecord],
 ) -> Result<(), Vec<Diagnostic>> {
+    compute_plan_laid_layouts_with_authority(typed, records, None)
+}
+
+pub fn compute_plan_laid_layouts_with_authority(
+    typed: &mut TypedTrees,
+    records: &[PlanLaidRecord],
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
     if records.is_empty() {
         return Ok(());
     }
 
     let mut layouts = Vec::with_capacity(records.len());
     for record in records {
+        if let Some(selection_authority) = selection_authority.clone() {
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == record.policy_machine)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "plan-laid value type `{}`: no machine named `{}` exists",
+                        record.synthetic_name, record.policy_machine
+                    ))]
+                })?;
+            let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
+                typed,
+                Some(selection_authority),
+            );
+            for source in &record.invocation_sources {
+                admission
+                    .require_common_floor_for_invocation(
+                        typed,
+                        machine,
+                        crate::BuildTimeInvocationCustody::Source(*source),
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: {reason}",
+                            record.synthetic_name
+                        ))]
+                    })?;
+            }
+        }
         let report = crate::compute_layout_plan(typed, &record.policy_machine, &record.schema_data)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(

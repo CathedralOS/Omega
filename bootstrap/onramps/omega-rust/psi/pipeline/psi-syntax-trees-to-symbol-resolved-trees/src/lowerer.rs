@@ -14,6 +14,20 @@ pub(crate) struct PendingAuthoredExpression {
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PendingConstDeclaration {
+    pub(crate) semantic_name: String,
+    pub(crate) source_span: psi_source::SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingConstSelection {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) source_span: psi_source::SourceSpan,
+    pub(crate) declaration_ordinal: usize,
+    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+}
+
 pub fn lower_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
@@ -55,6 +69,10 @@ pub(crate) struct Lowerer {
     /// compiler-generated or belong to a source surface whose public/private
     /// disposition has not yet been classified by its owning declaration.
     pub(crate) pending_authored_expressions: Vec<PendingAuthoredExpression>,
+    /// Const values disappear during lowering, but their declaration identity
+    /// must remain available to package-selection admission.
+    pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
+    pub(crate) pending_const_selections: Vec<PendingConstSelection>,
     pub(crate) current_authored_expression_exposure: Option<AuthoredDeclarationSelectionExposure>,
     sources: Option<Arc<SourceMap>>,
     /// Per-lowering counter that mints unique names for synthetic `let`
@@ -162,6 +180,8 @@ impl Lowerer {
             pending_machine_service_reaches: Vec::new(),
             pending_signature_service_reaches: Vec::new(),
             pending_authored_expressions: Vec::new(),
+            pending_const_declarations: Vec::new(),
+            pending_const_selections: Vec::new(),
             current_authored_expression_exposure: None,
             sources,
             hoist_counter: 0,
@@ -210,7 +230,16 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::symbols::assign_symbols(
+            &mut self.symbol_resolved_trees,
+            self.sources,
+            &self.pending_const_declarations,
+        );
+        crate::constant::finalize_const_selections(
+            &mut self.symbol_resolved_trees,
+            &self.pending_const_selections,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::authored_selections::finalize_authored_expression_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_authored_expressions,

@@ -349,6 +349,20 @@ impl PackageCompilationInputs {
     }
 }
 
+impl psi_build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+    fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        self.allows_declaration_selection(requester, owner)
+    }
+
+    fn package_label(&self, identity: PackageKeyIdentity) -> String {
+        self.package_label(identity)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageCompilationInputError {
     InvalidPackageName {

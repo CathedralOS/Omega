@@ -48,6 +48,7 @@ pub struct PlacedViewRecord {
     pub policy_machine: String,
     pub schema_data: String,
     pub normalized_placement: PlacementPlanId,
+    pub invocation_sources: Vec<psi_source::SourceSpan>,
 }
 
 #[derive(Clone)]
@@ -60,6 +61,7 @@ struct Application {
     synthetic_name: String,
     policy: String,
     schema: String,
+    invocation_sources: Vec<psi_source::SourceSpan>,
 }
 
 #[derive(Debug, Clone)]
@@ -77,12 +79,13 @@ type Discovery = (
 pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
-    desugar_placed_views_with_optional_sources(syntax, None)
+    desugar_placed_views_with_optional_sources(syntax, None, None)
 }
 
 pub(crate) fn desugar_placed_views_with_optional_sources(
     syntax: &mut SyntaxTrees,
     sources: Option<Arc<psi_source::SourceMap>>,
+    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
     let (applications, rewrites, schemas) = discover_applications(syntax)?;
     if applications.is_empty() {
@@ -103,13 +106,29 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
     let mut typed =
         psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;
-    crate::evaluate_const_array_lengths(&mut typed)?;
-    crate::evaluate_const_domain_facts(&mut typed)?;
-    crate::compute_plan_laid_layouts(&mut typed, &probe_plan_laid)?;
+    crate::evaluate_const_array_lengths_with_authority(&mut typed, selection_authority.clone())?;
+    crate::evaluate_const_domain_facts_with_authority(&mut typed, selection_authority.clone())?;
+    crate::compute_plan_laid_layouts_with_authority(
+        &mut typed,
+        &probe_plan_laid,
+        selection_authority.clone(),
+    )?;
 
     let mut plans = BTreeMap::new();
     for application in &applications {
         let policy_machine = format!("{}::plan", application.policy);
+        admit_policy_invocations(
+            &typed,
+            &policy_machine,
+            &application.invocation_sources,
+            selection_authority.clone(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}`: {reason}",
+                application.synthetic_name
+            ))]
+        })?;
         let plan = crate::compute_placement_plan(&typed, &policy_machine, &application.schema)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(
@@ -130,6 +149,7 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
                 policy_machine: format!("{}::plan", application.policy),
                 schema_data: application.schema,
                 normalized_placement: plan.identity(),
+                invocation_sources: application.invocation_sources,
             }
         })
         .collect())
@@ -139,7 +159,27 @@ pub fn validate_placed_view_plans(
     typed: &mut TypedTrees,
     records: &[PlacedViewRecord],
 ) -> Result<(), Vec<Diagnostic>> {
+    validate_placed_view_plans_with_authority(typed, records, None)
+}
+
+pub fn validate_placed_view_plans_with_authority(
+    typed: &mut TypedTrees,
+    records: &[PlacedViewRecord],
+    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
     for record in records {
+        admit_policy_invocations(
+            typed,
+            &record.policy_machine,
+            &record.invocation_sources,
+            selection_authority.clone(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}`: {reason}",
+                record.synthetic_name
+            ))]
+        })?;
         let plan =
             crate::compute_placement_plan(typed, &record.policy_machine, &record.schema_data)
                 .map_err(|reason| {
@@ -155,6 +195,34 @@ pub fn validate_placed_view_plans(
             ))]);
         }
         install_placed_view_plan(typed, record, &plan)?;
+    }
+    Ok(())
+}
+
+fn admit_policy_invocations(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    invocation_sources: &[psi_source::SourceSpan],
+    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), String> {
+    let Some(selection_authority) = selection_authority else {
+        return Ok(());
+    };
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == policy_machine)
+        .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
+    let admission = crate::BuildTimeAdmissionPlan::infer_with_selection_authority(
+        typed,
+        Some(selection_authority),
+    );
+    for source in invocation_sources {
+        admission.require_common_floor_for_invocation(
+            typed,
+            machine,
+            crate::BuildTimeInvocationCustody::Source(*source),
+        )?;
     }
     Ok(())
 }
@@ -235,13 +303,13 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
             ));
             continue;
         };
-        let Some(policy) = named_argument(syntax, *policy_handle) else {
+        let Some((policy, policy_source)) = named_argument(syntax, *policy_handle) else {
             diagnostics.push(Diagnostic::error(
                 "the first `Placed` argument must be a nominal placement-policy data name",
             ));
             continue;
         };
-        let Some(schema) = named_argument(syntax, *schema_handle) else {
+        let Some((schema, _)) = named_argument(syntax, *schema_handle) else {
             diagnostics.push(Diagnostic::error(
                 "the second `Placed` argument must be a plain schema data name",
             ));
@@ -280,14 +348,19 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
             .or_insert_with(|| SchemaRecord {
                 fields: fields.clone(),
             });
-        if !applications
-            .iter()
-            .any(|application: &Application| application.synthetic_name == synthetic_name)
+        if let Some(application) = applications
+            .iter_mut()
+            .find(|application: &&mut Application| application.synthetic_name == synthetic_name)
         {
+            if !application.invocation_sources.contains(&policy_source) {
+                application.invocation_sources.push(policy_source);
+            }
+        } else {
             applications.push(Application {
                 synthetic_name,
                 policy,
                 schema,
+                invocation_sources: vec![policy_source],
             });
         }
     }
@@ -298,9 +371,12 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
     }
 }
 
-fn named_argument(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
+fn named_argument(
+    syntax: &SyntaxTrees,
+    handle: TypeReferenceHandle,
+) -> Option<(String, psi_source::SourceSpan)> {
     match syntax.tables.type_references.type_reference(handle) {
-        TypeReferenceNode::Named(name) => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Named(name) => Some((name.as_str().to_owned(), name.source_span())),
         _ => None,
     }
 }

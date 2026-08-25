@@ -1050,10 +1050,33 @@ The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They
 affect artifact and compatibility identity without widening source
-nameability. Compilation must finalize and admit authored selections before
-executing selected package or build-time code; an implementation whose current
-evaluation order is earlier must reorder or split that work rather than weaken
-the gate.
+nameability. Compilation must admit the selections applicable at a stage before
+executing selected package or build-time code. Final execution consumes the
+finalized ledger. Earlier effect-free execution consumes exact early targets or
+fails closed unless the complete compiler-derived candidate set is confined to
+admitted owners; an implementation whose current order cannot establish that
+must reorder or split the work rather than weaken the gate.
+
+Earlier effect-free compiler evaluation uses that split directly. Const-
+generic calls, fixed-array const calls, const-domain facts, laid/placed layout
+policies, wire policies, and calling policies retain exact invocation custody
+and consult a package-neutral authority backed by the reconciled direct graph
+before executing. The authority walks each concrete build-time call closure and
+checks both caller-to-callee edges and the reachable bodies' authored selection
+occurrences. A shared policy is reusable only after every authored application
+site is admitted. Exact resolved symbols are authoritative; facts awaiting
+later checked resolution fail closed unless the compiler can prove the whole
+candidate set remains within toolchain, self, or direct dependencies. Operator
+fallback uses the checked layer's conservative intrinsic judgment, never
+spelling. Const value substitution retains only a declaration-provenance symbol
+and occurrence, preserving package custody without carrying const semantics
+into typed or runtime trees.
+
+These checks belong at the earliest coherent private typed/probe representation
+owned by the compiler. Coupling to that non-public representation is acceptable
+because checker and representation evolve together. This does not introduce
+nominal Chi; such a stage would require an actual semantic boundary rather than
+the desire for a stable report shape.
 
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`

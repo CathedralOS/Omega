@@ -17,6 +17,9 @@ pub enum SymbolKind {
     State,
     Trait,
     Conformance,
+    /// A compile-time value declaration retained only as authored-selection
+    /// provenance after its value has been substituted.
+    Const,
     /// A proof-static machine-telescope binder whose concrete argument is one
     /// exact package-scoped conformance.
     ConformanceParameter,

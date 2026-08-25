@@ -26,8 +26,12 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::assign_statement_reference_symbols;
 use top_level::assign_top_level_symbols;
 
-pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
-    let symbols = build_symbol_table(program, sources);
+pub(crate) fn assign_symbols(
+    program: &mut SymbolResolvedTrees,
+    sources: Option<Arc<SourceMap>>,
+    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+) {
+    let symbols = build_symbol_table(program, sources, const_declarations);
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);

@@ -66,6 +66,13 @@ impl FieldShape {
 }
 
 pub fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    compute_wire_plans_with_authority(typed, None)
+}
+
+pub fn compute_wire_plans_with_authority(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
     // Classify first (immutable walk), then record (mutable): the placement
     // arena and the schema tables cannot be borrowed simultaneously.
     let mut classified = Vec::with_capacity(typed.wire_schemas().len());
@@ -115,7 +122,9 @@ pub fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
         .machines()
         .iter()
         .any(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY);
-    let admission = policy_exists.then(|| crate::BuildTimeAdmissionPlan::infer(typed));
+    let admission = policy_exists.then(|| {
+        crate::BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority)
+    });
 
     let mut plans = Vec::with_capacity(classified.len());
     for (symbol, schema_name, fields) in classified {
@@ -144,6 +153,7 @@ pub fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
                     .expect("a policy admission plan exists with the policy"),
                 &schema_name,
                 &fields,
+                crate::BuildTimeInvocationCustody::Symbol(symbol),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if authored != derived {

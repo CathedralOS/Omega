@@ -18,6 +18,17 @@ mod values;
 
 use psi_checked_trees::CheckedTrees;
 
+/// Conservative pre-check classification used by compiler-run semantic
+/// evaluation. `true` means the same typed fallback used during final authored
+/// selection finalization can already prove this operator intrinsic; `false`
+/// leaves it unresolved.
+pub fn typed_operator_is_definitely_intrinsic(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    authored_selections::typed_operator_is_definitely_intrinsic(program, expression)
+}
+
 pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {

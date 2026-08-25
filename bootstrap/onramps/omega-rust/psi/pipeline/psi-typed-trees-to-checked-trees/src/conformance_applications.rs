@@ -351,7 +351,7 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
                         (*parameter == *symbol).then(|| identity.clone())
                     })
                     .unwrap_or_else(|| name.as_str().to_owned()),
-                FixedArrayLength::ConstCall { name } => format!("{}()", name.as_str()),
+                FixedArrayLength::ConstCall { name, .. } => format!("{}()", name.as_str()),
             };
             format!(
                 "[{}; {length}]",

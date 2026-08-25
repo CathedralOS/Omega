@@ -195,11 +195,17 @@ pub(crate) fn lower_item(
                 .data_definitions
                 .push(data_definition);
         }
-        // Consts exist only until symbol resolution: validated here, then
-        // every `Type::NAME` use substitutes the initializer at expression
-        // lowering (crate::constant) -- nothing is carried forward.
+        // Const values exist only until symbol resolution: every use
+        // substitutes the initializer. Retain only a provenance symbol for
+        // authored-selection and package-authority custody.
         syntax::item::Item::Const(definition) => {
             crate::constant::validate_const_definition(syntax_trees, definition)?;
+            lowerer
+                .pending_const_declarations
+                .push(crate::lowerer::PendingConstDeclaration {
+                    semantic_name: crate::constant::semantic_const_name(definition),
+                    source_span: definition.name.source_span(),
+                });
         }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Module(_)

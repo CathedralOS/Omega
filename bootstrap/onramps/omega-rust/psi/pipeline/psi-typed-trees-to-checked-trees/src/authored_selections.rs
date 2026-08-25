@@ -404,6 +404,18 @@ fn expression_is_intrinsic_primitive_without_origin(
         .is_some()
 }
 
+pub(crate) fn typed_operator_is_definitely_intrinsic(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let operand = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => binary.left,
+        ExpressionNode::Unary(unary) => unary.operand,
+        _ => return false,
+    };
+    expression_is_intrinsic_primitive_without_origin(program, operand)
+}
+
 fn type_reference_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,

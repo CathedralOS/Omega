@@ -29,7 +29,9 @@ mod desugaring;
 mod layout_installation;
 
 pub use desugaring::desugar_plan_laid_value_types;
-pub use layout_installation::compute_plan_laid_layouts;
+pub use layout_installation::{
+    compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
+};
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
 /// data definition plus the (policy, schema) pair whose validated plan will
@@ -42,4 +44,8 @@ pub struct PlanLaidRecord {
     pub policy_machine: String,
     /// The schema data definition the plan places.
     pub schema_data: String,
+    /// Every authored application site collapsed into this one synthesized
+    /// nominal type. Each requester is admitted before the shared policy
+    /// result may be reused.
+    pub invocation_sources: Vec<psi_source::SourceSpan>,
 }

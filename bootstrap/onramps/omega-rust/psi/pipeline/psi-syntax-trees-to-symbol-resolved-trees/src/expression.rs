@@ -381,8 +381,8 @@ fn lower_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Name(path) => {
             // A `Type::NAME` path naming a const substitutes a fresh copy of
-            // its literal initializer (const-v0, crate::constant) -- consts
-            // never survive into symbol-resolved trees. Locals/fields are
+            // its literal initializer (const-v0, crate::constant) -- only its
+            // declaration-provenance symbol survives. Locals/fields are
             // single-segment paths and case constructors are checked against
             // consts at the const's declaration, so the intercept is
             // unambiguous.

@@ -33,7 +33,6 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
-use std::collections::BTreeMap;
 
 use crate::BuildTimeAdmissionPlan;
 
@@ -41,11 +40,20 @@ use crate::BuildTimeAdmissionPlan;
 /// the concrete `Literal` length in place. Errors name the array-length
 /// position (the spelled type) and the failing machine.
 pub fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let pending: Vec<(TypeReferenceHandle, String)> = typed
+    evaluate_const_array_lengths_with_authority(typed, None)
+}
+
+pub fn evaluate_const_array_lengths_with_authority(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<Diagnostic>> {
+    let pending: Vec<(TypeReferenceHandle, String, psi_source::SourceSpan)> = typed
         .type_reference_table
         .fixed_array_lengths()
         .filter_map(|(handle, length)| match length {
-            FixedArrayLength::ConstCall { name } => Some((handle, name.as_str().to_owned())),
+            FixedArrayLength::ConstCall { name, source_span } => {
+                Some((handle, name.as_str().to_owned(), *source_span))
+            }
             _ => None,
         })
         .collect();
@@ -54,27 +62,21 @@ pub fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Di
         return Ok(());
     }
 
-    let admission = BuildTimeAdmissionPlan::infer(typed);
+    let admission =
+        BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority);
 
     let mut diagnostics = Vec::new();
-    let mut evaluated: BTreeMap<String, Result<usize, ()>> = BTreeMap::new();
     let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
 
-    for (handle, machine_name) in &pending {
-        let result = evaluated.entry(machine_name.clone()).or_insert_with(|| {
-            match evaluate_one(typed, &admission, machine_name) {
-                Ok(value) => Ok(value),
-                Err(reason) => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "fixed-array length `{}`: const evaluation of `{machine_name}` failed: {reason}",
-                        typed.type_reference_table.display_name(*handle)
-                    )));
-                    Err(())
-                }
+    for (handle, machine_name, source_span) in &pending {
+        match evaluate_one(typed, &admission, machine_name, *source_span) {
+            Ok(value) => substitutions.push((*handle, value)),
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "fixed-array length `{}`: const evaluation of `{machine_name}` failed: {reason}",
+                    typed.type_reference_table.display_name(*handle)
+                )));
             }
-        });
-        if let Ok(value) = result {
-            substitutions.push((*handle, *value));
         }
     }
 
@@ -95,8 +97,15 @@ fn evaluate_one(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
+    source_span: psi_source::SourceSpan,
 ) -> Result<usize, String> {
-    let value = evaluate_zero_argument_machine(typed, admission, machine_name, "array length")?;
+    let value = evaluate_zero_argument_machine_for_invocation(
+        typed,
+        admission,
+        machine_name,
+        "array length",
+        crate::BuildTimeInvocationCustody::Source(source_span),
+    )?;
     if value < 0 {
         return Err(format!(
             "the call returned {value}, but an array length must be a non-negative integer"
@@ -111,6 +120,38 @@ pub fn evaluate_zero_argument_machine(
     admission: &BuildTimeAdmissionPlan,
     machine_name: &str,
     position: &str,
+) -> Result<i64, String> {
+    evaluate_zero_argument_machine_with_optional_custody(
+        typed,
+        admission,
+        machine_name,
+        position,
+        None,
+    )
+}
+
+pub fn evaluate_zero_argument_machine_for_invocation(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    machine_name: &str,
+    position: &str,
+    custody: crate::BuildTimeInvocationCustody,
+) -> Result<i64, String> {
+    evaluate_zero_argument_machine_with_optional_custody(
+        typed,
+        admission,
+        machine_name,
+        position,
+        Some(custody),
+    )
+}
+
+fn evaluate_zero_argument_machine_with_optional_custody(
+    typed: &TypedTrees,
+    admission: &BuildTimeAdmissionPlan,
+    machine_name: &str,
+    position: &str,
+    custody: Option<crate::BuildTimeInvocationCustody>,
 ) -> Result<i64, String> {
     let machine = typed
         .machines()
@@ -128,7 +169,10 @@ pub fn evaluate_zero_argument_machine(
         ));
     }
 
-    admission.require_common_floor(typed, machine)?;
+    match custody {
+        Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
+        None => admission.require_common_floor(typed, machine)?,
+    }
 
     psi_checked_interpreter::evaluate_const_machine(typed, machine_name)
 }

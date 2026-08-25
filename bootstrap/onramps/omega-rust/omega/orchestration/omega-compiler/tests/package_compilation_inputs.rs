@@ -219,6 +219,386 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn const_generic_evaluation_requires_direct_authority_before_execution() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\ndata FixedBuffer<const N: u64> { items: [u8; N]; }\ndata Main { buffer: FixedBuffer<leaf_size()>; }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_size() -> u64 { leaf_size() + 0 }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub machine leaf_size() -> u64 { 4 }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs.clone())
+            .expect_err("early const-generic execution may not select a transitive-only package");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("const-generic evaluation")
+                && diagnostic.message.contains("build-time invocation")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\ndata FixedBuffer<const N: u64> { items: [u8; N]; }\ndata Main { buffer: FixedBuffer<middle_size()>; }\n",
+    );
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("each machine in the build-time call closure may select its own direct dependency");
+}
+
+#[test]
+fn build_time_call_closure_rejects_internal_undeclared_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nconst ROOT_SIZE: u64 = 4;\ndata FixedBuffer<const N: u64> { items: [u8; N]; }\ndata Main { buffer: FixedBuffer<middle_size()>; }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "pub machine middle_size() -> u64 { ROOT_SIZE }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "middle",
+            identity(2),
+        )],
+    )
+    .expect("one-way direct dependency should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err(
+            "dependency code may not select root declarations without dependency authority",
+        );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("const-generic evaluation")
+                && diagnostic
+                    .message
+                    .contains("authored StaticPathSegment selection")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn fixed_array_evaluation_requires_direct_authority_before_execution() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\ndata Main { items: [u8; leaf_size()]; }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_size() -> u64 { leaf_size() }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub machine leaf_size() -> u64 { 4 }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("early fixed-array execution may not select a transitive-only package");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("fixed-array length")
+                && diagnostic.message.contains("build-time invocation")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct fixed-array callee admission should validate structurally");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct package authority should admit fixed-array evaluation");
+}
+
+#[test]
+fn const_domain_evaluation_requires_direct_authority_before_execution() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+domain u64::BufferSize
+requires
+    leaf_accepts(self);
+data FixedBuffer<const N: u64>
+where
+    N in BufferSize,
+{
+    items: [u8; N];
+}
+data Main { buffer: FixedBuffer<4>; }
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_accepts(value: u64) -> bool { leaf_accepts(value) }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub machine leaf_accepts(value: u64) -> bool { true }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("early const-domain execution may not select a transitive-only package");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("const domain fact evaluation")
+                && diagnostic.message.contains("build-time invocation")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn plan_laid_evaluation_requires_direct_authority_before_execution() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\ndata Payload { value: u32; }\ndata Main { payload: LeafLayout<Payload>; }\n",
+    );
+    TempTree::write(middle.join("middle.omg"), "use leaf::leaf;\n");
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"use omega::language::core::layout;
+pub data LeafLayout { entries: [FieldEntry; 64]; }
+pub machine LeafLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 4,
+        size_is_dynamic: false,
+        align: 4
+    }
+}
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("early plan-laid execution may not select a transitive-only package");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("plan-laid value type")
+                && diagnostic.message.contains("build-time invocation")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct policy admission should validate structurally");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct package authority should admit plan-laid policy execution");
+}
+
+#[test]
+fn placed_view_evaluation_requires_direct_authority_before_execution() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\ndata Payload { value: u32; }\nmachine inspect(view: &Placed<LeafPlacement, Payload>) {}\n",
+    );
+    TempTree::write(middle.join("middle.omg"), "use leaf::leaf;\n");
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"use omega::language::core::layout;
+pub data LeafPlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 4,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access,
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("early placed-view execution may not select a transitive-only package");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("placed view")
+                && diagnostic.message.contains("build-time invocation")
+                && diagnostic.message.contains("direct dependency authority")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct placement-policy admission should validate structurally");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct package authority should admit placed-view policy execution");
+}
+
+#[test]
 fn package_selection_admission_precedes_build_machine_side_effects() {
     let tree = TempTree::new();
     let root = tree.package("root");

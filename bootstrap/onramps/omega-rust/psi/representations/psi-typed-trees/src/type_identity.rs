@@ -1125,7 +1125,7 @@ fn normalize_array_length(
             "const-parameter",
             &context.name(program, *symbol, name.as_str()),
         ),
-        FixedArrayLength::ConstCall { name } => atom("const-call", name.as_str()),
+        FixedArrayLength::ConstCall { name, .. } => atom("const-call", name.as_str()),
     }
 }
 

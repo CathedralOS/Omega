@@ -21,6 +21,7 @@ use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
 pub(super) fn build_symbol_table(
     program: &SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
+    const_declarations: &[crate::lowerer::PendingConstDeclaration],
 ) -> SymbolTable {
     let has_sources = sources.is_some();
     let root_operator_names = program
@@ -75,6 +76,22 @@ pub(super) fn build_symbol_table(
                 }))
                 .chain(program.wire_schemas.iter().map(|wire_schema| {
                     symbol_seed(SymbolKind::WireSchema, &wire_schema.name, has_sources)
+                }))
+                .chain(const_declarations.iter().map(|declaration| {
+                    if has_sources {
+                        (
+                            SymbolKind::Const,
+                            SymbolNameRef::OwnedSource {
+                                value: declaration.semantic_name.as_str(),
+                                source_span: declaration.source_span,
+                            },
+                        )
+                    } else {
+                        (
+                            SymbolKind::Const,
+                            SymbolNameRef::Borrowed(declaration.semantic_name.as_str()),
+                        )
+                    }
                 })),
         );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);
