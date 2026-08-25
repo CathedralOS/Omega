@@ -2103,6 +2103,54 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_rejects_nested_machine_applications_until_compiler_closes_their_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"boundary machine sample(value: u64) -> u64;
+machine inspect<machine Operation>() -> u64
+where machine Operation<machine Inner>(value: u64) -> u64
+where machine Inner(value: u64) -> u64;
+{
+    0
+}
+machine identity<machine Selected>(value: u64) -> u64
+where machine Selected(value: u64) -> u64;
+{
+    value
+}
+boundary machine trusted_identity() -> u64
+ensures result == inspect<identity<sample>>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("the checked tree currently retains nested machine-application syntax");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("nested machine applications remain fail-closed without closed identity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("non-data nested static application")
+    }));
+}
+
+#[test]
 fn review_projects_exact_concrete_type_arguments_in_contract_calls() {
     let Some(target) = host_target_name() else {
         return;

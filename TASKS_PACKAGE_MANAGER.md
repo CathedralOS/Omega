@@ -859,6 +859,15 @@ complete.
   lifetime changes canonical evidence. Generic machine/conformance
   applications, unresolved forwarded type/const binders, proposition/evidence
   static arguments, quotient calls, and compiler intrinsics remain fail-closed.
+  In particular, true nested machine static applications such as
+  `consumer<family<Selected>>()` remain fail-closed: checked
+  monomorphization has no closed application identity and currently omits
+  recursive arguments and lifetimes from conflict equality, specialization
+  keys and fingerprints, and retained specialization evidence. Admission
+  requires exact declaration-telescope validation plus recursive lifetime and
+  static-argument identity throughout those compiler paths. This is distinct
+  from already coherent bare generic-machine selection and call-target use
+  such as `Schema<Selected>(...)`.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
