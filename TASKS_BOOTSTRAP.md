@@ -66,6 +66,9 @@ Guardrails for this queue:
 - Compiler authority follows direct lower-rooted source-to-artifact refinement;
   cross-compiler agreement is optional bug-finding evidence. See
   [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
+- Do not create a diverse-double-compilation lane. The complete lower-rooted
+  chain checks each compiler edge directly; another producer may find bugs but
+  cannot add authority or become a release dependency merely by agreeing.
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
   `compiler/{psi,omega}/` owns Omega-written product source.
@@ -380,6 +383,37 @@ compilation-authority join.
   text/artifact ceilings reject 252 before publication. Exact product-source
   integration is same-module and therefore does not depend on the private
   cross-module ruling.
+- [ ] Harden the already-admitted CKIR4 composition across the complete
+  `SourceUnit` API before adding a new source facility. Use the exact
+  `source.omg` implementation plus a general same-module harness that calls
+  `clear`, `append`, and `byte_or_nul`; every OMGRFN5 responsibility must accept
+  the unchanged carrier without recognizing owner names, machine names,
+  declaration counts, call counts, or the fixture. Generalize responsibility-
+  local reconstruction where the current exact harness exposed brittle census
+  assumptions; do not add another carrier-wide verifier or version CKIR4 for a
+  source program it already admits.
+- [ ] Add direct nominal field-receiver calls of the exact form
+  `self.field.machine(...)`. Resolve the named field on the caller owner, join
+  its nominal type to the attached callee, retain the exact role-3 binding, and
+  lower through the existing `SelfPlace -> FieldPlace -> Call` operations. The
+  existing CKIR4 call ABI already represents the artifact behavior; version
+  the accepted source/resolution relation where its frozen contract requires
+  it rather than widening checked IR unnecessarily. Cover mutable/shared
+  receivers, Unit/scalar results, unknown or non-record fields, owner and
+  mutability mismatches, computed/chained receiver rejection, call cycles,
+  role-3 mutations, resources, Rust-free meaning, and direct artifact
+  reconstruction. Keep the first fixture same-module so the private
+  cross-module ruling is not smuggled into this tranche.
+- [ ] Then price closed payload-bearing sum data as the next checked-IR
+  facility unless a newer product checkpoint changes the measured order. The
+  first slice may use the already-specified tag-zero/declaration-order ABI,
+  payload-free and payload-bearing cases, recursively copyable payloads through
+  the provisional four-field ceiling, construction, Copy/Call arguments, tag
+  dispatch, and payload binding. Keep generic sums, mixed record/sum
+  declarations, explicit schema/discriminant tags, structural returns,
+  aggregate transition literals, and effectful or trapping payload expressions
+  outside that first slice. This is bridge-cost evidence for a provisional
+  `Ωself` candidate, not a final profile ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

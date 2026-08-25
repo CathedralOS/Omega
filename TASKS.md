@@ -109,6 +109,16 @@ Remaining:
   differential. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
+  Before publishing the next coherent checkpoint, refresh checkpoint 000001's
+  provenance after the current product changes. Its compiled and virtual source
+  contents still match, but the gate currently rejects the stale `Cargo.lock`
+  and `omega-compiler/src/pipeline/stages.rs` provenance digests. Regenerate and
+  review the checkpoint/profile artifacts; do not loosen the provenance gate or
+  hand-edit only the first mismatch. Also replace
+  `apps/omega-compiler/build.omg`'s legacy `target ... {}` blocks with the
+  ordinary `Build` target-selection form already required by the build/extern
+  design, then publish a new source checkpoint if that changes the closure.
+
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
