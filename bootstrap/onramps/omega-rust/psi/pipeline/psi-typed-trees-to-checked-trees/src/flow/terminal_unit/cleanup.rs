@@ -140,10 +140,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             .filter(|candidate| {
                 candidate.supply_mode == MachineSupplyMode::CheckedBody
                     && candidate.name.as_str().ends_with("::drop")
-                    && candidate
-                        .attached_data
-                        .as_ref()
-                        .is_some_and(|attached| attached == &parameter_data.name)
+                    && candidate.attached_data_symbol == parameter_data.symbol
             })
             .collect::<Vec<_>>();
         let [cleanup_machine] = cleanup_machines.as_slice() else {

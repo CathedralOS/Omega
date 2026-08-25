@@ -1033,6 +1033,55 @@ fn retains_exact_empty_whole_root_nominal_cleanup_separately_from_trivial_discar
 }
 
 #[test]
+fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
+    let source = r#"
+        boundary trait PortIo {}
+        data First {}
+        machine First::drop(&mut self) {}
+
+        data Second {}
+        machine Second::drop(&mut self) {}
+
+        data Root {}
+        machine Root::enter(value: First) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let first_drop = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "First::drop")
+        .expect("First cleanup")
+        .symbol;
+    let second_drop = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Second::drop")
+        .expect("Second cleanup")
+        .symbol;
+    typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == second_drop)
+        .expect("mutable Second cleanup")
+        .attached_data = Some(psi_typed_trees::name::Identifier::generated("First"));
+
+    let checked = lower_typed_trees(typed).expect("exact identity survives diagnostic spoofing");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("First receives its exact cleanup");
+
+    assert_eq!(plan.cleanups[0].cleanup_machine, first_drop);
+    assert_ne!(plan.cleanups[0].cleanup_machine, second_drop);
+}
+
+#[test]
 fn retains_exactly_one_executable_drop_in_a_two_root_nominal_cleanup_list() {
     let checked = checked(
         r#"

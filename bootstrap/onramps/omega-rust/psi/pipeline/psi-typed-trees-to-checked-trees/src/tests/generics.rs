@@ -1464,12 +1464,22 @@ fn attached_machine_specialization_clones_inherited_field_symbols() {
         .map(|specialization| specialization.instance)
         .collect::<Vec<_>>();
     assert_eq!(instances.len(), 2);
+    let main_symbol = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Main")
+        .expect("Main data")
+        .symbol;
     for instance in instances {
         let machine = checked
             .machines()
             .iter()
             .find(|machine| machine.symbol == instance)
             .expect("specialized pick machine");
+        assert_eq!(
+            machine.attached_data_symbol, main_symbol,
+            "both the reused template and cloned specialization retain exact attached identity"
+        );
         let fields = checked
             .symbols
             .child_handles(machine.symbol)

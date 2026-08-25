@@ -65,6 +65,11 @@ pub(super) fn assign_machine_symbols(
             machine.attached_data.as_ref(),
         );
         machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
+        machine.attached_data_symbol = machine
+            .attached_data
+            .as_ref()
+            .map(|attached| top_level_symbol(symbols, SymbolKind::Data, attached.as_str()))
+            .unwrap_or_else(SymbolHandle::invalid);
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 

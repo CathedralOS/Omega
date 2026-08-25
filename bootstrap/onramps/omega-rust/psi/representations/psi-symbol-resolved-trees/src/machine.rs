@@ -12,6 +12,9 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub attached_data: Option<DiagnosticName>,
+    /// Exact nominal declaration named by `attached_data`. Spelling remains
+    /// diagnostic only; semantic consumers must use this symbol.
+    pub attached_data_symbol: SymbolHandle,
     /// Retained source-level package visibility. Public checked bodies publish
     /// strict effect and operational ceilings without changing supply mode.
     pub is_public: bool,

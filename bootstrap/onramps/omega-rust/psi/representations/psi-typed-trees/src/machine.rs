@@ -11,6 +11,9 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    /// Exact nominal declaration named by `attached_data`, retained from
+    /// resolution so cleanup and method semantics never reselect by spelling.
+    pub attached_data_symbol: SymbolHandle,
     /// Retained source-level package visibility, independent of supply mode.
     pub is_public: bool,
     /// Copied from symbol-resolved trees; semantic consumers must not
@@ -46,6 +49,7 @@ impl Default for Machine {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             attached_data: None,
+            attached_data_symbol: SymbolHandle::invalid(),
             is_public: false,
             supply_mode: psi_language_semantics::MachineSupplyMode::CheckedBody,
             body_is_present: true,

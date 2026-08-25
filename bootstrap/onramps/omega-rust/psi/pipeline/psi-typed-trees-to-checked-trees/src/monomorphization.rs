@@ -1987,6 +1987,7 @@ fn clone_specialized_machine(
     let specialized_attached_data = specialized_attached_data(source, candidate, source_machine);
     let inherited_field_names = specialized_attached_data
         .as_ref()
+        .map(|(name, _)| name)
         .into_iter()
         .flat_map(|attached_data| {
             source
@@ -2163,7 +2164,13 @@ fn clone_specialized_machine(
     let mut cloned = source_machine.clone();
     cloned.symbol = machine_symbol;
     cloned.name = psi_typed_trees::name::Identifier::generated(generated_name);
-    cloned.attached_data = specialized_attached_data;
+    if let Some((attached_data, attached_data_symbol)) = specialized_attached_data {
+        cloned.attached_data = Some(attached_data);
+        cloned.attached_data_symbol = attached_data_symbol;
+    } else {
+        cloned.attached_data = None;
+        cloned.attached_data_symbol = SymbolHandle::invalid();
+    }
     cloned.type_parameters = HandleSpan::empty();
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
@@ -3768,7 +3775,14 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         let template = &program.machines()[candidate.machine_index];
         specialized_attached_data(program, candidate, template)
     };
-    program.machines_mut()[candidate.machine_index].attached_data = attached_data;
+    let specialized = &mut program.machines_mut()[candidate.machine_index];
+    if let Some((attached_data, attached_data_symbol)) = attached_data {
+        specialized.attached_data = Some(attached_data);
+        specialized.attached_data_symbol = attached_data_symbol;
+    } else {
+        specialized.attached_data = None;
+        specialized.attached_data_symbol = SymbolHandle::invalid();
+    }
     let specialized = program.machines()[candidate.machine_index].clone();
     resolve_specialized_receiver_calls(program, &specialized);
 
@@ -3781,20 +3795,21 @@ fn specialized_attached_data(
     program: &TypedTrees,
     candidate: &Candidate,
     machine: &psi_typed_trees::machine::Machine,
-) -> Option<psi_typed_trees::name::Identifier> {
+) -> Option<(psi_typed_trees::name::Identifier, SymbolHandle)> {
     let attached = machine.attached_data.as_ref()?;
     let parameter_index = candidate
         .type_parameters
         .iter()
         .position(|(_, name)| name == attached.as_str());
     let Some(parameter_index) = parameter_index else {
-        return Some(attached.clone());
+        return Some((attached.clone(), machine.attached_data_symbol));
     };
     let binding = candidate.type_bindings[parameter_index]?;
+    let symbol = program.type_reference_symbol(binding);
     match program.type_reference_table.type_reference(binding) {
-        TypeReferenceNode::Named { name, .. } => Some(name.clone()),
-        TypeReferenceNode::Generic { base_name, .. } => Some(base_name.clone()),
-        _ => Some(attached.clone()),
+        TypeReferenceNode::Named { name, .. } => Some((name.clone(), symbol)),
+        TypeReferenceNode::Generic { base_name, .. } => Some((base_name.clone(), symbol)),
+        _ => Some((attached.clone(), machine.attached_data_symbol)),
     }
 }
 
