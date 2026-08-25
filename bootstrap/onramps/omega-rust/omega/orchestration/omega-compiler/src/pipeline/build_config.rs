@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 14;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 15;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -391,6 +391,45 @@ impl BuildFilesystemRootedPathOperandResolution {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReturnedPathKind {
+    ReadLinkPayload,
+    CanonicalPath,
+    FinalPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemReturnedPathCompleteness {
+    Complete,
+    LimitReached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemReturnedPath {
+    operand_ordinal: u8,
+    kind: BuildFilesystemReturnedPathKind,
+    completeness: BuildFilesystemReturnedPathCompleteness,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemReturnedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn kind(&self) -> BuildFilesystemReturnedPathKind {
+        self.kind
+    }
+
+    pub const fn completeness(&self) -> BuildFilesystemReturnedPathCompleteness {
+        self.completeness
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 }
 
@@ -662,6 +701,7 @@ pub struct BuildFilesystemOperationAttempt {
     byte_operands: Vec<BuildFilesystemByteOperand>,
     path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
     rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
+    returned_paths: Vec<BuildFilesystemReturnedPath>,
     mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
@@ -704,6 +744,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn rooted_path_operand_resolutions(&self) -> &[BuildFilesystemRootedPathOperandResolution] {
         &self.rooted_path_operand_resolutions
+    }
+
+    pub fn returned_paths(&self) -> &[BuildFilesystemReturnedPath] {
+        &self.returned_paths
     }
 
     pub fn mutable_byte_operand_resolutions(
@@ -1921,6 +1965,33 @@ pub(crate) fn compute_build_config(
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let returned_paths = attempt
+                .returned_paths()
+                .iter()
+                .map(|returned| BuildFilesystemReturnedPath {
+                    operand_ordinal: returned.operand_ordinal(),
+                    kind: match returned.kind() {
+                        psi_checked_interpreter::FilesystemReturnedPathKind::ReadLinkPayload => {
+                            BuildFilesystemReturnedPathKind::ReadLinkPayload
+                        }
+                        psi_checked_interpreter::FilesystemReturnedPathKind::CanonicalPath => {
+                            BuildFilesystemReturnedPathKind::CanonicalPath
+                        }
+                        psi_checked_interpreter::FilesystemReturnedPathKind::FinalPath => {
+                            BuildFilesystemReturnedPathKind::FinalPath
+                        }
+                    },
+                    completeness: match returned.completeness() {
+                        psi_checked_interpreter::FilesystemReturnedPathCompleteness::Complete => {
+                            BuildFilesystemReturnedPathCompleteness::Complete
+                        }
+                        psi_checked_interpreter::FilesystemReturnedPathCompleteness::LimitReached => {
+                            BuildFilesystemReturnedPathCompleteness::LimitReached
+                        }
+                    },
+                    bytes: returned.bytes().to_vec(),
+                })
+                .collect();
             let mutable_byte_operand_resolutions = attempt
                 .mutable_byte_operand_resolutions()
                 .iter()
@@ -1993,6 +2064,7 @@ pub(crate) fn compute_build_config(
                 byte_operands,
                 path_like_operands,
                 rooted_path_operand_resolutions,
+                returned_paths,
                 mutable_byte_operand_resolutions,
                 mutable_i64_operand_resolutions,
                 mutable_byte_operands,

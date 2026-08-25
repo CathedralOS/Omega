@@ -32,7 +32,10 @@ use super::{
     EvalResult, FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
     PreparedByteOutput, PreparedFilesystemCall, Value, host_open_flags, synthetic_handle_fd,
 };
-use crate::{FilesystemAuthorizedPath, FilesystemGrantRootIdentity};
+use crate::{
+    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemReturnedPathCompleteness,
+    FilesystemReturnedPathKind,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -948,12 +951,19 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&path, false, 0) {
                     Some(path) => match std::fs::canonicalize(&path) {
                         Ok(resolved) => {
-                            let Some(mut bytes) = real_os_bytes(resolved.as_os_str()) else {
+                            let Some(path_bytes) = real_os_bytes(resolved.as_os_str()) else {
                                 self.real_fs_mut().errno = EINVAL;
                                 return Ok(Value::Int(0));
                             };
+                            let mut bytes = path_bytes.clone();
                             bytes.push(0);
                             buffer.write(&bytes)?;
+                            self.record_returned_path_observation(
+                                1,
+                                FilesystemReturnedPathKind::CanonicalPath,
+                                FilesystemReturnedPathCompleteness::Complete,
+                                &path_bytes,
+                            )?;
                             1
                         }
                         Err(error) => {
@@ -1045,6 +1055,12 @@ impl<'program> super::Evaluator<'program> {
                                 let mut bytes = path.clone();
                                 bytes.push(0);
                                 buffer.write(&bytes)?;
+                                self.record_returned_path_observation(
+                                    1,
+                                    FilesystemReturnedPathKind::FinalPath,
+                                    FilesystemReturnedPathCompleteness::Complete,
+                                    &path,
+                                )?;
                                 path.len() as i64
                             } else {
                                 (path.len() + 1) as i64
@@ -1148,6 +1164,16 @@ impl<'program> super::Evaluator<'program> {
                             };
                             let n = bytes.len().min(count.host);
                             buffer.write(&bytes[..n])?;
+                            self.record_returned_path_observation(
+                                1,
+                                FilesystemReturnedPathKind::ReadLinkPayload,
+                                if n == bytes.len() {
+                                    FilesystemReturnedPathCompleteness::Complete
+                                } else {
+                                    FilesystemReturnedPathCompleteness::LimitReached
+                                },
+                                &bytes[..n],
+                            )?;
                             n as i64
                         }
                         Err(error) => {

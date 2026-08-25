@@ -654,7 +654,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v14 carries operation-attempt schema v14: an ordered
+Observation schema v15 carries operation-attempt schema v15: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -701,9 +701,9 @@ tails, and mutable i64 carriers retain exact provider pre/post values. Provider
 pre-state follows all authored argument evaluation because a later argument may
 alias an earlier carrier; the snapshots need not match. Post-state follows
 provider return or halt, including unchanged input-only ABI carriers. A
-separate 256 MiB aggregate operand-evidence sponsor reserves immutable,
-path-like, rooted-resolution bytes, one mutable resolution copy, and both
-provider copies before that call's provider access. Directory-entry names,
+separate 256 MiB aggregate operand-evidence sponsor covers immutable, path-like,
+rooted-resolution, exact returned-path bytes, one mutable resolution copy, and
+both provider copies. Directory-entry names,
 symlink targets, find patterns, and other non-rooted path-like operands occupy
 their own ordinal-tagged lane rather than impersonating rooted authorization or
 payload. Each successfully typed non-handle scalar, immutable payload, and
@@ -711,8 +711,13 @@ path-like operand is retained as preparation advances, so a later preparation
 halt keeps the completed ordinal prefix; a fully prepared call must reproduce those rows
 exactly before provider access. Prior or nested staging effects remain cleanup-
 contained. Package commitments frame these rows without rendering payload
-bytes as text. Retained returned-path bytes and complete observed-input content
-remain absent, so the row is still non-replayable.
+bytes as text. Provider successful-write branches retain exact meaningful
+`read_link`, canonical, and final-path bytes without terminators or stale tails,
+with exact output ordinal, closed kind, and Complete/LimitReached disposition.
+Provider-known target length distinguishes exact-fit from truncated `read_link`;
+failure and insufficient-capacity returns add no row. Package-rooted builds
+reject canonical and final absolute outputs, while `read_link` remains inert.
+Complete observed-input content remains absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

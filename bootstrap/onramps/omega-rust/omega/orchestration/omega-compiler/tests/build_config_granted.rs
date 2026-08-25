@@ -10,7 +10,8 @@ use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildFilesystemProvider, BuildFilesystemReturnedPathCompleteness,
+    BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
     BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
     PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
     compile_to_checked_with_packages_in_build_dir,
@@ -201,7 +202,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 14);
+    assert_eq!(checked_observations.schema_version(), 15);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -212,7 +213,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        14
+        15
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1291,6 +1292,46 @@ fn path_like_filesystem_operands_survive_compiler_projection() {
     assert_eq!(link.root(), BuildFilesystemRoot::Output);
     assert_eq!(link.relative_path(), b"missing-parent/link");
     assert!(symlink.byte_operands().is_empty());
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[cfg(unix)]
+#[test]
+fn returned_read_link_bytes_survive_compiler_projection() {
+    use std::os::unix::fs::symlink;
+
+    let (project, profile) = rooted_build_probe_project(
+        "returned-read-link",
+        r#"    let link: &[u8] in Path = builder.source.resolve("fixture-link");
+    self.result = self.filesystem.read_link(link, &mut self.buffer, 4096);"#,
+    );
+    symlink("returned-target", project.join("fixture-link"))
+        .expect("create source symlink fixture");
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("read_link of a granted source symlink succeeds");
+    let observations = checked
+        .build_observation_summary()
+        .expect("filesystem build publishes observation evidence");
+    let [read_link] = observations.filesystem_operation_attempts() else {
+        panic!("fixture performs one read_link operation")
+    };
+    let [returned] = read_link.returned_paths() else {
+        panic!("read_link retains one exact meaningful returned path payload")
+    };
+    assert_eq!(returned.operand_ordinal(), 1);
+    assert_eq!(
+        returned.kind(),
+        BuildFilesystemReturnedPathKind::ReadLinkPayload
+    );
+    assert_eq!(
+        returned.completeness(),
+        BuildFilesystemReturnedPathCompleteness::Complete
+    );
+    assert_eq!(returned.bytes(), b"returned-target");
+    assert_eq!(
+        read_link.result(),
+        BuildFilesystemOperationResult::Scalar(15)
+    );
     let _ = std::fs::remove_dir_all(&project);
 }
 

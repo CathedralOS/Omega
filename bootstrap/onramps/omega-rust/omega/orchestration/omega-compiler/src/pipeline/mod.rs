@@ -65,7 +65,9 @@ pub use build_config::{
     BuildFilesystemMutableByteOperandResolution, BuildFilesystemMutableI64Operand,
     BuildFilesystemMutableI64OperandResolution, BuildFilesystemOperationAttempt,
     BuildFilesystemOperationResult, BuildFilesystemPathLikeOperand, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
+    BuildFilesystemReturnedPath, BuildFilesystemReturnedPathCompleteness,
+    BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
+    BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
     BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
 };
 pub use build_staged_output::{
