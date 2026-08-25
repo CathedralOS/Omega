@@ -314,6 +314,16 @@ pub const IMPORT_NAME: [u8; 9] = "WriteFile";
   `&mut self` parameter; see
   [Constants And Provisioned Entry State](../design_briefs/static_root_and_constants.md).
 
+A constant may depend on a typed observation from the selected target-semantic
+capsule. Such an application remains symbolic in a target-neutral package and
+closes only when the target is selected. It is still an ordinary canonical
+constant: it may appear anywhere an equivalent constant may appear, including
+an array length or const-generic argument. Its exact observation and selected-
+realization dependencies remain in the public signature, artifact identity,
+and diagnostic provenance after folding. This adds no conditional field/case
+or declaration-splice facility. See
+[Build-Time Evaluation](../design_briefs/build_time_evaluation.md#target-semantic-observations).
+
 `const` names a value, not one addressable image occurrence. Compile-time-only
 uses may erase completely. When runtime use requires bytes, the compiler applies
 a separate value-sensitive materialization judgment to the evaluated value and

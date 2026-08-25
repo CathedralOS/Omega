@@ -16,11 +16,14 @@ data Extent [linear] {
     length: u64;
 }
 
-// Contract-only target predicate. Its settled proof interpretation embeds both
-// scalars into unbounded Int, imports their derived nonnegative/range facts, and
-// requires `base + length` to be at most the selected target address-space
-// bound; it is never wrapping `addr` arithmetic and has no executable call
-// surface.
+// TRANSITIONAL bootstrap spelling. This is a proof proposition, not a callable
+// boundary machine. Once the sealed target capsule exposes `addr::Bound`, write:
+//
+// proposition no_wrap(base: addr, length: u64) =
+//     embed(base) + embed(length) <= addr::Bound;
+//
+// The formula imports the embeddings' derived nonnegative/range facts. It is
+// never wrapping `addr` arithmetic and has no executable call surface.
 boundary machine no_wrap(base: addr, length: u64) -> bool;
 
 // `Granted` is authority evidence, not a structural invariant. Constructing

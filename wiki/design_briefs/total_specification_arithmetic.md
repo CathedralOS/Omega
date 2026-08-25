@@ -66,6 +66,22 @@ Embedding retains the source carrier identity and contributes its exact range:
 - embeddings of equal source values are equal and remain injective within the
   source carrier.
 
+Target-relative carrier limits enter the same proof language as canonical
+compile-time observations. In particular, `addr::Bound: Int` is the selected
+address carrier's exclusive one-past bound, and range geometry is stated
+transparently:
+
+```omega
+proposition no_wrap(base: addr, length: u64) =
+    embed(base) + embed(length) <= addr::Bound;
+```
+
+The observation may fold after target closure, but its exact target dependency
+remains in the proposition, certificate, and artifact identity. The inclusive
+upper bound does not imply the sum or length fits an `addr` or same-width
+unsigned carrier: the one-past value is intentionally expressible only in proof
+arithmetic.
+
 Uniform `Int` is deliberate. Proof subtraction is therefore ordinary signed
 subtraction even when the source carrier is unsigned:
 

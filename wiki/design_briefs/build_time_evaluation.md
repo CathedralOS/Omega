@@ -90,9 +90,9 @@ Omega world. Its sealed semantic input includes:
 
 It cannot observe host filesystem, environment, clock, randomness, network,
 pointer width, floating-point behavior, or process state. Target facts used as
-ordinary data arrive as explicit values or selected requirement inputs. The
-sealed target capsule is an evaluator/cache input, not a general source-visible
-`BuildWorld`.
+ordinary data arrive as explicit values, selected requirement inputs, or the
+closed typed target-semantic projections defined below. The sealed target
+capsule is an evaluator/cache input, not a general source-visible `BuildWorld`.
 
 Structured proof/static values used by future indexed domains evaluate in this
 same sealed world. Their eligibility is narrower than general evaluator output:
@@ -124,15 +124,112 @@ computed NaN payload bits requires a proof or selected realization that fixes
 them. Cache identity includes every selected realization and semantic control
 state that can affect the result.
 
-An unscoped constant may therefore be target-polymorphic. Its declaration path
-is one source identity, while each closed application retains its type/const/
-machine substitutions and every target-semantic dependency observed by its
-evaluation closure. A target-neutral intermediate exports that recipe and
-dependency rather than pretending it already owns one concrete value. Final
-target selection closes the application. A conservative implementation may key
-the application by the complete target capsule; finer caching may later retain
-only the facts actually observed. Two target applications never share a cached
-value or artifact identity merely because their declaration path matches.
+### Target-semantic observations
+
+One compiler-owned, versioned, typed target capsule is the primitive bridge
+between target selection and hermetic semantic evaluation. `build.omg` selects
+that capsule; it does not mint individual proof facts. The evaluator and backend
+consume the same closed capsule so source interpretation and emitted target
+meaning cannot drift.
+
+The capsule exposes a closed vocabulary of subject-qualified observations, not
+a first-class runtime reflection object and not an ordinary replaceable
+provider. Language/toolchain schema owns the primitive projections. Packages
+may derive constants, propositions, and plans from those projections but cannot
+append a new primitive observation or claim what an existing carrier means.
+The vocabulary contains language-semantic facts such as carrier formats,
+selected floating semantics, and fixed layout interpretations. Deployment
+facts such as installed memory, page geometry, devices, or current CPU features
+remain explicit provider, capability, installation, or admitted-hardware input.
+
+Conceptually, core can derive declarations such as:
+
+```omega
+pub const addr::Bound: Int =
+    TargetSemantics::address_bound<addr>();
+```
+
+The projection spelling is pending the target-capsule implementation; the
+semantic shape is settled. Subjects are explicit. A target with several address
+spaces, data layouts, or execution modes does not invent one global answer:
+
+```omega
+TargetSemantics::address_bound<addr>()
+TargetSemantics::endianness<NativeDataLayout>()
+```
+
+If target closure has not fixed the named subject, evaluation rejects. Values
+and interpretation selectors use the same heterogeneous typed projection
+mechanism; endianness need not be forced into a numeric encoding.
+
+Target observations are canonical compile-time values. They may participate
+wherever an equivalent ordinary constant may participate, including array
+lengths, const-generic applications, proof expressions, further semantic
+evaluation, and evaluated layout or calling plans. This permission adds no
+conditional declaration grammar: an ordinary constant cannot add a record
+field, remove a case, alter multiplicity, or splice a declaration, so neither
+can a target observation. A future `UInt<const Bits>` constructor would decide
+its own admitted widths, lowering, and identity; target dependence neither
+creates nor forbids that separate feature.
+
+An unscoped constant or public type application may therefore be
+target-polymorphic. Its declaration path is one source identity, while each
+closed application retains its type/const/machine substitutions and target
+dependencies. A target-neutral intermediate exports the symbolic recipe rather
+than pretending to own one concrete value. For example,
+`[u8; TargetSemantics::address_bits<addr>()]` remains symbolic until closure and
+then becomes an ordinary exact array application for that target.
+
+Target-dependent native geometry normally remains a plan quantity rather than
+an array merely because the latter is legal. Calling-plan staging, or an extent
+reserved from a validated plan's size and alignment and then used through
+placement, preserves padding, alignment, and provenance. This is modeling
+guidance, not a type-system prohibition. Genuinely different native field or
+case sets are a hard boundary: define distinct nominal ABI schemas and let each
+exact target realization privately select its schema behind one stable portable
+requirement. `build.omg` never splices fields into an existing declaration.
+
+Target dependence is retained as two normalized dependency kinds:
+
+```text
+ObservationApplication {
+    projection, subject, projection_semantics_version,
+    selected_value_or_interpretation
+}
+
+SelectedRealizationApplication {
+    requirement_or_slot, exact_realization_application, target_scope,
+    normalized_contract_plan_or_binding_fingerprint
+}
+```
+
+The second kind is required even when selected target-scoped code contains only
+literals and never reads a capsule projection. Derived constants, proofs,
+plans, public signatures, caches, and artifacts inherit both kinds
+transitively. Before target closure an observation remains symbolic. After
+closure it may fold to a concrete value, but folding must never erase either
+dependency or its target-closure receipt. A verifier reconstructs the
+projection or selected realization rather than trusting a folded scalar.
+
+Exact used dependencies are the normative compatibility identity. Keying by
+the complete target capsule is a sound conservative implementation because it
+only over-rejects reuse; replacing it with fine-grained replay must account for
+both dependency kinds before removing that conservative key. Independently
+closed artifacts compose only when their applications agree. Adding, removing,
+or changing a target dependency in a published signature is a breaking
+semantic-API revision. A private dependency changes target artifact identity
+and forces rebuilding or relinking without changing the public contract.
+
+Every dependency union also retains a compact origin DAG through aliases,
+constants, generic applications, projection calls, and selected plans. This is
+required diagnostic data once target-dependent public types are legal: a
+composition failure must identify the producer and consumer closures and trace
+the mismatching type argument back to the observation or realization that
+introduced it.
+
+Two target applications never share a cached value or artifact identity merely
+because their declaration path matches. A later exact-replay implementation may
+share them only after proving every retained dependency application compatible.
 
 ## Admission uses the complete invocation contract
 
@@ -398,7 +495,8 @@ ResultKey =
     normalized implementation closure
   + arguments
   + selected conformances/providers
-  + observed target-semantic dependencies
+  + observed target-semantic applications
+  + selected target-realization applications
   + evaluator semantics version
 
 UsageRecord =
@@ -410,8 +508,10 @@ PolicyCharge =
     interpret(UsageRecord, selected cost policy)
 ```
 
-Using the complete target semantic capsule for the fourth result-key row is the
-initial conservative implementation of that dependency set.
+Using the complete target semantic capsule plus the complete selected
+realization closure for the two target-dependency rows is the initial
+conservative implementation. Fine-grained replay must not retain observations
+while accidentally dropping selected target-scoped plans that read none.
 
 Changing accounting weights must not invalidate a result computed under
 unchanged semantics. If a future policy needs counts an older usage schema did

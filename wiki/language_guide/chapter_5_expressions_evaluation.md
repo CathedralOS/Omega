@@ -598,6 +598,13 @@ Nothing is ever both (an anonymous value with a width) or neither (a landed
 value stripped of its type). Constant folding must preserve the landed type,
 domain, and format; it cannot regress a landed value to an untyped integer.
 
+A landed constant may also retain target-semantic dependencies. Before target
+closure those observation applications stay symbolic. After closure the value
+may fold, including inside an array length or const-generic application, but the
+normalized signature, cache key, proof certificate, and artifact keep the exact
+observation and selected-realization dependencies. Erasing that dependency
+because the folded node now looks like an ordinary integer is a soundness bug.
+
 ## Float Facts
 
 > A float is a format-parameterized approximation carrier: every operation is

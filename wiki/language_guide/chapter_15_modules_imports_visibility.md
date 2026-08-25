@@ -105,6 +105,15 @@ normalized contract and artifact. Semantic evaluation cannot call those
 services. A host observation reaches a proof, type, layout, or constant only
 after `build.omg` turns it into an explicit recorded build input.
 
+Selecting the target also closes symbolic target-semantic observations and
+target-scoped realization applications used by constants, proofs, plans, or
+const-indexed types. Those dependencies are part of the normalized public
+signature when they escape a package. Independently closed artifacts must agree
+on them; adding, removing, or changing one in a public signature is a breaking
+semantic-API revision. A private dependency instead invalidates the target
+artifact without changing the public contract. Folding a target observation to
+an integer never erases its dependency or diagnostic origin.
+
 Those names describe authority classes, not a requirement to mint one public
 boundary trait per build operation. The concrete build library should use the
 smallest ordinary Omega surface that preserves explicit authority, checked

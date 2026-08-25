@@ -1273,6 +1273,13 @@ compatible common root lineage. Merge proves the same theorem in reverse.
 Permission attenuation cannot be reversed by joining permissions; authority
 that must return is represented as a claim or loan.
 
+`no_wrap` is transparently
+`embed(base) + embed(length) <= addr::Bound`; it is not an executable boundary
+call. `addr::Bound` is a canonical target-semantic constant whose symbolic
+application and target closure remain in proof/artifact identity. The formula
+proves geometry only. Because `Granted` declares exact `established by` routes,
+copyable proof evidence cannot mint its Type-side authority.
+
 Routed qualifications name their exact authorized trait requirements in the
 domain declaration. Obligation-free domains may be qualified directly with
 `as`; predicates must be proved, and routed provenance cannot be fabricated.

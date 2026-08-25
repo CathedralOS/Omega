@@ -82,8 +82,17 @@ domain Player::Alive
 ```
 
 `self` is the value being classified. A domain's `requires` clause states its
-predicate obligations. They do not create fields and they run only when the
-program explicitly asks for a runtime diagnostic/checking build.
+predicate obligations. They do not create fields and they do not execute at
+runtime. Each row must resolve to `Prop`; an ordinary machine returning `bool`
+is not implicitly a predicate. Primitive or transparent proposition
+applications are ordinary proof formulas. A total pure machine call may occur
+inside such a formula only as a denotational fact term under Chapter 10's
+rules—it does not execute while qualification is established.
+
+Runtime validation is an ordinary separate machine. Its checked guarantee may
+prove a structural predicate, but validation reach, effects, failures, and
+authority remain on that machine rather than being absorbed into domain
+identity.
 
 This chapter assumes Chapter 7's contract model already exists. Domains do not
 replace contracts; they give contracts reusable semantic names.
@@ -183,6 +192,11 @@ A domain declaration states two independent kinds of establishment evidence:
 - `requires` contains propositions about `self`; all of them must be proved.
 - `established by` contains exact trait-requirement identities authorized to
   establish membership. Its comma-separated entries are alternative routes.
+
+For a predicate-only domain, proving every `requires` row establishes the
+structural qualification. For a domain with `established by`, those proofs are
+only side conditions: an exact authorized route occurrence must also introduce
+or forward the provenance. Copyable proof cannot mint Type-side authority.
 
 ```omega
 domain [u8]::Path
@@ -870,8 +884,9 @@ path and normalized signature remain the operator's canonical identity.
 predicate. An arbitrary runtime integer uses an ordinary checked machine such
 as `Degrees::normalize(raw)`, which performs Euclidean reduction and
 guarantees the predicate afterward; `as` never performs that normalization.
-`normalize` and the pure relational predicate `degree_sum` are package-authored
-machines, not compiler-known names.
+`normalize` is a package-authored machine; `degree_sum` is a package-authored
+proposition. Neither name is compiler-known, and the Boolean result of an
+unrelated machine would not be coerced into the proposition position.
 
 The domain declaration does not synthesize `+`. The named operator publishes the
 semantic contract, including the relation between its operands and result.

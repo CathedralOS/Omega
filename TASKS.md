@@ -7588,8 +7588,10 @@ checked-result arithmetic decision listed below.
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
   boundaries name the exact complete conformance.
-- Complete hermetic evaluation with crash refinement, target capsule, separate
-  result/usage identities, deterministic progress, and runtime equivalence.
+- **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
+  realizations.** Complete hermetic evaluation with crash refinement, target
+  capsule, separate result/usage identities, deterministic progress, and
+  runtime equivalence.
   Publish `Hermetic | Receipted | Volatile` ceilings and realized provenance.
   Generalize `const` evaluation beyond the current scalar/record corpus to
   fixed arrays, copy-eligible sums, and aggregates containing them. Admit exact-
@@ -7601,6 +7603,41 @@ checked-result arithmetic decision listed below.
   unfixed NaN payload at runtime materialization, and preserve an exact carried
   quotient representative without demanding canonicalization. Retain target-
   dependent const application identity through target-neutral intermediates.
+  Materialize one compiler-owned versioned typed capsule shared by evaluator and
+  backend. Expose only its closed subject-qualified observation vocabulary; do
+  not add a runtime reflection object or ordinary provider for primitive carrier
+  meaning. Land `addr::Bound: Int` as the exclusive one-past address bound and
+  migrate core's transitional `boundary machine no_wrap(...) -> bool` into the
+  transparent proposition
+  `embed(base) + embed(length) <= addr::Bound`. Domain `requires` rows resolve to
+  `Prop`; never coerce a Boolean-returning machine into a predicate. Preserve
+  eligible total pure machine calls only as denotational terms inside an actual
+  proposition.
+
+  Permit target observations in every existing canonical const position,
+  including array lengths and const-generic applications, while adding no
+  conditional field/case, multiplicity, or declaration-splice mechanism.
+  Retain symbolic applications until target closure. Track exact
+  `ObservationApplication` and `SelectedRealizationApplication` dependencies
+  through constants, proofs, plans, public signatures, caches, Terminal
+  certificates, manifests, and artifacts; folding may remove an expression but
+  never its target-closure receipt. Keep whole-capsule plus whole-realization
+  keying as the conservative gate until fine-grained replay covers both kinds.
+  Record a compact provenance DAG so incompatible independently closed artifacts
+  identify both closures and the alias/const/generic/plan path that introduced
+  the mismatch. Treat a changed public target-dependency set as a breaking API
+  revision and a private change as target-artifact invalidation.
+
+  Native plan sizes may feed ordinary const types when otherwise eligible, but
+  calling-plan staging or plan-sized extents remain the representation-aware
+  route. Field/case-set variance uses distinct nominal target schemas behind a
+  stable requirement; build selection never mutates a declaration. Add canaries
+  for target-indexed arrays, folded-dependency retention, selected-plan
+  dependency without an observation call, cross-target replay rejection,
+  conditional-field rejection, and the inclusive one-past narrowing case:
+  `no_wrap` alone does not prove a `2^32` length fits `u32`, while an independent
+  `length < addr::Bound` proof does.
+
   Admit evaluation through either a certified maximum-logical-work ceiling or
   deterministic unobservable metering, with corresponding temporary-memory and
   result-size budgets and published-build receipts.
@@ -7710,7 +7747,7 @@ specifications:
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
 - **CALLBACK-PRIVATE-LAYOUT-DEMAND:** target-package declaration of a typed
-  private native callback slot in `OWNER_QUESTIONS.md` Q2.
+  private native callback slot in `OWNER_QUESTIONS.md` Q1.
 
 ## Platform-gated verification
 

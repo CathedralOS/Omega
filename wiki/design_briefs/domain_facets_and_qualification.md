@@ -64,6 +64,29 @@ predicate must hold. `established by` contains exact trait-requirement
 identities; each comma-separated entry is an alternative authorized origin for
 the domain.
 
+The row must resolve to `Prop`. A machine returning `bool` does not become a
+predicate merely because it is written in call shape. Primitive and transparent
+proposition applications retain their exact normalized proposition identity.
+Eligible total, pure machine calls may still occur *inside* a proposition as
+denotational value terms under the ordinary fact-position rule; they do not run
+when qualification is checked, and their complete checked meaning remains in
+the proposition dependency. An executable validator is a separate ordinary
+machine with its own reach, control, authority, and result contract. Calling it
+may establish a structural proposition through an authored guarantee, but the
+call itself is not a domain predicate.
+
+For example, address-range geometry is stated rather than executed:
+
+```omega
+proposition no_wrap(base: addr, length: u64) =
+    embed(base) + embed(length) <= addr::Bound;
+```
+
+`addr::Bound` is a target-semantic compile-time constant supplied through the
+sealed target capsule described by
+[`build_time_evaluation.md`](build_time_evaluation.md). The transparent formula
+has no runtime Boolean result, reach, crash edge, or provider selection.
+
 The establishment clause does not invoke those requirements. It licenses their selected
 conformances to establish membership at exact qualified subject positions. A
 result is established by the selected call. A non-`self` parameter is
@@ -88,6 +111,14 @@ domain i32::Km;
 
 Every bare `i32` may therefore be explicitly qualified as `i32::Km`. This is
 the vacuous case of the same rule, not an implicit owner grant.
+
+Predicate-only and routed domains therefore have deliberately different
+membership rules. Proving every predicate establishes a predicate-only
+structural qualification. If `established by` is present, those same proofs are
+necessary side conditions but cannot manufacture the routed provenance: one
+exact authorized introduction or forwarding occurrence is also required. In
+particular, proving `no_wrap(extent.base, extent.length)` never mints
+`Extent::Granted`.
 
 ## `as`: exact coercion and explicit erasure
 

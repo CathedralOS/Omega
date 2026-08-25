@@ -866,6 +866,28 @@ rejects; a replaceable crossing names an ordinary requirement. The same
 requirement may be statically selected and inlined in another build. No
 hot-swap call syntax or `slot` keyword is implied.
 
+## Target-dependent public identity
+
+A target-neutral package may export a symbolic constant or type application
+that depends on the sealed target-semantic capsule or on one selected target
+realization. Its public manifest retains the exact observation and realization
+applications rather than only the eventual folded value. Independently closed
+artifacts compose only when those applications are compatible.
+
+Adding, removing, or changing such a dependency in a public signature is a
+breaking semantic-API revision even when every currently supported target
+happens to produce the same scalar. A dependency confined to a private body or
+plan changes content/target artifact identity and forces rebuilding or relinking
+without changing the public contract. Compatibility diagnostics retain the
+producer and consumer closures plus an origin chain through aliases, constants,
+generic applications, and selected plans.
+
+Target selection chooses exact declarations and realizations; it never splices
+fields or cases into an existing nominal type. Different native field sets use
+different ABI-specific nominal schemas behind one stable portable requirement.
+Different sizes, offsets, padding, and alignment of one stable schema remain
+ordinary target-dependent layout-plan facts.
+
 ## Authority evidence and admission
 
 Runtime authority uses ordinary data layout plus domain evidence. The eventual
