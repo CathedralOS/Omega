@@ -77,7 +77,12 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => checked_call_intrinsic(call.target.as_str()).map_or_else(
+                ) => checked_call_intrinsic(
+                    call.target.as_str(),
+                    call.target_symbol,
+                    call.receiver.is_valid(),
+                )
+                .map_or_else(
                     || {
                         declaration_target(checked_call_target(
                             program,
@@ -260,9 +265,10 @@ fn collect_checked_statement_selections(
                     })
                     .map(|selection| selection.occurrence_id())
                     .collect::<Vec<_>>();
-                let resolution_target = checked_call_intrinsic(call.target.as_str())
-                    .map(CheckedResolutionTarget::Intrinsic)
-                    .or_else(|| declaration_target(target));
+                let resolution_target =
+                    checked_call_intrinsic(call.target.as_str(), call.target_symbol, false)
+                        .map(CheckedResolutionTarget::Intrinsic)
+                        .or_else(|| declaration_target(target));
                 if let Some(target) = resolution_target {
                     for occurrence in pending {
                         push_consistent_resolution(
@@ -283,10 +289,22 @@ fn collect_checked_statement_selections(
 
 fn checked_call_intrinsic(
     target: &str,
+    target_symbol: SymbolHandle,
+    has_receiver: bool,
 ) -> Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
     use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
-    if target == "select_provider" {
+    // A resolved declaration always wins over compiler vocabulary with the
+    // same spelling. Receiver calls likewise cannot select these free-call
+    // intrinsics. This keeps intrinsic recognition from becoming a
+    // source-text fallback for an ordinary package declaration.
+    if target_symbol.is_valid() || has_receiver {
+        None
+    } else if psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
+        .is_some()
+    {
+        Some(Intrinsic::ByteSequencePredicate)
+    } else if target == "select_provider" {
         Some(Intrinsic::BuildProviderSelection)
     } else if target.starts_with("accept_boundary#") {
         Some(Intrinsic::BuildBoundaryAcceptance)

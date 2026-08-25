@@ -28,7 +28,10 @@ pub(crate) fn lower_machine_into(
         .filter_map(|contract| contract.binding.as_ref())
         .map(|binding| binding.as_str().to_owned())
         .collect();
-    let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
+    let states = lowerer.with_authored_expression_exposure(
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        |lowerer| lower_machine_states(lowerer, syntax_trees, machine.states),
+    )?;
     lowerer.current_machine_is_boundary = false;
     lowerer.current_machine_root_index = None;
     lowerer.current_machine_name = None;

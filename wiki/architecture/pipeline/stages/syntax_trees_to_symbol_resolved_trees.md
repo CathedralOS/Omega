@@ -65,6 +65,12 @@ Must own:
   select no declaration, and named const reduction retains its declaration in
   the separate const-substitution custody path. An unresolved static path is an
   explicit late obligation, never an omitted row.
+- Propagating declaration exposure while lowering source expressions. Public
+  declaration contracts and predicates retain public-interface custody while
+  executable machine states and bodies remain private. Proof-membership facts
+  retain their domain path through a pre-assignment sidecar and become exact
+  domain-selection rows after symbols exist. Lexical parameters and locals are
+  excluded from declaration custody; later selected path segments remain.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 - Preflighting signature-free requirement paths after symbol assignment and

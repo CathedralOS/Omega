@@ -9,6 +9,12 @@ use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionE
 use psi_symbol_resolved_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingAuthoredProofMembership {
+    pub(crate) fact: psi_arena::Handle<psi_symbol_resolved_trees::domain::ProofFact>,
+    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct PendingAuthoredExpression {
     pub(crate) expression: ExpressionHandle,
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
@@ -69,6 +75,7 @@ pub(crate) struct Lowerer {
     /// compiler-generated or belong to a source surface whose public/private
     /// disposition has not yet been classified by its owning declaration.
     pub(crate) pending_authored_expressions: Vec<PendingAuthoredExpression>,
+    pub(crate) pending_authored_proof_memberships: Vec<PendingAuthoredProofMembership>,
     /// Const values disappear during lowering, but their declaration identity
     /// must remain available to package-selection admission.
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
@@ -180,6 +187,7 @@ impl Lowerer {
             pending_machine_service_reaches: Vec::new(),
             pending_signature_service_reaches: Vec::new(),
             pending_authored_expressions: Vec::new(),
+            pending_authored_proof_memberships: Vec::new(),
             pending_const_declarations: Vec::new(),
             pending_const_selections: Vec::new(),
             current_authored_expression_exposure: None,
@@ -207,6 +215,17 @@ impl Lowerer {
         let name = format!("__arm_k_{}", self.arm_state_counter);
         self.arm_state_counter += 1;
         name
+    }
+
+    pub(crate) fn with_authored_expression_exposure<T>(
+        &mut self,
+        exposure: AuthoredDeclarationSelectionExposure,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = self.current_authored_expression_exposure.replace(exposure);
+        let result = operation(self);
+        self.current_authored_expression_exposure = previous;
+        result
     }
 
     /// The shared hoist-temp name for a match subject syntax handle, if the first arm already
@@ -243,6 +262,7 @@ impl Lowerer {
         crate::authored_selections::finalize_authored_expression_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_authored_expressions,
+            &self.pending_authored_proof_memberships,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let compatibility =

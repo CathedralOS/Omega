@@ -1,4 +1,4 @@
-use crate::lowerer::PendingAuthoredExpression;
+use crate::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
@@ -29,6 +29,7 @@ struct Candidate {
 pub(crate) fn finalize_authored_expression_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[PendingAuthoredExpression],
+    pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     let mut seen = Vec::new();
 
@@ -64,6 +65,43 @@ pub(crate) fn finalize_authored_expression_selections(
                 .expressions
                 .attach_authored_selection_occurrences(candidate.expression, [occurrence]);
         }
+    }
+
+    for pending in pending_proof_memberships {
+        let psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+            program.tables.declarations.proof_facts.get(pending.fact)
+        else {
+            return Err(Diagnostic::error(
+                "authored proof-membership custody no longer identifies a membership fact",
+            ));
+        };
+        let members = program
+            .tables
+            .declarations
+            .domain_path_members
+            .span_or_empty(membership.domain);
+        let source_span = path_span(members, SourceSpan::default());
+        let target = resolved_or_late(
+            membership.domain_symbol,
+            LateBinding::CheckedDomainMembership,
+        );
+        match target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection(
+                    source_span,
+                    pending.exposure,
+                    Kind::DomainMembership,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection(
+                    source_span,
+                    pending.exposure,
+                    Kind::DomainMembership,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?;
     }
 
     for candidate in statement_candidates(program) {
@@ -238,6 +276,16 @@ fn expression_candidates(
                     .get(offset)
                     .copied()
                     .unwrap_or_else(SymbolHandle::invalid);
+                // A bare unresolved root is a lexical value place (parameter
+                // or local), not a declaration selection. Resolved lexical
+                // binders are excluded for the same reason. Later segments
+                // remain authored field/case/declaration selections and may
+                // still require checked contextual resolution.
+                if (offset == 0 && !symbol.is_valid())
+                    || (symbol.is_valid() && !is_selectable_declaration_symbol(program, symbol))
+                {
+                    continue;
+                }
                 candidates.push(Candidate {
                     expression,
                     source_span: member.source_span(),
@@ -291,6 +339,21 @@ fn expression_candidates(
     candidates
         .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
     candidates
+}
+
+fn is_selectable_declaration_symbol(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> bool {
+    !matches!(
+        program.symbols.get(symbol).kind,
+        psi_symbols::SymbolKind::Unknown
+            | psi_symbols::SymbolKind::Root
+            | psi_symbols::SymbolKind::Local
+            | psi_symbols::SymbolKind::Parameter
+            | psi_symbols::SymbolKind::TypeParameter
+            | psi_symbols::SymbolKind::ConformanceParameter
+            | psi_symbols::SymbolKind::MachineParameter
+            | psi_symbols::SymbolKind::PropositionParameter
+            | psi_symbols::SymbolKind::PropositionMachineParameter
+    )
 }
 
 fn collect_static_argument_candidates(

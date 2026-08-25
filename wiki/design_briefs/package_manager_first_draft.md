@@ -133,9 +133,11 @@ they are not required merely to carry an inferred foreign nominal type returned
 through another declared dependency. Moving, borrowing, storing, returning, or
 passing such a value back through the visible surface does not make its owner
 source-nameable. Selecting an owner-declared field, case, method, operator,
-conformance, or explicit cleanup operation does and requires a direct row.
-Compiler-planned layout, multiplicity, and automatic cleanup remain carried type
-semantics.
+conformance, or ordinary explicit consuming machine does and requires a direct
+row. Reserved `T::drop` remains automatic carried semantics unless and until
+the language defines an authored invocation and its ownership event.
+Compiler-planned layout, multiplicity, and automatic cleanup remain carried
+type semantics.
 
 There is no `export` item. `pub` exposes only package-owned declarations, and an
 ordinary public wrapper presents dependency behavior without relabeling the
@@ -155,6 +157,13 @@ finalize to a known declaration or reject. Selected package code cannot run
 before the finalized ledger passes; earlier effect-free compiler evaluation
 must first admit an exact early target or fail closed unless the compiler can
 confine the complete candidate set to admitted owners.
+
+Public/private disposition follows the declaration-owned source position.
+Public machine contracts and ranking expressions, public data/domain
+predicates, and public trait contracts are public interface; executable states
+and bodies are private implementation. Proof-membership custody includes the
+selected domain path, not the lexical value parameter. Nested declaration
+visibility is not inferred while its owner rule remains unsettled.
 
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.

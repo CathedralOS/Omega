@@ -78,3 +78,45 @@ This decision gates the bounded matching-logic investigation in
 The investigation may produce an untrusted proof producer, an independent
 semantic diamond, or a proof-import lane; it does not replace the current
 kernel by default.
+
+## Q3 — May authored code invoke the reserved `T::drop` machine?
+
+Chapter 17 defines `T::drop(&mut self)` as the ordinary reserved machine shape
+selected by compiler-planned automatic cleanup. It also says the body receives
+one whole valid value and returns it valid before structural field cleanup.
+Neither the chapter nor the checker currently says whether source code may call
+that machine directly. Today `value.drop();` checks as an ordinary mutable-
+receiver call, leaves `value` live, and may therefore be followed by the
+compiler invoking the same `drop` again on the return edge. The package
+selection ledger has an unused `ExplicitCleanupCall` kind, but classification
+cannot repair the undefined ownership event.
+
+Choose one rule:
+
+- whether reserved `drop` is compiler-only or source-callable;
+- if source-callable, whether the call consumes the whole place, how that
+  follows from a declaration whose receiver is `&mut self`, and how the
+  frontier suppresses later automatic cleanup;
+- whether early cleanup may target fields or only a whole valid root;
+- which automatic-cleanup preconditions and control restrictions apply; and
+- whether this is a dedicated authored cleanup selection or an ordinary call.
+
+Recommended direction: make reserved `T::drop` compiler-only. Reject authored
+calls to it during checking. Early protocol completion or abandonment remains
+an ordinary explicitly named consuming machine such as `close`, `finish`, or
+`abandon`; that machine consumes ownership according to its ordinary signature
+and is already captured by the authored call ledger. Automatic `drop` remains
+a carried semantic dependency and grants no source authority. Under this rule,
+remove `ExplicitCleanupCall` from the authored-selection vocabulary rather than
+pretending an unsupported operation exists.
+
+An acceptable alternative is to define authored `drop` as a special whole-place
+consuming operation. It must consume exactly once, establish every cleanup
+premise at that site, suppress edge cleanup for the consumed root, and receive
+explicit source and Psi semantics despite the declaration's mutable receiver.
+
+Tempting but wrong alternatives are to keep treating `value.drop()` as an
+ordinary `&mut` call, infer consumption from the spelling only after checking,
+allow both authored and automatic invocation on the same live place, or record
+an `ExplicitCleanupCall` package row without first defining its ownership
+semantics.

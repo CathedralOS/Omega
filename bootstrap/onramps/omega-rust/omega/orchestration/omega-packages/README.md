@@ -563,6 +563,17 @@ declaration, and named const reduction separately preserves the exact const
 declaration that supplied the value. Any unresolved static path remains visible
 and fails package admission.
 
+Declaration-owned expressions retain the declaration's exposure. Public
+machine contracts and ranking expressions, public data/domain predicates, and
+public trait contracts enter public compatibility custody; executable states
+and bodies remain private implementation. Proof-membership facts retain the
+exact selected domain path instead of treating only their value operand as an
+expression. Lexical parameters and locals are places, not declaration rows.
+Compiler-recognized byte-sequence predicate calls are closed intrinsics; a
+resolved declaration with the same spelling wins and retains its package owner.
+Visibility inheritance for nested declaration families remains governed by the
+owner visibility decision.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

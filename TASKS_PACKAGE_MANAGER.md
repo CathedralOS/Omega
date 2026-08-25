@@ -470,8 +470,9 @@ complete.
 
 - **DECLARATION-SELECTION-AND-CARRIED-IDENTITY.** Enforce the settled split
   between direct source authority and inferred nominal flow. Any authored path,
-  member, field, case, operator, conformance, or explicit cleanup selection must
-  resolve to the current package or one direct dependency. A foreign type
+  member, field, case, operator, conformance, or ordinary explicitly named
+  consuming machine must resolve to the current package or one direct
+  dependency. A foreign type
   received through a declared dependency may still be moved, borrowed, stored,
   returned, passed back through that surface, and checked for copy/affine/linear
   behavior; compiler-planned layout and automatic cleanup do not grant source
@@ -506,13 +507,15 @@ complete.
 
   Implementation slices: retain exact symbols for every selected path segment,
   struct-literal type/case/fields, and case membership; capture explicit type,
-  member, call, conformance, and cleanup occurrences with exposure; join dynamic
+  member, call, conformance, and any source-callable cleanup occurrences with
+  exposure; join dynamic
   calls, overloads, operators, inferred conformances, and automatic cleanup
   after checking; carry canonical package names through compiler handoff for
   diagnostics; emit semantic dependency evidence. Canary the full three-package
   `root -> middle -> leaf` matrix, including carried flow, inferred field/method,
   case construction/membership, operator and conformance selection, explicit
-  versus automatic cleanup, toolchain declarations, spoofed same-name cleanup,
+  versus automatic cleanup once owner question Q3 settles source-callable
+  `drop`, toolchain declarations, spoofed same-name cleanup,
   and private/public evidence disposition.
 
   Progress 2026-08-24: resolved and typed expressions now retain exact symbols
@@ -624,15 +627,34 @@ complete.
   rejects transitive-only data and machine arguments independently and accepts
   both after direct admission.
 
+  Milestone 2026-08-25: declaration-owned expression lowering now carries the
+  owning declaration's public/private exposure into the authored-selection
+  ledger. Public machine contracts and ranking expressions, public data/domain
+  predicates, and public trait contracts are public-interface positions;
+  machine states and executable bodies remain private implementation even when
+  their machine is public. Standalone declarations without `pub` remain
+  private, and domain-owned operator inheritance remains behind owner question
+  Q1. Proof-membership facts now retain their exact domain path and exposure as
+  first-class rows; lexical parameters and locals no longer masquerade as late
+  declaration selections. Compiler-recognized byte-sequence predicate calls
+  finalize as intrinsics, while an exact declaration with the same spelling
+  retains declaration identity. A root-middle-leaf canary rejects a public
+  contract's transitive-only domain selection and accepts it with exact public
+  exposure after direct admission.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
   explicit static conformance arguments, expression and statement calls,
   all source-backed static declaration arguments, inferred generic-call
-  conformances, and checked trait-operator conformances. Public expression
-  positions, named conformance selectors in callable bounds, and explicit
-  cleanup classification are not yet total. The package manager stays disabled
-  until those gaps close.
+  conformances, checked trait-operator conformances, and declaration-owned
+  expression positions whose visibility is settled. Visibility-dependent
+  nested positions, named conformance selectors in callable bounds, and
+  explicit cleanup classification are not yet total. Explicit cleanup is
+  language-blocked on owner question Q3 because an authored `value.drop()` currently
+  behaves as an ordinary mutable call and may be followed by automatic cleanup;
+  classification alone cannot define that ownership event. The package manager
+  stays disabled until those gaps close.
   Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.

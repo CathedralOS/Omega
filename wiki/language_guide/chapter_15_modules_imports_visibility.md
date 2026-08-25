@@ -211,9 +211,11 @@ Imports do not execute code. They only affect name resolution.
 A direct dependency authorizes authored source to select declarations owned by
 that package. This includes static paths and declarations selected through an
 inferred receiver: fields, cases, methods, operators, conformances, and an
-explicit cleanup call all retain their declaring package. A package absent from
-the requester's direct dependency set cannot be selected by hiding its name
-behind a value whose type was inferred.
+ordinary explicitly named consuming call all retain their declaring package.
+Compiler-selected automatic `T::drop` is carried type semantics; whether source
+may invoke that reserved machine is not yet part of the settled ownership rule.
+A package absent from the requester's direct dependency set cannot be selected
+by hiding its name behind a value whose type was inferred.
 
 Nominal identity may nevertheless flow through another package's API without
 granting that selection authority:
@@ -248,6 +250,15 @@ overloads, operators, and inferred conformances may settle later. This is one
 compiler-internal ledger finalized from the stages that own those facts, not a
 new language-visible IR stage. An unresolved or unjoinable authored occurrence
 rejects rather than disappearing from the gate.
+
+Expressions owned by a public declaration's published contract or predicate
+are public-interface selections. This includes public machine contracts and
+ranking expressions, public data/domain predicates, and public trait contracts.
+Executable machine states and bodies remain private implementation even when
+the machine is public. A membership fact selects its domain declaration; its
+value parameter or local is a lexical place and does not become a package row.
+Nested declaration families inherit public exposure only after their source
+visibility rule says so.
 
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the

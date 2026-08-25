@@ -369,6 +369,7 @@ fn candidate_kind_matches_binding(
         }
         Binding::CheckedStructLiteralCase => matches!(kind, SymbolKind::Variant),
         Binding::CheckedCaseMembership
+        | Binding::CheckedDomainMembership
         | Binding::CheckedStaticArgument
         | Binding::CheckedOperator
         | Binding::CheckedConformance => false,
