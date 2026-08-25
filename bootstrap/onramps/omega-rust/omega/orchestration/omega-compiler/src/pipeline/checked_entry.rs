@@ -320,6 +320,13 @@ fn compile_to_checked_inner(
     )?;
     let frozen_syntax = syntax.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, &mut timings)?;
+    if let Some(package_inputs) = package_inputs {
+        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
+            &frontend.typed,
+            package_inputs,
+            &mut timings,
+        )?;
+    }
     let build_machine_filesystem_scope =
         crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
             root_path,

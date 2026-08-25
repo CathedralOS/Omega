@@ -600,6 +600,13 @@ impl Compiler {
         // lowering. Bind it on the typed tree before snapshots and lockfile
         // fingerprints consume the declaration graph.
         psi_typed_trees_to_checked_trees::normalize_open_index_identities(&mut typed)?;
+        if let Some(package_inputs) = self.package_inputs.as_ref() {
+            crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
+                &typed,
+                package_inputs,
+                &mut timings,
+            )?;
+        }
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source

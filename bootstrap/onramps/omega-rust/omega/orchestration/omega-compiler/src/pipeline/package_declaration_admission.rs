@@ -4,6 +4,19 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use psi_source::SourceOrigin;
 
+pub(super) fn validate_authored_declaration_selections_before_build(
+    typed: &psi_typed_trees::TypedTrees,
+    packages: &PackageCompilationInputs,
+    timings: &mut crate::pipeline::timing::CompileTimings,
+) -> Result<(), Vec<Diagnostic>> {
+    // Package build execution can carry filesystem and other boundary
+    // authority. Check the frozen ordinary source graph first; the ordinary
+    // final checked pass repeats this gate after any explicit generated-source
+    // handoff.
+    let checked = crate::pipeline::stages::typed_trees_to_checked_trees(typed.clone(), timings)?;
+    validate_authored_declaration_selections(&checked.program, packages)
+}
+
 pub(super) fn validate_authored_declaration_selections(
     program: &CheckedTrees,
     packages: &PackageCompilationInputs,

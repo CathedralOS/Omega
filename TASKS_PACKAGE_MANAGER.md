@@ -537,12 +537,23 @@ complete.
   identity check was removed: the exact authored-selection ledger, not ordinary
   typed lowering, is the package-admission boundary.
 
+  Milestone 2026-08-25: package-aware checked and native compilation now clone
+  the frozen ordinary typed graph into a complete checked preflight and admit
+  every finalized authored selection before `compute_build_config` can execute
+  the selected build machine. The ordinary final checked pass repeats the gate,
+  including any explicitly handed-off generated source. A filesystem-backed
+  canary places an illegal transitive selection after an attempted marker write
+  in `build.omg`; both entrypoints reject with the marker absent.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission, and capture still covers only private state-body
   expression forms. The package manager stays disabled until public-interface
-  exposure, remaining authored conformance/cleanup forms, and the same gate
-  before any selected package or build-time code can execute are complete.
-  Exact carried-semantic-dependency evidence also remains. Visibility for
+  exposure, remaining authored conformance/cleanup forms, and equivalent
+  package-authority admission before Psi's earlier effect-free const/plan
+  machine evaluators are complete. Those evaluators already fail closed on
+  boundary reach and retain package source provenance, but do not yet consume
+  the reconciled direct-dependency graph. Exact carried-semantic-dependency
+  evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.
 
