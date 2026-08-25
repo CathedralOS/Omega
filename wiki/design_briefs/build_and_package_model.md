@@ -654,7 +654,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v10 carries operation-attempt schema v9: an ordered
+Observation schema v10 carries operation-attempt schema v10: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -691,11 +691,14 @@ carriers retain exact pre/post values. Pre-state follows evaluation of every
 authored argument; post-state follows provider return or halt, including
 unchanged input-only ABI carriers. A separate 256 MiB aggregate operand-
 evidence sponsor reserves immutable bytes and both mutable copies before that
-call's provider access; prior or nested staging effects remain cleanup-
+call's provider access. Each successfully typed non-handle scalar and immutable
+payload is retained as preparation advances, so a later preparation halt keeps
+the completed ordinal prefix; a fully prepared call must reproduce those rows
+exactly before provider access. Prior or nested staging effects remain cleanup-
 contained. Package commitments frame these rows without rendering payload
 bytes as text. Path-like bytes not yet represented by rooted evidence,
-preparation-failure operand prefixes, retained returned-path bytes, and complete
-content remain absent, so the row is still non-replayable.
+preparation-failure path/logical-handle/mutable prefixes, retained returned-path
+bytes, and complete content remain absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

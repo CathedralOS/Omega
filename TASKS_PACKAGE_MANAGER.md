@@ -951,7 +951,7 @@ complete.
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
   `final_path_name_by_handle` are unconditionally so. Observation schema v10
-  carries operation-attempt schema v9: an ordered successful-run call-start
+  carries operation-attempt schema v10: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -989,6 +989,13 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
+  Operation-attempt schema v10 now retains each successfully typed non-handle
+  scalar and immutable payload immediately as the argument cursor advances.
+  If a later argument or preparation constraint halts, the failed attempt keeps
+  that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
+  sponsor incrementally, before any provider access. Fully prepared calls
+  cross-check the incremental rows against the canonical call projection
+  before mutable pre-state is admitted.
   Every fully prepared call whose evidence reservation succeeds retains
   ordinal-ordered non-handle scalars with exact I32/U32/I64/U64 width and
   signedness. Immutable write/FILETIME payloads retain exact authored bytes,
@@ -1008,9 +1015,9 @@ complete.
   immutable bytes, and mutable pre/post states exactly and never render payload
   bytes as text.
   This deliberately incomplete trace omits path-like byte operands not yet
-  represented by rooted evidence,
-  retained returned-path bytes, preparation-failure operand prefixes, and
-  complete content custody.
+  represented by rooted evidence, retained returned-path bytes,
+  preparation-failure prefixes for path, logical-handle, and mutable-carrier
+  operands, and complete content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

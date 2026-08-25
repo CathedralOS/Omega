@@ -1716,6 +1716,7 @@ mod tests {
 
 struct FilesystemArgumentCursor<'evaluation, 'program, 'arguments, 'frame> {
     evaluator: &'evaluation mut Evaluator<'program>,
+    attempt_index: usize,
     arguments: std::slice::Iter<'arguments, ExpressionHandle>,
     frame: &'frame Frame,
     consumed: usize,
@@ -1726,57 +1727,87 @@ impl<'evaluation, 'program, 'arguments, 'frame>
 {
     fn new(
         evaluator: &'evaluation mut Evaluator<'program>,
+        attempt_index: usize,
         arguments: &'arguments [ExpressionHandle],
         frame: &'frame Frame,
     ) -> Self {
         Self {
             evaluator,
+            attempt_index,
             arguments: arguments.iter(),
             frame,
             consumed: 0,
         }
     }
 
-    fn next(&mut self) -> EvalResult<ExpressionHandle> {
+    fn next(&mut self) -> EvalResult<(u8, ExpressionHandle)> {
+        let operand_ordinal = u8::try_from(self.consumed).map_err(|_| {
+            Halt::Trap("canonical filesystem operand ordinal exceeds u8".to_owned())
+        })?;
         let handle = self.arguments.next().copied().ok_or_else(|| {
             Halt::Trap("canonical filesystem call is missing an authored operand".to_owned())
         })?;
         self.consumed += 1;
-        Ok(handle)
+        Ok((operand_ordinal, handle))
     }
 
-    fn value(&mut self) -> EvalResult<Value> {
-        let handle = self.next()?;
-        self.evaluator.eval_expression(handle, self.frame)
+    fn value(&mut self) -> EvalResult<(u8, Value)> {
+        let (operand_ordinal, handle) = self.next()?;
+        self.evaluator
+            .eval_expression(handle, self.frame)
+            .map(|value| (operand_ordinal, value))
     }
 
-    fn i64(&mut self) -> EvalResult<i64> {
+    fn integer(&mut self) -> EvalResult<(u8, i64)> {
         match self.value()? {
-            Value::Int(value) => Ok(value),
+            (operand_ordinal, Value::Int(value)) => Ok((operand_ordinal, value)),
             _ => trap("canonical filesystem scalar operand is not an integer"),
         }
     }
 
+    fn i64(&mut self) -> EvalResult<i64> {
+        let (operand_ordinal, value) = self.integer()?;
+        self.evaluator.record_prepared_filesystem_scalar_operand(
+            self.attempt_index,
+            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::I64(value)),
+        );
+        Ok(value)
+    }
+
+    fn handle_i64(&mut self) -> EvalResult<i64> {
+        self.integer().map(|(_, value)| value)
+    }
+
     fn i32(&mut self) -> EvalResult<i32> {
-        let raw = self.i64()?;
-        i32::try_from(raw).map_err(|_| {
+        let (operand_ordinal, raw) = self.integer()?;
+        let value = i32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem i32 operand `{raw}` is out of range"
             ))
-        })
+        })?;
+        self.evaluator.record_prepared_filesystem_scalar_operand(
+            self.attempt_index,
+            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::I32(value)),
+        );
+        Ok(value)
     }
 
     fn u32(&mut self) -> EvalResult<u32> {
-        let raw = self.i64()?;
-        u32::try_from(raw).map_err(|_| {
+        let (operand_ordinal, raw) = self.integer()?;
+        let value = u32::try_from(raw).map_err(|_| {
             Halt::Trap(format!(
                 "canonical filesystem u32 operand `{raw}` is out of range"
             ))
-        })
+        })?;
+        self.evaluator.record_prepared_filesystem_scalar_operand(
+            self.attempt_index,
+            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::U32(value)),
+        );
+        Ok(value)
     }
 
     fn fd(&mut self) -> EvalResult<i32> {
-        let value = self.value()?;
+        let (_, value) = self.value()?;
         let raw = match &value {
             Value::Struct { fields, .. } => fields.get("fd").and_then(|cell| {
                 let value = cell.borrow();
@@ -1793,7 +1824,14 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn count(&mut self) -> EvalResult<PreparedTransferCount> {
-        let raw = self.i64()?;
+        let (operand_ordinal, raw) = self.integer()?;
+        let typed = u64::try_from(raw).map_err(|_| {
+            Halt::Trap("filesystem transfer count is negative or not host-representable".to_owned())
+        })?;
+        self.evaluator.record_prepared_filesystem_scalar_operand(
+            self.attempt_index,
+            observed_scalar(operand_ordinal, FilesystemScalarOperandValue::U64(typed)),
+        );
         checked_filesystem_transfer_count(raw).map_err(|error| match error {
             FilesystemTransferCountError::NegativeOrUnrepresentable => Halt::Trap(
                 "filesystem transfer count is negative or not host-representable".to_owned(),
@@ -1804,13 +1842,13 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         })
     }
 
-    fn bytes(&mut self) -> EvalResult<Vec<u8>> {
-        let value = self.value()?;
+    fn raw_bytes(&mut self) -> EvalResult<(u8, Vec<u8>)> {
+        let (operand_ordinal, value) = self.value()?;
         if let Some((_, relative)) = rooted_build_path_parts(&value)? {
             check_byte_len(relative.len())?;
-            return Ok(relative);
+            return Ok((operand_ordinal, relative));
         }
-        match value {
+        let bytes = match value {
             Value::Str(text) => {
                 let text = text.borrow();
                 check_byte_len(text.len())?;
@@ -1830,11 +1868,35 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 )),
             },
             other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
-        }
+        }?;
+        Ok((operand_ordinal, bytes))
+    }
+
+    fn bytes(&mut self) -> EvalResult<Vec<u8>> {
+        let (operand_ordinal, bytes) = self.raw_bytes()?;
+        self.evaluator.record_prepared_filesystem_byte_operand(
+            self.attempt_index,
+            observed_bytes(operand_ordinal, &bytes),
+        )?;
+        Ok(bytes)
+    }
+
+    fn path_like_bytes(&mut self) -> EvalResult<Vec<u8>> {
+        self.raw_bytes().map(|(_, bytes)| bytes)
+    }
+
+    fn relative_component(&mut self) -> EvalResult<Vec<u8>> {
+        let (operand_ordinal, bytes) = self.raw_bytes()?;
+        let bytes = checked_relative_component(bytes)?;
+        self.evaluator.record_prepared_filesystem_byte_operand(
+            self.attempt_index,
+            observed_bytes(operand_ordinal, &bytes),
+        )?;
+        Ok(bytes)
     }
 
     fn path(&mut self) -> EvalResult<Vec<u8>> {
-        let value = self.value()?;
+        let (_, value) = self.value()?;
         let Some((root, relative)) = rooted_build_path_parts(&value)? else {
             if self.evaluator.rooted_build_paths_required
                 && self
@@ -1874,7 +1936,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {
-        let handle = self.next()?;
+        let (_, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
         match &*cell.borrow() {
@@ -1897,7 +1959,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn mutable_i64(&mut self) -> EvalResult<PreparedI64Output> {
-        let handle = self.next()?;
+        let (_, handle) = self.next()?;
         let cell = self.evaluator.resolve_place(handle, self.frame)?;
         let cell = self.evaluator.deref_cell(cell);
         let initial = match *cell.borrow() {
@@ -1946,7 +2008,11 @@ impl<'program> Evaluator<'program> {
                 operation.canonical_name()
             )));
         }
-        let mut a = FilesystemArgumentCursor::new(self, arguments, frame);
+        let attempt_index = *self
+            .filesystem_operation_attempt_stack
+            .last()
+            .expect("filesystem preparation requires an active operation attempt");
+        let mut a = FilesystemArgumentCursor::new(self, attempt_index, arguments, frame);
         let call = match operation {
             FilesystemHostOperation::Create => PreparedFilesystemCall::Create {
                 path: a.path()?,
@@ -2005,18 +2071,18 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::RemoveDir { path: a.path()? }
             }
             FilesystemHostOperation::CreateDirName => PreparedFilesystemCall::CreateDirName {
-                name: a.bytes()?,
+                name: a.path_like_bytes()?,
                 mode: a.i32()?,
             },
             FilesystemHostOperation::OpenAt => {
                 let dirfd = a.fd()?;
-                let name = checked_relative_component(a.bytes()?)?;
+                let name = a.relative_component()?;
                 let flags = a.i32()?;
                 PreparedFilesystemCall::OpenAt { dirfd, name, flags }
             }
             FilesystemHostOperation::UnlinkAt => {
                 let dirfd = a.fd()?;
-                let name = checked_relative_component(a.bytes()?)?;
+                let name = a.relative_component()?;
                 let flags = a.i32()?;
                 PreparedFilesystemCall::UnlinkAt { dirfd, name, flags }
             }
@@ -2039,7 +2105,7 @@ impl<'program> Evaluator<'program> {
                 link: a.path()?,
             },
             FilesystemHostOperation::Symlink => PreparedFilesystemCall::Symlink {
-                target: a.bytes()?,
+                target: a.path_like_bytes()?,
                 link: a.path()?,
             },
             FilesystemHostOperation::ReadLink => {
@@ -2073,20 +2139,20 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::FindFirst => {
-                let pattern = a.bytes()?;
+                let pattern = a.path_like_bytes()?;
                 let data = a.mutable_bytes()?;
                 data.require_capacity(FIND_DATA_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::FindFirst { pattern, data }
             }
             FilesystemHostOperation::FindNext => {
-                let handle = a.i64()?;
+                let handle = a.handle_i64()?;
                 let data = a.mutable_bytes()?;
                 data.require_capacity(FIND_DATA_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::FindNext { handle, data }
             }
-            FilesystemHostOperation::FindClose => {
-                PreparedFilesystemCall::FindClose { handle: a.i64()? }
-            }
+            FilesystemHostOperation::FindClose => PreparedFilesystemCall::FindClose {
+                handle: a.handle_i64()?,
+            },
             FilesystemHostOperation::CreateHardLink => PreparedFilesystemCall::CreateHardLink {
                 link: a.path()?,
                 existing: a.path()?,
@@ -2099,16 +2165,16 @@ impl<'program> Evaluator<'program> {
                 security_attributes: a.i64()?,
                 creation_disposition: a.u32()?,
                 flags_and_attributes: a.u32()?,
-                template_file: a.i64()?,
+                template_file: a.handle_i64()?,
             },
-            FilesystemHostOperation::CloseHandle => {
-                PreparedFilesystemCall::CloseHandle { handle: a.i64()? }
-            }
+            FilesystemHostOperation::CloseHandle => PreparedFilesystemCall::CloseHandle {
+                handle: a.handle_i64()?,
+            },
             FilesystemHostOperation::GetOsfHandle => {
                 PreparedFilesystemCall::GetOsfHandle { fd: a.fd()? }
             }
             FilesystemHostOperation::FinalPathNameByHandle => {
-                let handle = a.i64()?;
+                let handle = a.handle_i64()?;
                 let buffer = a.mutable_bytes()?;
                 let capacity = a.count()?;
                 buffer.require_capacity(capacity.host)?;
@@ -2121,7 +2187,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::SetFileTime => {
-                let handle = a.i64()?;
+                let handle = a.handle_i64()?;
                 let creation = a.i64()?;
                 let last_access = a.bytes()?;
                 if last_access.len() < FILETIME_BYTES {
@@ -2139,7 +2205,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::LockFileEx => PreparedFilesystemCall::LockFileEx {
-                handle: a.i64()?,
+                handle: a.handle_i64()?,
                 flags: a.u32()?,
                 reserved: a.u32()?,
                 length_low: a.u32()?,
@@ -2147,19 +2213,19 @@ impl<'program> Evaluator<'program> {
                 overlapped: a.mutable_byte_input(OVERLAPPED_BYTES)?,
             },
             FilesystemHostOperation::UnlockFile => PreparedFilesystemCall::UnlockFile {
-                handle: a.i64()?,
+                handle: a.handle_i64()?,
                 offset_low: a.u32()?,
                 offset_high: a.u32()?,
                 length_low: a.u32()?,
                 length_high: a.u32()?,
             },
             FilesystemHostOperation::GetLastError => PreparedFilesystemCall::GetLastError,
-            FilesystemHostOperation::RemoveName => {
-                PreparedFilesystemCall::RemoveName { path: a.bytes()? }
-            }
-            FilesystemHostOperation::RemoveDirName => {
-                PreparedFilesystemCall::RemoveDirName { path: a.bytes()? }
-            }
+            FilesystemHostOperation::RemoveName => PreparedFilesystemCall::RemoveName {
+                path: a.path_like_bytes()?,
+            },
+            FilesystemHostOperation::RemoveDirName => PreparedFilesystemCall::RemoveDirName {
+                path: a.path_like_bytes()?,
+            },
             FilesystemHostOperation::ReadMetadata => {
                 let path = a.path()?;
                 let buffer = a.mutable_bytes()?;

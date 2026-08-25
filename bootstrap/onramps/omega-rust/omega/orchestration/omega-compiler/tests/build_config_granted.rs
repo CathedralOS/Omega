@@ -210,7 +210,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        9
+        10
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -960,11 +960,77 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         "{rendered}"
     );
     assert!(
+        rendered.contains("2 scalar operand(s), 0 immutable byte operand(s)"),
+        "the successful create mode and rejected transfer count must remain in the prepared prefixes: {rendered}"
+    );
+    assert!(
         staged.exists(),
         "the diagnostic must acknowledge that a prior staged side effect occurred"
     );
 
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn failed_filesystem_preparation_retains_the_completed_immutable_operand_prefix() {
+    let profile = omega_target::TargetProfile::host();
+    for (case, last_access, last_write, expected_bytes) in [
+        ("first-byte", "bad", "12345678", 1),
+        ("final-byte", "12345678", "bad", 2),
+    ] {
+        let project = std::env::temp_dir().join(format!(
+            "omega-build-config-preparation-prefix-{case}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).expect("create preparation-prefix project");
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{{
+    let result: i32 = builder.filesystem.set_file_time(
+        0,
+        7,
+        "{last_access}",
+        "{last_write}"
+    );
+}}
+"#,
+                target = profile.target_name(),
+            ),
+        )
+        .expect("write preparation-prefix build.omg");
+        std::fs::write(project.join("main.omg"), "const RESULT: u32 = 42;\n")
+            .expect("write preparation-prefix main.omg");
+
+        let diagnostics =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect_err("short FILETIME input must reject build evaluation");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains("filesystem FILETIME") && rendered.contains("shorter than 8 bytes"),
+            "{case}: {rendered}"
+        );
+        assert!(
+            rendered.contains(&format!(
+                "1 scalar operand(s), {expected_bytes} immutable byte operand(s)"
+            )),
+            "{case}: completed preparation prefix was not retained: {rendered}"
+        );
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }
 
 #[test]

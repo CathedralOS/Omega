@@ -151,16 +151,14 @@ impl<'program> Evaluator<'program> {
         byte_operands: Vec<FilesystemByteOperand>,
         mutable_plan: &PreparedFilesystemMutableObservationPlan,
     ) -> EvalResult<()> {
-        let retained_bytes = byte_operands
-            .iter()
-            .try_fold(0usize, |total, operand| {
-                total.checked_add(operand.bytes.len())
-            })
-            .and_then(|total| {
-                mutable_plan
-                    .reserved_bytes()
-                    .and_then(|mutable| total.checked_add(mutable))
-            });
+        let attempt = &self.filesystem_operation_attempts[attempt_index];
+        if attempt.scalar_operands != scalar_operands || attempt.byte_operands != byte_operands {
+            return Err(Halt::Trap(
+                "incremental filesystem operand evidence disagrees with the fully prepared call"
+                    .to_owned(),
+            ));
+        }
+        let retained_bytes = mutable_plan.reserved_bytes();
         let Some(next_total) = retained_bytes.and_then(|bytes| {
             checked_observation_evidence_total(self.filesystem_observation_evidence_bytes, bytes)
         }) else {
@@ -170,11 +168,39 @@ impl<'program> Evaluator<'program> {
         };
         self.filesystem_observation_evidence_bytes = next_total;
         let attempt = &mut self.filesystem_operation_attempts[attempt_index];
-        attempt.scalar_operands = scalar_operands;
-        attempt.byte_operands = byte_operands;
         let (mutable_byte_operands, mutable_i64_operands) = mutable_plan.initial_rows();
         attempt.mutable_byte_operands = mutable_byte_operands;
         attempt.mutable_i64_operands = mutable_i64_operands;
+        Ok(())
+    }
+
+    pub(super) fn record_prepared_filesystem_scalar_operand(
+        &mut self,
+        attempt_index: usize,
+        operand: FilesystemScalarOperand,
+    ) {
+        self.filesystem_operation_attempts[attempt_index]
+            .scalar_operands
+            .push(operand);
+    }
+
+    pub(super) fn record_prepared_filesystem_byte_operand(
+        &mut self,
+        attempt_index: usize,
+        operand: FilesystemByteOperand,
+    ) -> EvalResult<()> {
+        let Some(next_total) = checked_observation_evidence_total(
+            self.filesystem_observation_evidence_bytes,
+            operand.bytes.len(),
+        ) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
+            )));
+        };
+        self.filesystem_observation_evidence_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .byte_operands
+            .push(operand);
         Ok(())
     }
 
