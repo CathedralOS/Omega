@@ -1537,6 +1537,48 @@ fn proposition_law_conformance_rejects_a_different_ensures() {
 }
 
 #[test]
+fn proposition_law_conformance_rejects_a_same_spelled_foreign_endpoint() {
+    let mut typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+        proposition unrelated(left: Carrier, right: Carrier);
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        machine reflexive(value: Carrier)
+        satisfies Reflexive<Carrier, related>::reflexive
+        requires unrelated(value, value)
+        ensures unrelated(value, value)
+        {
+        }
+        "#,
+    );
+    let proposition_span = typed.roots.propositions;
+    let propositions = typed
+        .tables
+        .propositions
+        .span_mut_or_empty(proposition_span);
+    let [related, unrelated] = propositions else {
+        panic!("related and unrelated proposition declarations")
+    };
+    unrelated.name = related.name.clone();
+
+    let diagnostics = validate_program(&typed).expect_err(
+        "same display spelling must not let another proposition symbol discharge the law",
+    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proves no ensures matching proposition law")
+    }));
+}
+
+#[test]
 fn indexed_proposition_law_synthesizes_representative_binders() {
     let typed = typed_program_from_source(
         r#"

@@ -886,11 +886,12 @@ complete.
   changes canonical evidence. Compiler validation rejects named generic
   proposition evidence because the unresolved family has no exact witness
   interface; proposition-valued contract-call static arguments remain a
-  separate incomplete form. This rung publishes the abstract contract only:
-  it does not certify concrete law discharge while generic proposition law
-  conformance still compares rendered normalization labels. Structural
-  distinct-family identity and regressions are required before that result may
-  become package evidence.
+  separate incomplete form. Generic proposition law conformance now compares
+  the exact normalized proposition declaration and structural application;
+  rendered labels are diagnostic only, and a same-spelled foreign endpoint
+  cannot discharge the selected law. This compiler result still does not become
+  standalone package proof until it is carried by the total recheckable package
+  evidence artifact below.
   In particular, true nested machine static applications such as
   `consumer<family<Selected>>()` remain fail-closed: checked
   monomorphization has no closed application identity and currently omits
