@@ -153,6 +153,71 @@ fn aliases_are_requester_local_and_dependency_imports_are_package_local() {
 }
 
 #[test]
+fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nmachine root_value() -> u32 { leaf_value() }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_value() -> u32 { leaf_value() }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub machine leaf_value() -> u32 { 42 }\n",
+    );
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("root may not select a transitive-only leaf declaration");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct leaf admission should validate");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the exact leaf declaration selection");
+}
+
+#[test]
 fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
     let tree = TempTree::new();
     let root = tree.package("root");

@@ -726,6 +726,12 @@ impl Compiler {
         )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        if let Some(package_inputs) = self.package_inputs.as_ref() {
+            crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
+                &checked.program,
+                package_inputs,
+            )?;
+        }
         checked.callback_placements = Arc::from(
             crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
                 &checked.program,
