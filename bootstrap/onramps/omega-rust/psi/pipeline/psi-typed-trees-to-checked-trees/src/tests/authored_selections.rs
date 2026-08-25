@@ -290,10 +290,50 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
     assert!(
+        checked
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate
+                )
+            ))
+    );
+    assert!(
         checked.authored_declaration_selections().all_finalized(),
         "selections={:#?}",
         checked.authored_declaration_selections()
     );
+}
+
+#[test]
+fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
+    let source = r#"
+        machine no_nul(value: &[u8]) -> bool { true }
+        domain [u8]::Path requires no_nul(self);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Call
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(!selections.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate,
+            )
+    }));
+    assert!(selections.all_finalized());
 }
 
 #[test]

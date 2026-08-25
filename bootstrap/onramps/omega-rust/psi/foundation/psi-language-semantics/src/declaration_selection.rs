@@ -45,6 +45,7 @@ pub enum AuthoredDeclarationSelectionLateBinding {
     CheckedStructLiteralCase,
     CheckedStructLiteralField,
     CheckedCaseMembership,
+    CheckedDomainMembership,
     CheckedCall,
     CheckedStaticArgument,
     CheckedOperator,
@@ -86,6 +87,7 @@ pub enum AuthoredDeclarationSelectionTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuiltinOperator,
+    ByteSequencePredicate,
     BuildProviderSelection,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,

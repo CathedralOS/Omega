@@ -17,6 +17,16 @@ pub(crate) fn lower_item(
     syntax_trees: &SyntaxTrees,
     item: &syntax::item::Item,
 ) -> Result<(), Diagnostic> {
+    lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
+        lower_item_with_exposure(lowerer, syntax_trees, item)
+    })
+}
+
+fn lower_item_with_exposure(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    item: &syntax::item::Item,
+) -> Result<(), Diagnostic> {
     match item {
         syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
@@ -216,6 +226,23 @@ pub(crate) fn lower_item(
     }
 
     Ok(())
+}
+
+fn item_expression_exposure(
+    item: &syntax::item::Item,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+
+    match item {
+        syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Machine(machine) if machine.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::WireData(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
+        _ => Exposure::PrivateImplementation,
+    }
 }
 
 fn lower_closed_machine_row(

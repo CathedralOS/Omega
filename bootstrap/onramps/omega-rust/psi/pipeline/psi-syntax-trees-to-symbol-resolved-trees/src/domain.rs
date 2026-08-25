@@ -40,7 +40,13 @@ pub(crate) fn lower_domain_definition(
         .map(|route| route.iter().map(lower_name).collect())
         .collect();
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
-    let operators = lower_domain_operators(lowerer, syntax_trees, domain.operators)?;
+    // Visibility inheritance for domain-owned operators remains owner question
+    // Q1. Their implementation expressions stay private until that source rule
+    // is settled; the domain's own predicate facts retain the domain exposure.
+    let operators = lowerer.with_authored_expression_exposure(
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+        |lowerer| lower_domain_operators(lowerer, syntax_trees, domain.operators),
+    )?;
 
     // STR4 checked plans, slice 1: mint the normalized semantic identity
     // ONCE here (declaration order); every downstream layer copies it.
@@ -162,12 +168,18 @@ pub(crate) fn lower_proof_facts(
             }
         };
 
-        lowerer
+        let is_membership = matches!(fact, ProofFact::Membership(_));
+        let fact = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
             .proof_facts
             .append_to_span(&mut lowered, fact);
+        if is_membership && let Some(exposure) = lowerer.current_authored_expression_exposure {
+            lowerer
+                .pending_authored_proof_memberships
+                .push(crate::lowerer::PendingAuthoredProofMembership { fact, exposure });
+        }
     }
 
     Ok(lowered)

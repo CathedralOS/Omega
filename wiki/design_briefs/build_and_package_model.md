@@ -1025,9 +1025,11 @@ the named package; they are not required merely because that package's nominal
 type flows through an already-declared dependency's API. Such a value may be
 moved, borrowed, stored, returned, passed back through the declaring surface,
 and checked for multiplicity without granting access to its owner's methods,
-fields, cases, operators, conformances, or explicit cleanup operations.
-Compiler-planned layout and automatic cleanup are carried type semantics rather
-than authored declaration selection.
+fields, cases, operators, conformances, or ordinary explicit consuming
+machines. Whether the reserved `T::drop` itself is source-callable remains an
+owner decision; automatic selection of it is carried semantics, not authored
+authority. Compiler-planned layout and automatic cleanup are carried type
+semantics rather than authored declaration selection.
 
 The transitive closure still retains the type owner's exact package instance.
 Artifact dependency evidence retains the exact foreign declaration when the
@@ -1045,6 +1047,14 @@ declarations. Static rows may be complete earlier; each row is joined from the
 earliest coherent owner of its facts. Missing, ambiguous, or unjoinable rows
 reject. The ledger is a compiler-internal sidecar and does not justify nominal
 Chi.
+
+Expression custody follows the declaration that publishes it. Public machine
+contracts and ranking expressions, public data/domain predicates, and public
+trait contracts use public-interface exposure; executable state/body
+expressions remain private. Membership facts retain their selected domain path
+as a declaration row, while their parameter/local value roots remain lexical
+places. Visibility-dependent nested declaration expressions wait for the
+source visibility rule rather than inheriting publicity by guesswork.
 
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
