@@ -1537,6 +1537,73 @@ fn proposition_law_conformance_rejects_a_different_ensures() {
 }
 
 #[test]
+fn closed_conformance_rejects_a_realization_that_does_not_prove_its_law() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+        proposition unrelated(left: Carrier, right: Carrier);
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        Primary: Carrier satisfies Reflexive<Carrier, related> {
+            machine reflexive(value: Carrier)
+            requires unrelated(value, value)
+            ensures unrelated(value, value)
+            {
+            }
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a closed row must prove the exact substituted trait law");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proves no ensures matching proposition law")
+            && diagnostic.message.contains("proposition:fact:related")
+    }));
+}
+
+#[test]
+fn bodyless_conformance_rejects_an_attached_machine_that_does_not_prove_its_law() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {}
+        proposition related(left: Carrier, right: Carrier);
+        proposition unrelated(left: Carrier, right: Carrier);
+
+        trait Reflexive<C, proposition Relation>
+        where proposition Relation(left: C, right: C);
+        {
+            machine reflexive(value: C) ensures Relation(value, value);
+        }
+
+        machine Carrier::reflexive(value: Carrier)
+        requires unrelated(value, value)
+        ensures unrelated(value, value)
+        {
+        }
+        Primary: Carrier satisfies Reflexive<Carrier, related>;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an attached realization must prove the exact substituted trait law");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("proves no ensures matching proposition law")
+            && diagnostic.message.contains("proposition:fact:related")
+    }));
+}
+
+#[test]
 fn proposition_law_conformance_rejects_a_same_spelled_foreign_endpoint() {
     let mut typed = typed_program_from_source(
         r#"

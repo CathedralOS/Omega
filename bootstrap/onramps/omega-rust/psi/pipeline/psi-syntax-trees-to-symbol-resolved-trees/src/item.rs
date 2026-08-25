@@ -341,7 +341,12 @@ fn lower_closed_machine_row(
     );
     let realization_ordinal = lowerer.symbol_resolved_trees.machines.len();
     let mut realization = machine.clone();
-    realization.name = syntax::identifier::Identifier::generated(realization_name.clone());
+    // The realization's semantic path is compiler-normalized, but the machine
+    // is still authored by this exact conformance member. Retain that source
+    // provenance so package ownership follows the declaration instead of
+    // degrading to an unresolved generated root.
+    realization.name =
+        syntax::identifier::Identifier::new(realization_name.clone(), machine.name.source_span());
     realization.attached_data = match &conformance.subject {
         syntax::item::ConformanceSubject::Carrier(type_name) => Some(type_name.clone()),
         syntax::item::ConformanceSubject::Subjectless => None,

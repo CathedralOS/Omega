@@ -79,6 +79,11 @@ fn validate_public_conformance_header_selection(
     selected_symbol: psi_symbols::SymbolHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if program.symbols.get(selected_symbol).kind == SymbolKind::TypeParameter
+        && program.symbols.get(selected_symbol).parent == conformance_symbol
+    {
+        return;
+    }
     let Some(visibility) =
         psi_typed_trees::visibility::declaration_visibility(program, selected_symbol)
     else {

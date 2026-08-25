@@ -671,7 +671,18 @@ their visibility is not promoted. Lexical conformance-binder requirements
 inherit the enclosing declaration's visibility and do not become package
 declarations. Explicit conformance-row machine references retain their authored
 span through exact row normalization and obey ordinary package visibility.
-Canonical `PublicConformance` compatibility rows remain pending.
+Review v55 and canonical row v15 add a blocking `PublicConformance` lane keyed
+only by exact package-qualified conformance identity. Its value retains the
+alpha-normalized lifetime/static telescope, subject, exact trait application,
+and complete normalized inherited requirement interface. Requirement
+overloads use the compiler's canonical callable identities. Closed and
+attached-machine realization forms encode identically; realization names,
+bodies, and physical code do not enter public compatibility. Every realization
+signature and substituted trait law is checked before projection, while the
+referenced `PublicTrait` row owns the law text. Canonical recovery and
+fixed-vocabulary conflict rendering recognize `public_conformance`. Unsupported
+lifetime-parameterized target traits, inherited lifetime substitutions, and
+proof-static trait parameters reject review rather than yielding partial rows.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -766,7 +777,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v52 projection therefore
+remain separately bound. The current incomplete review-v55 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
@@ -782,7 +793,7 @@ the accepted lock and never silently re-resolves mutable source selectors.
 Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
-Ratified 2026-08-24: the compiler owns both the semantic extraction and the
+Ratified 2026-08-25: the compiler owns both the semantic extraction and the
 canonical conflict-row boundaries. It may read different rows from different
 compiler-owned representations, including private pre-Psi structural state,
 and move those joins as compiler internals evolve. Checked acceptance and
