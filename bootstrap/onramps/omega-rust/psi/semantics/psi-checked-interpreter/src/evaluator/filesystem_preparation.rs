@@ -1501,6 +1501,32 @@ mod tests {
                 ..
             })
         ));
+        assert_eq!(
+            PreparedFilesystemCall::FindNext {
+                handle: 41,
+                data: array_output(FIND_DATA_OUTPUT_BYTES),
+            }
+            .logical_handle_plan()
+            .inputs,
+            vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Find,
+                raw: 41,
+                null_allowed: false,
+            }]
+        );
+
+        assert_eq!(
+            PreparedFilesystemCall::CloseHandle { handle: 73 }
+                .logical_handle_plan()
+                .inputs,
+            vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Native,
+                raw: 73,
+                null_allowed: false,
+            }]
+        );
 
         let hard_link = PreparedFilesystemCall::CreateHardLink {
             link: b"link".to_vec(),
@@ -1827,8 +1853,33 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         Ok(value)
     }
 
-    fn handle_i64(&mut self) -> EvalResult<i64> {
-        self.integer().map(|(_, value)| value)
+    fn logical_handle(
+        &mut self,
+        kind: FilesystemLogicalHandleKind,
+        null_allowed: bool,
+    ) -> EvalResult<i64> {
+        let (operand_ordinal, raw) = self.integer()?;
+        self.evaluator
+            .record_prepared_filesystem_logical_handle_input(
+                self.attempt_index,
+                operand_ordinal,
+                kind,
+                raw,
+                null_allowed,
+            );
+        Ok(raw)
+    }
+
+    fn find_handle(&mut self) -> EvalResult<i64> {
+        self.logical_handle(FilesystemLogicalHandleKind::Find, false)
+    }
+
+    fn native_handle(&mut self) -> EvalResult<i64> {
+        self.logical_handle(FilesystemLogicalHandleKind::Native, false)
+    }
+
+    fn nullable_native_handle(&mut self) -> EvalResult<i64> {
+        self.logical_handle(FilesystemLogicalHandleKind::Native, true)
     }
 
     fn i32(&mut self) -> EvalResult<i32> {
@@ -1859,8 +1910,8 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         Ok(value)
     }
 
-    fn fd(&mut self) -> EvalResult<i32> {
-        let (_, value) = self.value()?;
+    fn descriptor(&mut self) -> EvalResult<i32> {
+        let (operand_ordinal, value) = self.value()?;
         let raw = match &value {
             Value::Struct { fields, .. } => fields.get("fd").and_then(|cell| {
                 let value = cell.borrow();
@@ -1873,7 +1924,17 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             _ => None,
         }
         .ok_or_else(|| Halt::Trap("filesystem call file handle is not an fd".to_owned()))?;
-        i32::try_from(raw).map_err(|_| Halt::Trap(format!("filesystem fd `{raw}` is out of range")))
+        let descriptor = i32::try_from(raw)
+            .map_err(|_| Halt::Trap(format!("filesystem fd `{raw}` is out of range")))?;
+        self.evaluator
+            .record_prepared_filesystem_logical_handle_input(
+                self.attempt_index,
+                operand_ordinal,
+                FilesystemLogicalHandleKind::Descriptor,
+                i64::from(descriptor),
+                false,
+            );
+        Ok(descriptor)
     }
 
     fn count(&mut self) -> EvalResult<PreparedTransferCount> {
@@ -2087,18 +2148,18 @@ impl<'program> Evaluator<'program> {
                 mode: a.i32()?,
             },
             FilesystemHostOperation::Read => {
-                let fd = a.fd()?;
+                let fd = a.descriptor()?;
                 let buffer = a.mutable_bytes()?;
                 let count = a.count()?;
                 buffer.require_capacity(count.host)?;
                 PreparedFilesystemCall::Read { fd, buffer, count }
             }
             FilesystemHostOperation::Write => PreparedFilesystemCall::Write {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 bytes: a.bytes()?,
             },
             FilesystemHostOperation::ReadAt => {
-                let fd = a.fd()?;
+                let fd = a.descriptor()?;
                 let buffer = a.mutable_bytes()?;
                 let count = a.count()?;
                 buffer.require_capacity(count.host)?;
@@ -2111,14 +2172,16 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::WriteAt => PreparedFilesystemCall::WriteAt {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 bytes: a.bytes()?,
                 offset: a.i64()?,
             },
-            FilesystemHostOperation::Close => PreparedFilesystemCall::Close { fd: a.fd()? },
+            FilesystemHostOperation::Close => PreparedFilesystemCall::Close {
+                fd: a.descriptor()?,
+            },
             FilesystemHostOperation::Remove => PreparedFilesystemCall::Remove { path: a.path()? },
             FilesystemHostOperation::Seek => PreparedFilesystemCall::Seek {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 offset: a.i64()?,
                 whence: a.i32()?,
             },
@@ -2134,13 +2197,13 @@ impl<'program> Evaluator<'program> {
                 mode: a.i32()?,
             },
             FilesystemHostOperation::OpenAt => {
-                let dirfd = a.fd()?;
+                let dirfd = a.descriptor()?;
                 let name = a.relative_component()?;
                 let flags = a.i32()?;
                 PreparedFilesystemCall::OpenAt { dirfd, name, flags }
             }
             FilesystemHostOperation::UnlinkAt => {
-                let dirfd = a.fd()?;
+                let dirfd = a.descriptor()?;
                 let name = a.relative_component()?;
                 let flags = a.i32()?;
                 PreparedFilesystemCall::UnlinkAt { dirfd, name, flags }
@@ -2151,7 +2214,7 @@ impl<'program> Evaluator<'program> {
             },
             FilesystemHostOperation::SetFilePermissions => {
                 PreparedFilesystemCall::SetFilePermissions {
-                    fd: a.fd()?,
+                    fd: a.descriptor()?,
                     mode: a.u32()?,
                 }
             }
@@ -2185,7 +2248,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::Canonicalize { path, buffer }
             }
             FilesystemHostOperation::ReadDir => {
-                let fd = a.fd()?;
+                let fd = a.descriptor()?;
                 let buffer = a.mutable_bytes()?;
                 let count = a.count()?;
                 buffer.require_capacity(count.host)?;
@@ -2204,13 +2267,13 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::FindFirst { pattern, data }
             }
             FilesystemHostOperation::FindNext => {
-                let handle = a.handle_i64()?;
+                let handle = a.find_handle()?;
                 let data = a.mutable_bytes()?;
                 data.require_capacity(FIND_DATA_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::FindNext { handle, data }
             }
             FilesystemHostOperation::FindClose => PreparedFilesystemCall::FindClose {
-                handle: a.handle_i64()?,
+                handle: a.find_handle()?,
             },
             FilesystemHostOperation::CreateHardLink => PreparedFilesystemCall::CreateHardLink {
                 link: a.path()?,
@@ -2224,16 +2287,16 @@ impl<'program> Evaluator<'program> {
                 security_attributes: a.i64()?,
                 creation_disposition: a.u32()?,
                 flags_and_attributes: a.u32()?,
-                template_file: a.handle_i64()?,
+                template_file: a.nullable_native_handle()?,
             },
             FilesystemHostOperation::CloseHandle => PreparedFilesystemCall::CloseHandle {
-                handle: a.handle_i64()?,
+                handle: a.native_handle()?,
             },
-            FilesystemHostOperation::GetOsfHandle => {
-                PreparedFilesystemCall::GetOsfHandle { fd: a.fd()? }
-            }
+            FilesystemHostOperation::GetOsfHandle => PreparedFilesystemCall::GetOsfHandle {
+                fd: a.descriptor()?,
+            },
             FilesystemHostOperation::FinalPathNameByHandle => {
-                let handle = a.handle_i64()?;
+                let handle = a.native_handle()?;
                 let buffer = a.mutable_bytes()?;
                 let capacity = a.count()?;
                 buffer.require_capacity(capacity.host)?;
@@ -2246,7 +2309,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::SetFileTime => {
-                let handle = a.handle_i64()?;
+                let handle = a.native_handle()?;
                 let creation = a.i64()?;
                 let last_access = a.bytes()?;
                 if last_access.len() < FILETIME_BYTES {
@@ -2264,7 +2327,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::LockFileEx => PreparedFilesystemCall::LockFileEx {
-                handle: a.handle_i64()?,
+                handle: a.native_handle()?,
                 flags: a.u32()?,
                 reserved: a.u32()?,
                 length_low: a.u32()?,
@@ -2272,7 +2335,7 @@ impl<'program> Evaluator<'program> {
                 overlapped: a.mutable_byte_input(OVERLAPPED_BYTES)?,
             },
             FilesystemHostOperation::UnlockFile => PreparedFilesystemCall::UnlockFile {
-                handle: a.handle_i64()?,
+                handle: a.native_handle()?,
                 offset_low: a.u32()?,
                 offset_high: a.u32()?,
                 length_low: a.u32()?,
@@ -2292,7 +2355,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::ReadMetadata { path, buffer }
             }
             FilesystemHostOperation::ReadFileMetadata => {
-                let fd = a.fd()?;
+                let fd = a.descriptor()?;
                 let buffer = a.mutable_bytes()?;
                 buffer.require_capacity(STAT_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::ReadFileMetadata { fd, buffer }
@@ -2304,18 +2367,24 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer }
             }
             FilesystemHostOperation::SetLen => PreparedFilesystemCall::SetLen {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 length: a.i64()?,
             },
             FilesystemHostOperation::SetFileTimes => PreparedFilesystemCall::SetFileTimes {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 times: a.mutable_byte_input(TIMESPEC_PAIR_BYTES)?,
             },
-            FilesystemHostOperation::Sync => PreparedFilesystemCall::Sync { fd: a.fd()? },
-            FilesystemHostOperation::SyncData => PreparedFilesystemCall::SyncData { fd: a.fd()? },
-            FilesystemHostOperation::Duplicate => PreparedFilesystemCall::Duplicate { fd: a.fd()? },
+            FilesystemHostOperation::Sync => PreparedFilesystemCall::Sync {
+                fd: a.descriptor()?,
+            },
+            FilesystemHostOperation::SyncData => PreparedFilesystemCall::SyncData {
+                fd: a.descriptor()?,
+            },
+            FilesystemHostOperation::Duplicate => PreparedFilesystemCall::Duplicate {
+                fd: a.descriptor()?,
+            },
             FilesystemHostOperation::LockFile => PreparedFilesystemCall::LockFile {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 operation: a.i32()?,
             },
             FilesystemHostOperation::ChangeOwner => PreparedFilesystemCall::ChangeOwner {
@@ -2331,7 +2400,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::ChangeFileOwner => PreparedFilesystemCall::ChangeFileOwner {
-                fd: a.fd()?,
+                fd: a.descriptor()?,
                 uid: a.i32()?,
                 gid: a.i32()?,
             },

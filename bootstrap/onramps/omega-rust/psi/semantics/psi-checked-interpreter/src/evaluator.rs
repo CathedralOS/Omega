@@ -868,16 +868,17 @@ struct Evaluator<'program> {
     non_fs_host_boundary_touched: bool,
     /// Ordered operation-attempt evidence for exact canonical filesystem host
     /// calls. Direct scoped path authorizations retain compiler-rooted paths;
-    /// this remains deliberately incomplete until complete operands, mutable
-    /// outputs, logical handle lineage, and retained content are recorded.
+    /// typed operands, mutable carriers, and logical handles retain their
+    /// completed preparation prefix. This remains deliberately below replay
+    /// strength until complete path and content custody is present.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.
     filesystem_logical_handles: FilesystemLogicalHandles,
     /// Aggregate retained rooted-path bytes.
     filesystem_observation_path_bytes: usize,
-    /// Aggregate retained immutable operand bytes. This compiler-side account
-    /// is not observable by Omega code.
+    /// Aggregate retained immutable, path-like, and mutable operand-evidence
+    /// bytes. This compiler-side account is not observable by Omega code.
     filesystem_observation_evidence_bytes: usize,
     /// Pending non-catchable halt set when retaining a successfully authorized
     /// rooted path would exceed the compiler's evidence-custody bound.

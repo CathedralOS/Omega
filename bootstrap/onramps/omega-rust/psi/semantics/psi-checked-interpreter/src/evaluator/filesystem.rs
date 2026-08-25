@@ -47,8 +47,14 @@ impl<'program> Evaluator<'program> {
                     Ok(mutable_plan)
                 }) {
                     Ok(mutable_plan) => {
-                        self.record_logical_handle_inputs(attempt_index, &logical_handle_plan);
-                        match self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan) {
+                        match self
+                            .validate_incremental_logical_handle_inputs(
+                                attempt_index,
+                                &logical_handle_plan,
+                            )
+                            .and_then(|()| {
+                                self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
+                            }) {
                             Err(halt) => Err(halt),
                             Ok(()) => {
                                 let served = self.serve_filesystem_call(call);
@@ -242,12 +248,32 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    fn record_logical_handle_inputs(
+    pub(super) fn record_prepared_filesystem_logical_handle_input(
+        &mut self,
+        attempt_index: usize,
+        operand_ordinal: u8,
+        kind: FilesystemLogicalHandleKind,
+        raw: i64,
+        null_allowed: bool,
+    ) {
+        let resolution = self
+            .filesystem_logical_handles
+            .resolve(kind, raw, null_allowed);
+        self.filesystem_operation_attempts[attempt_index]
+            .logical_handle_inputs
+            .push(FilesystemLogicalHandleInput {
+                operand_ordinal,
+                kind,
+                resolution,
+            });
+    }
+
+    fn validate_incremental_logical_handle_inputs(
         &mut self,
         attempt_index: usize,
         plan: &PreparedFilesystemLogicalHandlePlan,
-    ) {
-        let inputs = plan
+    ) -> EvalResult<()> {
+        let canonical_inputs = plan
             .inputs
             .iter()
             .map(|input| FilesystemLogicalHandleInput {
@@ -259,8 +285,15 @@ impl<'program> Evaluator<'program> {
                     input.null_allowed,
                 ),
             })
-            .collect();
-        self.filesystem_operation_attempts[attempt_index].logical_handle_inputs = inputs;
+            .collect::<Vec<_>>();
+        if self.filesystem_operation_attempts[attempt_index].logical_handle_inputs
+            != canonical_inputs
+        {
+            return trap(
+                "incremental filesystem logical-handle evidence disagrees with the fully prepared call",
+            );
+        }
+        Ok(())
     }
 
     fn reject_cross_domain_logical_handle_inputs(
@@ -1643,10 +1676,22 @@ fn filesystem_logical_handle_halt(
 #[cfg(test)]
 mod tests {
     use super::super::filesystem_preparation::{
-        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES, PreparedTransferCount,
-        checked_filesystem_transfer_count,
+        FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
+        PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandlePlan,
+        PreparedTransferCount, checked_filesystem_transfer_count,
     };
-    use super::{MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, checked_observation_evidence_total};
+    use super::*;
+
+    fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
+        let mut evaluator = Evaluator::new(program, &[]);
+        evaluator
+            .filesystem_operation_attempts
+            .push(FilesystemOperationAttempt::pending(
+                1,
+                FilesystemObservationProvider::Virtual,
+            ));
+        evaluator
+    }
 
     #[test]
     fn transfer_count_rejects_wrap_and_unbounded_allocation() {
@@ -1686,5 +1731,126 @@ mod tests {
             None
         );
         assert_eq!(checked_observation_evidence_total(usize::MAX, 1), None);
+    }
+
+    #[test]
+    fn incremental_logical_handle_inputs_retain_exact_resolution_prefix() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        let descriptor = evaluator
+            .filesystem_logical_handles
+            .create(FilesystemLogicalHandleKind::Descriptor, 7)
+            .unwrap();
+
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            0,
+            0,
+            FilesystemLogicalHandleKind::Descriptor,
+            7,
+            false,
+        );
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            0,
+            1,
+            FilesystemLogicalHandleKind::Find,
+            7,
+            false,
+        );
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            0,
+            2,
+            FilesystemLogicalHandleKind::Native,
+            0,
+            true,
+        );
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            0,
+            3,
+            FilesystemLogicalHandleKind::Native,
+            0,
+            false,
+        );
+
+        assert_eq!(
+            evaluator.filesystem_operation_attempts[0].logical_handle_inputs,
+            vec![
+                FilesystemLogicalHandleInput {
+                    operand_ordinal: 0,
+                    kind: FilesystemLogicalHandleKind::Descriptor,
+                    resolution: FilesystemLogicalHandleInputResolution::Resolved(descriptor),
+                },
+                FilesystemLogicalHandleInput {
+                    operand_ordinal: 1,
+                    kind: FilesystemLogicalHandleKind::Find,
+                    resolution: FilesystemLogicalHandleInputResolution::Unknown,
+                },
+                FilesystemLogicalHandleInput {
+                    operand_ordinal: 2,
+                    kind: FilesystemLogicalHandleKind::Native,
+                    resolution: FilesystemLogicalHandleInputResolution::Null,
+                },
+                FilesystemLogicalHandleInput {
+                    operand_ordinal: 3,
+                    kind: FilesystemLogicalHandleKind::Native,
+                    resolution: FilesystemLogicalHandleInputResolution::Unknown,
+                },
+            ],
+            "a later preparation halt must retain every already typed handle input",
+        );
+    }
+
+    #[test]
+    fn completed_logical_handle_plan_cross_checks_without_overwriting_evidence() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.record_prepared_filesystem_logical_handle_input(
+            0,
+            0,
+            FilesystemLogicalHandleKind::Descriptor,
+            7,
+            false,
+        );
+        let retained = evaluator.filesystem_operation_attempts[0]
+            .logical_handle_inputs
+            .clone();
+        let matching = PreparedFilesystemLogicalHandlePlan {
+            inputs: vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                raw: 7,
+                null_allowed: false,
+            }],
+            input_success: None,
+            output: None,
+            retirement: None,
+        };
+        assert!(
+            evaluator
+                .validate_incremental_logical_handle_inputs(0, &matching)
+                .is_ok()
+        );
+        assert_eq!(
+            evaluator.filesystem_operation_attempts[0].logical_handle_inputs,
+            retained,
+        );
+
+        let disagreement = PreparedFilesystemLogicalHandlePlan {
+            inputs: vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Find,
+                raw: 7,
+                null_allowed: false,
+            }],
+            ..matching
+        };
+        assert!(
+            evaluator
+                .validate_incremental_logical_handle_inputs(0, &disagreement)
+                .is_err()
+        );
+        assert_eq!(
+            evaluator.filesystem_operation_attempts[0].logical_handle_inputs,
+            retained,
+        );
     }
 }
