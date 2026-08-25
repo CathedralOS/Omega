@@ -187,8 +187,12 @@ language, generation, or architectural role; new documentation and work use
   [`checked_elf_v3_reference.py`](gates/checked_elf_v3_reference.py), and rejects
   valid-but-mismatched CKIR/ELF pairs. Darwin does not execute the Linux image;
   exact reconstruction binds its exit shim and code to the independently
-  evaluated CKIR result. Rust-free Gamma meaning and lower-rooted CKIR3
-  refinement remain separate open seams.
+  evaluated CKIR result. The distinct
+  [`OMGRFN4`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md)
+  carrier, exact 4,497,544-byte simultaneous ceiling, and five-responsibility
+  ownership split are frozen without widening earlier frames. Rust-free Gamma
+  meaning and the five lower-rooted CKIR3 implementations/composition remain
+  separate open seams.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

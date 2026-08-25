@@ -395,8 +395,10 @@ Delta-self-built byte-identity gates independently: the producer lowers the
 exact Unicode unit plus general controls to CKIR3, and the backend validates
 that private graph and derives the read-only image and ELF. All native, self-
 built, and mixed producer/backend pairs now compose to the same independently
-evaluated result and independently reconstructed ELF. Rust-free Gamma meaning
-and lower-rooted reconstruction remain open. This progress
+evaluated result and independently reconstructed ELF. Its lower-rooted evidence
+uses the distinct private `OMGRFN4` carrier with five independent responsibility
+owners; that transport and ownership contract is frozen, while the Rust-free
+Gamma meaning route and lower-rooted implementations remain open. This progress
 does not decide the final disposition of records, arrays, generated source, or
 any later checkpoint feature.
 
