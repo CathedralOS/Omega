@@ -78,7 +78,7 @@ call itself is not a domain predicate.
 For example, address-range geometry is stated rather than executed:
 
 ```omega
-proposition no_wrap(base: addr, length: u64) =
+pub proposition no_wrap(base: addr, length: u64) =
     embed(base) + embed(length) <= addr::Bound;
 ```
 

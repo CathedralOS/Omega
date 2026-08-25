@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-24.
+Last pruned: 2026-08-25.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -7913,7 +7913,11 @@ specifications:
 
 ## Deferred until a real customer
 
-- matching logic as a proof/semantics interchange: after Q2 fixes the semantic
+- cross-package operational recursion: design a compositional published
+  termination interface for a call-graph SCC without exposing or inspecting
+  any member's private `terminates by` measure; unsupported cross-package SCCs
+  continue to reject until that interface exists;
+- matching logic as a proof/semantics interchange: after Q1 fixes the semantic
   subject, encode one fixpoint-free Terminal Psi obligation, reconstruct its
   theory and goal independently from canonical artifact subjects, and compare
   total trusted bridge size, certificate size, checking cost, constructive

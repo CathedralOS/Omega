@@ -61,7 +61,7 @@ register block. That is an `Extent`.
 The public carrier is ordinary linear data:
 
 ```omega
-data Extent [linear] {
+pub data Extent [linear] {
     base: addr;
     length: u64;
 }

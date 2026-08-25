@@ -159,11 +159,15 @@ must first admit an exact early target or fail closed unless the compiler can
 confine the complete candidate set to admitted owners.
 
 Public/private disposition follows the declaration-owned source position.
-Public machine contracts and ranking expressions, public data/domain
-predicates, and public trait contracts are public interface; executable states
-and bodies are private implementation. Proof-membership custody includes the
-selected domain path, not the lexical value parameter. Nested declaration
-visibility is not inferred while its owner rule remains unsettled.
+Public machine contracts, public data/domain predicates, and public trait
+contracts are public interface; executable states, bodies, and `terminates by`
+ranking witnesses are private implementation. `terminates` is the published
+promise, while the ranking is its proof. Proof-membership custody includes the
+selected domain path, not the lexical value parameter. Every independently
+nameable declaration owns ordinary `pub`; carrier qualification does not imply
+visibility inheritance, while genuine nested members inherit their one exact
+semantic owner's visibility. A public-interface selection of a private
+declaration rejects.
 
 In a generic conformance bound, the subject and optional evidence binder are
 lexical. The right-hand trait is authored declaration authority, and a

@@ -102,7 +102,7 @@ model may require no-junk or least-fixed-point machinery. Directly constructing
 one canonical operational model may make global completeness irrelevant while
 leaving matching logic useful as a notation or secondary checker.
 
-This decision is tracked as Q2 in
+This decision is tracked as Q1 in
 [`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
 
 ## Bounded investigation
