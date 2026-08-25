@@ -51,12 +51,63 @@ trap 'rm -rf "$T"' EXIT
 bc_timing_start() { # phase
   BC_TIMING_PHASE=$1
   BC_TIMING_STARTED=$(date +%s)
+  echo "bc timing: $BC_TIMING_PHASE started"
 }
 
 bc_timing_finish() {
   BC_TIMING_FINISHED=$(date +%s)
   BC_TIMING_SECONDS=$((BC_TIMING_FINISHED - BC_TIMING_STARTED))
   echo "bc timing: $BC_TIMING_PHASE ${BC_TIMING_SECONDS}s"
+}
+
+# Cache only complete negative-test responsibilities. Canonical theorem owners
+# are deliberately rebuilt and smoked in this process before this helper is
+# reached; a receipt never recreates a BC_OWNER_* capability or a host
+# executable. Set BC_BLOCK_CACHE=0 for a physically cold exhaustive replay.
+bc_run_cached_teeth() { # name inventory build-function reject-function key-files...
+  bc_shard_name=$1
+  bc_shard_inventory=$2
+  bc_shard_build=$3
+  bc_shard_reject=$4
+  shift 4
+
+  bc_shard_cache_dir="$OMEGA_REPO_ROOT/.lattice-cache/bc-block-control"
+  mkdir -p "$bc_shard_cache_dir"
+  bc_shard_key=$(
+    {
+      printf '%s\n' 'bc-block-control-teeth-v1'
+      printf 'name=%s\ninventory=%s\n' "$bc_shard_name" "$bc_shard_inventory"
+      bc_shard_index=0
+      for bc_shard_file in "$@"; do
+        bc_shard_index=$((bc_shard_index + 1))
+        printf 'file-index=%s\n' "$bc_shard_index"
+        shasum < "$bc_shard_file"
+      done
+    } | shasum | cut -d' ' -f1
+  )
+  bc_shard_receipt="$bc_shard_cache_dir/$bc_shard_name.green"
+  bc_shard_expected="$T/$bc_shard_name.receipt"
+  {
+    printf 'schema=bc-block-control-teeth-v1\n'
+    printf 'name=%s\n' "$bc_shard_name"
+    printf 'inventory=%s\n' "$bc_shard_inventory"
+    printf 'key=%s\n' "$bc_shard_key"
+  } > "$bc_shard_expected"
+
+  if [ "${BC_BLOCK_CACHE:-1}" != 0 ] &&
+     [ -f "$bc_shard_receipt" ] &&
+     cmp -s "$bc_shard_expected" "$bc_shard_receipt"; then
+    echo "bc timing: $bc_shard_name 0s (cached: exact $bc_shard_inventory inventory unchanged)"
+    return
+  fi
+
+  bc_timing_start "$bc_shard_name"
+  "$bc_shard_build"
+  "$bc_shard_reject"
+  bc_timing_finish
+  bc_shard_receipt_tmp="$bc_shard_receipt.tmp.$$"
+  cp "$bc_shard_expected" "$bc_shard_receipt_tmp"
+  mv "$bc_shard_receipt_tmp" "$bc_shard_receipt"
 }
 
 bc_timing_start setup-and-witnesses
@@ -1611,18 +1662,35 @@ root_observation_build_teeth
 root_observation_reject_teeth
 bc_timing_finish
 
-bc_timing_start independent-historical-teeth
-bounded_emitters_build_teeth
-bounded_emitters_reject_teeth
-checker_split_build_fixed_tooth
-checker_split_build_name_tooth
-name_eq_build_teeth
-checker_split_reject_fixed_tooth
-checker_split_reject_name_tooth
-name_eq_reject_teeth
-lookup_build_teeth
-lookup_reject_teeth
-bc_timing_finish
+# These families share the freshly reconstructed canonical bundle but own
+# disjoint phase-isolated mutations. Their green receipts bind the exact
+# canonical checker, bundle, harness, and case inventory. A change to one teeth
+# module therefore reruns that family without recompiling its siblings.
+bc_run_cached_teeth bounded-emitters '52 cases' \
+  bounded_emitters_build_teeth bounded_emitters_reject_teeth \
+  "$T/bounded-emitters-check.alpha" "$T/control.bundle" \
+  "$GATE_DIR/bc-bounded-emitters-teeth.sh" "$GATE_DIR/bc-block-control.sh" \
+  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA/artifact_env.sh"
+bc_run_cached_teeth checker-split-fixed '1 case' \
+  checker_split_build_fixed_tooth checker_split_reject_fixed_tooth \
+  "$T/control-check.alpha" "$T/control.bundle" \
+  "$GATE_DIR/bc-checker-split-teeth.sh" "$GATE_DIR/bc-block-control.sh" \
+  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA/artifact_env.sh"
+bc_run_cached_teeth checker-split-name-eq '1 case' \
+  checker_split_build_name_tooth checker_split_reject_name_tooth \
+  "$T/name-eq-check.alpha" "$T/control.bundle" \
+  "$GATE_DIR/bc-checker-split-teeth.sh" "$GATE_DIR/bc-block-control.sh" \
+  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA/artifact_env.sh"
+bc_run_cached_teeth name-eq '31 cases' \
+  name_eq_build_teeth name_eq_reject_teeth \
+  "$T/name-eq-check.alpha" "$T/control.bundle" \
+  "$GATE_DIR/bc-name-eq-teeth.sh" "$GATE_DIR/bc-block-control.sh" \
+  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA/artifact_env.sh"
+bc_run_cached_teeth lookup '35 cases' \
+  lookup_build_teeth lookup_reject_teeth \
+  "$T/lookup-check.alpha" "$T/control.bundle" \
+  "$GATE_DIR/bc-lookup-teeth.sh" "$GATE_DIR/bc-block-control.sh" \
+  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA/artifact_env.sh"
 
 bc_timing_start checker-a-historical-mutations
 

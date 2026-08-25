@@ -63,10 +63,15 @@ The top-level lattice normally invokes this gate with
 `BC_BLOCK_FOCUS=root-observation`. That focus independently rebuilds the exact
 canonical prerequisite conjunction and checks the maximal root observation plus
 its phase-isolated teeth in roughly half a minute. `LATTICE_FULL=1` retains the
-complete historical mutation matrix. The latter remains authoritative but is
-not rerun merely because an unrelated lattice input invalidated the outer
-cache; its remaining per-responsibility sharding/cache work is tracked in
-`TASKS_BOOTSTRAP.md`.
+complete historical mutation matrix. Within that run, the bounded-emitter,
+fixed/name-continuation, `name_eq`, and lookup responsibilities keep atomic
+content-keyed green receipts after their canonical owners have been freshly
+rebuilt and smoked; unchanged families report a cached timing instead of
+reassembling their teeth. `BC_BLOCK_CACHE=0` physically replays them. No
+receipt recreates an owner capability or executable. The remaining
+per-responsibility extraction/cache work is tracked in `TASKS_BOOTSTRAP.md`.
+On the initial cold replay the five responsibilities took 38s, 1s, less than
+1s, 17s, and 21s; the immediate warm replay reported five exact 0s cache hits.
 
 `bc-frame-shape.alpha`, concatenated into that same checker, derives 27
 parameters and 51 function-scoped `let`s directly from the source. It validates
