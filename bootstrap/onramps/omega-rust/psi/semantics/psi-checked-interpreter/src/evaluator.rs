@@ -126,9 +126,11 @@ const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// rather than overflow the host stack. Deep recursive programs are skipped (reported as
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
-/// Aggregate byte custody for immutable and path-like filesystem operand
-/// evidence retained during one evaluator run. Individual prepared carriers
-/// remain bounded by their separate 16 MiB evaluator limit.
+/// Aggregate byte custody for immutable, path-like, and mutable filesystem
+/// operand evidence retained during one evaluator run. A successful mutable
+/// byte call retains resolution, provider pre-state, and provider post-state
+/// under this same sponsor. Individual prepared carriers remain bounded by
+/// their separate 16 MiB evaluator limit.
 const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
 
 /// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
@@ -878,7 +880,8 @@ struct Evaluator<'program> {
     /// Aggregate retained rooted-path bytes.
     filesystem_observation_path_bytes: usize,
     /// Aggregate retained immutable, path-like, and mutable operand-evidence
-    /// bytes. This compiler-side account is not observable by Omega code.
+    /// bytes, including resolution and provider pre/post copies. This
+    /// compiler-side account is not observable by Omega code.
     filesystem_observation_evidence_bytes: usize,
     /// Pending non-catchable halt set when retaining a successfully authorized
     /// rooted path would exceed the compiler's evidence-custody bound.

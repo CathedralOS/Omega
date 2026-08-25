@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 12;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 13;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -367,6 +367,41 @@ impl BuildFilesystemPathLikeOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+/// Complete mutable-byte carrier contents at the moment the authored operand
+/// resolves. This is distinct from provider-visible pre/post state because
+/// evaluation of a later argument may legally alias and mutate the carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemMutableByteOperandResolution {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemMutableByteOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMutableI64OperandResolution {
+    operand_ordinal: u8,
+    value: i64,
+}
+
+impl BuildFilesystemMutableI64OperandResolution {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> i64 {
+        self.value
     }
 }
 
@@ -602,6 +637,8 @@ pub struct BuildFilesystemOperationAttempt {
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
     byte_operands: Vec<BuildFilesystemByteOperand>,
     path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
+    mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
+    mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
     mutable_i64_operands: Vec<BuildFilesystemMutableI64Operand>,
     authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
@@ -638,6 +675,16 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn path_like_operands(&self) -> &[BuildFilesystemPathLikeOperand] {
         &self.path_like_operands
+    }
+
+    pub fn mutable_byte_operand_resolutions(
+        &self,
+    ) -> &[BuildFilesystemMutableByteOperandResolution] {
+        &self.mutable_byte_operand_resolutions
+    }
+
+    pub fn mutable_i64_operand_resolutions(&self) -> &[BuildFilesystemMutableI64OperandResolution] {
+        &self.mutable_i64_operand_resolutions
     }
 
     pub fn mutable_byte_operands(&self) -> &[BuildFilesystemMutableByteOperand] {
@@ -1717,8 +1764,15 @@ pub(crate) fn compute_build_config(
                     .iter()
                     .map(|attempt| attempt.logical_handle_inputs().len())
                     .sum::<usize>();
+                let mutable_carrier_operands = attempts
+                    .iter()
+                    .map(|attempt| {
+                        attempt.mutable_byte_operand_resolutions().len()
+                            + attempt.mutable_i64_operand_resolutions().len()
+                    })
+                    .sum::<usize>();
                 format!(
-                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {logical_handle_operands} logical-handle operand(s)",
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {logical_handle_operands} logical-handle operand(s), {mutable_carrier_operands} mutable-carrier operand(s)",
                     attempts.len()
                 )
             })
@@ -1813,6 +1867,22 @@ pub(crate) fn compute_build_config(
                     bytes: operand.bytes().to_vec(),
                 })
                 .collect();
+            let mutable_byte_operand_resolutions = attempt
+                .mutable_byte_operand_resolutions()
+                .iter()
+                .map(|operand| BuildFilesystemMutableByteOperandResolution {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
+            let mutable_i64_operand_resolutions = attempt
+                .mutable_i64_operand_resolutions()
+                .iter()
+                .map(|operand| BuildFilesystemMutableI64OperandResolution {
+                    operand_ordinal: operand.operand_ordinal(),
+                    value: operand.value(),
+                })
+                .collect();
             let mutable_byte_operands = attempt
                 .mutable_byte_operands()
                 .iter()
@@ -1868,6 +1938,8 @@ pub(crate) fn compute_build_config(
                 scalar_operands,
                 byte_operands,
                 path_like_operands,
+                mutable_byte_operand_resolutions,
+                mutable_i64_operand_resolutions,
                 mutable_byte_operands,
                 mutable_i64_operands,
                 authorized_paths,

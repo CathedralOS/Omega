@@ -765,8 +765,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v12
-carries operation-attempt schema v12, retaining each completed operation's exact
+Observation schema v13
+carries operation-attempt schema v13, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -797,14 +797,17 @@ results and failed handle-result sentinels remain exact scalar values, and
 package commitments type-tag both result lanes. Fully prepared calls whose
 evidence reservation succeeds retain ordinal-ordered non-handle
 I32/U32/I64/U64 scalars, exact authored immutable write/FILETIME payloads, and
-validated at-family component bytes. Mutable byte carriers retain their
-complete pre/post capacity, including unchanged tails, and mutable i64 carriers
-retain exact pre/post values. Pre-
-state follows evaluation of every authored argument; post-state follows
-provider return or halt, including unchanged input-only ABI carriers.
+validated at-family component bytes. Mutable byte and i64 carriers retain a
+distinct complete resolution-time snapshot as their operands are evaluated, so
+a later preparation halt keeps the prefix. Mutable byte carriers separately
+retain complete provider pre/post capacity, including unchanged tails, and
+mutable i64 carriers retain exact provider pre/post values. Provider pre-state
+follows evaluation of every authored argument because a later argument may
+alias an earlier carrier; resolution and provider snapshots need not match.
+Post-state follows provider return or halt, including unchanged input-only ABI carriers.
 Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
 aggregate operand-evidence sponsor reserves immutable bytes, exact path-like
-bytes, and both mutable copies before that call's provider access. Directory-
+bytes, one resolution copy, and both provider copies before that call's provider access. Directory-
 entry names, symlink targets, find patterns, and other non-rooted path-like
 operands occupy their own ordinal-tagged lane rather than impersonating rooted
 authorization or payload. Each successfully typed non-handle scalar, immutable
@@ -813,8 +816,8 @@ preparation halt keeps the completed ordinal prefix; the fully prepared call
 must reproduce those rows exactly before provider access. Prior or nested staging effects
 remain cleanup-contained. Package commitments hash immutable, path-like, and
 mutable rows without rendering them. Retained returned-path bytes,
-preparation-failure rooted-path/mutable prefixes, and complete observed-input
-content remain absent, so
+preparation-failure rooted-path prefixes, and complete observed-input content
+remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.

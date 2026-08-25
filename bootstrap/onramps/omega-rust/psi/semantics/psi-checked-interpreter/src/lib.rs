@@ -152,11 +152,12 @@ pub struct EvaluationUsage {
 ///
 /// This records call-start order, exact provider, every successfully authorized
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
-/// exact path-like byte operands, each successfully typed logical-handle input
-/// even when later preparation fails, and a typed returned or evaluator-halted
-/// outcome. It is not the canonical replay transcript: complete returned
-/// content and complete content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 12;
+/// exact path-like byte operands, each successfully resolved mutable carrier
+/// and logical-handle input even when later preparation fails, and a typed
+/// returned or evaluator-halted outcome. It is not the canonical replay
+/// transcript: complete returned content and complete content custody are not
+/// present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -308,6 +309,44 @@ impl FilesystemPathLikeOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+/// Complete state of one mutable byte carrier at the instant its authored
+/// operand successfully resolves. This preparation-prefix row is distinct from
+/// the provider-visible pre/post row because evaluating a later argument may
+/// alias and mutate the carrier before provider invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemMutableByteOperandResolution {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl FilesystemMutableByteOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Exact value of one mutable i64 carrier at the instant its authored operand
+/// successfully resolves. Provider-visible pre/post timing remains separate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemMutableI64OperandResolution {
+    operand_ordinal: u8,
+    value: i64,
+}
+
+impl FilesystemMutableI64OperandResolution {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> i64 {
+        self.value
     }
 }
 
@@ -511,10 +550,10 @@ impl FilesystemGrantRefusal {
 /// The operation tag is an append-only compiler-owned identity. No package
 /// string enters this row. Successful descriptor/handle results and uses are
 /// normalized into logical lifetimes; provider token numbers do not survive.
-/// Failed handle-result sentinels remain scalar results. Mutable carrier
-/// regions retain complete pre/post snapshots, but
-/// complete path/content custody is still absent, so this remains below
-/// receipt strength.
+/// Failed handle-result sentinels remain scalar results. Mutable carriers
+/// retain both their successfully resolved preparation prefix and complete
+/// provider-visible pre/post snapshots, but complete path/content custody is
+/// still absent, so this remains below receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
@@ -523,6 +562,8 @@ pub struct FilesystemOperationAttempt {
     scalar_operands: Vec<FilesystemScalarOperand>,
     byte_operands: Vec<FilesystemByteOperand>,
     path_like_operands: Vec<FilesystemPathLikeOperand>,
+    mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
+    mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
     mutable_i64_operands: Vec<FilesystemMutableI64Operand>,
     authorized_paths: Vec<FilesystemAuthorizedPath>,
@@ -541,6 +582,8 @@ impl FilesystemOperationAttempt {
             scalar_operands: Vec::new(),
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
             mutable_byte_operands: Vec::new(),
             mutable_i64_operands: Vec::new(),
             authorized_paths: Vec::new(),
@@ -589,6 +632,14 @@ impl FilesystemOperationAttempt {
 
     pub fn path_like_operands(&self) -> &[FilesystemPathLikeOperand] {
         &self.path_like_operands
+    }
+
+    pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {
+        &self.mutable_byte_operand_resolutions
+    }
+
+    pub fn mutable_i64_operand_resolutions(&self) -> &[FilesystemMutableI64OperandResolution] {
+        &self.mutable_i64_operand_resolutions
     }
 
     pub fn mutable_byte_operands(&self) -> &[FilesystemMutableByteOperand] {
