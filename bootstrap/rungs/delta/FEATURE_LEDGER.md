@@ -72,6 +72,7 @@ Evidence owners for the longer rows are
 [`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md),
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md),
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md),
 and the lower-rooted refinement contracts
 [`OMGRFN2`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 and

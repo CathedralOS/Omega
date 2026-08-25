@@ -258,42 +258,40 @@ same-exact-frame composition in focused gates. That versioned slice is
 cost evidence, not admission of recursion or a final `Ωself` ruling. Do not idle
 on the separately blocked compilation-authority join.
 
-- [ ] Close the next checkpoint-000001 vertical slice: recursively constant
-  scalar/record/fixed-array values, copying a completed aggregate into mutable
-  storage, nested aggregate indexing, scalar `<=`, guardless transitions, and
-  state-edge interval custody across cyclic control flow. Exercise the exact
-  standalone `compiler/psi/generated/unicode_tables.omg` source with a
-  same-module result harness, but specify and test a general source family
-  rather than that filename, its 1,497 record literals, or its two exact table
-  sizes. The versioned source/IR/backend contract is
-  [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md):
-  it succeeds the frozen `OMGLOW2`/CKIR2 handoff rather than reinterpreting it,
-  and uses a typed semantic constant graph plus aggregate copy whose layout is
-  derived by the backend. Do not expand the tables into thousands of
-  source-shaped store operations or accept producer-selected layout bytes.
+- [ ] Close the checkpoint-000001 constant-aggregate vertical slice specified by
+  [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md).
+  The general family is recursive scalar/record/fixed-array constants,
+  aggregate copy into mutable storage, nested indexing, scalar `<=`, guardless
+  transitions, and cyclic state-edge interval custody. The exact generated
+  Unicode unit is a demanding member of that family, not the definition of it.
 
-  Progress: the Delta-written CKIR3 producer and direct backend now pass focused
-  native/Delta-self-built byte-identity gates. The producer exercises the exact
-  Unicode unit plus the general renamed/nested, guardless, cyclic, semantic-
-  negative, and literal-resource fixtures; the backend independently validates
-  the canonical constant DAG, derives its read-only image, and emits the
-  conditional three-segment ELF. Producer-to-backend execution/composition,
-  Rust-free meaning, complete mutation coverage, and the versioned lower-rooted
-  refinement remain before this item can close.
+  - [x] Freeze the versioned `OMGLOW3`/CKIR3 contract and general positive,
+    semantic-negative, and adjacent-resource fixtures.
+  - [x] Produce canonical CKIR3 through native and Delta-self-built bridge
+    paths, including the exact Unicode unit and same-module harness.
+  - [x] Independently validate CKIR3, derive constant layout/read-only image,
+    and emit identical conservative ELF through native and Delta-self-built
+    backend paths.
+  - [ ] Compose native, self-built, and mixed producer/backend pairs; bind the
+    exact CKIR and ELF to the source result 70 without treating Darwin's
+    inability to execute a Linux ELF as semantic evidence.
+  - [ ] Add the Rust-free Gamma meaning route for representative success,
+    semantic rejection 251, and resource rejection 252.
+  - [ ] Complete responsibility-local mutations and adjacent source, constant
+    graph, checked-IR, image, frame, and runtime limits.
+  - [ ] Add versioned lower-rooted refinement that composes source custody,
+    source meaning, constant tables, CKIR/result, and artifact reconstruction
+    without merging those responsibilities into one verifier.
 
   Acceptance: the exact Unicode source and harness produce result 70; renamed,
-  reordered, smaller, and nested positives preserve ordinary Omega meaning;
-  field/type/arity/nonconstant/copy/layout/`<=` negatives reject 251; focused
-  controls prove arm-local `<`/`<=` facts, ordinal state-argument transfer,
-  declaration-order-independent joins, and the exact
-  `scan → check → upper → scan(index + 1)` fixed point; adjacent source, pool,
-  graph, checked-IR, image, frame, and runtime limits reject 252
-  before publication, including the provisional 1,024/1,025 array-literal and
-  four/five record-field boundaries; native, Delta-self-built, and Rust-free
-  meaning routes agree on bytes and 0/251/252 observations; and a new versioned
-  lower-rooted refinement composes source custody, source meaning, constant
-  tables, checked IR/result, and conservative artifact reconstruction without
-  turning them into one verifier.
+  reordered, smaller, and nested programs preserve ordinary Omega meaning;
+  field/type/arity/nonconstant/copy/layout/`<=` negatives reject 251; interval
+  controls cover arm-local facts, ordinal transfer, declaration-order-
+  independent joins, and the cyclic fixed point; adjacent resource limits
+  reject 252 before publication; and native, Delta-self-built, Rust-free, and
+  lower-rooted routes compose at their explicit versioned seams. Exact fixture
+  counts and byte-layout rules remain in the CKIR3 contract and gates rather
+  than this queue.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

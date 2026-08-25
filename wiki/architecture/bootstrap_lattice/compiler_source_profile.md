@@ -385,14 +385,14 @@ same-module behavioral harness. The general capability is a typed semantic
 constant graph or pool, aggregate copy, nested indexing, canonical
 unconditional control, and declaration-order-independent propagation of
 arm-local range facts across state edges—not recognition of the generated
-filename, its exact literal count, or its two table lengths. A versioned
-successor to the frozen CKIR2 handoff must let the backend derive layout and
+filename, its exact literal count, or its two table lengths. The versioned CKIR3
+successor to the frozen CKIR2 handoff makes the backend derive layout and
 materialize private read-only data without exploding the source into thousands
 of place/store operations or accepting producer-selected layout bytes. This
 slice directly prices generated ordinary-Omega data and the measured Stage-08
-expansion hotspot. Its focused Delta-written producer and backend now pass
-native/Delta-self-built byte-identity gates independently: the producer lowers
-the exact Unicode unit plus general controls to CKIR3, and the backend validates
+expansion hotspot. Its focused Delta-written producer and backend pass native/
+Delta-self-built byte-identity gates independently: the producer lowers the
+exact Unicode unit plus general controls to CKIR3, and the backend validates
 that private graph and derives the read-only image and ELF. Their composition,
 Rust-free meaning, and lower-rooted reconstruction remain open. This progress
 does not decide the final disposition of records, arrays, generated source, or
