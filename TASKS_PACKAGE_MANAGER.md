@@ -134,10 +134,14 @@ complete.
   keys, exclusive per-entry locking, staged publication, exact resolver
   metadata/origin/config verification, sealed Git configuration, and
   pre-materialization rejection of `.gitmodules` and gitlinks. Git source is
-  now read from validated tree/blob objects, materialized without checkout,
-  filters, hooks, or submodules, re-hashed against the expected tree, made
-  read-only, and atomically published as a resolver-owned snapshot. Published
-  snapshots are revalidated before reuse. The Git parent is now selected only
+  now read from a parent-authenticated selected object graph. The resolver
+  recomputes the raw commit and every blob object ID, checks the commit's root
+  tree edge, reconstructs all canonical tree objects from the authenticated
+  leaves, and compares the resulting Merkle root before any snapshot stage can
+  exist. SHA-1 and SHA-256 exact revisions are covered through fixed vectors and
+  real repositories. Materialization then proceeds without checkout, filters,
+  hooks, or submodules; the snapshot is re-hashed, made read-only, atomically
+  published, and revalidated before reuse. The Git parent is now selected only
   from a closed platform list of absolute concrete paths, never ambient `PATH`;
   macOS excludes Apple's `/usr/bin/git` dispatcher. Its canonical regular-file
   bytes are hashed under a 256 MiB ceiling, retained as a diagnostic source
@@ -185,10 +189,6 @@ complete.
 
   Remaining suspect points:
 
-  - Git currently supplies the selected commit/tree IDs, recursive tree rows,
-    and blob framing. The parent validates spelling, type, size, ordering, and
-    snapshot equality, but does not yet recompute SHA-1/SHA-256 object IDs or
-    independently prove commit-to-tree and tree-to-child relationships;
   - cache origin/config checks are mediated by Git and do not establish cache
     directory ownership independently of the helper;
   - the local before/after check does not defend against a deliberately hostile
@@ -213,12 +213,13 @@ complete.
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
-  Next bounded milestone: independently authenticate the selected Git object
-  graph before snapshot staging. Recompute commit, tree, and blob object IDs for
-  both SHA-1 and SHA-256 repositories; verify commit-to-tree and every
-  tree-to-child edge; assert destination containment before materialization;
-  and prove every mismatch leaves no snapshot stage. This is internal resolver
-  engineering and requires no new Omega language decision.
+  Completed 2026-08-24: parent-owned Git object authentication recomputes
+  commit/blob SHA-1 or SHA-256 identities, proves the commit-to-root-tree edge,
+  reconstructs the canonical recursive tree graph from authenticated leaves,
+  and checks destination containment before snapshot staging. Object-byte,
+  commit, edge, tree-root, and destination mismatches reject without creating a
+  stage. This is real resolver evidence, but it does not weaken any remaining
+  isolation, cache-custody, resource, SSH-custody, or receipt requirement.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
