@@ -58,10 +58,13 @@ symbols remain unresolved. Checked provider-adapter rows now retain a canonical
 machine-overload identity and its exact package owner, and every compiler
 consumer resolves both without falling back to a short spelling. Provider
 selection and compiler-intrinsic toolchain identities are not yet fully sealed.
-`PackageInstance` additionally binds exact source content, evidence-schema
-identity, compiler/toolchain provenance, and compiler-derived package evidence.
-These identities support comparison and reproducibility; they do not certify
-the compiler or prove a review occurred. Spoof rejection for
+`PackageInstance` additionally binds exact source content, produced artifact
+identity, each closure subject's obligation-semantics identity, locally
+re-derived verification results, and disclosed open assumptions. Exact
+certificate identity and proof route remain derivation provenance so different
+valid certificates may establish the same semantic result. Compiler/toolchain
+identity is separate review and cache metadata; it never certifies a result or
+seals the instance. Spoof rejection for
 same-named packages from different source lineages remains an admission
 requirement until those joins are sealed.
 
@@ -699,12 +702,35 @@ policy advice, never package evidence or proof of review.
 
 ## Package admission projection
 
-The ordinary package baseline is derived inside the compiler from checked
-semantic state. A total internal `PackageAdmissionProjection` converts that
-state into canonical package-visible rows and rejects unresolved requirements,
-unbound identities, compiler-private handles, and any fact it cannot represent
-exactly. The lock persists only the versioned canonical evidence, with source,
-target, evidence-schema, and compiler/toolchain provenance.
+The compiler derives a review proposal from checked semantic state. A total
+internal `PackageAdmissionProjection` converts that state into canonical
+package-visible rows and rejects unresolved requirements, unbound identities,
+compiler-private handles, and any fact it cannot represent exactly. Those rows
+remain `CompilerIssuedPackageReview`: useful deterministic input to review, but
+never authority and never directly promotable into a `PackageInstance`.
+
+Sealing is trust by checking. A consumer starts from the exact requested source
+subject and exact produced artifact, reconstructs their canonical obligation
+set under the selected semantics, and checks the exact retained certificates.
+The produced subject is the canonical package artifact for ordinary package
+claims; final-realization claims additionally bind the exact native artifact and
+Terminal evidence. It is never merely a compiler-authored verdict packet.
+The resulting package-evidence record is a cache of this re-derivable fact, not
+an assertion a verifier may ask consumers to believe. Exact certificate bytes,
+proof routes, and kernel dependencies remain derivation provenance; semantic
+identity records the subjects, obligation applications, discharge results, and
+open assumptions.
+
+The closure is heterogeneous and transitive. Every package or other subject
+retains its own obligation-semantics and evidence-schema identity. Checked
+dependency obligations compose upward, while open obligations remain visible
+at every parent and are re-evaluated under each consumer's policy. A producer's
+admission decision never settles a downstream consumer's decision. A versioned
+schema migration may support incremental reuse only through a checked delta
+that identifies unchanged, added, strengthened, reinterpreted, retired, or
+encoding-only obligation classes. Unknown or meaning-changing deltas force
+reconstruction; newly exposed gaps are open obligations, not automatic
+admissions.
 
 The compiler-issued envelope also carries a separate canonical commitment to
 the reconciled package/alias input graph and every exact package or toolchain
@@ -725,8 +751,12 @@ retaining one verified commitment on every emitted row. That commitment stays
 outside capability/API comparison bytes. It is useful provenance for exact
 comparison and replay policy, but is not compiler certification, compiler-source
 identity, a reproducible-build receipt, or proof of the executable image already
-loaded by the operating system. Those stronger source/toolchain joins remain
-part of sealing `PackageInstance`.
+loaded by the operating system. No stronger producer-pedigree join seals a
+`PackageInstance`: direct source-and-artifact checking does. Reproducible builds,
+toolchain closures, signatures, and execution measurements may remain separate
+supply-chain or incident-response metadata. An admission may cite an exact
+artifact solely to scope the semantic obligation being assumed; the artifact's
+pedigree never proves that obligation.
 
 Ratified 2026-08-24: the implementation should read each fact from the earliest
 coherent compiler-owned representation in which its semantics are established.
@@ -799,11 +829,12 @@ Synthesized semantic paths retain an authored provenance span without replacing
 their canonical spelling with the source substring. Transparent aliases
 recursively flatten to sorted, deduplicated package-qualified atoms. Authored
 toolchain nominals bind a canonical toolchain-relative source path plus exact
-source-byte commitment in review evidence; this does not replace the
-whole-toolchain commitment required for sealed admission. Compiler
-carry aliases expand to explicit toolchain-unbound atoms until exact toolchain
-commitment lands. Predicate-body presence and currently representable
-structural expression/membership facts retain the domain carrier and exact
+source-byte commitment in review evidence; this records their semantic origin
+but does not make producer pedigree authoritative. Compiler carry aliases
+expand to explicit toolchain-unbound atoms until their exact compiler-owned
+semantic subject and obligation origin land. Predicate-body presence and
+currently representable structural expression/membership facts retain the
+domain carrier and exact
 package-qualified member/domain identities. A typed fact is admissible only
 when it has exactly one checked definition row, one fact-keyed ownership
 record, and exact checked dependency places for nested member paths. Callable
@@ -877,7 +908,10 @@ The unified lock artifact records the resolved closure:
 - package names, source-qualified `PackageKey` values, and exact
   `PackageInstance` values;
 - source selectors plus resolved commit/tree/content identities;
-- evidence-schema identity and compiler/toolchain provenance;
+- per-subject obligation-semantics and evidence-schema identities;
+- exact certificate provenance, re-derived discharge results, and transitive
+  open obligations;
+- compiler/toolchain provenance as separately labeled review metadata;
 - the normalized accepted package capability/API baseline, not only its
   fingerprint;
 - build observation ceilings, realized classes, and replay receipts;
@@ -1164,7 +1198,9 @@ payloads. Recovered rows use a distinct review-only type and cannot impersonate
 newly compiler-issued evidence. The capsule checksum is corruption detection,
 not authenticity or evidence of serious review, and the type has no route to
 accepted lock state or `PackageInstance`. Promotion
-remains gated on the separately unsettled complete toolchain provenance.
+requires independent source-and-artifact obligation reconstruction, certificate
+checking, transitive open-obligation disclosure, and local admission decisions;
+completing producer provenance cannot promote the capsule.
 
 LLM review is advisory output, not authority to mutate the lock. Review tools
 consume canonical diffs rendered by Omega, with bounded and escaped
@@ -1176,15 +1212,25 @@ over admission.
 
 No package artifact proves that this workflow was performed seriously. Local
 compiler output prevents dependency-authored manifests from impersonating
-derived evidence, but the selected compiler is itself a trust root. Compiler,
-toolchain, verifier, schema, source, and target identities are provenance for
-replay and comparison, not proof of producer honesty. Likewise, signatures and
+review rows, but the selected compiler remains an untrusted producer for
+package soundness. Consumers trust the small checking base, canonical semantics,
+and their explicitly accepted admissions, and independently reconstruct the
+question from exact source and artifact subjects. Compiler, toolchain, and
+execution observations remain provenance for replay, cache partitioning, and
+incident response, not proof of producer honesty. Likewise, signatures and
 recorded review fields establish custody over a decision, not its quality; PCC
 establishes only the exact proposition checked by its kernel. The accepted
 project commit and the organization controlling it authorize the update.
 Organizations that need stronger assurance impose their own branch, quorum,
 isolated-build, bootstrap, reproducibility, and independent-review policy around
 Omega's deterministic conflicts and recommendations.
+
+Tools render these layers separately. A mechanical verdict reports locally
+re-derived obligations and certificate results. Admissions report the exact
+semantic assumptions accepted by local policy. Producer, reproduction,
+signature, and audit metadata appears in a distinct review section and never
+inside a `verified` verdict; presentation must not launder pedigree into
+checking.
 
 Boundary statements imported from a dependency are inert requests. The root
 accepts one package claim set rather than repeating an approval for every

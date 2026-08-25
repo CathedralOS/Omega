@@ -522,8 +522,9 @@ Remaining:
   physical types, `UefiPhysicalEntry::enter`, calling policy, and boundary
   schema now live in the exact toolchain-owned `uefi_x64` target package rather
   than in application fixtures. `omega-target` selects that package through a
-  closed identity; compilation checks toolchain provenance plus canonical
-  package-relative source membership, then retains the package fingerprint in
+  closed identity; compilation checks the exact target-package declaration
+  identity plus canonical package-relative source membership, then retains the
+  package fingerprint in
   the physical plan and manifest. Application-authored lookalikes reject.
   Normalized target and artifact identity keep the physical requirement, its
   exact two input types, `EfiStatus` result, and evaluated Microsoft-x64 plan

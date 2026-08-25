@@ -61,6 +61,27 @@ The asymmetry is the whole game:
   producer's implementation language may be hostile and the result is still
   sound.
 
+A stored verification result is therefore never authority. It is a cache of a
+re-derivable fact: the consumer retains the exact source and artifact subjects,
+canonical obligation-semantics identity, reconstructed obligations, and exact
+certificates needed to repeat the check. Producer and verifier verdict strings
+have no standing. Certificate identity and proof route remain derivation
+provenance rather than semantic compatibility identity.
+
+This rule is transitive. Each dependency subject retains the obligation-
+semantics/schema version under which it was checked. Discharged obligations
+compose upward; open obligations also compose upward and are decided by every
+consumer. An upstream record that its producer admitted one remains review
+provenance, not a downstream decision. A producer cannot launder an assumption
+by accepting it locally. Schema reuse across versions requires a checked delta;
+unknown or reinterpreted classes are reconstructed rather than presumed stable.
+
+Tooling must render checked results, locally accepted admissions, and producer
+pedigree in distinct sections. Compiler hashes, toolchain closures,
+reproducibility receipts, signatures, and audit records remain valuable
+operational metadata, but none may appear as support inside a verification
+verdict.
+
 Trust-by-checking is a single answer to every threat we care about: **Thompson**
 (the backdoored self-hoster's output fails the check), **supply-chain** (a
 poisoned dependency yields artifacts that do not check), **layer-2-depending-on-
