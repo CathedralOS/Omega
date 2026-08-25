@@ -17,6 +17,7 @@ pub struct CheckedCompilation {
     program: CheckedTrees,
     package_identity: Option<psi_core::PackageKeyIdentity>,
     source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
+    exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
         super::build_staged_output::BuildStagedSource,
@@ -49,6 +50,13 @@ impl CheckedCompilation {
         &self,
     ) -> Option<super::PackageSourceConsumptionCommitment> {
         self.source_consumption_commitment
+    }
+
+    /// Compiler-validated exact source owners used only while projecting
+    /// package-review structural type identity. Source IDs are private join
+    /// coordinates and never enter canonical review bytes.
+    pub(super) fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
+        &self.exact_toolchain_sources
     }
 
     /// Re-read every ordinary physical source path and require it to equal the
@@ -571,6 +579,11 @@ fn compile_to_checked_inner(
     let source_consumption_commitment = package_inputs
         .map(|inputs| super::package_source_consumption::derive(&program, inputs))
         .transpose()?;
+    let exact_toolchain_sources = package_inputs
+        .is_some()
+        .then(|| super::package_source_consumption::toolchain_source_identities(&program))
+        .transpose()?
+        .unwrap_or_default();
     if source_consumption_commitment.is_some() {
         super::package_source_consumption::verify_current_files(
             &program,
@@ -581,6 +594,7 @@ fn compile_to_checked_inner(
         program,
         package_identity,
         source_consumption_commitment,
+        exact_toolchain_sources,
         generated_source_custody,
         selected_target_profile,
         selected_native_target,

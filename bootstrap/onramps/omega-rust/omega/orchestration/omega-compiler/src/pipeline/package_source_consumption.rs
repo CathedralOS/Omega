@@ -120,6 +120,44 @@ pub(super) fn verify_current_files(
     }
 }
 
+/// Exact source-backed toolchain owners retained for package-review nominal
+/// type identity. `SourceId` is only the compiler-internal join coordinate;
+/// the canonical type string contains the collision-resistant digest alone.
+pub(super) fn toolchain_source_identities(
+    program: &CheckedTrees,
+) -> Result<Vec<(psi_source::SourceId, [u8; 32])>, Vec<Diagnostic>> {
+    let mut identities = program
+        .typed
+        .symbols
+        .source_files()
+        .filter(|source| source.origin == SourceOrigin::Toolchain)
+        .map(|source| Ok((source.source_id, toolchain_source_identity_digest(source)?)))
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    identities.sort_by_key(|(source_id, _)| source_id.0);
+    Ok(identities)
+}
+
+pub(super) fn toolchain_source_identity_digest(
+    source: &SourceFile,
+) -> Result<[u8; 32], Vec<Diagnostic>> {
+    if source.origin != SourceOrigin::Toolchain {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain source identity requested for non-toolchain source `{}`",
+            source.path.display(),
+        ))]);
+    }
+    let custody_entry = canonical_source_entry(source)?;
+    let mut digest = Sha256::new();
+    digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
+    digest.update(
+        u64::try_from(custody_entry.len())
+            .expect("canonical source custody entry length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(custody_entry);
+    Ok(digest.finalize().into())
+}
+
 pub(super) fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
     let mut entry = Vec::new();
     match source.origin {
@@ -326,5 +364,51 @@ mod tests {
         assert_ne!(baseline, canonical_source_entry(&other_package).unwrap());
         assert_ne!(baseline, canonical_source_entry(&other_path).unwrap());
         assert_ne!(baseline, canonical_source_entry(&other_bytes).unwrap());
+    }
+
+    #[test]
+    fn toolchain_source_identity_binds_namespace_path_and_exact_bytes() {
+        let baseline = source(
+            "toolchain/std/types.omg",
+            "toolchain/std",
+            None,
+            SourceOrigin::Toolchain,
+            "data Packet {}",
+        );
+        let changed_namespace = source(
+            "toolchain/core/types.omg",
+            "toolchain/core",
+            None,
+            SourceOrigin::Toolchain,
+            "data Packet {}",
+        );
+        let changed_path = source(
+            "toolchain/std/other.omg",
+            "toolchain/std",
+            None,
+            SourceOrigin::Toolchain,
+            "data Packet {}",
+        );
+        let changed_bytes = source(
+            "toolchain/std/types.omg",
+            "toolchain/std",
+            None,
+            SourceOrigin::Toolchain,
+            "data Packet { value: u8; }",
+        );
+
+        let baseline = toolchain_source_identity_digest(&baseline).expect("baseline identity");
+        assert_ne!(
+            baseline,
+            toolchain_source_identity_digest(&changed_namespace).unwrap()
+        );
+        assert_ne!(
+            baseline,
+            toolchain_source_identity_digest(&changed_path).unwrap()
+        );
+        assert_ne!(
+            baseline,
+            toolchain_source_identity_digest(&changed_bytes).unwrap()
+        );
     }
 }

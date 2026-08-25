@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 36);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 37);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -1133,6 +1133,14 @@ crashes Abort
     assert!(!builder.is_const());
     assert!(!builder.is_self());
     assert!(!builder.type_identity().canonical().is_empty());
+    assert!(
+        builder
+            .type_identity()
+            .canonical()
+            .contains("toolchain-source-owner"),
+        "source-backed Build must retain its exact toolchain source owner: {}",
+        builder.type_identity().canonical(),
+    );
     assert_eq!(build.declared_service_reach(), None);
     assert_eq!(build.declared_synchronous_invocations(), None);
 

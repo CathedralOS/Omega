@@ -13,6 +13,7 @@ use crate::types::{
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
+use std::cell::Cell;
 use std::fmt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -169,6 +170,8 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_toolchain_source: None,
                 qualification: TypeIdentityQualification::Ordinary,
             },
         ))
@@ -207,9 +210,36 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions: &[],
+                exact_toolchain_sources: &[],
+                missing_exact_toolchain_source: None,
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ))
+    }
+
+    /// Package-review counterpart that replaces the generic toolchain marker
+    /// with the exact compiler-validated source identity for every source-
+    /// backed toolchain nominal. `SourceId` remains an internal join key and
+    /// never enters the normalized output.
+    pub fn package_qualified_type_identity_with_binders_and_toolchain_sources(
+        &self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
+    ) -> Option<NormalizedTypeIdentity> {
+        let missing_exact_toolchain_source = Cell::new(false);
+        let identity = NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                binders,
+                substitutions: &[],
+                exact_toolchain_sources,
+                missing_exact_toolchain_source: Some(&missing_exact_toolchain_source),
+                qualification: TypeIdentityQualification::PackageQualified,
+            },
+        ));
+        (!missing_exact_toolchain_source.get()).then_some(identity)
     }
 
     /// Binder-aware identity after replacing exact type-parameter symbols with
@@ -228,6 +258,8 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                exact_toolchain_sources: &[],
+                missing_exact_toolchain_source: None,
                 qualification: TypeIdentityQualification::Ordinary,
             },
         ))
@@ -249,9 +281,35 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                exact_toolchain_sources: &[],
+                missing_exact_toolchain_source: None,
                 qualification: TypeIdentityQualification::PackageQualified,
             },
         ))
+    }
+
+    /// Exact-toolchain counterpart for a closed structural instance with
+    /// concrete type substitutions.
+    pub fn package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
+        &self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
+    ) -> Option<NormalizedTypeIdentity> {
+        let missing_exact_toolchain_source = Cell::new(false);
+        let identity = NormalizedTypeIdentity(normalize_type_reference(
+            self,
+            type_reference,
+            &TypeIdentityContext {
+                binders,
+                substitutions,
+                exact_toolchain_sources,
+                missing_exact_toolchain_source: Some(&missing_exact_toolchain_source),
+                qualification: TypeIdentityQualification::PackageQualified,
+            },
+        ));
+        (!missing_exact_toolchain_source.get()).then_some(identity)
     }
 
     pub fn normalized_domain_expression(
@@ -564,6 +622,8 @@ fn declared_domain_name(
 struct TypeIdentityContext<'binders> {
     binders: &'binders [(SymbolHandle, String)],
     substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+    exact_toolchain_sources: &'binders [(psi_source::SourceId, [u8; 32])],
+    missing_exact_toolchain_source: Option<&'binders Cell<bool>>,
     qualification: TypeIdentityQualification,
 }
 
@@ -577,6 +637,7 @@ enum TypeIdentityQualification {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PackageQualifiedNominalOwner {
     Package([u8; 32]),
+    ToolchainSource([u8; 32]),
     Toolchain,
     Unresolved,
 }
@@ -585,6 +646,7 @@ impl PackageQualifiedNominalOwner {
     fn encode(self) -> String {
         match self {
             Self::Package(digest) => byte_atom("package-owner", &digest),
+            Self::ToolchainSource(digest) => byte_atom("toolchain-source-owner", &digest),
             Self::Toolchain => "toolchain-owner".to_owned(),
             Self::Unresolved => "unresolved-owner".to_owned(),
         }
@@ -636,7 +698,21 @@ impl TypeIdentityContext<'_> {
         } else if program.symbols.symbol_source_origin(symbol)
             == Some(psi_source::SourceOrigin::Toolchain)
         {
-            PackageQualifiedNominalOwner::Toolchain
+            program
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                })
+                .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_toolchain_source {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
         } else {
             PackageQualifiedNominalOwner::Unresolved
         };
@@ -1300,6 +1376,89 @@ mod tests {
             "{unresolved}"
         );
         assert!(unresolved.as_str().contains("Pending"), "{unresolved}");
+    }
+
+    #[test]
+    fn exact_toolchain_type_owners_follow_source_and_generated_provenance() {
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("toolchain/std/types.omg"),
+                String::from("Packet"),
+                PathBuf::from("toolchain/std"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let packet = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(source_id, Span::new(0, 6))),
+            )],
+        ))
+        .next()
+        .expect("toolchain nominal symbol");
+        let mut symbols = builder.finish();
+        let generated =
+            symbols.insert_generated_root_from(packet, SymbolKind::Data, "Packet$specialized");
+        let mut program = TypedTrees {
+            symbols,
+            ..TypedTrees::default()
+        };
+        let packet_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: packet,
+                name: Identifier::generated("ignored"),
+            });
+        let generated_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: generated,
+                name: Identifier::generated("ignored"),
+            });
+
+        let first = program
+            .package_qualified_type_identity_with_binders_and_toolchain_sources(
+                packet_type,
+                &[],
+                &[(source_id, [0x33; 32])],
+            )
+            .expect("exact toolchain source owner");
+        let generated = program
+            .package_qualified_type_identity_with_binders_and_toolchain_sources(
+                generated_type,
+                &[],
+                &[(source_id, [0x33; 32])],
+            )
+            .expect("generated exact toolchain source owner");
+        let changed = program
+            .package_qualified_type_identity_with_binders_and_toolchain_sources(
+                packet_type,
+                &[],
+                &[(source_id, [0x44; 32])],
+            )
+            .expect("changed exact toolchain source owner");
+
+        assert!(first.as_str().contains("toolchain-source-owner"), "{first}");
+        assert!(first.as_str().contains(&"33".repeat(32)), "{first}");
+        assert!(generated.as_str().contains(&"33".repeat(32)), "{generated}");
+        assert!(generated.as_str().contains("Packet$specialized"));
+        assert_ne!(first, changed);
+
+        assert!(
+            program
+                .package_qualified_type_identity_with_binders_and_toolchain_sources(
+                    packet_type,
+                    &[],
+                    &[],
+                )
+                .is_none(),
+            "exact package identity must fail closed when toolchain custody is missing"
+        );
     }
 
     #[test]
