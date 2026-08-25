@@ -54,10 +54,10 @@ pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
 pub use build_config::{
-    BUILD_OBSERVATION_SCHEMA_VERSION, BuildEvaluationUsage, BuildFilesystemGrantAccess,
-    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemOperationAttempt, BuildFilesystemProvider, BuildObservationClass,
-    BuildObservationSummary,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
+    BuildFilesystemOperationAttempt, BuildFilesystemProvider, BuildFilesystemRoot,
+    BuildObservationClass, BuildObservationSummary,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{

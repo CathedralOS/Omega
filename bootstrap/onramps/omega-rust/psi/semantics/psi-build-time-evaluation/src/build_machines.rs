@@ -9,6 +9,8 @@ use psi_typed_trees::TypedTrees;
 
 pub use psi_checked_interpreter::{
     FilesystemAccess as BuildMachineFilesystemAccess,
+    FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
+    FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
     FilesystemSponsor as BuildMachineFilesystemSponsor, FsGrants as BuildMachineFilesystemGrants,
 };
 

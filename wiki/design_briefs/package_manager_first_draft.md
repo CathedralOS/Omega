@@ -218,14 +218,15 @@ already loaded by the operating system. Complete compiler/toolchain source and
 rebuild provenance remain admission work.
 
 Ratified 2026-08-24: implementation should consume the earliest coherent
-checked compiler state that already contains each required fact. Different evidence rows may therefore
-come from different internal representations; totality belongs to the final
-projection, not to one frozen source stage. Because the projection ships with
-the compiler, depending on compiler-internal representations is ordinary
-internal coupling, not a promise that those representations are stable public
-APIs. These representations remain part of the Psi-owned semantic pipeline:
-"earlier" means earlier than Terminal Psi, not a new owner or a pre-Psi
-semantic path. The projection and its tests move with those representations.
+checked compiler state that already contains each required fact. Different
+evidence rows may therefore come from different internal representations;
+totality belongs to the final projection, not to one frozen source stage.
+Because the projection ships with the compiler, depending on compiler-internal
+representations is ordinary internal coupling, not a promise that those
+representations are stable public APIs. These representations remain part of
+the Psi-owned semantic pipeline: "earlier" means earlier than Terminal Psi,
+not a new owner or a pre-Psi semantic path. The projection and its tests move
+with those representations.
 
 There is no nominal Chi stage merely to stabilize this report. A distinct IR is
 justified later only if multiple independent consumers need the same semantic
@@ -427,16 +428,21 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v3
-carries operation-attempt schema v4, retaining each completed operation's exact
-provider, stable tag, scalar result, and post-error in successful-run call-start
-order. Grant-gate denials retain exact operand ordinals, read/write access, and
-closed unresolvable/outside-root reasons; host errors do not fabricate one. It
-retains partial typed outcomes when granted evaluation fails, while worker
+stay separate from capability/API comparison bytes. Observation schema v4
+carries operation-attempt schema v5, retaining each completed operation's exact
+provider, stable tag, scalar result, post-error, and every direct scoped path
+authorization in successful-run call-start order. Authorized paths retain exact
+operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
+without physical root spellings. Grant denials remain distinct; host errors
+retain prior authorization without fabricating one. Ambiguous/unresolved roots,
+unrepresentable rooted paths, and retained-path budget exhaustion reject before
+host access; budget exhaustion non-catchably halts evaluation. Partial typed
+outcomes survive evaluator failure, while worker
 failure marks evidence unavailable; Omega emits fixed non-admission counts and
-no review row. It omits concrete arguments, rooted paths, mutable byte regions,
-logical handles, and content, so it remains an incomplete trace and makes no receipt,
-replayability, or source-rebuildability claim. Canonical operation transcripts,
+no review row. It omits complete arguments, descriptor/logical-handle lineage,
+mutable byte regions, returned path bytes, and content, so it remains an
+incomplete trace and makes no receipt, replayability, or source-rebuildability
+claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required
 before any `Receipted` verdict.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject

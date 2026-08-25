@@ -774,16 +774,25 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v3
-  carries operation-attempt schema v4: an ordered successful-run call-start
-  trace of exact provider,
-  operation tag, scalar return, and post-operation error state through compiler
-  reports and package review. Grant-gate denials additionally retain every exact
-  operand ordinal, read/write access, and closed unresolvable/outside-root
+  `final_path_name_by_handle` are unconditionally so. Observation schema v4
+  carries operation-attempt schema v5: an ordered successful-run call-start
+  trace of exact provider, operation tag, scalar return, post-operation error
+  state, and every direct scoped path authorization through compiler reports
+  and package review. Each authorization retains exact operand ordinal,
+  read/write access, closed Source/Output root identity, and canonical
+  slash-separated root-relative UTF-8 bytes; physical compiler/cache paths do
+  not survive. Nested output under source selects the most specific root.
+  Duplicate root identities, one physical root with conflicting identities,
+  unresolved roots, and unrepresentable rooted paths reject before host access;
+  retained rooted-path bytes have a 16 MiB aggregate evaluator ceiling whose
+  exhaustion non-catchably halts evaluation before host access.
+  Grant-gate denials retain every exact operand ordinal, access, and closed
   reason, including both operands of a two-path operation. Host OS errors carry
-  no fabricated grant refusal; pure and console-only traces are empty.
+  no fabricated refusal but retain any authorization that preceded the host
+  failure; pure and console-only traces are empty.
   This deliberately incomplete trace may still expose runtime descriptor values
-  and omits operands, paths, mutable byte regions, logical handles, and content.
+  and omits complete operands, descriptor-to-path/logical-handle lineage,
+  mutable byte regions, returned path bytes, and content.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -804,8 +813,8 @@ complete.
   executable real-scoped canaries prove ignored-operand traps and invalid
   outputs occur before disk mutation or grant consultation. The canonical trait
   test pins each operation's exact operand order/kind and result width.
-  Complete transcript schema and serialization, lossless rooted
-  paths, transcripts/content custody, cleanup-gated publication, output-tree
+  Complete transcript schema and serialization, complete descriptor-rooted
+  operation lineage, transcripts/content custody, cleanup-gated publication, output-tree
   commitment, and replay remain. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
@@ -978,14 +987,14 @@ complete.
 
   Ratified design decision 2026-08-24: conflict rows are projected by the
   compiler from the earliest Psi-owned checked representation that already
-  contains each exact fact. Rows need not share one source stage. The compiler may depend on
-  those private representations because the projection moves with the
-  compiler; only the versioned, source-handle-free row encoding crosses into
-  package orchestration. Do not create nominal Chi solely to make this internal
-  join look stable. Introduce another semantic stage only if implementation
-  discovers a real shared invariant or simplification, and freely collapse
-  rows into an existing coherent representation (for example `Exact`) when
-  that removes machinery without losing meaning.
+  contains each exact fact. Rows need not share one source stage. The compiler
+  may depend on those private representations because the projection moves with
+  the compiler; only the versioned, source-handle-free row encoding crosses
+  into package orchestration. Do not create nominal Chi solely to make this
+  internal join look stable. Introduce another semantic stage only if
+  implementation discovers a real shared invariant or simplification, and
+  freely collapse rows into an existing coherent representation (for example
+  `Exact`) when that removes machinery without losing meaning.
 
   Progress 2026-08-24: the review projection exposes independently framed,
   compiler-owned rows for the projection header, public traits, domains, data,

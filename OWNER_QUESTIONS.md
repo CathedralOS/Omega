@@ -179,6 +179,9 @@ against the compiler process's working directory, while the only successful
 filesystem build test embeds a temporary host absolute path into generated
 Omega source. A checked-in package fixture therefore cannot honestly read its
 own input and write its staged output without depending on ambient host layout.
+The compiler now normalizes paths that pass existing physical grants into
+closed Source/Output identities plus canonical relative bytes; that secures the
+evidence precursor but deliberately does not invent the package-facing name.
 
 Choose the portable build-filesystem surface. It must:
 

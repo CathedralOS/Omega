@@ -29,7 +29,8 @@
 //!   selects the exact source entry and performs no name-based discovery.
 
 use psi_build_time_evaluation::{
-    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrants,
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
+    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
     BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineProgram,
 };
 use psi_checked_interpreter::FilesystemSponsorEntry;
@@ -39,6 +40,16 @@ use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 
 const BUILD_MACHINE: &str = "build";
+const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+    match BuildMachineFilesystemGrantRootIdentity::new(1) {
+        Some(identity) => identity,
+        None => panic!("build source root identity must be nonzero"),
+    };
+const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+    match BuildMachineFilesystemGrantRootIdentity::new(2) {
+        Some(identity) => identity,
+        None => panic!("build output root identity must be nonzero"),
+    };
 
 /// Host filesystem authority granted to an admitted `build.omg` machine.
 ///
@@ -72,8 +83,14 @@ impl BuildMachineFilesystemScope {
 
     fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         let grants = BuildMachineFilesystemGrants {
-            read_roots: vec![self.source_root.clone()],
-            write_roots: vec![self.build_dir.clone()],
+            read_roots: vec![BuildMachineFilesystemGrantRoot::new(
+                BUILD_SOURCE_ROOT_IDENTITY,
+                self.source_root.clone(),
+            )],
+            write_roots: vec![BuildMachineFilesystemGrantRoot::new(
+                BUILD_OUTPUT_ROOT_IDENTITY,
+                self.build_dir.clone(),
+            )],
         };
         match &self.sponsor {
             Some(sponsor) => BuildMachineFilesystemAccess::RealScopedSponsored {
@@ -175,7 +192,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 3;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 4;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -214,6 +231,8 @@ pub enum BuildFilesystemGrantAccess {
 pub enum BuildFilesystemGrantRefusalReason {
     Unresolvable,
     OutsideGrantedRoots,
+    UnrepresentableRootedPath,
+    ObservationEvidenceLimitExceeded,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +256,42 @@ impl BuildFilesystemGrantRefusal {
     }
 }
 
+/// Stable compiler-owned identity for a package build filesystem root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemRoot {
+    Source,
+    Output,
+}
+
+/// One path operand or descriptor-derived path that passed the scoped grant
+/// gate. The path is canonical and relative to `root`; it contains no host
+/// absolute prefix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemAuthorizedPath {
+    operand_ordinal: u8,
+    access: BuildFilesystemGrantAccess,
+    root: BuildFilesystemRoot,
+    relative_path: Vec<u8>,
+}
+
+impl BuildFilesystemAuthorizedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(&self) -> BuildFilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn root(&self) -> BuildFilesystemRoot {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+}
+
 /// One completed call from a successful build evaluation. This partial row is
 /// execution evidence, not a replay event or receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -245,6 +300,7 @@ pub struct BuildFilesystemOperationAttempt {
     provider: BuildFilesystemProvider,
     result: i64,
     post_error: i32,
+    authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
     grant_refusals: Vec<BuildFilesystemGrantRefusal>,
 }
 
@@ -263,6 +319,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub const fn post_error(&self) -> i32 {
         self.post_error
+    }
+
+    pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
+        &self.authorized_paths
     }
 
     pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
@@ -297,8 +357,9 @@ impl BuildObservationSummary {
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
-    /// run. This is intentionally not a replay transcript: rooted arguments,
-    /// mutable output regions, logical handles, and content custody are absent.
+    /// run. Direct scoped path authorizations are compiler-rooted, but this is
+    /// intentionally not a replay transcript: complete arguments, mutable
+    /// output regions, logical-handle lineage, and content custody are absent.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1262,9 +1323,39 @@ pub(crate) fn compute_build_config(
         .observations()
         .filesystem_operation_attempts()
         .iter()
-        .map(|attempt| BuildFilesystemOperationAttempt {
-            operation_tag: attempt.operation_tag(),
-            provider: match attempt.provider() {
+        .map(|attempt| {
+            let authorized_paths = attempt
+                .authorized_paths()
+                .iter()
+                .map(|path| {
+                    let root = if path.root() == BUILD_SOURCE_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Source
+                    } else if path.root() == BUILD_OUTPUT_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Output
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "build-time evaluation of `{machine_name}` returned unknown filesystem grant-root identity `{}`",
+                            path.root().get()
+                        )));
+                    };
+                    Ok(BuildFilesystemAuthorizedPath {
+                        operand_ordinal: path.operand_ordinal(),
+                        access: match path.access() {
+                            psi_checked_interpreter::FilesystemGrantAccess::Read => {
+                                BuildFilesystemGrantAccess::Read
+                            }
+                            psi_checked_interpreter::FilesystemGrantAccess::Write => {
+                                BuildFilesystemGrantAccess::Write
+                            }
+                        },
+                        root,
+                        relative_path: path.relative_path().to_vec(),
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            Ok(BuildFilesystemOperationAttempt {
+                operation_tag: attempt.operation_tag(),
+                provider: match attempt.provider() {
                 psi_checked_interpreter::FilesystemObservationProvider::Virtual => {
                     BuildFilesystemProvider::Virtual
                 }
@@ -1275,37 +1366,46 @@ pub(crate) fn compute_build_config(
                     BuildFilesystemProvider::RealScoped
                 }
             },
-            result: attempt
-                .result()
-                .expect("successful build evaluation cannot retain a halted filesystem call"),
-            post_error: attempt
-                .post_error()
-                .expect("successful build evaluation cannot retain a halted filesystem call"),
-            grant_refusals: attempt
-                .grant_refusals()
-                .iter()
-                .map(|refusal| BuildFilesystemGrantRefusal {
-                    operand_ordinal: refusal.operand_ordinal(),
-                    access: match refusal.access() {
-                        psi_checked_interpreter::FilesystemGrantAccess::Read => {
-                            BuildFilesystemGrantAccess::Read
-                        }
-                        psi_checked_interpreter::FilesystemGrantAccess::Write => {
-                            BuildFilesystemGrantAccess::Write
-                        }
-                    },
-                    reason: match refusal.reason() {
-                        psi_checked_interpreter::FilesystemGrantRefusalReason::Unresolvable => {
-                            BuildFilesystemGrantRefusalReason::Unresolvable
-                        }
-                        psi_checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots => {
-                            BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
-                        }
-                    },
-                })
-                .collect(),
+                result: attempt
+                    .result()
+                    .expect("successful build evaluation cannot retain a halted filesystem call"),
+                post_error: attempt
+                    .post_error()
+                    .expect("successful build evaluation cannot retain a halted filesystem call"),
+                authorized_paths,
+                grant_refusals: attempt
+                    .grant_refusals()
+                    .iter()
+                    .map(|refusal| BuildFilesystemGrantRefusal {
+                        operand_ordinal: refusal.operand_ordinal(),
+                        access: match refusal.access() {
+                            psi_checked_interpreter::FilesystemGrantAccess::Read => {
+                                BuildFilesystemGrantAccess::Read
+                            }
+                            psi_checked_interpreter::FilesystemGrantAccess::Write => {
+                                BuildFilesystemGrantAccess::Write
+                            }
+                        },
+                        reason: match refusal.reason() {
+                            psi_checked_interpreter::FilesystemGrantRefusalReason::Unresolvable => {
+                                BuildFilesystemGrantRefusalReason::Unresolvable
+                            }
+                            psi_checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots => {
+                                BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+                            }
+                            psi_checked_interpreter::FilesystemGrantRefusalReason::UnrepresentableRootedPath => {
+                                BuildFilesystemGrantRefusalReason::UnrepresentableRootedPath
+                            }
+                            psi_checked_interpreter::FilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => {
+                                BuildFilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded
+                            }
+                        },
+                    })
+                    .collect(),
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Diagnostic>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(

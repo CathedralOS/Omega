@@ -24,9 +24,16 @@ impl<'program> Evaluator<'program> {
                 provider,
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
-        let outcome = self
+        let mut outcome = self
             .prepare_filesystem_call(operation, arguments, frame)
             .and_then(|call| self.serve_filesystem_call(call));
+        if let Some(message) = self.filesystem_observation_resource_halt.take() {
+            // Observation custody is compiler policy, not Omega program
+            // semantics. The provider has already refused host access, and the
+            // resource halt prevents build code from observing or branching on
+            // the evidence ceiling.
+            outcome = Err(Halt::Resource(message));
+        }
         let completed_index = self
             .filesystem_operation_attempt_stack
             .pop()

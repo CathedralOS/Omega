@@ -19,12 +19,19 @@
 use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
-    FilesystemEvaluationHaltKind, FilesystemOperationAttemptOutcome, FilesystemSponsor,
-    FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
-    evaluate_build_machine_with_filesystem, evaluate_build_machine_with_filesystem_measured,
-    interpret_entry, interpret_entry_with_options,
+    FilesystemEvaluationHaltKind, FilesystemGrantRoot, FilesystemGrantRootIdentity,
+    FilesystemOperationAttemptOutcome, FilesystemSponsor, FilesystemSponsorLimits, FsGrants,
+    InterpretOptions, InterpretOutcome, evaluate_build_machine_with_filesystem,
+    evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
 };
 use std::path::Path;
+
+fn grant_root(identity: u32, path: impl Into<std::path::PathBuf>) -> FilesystemGrantRoot {
+    FilesystemGrantRoot::new(
+        FilesystemGrantRootIdentity::new(identity).expect("test grant identity is nonzero"),
+        path,
+    )
+}
 
 fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     interpret_entry(checked, "Main::main", stdin)
@@ -271,8 +278,8 @@ fn scoped_grants_enforce_read_and_write_roots() {
         &[],
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
-                read_roots: vec![base.join("src")],
-                write_roots: vec![base.join("out")],
+                read_roots: vec![grant_root(1, base.join("src"))],
+                write_roots: vec![grant_root(2, base.join("out"))],
             }),
         },
     );
@@ -483,8 +490,8 @@ fn scoped_namespace_mutations_authorize_the_leaf_not_its_symlink_target() {
         &[],
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
-                read_roots: vec![outside.clone()],
-                write_roots: vec![inside.clone()],
+                read_roots: vec![grant_root(1, outside.clone())],
+                write_roots: vec![grant_root(2, inside.clone())],
             }),
         },
     );
@@ -649,7 +656,7 @@ fn scoped_wrapper_read_dir_count_enumerates_a_real_directory() {
         &[],
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
-                read_roots: vec![assets.clone()],
+                read_roots: vec![grant_root(1, assets.clone())],
                 write_roots: vec![],
             }),
         },
@@ -805,7 +812,7 @@ machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
     let options = || InterpretOptions {
         filesystem: FilesystemAccess::RealScoped(FsGrants {
             read_roots: vec![],
-            write_roots: vec![out.clone()],
+            write_roots: vec![grant_root(2, out.clone())],
         }),
     };
 
@@ -982,8 +989,8 @@ machine ResourceProbe::run(&mut self, build: &mut Build) {{
     let options = || InterpretOptions {
         filesystem: FilesystemAccess::RealScopedSponsored {
             grants: FsGrants {
-                read_roots: vec![source.clone()],
-                write_roots: vec![out.clone()],
+                read_roots: vec![grant_root(1, source.clone())],
+                write_roots: vec![grant_root(2, out.clone())],
             },
             sponsor: sponsor.clone(),
         },
@@ -1067,7 +1074,7 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
                 read_roots: vec![],
-                write_roots: vec![out.clone()],
+                write_roots: vec![grant_root(2, out.clone())],
             }),
         },
     )
@@ -1492,7 +1499,7 @@ fn real_provider_serves_the_full_virtual_op_set() {
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
                 read_roots: vec![],
-                write_roots: vec![base.clone()],
+                write_roots: vec![grant_root(2, base.clone())],
             }),
         },
     );
@@ -1613,7 +1620,7 @@ machine Main::main(&mut self) {{
         InterpretOptions {
             filesystem: FilesystemAccess::RealScoped(FsGrants {
                 read_roots: vec![],
-                write_roots: vec![base.clone()],
+                write_roots: vec![grant_root(2, base.clone())],
             }),
         },
     );

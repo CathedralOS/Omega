@@ -465,6 +465,10 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
             assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
             assert!(
+                observations.filesystem_operation_attempts().is_empty(),
+                "hermetic fixture review cannot fabricate rooted filesystem accesses"
+            );
+            assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",
                 node.source().key().name().as_str()

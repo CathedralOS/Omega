@@ -30,7 +30,8 @@ use super::{
     EvalResult, FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
     PreparedByteOutput, PreparedFilesystemCall, Value, host_open_flags, synthetic_handle_fd,
 };
-use std::collections::BTreeMap;
+use crate::{FilesystemAuthorizedPath, FilesystemGrantRootIdentity};
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -108,39 +109,96 @@ const EBADF: i32 = 9;
 const EACCES: i32 = 13;
 const ENOENT: i32 = 2;
 const ENOTDIR: i32 = 20;
+const MAX_FILESYSTEM_OBSERVATION_PATH_BYTES: usize = 16 * 1024 * 1024;
 
 /// Canonicalized [`crate::FsGrants`]: the roots a scoped run may read/write
 /// under, resolved once at construction so prefix checks compare real paths.
+#[derive(Debug)]
 struct Grants {
-    read_roots: Vec<PathBuf>,
-    write_roots: Vec<PathBuf>,
+    read_roots: Vec<GrantRoot>,
+    write_roots: Vec<GrantRoot>,
 }
 
-/// Canonicalize a root at grant-construction time. A root that does not
-/// resolve (e.g. a build dir created later in the run) keeps its spelled
-/// path -- ops under it then authorize via their own canonicalized parents,
-/// which fail ENOENT until the root exists, exactly like the real OS.
-fn canonical_root(root: &Path) -> PathBuf {
-    root.canonicalize().unwrap_or_else(|_| root.to_path_buf())
+#[derive(Debug)]
+struct GrantRoot {
+    identity: FilesystemGrantRootIdentity,
+    path: PathBuf,
+}
+
+/// Canonicalize a grant root before execution. Scoped evidence needs one exact
+/// physical root for both authorization and rooted-path identity, so an absent
+/// or unresolvable root is an invalid compiler grant rather than a path-level
+/// errno observed by package code.
+fn canonical_root(root: &Path) -> Result<PathBuf, String> {
+    root.canonicalize().map_err(|error| {
+        format!(
+            "filesystem grant root `{}` cannot be resolved: {error}",
+            root.display()
+        )
+    })
 }
 
 impl Grants {
-    fn allows(&self, resolved: &Path, write: bool) -> bool {
-        let in_write = self
-            .write_roots
+    fn matching_root(&self, resolved: &Path, write: bool) -> Option<&GrantRoot> {
+        // A write root grants read-back. Prefer the most specific root so a
+        // build/output root nested under a source root keeps its output
+        // identity. Grant validation rejects equal physical roots, so no
+        // caller-order or numeric tie-break can select evidence identity.
+        self.write_roots
             .iter()
-            .any(|root| resolved.starts_with(root));
-        if write {
-            return in_write;
-        }
-        // A write root implicitly grants read-back (stage-then-verify is the
-        // normal build shape); read_roots are the read-ONLY trees.
-        in_write
-            || self
-                .read_roots
-                .iter()
-                .any(|root| resolved.starts_with(root))
+            .chain(if write {
+                [].iter()
+            } else {
+                self.read_roots.as_slice().iter()
+            })
+            .filter(|root| resolved.starts_with(&root.path))
+            .max_by(|left, right| {
+                left.path
+                    .components()
+                    .count()
+                    .cmp(&right.path.components().count())
+            })
     }
+}
+
+fn canonical_grants(grants: crate::FsGrants) -> Result<Grants, String> {
+    let mut identities = BTreeSet::new();
+    let mut physical_roots = BTreeMap::<PathBuf, FilesystemGrantRootIdentity>::new();
+    let mut canonicalize = |root: crate::FilesystemGrantRoot| -> Result<GrantRoot, String> {
+        if !identities.insert(root.identity()) {
+            return Err(format!(
+                "filesystem grant-root identity `{}` is duplicated",
+                root.identity().get()
+            ));
+        }
+        let path = canonical_root(root.path())?;
+        if let Some(previous) = physical_roots.insert(path.clone(), root.identity()) {
+            return Err(format!(
+                "filesystem grant root `{}` has conflicting identities `{}` and `{}`",
+                path.display(),
+                previous.get(),
+                root.identity().get()
+            ));
+        }
+        Ok(GrantRoot {
+            identity: root.identity(),
+            path,
+        })
+    };
+    let read_roots = grants
+        .read_roots
+        .into_iter()
+        .map(&mut canonicalize)
+        .collect::<Result<Vec<_>, _>>()?;
+    let write_roots = grants
+        .write_roots
+        .into_iter()
+        .map(canonicalize)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Grants {
+        read_roots,
+        write_roots,
+    })
 }
 
 /// One real open descriptor: the file handle plus the RESOLVED path it was
@@ -171,25 +229,15 @@ impl RealFs {
     pub(super) fn new(
         grants: Option<crate::FsGrants>,
         sponsor: Option<crate::FilesystemSponsor>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, String> {
+        let grants = grants.map(canonical_grants).transpose()?;
+        Ok(Self {
             files: BTreeMap::new(),
             next_fd: 3,
             errno: 0,
-            grants: grants.map(|grants| Grants {
-                read_roots: grants
-                    .read_roots
-                    .iter()
-                    .map(|r| canonical_root(r))
-                    .collect(),
-                write_roots: grants
-                    .write_roots
-                    .iter()
-                    .map(|r| canonical_root(r))
-                    .collect(),
-            }),
+            grants,
             sponsor,
-        }
+        })
     }
 
     pub(super) fn is_scoped(&self) -> bool {
@@ -242,8 +290,16 @@ impl Drop for RealFs {
     }
 }
 
-fn real_path(bytes: &[u8]) -> PathBuf {
-    PathBuf::from(String::from_utf8_lossy(bytes).into_owned())
+fn real_path(bytes: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(PathBuf::from(std::ffi::OsStr::from_bytes(bytes)))
+    }
+    #[cfg(not(unix))]
+    {
+        std::str::from_utf8(bytes).ok().map(PathBuf::from)
+    }
 }
 
 /// List a real directory as `(name, d_type)` entries for dirent packing:
@@ -341,6 +397,25 @@ fn resolve_for_check(path: &Path) -> Option<PathBuf> {
         parent.canonicalize().ok()?
     };
     Some(parent.join(name))
+}
+
+/// Encode a canonical path beneath a canonical grant root without retaining
+/// host separators or an absolute compiler path. Scoped execution rejects an
+/// unrepresentable component before host access instead of applying a lossy
+/// conversion to observation evidence.
+fn canonical_relative_path(path: &Path) -> Option<Vec<u8>> {
+    let mut encoded = Vec::new();
+    for component in path.components() {
+        let std::path::Component::Normal(component) = component else {
+            return None;
+        };
+        let component = component.to_str()?.as_bytes();
+        if !encoded.is_empty() {
+            encoded.push(b'/');
+        }
+        encoded.extend_from_slice(component);
+    }
+    Some(encoded)
 }
 
 impl<'program> super::Evaluator<'program> {
@@ -983,7 +1058,10 @@ impl<'program> super::Evaluator<'program> {
                         let prepared = self.prepare_sponsored_symlink(&link, &target)?;
                         #[cfg(unix)]
                         {
-                            let outcome = std::os::unix::fs::symlink(real_path(&target), link);
+                            let outcome = std::os::unix::fs::symlink(
+                                real_path(&target).expect("unix path bytes are lossless"),
+                                link,
+                            );
                             self.finish_real_mutation(outcome, prepared, false)?
                         }
                         #[cfg(not(unix))]
@@ -1231,14 +1309,24 @@ impl<'program> super::Evaluator<'program> {
                 // OPENED path (the same trick read_dir rides -- std has no fd
                 // relative ops); flags & AT_REMOVEDIR(0x80) removes a dir.
                 let joined = match self.real_fs_mut().files.get(&dirfd) {
-                    Some(entry) => entry.path.join(real_path(&name)),
+                    Some(entry) => match real_path(&name) {
+                        Some(name) => entry.path.join(name),
+                        None => {
+                            self.real_fs_mut().errno = EACCES;
+                            self.record_grant_refusal(
+                                1,
+                                true,
+                                FilesystemGrantRefusalReason::UnrepresentableRootedPath,
+                            );
+                            return Ok(Value::Int(-1));
+                        }
+                    },
                     None => {
                         self.real_fs_mut().errno = EBADF;
                         return Ok(Value::Int(-1));
                     }
                 };
-                let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
-                match self.authorized_namespace_leaf(&joined_bytes, true, 1) {
+                match self.authorized_native_path(&joined, true, false, 1) {
                     Some(path) => {
                         let prepared = self.prepare_sponsored_unlink(&path)?;
                         if flags & 0x80 != 0 {
@@ -1255,21 +1343,31 @@ impl<'program> super::Evaluator<'program> {
             PreparedFilesystemCall::OpenAt { dirfd, name, flags } => {
                 // `openat(dirfd, name, flags)`: join against the dirfd's opened
                 // path, then the ordinary open (same flag decode + grants).
-                let joined = match self.real_fs_mut().files.get(&dirfd) {
-                    Some(entry) => entry.path.join(real_path(&name)),
-                    None => {
-                        self.real_fs_mut().errno = EBADF;
-                        return Ok(Value::Int(-1));
-                    }
-                };
-                let joined_bytes = joined.to_string_lossy().into_owned().into_bytes();
                 let access = flags & 0x3;
                 let wants_write = access == 1
                     || access == 2
                     || host_open_flags::o_creat(flags)
                     || host_open_flags::o_trunc(flags)
                     || host_open_flags::o_append(flags);
-                match self.authorized_path(&joined_bytes, wants_write, 1) {
+                let joined = match self.real_fs_mut().files.get(&dirfd) {
+                    Some(entry) => match real_path(&name) {
+                        Some(name) => entry.path.join(name),
+                        None => {
+                            self.real_fs_mut().errno = EACCES;
+                            self.record_grant_refusal(
+                                1,
+                                wants_write,
+                                FilesystemGrantRefusalReason::UnrepresentableRootedPath,
+                            );
+                            return Ok(Value::Int(-1));
+                        }
+                    },
+                    None => {
+                        self.real_fs_mut().errno = EBADF;
+                        return Ok(Value::Int(-1));
+                    }
+                };
+                match self.authorized_native_path(&joined, wants_write, true, 1) {
                     Some(path) => {
                         let prepared = self.prepare_sponsored_open(
                             &path,
@@ -1734,18 +1832,36 @@ impl<'program> super::Evaluator<'program> {
         follow: bool,
         operand_ordinal: u8,
     ) -> Option<PathBuf> {
-        let path = real_path(path_bytes);
+        let Some(path) = real_path(path_bytes) else {
+            self.real_fs_mut().errno = EACCES;
+            self.record_grant_refusal(
+                operand_ordinal,
+                write,
+                FilesystemGrantRefusalReason::UnrepresentableRootedPath,
+            );
+            return None;
+        };
+        self.authorized_native_path(&path, write, follow, operand_ordinal)
+    }
+
+    fn authorized_native_path(
+        &mut self,
+        path: &Path,
+        write: bool,
+        follow: bool,
+        operand_ordinal: u8,
+    ) -> Option<PathBuf> {
         let Some(grants) = self
             .real_fs
             .as_ref()
             .and_then(|filesystem| filesystem.grants.as_ref())
         else {
-            return Some(path); // unscoped: full process authority
+            return Some(path.to_path_buf()); // unscoped: full process authority
         };
         let resolved = if follow {
-            resolve_for_check(&path)
+            resolve_for_check(path)
         } else {
-            resolve_parent_for_check(&path)
+            resolve_parent_for_check(path)
         };
         let Some(resolved) = resolved else {
             self.real_fs_mut().errno = ENOENT;
@@ -1756,7 +1872,25 @@ impl<'program> super::Evaluator<'program> {
             );
             return None;
         };
-        if grants.allows(&resolved, write) {
+        if let Some(root) = grants.matching_root(&resolved, write) {
+            let relative_path = resolved
+                .strip_prefix(&root.path)
+                .ok()
+                .and_then(canonical_relative_path);
+            let Some(relative_path) = relative_path else {
+                self.real_fs_mut().errno = EACCES;
+                self.record_grant_refusal(
+                    operand_ordinal,
+                    write,
+                    FilesystemGrantRefusalReason::UnrepresentableRootedPath,
+                );
+                return None;
+            };
+            let root = root.identity;
+            if !self.record_authorized_path(operand_ordinal, write, root, relative_path) {
+                self.real_fs_mut().errno = EACCES;
+                return None;
+            }
             // Operate on the RESOLVED path: the authorized location and the
             // operated-on location must be the same real file.
             Some(resolved)
@@ -1769,6 +1903,47 @@ impl<'program> super::Evaluator<'program> {
             );
             None
         }
+    }
+
+    fn record_authorized_path(
+        &mut self,
+        operand_ordinal: u8,
+        write: bool,
+        root: FilesystemGrantRootIdentity,
+        relative_path: Vec<u8>,
+    ) -> bool {
+        let Some(next_total) = self
+            .filesystem_observation_path_bytes
+            .checked_add(relative_path.len())
+            .filter(|total| *total <= MAX_FILESYSTEM_OBSERVATION_PATH_BYTES)
+        else {
+            self.record_grant_refusal(
+                operand_ordinal,
+                write,
+                FilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded,
+            );
+            self.filesystem_observation_resource_halt = Some(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_PATH_BYTES}-byte rooted-path ceiling"
+            ));
+            return false;
+        };
+        let Some(attempt_index) = self.filesystem_operation_attempt_stack.last().copied() else {
+            return false;
+        };
+        self.filesystem_observation_path_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .authorized_paths
+            .push(FilesystemAuthorizedPath {
+                operand_ordinal,
+                access: if write {
+                    FilesystemGrantAccess::Write
+                } else {
+                    FilesystemGrantAccess::Read
+                },
+                root,
+                relative_path,
+            });
+        true
     }
 
     fn record_grant_refusal(
@@ -2012,6 +2187,76 @@ mod sponsor_provider_tests {
         }
     }
 
+    fn test_grant_root(identity: u32, path: PathBuf) -> crate::FilesystemGrantRoot {
+        crate::FilesystemGrantRoot::new(
+            crate::FilesystemGrantRootIdentity::new(identity)
+                .expect("test grant identity is nonzero"),
+            path,
+        )
+    }
+
+    #[test]
+    fn grant_root_identities_and_physical_roots_are_unambiguous() {
+        let directory = TestDirectory::new("grant-identities");
+        let source = directory.0.join("source");
+        let output = directory.0.join("output");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::create_dir(&output).unwrap();
+
+        let duplicate_identity = canonical_grants(crate::FsGrants {
+            read_roots: vec![test_grant_root(1, source.clone())],
+            write_roots: vec![test_grant_root(1, output.clone())],
+        })
+        .expect_err("one evidence identity cannot name two roots");
+        assert!(duplicate_identity.contains("identity `1` is duplicated"));
+
+        let duplicate_physical = canonical_grants(crate::FsGrants {
+            read_roots: vec![test_grant_root(1, source.clone())],
+            write_roots: vec![test_grant_root(2, source)],
+        })
+        .expect_err("one physical root cannot carry two evidence identities");
+        assert!(duplicate_physical.contains("conflicting identities `1` and `2`"));
+    }
+
+    #[test]
+    fn nested_output_root_is_selected_independently_of_grant_order() {
+        let directory = TestDirectory::new("nested-grant");
+        let source = directory.0.join("source");
+        let output = source.join("build");
+        std::fs::create_dir_all(&output).unwrap();
+        let artifact = output.join("artifact.bin");
+
+        let grants = canonical_grants(crate::FsGrants {
+            read_roots: vec![test_grant_root(1, source)],
+            write_roots: vec![test_grant_root(2, output)],
+        })
+        .unwrap();
+        let resolved_artifact = resolve_for_check(&artifact).unwrap();
+        let selected = grants
+            .matching_root(&resolved_artifact, false)
+            .expect("nested output is readable through the write root");
+        assert_eq!(selected.identity.get(), 2);
+        assert_eq!(
+            canonical_relative_path(resolved_artifact.strip_prefix(&selected.path).unwrap())
+                .unwrap(),
+            b"artifact.bin"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_path_bytes_are_not_lossily_rewritten() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let bytes = b"raw-\xff-name";
+        let path = real_path(bytes).expect("unix paths preserve arbitrary bytes");
+        assert_eq!(path.as_os_str().as_bytes(), bytes);
+        assert!(
+            canonical_relative_path(&path).is_none(),
+            "rooted evidence must reject a path it cannot encode losslessly"
+        );
+    }
+
     #[test]
     fn source_reads_and_the_session_root_bypass_sponsorship() {
         let root = Path::new("/staging/session");
@@ -2071,7 +2316,7 @@ mod sponsor_provider_tests {
             .write(true)
             .open(&path)
             .unwrap();
-        let mut filesystem = RealFs::new(None, Some(sponsor.clone()));
+        let mut filesystem = RealFs::new(None, Some(sponsor.clone())).unwrap();
         filesystem.insert(file, path, Some(descriptor), false);
         assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 1);
 
@@ -2109,7 +2354,7 @@ mod sponsor_provider_tests {
             .write(true)
             .open(&path)
             .unwrap();
-        let mut filesystem = RealFs::new(None, Some(sponsor.clone()));
+        let mut filesystem = RealFs::new(None, Some(sponsor.clone())).unwrap();
         filesystem.insert(file, path, Some(descriptor), false);
 
         assert!(matches!(
