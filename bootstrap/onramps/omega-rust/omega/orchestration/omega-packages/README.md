@@ -401,7 +401,7 @@ that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. Exact source-body presence survives
-resolved and typed copies. Review v33 uses inferred transitive reach only for
+resolved and typed copies. Review v34 uses inferred transitive reach only for
 actual checked bodies and records bodyless supply explicitly instead of copying
 its published ceiling into a false realization. Its concrete row retains the
 preselection body base rather than reconstructing it from the current callable;
