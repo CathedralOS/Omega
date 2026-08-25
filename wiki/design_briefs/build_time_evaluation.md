@@ -394,8 +394,8 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v7 carries operation-attempt schema v8, retaining in call-start order
-each completed operation's exact provider, stable tag, scalar return,
+schema v8 carries operation-attempt schema v9, retaining in call-start order
+each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
 ordinal, read/write access, closed Source/Output root, and canonical
@@ -416,6 +416,10 @@ and deny content, extent, metadata, ownership, or host-lock mutation before
 sponsor or host access when opened under source-read authority alone.
 `open_at`/`unlink_at` accept only one nonempty portable relative component, and
 real-provider path outputs use lossless native bytes or reject.
+Successful descriptor/find/native-handle results retain only their logical
+identity in observation evidence; provider token integers do not survive.
+Non-handle results and failed handle-result sentinels remain exact scalar
+values, with both lanes type-tagged by package commitment framing.
 Fully prepared calls whose evidence reservation succeeds retain ordinal-ordered
 non-handle scalars with explicit I32/U32/I64/U64 identity, complete authored
 immutable write/FILETIME payloads, and exact validated at-family components.

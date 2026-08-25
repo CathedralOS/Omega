@@ -21,9 +21,10 @@ use psi_checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
     FilesystemEvaluationHaltKind, FilesystemGrantRoot, FilesystemGrantRootIdentity,
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
-    FilesystemOperationAttemptOutcome, FilesystemSponsor, FilesystemSponsorLimits, FsGrants,
-    InterpretOptions, InterpretOutcome, evaluate_build_machine_with_filesystem,
-    evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
+    FilesystemOperationAttemptOutcome, FilesystemOperationResult, FilesystemSponsor,
+    FilesystemSponsorLimits, FsGrants, InterpretOptions, InterpretOutcome,
+    evaluate_build_machine_with_filesystem, evaluate_build_machine_with_filesystem_measured,
+    interpret_entry, interpret_entry_with_options,
 };
 use std::path::Path;
 
@@ -1029,7 +1030,10 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
     assert_eq!(opened.operation_tag(), 2);
     assert!(matches!(
         opened.outcome(),
-        Some(FilesystemOperationAttemptOutcome::Returned { result, .. }) if result >= 0
+        Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(_),
+            ..
+        })
     ));
     assert_eq!(rejected.operation_tag(), 32);
     assert_eq!(

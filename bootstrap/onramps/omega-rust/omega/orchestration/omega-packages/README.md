@@ -257,8 +257,8 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v7 carries operation-attempt schema v8, retaining exact
-providers, operation tags, scalar returns, post-error state, and every direct
+Observation schema v8 carries operation-attempt schema v9, retaining exact
+providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
 UTF-8 bytes, never physical compiler/cache roots; operand ordinal and access
@@ -278,11 +278,14 @@ their source cursor. Real descriptors retain rooted write authority through
 duplicate and borrowed views; content, extent, metadata, ownership, and
 host-lock mutation deny before sponsor or host access when the descriptor came
 from source-read authority alone. `open_at`/`unlink_at` accept one portable
-relative component; real-provider path outputs are lossless or reject. Fully
-prepared calls whose evidence reservation succeeds retain ordinal-ordered
-non-handle I32/U32/I64/U64
-scalars, exact authored immutable write/FILETIME payloads, and validated at-
-family component bytes. Mutable byte carriers retain their complete pre/post
+relative component; real-provider path outputs are lossless or reject.
+Successful handle-valued operations retain only their logical result identity;
+provider token integers never enter compiler/package evidence. Non-handle
+results and failed handle-result sentinels remain exact scalars, and package
+commitments type-tag both lanes. Fully prepared calls whose evidence
+reservation succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars,
+exact authored immutable write/FILETIME payloads, and validated at-family
+component bytes. Mutable byte carriers retain their complete pre/post
 capacity, including unchanged tails, while mutable i64 carriers retain exact
 pre/post values. Pre-state follows evaluation of every authored argument;
 post-state follows provider return or halt, and input-only mutable ABI carriers
