@@ -54,9 +54,10 @@ product ABI, or a trust grant. CKIR remains the sole input to the native backend
   and
 - canonical `OMGRSW1` publication only after the complete result fits.
 
-It does not lower bodies, read or emit CKIR/ELF, accept a package receipt, or
-compare SHA-256. Structural `OMGCOMP` validity and the external receipt/digest
-join remain separate conjuncts.
+It does not lower bodies, read or emit CKIR/ELF, accept recheckable package
+evidence, or compare SHA-256. Structural `OMGCOMP` validity and the external
+accepted-closure/digest join remain separate conjuncts. Compiler-issued package
+review rows are not an authority substitute for that join.
 
 The versioned resolved-source lowerers own:
 

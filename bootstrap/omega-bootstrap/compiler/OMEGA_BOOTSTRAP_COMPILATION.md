@@ -11,11 +11,13 @@ This envelope is a private bootstrap transport. It is not Omega syntax, a
 package format, a lock-file replacement, or a stable product ABI. Its package
 keys are opaque commitments supplied by orchestration; merely encoding one, or
 structurally validating the envelope, grants no authority. Compilation
-acceptance is conditional on a separately accepted resolver/lock receipt that
-commits to the exact canonical envelope. The bridge and lower-rooted checker
-must compare the SHA-256 digest of all envelope bytes with that independently
-supplied expected digest. A digest carried only inside this untrusted envelope
-would add nothing.
+acceptance is conditional on recheckable package evidence and accepted lock
+state that independently establish the exact source closure and commit to the
+canonical envelope. A resolver- or compiler-issued verdict is review metadata,
+not that evidence. The bridge and lower-rooted checker must compare the SHA-256
+digest of all envelope bytes with the expected digest reconstructed from the
+accepted closure. A digest carried only inside this untrusted envelope would add
+nothing.
 
 Version 1 deliberately carries no boundary/provider bindings and is accepted
 only for a selected program whose closed call graph requires none. Structural
