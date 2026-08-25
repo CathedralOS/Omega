@@ -209,7 +209,7 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
-| lower-rooted `OMGRFN2` reconstruction | frame/source custody, independent source→witness, witness→CKIR tables, and CKIR→ELF adaptation closed; resolved bodies→CKIR/result and the final conjunction remain active | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
+| lower-rooted `OMGRFN2` reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through five responsibility-specific persisted-Beta gates and their lattice conjunction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
 | compilation authority | open: accepted resolver commitment plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -223,16 +223,6 @@ compiler implementation remain product work in `TASKS.md`.
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
-- [ ] Complete the independently authored resolved-bodies→CKIR/result layer of
-  lower-rooted `OMGRFN2`, then join it to the already closed frame/OMGCOMP
-  custody, source→witness, witness→CKIR-table, and CKIR→ELF layers plus the
-  producer-side two-package composition. Compare exact CKIR, ELF, and result
-  through native, self-built, Rust-free meaning, and lower-rooted evidence. The selected
-  [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
-  boundary and its lower-rooted
-  [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
-  keep transport checking, source resolution, CKIR comparison, and artifact
-  refinement as distinct responsibilities joined by exact bytes.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
@@ -326,6 +316,18 @@ generated conservatively. This closes the required lattice. A later
 work.
 
 ## Gate and performance discipline
+
+- [ ] Shard and cache the historical mutation work in
+  `bootstrap/assurance/refinement/beta/bc-block-control.sh`. Preserve the full
+  negative inventory and `LATTICE_FULL=1` coverage, but give each independent
+  responsibility its own content-keyed artifact/result and timing heartbeat so
+  an unrelated bootstrap change does not reassemble and rerun the entire
+  historical matrix. Acceptance: a cold run reports every shard and its timing;
+  a warm incremental lattice run skips unchanged shards; changing one shard
+  reruns that shard and its real dependents only. The 2026-08-24 broad replay
+  measured 103 seconds in `independent-historical-teeth` alone and then spent
+  more than four additional minutes in the unreported
+  `checker-a-historical-mutations` phase before the unrelated run was stopped.
 
 - Keep one focused gate per active capability; run the full lattice gate only
   at coherent milestones.

@@ -170,7 +170,8 @@ proc src_low_emit(opcode, result_kind, result_type, operand_count) {
 proc src_low_materialize(result_type) {
     state value { to done when (src_low_g(27) != 4294967295)  to place }
     state place { to literal when (src_low_g(28) == 4294967295)  src_low_gset(50,src_low_g(28))  src_low_gset(51,0)  src_low_gset(52,0)  return src_low_emit(5,1,src_type(src_low_g(20),9),1) }
-    state literal { src_low_gset(50,0)  src_low_gset(51,0)  src_low_gset(52,src_low_g(21))  return src_low_emit(1,1,result_type,0) }
+    state literal { to bad when (result_type >= word[10000144])  to bad when (src_ck_type(result_type,0) > 3)  to bad when (src_low_g(21) < src_ck_type(result_type,4))  to bad when (src_low_g(22) > src_ck_type(result_type,5))  src_low_gset(50,0)  src_low_gset(51,0)  src_low_gset(52,src_low_g(21))  return src_low_emit(1,1,result_type,0) }
+    state bad { return src_reject() }
     state done { return 0 }
 }
 
@@ -302,7 +303,7 @@ proc src_low_expression() {
     state both_literal { target=4294967295  to emit }
     state left_typed { to bad when (left_type >= word[10000048])  to bad when (src_type(left_type,0) > 2)  to right_check }
     state right_check { to emit when (right_type == 4294967294)  to typed_right }
-    state typed_right { to bad when (right_type >= word[10000048])  to bad when (src_type(right_type,0) > 2)  to emit }
+    state typed_right { to bad when (right_type >= word[10000048])  to bad when (src_type(right_type,0) > 2)  to bad when (src_low_types_same(left_type,right_type) == 0)  to emit }
     state right_numeric { to bad when (right_type >= word[10000048])  to bad when (src_type(right_type,0) > 2)  to emit }
     state emit { src_low_gset(41,0)  to fact when (src_low_g(25) > 0)  to lower }
     state fact { to lower when (src_low_stack(8,2) == 0)  src_low_gset(41,1)  src_low_gset(42,src_low_g(25))  src_low_gset(43,src_low_g(26))  src_low_gset(44,src_low_stack(8,2)-1)  to lower }
@@ -438,6 +439,16 @@ proc src_low_all_bodies() {
     state done { return word[10000000] }
 }
 
+proc src_low_block_owner(block) {
+    let machine=0
+    let start=0
+    let end=0
+    state machines { to one when (machine < word[10000032])  return 4294967295 }
+    state one { start=src_machine(machine,15)  end=start+src_machine(machine,13)+1  to next when (block < start)  to found when (block < end)  to next }
+    state next { machine=machine+1  to machines }
+    state found { return machine }
+}
+
 proc src_lower_compare_final() {
     let i=0
     let j=0
@@ -450,18 +461,20 @@ proc src_lower_compare_final() {
     state place_count { to bad when (src_low_g(3) != word[525016+11*8])  to operations }
     state operations { to op_one when (i < src_low_g(0))  i=0  to blocks }
     state op_one {
+        to bad when (ckir_row_word(7,i,40,0) != i)
         to bad when (ckir_row_word(7,i,40,4) != src_lower_op(i,0))  to bad when (ckir_row_word(7,i,40,8) != src_lower_op(i,1))
         to bad when (ckir_row_byte(7,i,40,12) != src_lower_op(i,2))  to bad when (ckir_row_byte(7,i,40,13) != src_lower_op(i,3))
+        to bad when (ckir_row_byte(7,i,40,14) != 0)  to bad when (ckir_row_byte(7,i,40,15) != 0)
         to bad when (ckir_row_word(7,i,40,16) != src_lower_op(i,4))  to bad when (ckir_row_word(7,i,40,20) != src_lower_op(i,5))
         to bad when (ckir_row_word(7,i,40,24) != src_lower_op(i,6))  to bad when (ckir_row_word(7,i,40,28) != src_lower_op(i,7))
-        to bad when (ckir_row_word(7,i,40,32) != src_lower_op(i,8))  j=0  to op_operands
+        to bad when (ckir_row_word(7,i,40,32) != src_lower_op(i,8))  to bad when (ckir_row_word(7,i,40,36) != 0)  j=0  to op_operands
     }
     state op_operands { to op_operand when (j < src_lower_op(i,7))  i=i+1  to operations }
     state op_operand { to bad when (ckir_operand(src_lower_op(i,6)+j) != src_lower_operand(src_lower_op(i,6)+j))  j=j+1  to op_operands }
     state blocks { to block_one when (i < word[10000160])  i=0  to terms }
     state block_one { to bad when (ckir_row_word(5,i,32,20) != src_low_block(i,0))  to bad when (ckir_row_word(5,i,32,24) != src_low_block(i,1))  to bad when (ckir_row_word(5,i,32,28) != i)  i=i+1  to blocks }
     state terms { to term_one when (i < word[10000160])  to operand_count }
-    state term_one { to bad when (ckir_row_byte(9,i,44,12) != src_lower_term(i,0))  to bad when (ckir_row_word(9,i,44,16) != src_lower_term(i,1))  to bad when (ckir_row_word(9,i,44,20) != src_lower_term(i,2))  to bad when (ckir_row_word(9,i,44,24) != cursor)  count=src_lower_term(i,3)  to bad when (ckir_row_word(9,i,44,28) != count)  j=0  to args0 }
+    state term_one { to bad when (ckir_row_word(9,i,44,0) != i)  to bad when (ckir_row_word(9,i,44,4) != src_low_block_owner(i))  to bad when (ckir_row_word(9,i,44,8) != i)  to bad when (ckir_row_byte(9,i,44,12) != src_lower_term(i,0))  to bad when (ckir_row_byte(9,i,44,13) != 0)  to bad when (ckir_row_byte(9,i,44,14) != 0)  to bad when (ckir_row_byte(9,i,44,15) != 0)  to bad when (ckir_row_word(9,i,44,16) != src_lower_term(i,1))  to bad when (ckir_row_word(9,i,44,20) != src_lower_term(i,2))  to bad when (ckir_row_word(9,i,44,24) != cursor)  count=src_lower_term(i,3)  to bad when (ckir_row_word(9,i,44,28) != count)  j=0  to args0 }
     state args0 { to arg0 when (j < count)  cursor=cursor+count  to target1 }
     state arg0 { to bad when (ckir_operand(cursor+j) != src_lower_term(i,6+j))  j=j+1  to args0 }
     state target1 { to bad when (ckir_row_word(9,i,44,32) != src_lower_term(i,4))  to bad when (ckir_row_word(9,i,44,36) != cursor)  count=src_lower_term(i,5)  to bad when (ckir_row_word(9,i,44,40) != count)  j=0  to args1 }

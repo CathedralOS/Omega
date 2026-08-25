@@ -1,0 +1,736 @@
+; OMGRFN2 layer-4 source/witness model shared by the resolved-body lowering
+; checker and the source-only result checker.
+;
+; This fragment is concatenated after omgrfn2-component-envelope.beta.  It
+; treats OMGRSW1 as an untrusted identity carrier: every row, source extent,
+; body span, name span, and ID used by body reconstruction is checked locally.
+; It does not redo name resolution and it never derives source facts from
+; CKIR.  Names are represented by source-qualified synthetic spans so a body
+; in one unit can select a field authored in another unit.
+
+proc l4_wbyte(index) { return omgrfn2_component_witness_byte(index) }
+proc l4_wu32(at) { return l4_wbyte(at)+l4_wbyte(at+1)*256+l4_wbyte(at+2)*65536+l4_wbyte(at+3)*16777216 }
+proc l4_cu32(at) { return omgrfn2_component_omgcomp_byte(at)+omgrfn2_component_omgcomp_byte(at+1)*256+omgrfn2_component_omgcomp_byte(at+2)*65536+omgrfn2_component_omgcomp_byte(at+3)*16777216 }
+proc l4_count(table) { return word[530000+table*8] }
+proc l4_base(table) { return word[530096+table*8] }
+proc l4_row(table,id,stride,offset) { return l4_wu32(l4_base(table)+id*stride+offset) }
+proc l4_row_byte(table,id,stride,offset) { return l4_wbyte(l4_base(table)+id*stride+offset) }
+proc l4_source_start(source) { return word[531000+source*16] }
+proc l4_source_length(source) { return word[531008+source*16] }
+proc l4_source_byte(source,index) { return omgrfn2_component_omgcomp_byte(l4_source_start(source)+index) }
+
+proc l4_reject() {
+    state set { to done when (word[530800] != 0)  word[530800]=251  word[10000000]=251 }
+    state done { return word[530800] }
+}
+proc l4_exhaust() { word[530800]=252  word[10000000]=252  return 252 }
+
+proc l4_source_span_ok(source,start,count) {
+    state source { to no when (source >= l4_count(0))  to start }
+    state start { to no when (start > l4_source_length(source))  to count }
+    state count { to no when (count > l4_source_length(source)-start)  return 1 }
+    state no { return 0 }
+}
+
+; Decode only the OMGCOMP relations required to bind source IDs to exact
+; nested-bundle content extents.  Complete transport custody is the separate
+; layer-1 conjunct; this local decoder makes all layer-4 source reads safe.
+proc l4_decode_sources() {
+    let n=omgrfn2_component_u32(16)
+    let packages=0
+    let sources=0
+    let aliases=0
+    let strings=0
+    let bundle_length=0
+    let bundle=0
+    let source_table=0
+    let cursor=0
+    let i=0
+    let label=0
+    let content=0
+    let bundle_id=0
+    state size { to bad when (n < 80)  to magic0 }
+    state magic0 { to bad when (omgrfn2_component_omgcomp_byte(0) != 'O')  to magic1 }
+    state magic1 { to bad when (omgrfn2_component_omgcomp_byte(1) != 'M')  to magic2 }
+    state magic2 { to bad when (omgrfn2_component_omgcomp_byte(2) != 'G')  to magic3 }
+    state magic3 { to bad when (omgrfn2_component_omgcomp_byte(3) != 'C')  to magic4 }
+    state magic4 { to bad when (omgrfn2_component_omgcomp_byte(4) != 'O')  to magic5 }
+    state magic5 { to bad when (omgrfn2_component_omgcomp_byte(5) != 'M')  to magic6 }
+    state magic6 { to bad when (omgrfn2_component_omgcomp_byte(6) != 'P')  to magic7 }
+    state magic7 { to bad when (omgrfn2_component_omgcomp_byte(7) != 0)  to header }
+    state header {
+        to bad when (omgrfn2_component_omgcomp_byte(8) != 1)
+        to bad when (omgrfn2_component_omgcomp_byte(9) != 0)
+        to bad when (omgrfn2_component_omgcomp_byte(10) != 0)
+        to bad when (omgrfn2_component_omgcomp_byte(11) != 0)
+        to bad when (omgrfn2_component_omgcomp_byte(12) != 1)
+        to bad when (omgrfn2_component_omgcomp_byte(13) != 0)
+        to bad when (omgrfn2_component_omgcomp_byte(14) != 0)
+        to bad when (omgrfn2_component_omgcomp_byte(15) != 0)
+        to bad when (l4_cu32(16) != n)
+        bundle_length=l4_cu32(20)
+        strings=l4_cu32(24)
+        packages=l4_cu32(32)
+        sources=l4_cu32(36)
+        aliases=l4_cu32(40)
+        to exhausted when (bundle_length > 263312)
+        to exhausted when (strings > 2304)
+        to exhausted when (packages > 16)
+        to exhausted when (sources > 16)
+        to exhausted when (aliases > 32)
+        to bad when (packages < 1)
+        to bad when (sources < 1)
+        to bad when (bundle_length > n-64)
+        bundle=n-bundle_length
+        source_table=64+packages*48
+        to bad when (source_table > bundle)
+        to bad when (sources*20 > bundle-source_table)
+        to bad when (aliases*16 > bundle-source_table-sources*20)
+        cursor=source_table+sources*20+aliases*16+strings
+        to bad when (cursor != bundle)
+        to bundle_magic0
+    }
+    state bundle_magic0 { to bad when (omgrfn2_component_omgcomp_byte(bundle) != 'O')  to bundle_magic1 }
+    state bundle_magic1 { to bad when (omgrfn2_component_omgcomp_byte(bundle+1) != 'M')  to bundle_magic2 }
+    state bundle_magic2 { to bad when (omgrfn2_component_omgcomp_byte(bundle+2) != 'G')  to bundle_magic3 }
+    state bundle_magic3 { to bad when (omgrfn2_component_omgcomp_byte(bundle+3) != '0')  to bundle_magic4 }
+    state bundle_magic4 { to bad when (omgrfn2_component_omgcomp_byte(bundle+4) != 'B')  to bundle_magic5 }
+    state bundle_magic5 { to bad when (omgrfn2_component_omgcomp_byte(bundle+5) != 'N')  to bundle_magic6 }
+    state bundle_magic6 { to bad when (omgrfn2_component_omgcomp_byte(bundle+6) != 'D')  to bundle_magic7 }
+    state bundle_magic7 { to bad when (omgrfn2_component_omgcomp_byte(bundle+7) != 'L')  to bundle_header }
+    state bundle_header { to bad when (l4_cu32(bundle+8) != 1)  to bad when (l4_cu32(bundle+12) != sources)  cursor=bundle+16  i=0  to entries }
+    state entries { to entry when (i < sources)  i=0  to source_rows }
+    state entry {
+        to bad when (cursor > n-8)
+        label=l4_cu32(cursor)
+        content=l4_cu32(cursor+4)
+        to bad when (label < 1)
+        to exhausted when (label > 64)
+        to exhausted when (content > 131072)
+        to bad when (label > n-cursor-8)
+        to bad when (content > n-cursor-8-label)
+        word[532000+i*16]=cursor+8+label
+        word[532008+i*16]=content
+        cursor=cursor+8+label+content
+        i=i+1
+        to entries
+    }
+    state source_rows { to source_row when (i < sources)  to exact }
+    state source_row {
+        to bad when (l4_cu32(source_table+i*20) != i)
+        to bad when (l4_cu32(source_table+i*20+4) >= packages)
+        bundle_id=l4_cu32(source_table+i*20+8)
+        to bad when (bundle_id >= sources)
+        to bad when (word[533000+bundle_id*8] != 0)
+        word[533000+bundle_id*8]=1
+        word[533256+i*8]=l4_cu32(source_table+i*20+4)
+        word[531000+i*16]=word[532000+bundle_id*16]
+        word[531008+i*16]=word[532008+bundle_id*16]
+        i=i+1
+        to source_rows
+    }
+    state exact { to bad when (cursor != n)  word[530880]=sources  return 0 }
+    state exhausted { return l4_exhaust() }
+    state bad { return l4_reject() }
+}
+
+proc l4_decode_witness() {
+    let n=omgrfn2_component_u32(20)
+    let i=0
+    let cursor=72
+    let count=0
+    let stride=0
+    let ceiling=0
+    state size { to bad when (n < 72)  to magic0 }
+    state magic0 { to bad when (l4_wbyte(0) != 'O')  to magic1 }
+    state magic1 { to bad when (l4_wbyte(1) != 'M')  to magic2 }
+    state magic2 { to bad when (l4_wbyte(2) != 'G')  to magic3 }
+    state magic3 { to bad when (l4_wbyte(3) != 'R')  to magic4 }
+    state magic4 { to bad when (l4_wbyte(4) != 'S')  to magic5 }
+    state magic5 { to bad when (l4_wbyte(5) != 'W')  to magic6 }
+    state magic6 { to bad when (l4_wbyte(6) != '1')  to magic7 }
+    state magic7 { to bad when (l4_wbyte(7) != 0)  to schema }
+    state schema {
+        to bad when (l4_wbyte(8) != 1)
+        to bad when (l4_wbyte(9) != 0)
+        to bad when (l4_wbyte(10) != 0)
+        to bad when (l4_wbyte(11) != 0)
+        to bad when (l4_wbyte(12) != 0)
+        to bad when (l4_wbyte(13) != 0)
+        to bad when (l4_wbyte(14) != 72)
+        to bad when (l4_wbyte(15) != 0)
+        to bad when (l4_wu32(16) != n)
+        to counts
+    }
+    state counts { to one when (i < 11)  to exact }
+    state one {
+        count=l4_wu32(20+i*4)
+        word[530000+i*8]=count
+        word[530096+i*8]=cursor
+        to unit when (i == 0)
+        to import when (i == 1)
+        to binding when (i == 2)
+        to declaration when (i == 3)
+        to type when (i == 4)
+        to record when (i == 5)
+        to field when (i == 6)
+        to machine when (i == 7)
+        to mparam when (i == 8)
+        to block when (i == 9)
+        to bparam
+    }
+    state unit { ceiling=16  stride=36  to bounded }
+    state import { ceiling=64  stride=48  to bounded }
+    state binding { ceiling=4096  stride=28  to bounded }
+    state declaration { ceiling=256  stride=28  to bounded }
+    state type { ceiling=2048  stride=24  to bounded }
+    state record { ceiling=128  stride=24  to bounded }
+    state field { ceiling=4096  stride=24  to bounded }
+    state machine { ceiling=128  stride=40  to bounded }
+    state mparam { ceiling=2048  stride=24  to bounded }
+    state block { ceiling=2048  stride=40  to bounded }
+    state bparam { ceiling=4096  stride=24  to bounded }
+    state bounded { to exhausted when (count > ceiling)  to bad when (count*stride > n-cursor)  cursor=cursor+count*stride  i=i+1  to counts }
+    state exact {
+        to bad when (cursor != n)
+        to bad when (l4_count(0) != word[530880])
+        to bad when (l4_count(3) != l4_count(5)+l4_count(7))
+        to bad when (l4_count(9) < l4_count(7))
+        return 0
+    }
+    state exhausted { return l4_exhaust() }
+    state bad { return l4_reject() }
+}
+
+proc src_record(id,field) { return word[10100000+id*72+field*8] }
+proc src_record_set(id,field,value) { word[10100000+id*72+field*8]=value  return value }
+proc src_field(id,field) { return word[10200000+id*40+field*8] }
+proc src_field_set(id,field,value) { word[10200000+id*40+field*8]=value  return value }
+proc src_machine(id,field) { return word[10600000+id*136+field*8] }
+proc src_machine_set(id,field,value) { word[10600000+id*136+field*8]=value  return value }
+proc src_state(id,field) { return word[10700000+id*80+field*8] }
+proc src_state_set(id,field,value) { word[10700000+id*80+field*8]=value  return value }
+proc src_param(id,field) { return word[10900000+id*32+field*8] }
+proc src_param_set(id,field,value) { word[10900000+id*32+field*8]=value  return value }
+proc src_type(id,field) { return word[11100000+id*104+field*8] }
+proc src_type_set(id,field,value) { word[11100000+id*104+field*8]=value  return value }
+proc src_ck_type(id,field) { return word[14600000+id*48+field*8] }
+proc src_ck_type_set(id,field,value) { word[14600000+id*48+field*8]=value  return value }
+
+proc src_reject() { return l4_reject() }
+proc src_exhaust() { return l4_exhaust() }
+
+proc l4_named_span(source,start) { return 1000000+source*131072+start }
+proc l4_named_byte(index) {
+    let source=0
+    let relative=0
+    state qualified { to current when (index < 1000000)  relative=index-1000000  source=relative/131072  relative=relative%131072  return l4_source_byte(source,relative) }
+    state current { source=src_machine(word[18800000+4*8],16)  return l4_source_byte(source,index) }
+}
+proc refinement_source_byte(index) { return l4_named_byte(index) }
+
+proc src_spans_equal(left,right,count) {
+    let i=0
+    state loop { to one when (i < count)  return 1 }
+    state one { to no when (l4_named_byte(left+i) != l4_named_byte(right+i))  i=i+1  to loop }
+    state no { return 0 }
+}
+
+proc l4_model_declarations() {
+    let i=0
+    let row=0
+    let kind=0
+    let source=0
+    let start=0
+    let count=0
+    let target=0
+    state units { to unit when (i < l4_count(0))  i=0  to declarations }
+    state unit {
+        row=l4_base(0)+i*36
+        to bad when (l4_wu32(row) != i)
+        to bad when (l4_wu32(row+4) != word[533256+i*8])
+        to bad when (l4_wu32(row+20) > l4_count(1))
+        to bad when (l4_wu32(row+24) > l4_count(1)-l4_wu32(row+20))
+        to bad when (l4_wu32(row+28) > l4_count(3))
+        to bad when (l4_wu32(row+32) > l4_count(3)-l4_wu32(row+28))
+        i=i+1
+        to units
+    }
+    state declarations { to declaration when (i < l4_count(3))  return 0 }
+    state declaration {
+        row=l4_base(3)+i*28
+        kind=l4_wbyte(row+4)
+        source=l4_wu32(row+8)
+        start=l4_wu32(row+16)
+        count=l4_wu32(row+20)
+        target=l4_wu32(row+24)
+        to bad when (l4_wu32(row) != i)
+        to bad when (kind < 1)
+        to bad when (kind > 2)
+        to bad when (l4_wbyte(row+5) > 1)
+        to bad when (l4_wbyte(row+6) != 0)
+        to bad when (l4_wbyte(row+7) != 0)
+        to bad when (source >= l4_count(0))
+        to bad when (count < 1)
+        to bad when (l4_source_span_ok(source,start,count) == 0)
+        to record when (kind == 1)
+        to machine
+    }
+    state record { to bad when (target >= l4_count(5))  to bad when (word[534000+target*8] != 0)  word[534000+target*8]=1  word[534512+target*8]=source  i=i+1  to declarations }
+    state machine { to bad when (target >= l4_count(7))  to bad when (word[535000+target*8] != 0)  word[535000+target*8]=1  word[535512+target*8]=source  i=i+1  to declarations }
+    state bad { return l4_reject() }
+}
+
+proc l4_model_types_records_fields() {
+    let i=0
+    let row=0
+    let kind=0
+    let flags=0
+    let p0=0
+    let p1=0
+    let low=0
+    let high=0
+    let declaration=0
+    let nominal=0
+    let start=0
+    let count=0
+    let owner=0
+    let source=0
+    let cursor=0
+    state types { to type_one when (i < l4_count(4))  i=0  to records }
+    state type_one {
+        row=l4_base(4)+i*24
+        kind=l4_wbyte(row+4)
+        flags=l4_wbyte(row+5)
+        p0=l4_wu32(row+8)
+        p1=l4_wu32(row+12)
+        low=l4_wu32(row+16)
+        high=l4_wu32(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (l4_wbyte(row+6) != 0)
+        to bad when (l4_wbyte(row+7) != 0)
+        to bad when (kind < 1)
+        to bad when (kind > 5)
+        to bad when (flags > 1)
+        to scalar8 when (kind == 1)
+        to scalar32 when (kind == 2)
+        to boolean when (kind == 3)
+        to nominal_type when (kind == 4)
+        to array_type
+    }
+    state scalar8 { to bad when (p0 != 0)  to bad when (p1 != 0)  to bad when (low > high)  to bad when (high > 255)  to save_type }
+    state scalar32 { to bad when (p0 != 0)  to bad when (p1 != 0)  to bad when (low > high)  to bad when (high > 2147483647)  to save_type }
+    state boolean { to bad when (flags != 0)  to bad when (p0 != 0)  to bad when (p1 != 0)  to bad when (low != 0)  to bad when (high != 1)  to save_type }
+    state nominal_type { to bad when (flags != 0)  to bad when (p0 >= l4_count(5))  to bad when (p1 != 0)  to bad when (low != 0)  to bad when (high != 0)  to save_type }
+    state array_type { to bad when (p0 >= l4_count(4))  to bad when (p1 > 65536)  to bad when (low != 0)  to bad when (high != 0)  to save_type }
+    state save_type {
+        src_ck_type_set(i,0,kind)  src_ck_type_set(i,1,flags)
+        src_ck_type_set(i,2,p0)  src_ck_type_set(i,3,p1)
+        src_ck_type_set(i,4,low)  src_ck_type_set(i,5,high)
+        src_type_set(i,0,kind)  src_type_set(i,3,p0)
+        src_type_set(i,4,p0)  src_type_set(i,5,p1)
+        src_type_set(i,6,flags)  src_type_set(i,7,low)
+        src_type_set(i,8,high)  src_type_set(i,9,i)
+        src_type_set(i,10,0)  src_type_set(i,11,0)  src_type_set(i,12,0)
+        i=i+1
+        to types
+    }
+    state records { to record_one when (i < l4_count(5))  i=0  to fields }
+    state record_one {
+        row=l4_base(5)+i*24
+        declaration=l4_wu32(row+4)
+        nominal=l4_wu32(row+8)
+        start=l4_wu32(row+12)
+        count=l4_wu32(row+16)
+        flags=l4_wbyte(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (declaration >= l4_count(3))
+        to bad when (l4_row_byte(3,declaration,28,4) != 1)
+        to bad when (l4_row(3,declaration,28,24) != i)
+        to bad when (nominal >= l4_count(4))
+        to bad when (src_type(nominal,0) != 4)
+        to bad when (src_type(nominal,3) != i)
+        to bad when (start != cursor)
+        to bad when (count > l4_count(6)-cursor)
+        to bad when (count > 64)
+        to bad when (flags > 1)
+        to bad when (l4_wbyte(row+21) != 0)
+        to bad when (l4_wbyte(row+22) != 0)
+        to bad when (l4_wbyte(row+23) != 0)
+        src_record_set(i,2,flags)  src_record_set(i,3,start)
+        src_record_set(i,4,count)  src_record_set(i,7,0)
+        src_record_set(i,8,nominal)
+        cursor=cursor+count
+        i=i+1
+        to records
+    }
+    state fields { to field_one when (i < l4_count(6))  to field_exact }
+    state field_one {
+        row=l4_base(6)+i*24
+        owner=l4_wu32(row+4)
+        start=l4_wu32(row+16)
+        count=l4_wu32(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (owner >= l4_count(5))
+        to bad when (i < src_record(owner,3))
+        to bad when (i >= src_record(owner,3)+src_record(owner,4))
+        to bad when (l4_wu32(row+8) != i-src_record(owner,3))
+        to bad when (l4_wu32(row+12) >= l4_count(4))
+        source=word[534512+owner*8]
+        to bad when (count < 1)
+        to bad when (l4_source_span_ok(source,start,count) == 0)
+        src_field_set(i,0,owner)
+        src_field_set(i,1,l4_named_span(source,start))
+        src_field_set(i,2,count)
+        src_field_set(i,3,l4_wu32(row+12))
+        i=i+1
+        to fields
+    }
+    state field_exact { to bad when (cursor != l4_count(6))  return 0 }
+    state bad { return l4_reject() }
+}
+
+proc l4_model_machines_blocks() {
+    let i=0
+    let row=0
+    let declaration=0
+    let owner=0
+    let access=0
+    let result=0
+    let start=0
+    let count=0
+    let blocks=0
+    let block_count=0
+    let source=0
+    let ordinal=0
+    let state_id=0
+    let cursor=0
+    let block_cursor=0
+    state machines { to machine_one when (i < l4_count(7))  i=0  to mparams }
+    state machine_one {
+        row=l4_base(7)+i*40
+        declaration=l4_wu32(row+4)
+        owner=l4_wu32(row+8)
+        access=l4_wbyte(row+12)
+        result=l4_wu32(row+16)
+        start=l4_wu32(row+20)
+        count=l4_wu32(row+24)
+        blocks=l4_wu32(row+28)
+        block_count=l4_wu32(row+32)
+        to bad when (l4_wu32(row) != i)
+        to bad when (declaration >= l4_count(3))
+        to bad when (l4_row_byte(3,declaration,28,4) != 2)
+        to bad when (l4_row(3,declaration,28,24) != i)
+        to bad when (owner >= l4_count(5))
+        to bad when (access < 1)
+        to bad when (access > 2)
+        to bad when (l4_wbyte(row+13) != 0)
+        to bad when (l4_wbyte(row+14) != 0)
+        to bad when (l4_wbyte(row+15) != 0)
+        to result_ok when (result == 4294967295)
+        to bad when (result >= l4_count(4))
+        to bad when (src_type(result,0) > 3)
+        to result_ok
+    }
+    state result_ok {
+        to bad when (start != cursor)
+        to bad when (count > l4_count(8)-cursor)
+        to bad when (count > 7)
+        to bad when (block_count < 1)
+        to bad when (block_count > 128)
+        to bad when (blocks != block_cursor)
+        to bad when (blocks > l4_count(9))
+        to bad when (block_count > l4_count(9)-blocks)
+        to bad when (l4_wu32(row+36) != blocks)
+        src_machine_set(i,2,owner)
+        src_machine_set(i,5,start)  src_machine_set(i,6,count)
+        src_machine_set(i,7,result)  src_machine_set(i,8,access-1)
+        src_machine_set(i,9,src_record(owner,8))
+        src_machine_set(i,12,blocks-i)
+        src_machine_set(i,13,block_count-1)
+        src_machine_set(i,15,blocks)
+        src_machine_set(i,16,word[535512+i*8])
+        cursor=cursor+count
+        block_cursor=block_cursor+block_count
+        i=i+1
+        to machines
+    }
+    state mparams { to mparam_one when (i < l4_count(8))  to mparam_exact }
+    state mparam_one {
+        row=l4_base(8)+i*24
+        owner=l4_wu32(row+4)
+        ordinal=l4_wu32(row+8)
+        start=l4_wu32(row+16)
+        count=l4_wu32(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (owner >= l4_count(7))
+        to bad when (i < src_machine(owner,5))
+        to bad when (i >= src_machine(owner,5)+src_machine(owner,6))
+        to bad when (ordinal != i-src_machine(owner,5))
+        to bad when (l4_wu32(row+12) >= l4_count(4))
+        source=src_machine(owner,16)
+        to bad when (count < 1)
+        to bad when (l4_source_span_ok(source,start,count) == 0)
+        src_param_set(i,1,l4_named_span(source,start))
+        src_param_set(i,2,count)
+        src_param_set(i,3,l4_wu32(row+12))
+        i=i+1
+        to mparams
+    }
+    state mparam_exact { to bad when (cursor != l4_count(8))  to bad when (block_cursor != l4_count(9))  i=0  cursor=0  to blocks_loop }
+    state blocks_loop { to block_one when (i < l4_count(9))  i=0  to bparams }
+    state block_one {
+        row=l4_base(9)+i*40
+        owner=l4_wu32(row+4)
+        ordinal=l4_wu32(row+8)
+        access=l4_wbyte(row+12)
+        start=l4_wu32(row+16)
+        count=l4_wu32(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (owner >= l4_count(7))
+        source=src_machine(owner,16)
+        to bad when (i < src_machine(owner,15))
+        to bad when (i >= src_machine(owner,15)+src_machine(owner,13)+1)
+        to bad when (ordinal != i-src_machine(owner,15))
+        to bad when (access < 1)
+        to bad when (access > 2)
+        to bad when (l4_wbyte(row+13) != 0)
+        to bad when (l4_wbyte(row+14) != 0)
+        to bad when (l4_wbyte(row+15) != 0)
+        to bad when (count < start)
+        to bad when (l4_source_span_ok(source,start,count-start) == 0)
+        to bad when (l4_wu32(row+32) != cursor)
+        to bad when (l4_wu32(row+36) > l4_count(10)-cursor)
+        to entry_block when (ordinal == 0)
+        to named_block
+    }
+    state entry_block {
+        to bad when (access != src_machine(owner,8)+1)
+        to bad when (l4_wu32(row+24) != 4294967295)
+        to bad when (l4_wu32(row+28) != 0)
+        to bad when (l4_wu32(row+36) != 0)
+        src_machine_set(owner,10,start)
+        src_machine_set(owner,14,count)
+        to block_next
+    }
+    state named_block {
+        to bad when (l4_wu32(row+28) < 1)
+        to bad when (l4_source_span_ok(source,l4_wu32(row+24),l4_wu32(row+28)) == 0)
+        state_id=i-owner-1
+        src_state_set(state_id,1,l4_named_span(source,l4_wu32(row+24)))
+        src_state_set(state_id,2,l4_wu32(row+28))
+        src_state_set(state_id,3,l4_count(8)+cursor)
+        src_state_set(state_id,4,l4_wu32(row+36))
+        src_state_set(state_id,5,access-1)
+        src_state_set(state_id,6,start)
+        src_state_set(state_id,7,count)
+        src_state_set(state_id,8,i)
+        src_state_set(state_id,9,source)
+        to block_next
+    }
+    state block_next { cursor=cursor+l4_wu32(row+36)  i=i+1  to blocks_loop }
+    state bparams { to bparam_one when (i < l4_count(10))  to bparam_exact }
+    state bparam_one {
+        row=l4_base(10)+i*24
+        owner=l4_wu32(row+4)
+        ordinal=l4_wu32(row+8)
+        start=l4_wu32(row+16)
+        count=l4_wu32(row+20)
+        to bad when (l4_wu32(row) != i)
+        to bad when (owner >= l4_count(9))
+        to bad when (i < l4_row(9,owner,40,32))
+        to bad when (i >= l4_row(9,owner,40,32)+l4_row(9,owner,40,36))
+        to bad when (ordinal != i-l4_row(9,owner,40,32))
+        to bad when (l4_wu32(row+12) >= l4_count(4))
+        source=src_machine(l4_row(9,owner,40,4),16)
+        to bad when (count < 1)
+        to bad when (l4_source_span_ok(source,start,count) == 0)
+        src_param_set(l4_count(8)+i,1,l4_named_span(source,start))
+        src_param_set(l4_count(8)+i,2,count)
+        src_param_set(l4_count(8)+i,3,l4_wu32(row+12))
+        i=i+1
+        to bparams
+    }
+    state bparam_exact { to bad when (cursor != l4_count(10))  return 0 }
+    state bad { return l4_reject() }
+}
+
+proc src_type_copyable(type_id) {
+    let kind=src_type(type_id,0)
+    let record=0
+    let i=0
+    let end=0
+    state kind { to yes when (kind < 4)  to nominal when (kind == 4)  return src_type_copyable(src_type(type_id,4)) }
+    state nominal { record=src_type(type_id,3)  to no when (src_record(record,2) == 0)  i=src_record(record,3)  end=i+src_record(record,4)  to fields }
+    state fields { to field when (i < end)  to yes }
+    state field { to no when (src_type_copyable(src_field(i,3)) == 0)  i=i+1  to fields }
+    state yes { return 1 }
+    state no { return 0 }
+}
+proc src_align(value,alignment) { return ((value+alignment-1)/alignment)*alignment }
+proc src_layout_record(record) {
+    let field=0
+    let end=0
+    let size=0
+    let alignment=1
+    let child_size=0
+    let child_align=0
+    state cached { to done when (src_record(record,7) == 2)  to recursive when (src_record(record,7) == 1)  src_record_set(record,7,1)  field=src_record(record,3)  end=field+src_record(record,4)  to fields }
+    state fields { to one when (field < end)  size=src_align(size,alignment)  to exhausted when (size > 131072)  src_record_set(record,5,size)  src_record_set(record,6,alignment)  src_record_set(record,7,2)  return 0 }
+    state one { to bad when (src_layout_type(src_field(field,3)) != 0)  child_size=src_type(src_field(field,3),11)  child_align=src_type(src_field(field,3),12)  size=src_align(size,child_align)  src_field_set(field,4,size)  to exhausted when (child_size > 131072-size)  size=size+child_size  to keep when (alignment >= child_align)  alignment=child_align  to next }
+    state keep { to next }
+    state next { field=field+1  to fields }
+    state done { return 0 }
+    state recursive { return src_reject() }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+proc src_layout_type(type_id) {
+    let kind=src_type(type_id,0)
+    let size=0
+    let alignment=1
+    let child=0
+    state cached { to done when (src_type(type_id,10) == 2)  to recursive when (src_type(type_id,10) == 1)  src_type_set(type_id,10,1)  to byte_scalar when (kind == 1)  to word_scalar when (kind == 2)  to byte_scalar when (kind == 3)  to nominal when (kind == 4)  to array }
+    state byte_scalar { size=1  to save }
+    state word_scalar { size=4  alignment=4  to save }
+    state nominal { to bad when (src_layout_record(src_type(type_id,3)) != 0)  size=src_record(src_type(type_id,3),5)  alignment=src_record(src_type(type_id,3),6)  to save }
+    state array { child=src_type(type_id,4)  to bad when (src_layout_type(child) != 0)  to array_nonzero when (src_type(type_id,5) > 0)  size=0  alignment=src_type(child,12)  to save }
+    state array_nonzero { to exhausted when (src_type(child,11) > 131072/src_type(type_id,5))  size=src_type(child,11)*src_type(type_id,5)  alignment=src_type(child,12)  to save }
+    state save { src_type_set(type_id,11,size)  src_type_set(type_id,12,alignment)  src_type_set(type_id,10,2)  return 0 }
+    state done { return 0 }
+    state recursive { return src_reject() }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+proc src_layout_all() {
+    let i=0
+    state records { to record_one when (i < l4_count(5))  i=0  to types }
+    state record_one { to done when (src_layout_record(i) != 0)  i=i+1  to records }
+    state types { to type_one when (i < l4_count(4))  return 0 }
+    state type_one { to done when (src_layout_type(i) != 0)  i=i+1  to types }
+    state done { return word[530800] }
+}
+proc l4_model_prepare() {
+    let status=0
+    let root=0
+    state init { word[530800]=0  word[10000000]=0  to sources }
+    state sources { status=l4_decode_sources()  to done when (status != 0)  to witness }
+    state witness { status=l4_decode_witness()  to done when (status != 0)  to declarations }
+    state declarations { status=l4_model_declarations()  to done when (status != 0)  to tables }
+    state tables { status=l4_model_types_records_fields()  to done when (status != 0)  to machines }
+    state machines { status=l4_model_machines_blocks()  to done when (status != 0)  to counts }
+    state counts {
+        word[10000016]=l4_count(5)  word[10000024]=l4_count(6)
+        word[10000032]=l4_count(7)  word[10000040]=l4_count(8)+l4_count(10)
+        word[10000048]=l4_count(4)  word[10000056]=l4_count(9)-l4_count(7)
+        word[10000064]=l4_count(8)  word[10000144]=l4_count(4)
+        word[10000160]=l4_count(9)  word[10000168]=l4_count(10)
+        root=l4_wu32(64)
+        to library when (word[524304] == 0)
+        to bad when (root >= l4_count(7))
+        word[10000232]=root
+        to layout
+    }
+    state library { to bad when (root != 4294967295)  word[10000232]=root  to layout }
+    state layout { status=src_layout_all()  to done }
+    state bad { status=l4_reject() }
+    state done { return status }
+}
+
+proc src_init_words() {
+    ; datacopymachinemutselfstatetransitiontruefalseu8u32boolinTrapping
+    byte[10001000]=100  byte[10001001]=97  byte[10001002]=116  byte[10001003]=97
+    byte[10001004]=99  byte[10001005]=111  byte[10001006]=112  byte[10001007]=121
+    byte[10001008]=109  byte[10001009]=97  byte[10001010]=99  byte[10001011]=104
+    byte[10001012]=105  byte[10001013]=110  byte[10001014]=101
+    byte[10001015]=109  byte[10001016]=117  byte[10001017]=116
+    byte[10001018]=115  byte[10001019]=101  byte[10001020]=108  byte[10001021]=102
+    byte[10001022]=115  byte[10001023]=116  byte[10001024]=97  byte[10001025]=116  byte[10001026]=101
+    byte[10001027]=116  byte[10001028]=114  byte[10001029]=97  byte[10001030]=110  byte[10001031]=115
+    byte[10001032]=105  byte[10001033]=116  byte[10001034]=105  byte[10001035]=111  byte[10001036]=110
+    byte[10001037]=116  byte[10001038]=114  byte[10001039]=117  byte[10001040]=101
+    byte[10001041]=102  byte[10001042]=97  byte[10001043]=108  byte[10001044]=115  byte[10001045]=101
+    byte[10001046]=117  byte[10001047]=56
+    byte[10001048]=117  byte[10001049]=51  byte[10001050]=50
+    byte[10001051]=98  byte[10001052]=111  byte[10001053]=111  byte[10001054]=108
+    byte[10001055]=105  byte[10001056]=110
+    byte[10001057]=84  byte[10001058]=114  byte[10001059]=97  byte[10001060]=112
+    byte[10001061]=112  byte[10001062]=105  byte[10001063]=110  byte[10001064]=103
+    return 0
+}
+proc src_token_word(base,count) {
+    let i=0
+    state token { to no when (word[524416] != 256)  to length }
+    state length { to no when (word[524432] != count)  to loop }
+    state loop { to one when (i < count)  return 1 }
+    state one { to no when (refinement_source_byte(word[524424]+i) != byte[10001000+base+i])  i=i+1  to loop }
+    state no { return 0 }
+}
+proc refinement_source_ident_start(c) {
+    state underscore { to yes when (c == '_')  to upper0 }
+    state upper0 { to upper1 when (c >= 'A')  to lower0 }
+    state upper1 { to yes when (c <= 'Z')  to lower0 }
+    state lower0 { to lower1 when (c >= 'a')  return 0 }
+    state lower1 { to yes when (c <= 'z')  return 0 }
+    state yes { return 1 }
+}
+proc refinement_source_ident_continue(c) {
+    state ident { to yes when (refinement_source_ident_start(c) == 1)  to digit0 }
+    state digit0 { to digit1 when (c >= '0')  return 0 }
+    state digit1 { to yes when (c <= '9')  return 0 }
+    state yes { return 1 }
+}
+proc refinement_source_skip_block_comment() {
+    let depth=1
+    let p=word[524408]
+    let source=src_machine(word[18800000+4*8],16)
+    let n=l4_source_length(source)
+    state loop { to byte when (p < n)  return 251 }
+    state byte { to slash when (refinement_source_byte(p) == '/')  to star when (refinement_source_byte(p) == '*')  p=p+1  to loop }
+    state slash { to advance when (p+1 >= n)  to open when (refinement_source_byte(p+1) == '*')  to advance }
+    state open { depth=depth+1  p=p+2  to loop }
+    state star { to advance when (p+1 >= n)  to close when (refinement_source_byte(p+1) == '/')  to advance }
+    state close { depth=depth-1  p=p+2  to done when (depth == 0)  to loop }
+    state advance { p=p+1  to loop }
+    state done { word[524408]=p  return 0 }
+}
+proc refinement_source_next_token() {
+    let p=word[524408]
+    let source=src_machine(word[18800000+4*8],16)
+    let n=l4_source_length(source)
+    let c=0
+    let value=0
+    state skip { to skip_byte when (p < n)  to eof }
+    state skip_byte { c=refinement_source_byte(p)  to whitespace when (c == ' ')  to whitespace when (c == 9)  to whitespace when (c == 10)  to whitespace when (c == 13)  to slash when (c == '/')  to classify }
+    state whitespace { p=p+1  to skip }
+    state slash { to classify when (p+1 >= n)  to line_begin when (refinement_source_byte(p+1) == '/')  to block_begin when (refinement_source_byte(p+1) == '*')  to classify }
+    state line_begin { p=p+2  to line }
+    state line { to eof when (p >= n)  to whitespace when (refinement_source_byte(p) == 10)  p=p+1  to line }
+    state block_begin { word[524408]=p+2  to malformed when (refinement_source_skip_block_comment() != 0)  p=word[524408]  to skip }
+    state classify { word[524424]=p  to ident_begin when (refinement_source_ident_start(c) == 1)  to digit_low when (c >= '0')  to punctuation }
+    state digit_low { to digit_begin when (c <= '9')  to punctuation }
+    state ident_begin { p=p+1  to ident_loop }
+    state ident_loop { to ident_byte when (p < n)  to ident_done }
+    state ident_byte { c=refinement_source_byte(p)  to ident_done when (refinement_source_ident_continue(c) == 0)  to exhausted when (p-word[524424] >= 64)  p=p+1  to ident_loop }
+    state ident_done { word[524416]=256  word[524432]=p-word[524424]  word[524408]=p  return 0 }
+    state digit_begin { value=0  to digit_loop }
+    state digit_loop { to digit_byte when (p < n)  to digit_done }
+    state digit_byte { c=refinement_source_byte(p)  to digit_done when (c < '0')  to digit_done when (c > '9')  to malformed when (value > 214748364)  to final_digit when (value == 214748364)  value=value*10+c-'0'  p=p+1  to digit_loop }
+    state final_digit { to malformed when (c > '7')  value=value*10+c-'0'  p=p+1  to digit_loop }
+    state digit_done { word[524416]=257  word[524432]=value  word[524408]=p  return 0 }
+    state punctuation { to malformed when (c >= 128)  word[524416]=c  word[524432]=1  word[524408]=p+1  return 0 }
+    state eof { word[524416]=0  word[524424]=n  word[524432]=0  word[524408]=n  return 0 }
+    state exhausted { return src_exhaust() }
+    state malformed { return src_reject() }
+}
+proc src_next() {
+    let status=refinement_source_next_token()
+    state status_check { to failed when (status != 0)  to limit }
+    state limit { to eof when (word[524424] >= word[10000128])  return 0 }
+    state eof { word[524416]=0  word[524424]=word[10000128]  word[524432]=0  return 0 }
+    state failed { return status }
+}
+proc src_expect_token(expected) {
+    state check { to bad when (word[524416] != expected)  src_next()  return word[530800] }
+    state bad { return src_reject() }
+}
