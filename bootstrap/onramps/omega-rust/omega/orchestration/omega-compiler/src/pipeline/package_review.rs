@@ -6499,8 +6499,8 @@ fn project_contract_static_argument(
     let matching_states = compilation
         .machines()
         .iter()
-        .flat_map(|machine| compilation.machine_states(machine))
-        .filter(|state| state.symbol == argument.symbol)
+        .filter_map(|machine| compilation.machine_states(machine).first())
+        .filter(|entry| entry.symbol == argument.symbol)
         .count();
     if matching_states != 1 {
         return Err(rejected(

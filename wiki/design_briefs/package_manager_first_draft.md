@@ -517,6 +517,14 @@ ordinals: renames are stable, while selecting a different lifetime changes
 canonical evidence. Generic machine/conformance applications, unresolved
 forwarded type/const binders, proposition/evidence static arguments, quotient
 calls, and compiler intrinsics remain fail-closed.
+In particular, true nested machine static applications such as
+`consumer<family<Selected>>()` remain fail-closed: checked monomorphization has
+no closed application identity and currently omits recursive arguments and
+lifetimes from conflict equality, specialization keys and fingerprints, and
+retained specialization evidence. Admission requires exact declaration-
+telescope validation plus recursive lifetime and static-argument identity
+throughout those compiler paths. This is distinct from already coherent bare
+generic-machine selection and call-target use such as `Schema<Selected>(...)`.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
