@@ -68,25 +68,20 @@ ceiling follows directly from the already-published CKIR3 component maxima.
 The contract keeps frame/source custody, resolution, intrinsic constant-table
 structure, source-derived roots and meaning, and complete CKIR/result/artifact
 reconstruction as five independent responsibilities over one exact carrier.
-The first persisted-Beta responsibility closes exact version-4 framing and
-complete `OMGCOMP` structure/source custody while keeping later components
-opaque. The second independently reconstructs the complete `OMGRSW1` for the
-selected two-source Unicode constant-aggregate family, including every role-3
-binding, while keeping CKIR3, ELF, and result claims opaque. The third joins
-the complete inherited declaration/type/layout tables and
-selected entry-machine root to CKIR3, then independently validates the
-intrinsic constant DAG for both the Unicode carrier and a compact nested
-positive. Source-body constant correspondence, opcode-11 roots/reachability,
-source lowering and meaning, CKIR/result/artifact reconstruction, and the
-same-frame composition gate remain open. No earlier OMGRFN checker is widened
-to provide CKIR3 evidence. A separate focused, physically artifact-free source
-evaluator now closes responsibility 4's `16/17` active-frame and
-`65,536/65,537` dynamic-block-entry boundaries; it is boundary evidence, not a
-claim that the complete source-lowering/meaning responsibility is closed. A
-separate CKIR-only checker closes responsibility 5's `64/65` active-frame and
-same global block-entry boundaries, including structurally valid backend/ELF
-production for evaluator-over cases. It likewise does not close complete
-CKIR/result/artifact reconstruction.
+Nine persisted-Beta executables implement the five responsibilities. The first
+three close exact frame/source custody, complete source-to-`OMGRSW1`
+reconstruction, and the witness-to-CKIR3 declaration/layout/selected-entry/
+intrinsic-DAG join. Responsibility 4 is split into source-body/operation
+lowering, constant-root correspondence, cyclic interval fixed point, and a
+physically artifact-free source-result evaluator. Responsibility 5 is split
+into complete CKIR3/result validation and independent exact ELF reconstruction.
+The final composite gives all nine executables one unchanged exact
+Unicode+harness carrier and exercises source/witness/CKIR3/ELF/result
+cross-pairs, phase-local opacity, and local mutations. Its source-only and
+CKIR-only evaluators also close their owned `16/17` and `64/65` active-frame
+pairs and the shared `65,536/65,537` dynamic-block-entry boundary. This closes
+the selected constant-aggregate source-to-artifact relation below Delta; it
+does not widen an earlier OMGRFN frame or admit the family to final `Ωself`.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
