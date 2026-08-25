@@ -120,14 +120,18 @@ The focused evidence is:
   OMGLOW7 production over least OMGRSW1, 2, and 3, product-shaped field/call/sum
   composition, result 70, old/new cross-pairs, source negatives, and exact
   expression-depth 8/9;
+- `../gates/delta-resolved-to-ckir6-meaning.sh`: persisted-Beta translation of
+  the actual Delta lowerer plus canonical Gamma observations of least-OMGRSW1
+  `false → true → false`, exact CKIR6 result 70, semantic 251, and resource 252;
 - `../gates/delta-checked-ir-v6-reference.sh`: independent decoding, validation,
   interpretation, result 70, and isolated schema/arity/type/visibility/resource
   mutations; and
 - `../gates/delta-checked-ir-v6-backend.sh`: Delta-native/self backend identity,
   the pinned logical-not instruction template, and artifact mutations.
 
-These gates close the focused producer, checked-IR meaning, and conservative
-backend cost. Complete lower-rooted source-to-artifact reconstruction remains
+These gates close the focused producer, Rust-free lowering meaning, checked-IR
+meaning, and conservative backend cost. Complete lower-rooted source-to-
+artifact reconstruction remains
 the separate `OMGRFN8` successor obligation; until it lands, the boolean-
 negation task is not a complete vertical slice and remains open in
 `TASKS_BOOTSTRAP.md`.

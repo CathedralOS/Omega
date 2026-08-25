@@ -134,9 +134,10 @@ payload-sum relation, not general payload-sum coverage or final `Ωself`
 admission.
 
 Bool-only logical negation is the next open successor, `OMGRFN8`. Its exact
-pair is OMGLOW7-produced CKIR6 with the least canonical OMGRSW1, OMGRSW2, or
-OMGRSW3 selected by the source; there is no OMGRSW4 because `!` creates no
-resolution identity. R1 retains outer-frame/source custody, R2 reconstructs the
+pair is CKIR6 satisfying the OMGLOW7 source-lowering relation with the least
+canonical OMGRSW1, OMGRSW2, or OMGRSW3 selected by the source; there is no
+OMGRSW4 because `!` creates no resolution identity. R1 retains outer-frame/
+source custody, R2 reconstructs the
 unchanged least resolution relation, R3 joins inherited declarations/root to
 CKIR6 without taking ownership of unary semantics, R4 owns exact recursive
 source lowering plus artifact-free Boolean meaning, and R5 owns complete CKIR6

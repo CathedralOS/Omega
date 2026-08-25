@@ -313,7 +313,7 @@ establishes the implementation and assurance cost.
 | dependent types and proof-indexed data/control | avoid in new compiler source; presumptively exclude | same source-need and total-cost test; implementing these features for user programs is not itself a reason to use them in compiler implementation code |
 | ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
-| bool-only prefix logical negation | presumptively retain; lower-rooted cost still open | checkpoint 000001 uses ordinary `!` in product lexer state; OMGLOW7/CKIR6 now measure least-version OMGRSW1/2/3 production, exact Boolean meaning, conservative native/self artifact emission, and resource/mutation boundaries without adding a resolution schema; complete OMGRFN8 refinement remains the final cost evidence for this slice |
+| bool-only prefix logical negation | presumptively retain; lower-rooted cost still open | checkpoint 000001 uses ordinary `!` in product lexer state; OMGLOW7/CKIR6 now measure least-version OMGRSW1/2/3 production, exact Boolean meaning through both independent and Rust-free routes, conservative native/self artifact emission, and resource/mutation boundaries without adding a resolution schema; complete OMGRFN8 refinement remains the final cost evidence for this slice |
 | ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
 | borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; compare a regular descriptor/view path with fixed-buffer-plus-span duplication, while keeping growable `Vec`-like allocation a separate question and retaining the unresolved `u32` cursor versus `u64` count ruling |
@@ -349,9 +349,9 @@ is a ruling merely because it appears in this table.
 The current closed cost evidence reaches selected finite calls, constant
 aggregates, runtime named records, same-module direct-field receivers through
 CKIR4, and payload-bearing pure sums through CKIR5. Bool-only logical negation
-has focused OMGLOW7/CKIR6 producer, independent-meaning, backend, mutation, and
-resource evidence; it is deliberately not counted as closed until its Rust-free
-meaning and OMGRFN8 lower-rooted composition land.
+has focused OMGLOW7/CKIR6 producer, independent and Rust-free meaning, backend,
+mutation, and resource evidence; it is deliberately not counted as closed until
+its OMGRFN8 lower-rooted composition lands.
 Each closed selected slice has native/self-built production, representative Rust-free
 meaning, independent result/artifact reconstruction, resource and mutation
 teeth, and responsibility-local lower-rooted composition. This establishes
