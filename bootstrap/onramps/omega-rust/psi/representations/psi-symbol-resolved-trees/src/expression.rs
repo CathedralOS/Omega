@@ -1,3 +1,4 @@
+use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::DiagnosticName;
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
@@ -13,6 +14,23 @@ pub use display::display_name_path;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
+/// Arena dummy storage for an occurrence identity. `None` exists only to
+/// satisfy the arena's private dummy slot; expression spans contain only
+/// `Some` values inserted through `new`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StoredAuthoredSelectionOccurrenceId(Option<AuthoredDeclarationSelectionOccurrenceId>);
+
+impl StoredAuthoredSelectionOccurrenceId {
+    fn new(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> Self {
+        Self(Some(occurrence))
+    }
+
+    fn occurrence(self) -> AuthoredDeclarationSelectionOccurrenceId {
+        self.0
+            .expect("expression occurrence spans cannot contain the arena dummy sentinel")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     nodes: ExpressionNodeStorage,
@@ -23,6 +41,7 @@ pub struct ExpressionTable {
 struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
     source_spans: Vec<SourceSpan>,
+    authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +50,7 @@ struct ExpressionSpanStorage {
     name_path_members: Arena<DiagnosticName>,
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
+    authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
 
 impl ExpressionTable {
@@ -39,12 +59,14 @@ impl ExpressionTable {
             nodes: ExpressionNodeStorage {
                 expressions: Arena::new(),
                 source_spans: Vec::new(),
+                authored_selection_occurrences: Vec::new(),
             },
             spans: ExpressionSpanStorage {
                 expression_handles: Arena::new(),
                 name_path_members: Arena::new(),
                 name_path_member_symbols: Arena::new(),
                 struct_fields: Arena::new(),
+                authored_selection_occurrence_ids: Arena::new(),
             },
         }
     }
@@ -52,16 +74,27 @@ impl ExpressionTable {
     pub fn clear(&mut self) {
         self.nodes.expressions.reset_retain_capacity();
         self.nodes.source_spans.clear();
+        self.nodes.authored_selection_occurrences.clear();
         self.spans.expression_handles.reset_retain_capacity();
         self.spans.name_path_members.reset_retain_capacity();
         self.spans.name_path_member_symbols.reset_retain_capacity();
         self.spans.struct_fields.reset_retain_capacity();
+        self.spans
+            .authored_selection_occurrence_ids
+            .reset_retain_capacity();
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.nodes.expressions.insert(expression);
         self.nodes.source_spans.push(SourceSpan::default());
+        self.nodes
+            .authored_selection_occurrences
+            .push(HandleSpan::empty());
         debug_assert_eq!(source_span_index(handle), self.nodes.source_spans.len() - 1);
+        debug_assert_eq!(
+            source_span_index(handle),
+            self.nodes.authored_selection_occurrences.len() - 1
+        );
         handle
     }
 
@@ -71,6 +104,47 @@ impl ExpressionTable {
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
         self.nodes.source_spans[source_span_index(handle)] = source_span;
+    }
+
+    /// Attach exact authored-selection occurrence identities to an expression.
+    ///
+    /// Associations are arena-backed and keyed by the expression handle. The
+    /// occurrence identity is semantic custody; source spans remain diagnostic
+    /// metadata and are never used to reconstruct this association.
+    pub fn attach_authored_selection_occurrences(
+        &mut self,
+        handle: ExpressionHandle,
+        occurrences: impl IntoIterator<Item = AuthoredDeclarationSelectionOccurrenceId>,
+    ) {
+        let index = source_span_index(handle);
+        let mut combined = self
+            .authored_selection_occurrences(handle)
+            .collect::<Vec<_>>();
+
+        for occurrence in occurrences {
+            if !combined.contains(&occurrence) {
+                combined.push(occurrence);
+            }
+        }
+
+        self.nodes.authored_selection_occurrences[index] =
+            self.spans.authored_selection_occurrence_ids.insert_many(
+                combined
+                    .into_iter()
+                    .map(StoredAuthoredSelectionOccurrenceId::new),
+            );
+    }
+
+    pub fn authored_selection_occurrences(
+        &self,
+        handle: ExpressionHandle,
+    ) -> impl ExactSizeIterator<Item = AuthoredDeclarationSelectionOccurrenceId> + '_ {
+        self.spans
+            .authored_selection_occurrence_ids
+            .span_or_empty(self.nodes.authored_selection_occurrences[source_span_index(handle)])
+            .iter()
+            .copied()
+            .map(StoredAuthoredSelectionOccurrenceId::occurrence)
     }
 
     pub fn insert_expression_handles(
@@ -371,6 +445,10 @@ impl ExpressionTable {
             }
         };
         self.set_source_span(copied, source_span);
+        self.attach_authored_selection_occurrences(
+            copied,
+            source.authored_selection_occurrences(expression),
+        );
         copied
     }
 
@@ -614,7 +692,10 @@ impl ExpressionTable {
             return expression;
         }
 
-        match self.expression(expression).clone() {
+        let occurrences = self
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
+        let copied = match self.expression(expression).clone() {
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members_with_member_suffix(
                     path.members,
@@ -650,11 +731,16 @@ impl ExpressionTable {
                 )
                 .unwrap_or_else(|| self.copy_from_self(expression)),
             _ => self.copy_from_self(expression),
-        }
+        };
+        self.attach_authored_selection_occurrences(copied, occurrences);
+        copied
     }
 
     pub fn copy_from_self(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
-        match self.expression(expression).clone() {
+        let occurrences = self
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
+        let copied = match self.expression(expression).clone() {
             ExpressionNode::ArrayLiteral(values) => {
                 let copied_values = self.reserve_expression_handles(values.count());
 
@@ -807,7 +893,9 @@ impl ExpressionTable {
             ExpressionNode::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(type_reference))
             }
-        }
+        };
+        self.attach_authored_selection_occurrences(copied, occurrences);
+        copied
     }
 
     fn copy_expression_handles_from_self(

@@ -3,8 +3,70 @@ use super::{
     TableStructLiteral, TableStructLiteralField,
 };
 use crate::name::DiagnosticName;
+use crate::{
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelections,
+};
+use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
+
+fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
+    let mut selections = AuthoredDeclarationSelections::default();
+    let first = selections
+        .record_resolved(
+            SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::MemberAccess,
+            SymbolHandle::from_arena_index(31),
+        )
+        .expect("valid selected symbol");
+    let second = selections
+        .record_resolved(
+            SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::Call,
+            SymbolHandle::from_arena_index(32),
+        )
+        .expect("valid selected symbol");
+    [first, second]
+}
+
+#[test]
+fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
+    let occurrences = authored_selection_occurrences();
+    assert_eq!(occurrences[0].ordinal(), 0);
+
+    let mut source = ExpressionTable::new();
+    let expression = source.insert(ExpressionNode::Integer(
+        psi_numerics::literals::IntegerLiteral::from_value(7),
+    ));
+    source.attach_authored_selection_occurrences(expression, occurrences);
+
+    assert_eq!(
+        source
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>(),
+        occurrences
+    );
+
+    let mut copied = ExpressionTable::new();
+    let copied_expression = copied.copy_from(&source, expression);
+    assert_eq!(
+        copied
+            .authored_selection_occurrences(copied_expression)
+            .collect::<Vec<_>>(),
+        occurrences
+    );
+
+    let self_copied_expression = source.copy_from_self(expression);
+    assert_eq!(
+        source
+            .authored_selection_occurrences(self_copied_expression)
+            .collect::<Vec<_>>(),
+        occurrences
+    );
+}
 
 #[test]
 fn expression_table_stores_nested_expressions_as_handles() {
