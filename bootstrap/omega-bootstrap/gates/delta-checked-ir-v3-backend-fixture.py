@@ -200,14 +200,48 @@ def mutate(out: Path) -> None:
         struct.pack_into("<" + form, raw, offset, value)
         out.joinpath(name + ".ckir3").write_bytes(raw)
 
+    constants = table["constants"]
+    operations = table["operations"]
+    operands = table["operands"]
+
     one("schema-major", 8, 2, "H")
+    # The two CKIR3-only counts remain within their public capacities but no
+    # longer describe the exact table extent.  Resource overages stay separate
+    # below so malformed count/EOF relations select 251 rather than 252.
+    one("constant-count-extent", 72, 6)
+    one("constant-child-count-extent", 76, 5)
+
+    one("constant-dense-id", constants + CONSTANT.size, 0)
+    one("constant-empty-span", constants + 8, 1)
+    one("constant-span-start", constants + 4 * CONSTANT.size + 8, 1)
+    one("constant-span-count", constants + 4 * CONSTANT.size + 12, 1)
+    one("constant-reserved", constants + 20, 1)
+    one("constant-scalar-range", constants + 16, 0x8000_0000)
+    one("constant-structural-scalar", constants + 4 * CONSTANT.size + 16, 1)
+    one("constant-order-inversion", constants + CONSTANT.size + 16, 5)
     one("constant-scalar-type", table["constants"] + 4, 3)
-    one("constant-order-duplicate", table["constants"] + CONSTANT.size + 16, 10)
+    one("constant-structural-type", constants + 4 * CONSTANT.size + 4, 0)
+    one("constant-order-duplicate", constants + CONSTANT.size + 16, 10)
     one("constant-forward-child", table["children"], 6)
     one("constant-unreachable", table["children"] + 5 * 4, 4)
-    one("copy-root-type", table["operations"] + 2 * OPERATION.size + 32, 5)
-    one("copy-immediate-one", table["operations"] + 2 * OPERATION.size + 36, 1)
-    one("less-equal-result-type", table["operations"] + 8 * OPERATION.size + 20, 2)
+
+    copy = operations + 2 * OPERATION.size
+    less_equal = operations + 8 * OPERATION.size
+    one("copy-opcode", copy + 12, 13, "B")
+    one("copy-flags", copy + 14, 1, "H")
+    one("copy-destination-operand", operands + WORD.size, NO_ID)
+    one("copy-operand-count", copy + 28, 0)
+    one("copy-result-kind", copy + 13, 1, "B")
+    one("copy-result-id", copy + 16, 0)
+    one("copy-result-type", copy + 20, 4)
+    one("copy-root-id", copy + 32, 7)
+    one("copy-root-type", copy + 32, 5)
+    one("copy-immediate-one", copy + 36, 1)
+    one("less-equal-immediate", less_equal + 32, 1)
+    one("less-equal-result-kind", less_equal + 13, 0, "B")
+    one("less-equal-result-id", less_equal + 16, 4)
+    one("less-equal-result-type", less_equal + 20, 2)
+
     one("constant-node-resource", 72, 8193)
     one("constant-child-resource", 76, 16385)
     one("encoded-byte-resource", 20, 2522193)

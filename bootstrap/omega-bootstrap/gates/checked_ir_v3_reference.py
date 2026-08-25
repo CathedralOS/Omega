@@ -198,7 +198,7 @@ def decode(contents: bytes) -> v2.Module:
     roots: list[int] = []
     operands = [row[0] for row in tables["operands"]]
     for operation in tables["operations"]:
-        op_id, owner, block, opcode, result_kind, _, result_id, result_type, start, count, imm0, imm1 = operation
+        op_id, owner, block, opcode, result_kind, op_flags, result_id, result_type, start, count, imm0, imm1 = operation
         arguments = operands[start:start + count]
         if result_kind == 2:
             require(result_id == len(place_mutable), "place result order")
@@ -213,6 +213,7 @@ def decode(contents: bytes) -> v2.Module:
             place_blocks.append(block)
             place_operations.append(op_id)
         if opcode == 11:
+            require(op_flags == 0, "CopyAggregateConst flags")
             require(result_kind == 0 and result_id == result_type == NO_ID and count == 1 and imm1 == 0, "CopyAggregateConst shape")
             require(len(arguments) == 1 and arguments[0] < len(base.place_types), "CopyAggregateConst destination")
             destination = arguments[0]

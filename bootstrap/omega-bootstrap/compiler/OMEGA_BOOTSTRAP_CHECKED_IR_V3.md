@@ -465,11 +465,15 @@ obligations remain mandatory. CKIR3 additionally requires:
    1)` recurrence. A stale predecessor parameter ID, a fact applied only after
    argument checking, a missing predecessor, or a declaration-order-dependent
    result must reject or disagree with the canonical relation.
-4. Phase-isolated source negatives cover missing/duplicate/unknown/extra record
-   fields, scalar and structural type mismatch, array and record arity, an
-   out-of-range literal, a nonconstant child, a noncopyable root, shared-place
-   mutation, recursive/oversized layout, and malformed `<=` operands. Each is
-   251 with no CKIR.
+4. Phase-isolated source negatives cover missing/duplicate/unknown record
+   fields, scalar and structural type mismatch, array arity, an out-of-range
+   literal, a nonconstant child, a noncopyable root, shared-place mutation,
+   recursive layout, and malformed `<=` operands. Each is 251 with no CKIR.
+   In the admitted named-record grammar, an extra field is necessarily unknown
+   or a duplicate and record-arity disagreement is witnessed by the isolated
+   missing/duplicate/unknown cases; there is no separate positional-record
+   arity form to manufacture. Oversized but otherwise valid layout is resource
+   exhaustion and belongs to item 6, not this malformed-source matrix.
 5. Independent CKIR negatives mutate every new header count, constant ID, type,
    span, child, scalar, reserved word, ordering key, duplicate, reachability,
    opcode, operand, immediate, result shape, root/type relation, image byte,
@@ -478,8 +482,9 @@ obligations remain mandatory. CKIR3 additionally requires:
 6. Exact and adjacent resource teeth cover 1,024/1,025 array children, four/five
    record children, source-unit and aggregate source bytes, node and
    child-vector capacities, derived image bytes, encoded CKIR bytes, the
-   791,600-byte OMGLOW3 frame, selected-owner layout, machine frame, text, ELF
-   image, active evaluator frames, and 65,536/65,537 dynamic block entries.
+   791,600-byte OMGLOW3 frame, selected-owner layout including its first
+   oversized valid form, machine frame, text, ELF image, active evaluator
+   frames, and 65,536/65,537 dynamic block entries.
    Where relations make a nominal aggregate maximum unrealizable, evidence
    proves the greatest realizable boundary and its first adjacent failure
    rather than manufacturing a noncanonical positive.
