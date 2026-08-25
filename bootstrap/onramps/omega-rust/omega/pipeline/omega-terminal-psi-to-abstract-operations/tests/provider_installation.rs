@@ -1,6 +1,6 @@
 use omega_terminal_psi_to_abstract_operations::{
     ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
-    lower_artifact_sections,
+    lower_artifact_sections, lower_replay_artifact_sections,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
@@ -14,7 +14,10 @@ use psi_terminal::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
-use psi_terminal_codec::{encode_module, encode_proof_bundle, semantic_fingerprint};
+use psi_terminal_codec::{
+    build_terminal_obligation_ledger, current_terminal_trust_graph, encode_module,
+    encode_proof_bundle, encode_terminal_obligation_ledger, semantic_fingerprint,
+};
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -30,6 +33,30 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
     let (semantic, proof) = artifact(&module);
     let profile = AdmissionProfile::default();
     let plan = lower_artifact_sections(&semantic, &proof, &profile).expect("verified lowering");
+    let trust_graph = current_terminal_trust_graph().expect("current trust graph");
+    let obligation_ledger = build_terminal_obligation_ledger(&module, &trust_graph)
+        .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
+        .expect("canonical obligation ledger");
+    assert_eq!(
+        lower_replay_artifact_sections(&semantic, &obligation_ledger, &proof, &profile)
+            .expect("locally replayed artifact lowering"),
+        plan
+    );
+
+    let mut substituted_module = module.clone();
+    let OperationKind::PortWrite { value, .. } =
+        &mut substituted_module.machines[1].blocks[0].operations[0].kind
+    else {
+        panic!("fixture provider writes a port")
+    };
+    *value = 67;
+    let substituted_ledger = build_terminal_obligation_ledger(&substituted_module, &trust_graph)
+        .and_then(|ledger| encode_terminal_obligation_ledger(&ledger))
+        .expect("substituted obligation ledger");
+    assert!(matches!(
+        lower_replay_artifact_sections(&semantic, &substituted_ledger, &proof, &profile),
+        Err(omega_terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
+    ));
     assert_eq!(plan.provider_candidates, module.provider_candidates);
     assert!(matches!(
         admit_provider_installation(

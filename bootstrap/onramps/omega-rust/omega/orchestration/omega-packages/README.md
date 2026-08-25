@@ -526,7 +526,10 @@ axioms, and obligation class. The verifier consumes and retains this exact set.
 Its canonical ledger encoding binds the Terminal-Psi subject and source-backed
 verifier trust graph but deliberately excludes the selected proof route; a
 consumer must reconstruct and compare the ledger locally after decoding it.
-This is not a package-evidence or lock-promotion API. Ordinary package
+Terminal artifact manifests retain its fingerprint independently from semantic
+and proof identity, and the replay lowering path accepts semantic, ledger, and
+proof bytes only after exact local ledger comparison. This is not a package-
+evidence or lock-promotion API. Ordinary package
 capability/API obligations, source-to-artifact binding, transitive open rows,
 and schema-delta composition remain to be built before `PackageInstance` can
 exist honestly.

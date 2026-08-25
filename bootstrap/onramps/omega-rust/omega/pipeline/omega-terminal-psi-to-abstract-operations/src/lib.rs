@@ -36,6 +36,36 @@ pub fn lower_artifact_sections(
     lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
 }
 
+/// Decode a persisted obligation ledger, reconstruct it from the exact semantic
+/// section under the current verifier trust graph, and require exact equality
+/// before proof checking or lowering. The producer-authored ledger is never a
+/// verdict and cannot choose the proof question.
+pub fn lower_replay_artifact_sections(
+    semantic_bytes: &[u8],
+    obligation_ledger_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_kernel::AdmissionProfile,
+) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let obligation_ledger =
+        psi_terminal_codec::decode_terminal_obligation_ledger(obligation_ledger_bytes)
+            .map_err(ArtifactLoweringError::ObligationLedgerDecode)?;
+    let trust_graph = psi_terminal_codec::current_terminal_trust_graph()
+        .map_err(ArtifactLoweringError::TrustGraph)?;
+    psi_terminal_codec::validate_terminal_obligation_ledger(
+        &obligation_ledger,
+        &module,
+        &trust_graph,
+    )
+    .map_err(ArtifactLoweringError::ObligationReplay)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)?;
+    lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+}
+
 /// Bind Omega's provider policy only to exact rows preserved from the verified
 /// terminal catalog. Psi independently replays artifact verification before it
 /// returns the private-field installation carrier consumed by its interpreter.
@@ -1294,6 +1324,9 @@ pub enum LoweringError {
 #[derive(Debug)]
 pub enum ArtifactLoweringError {
     SemanticDecode(psi_terminal_codec::CodecError),
+    ObligationLedgerDecode(psi_terminal_codec::CodecError),
+    TrustGraph(psi_terminal_codec::TrustGraphError),
+    ObligationReplay(psi_terminal_codec::CodecError),
     ProofDecode(psi_terminal_codec::ProofCodecError),
     Verification(psi_terminal_verifier::VerificationError),
     Lowering(LoweringError),
