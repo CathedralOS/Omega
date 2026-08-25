@@ -51,13 +51,7 @@ fn fixture_rows() -> Option<(
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        "pub data Token { value: i64; }\n\
-         pub trait Marked { machine Self::mark(&self) -> i64; }\n\
-         pub TokenMarked: Token satisfies Marked {\n\
-             machine mark(&self) -> i64 { self.value }\n\
-         }\n\
-         pub proposition ready();\n\
-         pub const LIMIT: u64 = 4;\n",
+        "pub data Token { value: i64; }\npub trait Marker { machine Self::touch(&self); }\npub Primary: Token satisfies Marker { machine touch(&self) { } }\npub proposition ready();\npub const LIMIT: u64 = 4;\n",
     );
     package.write(
         "build.omg",

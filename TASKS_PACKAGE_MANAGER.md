@@ -795,8 +795,10 @@ complete.
   typed/checked-tree, authored-selection, snapshot, and package-review retention
   for the complete item. Add one blocking `PublicConformance` row containing
   the package-qualified declaration, normalized telescope, optional subject,
-  exact trait application, complete requirement map, laws, and checked evidence
-  interface while excluding member/proof bodies and physical code identity.
+  exact trait application and complete checked requirement interface while
+  excluding member/proof bodies and physical code identity. The referenced
+  public trait row owns each requirement's law; conformance validation must
+  discharge those laws before this row can be issued.
 
   Milestone 2026-08-25: the ordinary visibility gate is implemented through
   syntax, symbol-resolved, typed/checked trees, snapshots, and package-aware
@@ -805,27 +807,21 @@ complete.
   dependencies, while `pub` conformances additionally require the declaring
   package as a direct dependency. Public headers expose their exact subject,
   trait, and static-argument selections, so private declarations cannot leak
-  through a published conformance. The blocking `PublicConformance` package-
-  review row remains the next compatibility milestone; unsupported generic-
-  subject and proof/law row shapes must reject closed until their retained IR
-  coverage lands.
-
-  Milestone 2026-08-25: package review v55 / canonical row v15 now emits one
-  blocking `PublicConformance` row for every package-owned public closed
-  conformance whose surface is represented exactly. The row retains the
-  package-qualified conformance identity, alpha-normalized telescope, optional
-  non-generic nominal subject, exact trait application, overload-qualified
-  inherited requirement map, empty proven law lane, and checked evidence
-  interface. It rejoins the retained closed rows to the complete inherited
-  requirement closure and rejects missing, duplicate, unexpected, or unchecked
-  rows. Private realization machines, states, row-source choices, and bodies do
-  not enter the row; generated inline/default realization provenance derives
-  only its package/source custody from the owning conformance. Bodyless
-  attached-machine maps, generic applied subjects, repeated inherited trait
-  applications that the retained map cannot distinguish, and proposition/law
-  surfaces without complete typed retention reject closed. Public subjects and
-  traits may remain direct-dependency declarations; only the emitted
-  conformance must be owned by the reviewed package.
+  through a published conformance. Review v55 and canonical row v15 now emit
+  the blocking `PublicConformance` compatibility row. Its key is only the exact
+  package-qualified conformance identity. Its value retains the
+  alpha-normalized lifetime/static telescope, subject, exact trait application,
+  and complete normalized inherited requirement interface. Trait requirement
+  overloads use the compiler's canonical callable identity, never source
+  ordinal or a same-spelled path. Closed and attached-machine source forms
+  normalize to the same row; realization names, bodies, and physical code stay
+  private. Validation checks every realization signature and substituted trait
+  law before projection, so a deferred or unrelated proof cannot publish the
+  conformance. The corresponding `PublicTrait` row owns the law text instead
+  of duplicating it into every conformance row. Unsupported lifetime-parameterized
+  target traits, inherited lifetime substitution, and proof-static trait
+  parameters continue to reject closed until their existing IR carriers retain
+  a complete identity.
 
   Milestone 2026-08-25: one shared typed-tree visibility resolver now gates all
   settled independently nameable declaration families in both public
@@ -856,9 +852,12 @@ complete.
   enters private-implementation selection custody; cross-package references to
   private realization machines reject even when the conformance is public.
   Cross-package canaries select an explicit conformance argument and prove that
-  only `pub PowerOrder` crosses the package boundary. The blocking canonical
-  `PublicConformance` row remains the next compatibility slice; no accepted
-  admission is implied by visibility retention alone.
+  only `pub PowerOrder` crosses the package boundary. Review v55 consumes that
+  custody in a blocking canonical `PublicConformance` row and retains authored
+  provenance for compiler-normalized inline realization symbols without
+  promoting those symbols to public API. Canonical recovery and upgrade
+  conflict rendering cover the new row. No accepted admission is implied by
+  visibility or review retention alone.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
@@ -1736,7 +1735,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v54
+  create a placeholder `PackageInstance` or bless current incomplete review v55
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

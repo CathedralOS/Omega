@@ -370,7 +370,7 @@ source closure, nor proves that the observed file is exactly the process image
 already loaded by the operating system. Complete compiler/toolchain source and
 rebuild provenance remain admission work.
 
-Ratified 2026-08-24: implementation should consume the earliest coherent
+Ratified 2026-08-25: implementation should consume the earliest coherent
 compiler-owned representation in which each required fact is semantically
 settled. Exact structural identity may come from private pre-Psi typed or
 resolved state, while checked acceptance, effects, proofs, and realization come
@@ -606,7 +606,19 @@ Lexical conformance-binder requirement symbols inherit their enclosing
 declaration instead of acquiring package visibility. Explicit conformance-row
 machine references enter authored-selection custody after exact row
 normalization and obey ordinary package visibility. The canonical
-`PublicConformance` row remains the next compatibility milestone.
+review v55/canonical-row v15 `PublicConformance` lane is blocking and keyed
+only by the exact package-qualified conformance identity. Its value retains the
+alpha-normalized lifetime/static telescope, subject, exact trait application,
+and complete normalized inherited requirement interface. Requirement overloads
+use canonical compiler callable identity rather than ordinal or display path.
+Closed and attached-machine realization forms encode identically; realization
+names, bodies, and physical code remain private implementation. Validation
+checks every realization signature and substituted trait law before projection,
+while the referenced `PublicTrait` row owns the law text. Recovery and
+fixed-vocabulary upgrade conflicts recognize the row. Unsupported
+lifetime-parameterized target traits, inherited lifetime substitutions, and
+proof-static trait parameters reject closed instead of producing partial
+identity.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -1117,7 +1129,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v52 bytes cannot be promoted merely because the future artifact reuses
+review-v55 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

@@ -469,6 +469,53 @@ pub struct PackageReviewTraitShape {
     requirements: Vec<PackageReviewTraitRequirement>,
 }
 
+/// The carrier named by one public complete conformance. A generic carrier is
+/// represented by its alpha-normalized conformance-telescope ordinal; a
+/// concrete carrier keeps its exact package/toolchain nominal identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewConformanceSubject {
+    Subjectless,
+    TypeParameter(u32),
+    Nominal(PackageReviewNominalIdentity),
+}
+
+/// One independently nameable, public, complete conformance declaration.
+///
+/// `interface` is the complete normalized inherited requirement map proven by
+/// checked lowering. Realization machine names, bodies, and physical code
+/// identity are deliberately absent: they are private implementation, not a
+/// receiver-nameable package contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewConformanceShape {
+    identity: PackageReviewNominalIdentity,
+    lifetime_parameter_count: usize,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    subject: PackageReviewConformanceSubject,
+    interface: PackageReviewEvidenceInterface,
+}
+
+impl PackageReviewConformanceShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub const fn lifetime_parameter_count(&self) -> usize {
+        self.lifetime_parameter_count
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub const fn subject(&self) -> &PackageReviewConformanceSubject {
+        &self.subject
+    }
+
+    pub const fn interface(&self) -> &PackageReviewEvidenceInterface {
+        &self.interface
+    }
+}
+
 impl PackageReviewTraitShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
         &self.identity
@@ -1026,84 +1073,6 @@ pub struct PackageReviewEvidenceInterface {
     trait_identity: PackageReviewNominalIdentity,
     arguments: Vec<PackageReviewTypeIdentity>,
     requirements: Vec<PackageReviewEvidenceRequirement>,
-}
-
-/// Exact source-level subject carried by one public complete conformance.
-///
-/// The initial projector admits only nominal, non-generic carrier subjects.
-/// Keeping the application arguments structural here lets later generic-
-/// subject retention extend the admitted source set without changing what the
-/// public row means.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewConformanceSubject {
-    identity: PackageReviewNominalIdentity,
-    arguments: Vec<PackageReviewTypeIdentity>,
-}
-
-impl PackageReviewConformanceSubject {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.arguments
-    }
-}
-
-/// One independently selectable public complete conformance.
-///
-/// Requirement and law rows retain only their public trait coordinates. The
-/// private machine/proof realization selected by the closed map is deliberately
-/// absent: it is implementation closure, not public compatibility identity.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageReviewConformanceShape {
-    identity: PackageReviewNominalIdentity,
-    lifetime_parameter_count: usize,
-    type_parameters: Vec<PackageReviewTypeParameter>,
-    subject: Option<PackageReviewConformanceSubject>,
-    trait_identity: PackageReviewNominalIdentity,
-    trait_arguments: Vec<PackageReviewTypeIdentity>,
-    requirement_map: Vec<PackageReviewEvidenceRequirement>,
-    laws: Vec<PackageReviewEvidenceRequirement>,
-    evidence_interface: PackageReviewEvidenceInterface,
-}
-
-impl PackageReviewConformanceShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub const fn subject(&self) -> Option<&PackageReviewConformanceSubject> {
-        self.subject.as_ref()
-    }
-
-    pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
-        &self.trait_identity
-    }
-
-    pub fn trait_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.trait_arguments
-    }
-
-    pub fn requirement_map(&self) -> &[PackageReviewEvidenceRequirement] {
-        &self.requirement_map
-    }
-
-    pub fn laws(&self) -> &[PackageReviewEvidenceRequirement] {
-        &self.laws
-    }
-
-    pub const fn evidence_interface(&self) -> &PackageReviewEvidenceInterface {
-        &self.evidence_interface
-    }
 }
 
 impl PackageReviewEvidenceInterface {
@@ -2062,11 +2031,11 @@ pub struct CheckedPackageReviewProjection {
     package: PackageKeyIdentity,
     target: omega_target::TargetProfile,
     public_traits: Vec<PackageReviewTraitShape>,
+    public_conformances: Vec<PackageReviewConformanceShape>,
     public_domains: Vec<PackageReviewDomainShape>,
     public_propositions: Vec<PackageReviewPropositionShape>,
     public_consts: Vec<PackageReviewConstShape>,
     public_operators: Vec<PackageReviewOperatorShape>,
-    public_conformances: Vec<PackageReviewConformanceShape>,
     public_data: Vec<PackageReviewDataShape>,
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     semantic_dependencies: Vec<PackageReviewSemanticDependency>,
@@ -2082,11 +2051,11 @@ impl PartialEq for CheckedPackageReviewProjection {
         self.package == other.package
             && self.target == other.target
             && self.public_traits == other.public_traits
+            && self.public_conformances == other.public_conformances
             && self.public_domains == other.public_domains
             && self.public_propositions == other.public_propositions
             && self.public_consts == other.public_consts
             && self.public_operators == other.public_operators
-            && self.public_conformances == other.public_conformances
             && self.public_data == other.public_data
             && self.representation_tcb == other.representation_tcb
             && self.semantic_dependencies == other.semantic_dependencies
@@ -2102,11 +2071,11 @@ impl Eq for CheckedPackageReviewProjection {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PackageReviewCanonicalRowSources {
     public_traits: Vec<PackageReviewCanonicalRowSource>,
+    public_conformances: Vec<PackageReviewCanonicalRowSource>,
     public_domains: Vec<PackageReviewCanonicalRowSource>,
     public_propositions: Vec<PackageReviewCanonicalRowSource>,
     public_consts: Vec<PackageReviewCanonicalRowSource>,
     public_operators: Vec<PackageReviewCanonicalRowSource>,
-    public_conformances: Vec<PackageReviewCanonicalRowSource>,
     public_data: Vec<PackageReviewCanonicalRowSource>,
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
@@ -2345,6 +2314,10 @@ impl CheckedPackageReviewProjection {
         &self.public_traits
     }
 
+    pub fn public_conformances(&self) -> &[PackageReviewConformanceShape] {
+        &self.public_conformances
+    }
+
     pub fn public_domains(&self) -> &[PackageReviewDomainShape] {
         &self.public_domains
     }
@@ -2359,10 +2332,6 @@ impl CheckedPackageReviewProjection {
 
     pub fn public_operators(&self) -> &[PackageReviewOperatorShape] {
         &self.public_operators
-    }
-
-    pub fn public_conformances(&self) -> &[PackageReviewConformanceShape] {
-        &self.public_conformances
     }
 
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
@@ -2450,11 +2419,11 @@ pub fn project_checked_package_review(
     }
     let build_machine = compilation.selected_build_machine_symbol();
     let public_traits = project_public_traits(compilation, package)?;
+    let public_conformances = project_public_conformances(compilation, package)?;
     let public_domains = project_public_domains(compilation, package)?;
     let public_propositions = project_public_propositions(compilation, package)?;
     let public_consts = project_public_consts(compilation, package)?;
     let public_operators = project_public_operators(compilation, package)?;
-    let public_conformances = project_public_conformances(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
@@ -2537,7 +2506,11 @@ pub fn project_checked_package_review(
             .zip(&retained.provider.row_realizations)
             .map(|(requirement, realization)| {
                 Ok(CheckedPackageProviderRowIdentity {
-                    requirement: nominal_identity(compilation, *requirement)?,
+                    requirement: provider_requirement_identity(
+                        compilation,
+                        retained.provider.schema,
+                        *requirement,
+                    )?,
                     realization: nominal_identity(compilation, *realization)?,
                 })
             })
@@ -2620,6 +2593,11 @@ pub fn project_checked_package_review(
         public_traits,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (public_conformances, public_conformance_sources) = finalize_projected_rows(
+        compilation,
+        public_conformances,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
     let (public_domains, public_domain_sources) = finalize_projected_rows(
         compilation,
         public_domains,
@@ -2638,11 +2616,6 @@ pub fn project_checked_package_review(
     let (public_operators, public_operator_sources) = finalize_projected_rows(
         compilation,
         public_operators,
-        PackageReviewSourceLocationRole::Declaration,
-    )?;
-    let (public_conformances, public_conformance_sources) = finalize_projected_rows(
-        compilation,
-        public_conformances,
         PackageReviewSourceLocationRole::Declaration,
     )?;
     let (public_data, public_data_sources) = finalize_projected_rows(
@@ -2668,11 +2641,11 @@ pub fn project_checked_package_review(
         finalize_dangerous_authority_slack_rows(compilation, dangerous_authority_slack)?;
     let row_sources = PackageReviewCanonicalRowSources {
         public_traits: public_trait_sources,
+        public_conformances: public_conformance_sources,
         public_domains: public_domain_sources,
         public_propositions: public_proposition_sources,
         public_consts: public_const_sources,
         public_operators: public_operator_sources,
-        public_conformances: public_conformance_sources,
         public_data: public_data_sources,
         representation_tcb: representation_tcb_sources,
         semantic_dependencies: semantic_dependency_sources,
@@ -2687,11 +2660,11 @@ pub fn project_checked_package_review(
         package,
         target,
         public_traits,
+        public_conformances,
         public_domains,
         public_propositions,
         public_consts,
         public_operators,
-        public_conformances,
         public_data,
         representation_tcb,
         semantic_dependencies,
@@ -3156,6 +3129,7 @@ fn validate_canonical_row_source_limits(
     let all = sources
         .public_traits
         .iter()
+        .chain(&sources.public_conformances)
         .chain(&sources.public_domains)
         .chain(&sources.public_propositions)
         .chain(&sources.public_consts)
@@ -3228,23 +3202,10 @@ fn canonical_source_location(
     {
         role = PackageReviewSourceLocationRole::DerivationOrigin;
     }
-    let provenance_symbol = if compilation
-        .typed
-        .symbols
-        .symbol_provenance_source_span(symbol)
-        .is_some()
-    {
-        symbol
-    } else if let Some(owner) = conformance_realization_owner(compilation, symbol)? {
-        role = PackageReviewSourceLocationRole::DerivationOrigin;
-        owner
-    } else {
-        symbol
-    };
     let span = compilation
         .typed
         .symbols
-        .symbol_provenance_source_span(provenance_symbol)
+        .symbol_provenance_source_span(symbol)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "reviewed declaration `{}` has no authored source span",
@@ -3506,6 +3467,230 @@ fn project_public_traits(
     Ok(rows)
 }
 
+fn project_public_conformances(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<ProjectedReviewRow<PackageReviewConformanceShape>>, Vec<Diagnostic>> {
+    use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
+
+    let mut projected = Vec::new();
+    for conformance in compilation
+        .conformances()
+        .iter()
+        .filter(|conformance| conformance.is_public)
+    {
+        let identity = nominal_identity(compilation, conformance.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        let parameters = compilation.conformance_type_parameters(conformance);
+        let (binders, type_parameters) = project_type_parameters(
+            compilation,
+            parameters,
+            "conformance",
+            &identity.path,
+            &conformance.lifetime_parameters,
+        )?;
+        let subject = match &conformance.subject {
+            ConformanceSubject::Subjectless => PackageReviewConformanceSubject::Subjectless,
+            ConformanceSubject::Carrier(_) => {
+                if let Some(ordinal) = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == conformance.carrier_symbol)
+                {
+                    if !matches!(
+                        parameters[ordinal].kind,
+                        psi_typed_trees::data::TypeParameterKind::Type
+                    ) {
+                        return Err(vec![Diagnostic::error(format!(
+                            "public conformance `{}` uses a non-type static parameter as its subject",
+                            identity.path
+                        ))]);
+                    }
+                    PackageReviewConformanceSubject::TypeParameter(
+                        u32::try_from(ordinal).map_err(|_| {
+                            vec![Diagnostic::error(format!(
+                                "public conformance `{}` subject exceeds the portable review parameter range",
+                                identity.path
+                            ))]
+                        })?,
+                    )
+                } else {
+                    let carriers = compilation
+                        .data_definitions()
+                        .iter()
+                        .filter(|definition| definition.symbol == conformance.carrier_symbol)
+                        .collect::<Vec<_>>();
+                    let [carrier] = carriers.as_slice() else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "public conformance `{}` resolves its subject to {} data declarations; expected exactly one nominal data carrier or one telescope parameter",
+                            identity.path,
+                            carriers.len()
+                        ))]);
+                    };
+                    if !carrier.is_public {
+                        return Err(vec![Diagnostic::error(format!(
+                            "public conformance `{}` exposes private carrier `{}`",
+                            identity.path, carrier.name
+                        ))]);
+                    }
+                    PackageReviewConformanceSubject::Nominal(nominal_identity(
+                        compilation,
+                        conformance.carrier_symbol,
+                    )?)
+                }
+            }
+        };
+        let traits = compilation
+            .traits()
+            .iter()
+            .filter(|definition| definition.symbol == conformance.trait_symbol)
+            .collect::<Vec<_>>();
+        let [trait_definition] = traits.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "public conformance `{}` resolves its trait to {} declarations; expected exactly one",
+                identity.path,
+                traits.len()
+            ))]);
+        };
+        if !trait_definition.is_public {
+            return Err(vec![Diagnostic::error(format!(
+                "public conformance `{}` exposes private trait `{}`",
+                identity.path, trait_definition.name
+            ))]);
+        }
+        if !trait_definition.lifetime_parameters.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "public conformance `{}` selects lifetime-parameterized trait `{}` without retained lifetime arguments",
+                identity.path, trait_definition.name
+            ))]);
+        }
+        if !conformance.lifetime_parameters.is_empty()
+            && !compilation.trait_requirements(trait_definition).is_empty()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "public conformance `{}` combines a lifetime telescope with inherited trait applications whose substituted lifetime topology is not yet represented by package review",
+                identity.path
+            ))]);
+        }
+        let trait_arguments = compilation
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .to_vec();
+        let mut requirements = Vec::new();
+        collect_evidence_requirements(
+            compilation,
+            conformance.trait_symbol,
+            &trait_arguments,
+            &binders,
+            &[],
+            &mut Vec::new(),
+            &mut requirements,
+        )?;
+        requirements.sort();
+        requirements.dedup();
+        let trait_identity = nominal_identity(compilation, conformance.trait_symbol)?;
+        let interface_arguments = trait_arguments
+            .iter()
+            .map(|argument| {
+                review_signature_type_identity_with_binders(
+                    compilation,
+                    *argument,
+                    &binders,
+                    &conformance.lifetime_parameters,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if !conformance.lifetime_parameters.is_empty() {
+            for requirement in &mut requirements {
+                if requirement.declaring_trait == trait_identity {
+                    requirement.declaring_trait_arguments = interface_arguments.clone();
+                }
+            }
+        }
+        let interface = PackageReviewEvidenceInterface {
+            trait_identity,
+            arguments: interface_arguments,
+            requirements,
+        };
+        let mut realized = match &conformance.implementation {
+            ConformanceImplementation::AttachedRequirementMachines => {
+                interface.requirements.clone()
+            }
+            ConformanceImplementation::Closed { rows } => Vec::with_capacity(rows.len()),
+        };
+        let closed_rows = match &conformance.implementation {
+            ConformanceImplementation::AttachedRequirementMachines => &[][..],
+            ConformanceImplementation::Closed { rows } => rows.as_slice(),
+        };
+        for row in closed_rows {
+            if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
+                return Err(vec![Diagnostic::error(format!(
+                    "public conformance `{}` has an incomplete checked realization row",
+                    identity.path
+                ))]);
+            }
+            let declaring_trait = nominal_identity(compilation, row.declaring_trait)?;
+            let definition = compilation
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == row.declaring_trait)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "public conformance `{}` has a row with an unresolved declaring trait",
+                        identity.path
+                    ))]
+                })?;
+            let requirement = compilation
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|candidate| candidate.symbol == row.requirement)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "public conformance `{}` has a row outside its declaring trait's requirement sequence",
+                        identity.path
+                    ))]
+                })?;
+            let requirement = trait_requirement_identity(compilation, definition, requirement)?;
+            let matching = interface
+                .requirements
+                .iter()
+                .filter(|candidate| {
+                    candidate.declaring_trait == declaring_trait
+                        && candidate.requirement == requirement
+                })
+                .collect::<Vec<_>>();
+            let [matching] = matching.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "public conformance `{}` cannot assign one normalized row uniquely to its inherited evidence interface",
+                    identity.path
+                ))]);
+            };
+            realized.push((*matching).clone());
+        }
+        realized.sort();
+        if realized.windows(2).any(|pair| pair[0] == pair[1]) || realized != interface.requirements
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "public conformance `{}` does not retain one complete normalized row for every inherited requirement",
+                identity.path
+            ))]);
+        }
+        projected.push(ProjectedReviewRow {
+            row: PackageReviewConformanceShape {
+                identity,
+                lifetime_parameter_count: conformance.lifetime_parameters.len(),
+                type_parameters,
+                subject,
+                interface,
+            },
+            declaration: conformance.symbol,
+        });
+    }
+    projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
+    Ok(projected)
+}
+
 fn project_trait_parent(
     compilation: &CheckedCompilation,
     parent: &psi_typed_trees::trait_definition::TraitRequirement,
@@ -3567,7 +3752,16 @@ fn project_trait_requirement(
     trait_parameter_count: usize,
     trait_lifetime_parameters: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
-    let identity = nominal_identity(compilation, requirement.symbol)?;
+    let owner = compilation
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == trait_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review trait requirement has no exact declaring trait",
+            )]
+        })?;
+    let identity = trait_requirement_identity(compilation, owner, requirement)?;
     let parameters = compilation.state_signature_type_parameters(requirement);
     let mut lifetime_binders = trait_lifetime_parameters.to_vec();
     lifetime_binders.extend(requirement.lifetime_parameters.iter().cloned());
@@ -4321,263 +4515,8 @@ fn project_domain_establishment_route(
     Ok(PackageReviewDomainEstablishmentRoute {
         kind,
         trait_identity: nominal_identity(compilation, owner.symbol)?,
-        requirement_identity: nominal_identity(compilation, requirement.symbol)?,
+        requirement_identity: trait_requirement_identity(compilation, owner, requirement)?,
     })
-}
-
-fn project_public_conformances(
-    compilation: &CheckedCompilation,
-    package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewConformanceShape>>, Vec<Diagnostic>> {
-    use psi_typed_trees::trait_definition::{ConformanceImplementation, ConformanceSubject};
-
-    let mut projected = Vec::new();
-    for conformance in compilation
-        .conformances()
-        .iter()
-        .filter(|conformance| conformance.is_public)
-    {
-        let identity = nominal_identity(compilation, conformance.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
-        let parameters = compilation.conformance_type_parameters(conformance);
-        let (binders, type_parameters) = project_type_parameters(
-            compilation,
-            parameters,
-            "conformance",
-            &identity.path,
-            &conformance.lifetime_parameters,
-        )?;
-        let subject = match &conformance.subject {
-            ConformanceSubject::Subjectless => None,
-            ConformanceSubject::Carrier(_) => {
-                let matches = compilation
-                    .data_definitions()
-                    .iter()
-                    .filter(|definition| definition.symbol == conformance.carrier_symbol)
-                    .collect::<Vec<_>>();
-                let [definition] = matches.as_slice() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "public conformance `{}` has a generic or unresolved subject not yet represented by package review",
-                        identity.path
-                    ))]);
-                };
-                if !compilation.data_type_parameters(definition).is_empty() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "public conformance `{}` has a generic applied subject not yet represented by package review",
-                        identity.path
-                    ))]);
-                }
-                if !definition.is_public {
-                    return Err(vec![Diagnostic::error(format!(
-                        "public conformance `{}` exposes non-public subject `{}`",
-                        identity.path, definition.name
-                    ))]);
-                }
-                Some(PackageReviewConformanceSubject {
-                    identity: nominal_identity(compilation, definition.symbol)?,
-                    arguments: Vec::new(),
-                })
-            }
-        };
-
-        let trait_matches = compilation
-            .traits()
-            .iter()
-            .filter(|definition| definition.symbol == conformance.trait_symbol)
-            .collect::<Vec<_>>();
-        let [trait_definition] = trait_matches.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` has no exact trait declaration",
-                identity.path
-            ))]);
-        };
-        if !trait_definition.is_public {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` exposes non-public trait `{}`",
-                identity.path, trait_definition.name
-            ))]);
-        }
-        ensure_public_conformance_laws_supported(
-            compilation,
-            trait_definition.symbol,
-            &identity.path,
-            &mut Vec::new(),
-        )?;
-        let trait_arguments = compilation
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-            .to_vec();
-        let projected_trait_arguments = trait_arguments
-            .iter()
-            .map(|argument| {
-                review_signature_type_identity_with_binders(
-                    compilation,
-                    *argument,
-                    &binders,
-                    &conformance.lifetime_parameters,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut expected_rows = Vec::new();
-        collect_evidence_requirement_rows(
-            compilation,
-            trait_definition.symbol,
-            &trait_arguments,
-            &binders,
-            &[],
-            true,
-            &mut Vec::new(),
-            &mut expected_rows,
-        )?;
-        for row in &expected_rows {
-            let declaring_trait = compilation
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == row.declaring_trait_symbol)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "public conformance `{}` has an unresolved inherited trait row",
-                        identity.path
-                    ))]
-                })?;
-            if !declaring_trait.is_public {
-                return Err(vec![Diagnostic::error(format!(
-                    "public conformance `{}` exposes non-public inherited trait `{}`",
-                    identity.path, declaring_trait.name
-                ))]);
-            }
-        }
-        let mut seen_coordinates = BTreeSet::new();
-        if expected_rows.iter().any(|row| {
-            !seen_coordinates.insert((
-                row.declaring_trait_symbol.arena_index(),
-                row.requirement_symbol.arena_index(),
-            ))
-        }) {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` has repeated inherited trait applications not yet distinguishable in its retained row map",
-                identity.path
-            ))]);
-        }
-
-        let rows = match &conformance.implementation {
-            ConformanceImplementation::AttachedRequirementMachines => {
-                return Err(vec![Diagnostic::error(format!(
-                    "public conformance `{}` has no retained closed requirement map",
-                    identity.path
-                ))]);
-            }
-            ConformanceImplementation::Closed { rows } => rows,
-        };
-        if rows.len() != expected_rows.len() {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` retains {} requirement rows; expected exactly {}",
-                identity.path,
-                rows.len(),
-                expected_rows.len()
-            ))]);
-        }
-        let mut used = BTreeSet::new();
-        let mut requirement_map = Vec::with_capacity(rows.len());
-        for row in rows {
-            if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
-                return Err(vec![Diagnostic::error(format!(
-                    "public conformance `{}` has an unchecked requirement realization",
-                    identity.path
-                ))]);
-            }
-            let matches = expected_rows
-                .iter()
-                .enumerate()
-                .filter(|(_, expected)| {
-                    expected.declaring_trait_symbol == row.declaring_trait
-                        && expected.requirement_symbol == row.requirement
-                })
-                .collect::<Vec<_>>();
-            let [(index, expected)] = matches.as_slice() else {
-                return Err(vec![Diagnostic::error(format!(
-                    "public conformance `{}` has a missing, duplicate, or unexpected normalized requirement row",
-                    identity.path
-                ))]);
-            };
-            if !used.insert(*index) {
-                return Err(vec![Diagnostic::error(format!(
-                    "public conformance `{}` fills one normalized requirement row more than once",
-                    identity.path
-                ))]);
-            }
-            requirement_map.push(expected.projected.clone());
-        }
-        if used.len() != expected_rows.len() {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` does not cover its complete normalized requirement map",
-                identity.path
-            ))]);
-        }
-        requirement_map.sort();
-        let evidence_interface = PackageReviewEvidenceInterface {
-            trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
-            arguments: projected_trait_arguments.clone(),
-            requirements: requirement_map.clone(),
-        };
-        projected.push(ProjectedReviewRow {
-            row: PackageReviewConformanceShape {
-                identity,
-                lifetime_parameter_count: conformance.lifetime_parameters.len(),
-                type_parameters,
-                subject,
-                trait_identity: evidence_interface.trait_identity.clone(),
-                trait_arguments: projected_trait_arguments,
-                requirement_map,
-                // Proposition-valued members/laws do not yet survive in the
-                // typed conformance map. The recursive guard above makes an
-                // empty law lane an exact statement rather than an omission.
-                laws: Vec::new(),
-                evidence_interface,
-            },
-            declaration: conformance.symbol,
-        });
-    }
-    projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
-    Ok(projected)
-}
-
-fn ensure_public_conformance_laws_supported(
-    compilation: &CheckedCompilation,
-    trait_symbol: SymbolHandle,
-    conformance_path: &str,
-    visited: &mut Vec<SymbolHandle>,
-) -> Result<(), Vec<Diagnostic>> {
-    if visited.contains(&trait_symbol) {
-        return Ok(());
-    }
-    visited.push(trait_symbol);
-    let definition = compilation
-        .traits()
-        .iter()
-        .find(|candidate| candidate.symbol == trait_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "public conformance `{conformance_path}` inherits an unresolved trait"
-            ))]
-        })?;
-    if !compilation.trait_invariants(definition).is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "public conformance `{conformance_path}` uses proposition/law rows not yet represented by package review"
-        ))]);
-    }
-    for parent in compilation.trait_requirements(definition) {
-        ensure_public_conformance_laws_supported(
-            compilation,
-            parent.symbol,
-            conformance_path,
-            visited,
-        )?;
-    }
-    Ok(())
 }
 
 fn project_public_data(
@@ -4924,12 +4863,8 @@ fn project_machine_parameter_contract(
                 ))]);
             }
             let trait_identity = nominal_identity(compilation, trait_definition.symbol)?;
-            let requirement_identity = PackageReviewNominalIdentity {
-                owner: nominal_owner(compilation, requirement.symbol)?,
-                path: compilation
-                    .normalized_trait_requirement_overload_identity(trait_definition, requirement)
-                    .identity(),
-            };
+            let requirement_identity =
+                trait_requirement_identity(compilation, trait_definition, requirement)?;
             if trait_identity.owner != requirement_identity.owner {
                 return Err(vec![Diagnostic::error(format!(
                     "public {declaration_kind} `{declaration_path}` static-machine contract has mismatched trait and requirement ownership",
@@ -6269,9 +6204,27 @@ fn validate_checked_contract_evidence(
         .requirements
         .iter()
         .map(|requirement| {
+            let owner = compilation
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == requirement.declaring_trait)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked witness requirement has no exact declaring trait",
+                    )]
+                })?;
+            let signature = compilation
+                .trait_machine_signatures(owner)
+                .iter()
+                .find(|candidate| candidate.symbol == requirement.requirement)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "checked witness requirement has no exact overload declaration",
+                    )]
+                })?;
             Ok((
                 nominal_identity(compilation, requirement.declaring_trait)?,
-                nominal_identity(compilation, requirement.requirement)?,
+                trait_requirement_identity(compilation, owner, signature)?,
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
@@ -6711,7 +6664,12 @@ fn project_proposition_evidence_projection(
         ))]);
     }
     let declaring_trait = nominal_identity(compilation, checked_requirement.declaring_trait)?;
-    let requirement = nominal_identity(compilation, checked_requirement.requirement)?;
+    let requirement = trait_requirement_identity_from_symbols(
+        compilation,
+        checked_requirement.declaring_trait,
+        checked_requirement.requirement,
+        "checked evidence projection",
+    )?;
     let matching_projected = interface
         .requirements
         .iter()
@@ -6895,20 +6853,15 @@ fn project_evidence_interface(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut requirements = Vec::new();
-    collect_evidence_requirement_rows(
+    collect_evidence_requirements(
         compilation,
         trait_symbol,
         &arguments,
         proposition_binders,
         &[],
-        false,
         &mut Vec::new(),
         &mut requirements,
     )?;
-    let mut requirements = requirements
-        .into_iter()
-        .map(|requirement| requirement.projected)
-        .collect::<Vec<_>>();
     requirements.sort();
     requirements.dedup();
     Ok(PackageReviewEvidenceInterface {
@@ -6918,22 +6871,14 @@ fn project_evidence_interface(
     })
 }
 
-#[derive(Debug, Clone)]
-struct ProjectedEvidenceRequirementRow {
-    declaring_trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    projected: PackageReviewEvidenceRequirement,
-}
-
-fn collect_evidence_requirement_rows(
+fn collect_evidence_requirements(
     compilation: &CheckedCompilation,
     trait_symbol: SymbolHandle,
     trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     proposition_binders: &[(SymbolHandle, String)],
     inherited_substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
-    exact_overload_identity: bool,
     visited: &mut Vec<(PackageReviewNominalIdentity, Vec<PackageReviewTypeIdentity>)>,
-    requirements: &mut Vec<ProjectedEvidenceRequirementRow>,
+    requirements: &mut Vec<PackageReviewEvidenceRequirement>,
 ) -> Result<(), Vec<Diagnostic>> {
     let definition = compilation
         .traits()
@@ -6990,23 +6935,10 @@ fn collect_evidence_requirement_rows(
     visited.push(visit);
 
     for requirement in compilation.trait_machine_signatures(definition) {
-        requirements.push(ProjectedEvidenceRequirementRow {
-            declaring_trait_symbol: trait_symbol,
-            requirement_symbol: requirement.symbol,
-            projected: PackageReviewEvidenceRequirement {
-                declaring_trait: nominal_identity(compilation, trait_symbol)?,
-                declaring_trait_arguments: argument_identities.clone(),
-                requirement: if exact_overload_identity {
-                    PackageReviewNominalIdentity {
-                        owner: nominal_owner(compilation, requirement.symbol)?,
-                        path: compilation
-                            .normalized_trait_requirement_overload_identity(definition, requirement)
-                            .identity(),
-                    }
-                } else {
-                    nominal_identity(compilation, requirement.symbol)?
-                },
-            },
+        requirements.push(PackageReviewEvidenceRequirement {
+            declaring_trait: nominal_identity(compilation, trait_symbol)?,
+            declaring_trait_arguments: argument_identities.clone(),
+            requirement: trait_requirement_identity(compilation, definition, requirement)?,
         });
     }
 
@@ -7027,13 +6959,12 @@ fn collect_evidence_requirement_rows(
         let parent_arguments = compilation
             .type_reference_table
             .type_reference_handles(parent.arguments);
-        collect_evidence_requirement_rows(
+        collect_evidence_requirements(
             compilation,
             parent.symbol,
             parent_arguments,
             proposition_binders,
             &substitutions,
-            exact_overload_identity,
             visited,
             requirements,
         )?;
@@ -8179,7 +8110,11 @@ fn project_callable_conformances(
         };
         projected.push(PackageReviewCallableConformance {
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
-            requirement_identity: nominal_identity(compilation, requirement.symbol)?,
+            requirement_identity: trait_requirement_identity(
+                compilation,
+                trait_definition,
+                requirement,
+            )?,
             arguments: compilation
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)
@@ -8272,12 +8207,7 @@ fn installation_requirement_identity(
         .filter(|machine| machine.symbol == symbol)
         .collect::<Vec<_>>();
     match (trait_matches.as_slice(), machine_matches.as_slice()) {
-        ([(owner, requirement)], []) => Ok(PackageReviewNominalIdentity {
-            owner: nominal_owner(compilation, owner.symbol)?,
-            path: compilation
-                .normalized_trait_requirement_overload_identity(owner, requirement)
-                .identity(),
-        }),
+        ([(owner, requirement)], []) => trait_requirement_identity(compilation, owner, requirement),
         ([], [machine])
             if machine.service_reach_is_installation_bound
                 && machine.supply_mode == MachineSupplyMode::Boundary =>
@@ -8736,50 +8666,105 @@ fn nominal_identity(
     Ok(PackageReviewNominalIdentity { owner, path })
 }
 
+fn trait_requirement_identity(
+    compilation: &CheckedCompilation,
+    owner: &psi_typed_trees::trait_definition::TraitDefinition,
+    requirement: &psi_typed_trees::signature::StateSignature,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let owner_identity = nominal_identity(compilation, owner.symbol)?;
+    let requirement_owner = nominal_owner(compilation, requirement.symbol)?;
+    if owner_identity.owner != requirement_owner {
+        return Err(vec![Diagnostic::error(format!(
+            "package review trait `{}` and requirement `{}` have mismatched exact ownership",
+            owner.name, requirement.name
+        ))]);
+    }
+    Ok(PackageReviewNominalIdentity {
+        owner: requirement_owner,
+        path: compilation
+            .normalized_trait_requirement_overload_identity(owner, requirement)
+            .identity(),
+    })
+}
+
+fn trait_requirement_identity_from_symbols(
+    compilation: &CheckedCompilation,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    context: &str,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let owners = compilation
+        .traits()
+        .iter()
+        .filter(|candidate| candidate.symbol == trait_symbol)
+        .collect::<Vec<_>>();
+    let [owner] = owners.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "{context} resolves its declaring trait to {} declarations; expected exactly one",
+            owners.len()
+        ))]);
+    };
+    let requirements = compilation
+        .trait_machine_signatures(owner)
+        .iter()
+        .filter(|candidate| candidate.symbol == requirement_symbol)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "{context} resolves its requirement to {} overload declarations under its exact trait; expected exactly one",
+            requirements.len()
+        ))]);
+    };
+    trait_requirement_identity(compilation, owner, requirement)
+}
+
+fn provider_requirement_identity(
+    compilation: &CheckedCompilation,
+    schema: super::provider_plans::ProviderSchemaDeclaration,
+    requirement_symbol: SymbolHandle,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    match schema {
+        super::provider_plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+            trait_requirement_identity_from_symbols(
+                compilation,
+                trait_symbol,
+                requirement_symbol,
+                "selected provider row",
+            )
+        }
+        super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
+            let operators = compilation.operators().iter().chain(
+                compilation
+                    .domain_definitions()
+                    .iter()
+                    .flat_map(|domain| compilation.domain_operators(domain)),
+            );
+            let matches = operators
+                .filter(|candidate| candidate.symbol == requirement_symbol && candidate.is_boundary)
+                .collect::<Vec<_>>();
+            let [operator] = matches.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider row resolves its boundary operator requirement to {} declarations; expected exactly one",
+                    matches.len()
+                ))]);
+            };
+            let nominal = nominal_identity(compilation, requirement_symbol)?;
+            Ok(PackageReviewNominalIdentity {
+                owner: nominal.owner,
+                path: psi_typed_trees::operator::boundary_operator_requirement_identity(
+                    &compilation.typed,
+                    operator,
+                ),
+            })
+        }
+    }
+}
+
 fn nominal_owner(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
-    let direct = nominal_owner_from_symbols(&compilation.typed.symbols, symbol)?;
-    if direct != PackageReviewNominalOwner::Unresolved {
-        return Ok(direct);
-    }
-    // Inline and instantiated-default conformance members are private
-    // generated declarations. They retain source provenance but intentionally
-    // do not acquire an independently publishable symbol. Their package
-    // custody is the owning conformance's custody; this fallback does not make
-    // the realization public or place its identity in PublicConformance.
-    let Some(owner) = conformance_realization_owner(compilation, symbol)? else {
-        return Ok(PackageReviewNominalOwner::Unresolved);
-    };
-    nominal_owner_from_symbols(&compilation.typed.symbols, owner)
-}
-
-fn conformance_realization_owner(
-    compilation: &CheckedCompilation,
-    symbol: SymbolHandle,
-) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
-    let owners = compilation
-        .conformances()
-        .iter()
-        .filter(|conformance| {
-            compilation
-                .closed_conformance_rows(conformance)
-                .is_some_and(|rows| {
-                    rows.iter().any(|row| {
-                        row.realization_machine == symbol || row.realization_state == symbol
-                    })
-                })
-        })
-        .map(|conformance| conformance.symbol)
-        .collect::<Vec<_>>();
-    match owners.as_slice() {
-        [owner] => Ok(Some(*owner)),
-        [] => Ok(None),
-        _ => Err(vec![Diagnostic::error(
-            "package review generated conformance realization has several declaration owners",
-        )]),
-    }
+    nominal_owner_from_symbols(&compilation.typed.symbols, symbol)
 }
 
 fn nominal_owner_from_symbols(

@@ -694,3 +694,78 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
     let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);
 }
+
+#[test]
+fn public_conformance_changes_render_as_blocking_review_conflicts() {
+    let live = temp_root("public-conformance-live");
+    let baseline_cache = temp_root("public-conformance-baseline");
+    let candidate_cache = temp_root("public-conformance-candidate");
+    let build_root = temp_root("public-conformance-build");
+    let context = ExternalSourceContext::derive(b"public-conformance-conflict-test");
+
+    let source = |argument: &str| {
+        format!(
+            r#"pub data First {{ }}
+pub data Second {{ }}
+pub trait Marker<Tag> {{ }}
+pub Choice: First satisfies Marker<{argument}> {{ }}
+"#
+        )
+    };
+    write_package(&live, &source("First"));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public conformance baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile public conformance baseline");
+
+    write_package(&live, &source("Second"));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public conformance candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile public conformance candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare public conformance compatibility");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("changed public conformance row");
+    assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    assert!(conflict.is_blocking());
+    assert!(
+        conflicts
+            .render_bounded(1024 * 1024)
+            .expect("render public conformance conflict")
+            .contains("change changed\nkind public_conformance\nrisk blocking\n")
+    );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}

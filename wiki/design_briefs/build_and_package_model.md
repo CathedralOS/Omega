@@ -1527,29 +1527,30 @@ interface citation, public headers cannot hide a private carrier or trait, and
 private member machines remain implementation. Lexical conformance-binder
 requirements inherit the enclosing declaration rather than becoming package
 declarations. Explicit row references retain their authored source occurrence
-through exact target normalization and obey ordinary package visibility. The
-next standalone compatibility row is `PublicConformance`.
-Every package-owned
+through exact target normalization and obey ordinary package visibility. Every package-owned
 `pub Name: Subject satisfies Trait<...>` declaration contributes the exact
 package-qualified conformance identity, normalized static telescope, optional
-subject, exact trait application, complete normalized requirement map, laws,
-and checked evidence interface. Private member machines, proof bodies, source
-text, and physical code identity are not public compatibility material. An
+subject, exact trait application, and complete normalized checked requirement
+interface. The referenced public-trait row owns requirement contracts and laws;
+the conformance must discharge them before projection. Private member machines,
+proof bodies, source text, and physical code identity are not public
+compatibility material. An
 exact machine requirement-satisfier edge and its optional `as Name` grouping
 label do not produce this row. Private cross-package conformance selection and
 public-interface citation reject; same-package private selection remains legal.
 
-The first implemented projection is deliberately fail-closed. Review v55 and
-canonical row v15 admit public closed maps with an exactly retained telescope,
-an optional non-generic nominal subject, overload-qualified inherited machine
-requirements, no unrepresented law members, and a complete checked evidence
-interface. The projector matches every private realization row back to that
-public closure but fingerprints none of the realization machine, state, body,
-or inline/reference/default choice. Bodyless attached-machine maps, generic
-applied subjects, repeated inherited applications that the retained row cannot
-distinguish, and proposition/law surfaces not yet present in typed Psi reject
-rather than producing a partial compatibility row. The conformance declaration
-is package-owned; its public subject and trait may come from a direct dependency.
+Review v55 and canonical row v15 admit package-owned public conformances with
+alpha-normalized lifetime/static telescopes, nominal or telescope-parameter
+subjects, exact trait application, and overload-qualified inherited machine
+requirements. Closed and attached-machine forms normalize to the same row.
+The projector matches every retained closed realization back to the public
+closure but fingerprints none of the realization machine, state, body, or
+inline/reference/default choice. Validation checks attached and closed
+realization signatures plus substituted trait laws before projection. Target
+traits with unretained lifetime arguments, inherited lifetime substitution,
+and proof-static trait parameters reject rather than producing a partial row.
+The conformance declaration is package-owned; its public subject and trait may
+come from a direct dependency.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

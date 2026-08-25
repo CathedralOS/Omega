@@ -36,6 +36,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
             ),
         };
         let trait_name = conformance.trait_name.as_str();
+        let conformance_name = conformance.alias.as_ref().map(|name| name.as_str());
 
         for previous in &program.conformances()[..index] {
             match (&previous.subject, &conformance.subject) {
@@ -127,6 +128,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
                         type_name,
                         trait_definition,
                         arguments,
+                        conformance_name,
                         diagnostics,
                         &mut Vec::new(),
                     );
@@ -142,6 +144,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
                 trait_definition,
                 arguments,
                 rows,
+                conformance_name,
                 diagnostics,
             ),
         }
@@ -154,6 +157,7 @@ fn validate_closed_rows(
     root_trait: &TraitDefinition,
     root_arguments: &[TypeReferenceHandle],
     rows: &[psi_typed_trees::trait_definition::ConformanceRow],
+    conformance_name: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for row in rows {
@@ -227,6 +231,15 @@ fn validate_closed_rows(
             &arguments,
             diagnostics,
         );
+        crate::contract_entailment::check_law_conformance(
+            program,
+            machine,
+            conformance_name,
+            declaring_trait,
+            requirement,
+            &arguments,
+            diagnostics,
+        );
     }
 }
 
@@ -274,6 +287,7 @@ fn validate_data_satisfies_trait(
     type_name: &str,
     trait_definition: &TraitDefinition,
     explicit_type_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
+    conformance_name: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
     visited_traits: &mut Vec<psi_symbols::SymbolHandle>,
 ) {
@@ -305,6 +319,15 @@ fn validate_data_satisfies_trait(
             explicit_type_arguments,
             diagnostics,
         );
+        crate::contract_entailment::check_law_conformance(
+            program,
+            machine,
+            conformance_name,
+            trait_definition,
+            requirement,
+            explicit_type_arguments,
+            diagnostics,
+        );
     }
 
     for requirement in program.trait_requirements(trait_definition) {
@@ -324,6 +347,7 @@ fn validate_data_satisfies_trait(
             type_name,
             required_trait,
             &required_arguments,
+            conformance_name,
             diagnostics,
             visited_traits,
         );
