@@ -2,6 +2,7 @@
 
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](OMEGA_BOOTSTRAP_COMPILATION.md) |
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](OMEGA_BOOTSTRAP_CHECKED_IR.md) |
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
 [`OMGCOMP refinement`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 
 This contract fixes the bridge-private boundary between multi-unit Omega source
@@ -14,7 +15,8 @@ exact OMGCOMP
 
 exact OMGCOMP + exact OMGRSW1
     │
-    └── omega-bootstrap-resolved-to-ckir ──▶ CKIR
+    ├── omega-bootstrap-resolved-to-ckir  ──▶ CKIR1 (frozen)
+    └── omega-bootstrap-resolved-to-ckir2 ──▶ CKIR2 (explicit root + calls)
 ```
 
 `OMGRSW1` is the normalized frontend/resolution handoff. It retains source
@@ -56,7 +58,7 @@ It does not lower bodies, read or emit CKIR/ELF, accept a package receipt, or
 compare SHA-256. Structural `OMGCOMP` validity and the external receipt/digest
 join remain separate conjuncts.
 
-`omega-bootstrap-resolved-to-ckir` owns:
+The versioned resolved-source lowerers own:
 
 - safe decoding of the exact paired input below;
 - local validation of every witness extent, ID, source span, and relation it
@@ -67,6 +69,12 @@ join remain separate conjuncts.
   reconstruction; and
 - canonical CKIR publication only after the complete artifact fits.
 
+The schema-2 lowerer additionally projects the exact selected root and consumes
+every role-3 attached-machine binding exactly once while lowering finite acyclic
+calls. Its `OMGLOW2` framing, call operation, ordering, and frozen aggregate
+ceilings are specified in
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V2.md).
+
 It does not redo package/name resolution. Independent source-to-witness and
 witness/source-to-CKIR checkers establish those assurance conjuncts.
 
@@ -74,7 +82,13 @@ The existing `omega-bootstrap-source-custody-check.alp` remains the frozen
 one-unit regression/reference producer. Multi-unit production work must not
 turn it into the resolver, lowerer, and artifact checker at once.
 
-## Lowerer input frame — `OMGLOW1`
+## Lowerer input frames
+
+`OMGLOW1` remains the frozen CKIR1 input. `OMGLOW2` has a distinct magic and
+schema identity for CKIR2; otherwise it carries the same bounded exact
+`OMGCOMP || OMGRSW1` components. The two lowerers reject each other's frames.
+
+### Frozen CKIR1 frame — `OMGLOW1`
 
 The resolver emits only `OMGRSW1`. Untrusted orchestration pairs those bytes
 with the unchanged compilation envelope in this exact little-endian frame:
