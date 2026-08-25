@@ -86,19 +86,26 @@ lock.
 ## Current engineering delta
 
 Git resolution now treats helper-reported IDs, listings, and framing only as
-inputs to parent-owned verification. The parent hashes the raw selected commit,
-parses and compares its root-tree edge, hashes every returned blob, reconstructs
-the canonical recursive Git tree objects from those authenticated leaves, and
-compares the resulting Merkle root with the selected tree. Both SHA-1 and
-SHA-256 exact revisions are supported. Fixed object vectors, real repositories,
-and mismatch tests cover object bytes, commit identity, commit-to-tree and
-tree-to-child edges, canonical Git ordering, and destination containment. All
-authentication and destination preflight completes before a snapshot staging
-path can be created. The authenticated bytes are then materialized into a
+inputs to parent-owned verification. An exact requested object ID must equal the
+selected commit. The parent hashes the raw selected commit, parses and compares
+its root-tree edge, collision-checks every SHA-1 object hash, hashes every
+returned blob, retains every explicit child-tree edge, reconstructs each
+canonical recursive Git tree object including empty trees, and compares the
+resulting Merkle root with the selected tree. SHA-1 compatibility rejects known
+collision attacks but does not restore theoretical SHA-1 collision resistance;
+SHA-256 uses its ordinary full digest and remains preferred. Fixed object vectors,
+real repositories, and mismatch tests cover object bytes, exact-pin binding,
+commit identity, commit-to-tree and tree-to-child edges, empty trees, canonical
+Git ordering, and destination containment. All authentication and destination
+preflight completes before a snapshot staging path can be created. The
+authenticated bytes and explicit directories are then materialized into a
 staged, read-only, atomically published snapshot without invoking checkout,
 filters, hooks, submodules, or package code; the published source is re-hashed
-and revalidated before reuse. This establishes the selected-object-graph to
-snapshot shape, not the complete production boundary.
+and compared directly with the identity derived from freshly authenticated Git
+entries before every reuse. Snapshot metadata must agree too, but is descriptive
+and cannot authorize replacement bytes even when rewritten to match them. This
+establishes the selected-object-graph to snapshot shape, not the complete
+production boundary.
 
 Local sources now use a bounded in-memory capture, content-addressed staging,
 read-only atomic publication, and revalidation before reuse. Physical
