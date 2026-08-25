@@ -104,37 +104,109 @@ pub(crate) fn finalize_authored_expression_selections(
         .map_err(record_diagnostic)?;
     }
 
+    for candidate in conformance_bound_candidates(program) {
+        record_unattached_candidate(program, candidate)?;
+    }
+
     for candidate in statement_candidates(program) {
-        match candidate.target {
-            CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection(
-                    candidate.source_span,
-                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                    candidate.kind,
-                    symbol,
-                ),
-            CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection(
-                    candidate.source_span,
-                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                    candidate.kind,
-                    binding,
-                ),
-        }
-        .map_err(record_diagnostic)?;
+        record_unattached_candidate(program, candidate)?;
     }
 
     Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
-struct StatementCandidate {
+struct UnattachedCandidate {
     source_span: SourceSpan,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     kind: Kind,
     target: CandidateTarget,
 }
 
-fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<StatementCandidate> {
+fn record_unattached_candidate(
+    program: &mut SymbolResolvedTrees,
+    candidate: UnattachedCandidate,
+) -> Result<(), Diagnostic> {
+    match candidate.target {
+        CandidateTarget::Resolved(symbol) => program
+            .record_resolved_authored_declaration_selection(
+                candidate.source_span,
+                candidate.exposure,
+                candidate.kind,
+                symbol,
+            ),
+        CandidateTarget::LateBound(binding) => program
+            .record_late_bound_authored_declaration_selection(
+                candidate.source_span,
+                candidate.exposure,
+                candidate.kind,
+                binding,
+            ),
+    }
+    .map(|_| ())
+    .map_err(record_diagnostic)
+}
+
+fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+
+    let mut candidates = Vec::new();
+    for machine in program.machines.iter() {
+        collect_conformance_bound_candidates(
+            &machine.conformance_bounds,
+            if machine.is_public {
+                Exposure::PublicInterface
+            } else {
+                Exposure::PrivateImplementation
+            },
+            &mut candidates,
+        );
+    }
+    for trait_definition in program.traits.iter() {
+        collect_conformance_bound_candidates(
+            &trait_definition.conformance_bounds,
+            if trait_definition.is_public {
+                Exposure::PublicInterface
+            } else {
+                Exposure::PrivateImplementation
+            },
+            &mut candidates,
+        );
+    }
+    candidates
+}
+
+fn collect_conformance_bound_candidates(
+    bounds: &[psi_symbol_resolved_trees::machine::GenericConformanceBound],
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    candidates: &mut Vec<UnattachedCandidate>,
+) {
+    for bound in bounds {
+        if bound.carrier_name.is_source_backed() {
+            candidates.push(UnattachedCandidate {
+                source_span: bound.carrier_name.source_span(),
+                exposure,
+                kind: Kind::TypeReference,
+                target: resolved_or_late(bound.carrier, LateBinding::CheckedStaticPathSegment),
+            });
+        }
+        if let Some(conformance_name) = &bound.conformance_name
+            && conformance_name.is_source_backed()
+        {
+            candidates.push(UnattachedCandidate {
+                source_span: conformance_name.source_span(),
+                exposure,
+                kind: Kind::Conformance,
+                target: resolved_or_late(
+                    bound.conformance.unwrap_or_else(SymbolHandle::invalid),
+                    LateBinding::CheckedConformance,
+                ),
+            });
+        }
+    }
+}
+
+fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
     let mut candidates = Vec::new();
     for machine in program.machines.iter() {
         for state_handle in program.machine_state_handles(machine.states) {
@@ -151,8 +223,9 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<StatementCandidate
                 if call.operational_acknowledgement.origin
                     == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
                 {
-                    candidates.push(StatementCandidate {
+                    candidates.push(UnattachedCandidate {
                         source_span: call.target.source_span(),
+                        exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                         kind: Kind::Call,
                         target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
                     });
@@ -175,12 +248,13 @@ fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
     arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
     fallback_span: SourceSpan,
-    candidates: &mut Vec<StatementCandidate>,
+    candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
         if argument.path.iter().any(|member| member.is_source_backed()) {
-            candidates.push(StatementCandidate {
+            candidates.push(UnattachedCandidate {
                 source_span: path_span(&argument.path, fallback_span),
+                exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
                 kind: static_argument_kind(program, argument.symbol),
                 target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
             });

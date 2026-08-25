@@ -440,6 +440,82 @@ fn resolves_explicit_conformance_binder_as_proof_static_trait_child() {
 }
 
 #[test]
+fn retains_callable_conformance_bound_declarations_with_owner_exposure() {
+    let source = r#"
+        trait Ranked {}
+        data Card {}
+        PowerOrder: Card satisfies Ranked;
+
+        pub machine rank<Element, Evidence: Element satisfies Ranked>(value: &Element) {}
+
+        machine rank_power<Element>(value: &Element)
+        where Element satisfies Card::PowerOrder
+        {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize conformance-bound custody");
+    let syntax = parse_syntax_trees(&tokens).expect("parse conformance-bound custody");
+    let program = lower_syntax_trees(&syntax).expect("resolve conformance-bound custody");
+    let ranked = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Ranked")
+        .expect("Ranked trait")
+        .symbol;
+    let card = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Card")
+        .expect("Card data")
+        .symbol;
+    let power_order = program
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "PowerOrder")
+        })
+        .expect("PowerOrder conformance")
+        .symbol;
+    let selections = program.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind()
+            == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+            && selection.exposure()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if target.selected_symbol() == ranked
+            )
+    }));
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+            && selection.exposure()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if target.selected_symbol() == card
+            )
+    }));
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
+            && selection.exposure()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if target.selected_symbol() == power_order
+            )
+    }));
+}
+
+#[test]
 fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
         trait Ranked {

@@ -165,6 +165,12 @@ and bodies are private implementation. Proof-membership custody includes the
 selected domain path, not the lexical value parameter. Nested declaration
 visibility is not inferred while its owner rule remains unsettled.
 
+In a generic conformance bound, the subject and optional evidence binder are
+lexical. The right-hand trait is authored declaration authority, and a
+qualified `Carrier::Evidence` bound selects both exact declarations. Bounds on
+machines and traits take the enclosing declaration's public/private
+disposition; declaration publication remains a separate visibility rule.
+
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.
 They enter private artifact identity or public compatibility identity according

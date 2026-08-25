@@ -1056,6 +1056,13 @@ as a declaration row, while their parameter/local value roots remain lexical
 places. Visibility-dependent nested declaration expressions wait for the
 source visibility rule rather than inheriting publicity by guesswork.
 
+Generic conformance bounds follow the same authored-authority rule. A subject
+parameter and optional evidence binder are lexical. The right-hand trait is an
+exact trait selection; a qualified `Carrier::Evidence` bound selects both the
+carrier declaration and the package-scoped conformance. Machine and trait
+bounds inherit their enclosing declaration's exposure. This does not decide
+whether every selected declaration family is independently publishable.
+
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They
