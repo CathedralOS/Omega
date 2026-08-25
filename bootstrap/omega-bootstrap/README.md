@@ -298,9 +298,13 @@ language, generation, or architectural role; new documentation and work use
   freeze the next pure-sum ownership and byte contracts: OMGRSW3 carries exact
   sum/case/payload identities, OMGLOW6 lowers them, and CKIR5 represents runtime
   case construction plus exhaustive selected-edge payload binding without
-  reading inactive payloads or claiming a public Omega ABI. Implementation,
-  native/self/Rust-free gates, and the corresponding OMGRFN7 refinement remain
-  open; these documents are not a closure claim.
+  reading inactive payloads or claiming a public Omega ABI. OMGRSW3 production
+  now passes its focused native/self, least-version, mutation, and resource
+  gate. An independent CKIR5 checker/meaning fixture validates the complete
+  schema and result-70 relation, and OMGRFN7 R1 validates exact outer framing
+  and source custody while keeping successor components opaque. OMGLOW6 body
+  lowering, the CKIR5 backend, and OMGRFN7 R2–R5 remain open, so this is not yet
+  a closed sum tranche.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

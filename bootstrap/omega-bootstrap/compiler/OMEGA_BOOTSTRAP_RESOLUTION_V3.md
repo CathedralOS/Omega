@@ -127,6 +127,14 @@ kind `6 = nominal sum`, whose payload 0 is the exact sum ID, whose payload 1 and
 range endpoints are zero, and whose trapping flag is zero. Every sum has
 exactly one such row and every such row names exactly one sum.
 
+Canonical type interning extends the inherited prefix without interleaving it:
+nominal records remain first in record-ID order with type ID equal to record ID;
+nominal sums follow in sum-ID order with type ID `record_count + sum_id`; the
+canonical `bool` and full admitted `u32` rows follow that complete nominal-data
+prefix. Remaining first-encounter and array interning rules are inherited. This
+keeps every record relation byte-shaped as before while assigning sums one
+unambiguous normalized prefix.
+
 Qualified constructor and arm spellings do not add a guessed body-name binding.
 The expected construction type or transition-subject type selects the exact
 sum; the exact case table then selects its unique same-named case. Imported and
@@ -204,10 +212,12 @@ declarations, 2,048 normalized types, 128 machines, 2,048 blocks, and the
 | case rows in the witness | 4,096 |
 | payload fields in one case | 4 |
 | case-payload-field rows in the witness | 4,096 |
+| ordinary-field plus case-payload-field rows | 8,192 |
 
 The exact encoded witness must fit 524,288 bytes; individual row ceilings are
-not permission to realize an over-cap Cartesian product. Payload fields also
-consume the inherited raw-type budget. A source-valid fifth payload field, 65th
+not permission to realize an over-cap Cartesian product. Payload fields share
+the inherited 8,192-row raw-type carrier with ordinary fields. A source-valid
+fifth payload field, 65th
 case, or other validated public extent above a stated ceiling selects 252.
 Malformed syntax, duplicate or unknown names, a mixed or explicitly numbered
 shape, a type/copyability/cycle failure, bad relation, cross-version pair,

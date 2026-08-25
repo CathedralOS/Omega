@@ -345,8 +345,9 @@ those user-facing features without expressing its own algorithms in them.
 Every row still resolves by the same measured whole-bootstrap cost test; none
 is a ruling merely because it appears in this table.
 
-The current cost evidence reaches selected finite calls, constant aggregates,
-runtime named records, and same-module direct-field receivers through CKIR4.
+The current closed cost evidence reaches selected finite calls, constant
+aggregates, runtime named records, and same-module direct-field receivers
+through CKIR4.
 Each selected slice has native/self-built production, representative Rust-free
 meaning, independent result/artifact reconstruction, resource and mutation
 teeth, and responsibility-local lower-rooted composition. This establishes
@@ -358,6 +359,13 @@ the versioned `OMEGA_BOOTSTRAP_CHECKED_IR*` contracts under
 [`bootstrap/omega-bootstrap/compiler/`](../../../bootstrap/omega-bootstrap/compiler/),
 and the versioned `OMGCOMP_REFINEMENT_WITNESS*` contracts under
 [`bootstrap/assurance/refinement/omega-bootstrap/`](../../../bootstrap/assurance/refinement/omega-bootstrap/).
+
+Payload sums have narrower, still-incomplete evidence: OMGRSW3 source
+resolution and publication, an independent CKIR5 checker/meaning fixture, and
+OMGRFN7 outer custody are executable, while Delta body lowering, native
+emission, and the responsibility-local R2–R5 refinement joins remain open.
+That is enough to replace an intuition-only estimate with measured partial
+cost, but not enough to retain payload sums in final `Ωself`.
 
 Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).
