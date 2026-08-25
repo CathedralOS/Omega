@@ -55,15 +55,21 @@ proc omgrfn2_l2_read_frame() {
         to bad when (omgrfn2_l2_frame_byte(4)!='F') to bad when (omgrfn2_l2_frame_byte(5)!='N')
         to bad when (omgrfn2_l2_frame_byte(6)!='2') to bad when (omgrfn2_l2_frame_byte(7)!=0)
         to bad when (omgrfn2_l2_frame_u32(8)!=2)
-        word[500016]=omgrfn2_l2_frame_u32(12) word[500024]=40 word[500032]=omgrfn2_l2_frame_u32(16)
-        word[500040]=40+word[500032] word[500048]=omgrfn2_l2_frame_u32(20)
-        word[500056]=word[500040]+word[500048] word[500064]=omgrfn2_l2_frame_u32(24)
-        word[500072]=word[500056]+word[500064] word[500080]=omgrfn2_l2_frame_u32(28)
+        word[500016]=omgrfn2_l2_frame_u32(12) word[500032]=omgrfn2_l2_frame_u32(16)
+        word[500048]=omgrfn2_l2_frame_u32(20) word[500064]=omgrfn2_l2_frame_u32(24)
+        word[500080]=omgrfn2_l2_frame_u32(28)
         word[500088]=omgrfn2_l2_frame_u32(32) word[500096]=omgrfn2_l2_frame_u32(36)
         to bad when (word[500016]>1) to bad when (word[500032]<1) to bad when (word[500048]<1) to bad when (word[500064]<1)
         to exhausted when (word[500032]>267280) to exhausted when (word[500048]>524288)
         to exhausted when (word[500064]>2260040) to exhausted when (word[500080]>1052672)
-        to bad when (n != word[500072]+word[500080])
+        word[500024]=40
+        to bad when (word[500032]>n-word[500024])
+        word[500040]=word[500024]+word[500032]
+        to bad when (word[500048]>n-word[500040])
+        word[500056]=word[500040]+word[500048]
+        to bad when (word[500064]>n-word[500056])
+        word[500072]=word[500056]+word[500064]
+        to bad when (word[500080]!=n-word[500072])
         to library when (word[500016]==0) to entry
     }
     state library { to bad when (word[500080]!=0) to bad when (word[500088]!=4294967295) to bad when (word[500096]!=4294967295) return 0 }
