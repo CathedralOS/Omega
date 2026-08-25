@@ -105,7 +105,7 @@ Two lanes co-evolve until their join:
 | Lane | Owner | Bootstrap responsibility |
 | --- | --- | --- |
 | production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
-| bridge and language closure | this file | implement general profile rules in Delta; maintain the Delta ledger; freeze both contracts at their completed closures |
+| bridge and language closure | this file | implement general profile rules in Delta; maintain the Delta ledger; publish both frozen contracts at the completed product-source/bridge join |
 
 The immediate executable order is:
 
@@ -130,18 +130,16 @@ the ordinary-Omega forms retained in the compiler's own source profile.
 The required execution order is:
 
 1. consume product checkpoints while growing the general bridge;
-2. freeze `Ωself` at the complete product-source/bridge join;
-3. freeze Delta v1 from the complete bridge source and explicit language
-   arguments;
-4. build and validate `omega-bootstrap` through the lattice; and
-5. perform the one required hosted production build.
+2. settle and freeze both source contracts at the completed
+   product-source/bridge join;
+3. build and validate `omega-bootstrap` through the lattice; and
+4. perform the one required hosted production build.
 
-Steps 2 and 3 are two publications from one completed source-and-bridge join,
-not independent upstream/downstream language rungs. `Ωself` is frozen from the
-complete production source plus measured bridge cost; Delta v1 is frozen from
-the complete bridge source plus its compiler-host arguments. Numbering them
-separately keeps their evidence and versioning distinct—it does not introduce a
-third profile or a circular build dependency.
+Step 2 publishes two separately versioned contracts from one evidence join:
+`Ωself` from the complete production source plus measured bridge cost, and
+Delta v1 from the complete bridge source plus its compiler-host arguments.
+Neither is an upstream language rung for the other, and there is no third
+bootstrap source inventory or circular build dependency.
 
 The optional product self-rebuild is not part of this queue. Fixed or paged
 backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
@@ -347,7 +345,13 @@ resolution, checking/lowering, and artifact-refinement seams when their byte
 contracts are fixed. Acceptance joins all of them; progress in one seam must
 not be reported as authority for another.
 
-### 3. Freeze `Ωself` at the completed bridge join
+### 3. Settle both source contracts at the completed bridge join
+
+The join emits two artifacts with distinct scopes and versioning. Freeze them
+together so neither can be justified by a partial source closure or by assumed
+costs in the other.
+
+#### `Ωself`
 
 - [ ] Reconcile the final deterministic product source closure, provisional
   compositional profile, and complete bridge implementation. For every
@@ -365,7 +369,7 @@ partial publication and production `omega` accepts. Any product-source closure
 change reopens the profile. This profile governs what `omega-bootstrap`
 accepts, not which full-Omega features the resulting compiler implements.
 
-### 4. Freeze Delta v1
+#### Delta v1
 
 - [ ] Classify every retained construct as required by the complete bridge
   closure or justified by an explicit coherence, robustness, safety, or
@@ -390,7 +394,12 @@ lattice-built Delta compiler accepts every conforming Delta-v1 program and
 rejects every nonconforming one according to the specified phase and failure
 behavior. Later widening is an explicit versioned language change.
 
-### 5. Validate Delta → `omega-bootstrap`
+Joint acceptance: both publications bind the same completed bridge/product
+join while remaining independent contracts. `Ωself` does not define Delta,
+Delta does not define `Ωself`, and neither source manifest substitutes for
+general language/profile rules.
+
+### 4. Validate Delta → `omega-bootstrap`
 
 - [ ] Build the exact bridge artifact through the canonical lattice path and
   join its Delta source closure, produced artifact, canonical meaning, and
@@ -405,7 +414,7 @@ Acceptance: the exact lattice-built bridge is bound to its exact source and
 meaning, needs no Rust producer or ambient assembler/linker in the required
 path, and correctly accepts and rejects the frozen `Ωself` profile.
 
-### 6. Perform the sole required hosted production build
+### 5. Perform the sole required hosted production build
 
 - [ ] Run the validated Delta-built bridge on the exact frozen `Ωself`
   manifest. Validate the resulting compiler against canonical meaning, the
