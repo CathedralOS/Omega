@@ -1347,8 +1347,10 @@ The package-facing source/staging root capabilities, checked relative resolver,
 explicit generated-source handoff, and frozen package-review final pass are
 implemented. The native-image entry still rejects generated-source builds
 until it runs inside the same sponsored package transaction; it must not invent
-ambient staging custody. `TASKS_PACKAGE_MANAGER.md` owns that integration and
-the compatibility-scanner migration.
+ambient staging custody. That route follows recheckable package evidence and
+accepted-lock state so a rebuild can be compared before installation; it is
+not a standalone compiler escape hatch. `TASKS_PACKAGE_MANAGER.md` owns that
+integration and the compatibility-scanner migration.
 
 ## Still open
 
