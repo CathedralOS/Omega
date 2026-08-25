@@ -54,10 +54,13 @@ responsibility closes version-3 framing and complete OMGCOMP/source custody;
 the second independently reconstructs the complete source-to-role-3 witness;
 the third reconstructs witness-to-CKIR2 declarations, layout, types, root, and
 tables. The fifth responsibility is split into focused CKIR/result validation
-and CKIR2-to-ELF gates, both closed. The body/call/source-only-result
-responsibility and final composition remain open, so the versioned-call tranche
-does not yet have lower-rooted authority. No OMGRFN2 checker is relabeled or
-widened in place.
+and CKIR2-to-ELF gates. The fourth independently reconstructs body/call lowering
+and computes the result in a companion executable from which CKIR and ELF
+readers are physically absent. A final composite runs all seven executables over
+one identical canonical role-3 frame and carries source/artifact cross-pairs plus
+witness-, CKIR-, and ELF-local mutations. These five responsibilities now close
+the selected finite-call source-to-artifact relation below Delta. No OMGRFN2
+checker is relabeled or widened in place.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

@@ -160,12 +160,14 @@ language, generation, or architectural role; new documentation and work use
   [`gates/delta-checked-ir-v2-backend-meaning.sh`](gates/delta-checked-ir-v2-backend-meaning.sh),
   and complete
   [`gates/delta-role3-ckir2-composite.sh`](gates/delta-role3-ckir2-composite.sh)
-  close the producer/meaning side. Lower-rooted `OMGRFN3` refinement remains
-  incomplete: frame/source custody, source→role-3 witness,
-  witness→CKIR2 tables, CKIR/result validation, and CKIR2→ELF reconstruction
-  are closed, while body/call/source-only-result reconstruction and final
-  composition remain open. The versioned-call task closes only when all five
-  independent responsibilities compose.
+  close the producer/meaning side. Lower-rooted `OMGRFN3` refinement now closes
+  frame/source custody, source→role-3 witness, witness→CKIR2 tables,
+  body/call/source-only-result reconstruction, CKIR/result validation, and
+  CKIR2→ELF reconstruction. The final same-frame gate feeds one canonical
+  10,704-byte role-3 frame to all seven executables implementing those five
+  responsibilities and isolates witness, CKIR, and ELF ownership with local
+  mutations. The complete versioned-call slice is now part of the canonical
+  lattice; it remains bounded evidence rather than final `Ωself` admission.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

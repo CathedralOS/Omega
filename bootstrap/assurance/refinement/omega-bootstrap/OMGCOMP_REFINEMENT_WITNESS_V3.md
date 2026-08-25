@@ -62,9 +62,13 @@ the CKIR1-specific parts:
 
 The checked-IR rules and backend resource ceilings are normative in
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md).
-An evidence checker may report 252 when its published bounded evaluation
-storage is exceeded; that is evidence exhaustion, not permission to call a
-malformed or cyclic artifact valid.
+The physically artifact-free source evaluator supports at most 16 active
+machine frames; a 17th active frame reports 252. The CKIR2 evaluator supports at
+most 64 active machine frames; a 65th reports 252. These are checker-evidence
+storage ceilings, not source-profile recursion admissions. The complete source
+and CKIR call graphs must still be finite and acyclic, including unreachable
+machines. Evidence exhaustion is never permission to call a malformed or cyclic
+artifact valid.
 
 ## Independent checker split
 
