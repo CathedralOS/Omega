@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 45;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 46;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 5;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1309,16 +1309,21 @@ fn encode_contract_static_argument(
             encoder.byte(0);
             encode_type_identity(encoder, identity)?;
         }
-        PackageReviewContractStaticArgument::ConstInteger(value) => {
+        PackageReviewContractStaticArgument::GenericType { base, arguments } => {
             encoder.byte(1);
+            encode_type_identity(encoder, base)?;
+            encoder.sequence(arguments, encode_contract_static_argument)?;
+        }
+        PackageReviewContractStaticArgument::ConstInteger(value) => {
+            encoder.byte(2);
             encoder.string(value)?;
         }
         PackageReviewContractStaticArgument::GenericMachineBinder(position) => {
-            encoder.byte(2);
+            encoder.byte(3);
             encoder.u32(*position);
         }
         PackageReviewContractStaticArgument::ConcreteMachine(identity) => {
-            encoder.byte(3);
+            encoder.byte(4);
             encode_nominal(encoder, identity)?;
         }
     }

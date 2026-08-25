@@ -751,6 +751,13 @@ pub enum PackageReviewContractStaticArgument {
     /// forwarded type binders remain fail-closed until their complete static
     /// application structure is represented.
     Type(PackageReviewTypeIdentity),
+    /// One exact generic data-family application whose base declaration and
+    /// recursively categorized static arguments rejoin the checked data
+    /// telescope. Lifetime-bearing applications remain fail-closed.
+    GenericType {
+        base: PackageReviewTypeIdentity,
+        arguments: Vec<PackageReviewContractStaticArgument>,
+    },
     /// One parser-canonical integer literal in an exact const-parameter slot.
     ConstInteger(String),
     /// One machine parameter from the containing declaration's canonical
@@ -6053,6 +6060,7 @@ fn project_contract_expression_with_substitutions(
                             binders,
                             argument,
                             parameter_kind,
+                            0,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?,
@@ -6251,6 +6259,23 @@ enum ContractCallStaticParameterKind {
     Proposition,
 }
 
+fn contract_call_static_parameter_kind(
+    parameter: &psi_typed_trees::data::TypeParameter,
+) -> ContractCallStaticParameterKind {
+    match parameter.kind {
+        psi_typed_trees::data::TypeParameterKind::Type => ContractCallStaticParameterKind::Type,
+        psi_typed_trees::data::TypeParameterKind::Const { .. } => {
+            ContractCallStaticParameterKind::Const
+        }
+        psi_typed_trees::data::TypeParameterKind::Machine { .. } => {
+            ContractCallStaticParameterKind::Machine
+        }
+        psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+            ContractCallStaticParameterKind::Proposition
+        }
+    }
+}
+
 fn contract_call_static_parameter_kinds(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
@@ -6260,20 +6285,7 @@ fn contract_call_static_parameter_kinds(
     let project = |parameters: &[psi_typed_trees::data::TypeParameter]| {
         parameters
             .iter()
-            .map(|parameter| match parameter.kind {
-                psi_typed_trees::data::TypeParameterKind::Type => {
-                    ContractCallStaticParameterKind::Type
-                }
-                psi_typed_trees::data::TypeParameterKind::Const { .. } => {
-                    ContractCallStaticParameterKind::Const
-                }
-                psi_typed_trees::data::TypeParameterKind::Machine { .. } => {
-                    ContractCallStaticParameterKind::Machine
-                }
-                psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
-                    ContractCallStaticParameterKind::Proposition
-                }
-            })
+            .map(contract_call_static_parameter_kind)
             .collect::<Vec<_>>()
     };
     let mut candidates = compilation
@@ -6324,6 +6336,7 @@ fn project_contract_static_argument(
     binders: &[(SymbolHandle, String)],
     argument: &psi_typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
+    depth: usize,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
     let rejected = |reason: &str| {
         vec![Diagnostic::error(format!(
@@ -6331,9 +6344,9 @@ fn project_contract_static_argument(
             context.subject_kind, context.subject_name
         ))]
     };
-    if argument.application.is_some() {
+    if depth >= 64 {
         return Err(rejected(
-            "with a nested static application not yet represented by package review",
+            "whose nested application exceeds the package-review depth limit",
         ));
     }
     if argument.evidence_projection.is_some() {
@@ -6345,6 +6358,65 @@ fn project_contract_static_argument(
         return Err(rejected(
             "for a proposition parameter not yet represented by package review",
         ));
+    }
+    if let Some(application) = argument.application.as_ref() {
+        if parameter_kind != ContractCallStaticParameterKind::Type
+            || !argument.symbol.is_valid()
+            || compilation.typed.symbols.get(argument.symbol).kind != psi_symbols::SymbolKind::Data
+        {
+            return Err(rejected(
+                "with a non-data nested static application not yet represented by package review",
+            ));
+        }
+        let definitions = compilation
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == argument.symbol)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            return Err(rejected(
+                "whose generic data base does not rejoin exactly one checked declaration",
+            ));
+        };
+        if !definition.lifetime_parameters.is_empty() || !application.lifetime_arguments.is_empty()
+        {
+            return Err(rejected(
+                "with lifetime arguments not yet represented by package review",
+            ));
+        }
+        let parameters = compilation.data_type_parameters(definition);
+        if parameters.len() != application.arguments.len() {
+            return Err(rejected(
+                "whose generic data argument count differs from its checked telescope",
+            ));
+        }
+        let base = compilation
+            .package_qualified_nominal_type_identity_with_toolchain_sources(
+                argument.symbol,
+                compilation.exact_toolchain_sources(),
+            )
+            .ok_or_else(missing_exact_toolchain_type_owner)?;
+        let arguments = application
+            .arguments
+            .iter()
+            .zip(parameters)
+            .map(|(argument, parameter)| {
+                project_contract_static_argument(
+                    compilation,
+                    context,
+                    binders,
+                    argument,
+                    contract_call_static_parameter_kind(parameter),
+                    depth + 1,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(PackageReviewContractStaticArgument::GenericType {
+            base: PackageReviewTypeIdentity {
+                canonical: base.into_string(),
+            },
+            arguments,
+        });
     }
     if let Some(literal) = argument.const_literal.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Const {

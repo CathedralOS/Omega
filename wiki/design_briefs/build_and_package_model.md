@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v45 rows are not promoted
+subjects or provenance. The current incomplete review-v46 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1342,6 +1342,13 @@ machine-binder ordinal, or exact concrete machine entry identity. Nested static
 applications, forwarded or symbolic type/const binders, proposition/evidence
 static arguments, quotient calls, compiler intrinsics, and malformed or
 ambiguous joins remain fail-closed.
+Review v46 and canonical row v6 add bounded recursive generic data-type static
+arguments in contract calls. Each application base rejoins exactly one checked
+data declaration, whose telescope is recursively classified; changing a nested
+type changes canonical evidence. This rung admits zero-lifetime generic data
+applications only. Lifetime-bearing applications, generic machine/conformance
+applications, unresolved forwarded type/const binders, proposition/evidence
+static arguments, quotient calls, and compiler intrinsics remain fail-closed.
 Other non-public, external, operator, or lifetime-parameterized trait
 realizations likewise remain fail-closed; binder-free generic requirements,
 explicit evidence binders, and non-generic selected conformances use the same
@@ -1374,9 +1381,10 @@ checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
 signature identity. Forwarded or symbolic type/const binders,
-proposition/evidence static arguments, quotient calls, nested static
-applications, compiler-intrinsic calls, computed members, proposition-argument
-members without their checked join, and aggregate expression forms fail closed.
+proposition/evidence static arguments, quotient calls, lifetime-bearing data
+applications, generic machine/conformance applications, compiler-intrinsic
+calls, computed members, proposition-argument members without their checked
+join, and aggregate expression forms fail closed.
 Contract
 casts retain their structural operand, alpha-normalized target, arithmetic
 policy, package-qualified semantic domain and arguments, and value/recast form.

@@ -1049,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 45);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 5);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 46);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 6);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2289,17 +2289,100 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_nested_static_applications_in_contract_calls() {
+fn review_projects_recursive_generic_data_arguments_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |nested_type: &str| {
+        format!(
+            r#"data Wrapper<Value> {{ value: Value; }}
+machine tag<Value>() -> u64 {{ 0 }}
+boundary machine trusted_tag() -> u64
+ensures result == tag<Wrapper<{nested_type}>>();
+"#,
+        )
+    };
+    package.write("main.omg", &source("u64"));
+    changed.write("main.omg", &source("i64"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    package.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("nested static type contract call should check");
+        project_checked_package_review(&checked)
+            .expect("a recursive generic data argument has a canonical contract row")
+    };
+    let review = project(&package);
+    let changed = project(&changed);
+    let trusted_tag = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_tag")
+        .expect("trusted tag boundary callable");
+    let [contract] = trusted_tag.contracts() else {
+        panic!("one trusted-tag contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-tag equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [PackageReviewContractStaticArgument::GenericType { base, arguments }] =
+        static_arguments.as_slice()
+    else {
+        panic!("one generic data static argument")
+    };
+    assert!(base.canonical().contains("Wrapper"));
+    let [PackageReviewContractStaticArgument::Type(nested)] = arguments.as_slice() else {
+        panic!("one nested concrete type argument")
+    };
+    assert!(nested.canonical().contains("u64"));
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("Wrapper<u64> contract encoding"),
+        changed
+            .canonical_review_bytes()
+            .expect("Wrapper<i64> contract encoding"),
+        "changing a nested concrete type must change package-review identity",
+    );
+}
+
+#[test]
+fn review_rejects_lifetime_bearing_nested_type_arguments_until_exactly_represented() {
     let Some(target) = host_target_name() else {
         return;
     };
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"data Wrapper<Value> { value: Value; }
+        r#"data View<'source, Value> { value: &'source Value; }
 machine tag<Value>() -> u64 { 0 }
-boundary machine trusted_tag() -> u64
-ensures result == tag<Wrapper<u64>>();
+pub machine generic_tag<'source>(value: &'source u64) -> u64
+requires tag<View<'source, u64>>() == tag<View<'source, u64>>()
+{
+    0
+}
 "#,
     );
     package.write(
@@ -2316,13 +2399,13 @@ machine build(builder: &mut Build) { }
         Some(target),
         package_inputs(&package.0),
     )
-    .expect("nested static type contract call should check");
+    .expect("lifetime-bearing nested type contract call should check");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("nested static applications remain fail-closed");
+        .expect_err("lifetime-bearing nested type arguments remain fail-closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("nested static application not yet represented")
+            .contains("lifetime arguments not yet represented")
     }));
 }
 
