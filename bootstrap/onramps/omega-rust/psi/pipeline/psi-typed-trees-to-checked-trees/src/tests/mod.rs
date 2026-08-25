@@ -44,5 +44,6 @@ mod generics;
 mod multiplicity;
 mod operators;
 mod relevance;
+mod semantic_dependencies;
 mod termination;
 mod values;

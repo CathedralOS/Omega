@@ -125,6 +125,10 @@ pub struct FlowFacts {
     pub ownership: FlowOwnershipFacts,
     pub boundaries: FlowBoundaryFacts,
     pub control: FlowControlFacts,
+    /// Exact declaration-level nominal, representation, ownership, and
+    /// compiler-selected cleanup dependencies derived from checked value flow.
+    /// These rows affect artifact/API identity but grant no source authority.
+    pub semantic_dependencies: super::CheckedSemanticDependencies,
     /// Source-handle-free control topology for the live terminal-Psi scalar
     /// producer. General terminal control will replace this bootstrap carrier.
     pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
@@ -180,6 +184,7 @@ impl FlowFacts {
             ownership,
             boundaries,
             control,
+            semantic_dependencies: super::CheckedSemanticDependencies::default(),
             terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
             terminal_machines: super::CheckedTerminalMachineSelections::default(),
             terminal_debug: super::CheckedTerminalDebugPlans::default(),

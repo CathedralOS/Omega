@@ -9,6 +9,7 @@ mod boundaries;
 mod builder;
 mod call_phases;
 mod calls;
+mod carried_semantic_dependencies;
 mod common;
 mod constraints;
 mod context;
@@ -128,6 +129,7 @@ use call_phases::{
     build_call_exit_contexts, build_call_requires_contexts,
 };
 use calls::build_call_flow_fact;
+pub(crate) use carried_semantic_dependencies::build_checked_semantic_dependencies;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,
     append_semantic_constraints_for_points, appended_span_since, borrow_state_fact,

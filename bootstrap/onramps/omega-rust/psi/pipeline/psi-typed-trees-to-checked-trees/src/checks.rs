@@ -10,7 +10,9 @@ pub(crate) mod termination;
 
 use psi_diagnostics::Diagnostic;
 
-pub(crate) use multiplicity::{type_carries_linear_obligation, type_multiplicity};
+pub(crate) use multiplicity::{
+    nominal_drop_machine_symbol, type_carries_linear_obligation, type_multiplicity,
+};
 
 #[cfg(test)]
 pub(crate) use multiplicity::{record_permission_events, validate_linear_permission_events};

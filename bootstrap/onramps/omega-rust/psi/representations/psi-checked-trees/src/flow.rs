@@ -6,6 +6,7 @@ mod invalidations;
 mod ownership;
 mod queries;
 mod roots;
+mod semantic_dependencies;
 mod terminal;
 
 pub use borrow_lifetimes::*;
@@ -15,4 +16,5 @@ pub use control::*;
 pub use invalidations::*;
 pub use ownership::*;
 pub use roots::*;
+pub use semantic_dependencies::*;
 pub use terminal::*;

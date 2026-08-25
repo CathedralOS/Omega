@@ -219,6 +219,68 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn carried_transitive_type_is_legal_and_retains_its_exact_owner() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nmachine relay() { consume(make()); }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        r#"use leaf::leaf;
+pub machine make() -> Token { Token { value: 7u64 } }
+pub machine consume(value: Token) {}
+"#,
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub data Token { value: u64; }\n");
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("carrying a transitive type through the direct dependency should be legal");
+    let relay = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .expect("relay machine")
+        .symbol;
+    let rows = &checked.facts.flow.semantic_dependencies.rows;
+
+    for kind in [
+        psi_checked_trees::CheckedSemanticDependencyKind::NominalIdentity,
+        psi_checked_trees::CheckedSemanticDependencyKind::Layout,
+        psi_checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior,
+    ] {
+        assert!(
+            rows.iter().any(|row| {
+                row.consumer_machine == relay
+                && checked.symbols.symbol_package_identity(row.dependency) == Some(identity(3))
+                && row.exposure
+                    == psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
+                && row.kind == kind
+            }),
+            "missing exact leaf-owned {kind:?} dependency: {rows:#?}"
+        );
+    }
+}
+
+#[test]
 fn statement_call_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");

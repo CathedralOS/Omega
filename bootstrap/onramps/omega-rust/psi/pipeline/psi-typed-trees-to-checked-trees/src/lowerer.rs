@@ -103,6 +103,8 @@ pub(crate) fn lower_typed_trees(
         return Err(cleanup_diagnostics);
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
+    facts.flow.semantic_dependencies =
+        crate::flow::build_checked_semantic_dependencies(&program, &facts);
 
     crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
         .map_err(|diagnostic| vec![diagnostic])?;

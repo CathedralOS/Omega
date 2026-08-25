@@ -34,6 +34,10 @@ real package fixture demonstrates an irreducible external contract.
   successful compilation. Totality belongs to the final projection, not one
   frozen source stage. No nominal Chi stage is introduced merely to collect or
   stabilize compiler internals.
+- Checked flow now owns the first package-neutral carried-semantic-dependency
+  sidecar. It retains exact nominal, layout, ownership, and automatic-cleanup
+  declaration symbols with private/public disposition; package orchestration
+  must still project those private symbols into canonical package evidence.
 - Proposition/named-evidence projection joins structural typed applications to
   checked acceptance and witness disposition. Diagnostic renderings are never
   package identity; missing structural coordinates are retained in their
@@ -537,6 +541,14 @@ stabilize a private checker interface. The initial callable row is one complete
 envelope, and the selected-provider set deliberately remains one opaque,
 blocking row even with sealed provider identity; finer explanation does not
 change that ownership boundary.
+
+The concrete carried-type slice follows that rule. Checked flow joins machine
+heads, exact checked call targets, ownership places, and compiler-selected
+cleanup into one package-neutral sidecar after checking succeeds. The sidecar
+uses exact declaration handles internally and promotes any public-interface
+occurrence; those handles are not lock data. Canonical package ownership,
+versioned row encoding, and a total-form audit belong to the later admission
+projection.
 
 Authored conformance authority follows the same compiler-owned join. Explicit
 static conformance arguments are retained at resolution; checked trait
