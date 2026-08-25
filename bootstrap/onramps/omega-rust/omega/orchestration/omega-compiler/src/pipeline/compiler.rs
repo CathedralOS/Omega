@@ -532,10 +532,19 @@ impl Compiler {
             self.package_inputs.as_ref(),
             &mut timings,
         )?;
-        let evaluated = psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
-            syntax.syntax_trees,
-            syntax.sources.clone(),
-        )?;
+        let evaluated = match self.package_inputs.as_ref() {
+            Some(package_inputs) => {
+                psi_build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
+                    syntax.syntax_trees,
+                    syntax.sources.clone(),
+                    std::sync::Arc::new(package_inputs.clone()),
+                )
+            }
+            None => psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
+                syntax.syntax_trees,
+                syntax.sources.clone(),
+            ),
+        }?;
         syntax.syntax_trees = evaluated.syntax_trees;
         let placed_view_records = evaluated.placed_view_records;
         let plan_laid_records = evaluated.plan_laid_records;
@@ -588,13 +597,24 @@ impl Compiler {
         }
 
         let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-        psi_build_time_evaluation::evaluate_pre_check(
-            &mut typed,
-            &plan_laid_records,
-            &placed_view_records,
-        )?;
+        match self.package_inputs.as_ref() {
+            Some(package_inputs) => psi_build_time_evaluation::evaluate_pre_check_with_authority(
+                &mut typed,
+                &plan_laid_records,
+                &placed_view_records,
+                std::sync::Arc::new(package_inputs.clone()),
+            ),
+            None => psi_build_time_evaluation::evaluate_pre_check(
+                &mut typed,
+                &plan_laid_records,
+                &placed_view_records,
+            ),
+        }?;
         let boundary_calling_plan_realizations =
-            crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+            crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
+                &mut typed,
+                self.package_inputs.as_ref(),
+            )?;
         // PDI3 selected operation/algebra authority is public type identity,
         // including for generic trust receipts emitted before checked
         // lowering. Bind it on the typed tree before snapshots and lockfile

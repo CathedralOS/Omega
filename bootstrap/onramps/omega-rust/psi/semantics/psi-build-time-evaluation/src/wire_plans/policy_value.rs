@@ -11,13 +11,14 @@ pub(super) fn evaluate_wire_policy(
     admission: &crate::BuildTimeAdmissionPlan,
     schema_name: &str,
     fields: &[(u64, FieldShape)],
+    custody: crate::BuildTimeInvocationCustody,
 ) -> Result<Vec<WirePlacement>, String> {
     let machine = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY)
         .expect("caller checked the policy exists");
-    admission.require_common_floor(typed, machine)?;
+    admission.require_common_floor_for_invocation(typed, machine, custody)?;
 
     let schema_value = build_wire_schema_value(fields);
     let plan = psi_checked_interpreter::evaluate_build_time_machine(

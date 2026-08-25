@@ -149,6 +149,7 @@ pub(super) fn lower_fixed_array_length(
         resolved::types::FixedArrayLength::ConstCall { name } => {
             typed::types::FixedArrayLength::ConstCall {
                 name: crate::name::lower_name(name),
+                source_span: name.source_span(),
             }
         }
     }

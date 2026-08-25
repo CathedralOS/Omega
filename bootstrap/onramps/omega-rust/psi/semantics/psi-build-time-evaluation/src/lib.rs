@@ -16,23 +16,37 @@ mod wire_plans;
 use std::sync::Arc;
 
 pub use access_plans::{compute_access_plan, compute_placement_plan};
-pub use admission::BuildTimeAdmissionPlan;
+pub use admission::{
+    BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeSelectionAuthority,
+};
 pub use build_machines::{
     BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
     BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor, PreparedBuildMachineProgram,
     evaluate_build_machine_arguments_measured,
 };
-pub use const_domain_facts::evaluate_const_domain_facts;
-pub use const_generic_calls::evaluate_const_generic_calls;
-pub use const_lengths::{evaluate_const_array_lengths, evaluate_zero_argument_machine};
-pub use layout_plans::{
-    BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_typed_owned_layout_into, normalized_schema_identity,
+pub use const_domain_facts::{
+    evaluate_const_domain_facts, evaluate_const_domain_facts_with_authority,
 };
-pub use placed_views::{PlacedViewRecord, desugar_placed_views, validate_placed_view_plans};
-pub use plan_laid::{PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types};
-pub use wire_plans::compute_wire_plans;
+pub use const_generic_calls::evaluate_const_generic_calls;
+pub use const_lengths::{
+    evaluate_const_array_lengths, evaluate_const_array_lengths_with_authority,
+    evaluate_zero_argument_machine, evaluate_zero_argument_machine_for_invocation,
+};
+pub use layout_plans::{
+    BuildTimeValue, compute_layout_plan, compute_layout_plan_with_authority,
+    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
+    normalized_schema_identity,
+};
+pub use placed_views::{
+    PlacedViewRecord, desugar_placed_views, validate_placed_view_plans,
+    validate_placed_view_plans_with_authority,
+};
+pub use plan_laid::{
+    PlanLaidRecord, compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
+    desugar_plan_laid_value_types,
+};
+pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
 /// Target-neutral syntax elaboration that must finish before name resolution.
 ///
@@ -48,7 +62,7 @@ pub struct PreResolutionEvaluation {
 pub fn evaluate_pre_resolution(
     syntax_trees: psi_syntax_trees::SyntaxTrees,
 ) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
-    evaluate_pre_resolution_with_optional_sources(syntax_trees, None)
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, None, None)
 }
 
 /// Package-aware pre-resolution evaluation.
@@ -61,20 +75,37 @@ pub fn evaluate_pre_resolution_with_sources(
     syntax_trees: psi_syntax_trees::SyntaxTrees,
     sources: Arc<psi_source::SourceMap>,
 ) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
-    evaluate_pre_resolution_with_optional_sources(syntax_trees, Some(sources))
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, Some(sources), None)
+}
+
+pub fn evaluate_pre_resolution_with_sources_and_authority(
+    syntax_trees: psi_syntax_trees::SyntaxTrees,
+    sources: Arc<psi_source::SourceMap>,
+    selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
+) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
+    evaluate_pre_resolution_with_optional_sources(
+        syntax_trees,
+        Some(sources),
+        Some(selection_authority),
+    )
 }
 
 fn evaluate_pre_resolution_with_optional_sources(
     syntax_trees: psi_syntax_trees::SyntaxTrees,
     sources: Option<Arc<psi_source::SourceMap>>,
+    selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 ) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
     let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls_with_optional_sources(
         syntax_trees,
         sources.clone(),
+        selection_authority.clone(),
     )?;
     psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
-    let placed_view_records =
-        placed_views::desugar_placed_views_with_optional_sources(&mut syntax_trees, sources)?;
+    let placed_view_records = placed_views::desugar_placed_views_with_optional_sources(
+        &mut syntax_trees,
+        sources,
+        selection_authority,
+    )?;
     let mut syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax_trees)?;
     let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
@@ -107,11 +138,42 @@ pub fn evaluate_pre_check(
     plan_laid_records: &[PlanLaidRecord],
     placed_view_records: &[PlacedViewRecord],
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
-    evaluate_const_array_lengths(typed)?;
-    evaluate_const_domain_facts(typed)?;
-    compute_plan_laid_layouts(typed, plan_laid_records)?;
-    validate_placed_view_plans(typed, placed_view_records)?;
-    compute_wire_plans(typed)
+    evaluate_pre_check_with_optional_authority(typed, plan_laid_records, placed_view_records, None)
+}
+
+pub fn evaluate_pre_check_with_authority(
+    typed: &mut psi_typed_trees::TypedTrees,
+    plan_laid_records: &[PlanLaidRecord],
+    placed_view_records: &[PlacedViewRecord],
+    selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    evaluate_pre_check_with_optional_authority(
+        typed,
+        plan_laid_records,
+        placed_view_records,
+        Some(selection_authority),
+    )
+}
+
+fn evaluate_pre_check_with_optional_authority(
+    typed: &mut psi_typed_trees::TypedTrees,
+    plan_laid_records: &[PlanLaidRecord],
+    placed_view_records: &[PlacedViewRecord],
+    selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    evaluate_const_array_lengths_with_authority(typed, selection_authority.clone())?;
+    evaluate_const_domain_facts_with_authority(typed, selection_authority.clone())?;
+    compute_plan_laid_layouts_with_authority(
+        typed,
+        plan_laid_records,
+        selection_authority.clone(),
+    )?;
+    validate_placed_view_plans_with_authority(
+        typed,
+        placed_view_records,
+        selection_authority.clone(),
+    )?;
+    compute_wire_plans_with_authority(typed, selection_authority)
 }
 
 #[cfg(test)]

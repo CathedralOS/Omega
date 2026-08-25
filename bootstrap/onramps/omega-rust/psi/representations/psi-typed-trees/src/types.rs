@@ -701,6 +701,7 @@ pub enum FixedArrayLength {
     /// pipeline (comptime stage 1).
     ConstCall {
         name: Identifier,
+        source_span: psi_source::SourceSpan,
     },
 }
 
@@ -721,7 +722,7 @@ impl fmt::Display for FixedArrayLength {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
             Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
-            Self::ConstCall { name } => write!(formatter, "{name}()"),
+            Self::ConstCall { name, .. } => write!(formatter, "{name}()"),
         }
     }
 }

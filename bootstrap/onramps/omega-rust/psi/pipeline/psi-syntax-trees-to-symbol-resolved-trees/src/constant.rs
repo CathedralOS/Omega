@@ -1,12 +1,14 @@
 //! const-v0 (TASKS_TIME.md D15; design brief static_root_and_constants.md).
 //!
-//! Consts exist ONLY until symbol resolution: `const Type::NAME: T = <literal>;`
-//! declares a named pure value, and every `Type::NAME` expression path
-//! substitutes a FRESH COPY of the initializer right here in expression
-//! lowering. Symbol-resolved trees, typed trees, validation, proofs, backends,
-//! and the interpreter never grow a const concept -- each use IS the literal,
-//! which is exactly the copied-at-each-use semantics the brief specifies (and
-//! why interior mutability can never hide in one).
+//! Const VALUE semantics exist only until symbol resolution:
+//! `const Type::NAME: T = <literal>;` declares a named pure value, and every
+//! `Type::NAME` expression path substitutes a FRESH COPY of the initializer
+//! right here in expression lowering. Symbol-resolved trees, typed trees,
+//! validation, proofs, backends, and the interpreter never grow a const-value
+//! concept -- each use IS the literal, which is exactly the copied-at-each-use
+//! semantics the brief specifies (and why interior mutability can never hide in
+//! one). The symbol table retains only declaration provenance so authored-
+//! selection and package-authority checks cannot be erased by substitution.
 //!
 //! v0 boundaries, enforced loudly:
 //! - TYPE-SCOPED only. A free-floating `const NAME: ...` single-segment
@@ -25,7 +27,12 @@
 //!   (Declaration-site conformance for unused consts joins build-time eval.)
 
 use psi_diagnostics::Diagnostic;
-use psi_symbol_resolved_trees::expression::ExpressionHandle;
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionRecordError,
+};
+use psi_source::{SourceSpan, Span};
+use psi_symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionHandle};
+use psi_symbols::SymbolKind;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{ConstDefinition, DataMember, Item};
@@ -200,10 +207,100 @@ pub(crate) fn try_lower_const_reference(
     {
         return Some(Err(diagnostic));
     }
-    Some(crate::expression::lower_expression_into_table(
-        lowerer,
-        syntax_trees,
-        definition.value,
+    let declaration_ordinal = syntax_trees
+        .root_items()
+        .filter_map(|item| match item {
+            Item::Const(other) => Some(other),
+            _ => None,
+        })
+        .position(|other| std::ptr::eq(other, definition))?;
+    let lowered =
+        crate::expression::lower_expression_into_table(lowerer, syntax_trees, definition.value);
+    Some(lowered.map(|expression| {
+        if let Some(exposure) = lowerer.current_authored_expression_exposure {
+            lowerer
+                .pending_const_selections
+                .push(crate::lowerer::PendingConstSelection {
+                    expression,
+                    source_span: const_reference_span(members),
+                    declaration_ordinal,
+                    exposure,
+                });
+        }
+        expression
+    }))
+}
+
+pub(crate) fn semantic_const_name(definition: &ConstDefinition) -> String {
+    if definition.scope.as_str().is_empty() {
+        definition.name.as_str().to_owned()
+    } else {
+        format!(
+            "{}::{}",
+            definition.scope.as_str(),
+            definition.name.as_str()
+        )
+    }
+}
+
+fn const_reference_span(members: &[Identifier]) -> SourceSpan {
+    let Some(first) = members.first() else {
+        return SourceSpan::default();
+    };
+    let Some(last) = members.last() else {
+        return first.source_span();
+    };
+    if first.source_span().source_id == last.source_span().source_id {
+        SourceSpan::new(
+            first.source_span().source_id,
+            Span::new(first.source_span().span.start, last.source_span().span.end),
+        )
+    } else {
+        first.source_span()
+    }
+}
+
+/// Attach the authored const selection to the substituted expression. The
+/// value remains fully erased; only declaration custody survives.
+pub(crate) fn finalize_const_selections(
+    program: &mut SymbolResolvedTrees,
+    pending: &[crate::lowerer::PendingConstSelection],
+) -> Result<(), Diagnostic> {
+    let const_symbols = program
+        .symbols
+        .child_handles(program.symbols.root())
+        .into_iter()
+        .flatten()
+        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
+        .collect::<Vec<_>>();
+
+    for selection in pending {
+        let Some(symbol) = const_symbols.get(selection.declaration_ordinal).copied() else {
+            return Err(Diagnostic::error(
+                "failed to retain const declaration selection provenance",
+            ));
+        };
+        let occurrence = program
+            .record_resolved_authored_declaration_selection(
+                selection.source_span,
+                selection.exposure,
+                AuthoredDeclarationSelectionKind::StaticPathSegment,
+                symbol,
+            )
+            .map_err(const_selection_record_diagnostic)?;
+        program
+            .tables
+            .bodies
+            .expressions
+            .attach_authored_selection_occurrences(selection.expression, [occurrence]);
+    }
+
+    Ok(())
+}
+
+fn const_selection_record_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagnostic {
+    Diagnostic::error(format!(
+        "failed to retain const declaration selection: {error:?}"
     ))
 }
 

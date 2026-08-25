@@ -361,6 +361,7 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
 /// evaluated identities on the typed program.
 pub(crate) fn compute_boundary_calling_plans(
     typed: &mut TypedTrees,
+    package_inputs: Option<&crate::pipeline::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     let Some(calling_policy_trait) = typed
         .traits()
@@ -504,7 +505,14 @@ pub(crate) fn compute_boundary_calling_plans(
     if pending.is_empty() {
         return Ok(Vec::new());
     }
-    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed);
+    let admission =
+        psi_build_time_evaluation::BuildTimeAdmissionPlan::infer_with_selection_authority(
+            typed,
+            package_inputs.map(|inputs| {
+                std::sync::Arc::new(inputs.clone())
+                    as std::sync::Arc<dyn psi_build_time_evaluation::BuildTimeSelectionAuthority>
+            }),
+        );
     let mut evaluated = Vec::with_capacity(pending.len());
     for (
         boundary_trait,
@@ -520,6 +528,7 @@ pub(crate) fn compute_boundary_calling_plans(
             &admission,
             &policy_machine,
             &signature,
+            Some(psi_build_time_evaluation::BuildTimeInvocationCustody::Source(relationship_span)),
         )
         .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)])?;
         evaluated.push(BoundaryCallingPlanRealization {
@@ -1306,7 +1315,13 @@ pub fn evaluate_calling_policy_plan(
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     let materialized = materialized_boundary_signature_from_abi(signature)?;
     let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(typed);
-    evaluate_materialized_calling_policy_plan(typed, &admission, policy_machine, &materialized)
+    evaluate_materialized_calling_policy_plan(
+        typed,
+        &admission,
+        policy_machine,
+        &materialized,
+        None,
+    )
 }
 
 fn evaluate_materialized_calling_policy_plan(
@@ -1314,6 +1329,7 @@ fn evaluate_materialized_calling_policy_plan(
     admission: &psi_build_time_evaluation::BuildTimeAdmissionPlan,
     policy_machine: &str,
     signature: &MaterializedBoundarySignature,
+    custody: Option<psi_build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     if signature.parameters.len() > PARAMETER_CAPACITY {
         return Err(format!(
@@ -1322,15 +1338,16 @@ fn evaluate_materialized_calling_policy_plan(
         ));
     }
 
-    let value = admission
-        .evaluate_machine(
-            typed,
-            policy_machine,
-            vec![build_boundary_signature(signature)],
-        )
-        .map_err(|reason| {
-            format!("build-time evaluation of calling policy `{policy_machine}` failed: {reason}")
-        })?;
+    let arguments = vec![build_boundary_signature(signature)];
+    let value = match custody {
+        Some(custody) => {
+            admission.evaluate_machine_for_invocation(typed, policy_machine, arguments, custody)
+        }
+        None => admission.evaluate_machine(typed, policy_machine, arguments),
+    }
+    .map_err(|reason| {
+        format!("build-time evaluation of calling policy `{policy_machine}` failed: {reason}")
+    })?;
     let result = decode_boundary_plan_result(&value).map_err(|reason| {
         format!("calling policy `{policy_machine}` returned an invalid result: {reason}")
     })?;

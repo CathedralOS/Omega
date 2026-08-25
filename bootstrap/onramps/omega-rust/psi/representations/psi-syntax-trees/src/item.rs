@@ -36,9 +36,10 @@ pub enum Item {
 /// like a machine (`Type::NAME`), never a `data` member, so never in `sizeof`.
 /// v0 initializers are LITERAL-ONLY (scalars, negated scalars, struct/array
 /// literals of literals — build-time evaluation of richer expressions is its
-/// own arc). Consts exist only until symbol resolution: every use substitutes
-/// a fresh copy of the initializer, so typed trees and everything downstream
-/// never see a const — the copied-at-each-use semantics the brief specifies.
+/// own arc). Const value semantics exist only until symbol resolution: every
+/// use substitutes a fresh copy of the initializer, so typed trees and
+/// everything downstream never see a const value. Resolution retains only a
+/// declaration-provenance symbol for authored-selection/package custody.
 /// (Free-floating `const NAME: T = ...;` parses but is rejected until the
 /// local-shadowing walk lands: a bare-name substitution could silently win
 /// over a like-named local; a `Type::NAME` path cannot.)

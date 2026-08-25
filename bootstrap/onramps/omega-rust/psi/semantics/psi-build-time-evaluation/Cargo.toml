@@ -12,6 +12,7 @@ path = "src/lib.rs"
 psi-arena = { path = "../../foundation/psi-arena" }
 psi-access-plans = { path = "../../foundation/psi-access-plans" }
 psi-checked-interpreter = { path = "../psi-checked-interpreter" }
+psi-core = { path = "../../foundation/psi-core" }
 psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
 psi-effects = { path = "../../representations/psi-effects" }
 psi-generic-instances = { path = "../../pipeline/psi-generic-instances" }
@@ -29,6 +30,5 @@ psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../pipeline/psi-typed-trees-to-checked-trees" }
 
 [dev-dependencies]
-psi-core = { path = "../../foundation/psi-core" }
 psi-source-files-to-tokens = { path = "../../pipeline/psi-source-files-to-tokens" }
 psi-tokens-to-syntax-trees = { path = "../../pipeline/psi-tokens-to-syntax-trees" }

@@ -12,16 +12,16 @@ use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::types::TypeReferenceNode;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub fn evaluate_const_generic_calls(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    evaluate_const_generic_calls_with_optional_sources(syntax, None)
+    evaluate_const_generic_calls_with_optional_sources(syntax, None, None)
 }
 
 pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     mut syntax: SyntaxTrees,
     sources: Option<Arc<psi_source::SourceMap>>,
+    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut pending_type_references = Vec::new();
@@ -51,18 +51,16 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let admission = crate::BuildTimeAdmissionPlan::infer(&typed);
+    let admission =
+        crate::BuildTimeAdmissionPlan::infer_with_selection_authority(&typed, selection_authority);
 
-    let mut values: BTreeMap<String, u64> = BTreeMap::new();
-    for (_, machine_name) in &pending {
-        if values.contains_key(machine_name) {
-            continue;
-        }
-        let value = crate::evaluate_zero_argument_machine(
+    for (expression, machine_name, source_span) in pending {
+        let value = crate::evaluate_zero_argument_machine_for_invocation(
             &typed,
             &admission,
-            machine_name,
+            &machine_name,
             "generic argument",
+            crate::BuildTimeInvocationCustody::Source(source_span),
         )
         .map_err(|reason| {
             vec![Diagnostic::error(format!(
@@ -74,11 +72,6 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
                 "const-generic evaluation of `{machine_name}()` returned {value}, but const data arguments must be non-negative"
             ))]
         })?;
-        values.insert(machine_name.clone(), value);
-    }
-
-    for (expression, machine_name) in pending {
-        let value = values[&machine_name];
         let literal =
             IntegerLiteral::from_parts(false, IntegerRadix::Decimal, value.to_string().as_str())
                 .expect("a decimal u64 const-machine result is a valid integer literal");
@@ -92,7 +85,7 @@ pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
 fn collect_call_leaves(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    pending: &mut Vec<(ExpressionHandle, String)>,
+    pending: &mut Vec<(ExpressionHandle, String, psi_source::SourceSpan)>,
 ) -> Result<(), Vec<Diagnostic>> {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
@@ -107,7 +100,11 @@ fn collect_call_leaves(
                 ))]);
             }
             let machine_name = call_machine_name(syntax, call)?;
-            pending.push((expression, machine_name));
+            pending.push((
+                expression,
+                machine_name,
+                syntax.expressions.source_span(expression),
+            ));
             Ok(())
         }
         _ => Ok(()),

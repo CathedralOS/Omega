@@ -14,18 +14,44 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
+use std::sync::Arc;
 
 use crate::BuildTimeValue;
 
 mod closure_validation;
+mod selection_authority;
 
 use closure_validation::checked_closure_violation;
+use selection_authority::selection_authority_violation;
+
+/// Package-neutral authority consulted before the compiler executes an
+/// authored machine during early semantic evaluation.
+///
+/// Psi owns provenance and call-closure discovery. Omega supplies the exact
+/// reconciled direct-dependency predicate without leaking resolver or lockfile
+/// structures into the language layer.
+pub trait BuildTimeSelectionAuthority: Send + Sync {
+    fn allows_declaration_selection(
+        &self,
+        requester: psi_core::PackageKeyIdentity,
+        owner: psi_core::PackageKeyIdentity,
+    ) -> bool;
+
+    fn package_label(&self, identity: psi_core::PackageKeyIdentity) -> String;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildTimeInvocationCustody {
+    Source(psi_source::SourceSpan),
+    Symbol(SymbolHandle),
+}
 
 pub struct BuildTimeAdmissionPlan {
     service_reaches: psi_effects::ServiceReachInferencePlan,
     suspension: Vec<BuildTimeSuspensionRow>,
     blocking: Vec<BuildTimeBlockingRow>,
     call_edges: Vec<BuildTimeCallEdge>,
+    selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +75,13 @@ struct BuildTimeCallEdge {
 
 impl BuildTimeAdmissionPlan {
     pub fn infer(program: &TypedTrees) -> Self {
+        Self::infer_with_selection_authority(program, None)
+    }
+
+    pub fn infer_with_selection_authority(
+        program: &TypedTrees,
+        selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Self {
         let operational = psi_effects::infer_operational_may(program);
         let service_reaches = psi_effects::infer_service_reaches(program, &operational);
         let (suspension, blocking, call_edges) = project_operational_axes(&operational);
@@ -57,6 +90,7 @@ impl BuildTimeAdmissionPlan {
             suspension,
             blocking,
             call_edges,
+            selection_authority,
         }
     }
 
@@ -64,6 +98,24 @@ impl BuildTimeAdmissionPlan {
         &self,
         program: &TypedTrees,
         machine: &Machine,
+    ) -> Result<(), String> {
+        self.require_common_floor_with_custody(program, machine, None)
+    }
+
+    pub fn require_common_floor_for_invocation(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<(), String> {
+        self.require_common_floor_with_custody(program, machine, Some(custody))
+    }
+
+    fn require_common_floor_with_custody(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        custody: Option<BuildTimeInvocationCustody>,
     ) -> Result<(), String> {
         let service_summary = self
             .service_reaches
@@ -105,10 +157,20 @@ impl BuildTimeAdmissionPlan {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let closure_violation = checked_closure_violation(&self.call_edges, program, machine);
+        let selection_violation = self.selection_authority.as_ref().and_then(|authority| {
+            selection_authority_violation(
+                &self.call_edges,
+                program,
+                machine,
+                custody,
+                authority.as_ref(),
+            )
+        });
         if services.is_empty()
             && !transitive_may_suspend
             && !transitive_may_block
             && closure_violation.is_none()
+            && selection_violation.is_none()
         {
             return Ok(());
         }
@@ -126,9 +188,12 @@ impl BuildTimeAdmissionPlan {
         if let Some(violation) = closure_violation {
             violations.push(violation);
         }
+        if let Some(violation) = selection_violation {
+            violations.push(violation);
+        }
 
         Err(format!(
-            "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, and no unadmitted linear runtime carrier across the complete call closure",
+            "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure",
             machine.name,
             violations.join("; ")
         ))
@@ -151,6 +216,22 @@ impl BuildTimeAdmissionPlan {
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
+        psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
+    }
+
+    pub fn evaluate_machine_for_invocation(
+        &self,
+        program: &TypedTrees,
+        machine_name: &str,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<BuildTimeValue, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        self.require_common_floor_for_invocation(program, machine, custody)?;
         psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
     }
 
@@ -260,6 +341,7 @@ mod tests {
             suspension,
             blocking,
             call_edges,
+            selection_authority: None,
         };
 
         assert_eq!(admission.machine_suspension(suspending_machine), Some(true));

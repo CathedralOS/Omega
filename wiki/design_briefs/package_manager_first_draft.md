@@ -150,9 +150,11 @@ occurrences during resolution, while exact source spans and public/private
 position remain available, and finalizes it after successful checking. The
 final join supplies late-bound method, overload, operator, and conformance
 identities from the semantic stage that settles each one. This internal sidecar
-is deliberately not nominal Chi. Every authored occurrence must finalize to a
-known declaration or reject, and selected package or build-time code cannot run
-before the direct-dependency gate accepts the finalized ledger.
+is deliberately not nominal Chi. Every authored occurrence must ultimately
+finalize to a known declaration or reject. Selected package code cannot run
+before the finalized ledger passes; earlier effect-free compiler evaluation
+must first admit an exact early target or fail closed unless the compiler can
+confine the complete candidate set to admitted owners.
 
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.
@@ -196,14 +198,26 @@ selection gate without rerunning dependency discovery or build execution. The
 native-image command remains gated until it consumes the same sponsored package
 transaction.
 
-This checked preflight currently follows Psi's target-neutral const-generic,
-const-domain, layout, and placed-view elaboration. Those compiler-run machines
-already require empty boundary reach and retain package source provenance, but
-their admission does not yet consume the reconciled direct-dependency graph.
-Production package mutation therefore remains disabled until equivalent
-package selection authority gates those earlier effect-free evaluation paths;
-the selected-build-machine ordering above is not presented as closing that
-broader requirement.
+Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
+layout, wire-policy, and calling-policy evaluators consume the same reconciled
+direct-dependency authority through a package-neutral compiler interface. Each
+invocation retains exact source or symbol custody. Before evaluation, the gate
+admits the authored caller-to-callee edge, walks the concrete build-time call
+closure, and admits every direct call edge and declaration selection in each
+reachable body. Shared policy results are computed only after all authored
+application sites pass. A selection not yet settled by later checking rejects
+unless its complete compiler-derived candidate set is confined to toolchain,
+self, or direct dependencies; operators use the checked layer's conservative
+intrinsic classification rather than spelling. Substituted const values retain
+a provenance-only declaration symbol and occurrence, so erasure does not erase
+package custody.
+
+This gate intentionally reads the earliest coherent private typed/probe state
+where those facts exist. It is compiler-internal and may move with the compiler;
+it neither waits for Terminal Psi nor creates nominal Chi. A distinct stage is
+warranted only by a real shared invariant, transformation boundary, or
+independent consumer. Production package mutation remains disabled for the
+separate incomplete public-interface and authored conformance/cleanup coverage.
 
 ## Authored requests versus accepted lock state
 

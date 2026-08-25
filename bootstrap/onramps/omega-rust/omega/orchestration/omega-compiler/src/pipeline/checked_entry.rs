@@ -254,12 +254,22 @@ struct CheckedFrontend {
 fn lower_checked_frontend(
     mut syntax: crate::pipeline::stages::AssembledSyntax,
     target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<CheckedFrontend, Vec<Diagnostic>> {
-    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
-        syntax.syntax_trees,
-        syntax.sources.clone(),
-    )?;
+    let evaluated = match package_inputs {
+        Some(package_inputs) => {
+            psi_build_time_evaluation::evaluate_pre_resolution_with_sources_and_authority(
+                syntax.syntax_trees,
+                syntax.sources.clone(),
+                std::sync::Arc::new(package_inputs.clone()),
+            )
+        }
+        None => psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
+            syntax.syntax_trees,
+            syntax.sources.clone(),
+        ),
+    }?;
     syntax.syntax_trees = evaluated.syntax_trees;
     let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
         &mut syntax.syntax_trees,
@@ -279,18 +289,29 @@ fn lower_checked_frontend(
         .collect();
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
-    psi_build_time_evaluation::evaluate_pre_check(
-        &mut typed,
-        &evaluated.plan_laid_records,
-        &evaluated.placed_view_records,
-    )?;
+    match package_inputs {
+        Some(package_inputs) => psi_build_time_evaluation::evaluate_pre_check_with_authority(
+            &mut typed,
+            &evaluated.plan_laid_records,
+            &evaluated.placed_view_records,
+            std::sync::Arc::new(package_inputs.clone()),
+        ),
+        None => psi_build_time_evaluation::evaluate_pre_check(
+            &mut typed,
+            &evaluated.plan_laid_records,
+            &evaluated.placed_view_records,
+        ),
+    }?;
     // Build evaluation consumes this coherent private typed stage before the
     // final checked-tree lowering. Bind trait-valued parameter-field calls now
     // so the evaluator receives the same exact requirement identity that the
     // checker will subsequently validate and retain.
     psi_validation::resolve_dynamic_call_targets(&mut typed)?;
     let boundary_calling_plan_realizations =
-        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+        crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
+            &mut typed,
+            package_inputs,
+        )?;
     Ok(CheckedFrontend {
         typed,
         target_default_machine_names,
@@ -319,7 +340,7 @@ fn compile_to_checked_inner(
         &mut timings,
     )?;
     let frozen_syntax = syntax.clone();
-    let mut frontend = lower_checked_frontend(syntax, target_name, &mut timings)?;
+    let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
     if let Some(package_inputs) = package_inputs {
         crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
             &frontend.typed,
@@ -385,7 +406,12 @@ fn compile_to_checked_inner(
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
         )?;
-        frontend = lower_checked_frontend(final_syntax, target_name, &mut timings)?;
+        frontend = lower_checked_frontend(
+            final_syntax,
+            target_name,
+            Some(package_inputs),
+            &mut timings,
+        )?;
         let Some((source_span, name)) = prepass_build_identity else {
             return Err(vec![Diagnostic::error(
                 "generated-source handoff has no selected build machine to rebind",

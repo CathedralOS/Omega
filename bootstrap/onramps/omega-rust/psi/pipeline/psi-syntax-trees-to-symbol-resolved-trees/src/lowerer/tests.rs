@@ -1391,6 +1391,50 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
 }
 
 #[test]
+fn substituted_const_retains_authored_declaration_selection_custody() {
+    let source = r#"
+        const ROOT_SIZE: u64 = 4;
+        machine selected_size() -> u64 { ROOT_SIZE }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const selection");
+    let syntax = parse_syntax_trees(&tokens).expect("parse const selection");
+    let program = lower_syntax_trees(&syntax).expect("resolve const selection");
+    let selection = program
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if program.symbols.get(target.selected_symbol()).kind
+                        == psi_symbols::SymbolKind::Const
+            )
+        })
+        .expect("retained const selection");
+    let occurrence = program
+        .authored_declaration_selections()
+        .iter()
+        .position(|candidate| candidate == selection)
+        .expect("const selection ordinal");
+
+    assert!(
+        program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .any(|(expression, _)| program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(expression)
+                .any(|attached| attached.ordinal() == occurrence as u64))
+    );
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

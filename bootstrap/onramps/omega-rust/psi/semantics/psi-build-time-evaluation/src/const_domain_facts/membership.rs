@@ -82,7 +82,11 @@ fn evaluate_machine_fact(
     };
     let machine_name = machine.name.as_str();
 
-    admission.require_common_floor(typed, machine)?;
+    admission.require_common_floor_for_invocation(
+        typed,
+        machine,
+        crate::BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
+    )?;
 
     let parameters = typed.state_parameters(state);
     if parameters.len() != 1

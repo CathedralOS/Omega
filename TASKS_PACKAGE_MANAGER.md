@@ -498,8 +498,11 @@ complete.
   automatic cleanup, promoting private disposition to public when any public
   surface exposes the dependency. These rows affect artifact/rebuild and public
   compatibility identity without granting source authority. No selected package
-  or build-time code may execute before authored selections finalize and pass;
-  reorder or split the current evaluation path where necessary.
+  or build-time code may execute before the selections applicable at that stage
+  pass direct-authority admission. Final execution consumes finalized rows;
+  earlier effect-free evaluation consumes exact early targets or fails closed
+  when the compiler cannot confine the complete candidate set. Reorder or split
+  evaluation where necessary.
 
   Implementation slices: retain exact symbols for every selected path segment,
   struct-literal type/case/fields, and case membership; capture explicit type,
@@ -545,15 +548,35 @@ complete.
   canary places an illegal transitive selection after an attempted marker write
   in `build.omg`; both entrypoints reject with the marker absent.
 
+  Milestone 2026-08-25: Psi's earlier effect-free evaluators now consume a
+  package-neutral selection-authority interface backed by the reconciled direct-
+  dependency graph. Const-generic calls, fixed-array const calls, const-domain
+  facts, laid/placed layout policies, wire policies, and calling policies retain
+  exact invocation custody and admit it before evaluation. Admission walks the
+  concrete build-time call closure and checks each caller-to-callee edge plus
+  every authored declaration selection in each reachable body. Shared policy
+  results are reused only after every authored application site passes. Exact
+  resolved targets are preferred; a target still awaiting later checking fails
+  closed unless the compiler can prove its entire candidate set is confined to
+  toolchain, self, or direct dependencies. Operators use the checked layer's
+  conservative intrinsic judgment rather than spelling. Const substitution
+  retains a provenance-only declaration symbol and attaches the authored const
+  occurrence to the substituted expression, so value erasure cannot erase
+  package custody. Root-middle-leaf canaries cover all of these entrypoints,
+  including a package-internal undeclared selection reached through an admitted
+  build-time call.
+
+  This gate deliberately reads the earliest coherent private typed/probe state
+  owned by the compiler. It need not wait for public or Terminal Psi, and it is
+  allowed to move with compiler internals. There is no nominal Chi stage: add
+  one only if later implementation discovers an independent consumer, shared
+  invariant, or transformation boundary with actual semantics.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
-  outside package admission, and capture still covers only private state-body
-  expression forms. The package manager stays disabled until public-interface
-  exposure, remaining authored conformance/cleanup forms, and equivalent
-  package-authority admission before Psi's earlier effect-free const/plan
-  machine evaluators are complete. Those evaluators already fail closed on
-  boundary reach and retain package source provenance, but do not yet consume
-  the reconciled direct-dependency graph. Exact carried-semantic-dependency
-  evidence also remains. Visibility for
+  outside package admission, and complete capture still covers only private
+  state-body expression forms. The package manager stays disabled until public-
+  interface exposure and remaining authored conformance/cleanup forms are
+  complete. Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.
 

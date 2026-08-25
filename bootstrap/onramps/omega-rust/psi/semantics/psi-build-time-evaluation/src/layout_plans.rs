@@ -40,6 +40,32 @@ pub fn compute_layout_plan(
     policy_machine: &str,
     schema_data: &str,
 ) -> Result<LayoutPlanReport, String> {
+    compute_layout_plan_with_optional_authority(typed, policy_machine, schema_data, None, None)
+}
+
+pub fn compute_layout_plan_with_authority(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    schema_data: &str,
+    selection_authority: std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>,
+    custody: crate::BuildTimeInvocationCustody,
+) -> Result<LayoutPlanReport, String> {
+    compute_layout_plan_with_optional_authority(
+        typed,
+        policy_machine,
+        schema_data,
+        Some(selection_authority),
+        Some(custody),
+    )
+}
+
+fn compute_layout_plan_with_optional_authority(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    schema_data: &str,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    custody: Option<crate::BuildTimeInvocationCustody>,
+) -> Result<LayoutPlanReport, String> {
     let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
@@ -48,7 +74,12 @@ pub fn compute_layout_plan(
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
-    BuildTimeAdmissionPlan::infer(typed).require_common_floor(typed, machine)?;
+    let admission =
+        BuildTimeAdmissionPlan::infer_with_selection_authority(typed, selection_authority);
+    match custody {
+        Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
+        None => admission.require_common_floor(typed, machine)?,
+    }
 
     let plan = psi_checked_interpreter::evaluate_build_time_machine(
         typed,

@@ -155,14 +155,20 @@ pub fn desugar_plan_laid_value_types(
             type_reference,
             synthetic_name: synthetic_name.clone(),
         });
-        if !records
-            .iter()
-            .any(|record| record.synthetic_name == synthetic_name)
+        let invocation_source = base_name.source_span();
+        if let Some(record) = records
+            .iter_mut()
+            .find(|record| record.synthetic_name == synthetic_name)
         {
+            if !record.invocation_sources.contains(&invocation_source) {
+                record.invocation_sources.push(invocation_source);
+            }
+        } else {
             records.push(PlanLaidRecord {
                 synthetic_name,
                 policy_machine: format!("{base}::plan"),
                 schema_data: schema_name,
+                invocation_sources: vec![invocation_source],
             });
         }
     }
