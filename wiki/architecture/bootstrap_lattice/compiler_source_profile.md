@@ -326,6 +326,7 @@ establishes the implementation and assurance cost.
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | concrete Trapping arithmetic and explicit casts | measure | checkpoint 000001 uses cursor, UTF-8/scalar, and byte-conversion operations; compare the complete ordinary rules with narrow checked helpers, and do not silently decide the unresolved `u32` cursor versus `u64` slice-count interaction |
 | bool-only prefix logical negation | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 uses ordinary `!` in product lexer state; OMGLOW7/CKIR6 and OMGRFN8 now measure least-version OMGRSW1/2/3 production, exact Boolean meaning through independent source and CKIR evaluators plus the Rust-free route, conservative native/self artifact emission, and one immutable R1–R5 source-to-artifact composition without adding a resolution schema |
+| pure, total, nontrapping bool-only `&&` and `||` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 uses 38 conjunctions and 6 disjunctions over primitive predicate leaves; OMGLOW8/CKIR7 and OMGRFN9 measure exact `&&`-before-`||` precedence, left association, token/operation custody, all truth rows, least-version OMGRSW1/2/3, Rust-free lowering meaning, conservative native/self emission, and immutable R1–R5 composition; calls, indexing, Trapping arithmetic, mutation, and other observable skipped work remain outside this eager private-IR relation |
 | ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
 | borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; compare a regular descriptor/view path with fixed-buffer-plus-span duplication, while keeping growable `Vec`-like allocation a separate question and retaining the unresolved `u32` cursor versus `u64` count ruling |
@@ -363,10 +364,11 @@ is a ruling merely because it appears in this table.
 
 The current closed cost evidence reaches selected finite calls, constant
 aggregates, runtime named records, same-module direct-field receivers through
-CKIR4, payload-bearing pure sums through CKIR5, and bool-only logical negation
-through CKIR6/OMGRFN8. Logical negation now has focused OMGLOW7 production,
-independent source and CKIR meaning, Rust-free meaning, conservative backend,
-mutation/resource teeth, and one immutable lower-rooted R1–R5 composition.
+CKIR4, payload-bearing pure sums through CKIR5, bool-only logical negation
+through CKIR6/OMGRFN8, and selected pure/nontrapping Boolean `&&`/`||` through
+CKIR7/OMGRFN9. The Boolean successors have focused OMGLOW7/8 production,
+independent source and CKIR meaning, Rust-free meaning, conservative backends,
+mutation/resource teeth, and immutable lower-rooted R1–R5 compositions.
 Each closed selected slice has native/self-built production, representative Rust-free
 meaning, independent result/artifact reconstruction, resource and mutation
 teeth, and responsibility-local lower-rooted composition. This establishes
@@ -400,6 +402,17 @@ to complete CKIR6 meaning and exact load/XOR-one/store ELF reconstruction. The
 focused composition gate compiles its responsibility checkers once per Beta
 generation and runs in roughly twenty seconds on the reference host. This is
 measured bounded cost, not a final `Ωself` admission or general unary surface.
+
+Pure, total, nontrapping bool-only `&&` and `||` now have the next complete
+selected path. The source meaning remains ordinary short circuiting; OMGLOW8
+may use eager CKIR7 truth functions only after independently proving that both
+operands terminate without effects or traps. The producer fixes `&&` above
+`||`, left association, one operation per authored token pair, and least
+OMGRSW1/2/3 selection. Independent CKIR7 truth tables, native/self exact
+AND/OR emission, and OMGRFN9 R1–R5 composition close the bounded cost. Calls,
+indexing, Trapping arithmetic, mutation, bitwise operators, and other
+observable skipped work remain rejected in this relation. This is not general
+short-circuit lowering or final `Ωself` admission.
 
 Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).

@@ -153,6 +153,21 @@ phase-local mutations, old/new cross-pairs, and exact load/XOR-one/store ELF
 reconstruction pass in the same focused gate. This closes only the selected
 bool-only relation, not general unary syntax or final `Ωself` admission.
 
+The selected pure/nontrapping logical-binary successor is
+[`OMGRFN9`](OMGCOMP_REFINEMENT_WITNESS_V9.md), paired exactly with CKIR7 and the
+OMGLOW8 source relation. It preserves least OMGRSW1/2/3 selection and optional
+inherited `!`, while R4 independently proves exact bool typing, totality,
+purity, nontrapping operands, `&&`-before-`||` precedence, left association,
+and one opcode-16/17 row per authored token pair. Under that boundary, eager
+CKIR7 truth functions are observationally equal to ordinary Omega
+short-circuiting. R5 independently validates complete CKIR7 meaning and exact
+load/AND-or-OR-memory/store ELF templates. The immutable primary carrier makes
+reachable result 70 depend on both operators and retains the payload-sum
+OMGRSW3 surface; compact OMGRSW1/2 controls and phase-local cross-pairs retain
+the earlier ownership boundaries. This closes only the selected total and
+observationally inert operand relation, not effectful short-circuit lowering or
+final `Ωself` admission.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical

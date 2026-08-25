@@ -21,12 +21,20 @@ sys.path.insert(0, str(HERE))
 
 import checked_ir_v5_reference as ir5  # noqa: E402
 import checked_ir_v6_reference as ir6  # noqa: E402
+try:
+    import checked_ir_v7_reference as ir7  # noqa: E402
+except ImportError:  # The CKIR7 sibling lands with the focused backend tranche.
+    ir7 = None
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
 
 PACKAGE = "55" * 32
 LOWER_HEADER = struct.Struct("<8sHHHH4I")
+GATE_ERRORS = (
+    OSError, ValueError, compilation.CompilationError, bundle.BundleError,
+    ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError,
+) + (() if ir7 is None else (ir7.Ckir7Error,))
 
 
 def require(condition: bool, message: str) -> None:
@@ -54,9 +62,9 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
 def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
                   resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (4, 5, 6, 7), "test lowering version")
-    require((version == 7 and resolution in (1, 2, 3))
-            or (version != 7 and resolution == 0), "test resolution selector")
+    require(version in (4, 5, 6, 7, 8), "test lowering version")
+    require((version in (7, 8) and resolution in (1, 2, 3))
+            or (version not in (7, 8) and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
     return LOWER_HEADER.pack(
@@ -199,7 +207,9 @@ def inspect_positive(contents: bytes) -> ir5.Module:
     return module
 
 
-def run_gate(include_v6: bool = False) -> None:
+def run_gate(mode: str = "v5") -> None:
+    include_v6 = mode in ("v6", "v7")
+    include_v7 = mode == "v7"
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -457,16 +467,172 @@ machine SumProducer::run(&mut self) -> u8 { 70 }
                   "native/self exact result 70; old/new cross-pairs and depth 8/9 passed; "
                   + " ".join(f"{name}={len(value)}B" for name, value in outputs6.items()))
 
+        if include_v7:
+            require(ir7 is not None, "missing CKIR7 independent reference")
+            bool_binary_sw1 = """data SumProducer { flag: bool; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.flag = true;
+    transition self.flag || true && false {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            bool_binary_sw2 = """data Cell { flag: bool; }
+machine Cell::read(&self) -> bool { self.flag }
+data SumProducer { cell: Cell; flag: bool; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.flag = self.cell.read();
+    self.flag = true;
+    transition self.flag || true && false {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            bool_binary_sw3 = general + """
+machine SumProducer::logical_binary(&self) -> bool {
+    true || true && false
+}
+"""
+
+            def resolve_and_lower_v8(name: str, source: str, witness_major: int) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output7 = lower(name, pack_lowering(
+                    envelope, witness, 8, witness_major
+                ), 0)
+                module7 = ir7.decode(output7)
+                require(ir7.interpret(module7) == 70, f"{name} CKIR7 result")
+                opcodes = [row[3] for row in module7.tables["operations"]]
+                require(16 in opcodes and 17 in opcodes,
+                        f"{name} missing LogicalAnd/LogicalOr")
+                require(opcodes.count(16) == source.count("&&")
+                        and opcodes.count(17) == source.count("||"),
+                        f"{name} logical token/operation correspondence")
+                require(opcodes.index(16) < opcodes.index(17),
+                        f"{name} did not lower && before ||")
+                return output7
+
+            outputs7 = {
+                "logical-binary-sw1": resolve_and_lower_v8(
+                    "logical-binary-sw1", bool_binary_sw1, 1
+                ),
+                "logical-binary-sw2": resolve_and_lower_v8(
+                    "logical-binary-sw2", bool_binary_sw2, 2
+                ),
+                "logical-binary-sw3": resolve_and_lower_v8(
+                    "logical-binary-sw3", bool_binary_sw3, 3
+                ),
+            }
+
+            association = """data SumProducer {}
+machine SumProducer::run(&mut self) -> u8 {
+    transition true && true && true { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            association_envelope, association_witness = resolve(
+                "logical-binary-association", association, 0, 1
+            )
+            association_output = lower(
+                "logical-binary-association",
+                pack_lowering(association_envelope, association_witness, 8, 1), 0,
+            )
+            association_module = ir7.decode(association_output)
+            association_ops = [
+                row for row in association_module.tables["operations"] if row[3] == 16
+            ]
+            require(len(association_ops) == 2, "logical association operation count")
+            second_left = association_module.tables["operands"][association_ops[1][8]][0]
+            require(second_left == association_ops[0][6],
+                    "logical && chain is not left-associated")
+            require(ir7.interpret(association_module) == 70,
+                    "logical association result")
+
+            sw1_envelope, sw1_witness = resolve(
+                "logical-binary-old-frame", bool_binary_sw1, 0, 1
+            )
+            lower("logical-binary-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 7, 1), 251)
+            not_only = bool_binary_sw1.replace(
+                "self.flag || true && false", "!!self.flag", 1
+            )
+            not_envelope, not_witness = resolve("logical-binary-missing", not_only, 0, 1)
+            lower("logical-binary-missing",
+                  pack_lowering(not_envelope, not_witness, 8, 1), 251)
+            lower("logical-binary-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 8, 2), 251)
+
+            # Literal depth one, six/seven prefixes, and one binary node select
+            # exact total expression depth 8/9.
+            for count, expected in ((6, 0), (7, 252)):
+                nested = bool_binary_sw1.replace(
+                    "self.flag || true && false", "!" * count + "true && true", 1
+                )
+                envelope, witness = resolve(f"logical-binary-depth-{count}", nested, 0, 1)
+                result = lower(f"logical-binary-depth-{count}",
+                               pack_lowering(envelope, witness, 8, 1), expected)
+                if expected == 0:
+                    require(ir7.interpret(ir7.decode(result)) == 70,
+                            "logical-binary expression-depth-8 result")
+
+            call_operand = """data SumProducer {}
+machine SumProducer::probe(&self) -> bool { true }
+machine SumProducer::run(&mut self) -> u8 {
+    transition true || self.probe() { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            index_operand = """data SumProducer { flags: [bool; 1]; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition true || self.flags[0] { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            trapping_operand = bool_binary_sw1.replace(
+                "self.flag || true && false", "true || 1 + 1 < 3", 1
+            )
+            for name, source in {
+                "logical-binary-non-bool": bool_binary_sw1.replace(
+                    "self.flag || true && false", "true && 1", 1
+                ),
+                "logical-binary-single-and": bool_binary_sw1.replace(
+                    "self.flag || true && false", "true & false", 1
+                ),
+                "logical-binary-single-or": bool_binary_sw1.replace(
+                    "self.flag || true && false", "true | false", 1
+                ),
+                "logical-binary-call-operand": call_operand,
+                "logical-binary-index-operand": index_operand,
+                "logical-binary-trapping-operand": trapping_operand,
+            }.items():
+                envelope, witness = resolve(name, source, 0, 1)
+                lower(name, pack_lowering(envelope, witness, 8, witness[8]), 251)
+
+            print("resolved-to-CKIR7: OMGLOW8 independently pairs least OMGRSW1/2/3; "
+                  "pure/nontrapping bool-only &&/|| with && precedence, inherited !/sum/call "
+                  "composition, native/self exact result 70; purity, old/new, selector, and "
+                  "depth 8/9 controls passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs7.items()))
+
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6"):
-        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6")
-    run_gate(sys.argv[1] == "gate-v6")
+    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6", "gate-v7"):
+        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7")
+    run_gate({"gate": "v5", "gate-v6": "v6", "gate-v7": "v7"}[sys.argv[1]])
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (OSError, ValueError, compilation.CompilationError, bundle.BundleError,
-            ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError) as error:
+    except GATE_ERRORS as error:
         raise SystemExit(f"resolved-to-CKIR5: {error}")

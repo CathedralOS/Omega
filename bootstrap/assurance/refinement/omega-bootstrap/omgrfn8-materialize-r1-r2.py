@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure source materializer for the shared OMGRFN8 R1/R2 Beta checkers."""
+"""Pure source materializer for the shared OMGRFN8/9 R1/R2 Beta checkers."""
 
 from __future__ import annotations
 
@@ -132,17 +132,16 @@ def write_checked(path: Path, source: str) -> tuple[int, int]:
     return proc_count, max_locals
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("output", type=Path)
-    args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+def materialize(output: Path, outer: int = 8) -> None:
+    if outer not in (8, 9):
+        raise ValueError(f"unsupported OMGRFN outer version: {outer}")
+    output.mkdir(parents=True, exist_ok=True)
 
     r1 = (
         (HERE / "omgrfn4-frame-omgcomp-custody.beta").read_text(encoding="ascii")
         + "\n"
         + (HERE / "omgrfn5-frame-omgcomp-custody.beta").read_text(encoding="ascii")
-        + "\nproc main() { return omgrfn8_layer1_check() }\n"
+        + f"\nproc main() {{ return omgrfn{outer}_layer1_check() }}\n"
     )
     r2_core = dynamic_source_core(
         (HERE / "omgrfn4-source-witness-independent.beta").read_text(encoding="ascii")
@@ -151,15 +150,23 @@ def main() -> None:
         r2_core
         + "\n"
         + (HERE / "omgrfn7-source-witness-independent.beta").read_text(encoding="ascii")
-        + "\nproc main() { return omgrfn8_r2_check() }\n"
+        + f"\nproc main() {{ return omgrfn{outer}_r2_check() }}\n"
     )
-    r1_shape = write_checked(args.output / "r1.beta", r1)
-    r2_shape = write_checked(args.output / "r2.beta", r2)
-    (args.output / "manifest.tsv").write_text(
+    r1_shape = write_checked(output / "r1.beta", r1)
+    r2_shape = write_checked(output / "r2.beta", r2)
+    (output / "manifest.tsv").write_text(
         f"r1\t{r1_shape[0]}\t{r1_shape[1]}\n"
         f"r2\t{r2_shape[0]}\t{r2_shape[1]}\n",
         encoding="ascii",
     )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--outer", type=int, choices=(8, 9), default=8)
+    args = parser.parse_args()
+    materialize(args.output, args.outer)
 
 
 if __name__ == "__main__":
