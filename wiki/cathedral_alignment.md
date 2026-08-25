@@ -97,6 +97,17 @@ fan-out runs as an ordinary task. This is Omega P5 plus Cathedral implementation
 - Live replacement is Cathedral orchestration over verified artifacts,
   requirement bindings, liveness pins, resource demands, and explicit
   drain/coexist/migrate/cancel/transfer dispositions.
+- Omega's reusable replacement substrate stops at exact service-slot identity,
+  `Service<R>` call authority, verified candidate capsules, deployment-local
+  acceptance envelopes, era entry/leave accounting, linear installation
+  transitions, and restart-replayable journal facts. Cathedral chooses update
+  cohorts, scheduler and device quiescence, mixed-era policy, continuity and
+  rollback strategy, mappings, retention, and the stable update nucleus.
+- Quiescence is evaluated over the actual call, custody, callback, session,
+  scheduler, and device graph rather than package or source hierarchy. A leaf
+  may publish a new era while a live parent continues through its stable slot;
+  old sessions and callbacks retain their origin era until Cathedral drains,
+  migrates, redirects, or deliberately retains them.
 - Allocation strategies are ordinary packages over storage authority. Fresh
   backing reaches a selected provider; already-owned backing does not.
 - Atomics retain actual ordering events in terminal Psi. Portable protocol

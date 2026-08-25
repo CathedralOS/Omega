@@ -814,7 +814,7 @@ fn sample_entry_exceptions_are_explicit_and_non_runnable() {
             "cli__proofs__structural_proofs",
             "uefi__uefi_hello",
         ],
-        "only the deliberate trap, proof-only fixtures, and Q2-blocked firmware may lack an authored root"
+        "only the deliberate trap, proof-only fixtures, and firmware pending its bootstrap adapter may lack an authored root"
     );
 
     let expected_host_unavailable = if host_target_name().starts_with("linux_") {

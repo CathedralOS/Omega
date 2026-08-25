@@ -1,7 +1,7 @@
 # Design Brief: Separate Compilation And Replaceable Realizations
 
-Current as of 2026-07-26. Status: architecture settled; artifact and runtime
-representations remain open.
+Current as of 2026-08-25. Status: semantic architecture settled; concrete
+artifact encodings and runtime algorithms are implementation work.
 
 ## Terms that must not collapse
 
@@ -21,6 +21,38 @@ Calls naming a concrete machine bind that implementation identity. Calls
 naming a requirement bind the requirement contract and may be selected
 statically or preserved as a replaceable edge by the build. No `slot` keyword,
 hot-swap call syntax, or replacement DSL is implied.
+
+## Composition authority
+
+`build.omg` is the owner-controlled composer. Its typed selection names the
+exact closed requirement application, the exact provider realization, and
+whether that edge is fused into the surrounding artifact or independently
+emitted:
+
+```omega
+builder.select_provider<ClockHost, MonotonicClock>(
+    CompositionMode::Independent
+);
+```
+
+The exact API spelling may evolve, but the authority split does not. Provider
+source declares what it satisfies; it cannot make itself independently
+loadable, select itself for a deployment, widen an installation envelope, or
+authorize its own replacement.
+
+The closed requirement application is the stable service-slot identity. A
+slot family is distinguished by ordinary closed static arguments with nominal
+or declared-domain identity, never by an authored string, ordinal, vtable
+index, artifact address, or provider era. One package may contribute zero,
+one, or several independently selected roots.
+
+The compiler derives the selected closure. Its exports are the requirement
+identities chosen by composition; its imports are requirement calls that leave
+the closure. Concrete implementation edges remain inside the closure, pull
+their target into it when legal, or reject. Two independent closures may share
+duplicable immutable dependencies. Mutable state and linear custody have one
+owner; if several closures require them, they must be owned at a fused position
+dominating all users or mediated through a separately selected service.
 
 ## Component closure
 
@@ -75,18 +107,63 @@ selected realization's actual demand. A replaceable edge must remain valid for
 the admitted candidate and therefore composes through requirement promises and
 candidate admission records rather than private implementation evidence.
 
+## Candidate capsules and execution modalities
+
+A component capsule is a deployment-agnostic candidate for one exact service
+slot. It retains canonical Terminal Psi, reconstructed obligation evidence,
+symbolic imports and exports, resource and lifecycle demands, target-semantic
+dependencies, and any native realizations and refinement certificates it
+offers. The source/provider declaration remains in the manifest for audit and
+source-correspondence policy; the runtime carrier hides the future provider
+type behind the service contract.
+
+Three execution modalities are coherent:
+
+1. verified Terminal Psi interpreted by an interpreter already proved against
+   the pinned Psi semantics;
+2. native code whose target-specific realization from that Psi is checked,
+   whether the bytes were shipped precompiled or lowered locally; and
+3. opaque native code admitted as executable trusted-computing-base content.
+
+The first two reconstruct and discharge the Psi obligation set. Native
+realization additionally closes ABI, layout, instruction, stack, and target
+semantics obligations. The third has no reconstructible Omega semantic subject
+and is therefore a severe, explicitly disclosed admission rather than an
+ordinary capability-reach expansion.
+
+Source correspondence, semantic safety, and executable realization are
+different edges. A deployment may require source-to-Psi correspondence for
+owner-approved releases even when the Psi is otherwise safe. Producer identity
+or reproducible pedigree never substitutes for any checked edge.
+
+Capsule acceptance is deployment-local. The initial build freezes an envelope
+for the slot: permitted imports and authority, contract and observation
+profile, target semantics, resource ceiling, acceptable execution modalities,
+admission policy, and replacement constraints. A later candidate can be
+installed unattended only when the local verifier reconstructs its obligations
+and proves it fits that already authorized envelope. Widening the graph or
+envelope is a new owner-controlled build/composition transaction, not an
+ordinary hot update.
+
 ## Bindings and era entry
 
-A boundary-trait value names a selected provider slot. It does not contain a
-local dynamic-dispatch table and does not name one provider era permanently.
-After publication, new calls resolve the slot to the new era; an already
-entered call or era-custodied session retains the era it selected.
+The trait name is an interface, not a runtime carrier. Runtime call authority
+uses an explicit carrier such as `Service<R> in Bound`. The carrier denotes a
+stable selected slot; it contains neither a provider object nor a source-visible
+vtable and does not permanently name one provider era. `Bound` is routed
+authority established by component installation/publication, not by a record
+literal, zero initialization, injection, or proof alone.
 
-Multiplicity and rebinding are independent. A `[copy]` binding may be
-duplicated because every copy still resolves the current slot. Duplication
-does not create old-era retention. An affine or linear binding restricts
-authority duplication for its own contract, not because replacement requires
-it.
+`Service<R>` is affine by default. A service may publish checked duplication or
+stronger linear lifecycle obligations when its protocol requires them.
+Multiplicity belongs to this carrier, never to the boundary trait. Generic and
+heterogeneous storage likewise store the carrier, not a bare trait value.
+
+For a fused selection, the compiler may erase the carrier and call the selected
+provider directly. For an independent selection, each call resolves the slot's
+current era and performs the entry/leave accounting below. After publication,
+new calls resolve the new era; an already entered call or era-custodied session
+retains the era it selected.
 
 Every replaceable binding publishes an entry contract with these semantics:
 
@@ -150,6 +227,29 @@ A parked continuation ordinarily pins the code and metadata needed to resume
 its era. Reclamation waits for drain, valid cancellation, explicit continuation
 migration, or an admitted indefinite-retention policy. "Routing switched" and
 "old era reclaimed" are separate completion states.
+
+The initial build establishes the stable slot and first era, supplies bounded
+`Service<R>` values to the application, and gives a designated supervisor a
+linear update authority. A downloaded candidate cannot publish itself. The
+supervisor presents its capsule to the generic installer/verifier, which checks
+the frozen envelope and returns staged Type-side lifecycle state. Publication,
+entry freeze, installed roots, retirement, and release are linear operational
+tokens; they never travel in the erased proof lane.
+
+Continuity-free replacement publishes the new era first, routes new calls to
+it, then drains the old era. State alone does not require a pause: caches and
+other resettable state may use that route. A promised observable continuity
+property does. The service contract states what callers may observe across
+replacement, providers publish projections and checked migration theorems over
+that seam, and composition selects a plan that proves the promise. There is no
+`HotSwappable` marker; replaceability is a closure property checked from the
+service, provider, composition, and runtime facts together.
+
+When a continuity-preserving cutover must stop new entry, whether calls may
+wait at the slot is part of the service contract. If entry may not block, the
+runtime or OS must coordinate the relevant scheduler/caller graph instead.
+Any pause token threads linearly through a crash-free replacement window or an
+explicit supervisor-owned recovery disposition.
 
 Objects with independently reclaimable lifetimes occupy separate mapping
 cohorts; unrelated lifetimes must not share a page that one side expects to
@@ -343,7 +443,25 @@ loader mappings, and the concrete binding-era algorithm. RCU, counters, hazard
 references, or another algorithm may realize the same entry-accounting
 contract.
 
-## Open representation work
+Omega exposes the facts needed to check a proposed update cut: requirement
+edges, entry and callback roots, sessions and returned custody, state owners,
+resource demands, and selected continuity obligations. Cathedral decides which
+slots form an update cohort, how schedulers and devices quiesce, which mixed-era
+states it permits, its rollback/retention policy, and which irreducible update
+nucleus remains stable. A leaf may update while a live parent continues through
+its stable service slot; a session or callback that entered the old era pins
+that era until it drains, migrates, redirects, or is retained. These are graph
+and lifecycle facts, not a source-module hierarchy rule.
+
+The owner-authorized build record and the live deployment journal are distinct.
+No transaction is atomic across an in-memory slot publication and durable
+storage. A runtime update therefore records durable intent, activates the new
+era, and records finalization; restart reconciliation has defined behavior for
+`Prepared`, `Activated`, and `Finalized` states. The journal records which
+preauthorized envelope accepted each candidate and retains all checked evidence
+and disclosed admissions. Cathedral chooses rollback versus roll-forward policy.
+
+## Implementation work
 
 - exact component artifact and lifetime-cohort manifest;
 - symbolic import/export and relocation encoding;
@@ -354,5 +472,6 @@ contract.
 - cross-component optimization and specialization rules; and
 - target/runtime stack-provision plans.
 
-These are not reasons to add replacement syntax or make packages semantic
+These are tracked in `../../TASKS.md`. They are not unresolved owner questions,
+reasons to add replacement syntax, or reasons to make packages semantic
 components.

@@ -57,7 +57,10 @@ fn write_provider_package(root: &Path, provider: &str) {
 data WallClock { }
 
 machine WallClock::ticks() -> u64
-satisfies ClockHost::ticks via Binding::VtableSlot(1);
+satisfies ClockHost::ticks
+{
+    transition { _ -> (2) }
+}
 "#,
     );
     fs::write(root.join("main.omg"), main).expect("write provider realizations");

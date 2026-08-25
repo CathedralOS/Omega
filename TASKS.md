@@ -7874,12 +7874,46 @@ checked-result arithmetic decision listed below.
 
 ### Components and executable trust
 
+- **COMPONENT-SUBSTRATE:** implement the settled independently selected
+  provider path, keeping Cathedral update policy outside the compiler:
+  - replace transitional bare boundary-trait runtime values with the explicit
+    affine `Service<R> in Bound` carrier and routed installation/publication
+    establishment; fused selection may erase it, while independent calls
+    acquire and leave one exact era;
+  - extend typed `Build::select_provider<Service, Provider>` with fused versus
+    independent mode, exact closed-requirement slot identities, multiple roots
+    per package, and compiler-derived closure/import/export validation;
+  - emit deployment-agnostic component capsules containing canonical Terminal
+    Psi, reconstructed obligation evidence, symbolic imports/exports, target
+    dependencies, resource/lifecycle demand, and optional native realizations;
+  - check the three execution routes explicitly: verified Psi interpretation,
+    checked Psi-to-native realization whether prebuilt or lowered locally, and
+    exact disclosed admission of opaque native executable-TCB content;
+  - create the initial stable slot, first era, bounded service handles, linear
+    supervisor update authority, and frozen deployment-local acceptance
+    envelope during the owner-controlled build;
+  - represent future candidates existentially behind the service contract and
+    let the runtime verifier accept only candidates fitting that envelope;
+    graph or authority widening requires a new build/composition transaction;
+  - implement linear staged/publication/freeze/retirement/release transitions,
+    era-pinned calls and returned custody, continuity-proof selection, and
+    graph-cut diagnostics for shared mutable state or linear custody; and
+  - implement a durable deployment journal with `Prepared`, `Activated`, and
+    `Finalized` restart reconciliation. The journal retains accepting envelope,
+    evidence, admissions, slot history, and live-era state; it is not assumed
+    atomic with in-memory publication.
+- Replace the provider-switchboard fixture's transitional `clock: ClockHost`
+  field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
+  provider as checked Omega code; `Binding::VtableSlot` remains only for real
+  foreign vtable/protocol leaves.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.
 - Extend component artifacts with stack needs, mapping cohorts, two-sided
-  import/export checks, boundary multiplicity, custody receipts, and enumerable
-  roots. Drain/coexistence, scheduling, and provisioning remain runtime work.
+  import/export checks, service-carrier multiplicity, custody receipts, and
+  enumerable roots. Concrete drain/coexistence algorithms, scheduler/device
+  quiescence, update-cohort policy, rollback, mappings, and provisioning remain
+  Cathedral/runtime work.
 - Implement serialized capability attenuation/revocation only after the
   component carrier and custody rules are complete.
 

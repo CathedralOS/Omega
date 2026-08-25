@@ -450,6 +450,26 @@ compiler-catalog entry changes artifact identity and triggers fresh admission;
 It performs a type-per-slot override; users do not repeat every default and
 cannot append or mutate derived plan rows.
 
+The same selection owns componentization. A selection is `fused` by default;
+the build may instead request `independent` emission through the typed `Build`
+API. This mode is semantic rather than a packaging hint: an independent edge
+must close its component graph, retain symbolic requirement imports and
+exports, publish entry/leave and resource demands, and satisfy installation and
+replacement obligations. Provider source cannot select this mode for itself.
+
+The exact closed requirement application is the stable slot identity. A family
+of independently selectable slots uses ordinary closed static arguments with
+nominal or declared-domain identity; it never uses an authored ordinal, string,
+vtable index, address, or artifact generation. One package may contribute any
+number of independently selected roots.
+
+The compiler derives the closure from the selection. Chosen satisfied
+requirement identities become exports; requirement calls leaving the closure
+become imports. A concrete-identity edge stays inside, pulls its target into
+the closure when legal, or rejects. Duplicable immutable dependencies may be
+shared or copied. Mutable state and linear custody have one owner and therefore
+must be fused above every dependent closure or mediated by a selected service.
+
 An indexed provider requirement is one schema rather than one ambient slot per
 type application. In particular, `ResidentContentTransfer<P, T>` is selected
 through one ordinary provider binding. The provider may implement the generic
@@ -1276,6 +1296,15 @@ Packages normally compose statically and may optimize across package edges.
 They are not ABI or replacement boundaries merely because they are packages.
 A build may select a provider realization for independent deployment; the
 component is that realization plus its compiler-validated owned closure.
+
+An initial composition also authorizes the runtime replacement envelope for an
+independent slot: permitted imports and authority, compatibility and
+observation profile, target semantics, resource ceilings, accepted execution
+modalities, admission policy, and continuity constraints. A candidate that
+fits this frozen envelope may be accepted by the runtime verifier without
+re-running the entire build program. A candidate that widens it requires a new
+owner-controlled build/composition transaction. Provider code and downloaded
+artifacts never authorize their own widening.
 
 The first implementation may accept only closures coinciding with one package.
 That is an implementation restriction, not the semantic definition of

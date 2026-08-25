@@ -789,7 +789,7 @@ complete.
 
   Remaining owner decision: named conformances are top-level selected
   declarations but currently have no retainable visibility; direct dependency
-  admission therefore makes them accidentally public. `OWNER_QUESTIONS.md` Q2
+  admission therefore makes them accidentally public. `OWNER_QUESTIONS.md` Q1
   isolates whether they receive ordinary `pub` (recommended) or are explicitly
   public by definition. Do not close this task or encode a conformance review
   row until that language rule is settled.
@@ -806,7 +806,7 @@ complete.
   Toolchain build vocabulary and the core layout/optional/filesystem/console
   surfaces now mark the APIs they actually publish; implementation helpers
   remain private. Named conformance remains the sole declaration-visibility
-  family withheld behind Q2.
+  family withheld behind Q1.
 
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,

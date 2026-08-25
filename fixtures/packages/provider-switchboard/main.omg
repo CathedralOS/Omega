@@ -6,7 +6,10 @@ pub boundary trait ClockHost {
 data MonotonicClock { }
 
 machine MonotonicClock::ticks() -> u64
-satisfies ClockHost::ticks via Binding::VtableSlot(1);
+satisfies ClockHost::ticks
+{
+    transition { _ -> (1) }
+}
 
 pub data Switchboard {
     clock: ClockHost;

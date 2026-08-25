@@ -79,13 +79,6 @@ Last pruned: 2026-08-25.
 - Define the first per-target checked-instruction catalogs and their
   user/deriver-only availability. Opaque/manual raw assembly is not an
   alternative.
-- Specify the separately compiled realization artifact and ABI representation.
-  The semantic unit is a selected provider realization plus its owned closure,
-  not a package. Remaining work includes lifetime-cohort mappings, requirement
-  bindings, era acquisition/accounting, bounded live-era policy, candidate
-  resource admission, outbound calls from old continuations, and optional
-  continuation migration. No `slot` keyword or replacement DSL is implied.
-
 ## Tooling and build-time execution
 
 - Decide which contextual words, if any, must become globally reserved. The
