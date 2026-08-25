@@ -224,7 +224,7 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes; the focused CKIR3 producer closes constant aggregates, `<=`, guardless jumps, and cyclic interval custody across native/self bytes, including adversarial arm-local, ordinal-transfer, complete-predecessor, and declaration-order controls, plus representative constant-aggregate 0/251/252 observations through Rust-free Gamma | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) |
 | producer composition | CKIR1 and CKIR2 remain closed; focused CKIR3 native, self-built, and mixed producer/backend pairs now yield exact CKIR3, independently evaluated result, and independently reconstructed ELF | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate; CKIR3 `OMGRFN4` frame/source custody, source resolution, and declaration/layout/intrinsic-DAG reconstruction are closed. Source-only and CKIR-only evaluator resource boundaries are also closed, but full source lowering/meaning, CKIR/result/artifact reconstruction, and same-frame composition remain open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md) |
+| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate; the selected CKIR3 `OMGRFN4` constant-aggregate tranche is closed through five independent responsibilities implemented by nine persisted-Beta executables and one unchanged-exact-frame composition gate. Responsibility 4 includes physically artifact-free source meaning; responsibility 5 includes complete CKIR3/result validation and independent exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -232,13 +232,14 @@ makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
 The next actionable bridge work is the remaining capabilities actually used by
-published product checkpoints. The CKIR2 exact-root/typed finite-call slice now
-has producer, Rust-free meaning, responsibility-local refinement, and
-same-exact-frame composition in focused gates. That versioned slice is
-cost evidence, not admission of recursion or a final `Ωself` ruling. Do not idle
-on the separately blocked compilation-authority join.
+published product checkpoints. The CKIR3 constant-aggregate slice now has
+producer, Rust-free meaning, responsibility-local refinement, and
+same-exact-frame composition in focused gates. That versioned slice is bounded
+cost and implementation evidence, not general language coverage or admission
+to final `Ωself`. Do not idle on the separately blocked compilation-authority
+join.
 
-- [ ] Close the checkpoint-000001 constant-aggregate vertical slice specified by
+- [x] Close the checkpoint-000001 constant-aggregate vertical slice specified by
   [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md).
   The general family is recursive scalar/record/fixed-array constants,
   aggregate copy into mutable storage, nested indexing, scalar `<=`, guardless
@@ -293,7 +294,7 @@ on the separately blocked compilation-authority join.
   - [x] Freeze the distinct `OMGRFN4` lower-rooted carrier, its derived
     4,497,544-byte simultaneous ceiling, and the five-responsibility ownership
     boundary without widening `OMGRFN1`–`OMGRFN3`.
-  - [ ] Implement and compose the five `OMGRFN4` responsibilities over one
+  - [x] Implement and compose the five `OMGRFN4` responsibilities over one
     exact frame: source custody, resolution, intrinsic declarations/constant
     tables, source lowering plus artifact-free meaning, and CKIR/result plus
     exact artifact reconstruction.
@@ -306,9 +307,9 @@ on the separately blocked compilation-authority join.
     - [x] Reconstruct declarations, layout, types, the selected entry-machine
       root, and intrinsic constant graph structure; opcode-11 constant-root
       selection remains source-lowering responsibility.
-    - [ ] Reconstruct source lowering and compute artifact-free source meaning.
-    - [ ] Validate CKIR3/result and independently reconstruct every ELF byte.
-    - [ ] Compose all five responsibilities over one unchanged carrier with
+    - [x] Reconstruct source lowering and compute artifact-free source meaning.
+    - [x] Validate CKIR3/result and independently reconstruct every ELF byte.
+    - [x] Compose all five responsibilities over one unchanged carrier with
       phase-local mutations and valid-but-mismatched cross-pairs.
 
   Acceptance: the exact Unicode source and harness produce result 70; renamed,
