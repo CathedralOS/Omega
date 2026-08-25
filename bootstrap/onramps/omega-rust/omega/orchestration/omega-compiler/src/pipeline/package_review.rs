@@ -1022,6 +1022,22 @@ impl PackageReviewPropositionApplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewPropositionParameterApplication {
+    binder_ordinal: u32,
+    arguments: Vec<PackageReviewContractExpression>,
+}
+
+impl PackageReviewPropositionParameterApplication {
+    pub const fn binder_ordinal(&self) -> u32 {
+        self.binder_ordinal
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewContractExpression] {
+        &self.arguments
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractFact {
     Expression(PackageReviewContractExpression),
     Membership {
@@ -1029,6 +1045,7 @@ pub enum PackageReviewContractFact {
         domain: PackageReviewNominalIdentity,
     },
     Proposition(PackageReviewPropositionApplication),
+    PropositionParameter(PackageReviewPropositionParameterApplication),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -5348,6 +5365,15 @@ fn validate_checked_contract_evidence(
             context.subject_kind, context.subject_name, binding
         ))]);
     }
+    if matches!(
+        projected,
+        PackageReviewContractFact::PropositionParameter(_)
+    ) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` named contract `{}` uses a generic proposition endpoint without an exact checked witness interface",
+            context.subject_kind, context.subject_name, binding
+        ))]);
+    }
     let PackageReviewContractFact::Proposition(application) = projected else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` named contract `{}` is not a proposition",
@@ -5433,6 +5459,96 @@ fn project_contract_proposition(
             "reviewed {} `{}` proposition expansion is cyclic",
             context.subject_kind, context.subject_name
         ))]);
+    }
+    if application.proposition.is_valid()
+        && compilation.typed.symbols.get(application.proposition).kind
+            == psi_symbols::SymbolKind::PropositionParameter
+    {
+        if !application.binder_arguments.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` generic proposition endpoint has unexpected static arguments",
+                context.subject_kind, context.subject_name
+            ))]);
+        }
+        let matching_parameters = compilation
+            .typed
+            .data_type_parameters
+            .iter()
+            .map(|(_, parameter)| parameter)
+            .filter(|parameter| parameter.symbol == application.proposition)
+            .collect::<Vec<_>>();
+        let [parameter] = matching_parameters.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` generic proposition endpoint rejoins {} declaration parameters; expected exactly one",
+                context.subject_kind,
+                context.subject_name,
+                matching_parameters.len()
+            ))]);
+        };
+        let psi_typed_trees::data::TypeParameterKind::Proposition { contract } = &parameter.kind
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` generic proposition endpoint does not rejoin a proposition-family signature",
+                context.subject_kind, context.subject_name
+            ))]);
+        };
+        let argument_handles = compilation
+            .expression_table
+            .expression_handles(application.arguments);
+        let parameter_count = compilation
+            .typed
+            .state_parameters
+            .span_or_empty(contract.parameters)
+            .len();
+        if argument_handles.len() != parameter_count {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` generic proposition endpoint has inconsistent checked arity",
+                context.subject_kind, context.subject_name
+            ))]);
+        }
+        let mut static_ordinal = 0usize;
+        let mut matching_ordinals = Vec::new();
+        for (symbol, _) in callable_binders {
+            if matches!(
+                compilation.typed.symbols.get(*symbol).kind,
+                psi_symbols::SymbolKind::TypeParameter
+                    | psi_symbols::SymbolKind::MachineParameter
+                    | psi_symbols::SymbolKind::PropositionParameter
+            ) {
+                if *symbol == application.proposition {
+                    matching_ordinals.push(static_ordinal);
+                }
+                static_ordinal += 1;
+            }
+        }
+        let [binder_ordinal] = matching_ordinals.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` generic proposition endpoint rejoins {} callable static binders; expected exactly one",
+                context.subject_kind,
+                context.subject_name,
+                matching_ordinals.len()
+            ))]);
+        };
+        let arguments = argument_handles
+            .iter()
+            .map(|argument| {
+                project_contract_expression_with_substitutions(
+                    compilation,
+                    context,
+                    callable_binders,
+                    *argument,
+                    value_substitutions,
+                    checked_fact,
+                    0,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(PackageReviewContractFact::PropositionParameter(
+            PackageReviewPropositionParameterApplication {
+                binder_ordinal: portable_parameter_position(*binder_ordinal)?,
+                arguments,
+            },
+        ));
     }
     let declaration = compilation
         .propositions()
@@ -6617,7 +6733,11 @@ fn project_contract_name_expression(
                 .then(|| substitution.clone())
         });
     let parameter_position = context.parameters.iter().position(|parameter| {
-        parameter.symbol == root_symbol || root_name.is_some_and(|name| name == &parameter.name)
+        if root_symbol.is_valid() {
+            parameter.symbol == root_symbol
+        } else {
+            root_name.is_some_and(|name| name == &parameter.name)
+        }
     });
     let is_domain_subject =
         context.domain_symbol.is_some() && root_name.is_some_and(|name| name.as_str() == "self");
@@ -6643,6 +6763,19 @@ fn project_contract_name_expression(
     };
 
     let Some(projected) = root else {
+        if root_symbol.is_valid()
+            && root_name.is_some_and(|name| {
+                context
+                    .parameters
+                    .iter()
+                    .any(|parameter| name == &parameter.name)
+            })
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed {} `{}` contract parameter spelling does not match its exact resolved symbol",
+                context.subject_kind, context.subject_name
+            ))]);
+        }
         if !path.symbol.is_valid() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` contract contains an unresolved name expression",

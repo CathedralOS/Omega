@@ -878,6 +878,19 @@ complete.
   Proposition-valued or evidence contract-call static arguments remain
   fail-closed, as do symbolic const declarations or expressions, true nested
   machine/conformance applications, quotients, and compiler intrinsics.
+  Review v50 and canonical row v10 admit unnamed public contract facts whose
+  proposition endpoint is a containing proposition-family parameter. The fact
+  retains the exact static-telescope ordinal and ordered, checked contract
+  expressions supplied to that family. Static-binder renames are stable, while
+  selecting another proposition-family slot or changing its value arguments
+  changes canonical evidence. Compiler validation rejects named generic
+  proposition evidence because the unresolved family has no exact witness
+  interface; proposition-valued contract-call static arguments remain a
+  separate incomplete form. This rung publishes the abstract contract only:
+  it does not certify concrete law discharge while generic proposition law
+  conformance still compares rendered normalization labels. Structural
+  distinct-family identity and regressions are required before that result may
+  become package evidence.
   In particular, true nested machine static applications such as
   `consumer<family<Selected>>()` remain fail-closed: checked
   monomorphization has no closed application identity and currently omits
@@ -1445,7 +1458,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v49
+  create a placeholder `PackageInstance` or bless current incomplete review v50
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

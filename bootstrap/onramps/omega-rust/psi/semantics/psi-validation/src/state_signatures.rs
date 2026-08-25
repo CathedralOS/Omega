@@ -310,14 +310,12 @@ fn validate_state_signature_contracts(
             )));
             continue;
         }
-        if matches!(owner, StateSignatureOwner::Machine(_)) {
-            validate_named_evidence_binding(
-                program,
-                &format!("{owner} state `{}`", signature.name),
-                contract,
-                diagnostics,
-            );
-        }
+        validate_named_evidence_binding(
+            program,
+            &format!("{owner} state `{}`", signature.name),
+            contract,
+            diagnostics,
+        );
         validate_crash_route_shapes(program, contract, diagnostics);
         validate_proof_facts(
             program,

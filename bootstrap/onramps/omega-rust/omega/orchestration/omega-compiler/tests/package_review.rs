@@ -1049,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 49);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 9);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 50);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 10);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -3473,6 +3473,364 @@ machine build(builder: &mut Build) { }
         diagnostic
             .message
             .contains("non-default value-parameter mode not yet certified")
+    }));
+}
+
+#[test]
+fn review_projects_generic_proposition_contract_endpoints_by_static_ordinal() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed_endpoint = TempPackage::new();
+    let changed_arguments = TempPackage::new();
+    let source = |carrier: &str,
+                  relation: &str,
+                  alternate: &str,
+                  left: &str,
+                  right: &str,
+                  selected: &str,
+                  first_argument: &str,
+                  second_argument: &str| {
+        format!(
+            r#"pub trait RelationLaw<{carrier}, proposition {relation}, proposition {alternate}>
+where proposition {relation}(first: {carrier}, second: {carrier});
+where proposition {alternate}(first: {carrier}, second: {carrier});
+{{
+    machine reverse({left}: {carrier}, {right}: {carrier})
+    ensures {selected}({first_argument}, {second_argument});
+}}
+"#,
+        )
+    };
+    original.write(
+        "main.omg",
+        &source(
+            "Carrier",
+            "Relation",
+            "Alternate",
+            "left",
+            "right",
+            "Relation",
+            "right",
+            "left",
+        ),
+    );
+    renamed.write(
+        "main.omg",
+        &source(
+            "Value",
+            "Equivalent",
+            "Other",
+            "left",
+            "right",
+            "Equivalent",
+            "right",
+            "left",
+        ),
+    );
+    changed_endpoint.write(
+        "main.omg",
+        &source(
+            "Carrier",
+            "Relation",
+            "Alternate",
+            "left",
+            "right",
+            "Alternate",
+            "right",
+            "left",
+        ),
+    );
+    changed_arguments.write(
+        "main.omg",
+        &source(
+            "Carrier",
+            "Relation",
+            "Alternate",
+            "left",
+            "right",
+            "Relation",
+            "left",
+            "right",
+        ),
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    for package in [&original, &renamed, &changed_endpoint, &changed_arguments] {
+        package.write("build.omg", build);
+    }
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("generic proposition contract endpoint should check");
+        project_checked_package_review(&checked)
+            .expect("generic proposition contract endpoint should project exactly")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let changed_endpoint = project(&changed_endpoint);
+    let changed_arguments = project(&changed_arguments);
+    let law = original
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "RelationLaw")
+        .expect("RelationLaw trait row");
+    let [reverse] = law.requirements() else {
+        panic!("one relation law")
+    };
+    let [contract] = reverse.contracts() else {
+        panic!("one relation law contract")
+    };
+    let PackageReviewContractFact::PropositionParameter(application) = contract.fact() else {
+        panic!("generic proposition-parameter application")
+    };
+    assert_eq!(application.binder_ordinal(), 1);
+    assert_eq!(
+        application.arguments(),
+        [
+            PackageReviewContractExpression::Parameter(1),
+            PackageReviewContractExpression::Parameter(0),
+        ]
+    );
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming trait and proposition-family binders must preserve review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_endpoint.canonical_review_bytes().unwrap(),
+        "selecting a different proposition-family binder must change review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_arguments.canonical_review_bytes().unwrap(),
+        "changing proposition value arguments must change review identity",
+    );
+}
+
+#[test]
+fn compiler_rejects_named_generic_proposition_evidence_before_package_review() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait RelationLaw<Carrier, proposition Relation>
+where proposition Relation(left: Carrier, right: Carrier);
+{
+    machine use(value: Carrier)
+    requires proof: Relation(value, value);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect_err("named generic proposition evidence must fail before checked lowering");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not resolve to one nominal proposition endpoint")
+    }));
+}
+
+#[test]
+fn review_projects_composed_relation_laws_with_forwarded_proposition_family() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Reflexive<Carrier, proposition Relation>
+where proposition Relation(left: Carrier, right: Carrier);
+{
+    machine reflexive(value: Carrier)
+    ensures Relation(value, value);
+}
+
+pub trait Symmetric<Carrier, proposition Relation>
+where proposition Relation(left: Carrier, right: Carrier);
+{
+    machine symmetric(left: Carrier, right: Carrier)
+    requires Relation(left, right)
+    ensures Relation(right, left);
+}
+
+pub trait Equivalence<Carrier, proposition Relation>:
+    Reflexive<Carrier, Relation>
+    + Symmetric<Carrier, Relation>
+where proposition Relation(left: Carrier, right: Carrier);
+{
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("composed relation laws should check");
+    let review = project_checked_package_review(&checked)
+        .expect("composed relation laws should have exact package-review rows");
+    let equivalence = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Equivalence")
+        .expect("Equivalence trait row");
+    assert_eq!(equivalence.parents().len(), 2);
+    for parent in equivalence.parents() {
+        let [carrier, relation] = parent.arguments() else {
+            panic!("forwarded carrier and proposition-family arguments")
+        };
+        assert!(carrier.canonical().contains("type-parameter:0"));
+        assert!(relation.canonical().contains("type-parameter:1"));
+    }
+}
+
+#[test]
+fn review_rejects_generic_proposition_endpoint_and_value_symbol_spoofs() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait RelationLaw<Carrier, proposition Relation>
+where proposition Relation(value: Carrier);
+{
+    machine use(value: Carrier)
+    ensures Relation(value);
+}
+
+trait OtherLaw<Carrier, proposition OtherRelation>
+where proposition OtherRelation(value: Carrier);
+{
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic proposition spoof fixture should check before mutation");
+    project_checked_package_review(&checked).expect("unmodified generic proposition review");
+
+    let law = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "RelationLaw")
+        .expect("RelationLaw definition");
+    let [signature] = checked.trait_machine_signatures(law) else {
+        panic!("one RelationLaw requirement")
+    };
+    let [contract] = checked.state_signature_contracts(signature) else {
+        panic!("one RelationLaw contract")
+    };
+    let fact_handle = contract.facts.start();
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        checked.proof_facts.get(fact_handle)
+    else {
+        panic!("generic proposition fact")
+    };
+    let [argument_handle] = checked
+        .expression_table
+        .expression_handles(application.arguments)
+    else {
+        panic!("one generic proposition argument")
+    };
+    let argument_handle = *argument_handle;
+
+    let other = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "OtherLaw")
+        .expect("OtherLaw definition");
+    let [_, other_relation] = checked.trait_type_parameters(other) else {
+        panic!("OtherLaw carrier and proposition parameters")
+    };
+    let other_relation_symbol = other_relation.symbol;
+    let psi_typed_trees::data::TypeParameterKind::Proposition { contract } = &other_relation.kind
+    else {
+        panic!("OtherRelation signature")
+    };
+    let [other_value] = checked.state_parameters.span_or_empty(contract.parameters) else {
+        panic!("one OtherRelation value parameter")
+    };
+    let other_value_symbol = other_value.symbol;
+
+    let mut endpoint_spoof = checked.clone();
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        endpoint_spoof.typed.proof_facts.get_mut(fact_handle)
+    else {
+        panic!("generic proposition fact")
+    };
+    application.proposition = other_relation_symbol;
+    let diagnostics = project_checked_package_review(&endpoint_spoof)
+        .expect_err("a foreign generic proposition binder must not rejoin by category");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("generic proposition endpoint rejoins 0 callable static binders")
+    }));
+
+    let mut value_spoof = checked;
+    let psi_typed_trees::expression::ExpressionNode::Name(path) = value_spoof
+        .typed
+        .expression_table
+        .expression_mut(argument_handle)
+    else {
+        panic!("generic proposition name argument")
+    };
+    path.head_symbol = other_value_symbol;
+    path.symbol = other_value_symbol;
+    let diagnostics = project_checked_package_review(&value_spoof)
+        .expect_err("a same-spelled foreign value symbol must not rejoin a callable parameter");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("contract parameter spelling does not match its exact resolved symbol")
     }));
 }
 
