@@ -45,7 +45,7 @@ pub use pipeline::{
     PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewCrashSite, PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
     PackageReviewDangerousAuthoritySlack, PackageReviewDataField, PackageReviewDataMember,
-    PackageReviewDataShape, PackageReviewDomainClassification,
+    PackageReviewDataShape, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainShape, PackageReviewEncodingError, PackageReviewEvidenceInterface,
     PackageReviewEvidenceRequirement, PackageReviewInstallationReach, PackageReviewMutation,

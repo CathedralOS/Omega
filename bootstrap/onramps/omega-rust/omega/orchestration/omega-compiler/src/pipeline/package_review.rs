@@ -380,6 +380,12 @@ impl PackageReviewDomainEstablishmentRoute {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewDomainAliasAtom {
+    Declared(PackageReviewNominalIdentity),
+    Carry(psi_language_semantics::CarryPermission),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDomainShape {
     identity: PackageReviewNominalIdentity,
@@ -388,7 +394,7 @@ pub struct PackageReviewDomainShape {
     index_arguments: Vec<PackageReviewTypeIdentity>,
     predicate_body: psi_language_semantics::DomainPredicateBody,
     predicate_facts: Vec<PackageReviewContractFact>,
-    alias_expansion: Option<Vec<PackageReviewNominalIdentity>>,
+    alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     classification: Option<PackageReviewDomainClassification>,
     establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
@@ -418,7 +424,7 @@ impl PackageReviewDomainShape {
         &self.predicate_facts
     }
 
-    pub fn alias_expansion(&self) -> Option<&[PackageReviewNominalIdentity]> {
+    pub fn alias_expansion(&self) -> Option<&[PackageReviewDomainAliasAtom]> {
         self.alias_expansion.as_deref()
     }
 
@@ -910,9 +916,6 @@ pub enum PackageReviewNominalOwner {
     /// nominal declaration but is not the whole compiler/toolchain commitment
     /// required by sealed admission.
     ToolchainSource(PackageReviewToolchainSourceIdentity),
-    /// Compiler-intrinsic identity with no authored source coordinate. Review
-    /// keeps this visibly unbound until an exact compiler commitment exists.
-    ToolchainUnbound,
     /// Checked lowering retained a nominal reference without an authored
     /// source owner or mandatory compiler derivation origin. Review surfaces
     /// it explicitly; admission must reject it.
@@ -1999,8 +2002,7 @@ pub fn project_checked_package_review(
         match owner.owner {
             PackageReviewNominalOwner::Package(owner) if owner == package => {}
             PackageReviewNominalOwner::Package(_)
-            | PackageReviewNominalOwner::ToolchainSource(_)
-            | PackageReviewNominalOwner::ToolchainUnbound => {
+            | PackageReviewNominalOwner::ToolchainSource(_) => {
                 continue;
             }
             PackageReviewNominalOwner::Unresolved => {
@@ -3312,12 +3314,12 @@ fn semantic_fact_matches_domain_fact(
 fn project_domain_alias_expansion(
     compilation: &CheckedCompilation,
     domain_symbol: SymbolHandle,
-) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+) -> Result<Vec<PackageReviewDomainAliasAtom>, Vec<Diagnostic>> {
     fn expand(
         compilation: &CheckedCompilation,
         domain_symbol: SymbolHandle,
         stack: &mut Vec<SymbolHandle>,
-        atoms: &mut Vec<PackageReviewNominalIdentity>,
+        atoms: &mut Vec<PackageReviewDomainAliasAtom>,
     ) -> Result<(), Vec<Diagnostic>> {
         if stack.contains(&domain_symbol) {
             return Err(vec![Diagnostic::error(
@@ -3336,7 +3338,10 @@ fn project_domain_alias_expansion(
             ))]);
         };
         let Some(alias) = definition.alias.as_ref() else {
-            atoms.push(nominal_identity(compilation, definition.symbol)?);
+            atoms.push(PackageReviewDomainAliasAtom::Declared(nominal_identity(
+                compilation,
+                definition.symbol,
+            )?));
             return Ok(());
         };
         stack.push(domain_symbol);
@@ -3347,22 +3352,15 @@ fn project_domain_alias_expansion(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            if label == "Carry::Portable" {
+            if !constituent.domain_symbol.is_valid() && label == "Carry::Portable" {
                 atoms.extend(
-                    psi_language_semantics::CarryPermission::ALL.map(|permission| {
-                        PackageReviewNominalIdentity {
-                            owner: PackageReviewNominalOwner::ToolchainUnbound,
-                            path: permission.name().to_owned(),
-                        }
-                    }),
+                    psi_language_semantics::CarryPermission::ALL
+                        .map(PackageReviewDomainAliasAtom::Carry),
                 );
-            } else if let Some(permission) =
-                psi_language_semantics::CarryPermission::from_name(&label)
+            } else if !constituent.domain_symbol.is_valid()
+                && let Some(permission) = psi_language_semantics::CarryPermission::from_name(&label)
             {
-                atoms.push(PackageReviewNominalIdentity {
-                    owner: PackageReviewNominalOwner::ToolchainUnbound,
-                    path: permission.name().to_owned(),
-                });
+                atoms.push(PackageReviewDomainAliasAtom::Carry(permission));
             } else {
                 if !constituent.domain_symbol.is_valid() {
                     return Err(vec![Diagnostic::error(format!(
@@ -3999,8 +3997,7 @@ fn reviewed_package_owns(
 ) -> Result<bool, Vec<Diagnostic>> {
     match identity.owner {
         PackageReviewNominalOwner::Package(owner) => Ok(owner == package),
-        PackageReviewNominalOwner::ToolchainSource(_)
-        | PackageReviewNominalOwner::ToolchainUnbound => Ok(false),
+        PackageReviewNominalOwner::ToolchainSource(_) => Ok(false),
         PackageReviewNominalOwner::Unresolved => Err(vec![Diagnostic::error(format!(
             "reviewed public declaration `{}` has no managed package owner",
             identity.path

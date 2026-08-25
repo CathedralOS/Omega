@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v38 rows are not promoted
+subjects or provenance. The current incomplete review-v39 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -905,7 +905,7 @@ join reconstructs those coordinates from reduced nominal identity.
 Provider candidate derivation captures a compiler-internal sidecar beside each
 semantic plan: exact boundary-schema and optional nominal-provider symbols, and
 the exact requirement plus realizing machine for every external or
-checked-adapter row. Review v38 encodes those schema, provider, requirement, and
+checked-adapter row. Review v39 encodes those schema, provider, requirement, and
 realization declarations as package-qualified nominal identities; readable
 plan and overload strings remain operational/audit data. Selection
 and canonical sorting keep that pair intact, adding exact authored build/target-
@@ -937,9 +937,16 @@ rather than degrading to the generic toolchain marker available to weaker
 compiler-local identity. The compiler's 22 exact root builtin-type slots instead
 encode closed compiler atoms, selected by root position and `BuiltinType` kind
 rather than name. Package-authored lookalikes and source-free generated symbols
-remain unresolved. Carry permissions, value domains, arithmetic policies,
-layout atoms, and other source-free compiler semantics require their own closed
-structural carriers before they can enter package evidence. Public data projects its supply,
+remain unresolved. Carry permissions use closed enum atoms in a non-nominal
+tagged lane. Value domains, layout atoms, and other source-free compiler
+semantics require their own closed structural carriers before they can enter
+package evidence. Arithmetic domains and aggregate carry policy are already
+closed enums; rendering their compiler-owned labels is not an authority hole.
+The next typed-tree carrier should distinguish carry constraints, closed value
+domains such as `Finite`, and `OmegaLayout` with an exact schema symbol and a
+closed grammar. Package projection rejects legacy flattened layout spellings,
+residual unevaluated const calls, unsupported index sentinels, and missing
+checked index selections rather than serializing fallback text. Public data projects its supply,
 generic shape, properties, fields/variants/payloads, relevance, and stable
 numbered and retired identities. Those numbered ordinary-data identities are
 the wire contract; the retired standalone `wire data` form is not projected as
@@ -953,8 +960,10 @@ recursively flatten to sorted, deduplicated package-qualified atoms. Authored
 toolchain nominals bind a canonical toolchain-relative source path plus exact
 source-byte commitment in review evidence; this records their semantic origin
 but does not make producer pedigree authoritative. Compiler carry aliases
-expand to explicit toolchain-unbound atoms until their exact compiler-owned
-semantic subject and obligation origin land. Predicate-body presence and
+expand to closed `CarryPermission` atoms rather than invented nominal owners;
+valid package declarations cannot enter that lane merely through a resembling
+diagnostic path. Whole compiler/toolchain commitment remains separate.
+Predicate-body presence and
 currently representable structural expression/membership facts retain the
 domain carrier and exact
 package-qualified member/domain identities. A typed fact is admissible only
