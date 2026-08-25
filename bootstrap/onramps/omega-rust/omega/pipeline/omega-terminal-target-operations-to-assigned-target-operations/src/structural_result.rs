@@ -1,6 +1,8 @@
 //! Assignment for the bounded whole-root structural-call/result carrier.
 
-use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, evaluate_call_plan,
+};
 use omega_target::NativeTarget;
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedAggregateCopy, TerminalAssignedOperation,
@@ -61,8 +63,16 @@ pub(super) fn assign(
     .map_err(|_| AssignmentError::UnsupportedStructuralPlacement(parameter.place))?;
     if *call_plan != expected_caller
         || *callee_call_plan != expected_callee
-        || parameter.shape.byte_size != 8
-        || parameter.shape.alignment != 8
+        || !direct_structural_fragments(&parameter.placement)
+        || !direct_structural_fragments(&argument.destination)
+        || expected_caller
+            .result
+            .as_ref()
+            .is_none_or(|placement| !direct_structural_fragments(placement))
+        || expected_callee
+            .result
+            .as_ref()
+            .is_none_or(|placement| !direct_structural_fragments(placement))
         || argument.path.len() != 0
         || argument.place != parameter.place
         || argument.root_structural_type != parameter.structural_type
@@ -111,4 +121,34 @@ pub(super) fn assign(
         returned_claim_transfers: returned_claim_transfers.clone(),
         returned_claims: returned_claims.clone(),
     })
+}
+
+fn direct_structural_fragments(placement: &ValuePlacement) -> bool {
+    if placement.shape.class != ValueClass::Integer
+        || !((placement.shape.byte_size == 8 && placement.shape.alignment == 8)
+            || (9..=16).contains(&placement.shape.byte_size))
+        || !(1..=2).contains(&placement.locations.len())
+    {
+        return false;
+    }
+    let mut expected_offset = 0_u16;
+    for location in &placement.locations {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return false;
+        };
+        let expected_size = (placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return false;
+        }
+        let Some(next) = expected_offset.checked_add(byte_size) else {
+            return false;
+        };
+        expected_offset = next;
+    }
+    expected_offset == placement.shape.byte_size
 }

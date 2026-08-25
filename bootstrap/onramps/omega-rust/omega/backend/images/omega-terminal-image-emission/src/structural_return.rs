@@ -13,7 +13,10 @@ use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 use psi_terminal_fuel::TerminalFuelSchedule;
 
-use super::TerminalObjectError;
+use super::{
+    TerminalObjectError,
+    instruction_loads::{aarch64_terminal_register, x86_terminal_register},
+};
 
 pub(super) fn validate_structural_return_record(
     target: NativeTarget,
@@ -81,7 +84,9 @@ pub(super) fn validate_structural_return_record(
         || returned.source.qualifications != returned.result.qualifications
         || returned.shape != returned.source_placement.shape
         || returned.shape != returned.result_placement.shape
-        || returned.shape.byte_size != 8
+        || returned.shape.class != omega_calling_conventions::ValueClass::Integer
+        || !((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
+            || (9..=16).contains(&returned.shape.byte_size))
         || returned.returned_claims.len() != 1
         || returned
             .parameters
@@ -157,72 +162,109 @@ pub(super) fn validate_structural_return_record(
             machine,
         ));
     }
+    let fragments = direct_return_fragments(returned).ok_or(
+        TerminalObjectError::InvalidStructuralReturnEvidence(machine),
+    )?;
     let expected = match architecture {
         Architecture::X86_64 => {
-            let [
-                omega_calling_conventions::ValueLocation::Register {
-                    register: source,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] = returned.source_placement.locations.as_slice()
-            else {
-                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
-                    machine,
-                ));
-            };
-            let [
-                omega_calling_conventions::ValueLocation::Register {
-                    register: omega_calling_conventions::MachineRegister::X86Rax,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] = returned.result_placement.locations.as_slice()
-            else {
-                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
-                    machine,
-                ));
-            };
-            match source {
-                omega_calling_conventions::MachineRegister::X86Rdi => &[0x48, 0x89, 0xf8, 0xc3][..],
-                omega_calling_conventions::MachineRegister::X86Rcx => &[0x48, 0x89, 0xc8, 0xc3][..],
-                _ => {
-                    return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
-                        machine,
-                    ));
+            let mut expected = Vec::new();
+            for (source, result) in fragments {
+                let source_code = x86_terminal_register(source).ok_or(
+                    TerminalObjectError::InvalidStructuralReturnEvidence(machine),
+                )?;
+                let result_code = x86_terminal_register(result).ok_or(
+                    TerminalObjectError::InvalidStructuralReturnEvidence(machine),
+                )?;
+                if source_code != result_code {
+                    expected.extend_from_slice(&[
+                        0x48 | (((source_code >> 3) & 1) << 2) | ((result_code >> 3) & 1),
+                        0x89,
+                        0xc0 | ((source_code & 7) << 3) | (result_code & 7),
+                    ]);
                 }
             }
+            expected.push(0xc3);
+            expected
         }
         Architecture::Aarch64 => {
-            let [
-                omega_calling_conventions::ValueLocation::Register {
-                    register: omega_calling_conventions::MachineRegister::Aarch64X(0),
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] = returned.source_placement.locations.as_slice()
-            else {
-                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
-                    machine,
-                ));
-            };
-            let [
-                omega_calling_conventions::ValueLocation::Register {
-                    register: omega_calling_conventions::MachineRegister::Aarch64X(0),
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] = returned.result_placement.locations.as_slice()
-            else {
-                return Err(TerminalObjectError::InvalidStructuralReturnEvidence(
-                    machine,
-                ));
-            };
-            &[0xc0, 0x03, 0x5f, 0xd6]
+            let mut instructions = Vec::new();
+            for (source, result) in fragments {
+                let source_code = aarch64_terminal_register(source).ok_or(
+                    TerminalObjectError::InvalidStructuralReturnEvidence(machine),
+                )?;
+                let result_code = aarch64_terminal_register(result).ok_or(
+                    TerminalObjectError::InvalidStructuralReturnEvidence(machine),
+                )?;
+                if source_code != result_code {
+                    instructions.push(
+                        0xaa00_03e0 | (u32::from(source_code) << 16) | u32::from(result_code),
+                    );
+                }
+            }
+            instructions.push(0xd65f_03c0);
+            instructions
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect()
         }
     };
-    if bytes != expected {
+    if bytes != expected.as_slice() {
         return Err(TerminalObjectError::StructuralReturnBytesMismatch(machine));
     }
     Ok(())
+}
+
+fn direct_return_fragments(
+    returned: &TerminalStructuralReturnRecord,
+) -> Option<
+    Vec<(
+        omega_calling_conventions::MachineRegister,
+        omega_calling_conventions::MachineRegister,
+    )>,
+> {
+    if returned.source_placement.shape != returned.result_placement.shape
+        || returned.shape.class != omega_calling_conventions::ValueClass::Integer
+        || !((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
+            || (9..=16).contains(&returned.shape.byte_size))
+        || !(1..=2).contains(&returned.source_placement.locations.len())
+        || returned.source_placement.locations.len() != returned.result_placement.locations.len()
+    {
+        return None;
+    }
+    let mut expected_offset = 0_u16;
+    let mut fragments = Vec::with_capacity(returned.source_placement.locations.len());
+    for (source, result) in returned
+        .source_placement
+        .locations
+        .iter()
+        .zip(&returned.result_placement.locations)
+    {
+        let omega_calling_conventions::ValueLocation::Register {
+            register: source_register,
+            value_byte_offset: source_offset,
+            byte_size: source_size,
+        } = *source
+        else {
+            return None;
+        };
+        let omega_calling_conventions::ValueLocation::Register {
+            register: result_register,
+            value_byte_offset: result_offset,
+            byte_size: result_size,
+        } = *result
+        else {
+            return None;
+        };
+        let expected_size = (returned.shape.byte_size - expected_offset).min(8);
+        if source_offset != expected_offset
+            || result_offset != expected_offset
+            || source_size != expected_size
+            || result_size != expected_size
+        {
+            return None;
+        }
+        expected_offset = expected_offset.checked_add(expected_size)?;
+        fragments.push((source_register, result_register));
+    }
+    (expected_offset == returned.shape.byte_size).then_some(fragments)
 }

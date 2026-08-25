@@ -12,6 +12,11 @@ data Region [linear] {
     length: u64;
 }
 
+data WideRegion [linear] {
+    base: u64;
+    length: u64;
+}
+
 data Scratch {
     marker: u64;
 }
@@ -19,8 +24,15 @@ data Scratch {
 data EmptyScratch {}
 
 domain Region::Owned;
+domain WideRegion::WideOwned;
 
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: region.length }
+}
+
+machine WideOwned::content(region: &WideRegion) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: region.length }
@@ -34,6 +46,14 @@ machine Main::forward(region: Region in Owned) -> Region in Owned {
 
 machine Main::through_call(region: Region in Owned) -> Region in Owned {
     Main::forward(region)
+}
+
+machine Main::forward_wide(region: WideRegion in WideOwned) -> WideRegion in WideOwned {
+    region
+}
+
+machine Main::through_call_wide(region: WideRegion in WideOwned) -> WideRegion in WideOwned {
+    Main::forward_wide(region)
 }
 
 machine Main::forward_and_drop(region: Region in Owned, scratch: Scratch) -> Region in Owned {

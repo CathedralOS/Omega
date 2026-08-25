@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 use omega_calling_conventions::ValueShape;
-use omega_calling_conventions::{ValueLocation, ValuePlacement};
+use omega_calling_conventions::{ValueClass, ValueLocation, ValuePlacement};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 #[cfg(test)]
 use omega_terminal_assigned_target_operations::TerminalAssignedBooleanControl;
@@ -788,53 +788,91 @@ fn emit_structural_parameter_return(
     result_placement: &ValuePlacement,
     architecture: Architecture,
 ) -> Result<Vec<u8>, EmissionError> {
-    let [
-        ValueLocation::Register {
-            register: source_register,
-            value_byte_offset: 0,
-            byte_size: 8,
-        },
-    ] = source_placement.locations.as_slice()
-    else {
+    if source_placement.shape.class != ValueClass::Integer
+        || !((source_placement.shape.byte_size == 8 && source_placement.shape.alignment == 8)
+            || (9..=16).contains(&source_placement.shape.byte_size))
+        || source_placement.shape != result_placement.shape
+        || source_placement.locations.len() != result_placement.locations.len()
+        || !(1..=2).contains(&source_placement.locations.len())
+    {
         return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
-    };
-    let [
-        ValueLocation::Register {
-            register: result_register,
-            value_byte_offset: 0,
-            byte_size: 8,
-        },
-    ] = result_placement.locations.as_slice()
-    else {
+    }
+    let mut expected_offset = 0_u16;
+    for location in &source_placement.locations {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+        };
+        let expected_size = (source_placement.shape.byte_size - expected_offset).min(8);
+        if value_byte_offset != expected_offset || byte_size != expected_size {
+            return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+        }
+        expected_offset = expected_offset
+            .checked_add(byte_size)
+            .ok_or(EmissionError::UnsupportedStructuralReturnPlacement(source))?;
+    }
+    if expected_offset != source_placement.shape.byte_size {
         return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
-    };
+    }
+    let fragments = source_placement
+        .locations
+        .iter()
+        .zip(&result_placement.locations)
+        .map(|(source_location, result_location)| {
+            let ValueLocation::Register {
+                register: source_register,
+                value_byte_offset: source_offset,
+                byte_size: source_size,
+            } = *source_location
+            else {
+                return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+            };
+            let ValueLocation::Register {
+                register: result_register,
+                value_byte_offset: result_offset,
+                byte_size: result_size,
+            } = *result_location
+            else {
+                return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+            };
+            if source_offset != result_offset || source_size != result_size {
+                return Err(EmissionError::UnsupportedStructuralReturnPlacement(source));
+            }
+            Ok((source_register, result_register))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     match architecture {
         Architecture::X86_64 => {
-            let source_code = x86_unit_register(*source_register)?;
-            let result_code = x86_unit_register(*result_register)?;
-            if result_code != 0 {
-                return Err(EmissionError::UnsupportedStructuralResultRegister(
-                    *result_register,
-                ));
+            let mut bytes = Vec::new();
+            for (source_register, result_register) in fragments {
+                let source_code = x86_unit_register(source_register)?;
+                let result_code = x86_unit_register(result_register)?;
+                if source_code == result_code {
+                    continue;
+                }
+                bytes.extend_from_slice(&[
+                    0x48 | (((source_code >> 3) & 1) << 2) | ((result_code >> 3) & 1),
+                    0x89,
+                    0xc0 | ((source_code & 7) << 3) | (result_code & 7),
+                ]);
             }
-            Ok(vec![
-                0x48 | (((source_code >> 3) & 1) << 2),
-                0x89,
-                0xc0 | ((source_code & 7) << 3),
-                0xc3,
-            ])
+            bytes.push(0xc3);
+            Ok(bytes)
         }
         Architecture::Aarch64 => {
-            let source_code = aarch64_unit_register(*source_register)?;
-            let result_code = aarch64_unit_register(*result_register)?;
-            if result_code != 0 {
-                return Err(EmissionError::UnsupportedStructuralResultRegister(
-                    *result_register,
-                ));
-            }
             let mut instructions = Vec::new();
-            if source_code != 0 {
-                instructions.push(0xaa00_03e0 | (u32::from(source_code) << 16));
+            for (source_register, result_register) in fragments {
+                let source_code = aarch64_unit_register(source_register)?;
+                let result_code = aarch64_unit_register(result_register)?;
+                if source_code != result_code {
+                    instructions.push(
+                        0xaa00_03e0 | (u32::from(source_code) << 16) | u32::from(result_code),
+                    );
+                }
             }
             instructions.push(0xd65f_03c0);
             Ok(instructions

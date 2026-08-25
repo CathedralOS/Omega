@@ -401,6 +401,16 @@ Missing, duplicated, reordered, or path-mismatched receipt rows reject before
 execution. The interpreter commits their consumption only after the provider
 effect succeeds; rejection records no receipt and leaves custody live.
 
+The canonical internal structural-result call form also accepts one whole-root
+argument with an exact nonempty finite claim map. Caller transfers, callee entry
+claims, every successful callee structural return, returned transfers, and
+caller result bindings are one path-preserving bijection. Duplicate, missing,
+swapped, overlapping, or path-mismatched rows reject independently in the
+codec and verifier. Interpretation transfers the complete map only after the
+call charge succeeds, does not replay it across suspension, rebinds it only on
+successful return, and leaves crash settlement to the exact live frontier.
+Checked-source production remains on its bounded one-claim slice.
+
 The admitted result-bearing slice returns one primitive scalar from a bodyless
 boundary while consuming one or more whole structural roots. Its call result,
 boundary signature, arguments, and exact receipts survive canonical encoding
@@ -460,6 +470,15 @@ sibling set has transferred, while affine records retain their explicit typed
 residual-cleanup route. This verifier rule tracks debt for existing projected
 Unit calls; it does not authorize projected `CallStructural` or reconstruction
 of a value with a hole.
+
+The native whole-root structural-result lane accepts a direct 8-byte
+integer-class placement or a direct 9--16-byte placement split into two
+canonical register fragments. System V AMD64 and AAPCS64 realize the latter;
+Microsoft x64's indirect aggregate plan remains rejected. Target assignment,
+machine emission, object/image validation, and installation replay independently
+preserve fragment order, offsets, sizes, and selected registers. Wider or
+non-integer-class shapes, multiple roots or claims, projections, staging, and
+bodyless calls remain fenced.
 
 The claim-free partial-cleanup slice accepts one affine transparent record. A
 finite nonempty set of pairwise prefix-disjoint, nonempty all-field paths may

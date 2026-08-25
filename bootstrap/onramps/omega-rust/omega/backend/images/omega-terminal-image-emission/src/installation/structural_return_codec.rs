@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for one installed structural-return row.
+//! Canonical format-38 codec for one installed structural-return row.
 //!
 //! Row ordering, function association, and structural-return validation remain
 //! in the installation parent. This child owns only the exact row bytes.
@@ -16,7 +16,9 @@ use super::{
         decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
         encode_trivial_affine_local_type,
     },
-    value_placement_codec::{decode_placement, decode_shape, encode_placement, encode_shape},
+    value_placement_codec::{
+        decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
+    },
 };
 
 pub(super) fn encode_structural_returns(
@@ -52,13 +54,13 @@ fn encode_structural_return(
             .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?,
     );
     for placement in &returned.parameter_placements {
-        encode_placement(bytes, placement)?;
+        encode_direct_placement(bytes, placement)?;
     }
     encode_structural_parameter(bytes, &returned.source)?;
     encode_structural_result(bytes, &returned.result)?;
     encode_shape(bytes, returned.shape)?;
-    encode_placement(bytes, &returned.source_placement)?;
-    encode_placement(bytes, &returned.result_placement)?;
+    encode_direct_placement(bytes, &returned.source_placement)?;
+    encode_direct_placement(bytes, &returned.result_placement)?;
     push_u32(
         bytes,
         u32::try_from(returned.returned_claims.len())
@@ -128,13 +130,13 @@ fn decode_structural_return(
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnParameters)?;
     let mut parameter_placements = Vec::with_capacity(placement_count);
     for _ in 0..placement_count {
-        parameter_placements.push(decode_placement(reader)?);
+        parameter_placements.push(decode_direct_placement(reader)?);
     }
     let source = decode_structural_parameter(reader)?;
     let result = decode_structural_result(reader)?;
     let shape = decode_shape(reader)?;
-    let source_placement = decode_placement(reader)?;
-    let result_placement = decode_placement(reader)?;
+    let source_placement = decode_direct_placement(reader)?;
+    let result_placement = decode_direct_placement(reader)?;
     let claim_count = usize::try_from(reader.u32()?)
         .map_err(|_| TerminalInstallationError::TooManyStructuralReturnClaims)?;
     let mut returned_claims = Vec::with_capacity(claim_count);
