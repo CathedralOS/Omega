@@ -128,8 +128,9 @@ See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a
 The separate bootstrap architecture rebuilds that product through increasingly
 capable Alpha → Beta → Gamma → Delta languages, then one hosted edge from the
 Delta-written, `Ωself`-limited `omega-bootstrap` into the full production Omega
-compiler. Delta need not be an Omega subset, and `Ωself` is a source profile
-rather than another language rung. An optional Omega→Omega rebuild may optimize
+compiler. Delta is independently specified; Omega-like spelling does not make
+it an Omega subset. `Ωself` is a source profile rather than another language
+rung. An optional Omega→Omega rebuild may optimize
 that compiler's own binary, but produces the same compiler and is not another
 rung or required dependency. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map

@@ -48,7 +48,7 @@ self-hosting.
 
 | Source contract | What it is | Selected from | What does **not** define it |
 | --- | --- | --- | --- |
-| Delta v1 | an independent literal language specification | the complete Delta source closure of `omega-bootstrap` | D0, samples, or whatever the Rust producer happens to accept |
+| Delta v1 | an independent literal language specification | the complete Delta source closure of `omega-bootstrap` plus explicit compiler-host coherence, robustness, safety, and maintainability arguments | D0, samples, or whatever the Rust producer happens to accept |
 | `Ωself` | a compositional profile of ordinary Omega | the complete Omega source closure of the production compiler, with retain/refactor settled by measured bridge cost | Delta's features, a file allowlist, or the current compiler's exact AST permutations |
 
 Full Omega is the already-separate product language specification. It is what
