@@ -1,5 +1,5 @@
 use omega_packages::{
-    GitSourceSpec, LocalSourceLimits, PackageName, extract_dependency_projection,
+    GitSourceRequest, LocalSourceLimits, PackageName, extract_dependency_projection,
     extract_package_declaration, resolve_git_package_source, resolve_git_source,
     resolve_local_source,
 };
@@ -97,10 +97,8 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
     for pin in remote_pins() {
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: ssh_url(&pin),
-                rev: Some(pin.commit.clone()),
-            },
+            &GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))
+                .expect("remote fixture request must be valid"),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -135,10 +133,8 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         );
 
         let declared = resolve_git_package_source(
-            &GitSourceSpec {
-                url: ssh_url(&pin),
-                rev: Some(pin.commit.clone()),
-            },
+            &GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))
+                .expect("remote fixture request must be valid"),
             &cache,
             LocalSourceLimits::default(),
         )

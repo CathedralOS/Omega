@@ -13,7 +13,8 @@ use crate::review::{
     CapabilityChangeReceipt, CapabilityChangeReceiptPersistenceError, CapabilityReviewError,
 };
 use crate::source::{
-    GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
+    GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
+    resolve_git_source, resolve_local_source,
 };
 use crate::update::{PackageLockUpdatePlan, PackageLockUpdatePlanError, plan_package_lock_update};
 use std::path::{Path, PathBuf};
@@ -39,7 +40,7 @@ impl SourceAdapter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSourceRequest {
     LocalPath(PathBuf),
-    Git { url: String, rev: Option<String> },
+    Git(GitSourceRequest),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +49,7 @@ pub enum PackageSourceRequestParseError {
     EmptySourceLocator,
     LocalSourceCannotUseRevision { locator: String, rev: String },
     UnsupportedFileUrl { locator: String },
+    InvalidGitRequest(GitSourceRequestError),
 }
 
 impl PackageSourceRequest {
@@ -57,20 +59,18 @@ impl PackageSourceRequest {
         rev: Option<String>,
     ) -> Result<Self, PackageSourceRequestParseError> {
         let locator = locator.into();
-        let locator = locator.trim();
-        if locator.is_empty() {
+        if locator.trim().is_empty() {
             return Err(PackageSourceRequestParseError::EmptySourceLocator);
         }
         match adapter {
             SourceAdapter::Local => {
-                let path = file_url_path(locator)?.unwrap_or_else(|| PathBuf::from(locator));
-                reject_local_rev(locator, &rev)?;
+                let path = file_url_path(&locator)?.unwrap_or_else(|| PathBuf::from(&locator));
+                reject_local_rev(&locator, &rev)?;
                 Ok(Self::LocalPath(path))
             }
-            SourceAdapter::Git => Ok(Self::Git {
-                url: locator.to_owned(),
-                rev,
-            }),
+            SourceAdapter::Git => GitSourceRequest::new(locator, rev)
+                .map(Self::Git)
+                .map_err(PackageSourceRequestParseError::InvalidGitRequest),
         }
     }
 }
@@ -354,18 +354,11 @@ pub fn audit_package_source(
                 byte_count: resolved.byte_count,
             })
         }
-        PackageSourceRequest::Git { url, rev } => {
-            let resolved = resolve_git_source(
-                &GitSourceSpec {
-                    url: url.clone(),
-                    rev: rev.clone(),
-                },
-                cache_dir,
-                limits,
-            )?;
+        PackageSourceRequest::Git(request) => {
+            let resolved = resolve_git_source(&request, cache_dir, limits)?;
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
-                locator: url,
+                locator: request.locator_identity().to_owned(),
                 requested_rev: Some(resolved.requested_rev),
                 resolved_commit: Some(resolved.commit),
                 resolved_tree: Some(resolved.tree),
@@ -424,7 +417,7 @@ pub fn write_source_cache_record_locator(
 fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
     match request {
         PackageSourceRequest::LocalPath(path) => SourceCacheRequest::LocalPath(path),
-        PackageSourceRequest::Git { url, rev } => SourceCacheRequest::Git { url, rev },
+        PackageSourceRequest::Git(request) => SourceCacheRequest::Git(request),
     }
 }
 
@@ -736,10 +729,13 @@ mod tests {
                 "https://github.com/CathedralOS/file-journal",
                 Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned())
             ),
-            Ok(PackageSourceRequest::Git {
-                url: "https://github.com/CathedralOS/file-journal".to_owned(),
-                rev: Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned()),
-            })
+            Ok(PackageSourceRequest::Git(
+                GitSourceRequest::new(
+                    "https://github.com/CathedralOS/file-journal",
+                    Some("fd4ff9824c83a85584661acad93033304512f8c8".to_owned()),
+                )
+                .expect("valid HTTPS Git request"),
+            ))
         );
         assert_eq!(
             PackageSourceRequest::parse(
@@ -747,10 +743,10 @@ mod tests {
                 "git@github.com:CathedralOS/file-journal.git",
                 None,
             ),
-            Ok(PackageSourceRequest::Git {
-                url: "git@github.com:CathedralOS/file-journal.git".to_owned(),
-                rev: None,
-            })
+            Ok(PackageSourceRequest::Git(
+                GitSourceRequest::new("git@github.com:CathedralOS/file-journal.git", None,)
+                    .expect("valid SSH Git request"),
+            ))
         );
     }
 
@@ -938,10 +934,10 @@ mod tests {
         run_test_git(&repo, ["commit", "--quiet", "-m", "initial"]);
 
         let audit = audit_package_source(
-            PackageSourceRequest::Git {
-                url: repo.display().to_string(),
-                rev: Some("HEAD".to_owned()),
-            },
+            PackageSourceRequest::Git(
+                GitSourceRequest::for_local_test_repository(&repo, Some("HEAD".to_owned()))
+                    .expect("local Git fixture request"),
+            ),
             &cache,
             LocalSourceLimits::default(),
         )

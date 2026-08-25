@@ -1,6 +1,6 @@
 use crate::json::{JsonParseError, JsonParser, JsonValue};
 use crate::source::{
-    GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source,
+    GitSourceRequest, LocalSourceLimits, SourceResolveError, resolve_git_source,
     resolve_local_source_snapshot,
 };
 use sha2::{Digest, Sha256};
@@ -12,7 +12,7 @@ pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 2;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCacheRequest {
     LocalPath(PathBuf),
-    Git { url: String, rev: Option<String> },
+    Git(GitSourceRequest),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -383,6 +383,7 @@ pub fn resolve_source_cache_record(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> SourceCachePolicyRecord {
+    let limits = limits.compiler_bounded();
     let cache_dir = cache_dir.as_ref();
     match request {
         SourceCacheRequest::LocalPath(path) => match resolve_local_source_snapshot(
@@ -419,21 +420,15 @@ pub fn resolve_source_cache_record(
                 error,
             ),
         },
-        SourceCacheRequest::Git { url, rev } => {
-            let requested_rev = rev.clone().unwrap_or_else(|| "HEAD".to_owned());
-            match resolve_git_source(
-                &GitSourceSpec {
-                    url: url.clone(),
-                    rev,
-                },
-                cache_dir,
-                limits,
-            ) {
+        SourceCacheRequest::Git(request) => {
+            let locator = request.locator_identity().to_owned();
+            let requested_rev = request.requested_revision().to_owned();
+            match resolve_git_source(&request, cache_dir, limits) {
                 Ok(resolved) => SourceCachePolicyRecord {
                     schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
                     verdict: SourceCacheVerdict::DiagnosticObserved,
                     source_kind: "git".to_owned(),
-                    locator: url,
+                    locator,
                     requested_rev: Some(resolved.requested_rev),
                     resolved_commit: Some(resolved.commit),
                     resolved_tree: Some(resolved.tree),
@@ -451,7 +446,7 @@ pub fn resolve_source_cache_record(
                             .to_owned(),
                     rejection: None,
                 },
-                Err(error) => rejected_record("git", url, Some(requested_rev), limits, error),
+                Err(error) => rejected_record("git", locator, Some(requested_rev), limits, error),
             }
         }
     }
@@ -855,17 +850,19 @@ mod tests {
         run_test_git(&repo, ["add", "main.omg"]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "initial"]);
 
+        let request = GitSourceRequest::for_local_test_repository(&repo, Some("HEAD".to_owned()))
+            .expect("local Git fixture request");
+        let locator_identity = request.locator_identity().to_owned();
         let record = resolve_source_cache_record(
-            SourceCacheRequest::Git {
-                url: repo.display().to_string(),
-                rev: Some("HEAD".to_owned()),
-            },
+            SourceCacheRequest::Git(request),
             &cache,
             LocalSourceLimits::default(),
         );
 
         assert_eq!(record.verdict, SourceCacheVerdict::DiagnosticObserved);
         assert_eq!(record.source_kind, "git");
+        assert_eq!(record.locator, locator_identity);
+        assert!(!record.locator.contains(&repo.display().to_string()));
         assert_eq!(record.requested_rev.as_deref(), Some("HEAD"));
         assert_eq!(record.resolved_commit.as_ref().expect("commit").len(), 40);
         assert_eq!(record.resolved_tree.as_ref().expect("tree").len(), 40);

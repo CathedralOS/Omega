@@ -1,4 +1,6 @@
-use crate::identity::{GitObjectIdAlgorithm, SourceContentDigest};
+use crate::identity::{
+    GitObjectIdAlgorithm, GitTransport, IdentityError, SourceContentDigest, SourceLineage,
+};
 use command_group::{CommandGroup, GroupChild};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -15,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v7";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v8";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -33,6 +35,11 @@ const GIT_CONFIG_SHA1: &[u8] =
     b"[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = true\n";
 const GIT_CONFIG_SHA256: &[u8] = b"[core]\n\trepositoryformatversion = 1\n\tfilemode = false\n\tbare = true\n[extensions]\n\tobjectformat = sha256\n";
 const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
+const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
+const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
+const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
+const GIT_LOCATOR_BYTE_LIMIT: usize = 4 * 1024;
+const GIT_REVISION_BYTE_LIMIT: usize = 1024;
 const CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE: u64 = 64 * 1024 * 1024;
 const GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 1024 * 1024 * 1024;
 const LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
@@ -64,6 +71,21 @@ impl Default for LocalSourceLimits {
     }
 }
 
+impl LocalSourceLimits {
+    /// Apply compiler-owned ceilings to caller-selected source limits.
+    ///
+    /// These are acceptance limits enforced by the resolver. They do not
+    /// claim to constrain an unconfined helper while it is writing its
+    /// quarantine object store.
+    pub(crate) fn compiler_bounded(self) -> Self {
+        Self {
+            max_files: self.max_files.min(SOURCE_ENTRY_ABSOLUTE_LIMIT),
+            max_bytes: self.max_bytes.min(SOURCE_BYTE_ABSOLUTE_LIMIT),
+            max_depth: self.max_depth.min(SOURCE_DEPTH_ABSOLUTE_LIMIT),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLocalSource {
     pub root: PathBuf,
@@ -89,14 +111,197 @@ pub struct ResolvedLocalSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GitSourceSpec {
-    pub url: String,
-    pub rev: Option<String>,
+pub struct GitSourceRequest {
+    fetch_locator: String,
+    locator_identity: String,
+    requested_revision: String,
+    lineage: SourceLineage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GitSourceRequestError {
+    EmptyLocator,
+    LocatorTooLong { limit: usize },
+    InvalidLocator(IdentityError),
+    EmptyRevision,
+    RevisionTooLong { limit: usize },
+    InvalidRevision,
+}
+
+impl GitSourceRequest {
+    pub fn new(
+        locator: impl Into<String>,
+        revision: Option<String>,
+    ) -> Result<Self, GitSourceRequestError> {
+        let locator = locator.into();
+        if locator.is_empty() {
+            return Err(GitSourceRequestError::EmptyLocator);
+        }
+        if locator.len() > GIT_LOCATOR_BYTE_LIMIT {
+            return Err(GitSourceRequestError::LocatorTooLong {
+                limit: GIT_LOCATOR_BYTE_LIMIT,
+            });
+        }
+        if locator.trim() != locator {
+            return Err(GitSourceRequestError::InvalidLocator(
+                IdentityError::MalformedGitLocator,
+            ));
+        }
+        let lineage =
+            SourceLineage::git(&locator).map_err(GitSourceRequestError::InvalidLocator)?;
+        let requested_revision = revision.unwrap_or_else(|| "HEAD".to_owned());
+        validate_git_revision(&requested_revision)?;
+        let locator_identity = canonical_git_locator(&lineage);
+        Ok(Self {
+            fetch_locator: locator,
+            locator_identity,
+            requested_revision,
+            lineage,
+        })
+    }
+
+    pub fn locator_identity(&self) -> &str {
+        &self.locator_identity
+    }
+
+    pub fn requested_revision(&self) -> &str {
+        &self.requested_revision
+    }
+
+    pub fn lineage(&self) -> &SourceLineage {
+        &self.lineage
+    }
+
+    fn fetch_locator(&self) -> &str {
+        &self.fetch_locator
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_local_test_repository(
+        repository: &Path,
+        revision: Option<String>,
+    ) -> Result<Self, GitSourceRequestError> {
+        let path_identity = Sha256::digest(repository.as_os_str().to_string_lossy().as_bytes());
+        let mut request = Self::new(
+            format!(
+                "https://local-fixture.invalid/{}.git",
+                format_sha256(&path_identity)
+            ),
+            revision,
+        )?;
+        request.fetch_locator = repository.display().to_string();
+        Ok(request)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_local_test_repository_with_lineage(
+        repository: &Path,
+        revision: Option<String>,
+        remote_locator: &str,
+    ) -> Result<Self, GitSourceRequestError> {
+        let mut request = Self::new(remote_locator, revision)?;
+        request.fetch_locator = repository.display().to_string();
+        Ok(request)
+    }
+}
+
+impl fmt::Display for GitSourceRequestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyLocator => formatter.write_str("Git source locator is empty"),
+            Self::LocatorTooLong { limit } => {
+                write!(formatter, "Git source locator exceeds {limit} bytes")
+            }
+            Self::InvalidLocator(error) => write!(formatter, "invalid Git source locator: {error}"),
+            Self::EmptyRevision => formatter.write_str("Git source revision is empty"),
+            Self::RevisionTooLong { limit } => {
+                write!(formatter, "Git source revision exceeds {limit} bytes")
+            }
+            Self::InvalidRevision => formatter.write_str(
+                "Git source revision must be one closed selector without refspec syntax",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GitSourceRequestError {}
+
+fn validate_git_revision(revision: &str) -> Result<(), GitSourceRequestError> {
+    if revision.is_empty() {
+        return Err(GitSourceRequestError::EmptyRevision);
+    }
+    if revision.len() > GIT_REVISION_BYTE_LIMIT {
+        return Err(GitSourceRequestError::RevisionTooLong {
+            limit: GIT_REVISION_BYTE_LIMIT,
+        });
+    }
+    if revision.starts_with(['-', '/', '.'])
+        || revision.ends_with(['/', '.'])
+        || revision.contains("..")
+        || revision.contains("//")
+        || revision.contains("@{")
+        || revision.split('/').any(|component| {
+            component.is_empty() || component.starts_with('.') || component.ends_with(".lock")
+        })
+        || !revision
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-'))
+    {
+        return Err(GitSourceRequestError::InvalidRevision);
+    }
+    Ok(())
+}
+
+fn canonical_git_locator(lineage: &SourceLineage) -> String {
+    match lineage {
+        SourceLineage::GitHub(lineage) => format!(
+            "https://github.com/{}/{}.git",
+            lineage.owner(),
+            lineage.repository()
+        ),
+        SourceLineage::GitLab(lineage) => {
+            format!("https://gitlab.com/{}.git", lineage.repository_path())
+        }
+        SourceLineage::Git(lineage) => {
+            let user = lineage
+                .user()
+                .map(|user| format!("{user}@"))
+                .unwrap_or_default();
+            match lineage.transport() {
+                GitTransport::Https => format!(
+                    "https://{}{}{}/{}",
+                    user,
+                    lineage.host(),
+                    lineage
+                        .port()
+                        .map(|port| format!(":{port}"))
+                        .unwrap_or_default(),
+                    lineage.repository_path()
+                ),
+                GitTransport::SshUrl => format!(
+                    "ssh://{}{}{}/{}",
+                    user,
+                    lineage.host(),
+                    lineage
+                        .port()
+                        .map(|port| format!(":{port}"))
+                        .unwrap_or_default(),
+                    lineage.repository_path()
+                ),
+                GitTransport::ScpLike => {
+                    format!("{}{}:{}", user, lineage.host(), lineage.repository_path())
+                }
+            }
+        }
+        SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
+            unreachable!("validated Git requests always carry Git lineage")
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
-    pub url: String,
+    pub locator_identity: String,
     pub requested_rev: String,
     pub commit: String,
     pub tree: String,
@@ -410,6 +615,7 @@ pub fn resolve_local_source(
     root: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
+    let limits = limits.compiler_bounded();
     Ok(capture_local_source(root.as_ref(), limits, SourceTreePolicy::LocalPackage)?.normalized)
 }
 
@@ -483,33 +689,36 @@ pub fn resolve_local_source_snapshot(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let limits = limits.compiler_bounded();
     let requested_root = root.as_ref().to_path_buf();
     let captured = capture_local_source(&requested_root, limits, SourceTreePolicy::LocalPackage)?;
     publish_local_snapshot(requested_root, captured, cache_dir.as_ref(), limits)
 }
 
 pub fn resolve_git_source(
-    spec: &GitSourceSpec,
+    request: &GitSourceRequest,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
+    let limits = limits.compiler_bounded();
     let executor = GitExecutor::system()?;
     let result = (|| {
-        let requested_rev = spec.rev.clone().unwrap_or_else(|| "HEAD".to_owned());
+        let requested_rev = request.requested_revision();
+        let locator_identity = request.locator_identity();
         let cache_dir = cache_dir.as_ref();
         std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
         let cache_dir = cache_dir
             .canonicalize()
             .map_err(|error| io_error(cache_dir, error))?;
         verify_git_cache_root_custody(&cache_dir)?;
-        let cache_identity = git_cache_identity(&spec.url, &requested_rev);
+        let cache_identity = git_cache_identity(locator_identity, requested_rev);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
         let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
 
         if entry_root.exists() {
             if let Err(error) =
-                verify_git_cache_entry(&entry_root, &spec.url, &requested_rev, limits)
+                verify_git_cache_entry(&entry_root, locator_identity, requested_rev, limits)
             {
                 invalidate_git_cache_entry(&entry_root);
                 return Err(error);
@@ -520,8 +729,9 @@ pub fn resolve_git_source(
                 &cache_dir,
                 &entry_root,
                 &cache_identity,
-                &spec.url,
-                &requested_rev,
+                locator_identity,
+                request.fetch_locator(),
+                requested_rev,
                 limits,
             )?;
         }
@@ -529,8 +739,9 @@ pub fn resolve_git_source(
         let result = resolve_verified_git_cache_entry(
             &executor,
             &entry_root,
-            &spec.url,
-            &requested_rev,
+            locator_identity,
+            request.fetch_locator(),
+            requested_rev,
             limits,
         );
         match result {
@@ -552,11 +763,12 @@ pub fn resolve_git_source(
 fn resolve_verified_git_cache_entry(
     executor: &GitExecutor,
     entry_root: &Path,
-    url: &str,
+    locator_identity: &str,
+    fetch_locator: &str,
     requested_rev: &str,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
+    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     run_git(
@@ -569,11 +781,11 @@ fn resolve_verified_git_cache_entry(
             OsStr::new("--no-tags"),
             OsStr::new("--no-recurse-submodules"),
             OsStr::new("--"),
-            OsStr::new(url),
+            OsStr::new(fetch_locator),
             OsStr::new(requested_rev),
         ],
     )?;
-    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
+    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
 
     let commit = run_git_stdout(
         executor,
@@ -596,15 +808,15 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
+    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
+    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
-        url: url.to_owned(),
+        locator_identity: locator_identity.to_owned(),
         requested_rev: requested_rev.to_owned(),
         commit,
         tree,
@@ -2402,7 +2614,8 @@ fn create_git_cache_entry(
     cache_dir: &Path,
     entry_root: &Path,
     cache_identity: &str,
-    url: &str,
+    locator_identity: &str,
+    fetch_locator: &str,
     requested_rev: &str,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
@@ -2410,7 +2623,8 @@ fn create_git_cache_entry(
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
     std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
-    let object_format = discover_git_object_format(executor, &pending.root, url, requested_rev)?;
+    let object_format =
+        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev)?;
     let mut init_arguments = vec![
         OsString::from("init"),
         OsString::from("--quiet"),
@@ -2449,13 +2663,13 @@ fn create_git_cache_entry(
         .open(&metadata_path)
         .map_err(|error| io_error(&metadata_path, error))?;
     metadata
-        .write_all(&git_cache_metadata(url, requested_rev))
+        .write_all(&git_cache_metadata(locator_identity, requested_rev))
         .map_err(|error| io_error(&metadata_path, error))?;
     metadata
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
 
-    verify_git_cache_entry(&pending.root, url, requested_rev, limits)?;
+    verify_git_cache_entry(&pending.root, locator_identity, requested_rev, limits)?;
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
@@ -4471,6 +4685,99 @@ mod tests {
         ))
     }
 
+    fn local_git_request(repository: &Path, revision: &str) -> GitSourceRequest {
+        GitSourceRequest::for_local_test_repository(repository, Some(revision.to_owned()))
+            .expect("local Git fixture request")
+    }
+
+    #[test]
+    fn git_request_validates_transport_and_emits_sanitized_identity() {
+        let https = GitSourceRequest::new(
+            "https://GitHub.com/CathedralOS/Arithmetic-Kernels",
+            Some("refs/tags/v1.0.0".to_owned()),
+        )
+        .expect("valid HTTPS request");
+        let ssh = GitSourceRequest::new("git@github.com:CathedralOS/Arithmetic-Kernels.git", None)
+            .expect("valid SSH request");
+
+        assert_eq!(
+            https.locator_identity(),
+            "https://github.com/cathedralos/arithmetic-kernels.git"
+        );
+        assert_eq!(https.locator_identity(), ssh.locator_identity());
+        assert_eq!(ssh.requested_revision(), "HEAD");
+        assert_eq!(https.lineage(), ssh.lineage());
+    }
+
+    #[test]
+    fn git_request_rejects_insecure_secret_bearing_and_local_forms() {
+        for locator in [
+            "http://github.com/CathedralOS/tool.git",
+            "https://token@github.com/CathedralOS/tool.git",
+            "ssh://git:secret@github.com/CathedralOS/tool.git",
+            "git://github.com/CathedralOS/tool.git",
+            "file:///tmp/tool.git",
+            "/tmp/tool.git",
+        ] {
+            assert!(
+                matches!(
+                    GitSourceRequest::new(locator, None),
+                    Err(GitSourceRequestError::InvalidLocator(_))
+                ),
+                "accepted {locator:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn git_request_rejects_unbounded_or_refspec_shaped_inputs() {
+        assert_eq!(
+            GitSourceRequest::new("x".repeat(GIT_LOCATOR_BYTE_LIMIT + 1), None),
+            Err(GitSourceRequestError::LocatorTooLong {
+                limit: GIT_LOCATOR_BYTE_LIMIT
+            })
+        );
+        assert_eq!(
+            GitSourceRequest::new(
+                "https://example.com/group/tool.git",
+                Some("x".repeat(GIT_REVISION_BYTE_LIMIT + 1)),
+            ),
+            Err(GitSourceRequestError::RevisionTooLong {
+                limit: GIT_REVISION_BYTE_LIMIT
+            })
+        );
+        for revision in ["", "--upload-pack=tool", "main:refs/heads/owned", "a..b"] {
+            assert!(
+                matches!(
+                    GitSourceRequest::new(
+                        "https://example.com/group/tool.git",
+                        Some(revision.to_owned())
+                    ),
+                    Err(GitSourceRequestError::EmptyRevision)
+                        | Err(GitSourceRequestError::InvalidRevision)
+                ),
+                "accepted {revision:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn compiler_owned_source_ceilings_bound_caller_limits() {
+        assert_eq!(
+            LocalSourceLimits {
+                max_files: usize::MAX,
+                max_bytes: u64::MAX,
+                max_depth: usize::MAX,
+            }
+            .compiler_bounded(),
+            LocalSourceLimits {
+                max_files: SOURCE_ENTRY_ABSOLUTE_LIMIT,
+                max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
+                max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
+            }
+        );
+    }
+
     fn run_test_git<I, S>(directory: &Path, args: I)
     where
         I: IntoIterator<Item = S>,
@@ -5756,10 +6063,7 @@ mod tests {
         let cache = temp_root("git-cache");
 
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: repo.display().to_string(),
-                rev: Some(commit.clone()),
-            },
+            &local_git_request(&repo, &commit),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -5780,10 +6084,7 @@ mod tests {
         let cache = temp_root("git-empty-subtree-cache");
 
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: repo.display().to_string(),
-                rev: Some(commit.clone()),
-            },
+            &local_git_request(&repo, &commit),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -5803,10 +6104,7 @@ mod tests {
         let cache = temp_root("git-sha256-cache");
 
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: repo.display().to_string(),
-                rev: Some(commit.clone()),
-            },
+            &local_git_request(&repo, &commit),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -5827,10 +6125,7 @@ mod tests {
         let cache = temp_root("git-sha256-symbolic-cache");
 
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: repo.display().to_string(),
-                rev: Some("HEAD".to_owned()),
-            },
+            &local_git_request(&repo, "HEAD"),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -5890,10 +6185,7 @@ mod tests {
         let cache = temp_root("git-prefix-ordering-cache");
 
         let resolved = resolve_git_source(
-            &GitSourceSpec {
-                url: repo.display().to_string(),
-                rev: Some("HEAD".to_owned()),
-            },
+            &local_git_request(&repo, "HEAD"),
             &cache,
             LocalSourceLimits::default(),
         )
@@ -5914,19 +6206,13 @@ mod tests {
         run_test_git(&repo, ["add", "main.omg"]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "second"]);
         let cache = temp_root("git-shallow-cache");
-        let url = format!("file://{}", repo.display());
+        let request = local_git_request(&repo, "HEAD");
 
-        resolve_git_source(
-            &GitSourceSpec {
-                url: url.clone(),
-                rev: Some("HEAD".to_owned()),
-            },
-            &cache,
-            LocalSourceLimits::default(),
-        )
-        .expect("resolve a shallow exact revision");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve a shallow exact revision");
 
-        let repository = git_cache_entry_root(&cache, &url, "HEAD").join(GIT_CACHE_REPOSITORY);
+        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
+            .join(GIT_CACHE_REPOSITORY);
         let output = Command::new("git")
             .arg("-C")
             .arg(&repository)
@@ -6068,13 +6354,10 @@ mod tests {
         run_test_git(&repo, ["add", "tools/generate", "tools/current"]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "add exact entry kinds"]);
         let cache = temp_root("git-snapshot-kinds-cache");
-        let spec = GitSourceSpec {
-            url: repo.display().to_string(),
-            rev: Some("HEAD".to_owned()),
-        };
+        let request = local_git_request(&repo, "HEAD");
 
-        let resolved =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("resolve kinds");
+        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve kinds");
         let published_script = resolved.snapshot_root.join("tools/generate");
         let published_link = resolved.snapshot_root.join("tools/current");
 
@@ -6107,7 +6390,7 @@ mod tests {
                 & 0o7777,
             u32::from(CANONICAL_DIRECTORY_MODE)
         );
-        let verified = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let verified = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect("verify nested snapshot reuse");
         assert_eq!(resolved.local, verified.local);
 
@@ -6127,12 +6410,9 @@ mod tests {
             ["commit", "--quiet", "-m", "add checkout conversion"],
         );
         let cache = temp_root("git-snapshot-attributes-cache");
-        let spec = GitSourceSpec {
-            url: repo.display().to_string(),
-            rev: Some("HEAD".to_owned()),
-        };
+        let request = local_git_request(&repo, "HEAD");
 
-        let resolved = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect("materialize object bytes");
 
         assert_eq!(
@@ -6151,14 +6431,10 @@ mod tests {
 
         let (repo, _) = create_git_source("git-snapshot-reuse");
         let cache = temp_root("git-snapshot-reuse-cache");
-        let url = repo.display().to_string();
-        let spec = GitSourceSpec {
-            url: url.clone(),
-            rev: Some("HEAD".to_owned()),
-        };
-        let first =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("first resolve");
-        let second = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let request = local_git_request(&repo, "HEAD");
+        let first = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("first resolve");
+        let second = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect("reuse snapshot");
         assert_eq!(first.snapshot_root, second.snapshot_root);
         assert_eq!(first.local, second.local);
@@ -6183,10 +6459,10 @@ mod tests {
             .expect("forge matching snapshot metadata");
         make_snapshot_read_only(publication).expect("restore canonical snapshot modes");
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("tampered snapshot and matching forged metadata must reject");
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
-        let entry = git_cache_entry_root(&cache, &url, "HEAD");
+        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
 
         let _ = std::fs::remove_dir_all(&repo);
@@ -6198,13 +6474,9 @@ mod tests {
     fn git_batch_failure_precedes_snapshot_staging() {
         let (repo, _) = create_git_source("git-snapshot-cleanup");
         let cache = temp_root("git-snapshot-cleanup-cache");
-        let url = repo.display().to_string();
-        let spec = GitSourceSpec {
-            url: url.clone(),
-            rev: Some("HEAD".to_owned()),
-        };
-        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let entry_root = git_cache_entry_root(&cache, &url, "HEAD");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry_root = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
         let executor = GitExecutor::system().expect("system Git executor");
@@ -6254,12 +6526,9 @@ mod tests {
         let cache = temp_root("git-untracked-cache");
         std::fs::write(repo.join("injected.omg"), "machine Injected::main() {}\n")
             .expect("write untracked source state");
-        let spec = GitSourceSpec {
-            url: repo.display().to_string(),
-            rev: Some("HEAD".to_owned()),
-        };
-        let resolved =
-            resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let request = local_git_request(&repo, "HEAD");
+        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("prime cache");
 
         assert!(!resolved.snapshot_root.join("injected.omg").exists());
         assert_eq!(resolved.local.file_count, 1);
@@ -6362,21 +6631,17 @@ mod tests {
         let (repo, _) = create_git_source("git-metadata-source");
         let (substitute, _) = create_git_source("git-metadata-substitute");
         let cache = temp_root("git-metadata-cache");
-        let url = repo.display().to_string();
         let substitute_url = substitute.display().to_string();
-        let spec = GitSourceSpec {
-            url: url.clone(),
-            rev: Some("HEAD".to_owned()),
-        };
-        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let entry = git_cache_entry_root(&cache, &url, "HEAD");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
         std::fs::write(
             entry.join(GIT_CACHE_METADATA),
             git_cache_metadata(&substitute_url, "HEAD"),
         )
         .expect("substitute metadata");
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("substituted metadata must reject");
 
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
@@ -6390,21 +6655,18 @@ mod tests {
     fn git_cache_rejects_repository_config_substitution_without_asking_git() {
         let (repo, _) = create_git_source("git-origin-source");
         let cache = temp_root("git-origin-cache");
-        let url = repo.display().to_string();
-        let spec = GitSourceSpec {
-            url: url.clone(),
-            rev: Some("HEAD".to_owned()),
-        };
-        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let repository = git_cache_entry_root(&cache, &url, "HEAD").join(GIT_CACHE_REPOSITORY);
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
+            .join(GIT_CACHE_REPOSITORY);
         let config = repository.join("config");
         assert_eq!(std::fs::read(&config).unwrap(), GIT_CONFIG_SHA1);
         let mut substituted = GIT_CONFIG_SHA1.to_vec();
         substituted.extend_from_slice(b"[remote \"origin\"]\n\turl = /substitute\n");
         std::fs::write(&config, substituted).expect("substitute repository config");
-        let entry = git_cache_entry_root(&cache, &url, "HEAD");
+        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("any noncanonical repository configuration must reject");
 
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
@@ -6420,15 +6682,12 @@ mod tests {
 
         let (repo, _) = create_git_source("git-custody-source");
         let cache = temp_root("git-custody-cache");
-        let spec = GitSourceSpec {
-            url: repo.display().to_string(),
-            rev: Some("HEAD".to_owned()),
-        };
-        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
         std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o777))
             .expect("make cache externally writable");
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("externally writable cache custody must reject");
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
@@ -6537,13 +6796,10 @@ mod tests {
         run_test_git(&repo, ["commit", "--quiet", "-m", "declare filter"]);
         let cache = temp_root("git-filter-cache");
         let sentinel = cache.join("filter-ran");
-        let url = repo.display().to_string();
-        let spec = GitSourceSpec {
-            url,
-            rev: Some("HEAD".to_owned()),
-        };
-        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let repository = git_cache_entry_root(&cache, &spec.url, "HEAD").join(GIT_CACHE_REPOSITORY);
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
+            .join(GIT_CACHE_REPOSITORY);
         run_test_git(
             &repository,
             [
@@ -6554,7 +6810,7 @@ mod tests {
             ],
         );
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("local filter configuration must reject");
 
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
@@ -6811,12 +7067,8 @@ mod tests {
     fn git_source_rejects_submodule_manifest() {
         let (repo, commit) = create_git_source("git-submodule");
         let cache = temp_root("git-submodule-cache");
-        let url = repo.display().to_string();
-        let spec = GitSourceSpec {
-            url,
-            rev: Some("HEAD".to_owned()),
-        };
-        let initial = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let request = local_git_request(&repo, "HEAD");
+        let initial = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect("resolve initial source");
         let snapshot_source = initial.snapshot_root.join("main.omg");
         let initial_snapshot = std::fs::read(&snapshot_source).expect("read initial snapshot");
@@ -6829,7 +7081,7 @@ mod tests {
         run_test_git(&repo, ["add", "main.omg"]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "submodule manifest"]);
 
-        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("submodule manifest should reject");
 
         assert!(matches!(
