@@ -216,27 +216,28 @@ as one growing verifier:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-| resolved-source lowering | CKIR1 closure remains frozen; CKIR2 exact-root/call lowering is native/self-built and awaits Rust-free meaning/refinement | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
-| producer composition | CKIR1 closure remains closed; focused CKIR2 native/self-built producer and backend yield exact CKIR, ELF, and result while meaning/refinement remain open | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | closed for the selected two-package, finite, acyclic, returning artifact through independent persisted-Beta responsibility gates | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
+| resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
+| producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result | bridge gates and the contracts above |
+| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; the CKIR2 `OMGRFN3` frame/source-custody layer is closed and its remaining independent refinement responsibilities are open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
 | compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
 makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
-The next actionable bridge work is the versioned call/root slice below, followed
-by the remaining capabilities actually used by published product checkpoints.
-Do not idle on the separately blocked compilation-authority join.
+The next actionable bridge work is to finish lower-rooted refinement for the
+already implemented versioned call/root slice, followed by the remaining
+capabilities actually used by published product checkpoints. Do not idle on the
+separately blocked compilation-authority join.
 
-- [ ] Version the private checked-IR handoff for the next general body tranche.
-  Project the exact selected root rather than inferring entry from candidate
-  counts, and support typed finite acyclic internal and cross-unit calls from
-  the resolver's existing static machine bindings. Carry the change through
-  source, witness, checked IR, conservative artifact, result, Rust-free meaning,
-  and lower-rooted refinement, with responsibility-local negatives for root,
-  target, signature, order, cycle, and resources. This is a versioned bridge
-  slice, not admission of recursion or a final `Ωself` ruling.
+- [ ] Complete the independent `OMGRFN3` source-to-artifact refinement for the
+  implemented CKIR2 exact-root and typed finite-call tranche. Its resolver,
+  checked IR, conservative artifact, result, native/self-built composition, and
+  Rust-free meaning are closed. Finish and compose the remaining persisted-Beta
+  witness, table/layout, body/call/result, and CKIR2-to-ELF responsibilities,
+  with responsibility-local negatives for root, target, signature, order,
+  cycle, resources, ABI staging, reachable closure, and exact bytes. This is a
+  versioned bridge slice, not admission of recursion or a final `Ωself` ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

@@ -352,6 +352,15 @@ contract and evidence are closed for this selected cluster; full-width integer
 pressure, the remaining checkpoint facilities, competing product-source
 refactor costs, and final retain/exclude disposition remain open.
 
+The CKIR2 successor now adds an explicit selected root and typed finite acyclic
+attached-machine calls, including calls across source files in one logical
+module. Native, Delta-self-built, and Rust-free meaning routes compose to the
+same checked IR, conservative ELF, and result. Its independent `OMGRFN3`
+lower-rooted source-to-artifact reconstruction remains open. Neither the
+implemented slice nor its eventual refinement completion decides that calls,
+records, arrays, or attached machines belong to final `Ωself`; it supplies the
+implementation and assurance cost needed by that later decision.
+
 The next checkpoint-000001 tranche begins with the private
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
 transport. It canonically maps the exact source bundle onto opaque package
