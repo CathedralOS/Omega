@@ -174,8 +174,9 @@ u32  import-row ID, or NO_ID for same-package/local resolution
 
 Rows are ordered by `(source ID,start,role)`, one for every non-builtin static
 reference in the admitted surface. Imported bindings name their unique import
-row. Qualified same-package bindings use `NO_ID`. Role 3 is reserved while
-CKIR1 lacks machine calls.
+row. Qualified same-package bindings use `NO_ID`. The first CKIR1 artifact has
+no role-3 rows; the versioned call successor consumes exact role-3 machine
+targets without redoing name resolution.
 
 ## Declaration row — 28 bytes
 
@@ -393,4 +394,5 @@ The first fixture uses the nonempty modules `model` and `app` and one public
 cross-package data import. The language guide does not yet define a finer
 private-across-module visibility lattice; this slice does not need it and the
 checker must not guess. Cross-unit machine calls remain unsupported by CKIR1
-despite their reserved resolution identity.
+despite OMGRSW1 retaining their exact resolution identity for the versioned
+successor.

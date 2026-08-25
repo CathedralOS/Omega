@@ -459,9 +459,17 @@ machine Main::add_binding(&mut self, role: i32, start: i32, count: i32) {
         self.tables[18720+self.result_id]=count;
         self.tables[22816+self.result_id]=0-1;
         self.tables[26912+self.result_id]=0-1;
-        self.binding_count=self.binding_count+1;
-        transition 0 { _ -> done() }
+        transition role==3 { true -> machine_target() _ -> complete() }
     }
+    state machine_target() {
+        self.tables[10528+self.result_id]=2;
+        // Keep the caller privately until the deferred role-3 pass.  The pass
+        // replaces this slot with the resolved machine declaration ID before
+        // publication; OMGRSW1 still carries no caller-specific field.
+        self.tables[22816+self.result_id]=self.current_machine;
+        transition 0 { _ -> complete() }
+    }
+    state complete() { self.binding_count=self.binding_count+1; transition 0 { _ -> done() } }
     state over() { self.exhaust(); transition 0 { _ -> done() } }
     state done() { }
 }
@@ -697,7 +705,9 @@ machine Main::parse_parameter_list(&mut self, kind: i32, owner: i32) {
 machine Main::skip_balanced_body(&mut self) {
     self.depth=1; self.saved_start=0-1;
     transition 0 { _ -> loop() }
-    state loop() { transition self.tok==0 { true -> bad() _ -> open() } }
+    state loop() { transition self.tok==0 { true -> bad() _ -> self_check() } }
+    state self_check() { self.token_word(30,4); transition self.match_ok==1 { true -> self_reference() _ -> open() } }
+    state self_reference() { self.scan_self_call(); transition self.status==0 { true -> loop() _ -> done() } }
     state open() { transition self.tok==123 { true -> open_add() _ -> close() } }
     state open_add() { self.depth=self.depth+1; self.next_token(); transition 0 { _ -> loop() } }
     state close() { transition self.tok==125 { true -> close_sub() _ -> advance() } }
@@ -706,6 +716,18 @@ machine Main::skip_balanced_body(&mut self) {
     state advance() { self.next_token(); transition self.status==0 { true -> loop() _ -> done() } }
     state complete() { self.saved_start=self.tok_start; self.next_token(); transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::scan_self_call(&mut self) {
+    // The caller has already matched the builtin receiver token.  Consume only
+    // enough lookahead to distinguish `self.name(` from field/path access.  The
+    // exact role-3 reference span is the authored machine-name token.
+    self.next_token(); transition self.status==0 { true -> dot() _ -> done() }
+    state dot() { transition self.tok==46 { true -> name_begin() _ -> done() } }
+    state name_begin() { self.next_token(); transition self.tok==256 { true -> name_save() _ -> done() } }
+    state name_save() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.next_token(); transition self.tok==40 { true -> call() _ -> done() } }
+    state call() { self.add_binding(3,self.saved_start,self.saved_len); transition 0 { _ -> done() } }
     state done() { }
 }
 
@@ -756,7 +778,9 @@ machine Main::scan_machine_body(&mut self) {
     state state_parse() { self.parse_state(); transition self.status==0 { true -> loop() _ -> done() } }
     state machine_close() { transition self.tok==125 { true -> complete() _ -> entry_only() } }
     state entry_only() { transition self.seen_state==0 { true -> brace() _ -> bad() } }
-    state brace() { transition self.tok==123 { true -> open() _ -> close() } }
+    state brace() { self.token_word(30,4); transition self.match_ok==1 { true -> self_reference() _ -> brace_open() } }
+    state self_reference() { self.scan_self_call(); transition self.status==0 { true -> loop() _ -> done() } }
+    state brace_open() { transition self.tok==123 { true -> open() _ -> close() } }
     state open() { self.depth=self.depth+1; self.next_token(); transition 0 { _ -> loop() } }
     state close() { transition self.tok==125 { true -> close_depth() _ -> advance() } }
     state close_depth() { transition self.depth>0 { true -> close_sub() _ -> bad() } }
@@ -984,18 +1008,52 @@ machine Main::resolve_one_binding(&mut self, id: i32) {
     state done() { }
 }
 
+machine Main::resolve_self_machine_binding(&mut self, id: i32) {
+    // Role-3 parsing temporarily stores the caller machine in the declaration
+    // slot.  Attached owners have already been resolved when this pass runs.
+    self.current_source=self.tables[2336+id]; self.x=self.tables[22816+id];
+    transition self.x>=0 { true -> caller_range() _ -> bad() }
+    state caller_range() { transition self.x<self.machine_count { true -> owner() _ -> bad() } }
+    state owner() { self.y=self.tables[58144+self.x]; transition self.y>=0 { true -> begin() _ -> bad() } }
+    state begin() {
+        self.saved_start=self.tables[336+self.current_source]+self.tables[14624+id];
+        self.saved_len=self.tables[18720+id]; self.i=0; self.result_id=0-1; self.found_count=0;
+        transition 0 { _ -> loop() }
+    }
+    state loop() { transition self.i<self.machine_count { true -> owner_match() _ -> unique() } }
+    state owner_match() { transition self.tables[58144+self.i]==self.y { true -> name_length() _ -> next() } }
+    state name_length() { self.x=self.tables[57888+self.i]; transition self.tables[32288+self.x]==self.saved_len { true -> name_bytes() _ -> next() } }
+    state name_bytes() {
+        self.j=self.tables[31520+self.x];
+        self.spans_equal(self.tables[336+self.j]+self.tables[32032+self.x],self.saved_start,self.saved_len);
+        transition self.match_ok==1 { true -> found() _ -> next() }
+    }
+    state found() { self.result_id=self.x; self.found_count=self.found_count+1; transition 0 { _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state unique() { transition self.found_count==1 { true -> save() _ -> bad() } }
+    state save() { self.tables[22816+id]=self.result_id; self.tables[26912+id]=0-1; transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
 machine Main::resolve_bindings(&mut self) {
     self.scan_index=0;
     transition 0 { _ -> loop() }
     state loop() { transition self.scan_index<self.binding_count { true -> one() _ -> owners() } }
-    state one() { self.resolve_one_binding(self.scan_index); transition self.status==0 { true -> next() _ -> done() } }
+    state one() { transition self.tables[6432+self.scan_index]==3 { true -> next() _ -> resolve_one() } }
+    state resolve_one() { self.resolve_one_binding(self.scan_index); transition self.status==0 { true -> next() _ -> done() } }
     state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
     state owners() { self.scan_index=0; transition 0 { _ -> owner_loop() } }
-    state owner_loop() { transition self.scan_index<self.machine_count { true -> owner_one() _ -> duplicates() } }
+    state owner_loop() { transition self.scan_index<self.machine_count { true -> owner_one() _ -> calls() } }
     state owner_one() { self.x=self.tables[22816+self.tables[58016+self.scan_index]]; transition self.tables[31008+self.x]==1 { true -> owner_local_pkg() _ -> bad() } }
     state owner_local_pkg() { self.y=self.tables[31520+self.x]; self.k=self.tables[31520+self.tables[57888+self.scan_index]]; transition self.tables[32+self.y]==self.tables[32+self.k] { true -> owner_local_module() _ -> bad() } }
     state owner_local_module() { transition self.tables[64+self.y]==self.tables[64+self.k] { true -> owner_save() _ -> bad() } }
     state owner_save() { self.tables[58144+self.scan_index]=self.tables[32544+self.x]; self.scan_index=self.scan_index+1; transition 0 { _ -> owner_loop() } }
+    state calls() { self.scan_index=0; transition 0 { _ -> call_loop() } }
+    state call_loop() { transition self.scan_index<self.binding_count { true -> call_kind() _ -> duplicates() } }
+    state call_kind() { transition self.tables[6432+self.scan_index]==3 { true -> call_one() _ -> call_next() } }
+    state call_one() { self.resolve_self_machine_binding(self.scan_index); transition self.status==0 { true -> call_next() _ -> done() } }
+    state call_next() { self.scan_index=self.scan_index+1; transition 0 { _ -> call_loop() } }
     state duplicates() { self.scan_index=0; transition 0 { _ -> duplicate_outer() } }
     state duplicate_outer() { transition self.scan_index<self.machine_count { true -> duplicate_begin() _ -> done() } }
     state duplicate_begin() { self.i=0; transition 0 { _ -> duplicate_inner() } }
