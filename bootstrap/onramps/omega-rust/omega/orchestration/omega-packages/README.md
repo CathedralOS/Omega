@@ -28,10 +28,12 @@ real package fixture demonstrates an irreducible external contract.
   evidence from checked source and build results.
 - Ordinary admission uses a total internal projection from checked semantic
   state into versioned canonical evidence. Raw compiler IR is never a lock
-  format. The projection may read each row from the earliest coherent Psi-owned
-  checked representation that contains it; totality belongs to the final
-  projection, not one frozen source stage. No nominal Chi stage is introduced
-  merely to stabilize compiler internals.
+  format. The projection may read each fact from the earliest coherent
+  compiler-owned representation in which it is semantically settled, including
+  private pre-Psi structure, and joins required checked facts only after
+  successful compilation. Totality belongs to the final projection, not one
+  frozen source stage. No nominal Chi stage is introduced merely to collect or
+  stabilize compiler internals.
 - Proposition/named-evidence projection joins structural typed applications to
   checked acceptance and witness disposition. Diagnostic renderings are never
   package identity; missing structural coordinates are retained in their
@@ -167,8 +169,11 @@ canonical SHA-1 or SHA-256 bare-repository configuration without asking Git to
 describe it. Git and local cache trees receive a bounded parent-owned custody
 walk before and after use. Unix nodes and locks must belong to the effective
 user and reject group/other write authority, replaceable non-sticky ancestry,
-or special kinds. Hostile same-user racing, Windows ownership/DACL enforcement,
-and native isolation remain open.
+or special kinds. The same walk applies source-scaled, absolutely capped
+logical resident-byte ceilings to accepted Git entries and local publications.
+Those post-helper checks can reject an oversized cache but cannot prevent
+temporary disk exhaustion during an unconfined fetch. Hostile same-user racing,
+Windows ownership/DACL enforcement, and native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.
@@ -181,7 +186,7 @@ closes ambient parent-executable and environment selection, but does not
 certify Git or bind every helper it may
 launch. SSH is noninteractive and strict about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
-credential custody and full byte/resource enforcement remain. Ordinary
+credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
 count, and ten minutes, including cache-lock acquisition. Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
@@ -515,9 +520,12 @@ no blanket approval switch.
 
 Ratified 2026-08-24: the compiler owns both the semantic extraction and the
 canonical conflict-row boundaries. It may read different rows from different
-Psi-owned checked representations and move those joins as compiler internals
-evolve. Package orchestration receives only independently framed, versioned bytes and compares
-them exactly; it does not parse compiler IR or duplicate capability semantics.
+compiler-owned representations, including private pre-Psi structural state,
+and move those joins as compiler internals evolve. Checked acceptance and
+effects still come from the stage that establishes them, and projection occurs
+only after successful checking. Package orchestration receives only independently
+framed, versioned bytes and compares them exactly; it does not parse compiler IR
+or duplicate capability semantics.
 This does not create a nominal Chi stage. A new stage is warranted only if
 implementation discovers a genuine shared semantic invariant, not merely to
 stabilize a private checker interface. The initial callable row is one complete

@@ -33,6 +33,9 @@ const GIT_CONFIG_SHA1: &[u8] =
     b"[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = true\n";
 const GIT_CONFIG_SHA256: &[u8] = b"[core]\n\trepositoryformatversion = 1\n\tfilemode = false\n\tbare = true\n[extensions]\n\tobjectformat = sha256\n";
 const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
+const CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE: u64 = 64 * 1024 * 1024;
+const GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 1024 * 1024 * 1024;
+const LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
@@ -505,7 +508,9 @@ pub fn resolve_git_source(
         let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
 
         if entry_root.exists() {
-            if let Err(error) = verify_git_cache_entry(&entry_root, &spec.url, &requested_rev) {
+            if let Err(error) =
+                verify_git_cache_entry(&entry_root, &spec.url, &requested_rev, limits)
+            {
                 invalidate_git_cache_entry(&entry_root);
                 return Err(error);
             }
@@ -517,6 +522,7 @@ pub fn resolve_git_source(
                 &cache_identity,
                 &spec.url,
                 &requested_rev,
+                limits,
             )?;
         }
 
@@ -530,7 +536,7 @@ pub fn resolve_git_source(
         match result {
             Ok(resolved) => {
                 verify_git_cache_root_custody(&cache_dir)?;
-                verify_git_cache_custody(&entry_root)?;
+                verify_git_cache_custody(&entry_root, limits)?;
                 Ok(resolved)
             }
             Err(error) => {
@@ -550,7 +556,7 @@ fn resolve_verified_git_cache_entry(
     requested_rev: &str,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     run_git(
@@ -567,7 +573,7 @@ fn resolve_verified_git_cache_entry(
             OsStr::new(requested_rev),
         ],
     )?;
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
 
     let commit = run_git_stdout(
         executor,
@@ -590,12 +596,12 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev, limits)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
         url: url.to_owned(),
@@ -2398,6 +2404,7 @@ fn create_git_cache_entry(
     cache_identity: &str,
     url: &str,
     requested_rev: &str,
+    limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     let mut pending = PendingCacheEntry::create(cache_dir, cache_identity)?;
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
@@ -2448,7 +2455,7 @@ fn create_git_cache_entry(
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
 
-    verify_git_cache_entry(&pending.root, url, requested_rev)?;
+    verify_git_cache_entry(&pending.root, url, requested_rev, limits)?;
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
@@ -2520,8 +2527,9 @@ fn verify_git_cache_entry(
     entry_root: &Path,
     url: &str,
     requested_rev: &str,
+    limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    verify_git_cache_custody(entry_root)?;
+    verify_git_cache_custody(entry_root, limits)?;
     require_real_directory(entry_root, "cache entry root is not a real directory")?;
     let metadata_path = entry_root.join(GIT_CACHE_METADATA);
     require_regular_file(&metadata_path, "resolver metadata is not a regular file")?;
@@ -2640,16 +2648,30 @@ enum CacheCustodyKind {
     LocalSnapshot,
 }
 
-fn verify_git_cache_custody(root: &Path) -> Result<(), SourceResolveError> {
-    verify_cache_custody(root, CacheCustodyKind::Git)
+fn verify_git_cache_custody(
+    root: &Path,
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody(
+        root,
+        CacheCustodyKind::Git,
+        git_cache_custody_byte_limit(limits),
+    )
 }
 
 fn verify_git_cache_root_custody(root: &Path) -> Result<(), SourceResolveError> {
     verify_cache_custody_root(root, CacheCustodyKind::Git)
 }
 
-fn verify_local_cache_custody(root: &Path) -> Result<(), SourceResolveError> {
-    verify_cache_custody(root, CacheCustodyKind::LocalSnapshot)
+fn verify_local_cache_custody(
+    root: &Path,
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody(
+        root,
+        CacheCustodyKind::LocalSnapshot,
+        local_cache_custody_byte_limit(limits),
+    )
 }
 
 fn verify_local_cache_root_custody(root: &Path) -> Result<(), SourceResolveError> {
@@ -2711,11 +2733,31 @@ fn verify_cache_ancestry(_kind: CacheCustodyKind, _root: &Path) -> Result<(), So
     Ok(())
 }
 
-fn verify_cache_custody(root: &Path, kind: CacheCustodyKind) -> Result<(), SourceResolveError> {
+fn git_cache_custody_byte_limit(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_mul(3)
+        .saturating_add(CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE)
+        .min(GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT)
+}
+
+fn local_cache_custody_byte_limit(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_add(CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE)
+        .min(LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT)
+}
+
+fn verify_cache_custody(
+    root: &Path,
+    kind: CacheCustodyKind,
+    byte_limit: u64,
+) -> Result<(), SourceResolveError> {
     verify_cache_custody_root(root, kind)?;
 
     let mut pending = vec![root.to_path_buf()];
     let mut observed = 0usize;
+    let mut logical_bytes = 0u64;
     while let Some(path) = pending.pop() {
         observed = observed.checked_add(1).ok_or_else(|| {
             cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
@@ -2732,6 +2774,20 @@ fn verify_cache_custody(root: &Path, kind: CacheCustodyKind) -> Result<(), Sourc
         let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
         verify_cache_node_owner_and_mode(kind, &path, &metadata)?;
         let file_type = metadata.file_type();
+        if file_type.is_file() || file_type.is_symlink() {
+            logical_bytes = logical_bytes
+                .checked_add(metadata.len())
+                .filter(|bytes| *bytes <= byte_limit)
+                .ok_or_else(|| {
+                    cache_custody_invalid(
+                        kind,
+                        root,
+                        format!(
+                            "cache custody tree exceeds its {byte_limit}-byte logical resident ceiling"
+                        ),
+                    )
+                })?;
+        }
         if file_type.is_dir() {
             let children = std::fs::read_dir(&path).map_err(|error| io_error(&path, error))?;
             for child in children {
@@ -3111,7 +3167,7 @@ fn publish_local_snapshot(
 
     verify_local_cache_root_custody(&canonical_cache_dir)?;
     verify_local_cache_root_custody(&snapshots)?;
-    verify_local_cache_custody(&publication)?;
+    verify_local_cache_custody(&publication, limits)?;
     Ok(ResolvedLocalSnapshot {
         requested_root,
         canonical_live_root: captured.normalized.root,
@@ -6401,6 +6457,49 @@ mod tests {
 
         std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700)).unwrap();
         let _ = std::fs::remove_dir_all(&parent);
+    }
+
+    #[test]
+    fn cache_custody_rejects_logical_resident_byte_overflow() {
+        let cache = temp_root("cache-byte-ceiling");
+        std::fs::create_dir_all(&cache).expect("create cache");
+        std::fs::write(cache.join("oversized"), b"12345").expect("write cache payload");
+
+        assert!(matches!(
+            verify_cache_custody(&cache, CacheCustodyKind::Git, 4),
+            Err(SourceResolveError::GitCacheInvalid { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_custody_byte_ceilings_are_source_scaled_and_absolutely_capped() {
+        let small = LocalSourceLimits {
+            max_bytes: 1024,
+            ..LocalSourceLimits::default()
+        };
+        assert_eq!(
+            git_cache_custody_byte_limit(small),
+            CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE + 3 * 1024
+        );
+        assert_eq!(
+            local_cache_custody_byte_limit(small),
+            CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE + 1024
+        );
+
+        let unbounded_input = LocalSourceLimits {
+            max_bytes: u64::MAX,
+            ..LocalSourceLimits::default()
+        };
+        assert_eq!(
+            git_cache_custody_byte_limit(unbounded_input),
+            GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT
+        );
+        assert_eq!(
+            local_cache_custody_byte_limit(unbounded_input),
+            LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT
+        );
     }
 
     #[cfg(unix)]

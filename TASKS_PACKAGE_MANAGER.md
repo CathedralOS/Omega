@@ -38,11 +38,13 @@ complete.
 - Ordinary admission uses a total internal `PackageAdmissionProjection` from
   checked semantic state. The lock stores only versioned canonical evidence;
   raw IR and compiler-private identities never become lock format.
-- The compiler admission projection may read each evidence row from the
-  earliest coherent Psi-owned checked representation that contains it. The
-  final projection is total, but no one internal stage must contain every row.
-  "Earlier" means earlier than Terminal Psi, not outside Psi; do not introduce
-  nominal Chi merely to stabilize compiler internals across versions.
+- The compiler admission projection may read each evidence fact from the
+  earliest coherent compiler-owned representation in which that fact is
+  semantically settled. This may be private pre-Psi structure or Psi state;
+  structural identity may be joined to later checked acceptance only after the
+  compilation succeeds. The final projection is total, but no one internal
+  stage must contain every row. Do not introduce nominal Chi merely to collect
+  or stabilize compiler internals across versions.
 - Proposition and named-evidence rows join the typed structural application to
   its checked acceptance, witness interface, and admission disposition. Never
   use checked diagnostic renderings as identity. If an exact binder, argument,
@@ -191,6 +193,12 @@ complete.
   Review compilation revalidates canonical read-only modes and re-hashes every
   transitive snapshot under those original limits both before and after each
   compiler invocation; changed custody rejects before review rows are issued.
+  The same parent custody walk now rejects accepted Git cache entries whose
+  file and symlink logical lengths exceed
+  `min(3 * source-byte-limit + 64 MiB, 1 GiB)` and local publications above
+  `min(source-byte-limit + 64 MiB, 512 MiB)`. This bounds cache state accepted
+  after a helper or publication step; it is not a during-write disk quota or a
+  measurement of transferred bytes.
 
   Remaining suspect points:
 
@@ -209,7 +217,9 @@ complete.
     hostile Unix process that deliberately changes session; cleanup has its own
     two-second allowance, so neither the per-command nor whole-resolution
     deadline is a strict wall-clock guarantee; the launch ceiling is not a CPU,
-    memory, object-store, or transfer-work budget;
+    memory, during-write object-store, or transfer-work budget; the post-helper
+    logical resident ceiling can reject an oversized cache but cannot prevent
+    temporary disk exhaustion while Git is running;
   - SSH uses an absolute client with user configuration disabled, batch mode,
     zero password prompts, and strict host-key checking, but still consumes the
     user's default known-host and key files without explicit credential custody;
@@ -519,11 +529,13 @@ complete.
   contracts, executable TCB, observations, and reproducibility. Required
   unresolved or unprojectable facts reject. The canonical output contains no
   arena handles, display strings as identity, or other compiler-private IDs.
-  Implementation may read each fact from the earliest coherent Psi-owned
-  checked representation that contains it. Rows may use different internal
-  representations; this coupling moves with the compiler and does not create a
-  stable public IR stage or justify nominal Chi merely for stability. The
-  comparison is with Terminal Psi, not with Psi ownership.
+  Implementation may read each fact from the earliest coherent compiler-owned
+  representation in which its semantics are established. Rows may join private
+  pre-Psi structural identity to later checked facts after successful
+  compilation and may otherwise use different internal representations. This
+  coupling moves with the compiler and does not create a stable public IR stage
+  or justify nominal Chi merely for stability. Unchecked syntax, diagnostics,
+  or a merely convenient earlier shape are never admission evidence.
 
   Progress 2026-08-24: checked trees already own the useful semantic core. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
@@ -1078,15 +1090,19 @@ complete.
   proof that an audit occurred.
 
   Ratified design decision 2026-08-24: conflict rows are projected by the
-  compiler from the earliest Psi-owned checked representation that already
-  contains each exact fact. Rows need not share one source stage. The compiler
-  may depend on those private representations because the projection moves with
-  the compiler; only the versioned, source-handle-free row encoding crosses
-  into package orchestration. Do not create nominal Chi solely to make this
-  internal join look stable. Introduce another semantic stage only if
-  implementation discovers a real shared invariant or simplification, and
-  freely collapse rows into an existing coherent representation (for example
-  `Exact`) when that removes machinery without losing meaning.
+  compiler from the earliest compiler-owned representation in which each exact
+  fact is semantically settled. This may include private pre-Psi structure;
+  checked acceptance, effects, proofs, and realization are joined from the
+  stage that establishes them, and no row is issued before successful checking.
+  Rows need not share one source stage. The compiler may depend on those private
+  representations because the projection moves with the compiler; only the
+  versioned, source-handle-free row encoding crosses into package
+  orchestration. Do not create nominal Chi solely to make this internal join
+  look stable. Introduce another semantic stage only if implementation
+  discovers a real shared invariant, transformation boundary, independent
+  consumer, or simplification, and freely collapse rows into an existing
+  coherent representation (for example `Exact`) when that removes machinery
+  without losing meaning.
 
   Progress 2026-08-24: the review projection exposes independently framed,
   compiler-owned rows for the projection header, public traits, domains, data,
