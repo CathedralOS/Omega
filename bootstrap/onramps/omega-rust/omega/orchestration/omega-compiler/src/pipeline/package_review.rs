@@ -746,10 +746,16 @@ pub enum PackageReviewCastForm {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractStaticMachineArgument {
+pub enum PackageReviewContractStaticArgument {
+    /// One exact concrete type identity. Generic type applications and
+    /// forwarded type binders remain fail-closed until their complete static
+    /// application structure is represented.
+    Type(PackageReviewTypeIdentity),
+    /// One parser-canonical integer literal in an exact const-parameter slot.
+    ConstInteger(String),
     /// One machine parameter from the containing declaration's canonical
     /// static telescope. The ordinal spans every static parameter category.
-    GenericBinder(u32),
+    GenericMachineBinder(u32),
     /// The exact selected concrete machine entry, including package or
     /// compiler/toolchain ownership.
     ConcreteMachine(PackageReviewNominalIdentity),
@@ -785,7 +791,7 @@ pub enum PackageReviewContractExpression {
     Call {
         receiver: Option<Box<PackageReviewContractExpression>>,
         target: PackageReviewNominalIdentity,
-        static_machine_arguments: Vec<PackageReviewContractStaticMachineArgument>,
+        static_arguments: Vec<PackageReviewContractStaticArgument>,
         arguments: Vec<PackageReviewContractExpression>,
     },
     Binary {
@@ -6007,6 +6013,12 @@ fn project_contract_expression_with_substitutions(
         }),
         ExpressionNode::Call(call) => {
             require_exact_checked_contract_call_selection(compilation, context, expression, call)?;
+            let static_parameter_kinds = contract_call_static_parameter_kinds(
+                compilation,
+                context,
+                call.target_symbol,
+                call.machine_arguments.len(),
+            )?;
             if call.quotient_operation.is_some() {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed {} `{}` uses a quotient contract call not yet represented by package review",
@@ -6030,15 +6042,17 @@ fn project_contract_expression_with_substitutions(
                     .transpose()?
                     .map(Box::new),
                 target: nominal_identity(compilation, call.target_symbol)?,
-                static_machine_arguments: call
+                static_arguments: call
                     .machine_arguments
                     .iter()
-                    .map(|argument| {
-                        project_contract_static_machine_argument(
+                    .zip(static_parameter_kinds)
+                    .map(|(argument, parameter_kind)| {
+                        project_contract_static_argument(
                             compilation,
                             context,
                             binders,
                             argument,
+                            parameter_kind,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?,
@@ -6229,12 +6243,88 @@ fn require_exact_checked_contract_call_selection(
     }
 }
 
-fn project_contract_static_machine_argument(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContractCallStaticParameterKind {
+    Type,
+    Const,
+    Machine,
+    Proposition,
+}
+
+fn contract_call_static_parameter_kinds(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    target: SymbolHandle,
+    supplied_count: usize,
+) -> Result<Vec<ContractCallStaticParameterKind>, Vec<Diagnostic>> {
+    let project = |parameters: &[psi_typed_trees::data::TypeParameter]| {
+        parameters
+            .iter()
+            .map(|parameter| match parameter.kind {
+                psi_typed_trees::data::TypeParameterKind::Type => {
+                    ContractCallStaticParameterKind::Type
+                }
+                psi_typed_trees::data::TypeParameterKind::Const { .. } => {
+                    ContractCallStaticParameterKind::Const
+                }
+                psi_typed_trees::data::TypeParameterKind::Machine { .. } => {
+                    ContractCallStaticParameterKind::Machine
+                }
+                psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+                    ContractCallStaticParameterKind::Proposition
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut candidates = compilation
+        .machines()
+        .iter()
+        .filter(|machine| {
+            compilation
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target)
+        })
+        .map(|machine| project(compilation.machine_type_parameters(machine)))
+        .collect::<Vec<_>>();
+    if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
+        candidates.push(project(
+            compilation.state_signature_type_parameters(signature),
+        ));
+    }
+    candidates.extend(compilation.traits().iter().flat_map(|definition| {
+        compilation
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.symbol == target)
+            .map(|signature| project(compilation.state_signature_type_parameters(signature)))
+    }));
+    let [parameter_kinds] = candidates.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call target rejoins {} static telescopes; expected exactly one",
+            context.subject_kind,
+            context.subject_name,
+            candidates.len()
+        ))]);
+    };
+    if parameter_kinds.len() != supplied_count {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call supplies {supplied_count} static arguments for a checked telescope of {} parameters",
+            context.subject_kind,
+            context.subject_name,
+            parameter_kinds.len()
+        ))]);
+    }
+    Ok(parameter_kinds.clone())
+}
+
+fn project_contract_static_argument(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     argument: &psi_typed_trees::expression::StaticMachineArgument,
-) -> Result<PackageReviewContractStaticMachineArgument, Vec<Diagnostic>> {
+    parameter_kind: ContractCallStaticParameterKind,
+) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
     let rejected = |reason: &str| {
         vec![Diagnostic::error(format!(
             "reviewed {} `{}` uses a contract-call static argument {reason}",
@@ -6251,31 +6341,70 @@ fn project_contract_static_machine_argument(
             "from an evidence projection not yet represented by package review",
         ));
     }
-    if argument.const_literal.is_some() {
+    if parameter_kind == ContractCallStaticParameterKind::Proposition {
         return Err(rejected(
-            "from a const value not yet represented by package review",
+            "for a proposition parameter not yet represented by package review",
+        ));
+    }
+    if let Some(literal) = argument.const_literal.as_ref() {
+        if parameter_kind != ContractCallStaticParameterKind::Const {
+            return Err(rejected(
+                "whose category differs from its checked telescope slot",
+            ));
+        }
+        return Ok(PackageReviewContractStaticArgument::ConstInteger(
+            literal.text().to_owned(),
         ));
     }
     if let Some(position) = binders
         .iter()
         .position(|(symbol, _)| *symbol == argument.symbol)
     {
-        if compilation.typed.symbols.get(argument.symbol).kind
-            != psi_symbols::SymbolKind::MachineParameter
+        if parameter_kind != ContractCallStaticParameterKind::Machine
+            || compilation.typed.symbols.get(argument.symbol).kind
+                != psi_symbols::SymbolKind::MachineParameter
         {
             return Err(rejected(
-                "whose static category is not an executable machine",
+                "whose category differs from its checked telescope slot or is a forwarded type/const binder not yet represented by package review",
             ));
         }
-        return Ok(PackageReviewContractStaticMachineArgument::GenericBinder(
+        return Ok(PackageReviewContractStaticArgument::GenericMachineBinder(
             portable_parameter_position(position)?,
+        ));
+    }
+    if parameter_kind == ContractCallStaticParameterKind::Type {
+        if !argument.symbol.is_valid()
+            || !matches!(
+                compilation.typed.symbols.get(argument.symbol).kind,
+                psi_symbols::SymbolKind::BuiltinType | psi_symbols::SymbolKind::Data
+            )
+        {
+            return Err(rejected(
+                "whose category differs from its checked type slot",
+            ));
+        }
+        let identity = compilation
+            .package_qualified_nominal_type_identity_with_toolchain_sources(
+                argument.symbol,
+                compilation.exact_toolchain_sources(),
+            )
+            .ok_or_else(missing_exact_toolchain_type_owner)?;
+        return Ok(PackageReviewContractStaticArgument::Type(
+            PackageReviewTypeIdentity {
+                canonical: identity.into_string(),
+            },
+        ));
+    }
+    if parameter_kind == ContractCallStaticParameterKind::Const {
+        return Err(rejected(
+            "from a forwarded or symbolic const not yet represented by package review",
         ));
     }
     if !argument.symbol.is_valid()
         || compilation.typed.symbols.get(argument.symbol).kind != psi_symbols::SymbolKind::State
     {
         return Err(rejected(
-            "whose static category is not an executable machine",
+            "whose category differs from its checked machine slot",
         ));
     }
     let matching_states = compilation
@@ -6289,7 +6418,7 @@ fn project_contract_static_machine_argument(
             "that does not rejoin exactly one checked concrete machine entry",
         ));
     }
-    Ok(PackageReviewContractStaticMachineArgument::ConcreteMachine(
+    Ok(PackageReviewContractStaticArgument::ConcreteMachine(
         nominal_identity(compilation, argument.symbol)?,
     ))
 }

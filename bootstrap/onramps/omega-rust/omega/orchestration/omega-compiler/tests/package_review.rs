@@ -4,18 +4,17 @@ use omega_compiler::{
     PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractStaticMachineArgument, PackageReviewCrashInterface,
-    PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewMachineParameterContract,
-    PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
-    PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
+    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
+    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -1050,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 44);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 4);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 45);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 5);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1997,14 +1996,13 @@ machine build(builder: &mut Build) { }
         panic!("trusted-zero equality contract")
     };
     let PackageReviewContractExpression::Call {
-        static_machine_arguments,
-        ..
+        static_arguments, ..
     } = right.as_ref()
     else {
         panic!("static apply call")
     };
-    let [PackageReviewContractStaticMachineArgument::ConcreteMachine(selected)] =
-        static_machine_arguments.as_slice()
+    let [PackageReviewContractStaticArgument::ConcreteMachine(selected)] =
+        static_arguments.as_slice()
     else {
         panic!("one exact concrete machine argument")
     };
@@ -2084,15 +2082,14 @@ machine build(builder: &mut Build) { }
         panic!("trusted-apply equality contract")
     };
     let PackageReviewContractExpression::Call {
-        static_machine_arguments,
-        ..
+        static_arguments, ..
     } = right.as_ref()
     else {
         panic!("generic apply call")
     };
     assert_eq!(
-        static_machine_arguments,
-        &[PackageReviewContractStaticMachineArgument::GenericBinder(0)]
+        static_arguments,
+        &[PackageReviewContractStaticArgument::GenericMachineBinder(0)]
     );
     assert_eq!(
         original
@@ -2106,16 +2103,203 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_non_machine_static_arguments_in_contract_calls() {
+fn review_projects_exact_concrete_type_arguments_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |selected_type: &str| {
+        format!(
+            r#"machine tag<Value>() -> u64 {{ 0 }}
+boundary machine trusted_zero() -> u64
+ensures result == tag<{selected_type}>();
+"#,
+        )
+    };
+    package.write("main.omg", &source("u64"));
+    changed.write("main.omg", &source("i64"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    package.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("effect-free static type contract call should check");
+        project_checked_package_review(&checked)
+            .expect("a direct concrete type argument has a canonical contract row")
+    };
+    let review = project(&package);
+    let changed = project(&changed);
+    let trusted_zero = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_zero")
+        .expect("trusted boundary callable");
+    let [contract] = trusted_zero.contracts() else {
+        panic!("one trusted-zero contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-zero equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [PackageReviewContractStaticArgument::Type(identity)] = static_arguments.as_slice() else {
+        panic!("one exact concrete type argument")
+    };
+    assert!(identity.canonical().contains("u64"));
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("u64 static-type contract encoding"),
+        changed
+            .canonical_review_bytes()
+            .expect("i64 static-type contract encoding"),
+        "changing an exact concrete type selection must change package-review identity",
+    );
+}
+
+#[test]
+fn review_projects_canonical_integer_const_arguments_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |selected_value: &str| {
+        format!(
+            r#"machine constant<const Value: u64>() -> u64 {{ 7 }}
+boundary machine trusted_constant() -> u64
+ensures result == constant<{selected_value}>();
+"#,
+        )
+    };
+    package.write("main.omg", &source("0x07"));
+    changed.write("main.omg", &source("0x08"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    package.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("effect-free const-generic contract call should check");
+        project_checked_package_review(&checked)
+            .expect("a direct integer const argument has a canonical contract row")
+    };
+    let review = project(&package);
+    let changed = project(&changed);
+    let trusted_constant = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_constant")
+        .expect("trusted const boundary callable");
+    let [contract] = trusted_constant.contracts() else {
+        panic!("one trusted-constant contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-constant equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("const-generic call")
+    };
+    assert_eq!(
+        static_arguments,
+        &[PackageReviewContractStaticArgument::ConstInteger(
+            "0x7".to_owned()
+        )]
+    );
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("0x7 static-const contract encoding"),
+        changed
+            .canonical_review_bytes()
+            .expect("0x8 static-const contract encoding"),
+        "changing an exact const selection must change package-review identity",
+    );
+}
+
+#[test]
+fn package_compilation_rejects_forwarded_type_binders_before_package_review() {
     let Some(target) = host_target_name() else {
         return;
     };
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"machine identity<Value>(value: Value) -> Value { value }
-boundary machine trusted_zero() -> u64
-ensures result == identity<u64>(0);
+        r#"machine tag<Value>() -> u64 { 0 }
+pub machine generic_tag<Value>() -> u64
+requires tag<Value>() == tag<Value>()
+{
+    0
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect_err("forwarded type binders without exact selections must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("StaticArgument (CheckedStaticArgument)")
+    }));
+}
+
+#[test]
+fn review_rejects_nested_static_applications_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"data Wrapper<Value> { value: Value; }
+machine tag<Value>() -> u64 { 0 }
+boundary machine trusted_tag() -> u64
+ensures result == tag<Wrapper<u64>>();
 "#,
     );
     package.write(
@@ -2132,13 +2316,13 @@ machine build(builder: &mut Build) { }
         Some(target),
         package_inputs(&package.0),
     )
-    .expect("effect-free static type contract call should check");
+    .expect("nested static type contract call should check");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("unrepresented static type arguments must fail closed");
+        .expect_err("nested static applications remain fail-closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("static category is not an executable machine")
+            .contains("nested static application not yet represented")
     }));
 }
 
@@ -4524,7 +4708,7 @@ requires
         PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
             receiver,
             target,
-            static_machine_arguments,
+            static_arguments,
             arguments,
         }),
     ] = domain.predicate_facts()
@@ -4533,7 +4717,7 @@ requires
     };
     assert!(receiver.is_none());
     assert_eq!(target.path(), "within_calibration::entry");
-    assert!(static_machine_arguments.is_empty());
+    assert!(static_arguments.is_empty());
     assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
 }
 
