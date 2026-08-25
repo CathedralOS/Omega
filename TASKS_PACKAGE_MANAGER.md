@@ -193,9 +193,6 @@ complete.
     directory ownership independently of the helper;
   - the local before/after check does not defend against a deliberately hostile
     same-user process racing both observations;
-  - local traversal retains a complete single-directory listing before the
-    total entry ceiling is applied, and Windows Git paths still need explicit
-    rejection of drive-prefixed and NTFS-special spellings;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the selected Git path/content observation does not certify path ownership,
@@ -220,6 +217,13 @@ complete.
   commit, edge, tree-root, and destination mismatches reject without creating a
   stage. This is real resolver evidence, but it does not weaken any remaining
   isolation, cache-custody, resource, SSH-custody, or receipt requirement.
+
+  Completed 2026-08-24: local traversal now bounds each directory listing by
+  the remaining source-entry budget plus only the one or two names that the
+  toolchain itself may exclude, before retaining and sorting the listing. Git
+  paths and symlink targets now reject drive/alternate-stream colons, Windows
+  forbidden characters and controls, trailing dots/spaces, and reserved device
+  names during portable preflight rather than relying on host path behavior.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated

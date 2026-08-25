@@ -1130,6 +1130,7 @@ fn validate_git_path(
         if component.eq_ignore_ascii_case(b".git") {
             return Err(git_tree_invalid(path, "path enters excluded Git metadata"));
         }
+        validate_portable_git_component(path, component)?;
     }
     let depth = components.len().saturating_sub(1);
     if depth > limits.max_depth {
@@ -1139,6 +1140,49 @@ fn validate_git_path(
         });
     }
     git_path_from_bytes(path)
+}
+
+fn validate_portable_git_component(
+    path: &[u8],
+    component: &[u8],
+) -> Result<(), SourceResolveError> {
+    if component
+        .iter()
+        .any(|byte| *byte < 32 || matches!(*byte, b'<' | b'>' | b':' | b'"' | b'|' | b'?' | b'*'))
+    {
+        return Err(git_tree_invalid(
+            path,
+            "path contains a character forbidden by the portable Windows policy",
+        ));
+    }
+    if component
+        .last()
+        .is_some_and(|byte| matches!(byte, b'.' | b' '))
+    {
+        return Err(git_tree_invalid(
+            path,
+            "path component has a Windows-ambiguous trailing dot or space",
+        ));
+    }
+    let stem = component
+        .split(|byte| *byte == b'.')
+        .next()
+        .unwrap_or(component);
+    let reserved_device = [b"CON".as_slice(), b"PRN", b"AUX", b"NUL"]
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+        || (stem.len() == 4
+            && (stem[..3].eq_ignore_ascii_case(b"COM") || stem[..3].eq_ignore_ascii_case(b"LPT"))
+            && matches!(stem[3], b'1'..=b'9'))
+        || stem.eq_ignore_ascii_case(b"CONIN$")
+        || stem.eq_ignore_ascii_case(b"CONOUT$");
+    if reserved_device {
+        return Err(git_tree_invalid(
+            path,
+            "path component uses a reserved Windows device name",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -1184,7 +1228,10 @@ fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceR
                     "symlink target enters excluded Git metadata",
                 ));
             }
-            _ => depth += 1,
+            component => {
+                validate_portable_git_component(link, component)?;
+                depth += 1;
+            }
         }
     }
     Ok(())
@@ -3022,10 +3069,22 @@ fn visit_directory(
         return Ok(());
     }
 
-    let mut directory_entries = std::fs::read_dir(real_dir)
-        .map_err(|error| io_error(real_dir, error))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| io_error(real_dir, error))?;
+    let remaining_entries = limits.max_files.saturating_sub(entries.len());
+    let excluded_entry_allowance = match policy {
+        SourceTreePolicy::ExactMaterialized => 0,
+        SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 2,
+        SourceTreePolicy::LocalPackage => 1,
+    };
+    let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
+    let mut directory_entries = Vec::new();
+    for entry in std::fs::read_dir(real_dir).map_err(|error| io_error(real_dir, error))? {
+        if directory_entries.len() >= directory_listing_limit {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_files,
+            });
+        }
+        directory_entries.push(entry.map_err(|error| io_error(real_dir, error))?);
+    }
     directory_entries.sort_by_key(|entry| entry.file_name());
 
     for entry in directory_entries {
@@ -4933,6 +4992,32 @@ mod tests {
     }
 
     #[test]
+    fn local_directory_collection_is_bounded_without_counting_reserved_exclusions() {
+        let root = temp_root("bounded-directory-listing");
+        std::fs::create_dir_all(root.join(".git")).expect("create excluded metadata");
+        std::fs::create_dir_all(root.join("build")).expect("create excluded build output");
+        std::fs::write(root.join("first.omg"), "").expect("write first source");
+        std::fs::write(root.join("second.omg"), "").expect("write second source");
+        let limits = LocalSourceLimits {
+            max_files: 2,
+            ..LocalSourceLimits::default()
+        };
+
+        let accepted = resolve_local_source(&root, limits)
+            .expect("the two reserved exclusions must not consume source identity entries");
+        assert_eq!(accepted.file_count, 2);
+
+        std::fs::write(root.join("third.omg"), "").expect("write excess source");
+        assert_eq!(
+            resolve_local_source(&root, limits)
+                .expect_err("directory collection must stop at its bounded allowance"),
+            SourceResolveError::TooManyFiles { limit: 2 }
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn local_source_limits_count_directories_and_report_identity_entries() {
         let root = temp_root("directory-entry-limit");
         std::fs::create_dir_all(root.join("nested")).expect("create source tree");
@@ -5378,6 +5463,13 @@ mod tests {
             b"/absolute.omg".as_slice(),
             b"nested\\ambiguous.omg".as_slice(),
             b"nested/.git/config".as_slice(),
+            b"C:/drive-prefixed.omg".as_slice(),
+            b"nested/NUL.txt".as_slice(),
+            b"aux.omg".as_slice(),
+            b"name:stream.omg".as_slice(),
+            b"trailing.".as_slice(),
+            b"trailing ".as_slice(),
+            b"question?.omg".as_slice(),
         ] {
             let mut listing = format!("100644 blob {oid} 1\t").into_bytes();
             listing.extend_from_slice(path);
@@ -5390,6 +5482,22 @@ mod tests {
             !repository.exists(),
             "validation must not create a staging path"
         );
+    }
+
+    #[test]
+    fn git_symlink_targets_reject_windows_ambiguous_spellings() {
+        for target in [
+            b"C:/escape.omg".as_slice(),
+            b"NUL".as_slice(),
+            b"nested/COM1.log".as_slice(),
+            b"name:stream".as_slice(),
+            b"trailing.".as_slice(),
+        ] {
+            assert!(matches!(
+                validate_git_symlink_target(b"link", target),
+                Err(SourceResolveError::GitTreeInvalid { .. })
+            ));
+        }
     }
 
     #[test]

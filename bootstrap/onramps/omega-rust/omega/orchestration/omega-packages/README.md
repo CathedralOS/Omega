@@ -138,7 +138,10 @@ snapshots, hermetic package-name extraction, and typed package/source identity.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git
-materialization remains an exact selected-tree check. Git fetch requests only
+materialization remains an exact selected-tree check. Local directory listings
+are bounded before sorting, and Git paths/symlink targets receive a
+host-independent Windows portability preflight before materialization. Git
+fetch requests only
 the selected revision at depth one and disables automatic maintenance/GC;
 strict transferred-byte and object-store quotas still require a hardened
 execution backend.
