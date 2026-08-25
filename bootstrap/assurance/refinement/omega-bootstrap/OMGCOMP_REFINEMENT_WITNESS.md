@@ -352,6 +352,10 @@ translating the Delta resolver into Beta would preserve the same common-mode
 mistakes and would not satisfy source-to-witness reconstruction; layer 2 is
 independently authored.
 
+The exact-root and finite attached-call successor is separately versioned as
+[`OMGCOMP_REFINEMENT_WITNESS_V3.md`](OMGCOMP_REFINEMENT_WITNESS_V3.md).
+`OMGRFN2` and its CKIR1-specific checkers remain frozen.
+
 ## Authority separation
 
 The semantic conjunction is:

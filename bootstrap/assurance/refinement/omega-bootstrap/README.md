@@ -48,6 +48,14 @@ refinement, not compilation authority: accepted resolver receipt bytes and a
 lower-rooted comparison of their expected envelope SHA-256 remain separate and
 open.
 
+The CKIR2 exact-root/call tranche uses the distinct
+[`OMGRFN3`](OMGCOMP_REFINEMENT_WITNESS_V3.md) frame. Its first persisted-Beta
+responsibility closes version-3 framing and complete OMGCOMP/source custody;
+the remaining source-to-role-3 witness, witness-to-CKIR2 tables,
+body/call/result, and CKIR2-to-ELF responsibilities must close before the
+versioned-call tranche gains lower-rooted authority. No OMGRFN2 checker is
+relabeled or widened in place.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
