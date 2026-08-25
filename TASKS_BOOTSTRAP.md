@@ -275,32 +275,19 @@ language coverage or admission to final `Ωself`. Continue with capabilities
 actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
-- [ ] Complete the payload-bearing-sum tranche unless a newer product
-  checkpoint changes the measured order. Its versioned ownership and byte
-  contracts are fixed as
-  [`OMGRSW3`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md)
-  → `OMGLOW6`/
-  [`CKIR5`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
-  →
-  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md).
-  OMGRSW3 production, general OMGLOW6 body lowering and exact CKIR5 publication,
-  the independent CKIR5 checker/meaning fixture, and the conservative CKIR5
-  backend are landed with native/self result-70 and resource evidence. OMGRFN7
-  R1 outer custody, R2 independent source→OMGRSW3 reconstruction, and R3
-  independent witness→CKIR5 declaration/layout/intrinsic joins are also
-  landed. The remaining executable order is: close OMGRFN7 R4/R5 and its
-  immutable result-70 same-frame composition. The first slice uses
-  unnumbered pure sums, declaration-order case identity with
-  the first case at tag zero, payload-free and payload-bearing cases,
-  recursively copyable payloads through the provisional four-field ceiling,
-  construction, Copy/Call arguments, tag dispatch, and payload binding. Its
-  checker must derive a bridge-private layout from declarations; it must not
-  claim a unique public/default Omega byte ABI. Keep generic sums, mixed
-  record/sum declarations, explicit schema/discriminant tags, structural
-  returns, aggregate transition literals, effectful or trapping payload
-  expressions, and calls with observably order-dependent arguments outside the
-  first slice. This is bridge-cost evidence for a provisional `Ωself`
-  candidate, not a final profile ruling.
+- [ ] Complete the selected payload-bearing-sum tranche unless a newer product
+  checkpoint changes the measured order. Production, checking, meaning, and
+  conservative emission are landed through `OMGRSW3 → OMGLOW6/CKIR5`;
+  lower-rooted `OMGRFN7` responsibilities R1–R3 are landed. Close R4, R5, and
+  their immutable result-70 same-frame composition. The versioned
+  [`OMGRSW3`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md),
+  [`CKIR5`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md),
+  and
+  [`OMGRFN7`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md)
+  contracts own the admitted shape, exclusions, byte layout, resources, and
+  mutation matrix. Do not duplicate those details here. Closure measures the
+  bounded cost of a provisional `Ωself` candidate; it is not a final profile or
+  public-ABI ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
