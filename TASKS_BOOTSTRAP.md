@@ -159,11 +159,14 @@ slice is deliberately same-module and does not depend on this ruling. No other
 item below is presently design-blocked merely because it is large or difficult.
 
 The compilation-authority join is separately waiting on the package/security
-owner, not on a bootstrap language ruling. There is not yet a canonical accepted
-lock/closure wire, acceptance root, or accepted-lock-to-`OMGCOMP` projection for
-the bridge to consume. Continue fixture-driven resolution, checking, lowering,
-and refinement while the P1 package-admission work in [`TASKS.md`](TASKS.md)
-closes that product contract; do not invent a bridge-local receipt and call it
+owner, not on a bootstrap language ruling. The compiler may now construct a
+total internal `PackageAdmissionProjection` by joining facts from several
+coherent compiler-owned stages, but that ruling does not publish a sealed
+accepted-lock/closure wire, an acceptance root, or an accepted-lock-to-`OMGCOMP`
+projection for the bridge to consume. Continue fixture-driven resolution,
+checking, lowering, and refinement while the P1 package-admission work in
+[`TASKS.md`](TASKS.md) closes that external product contract; do not duplicate
+the compiler's semantic projection or invent a bridge-local receipt and call it
 authority.
 
 ### Rolling invariant — maintain the provisional Delta ledger
@@ -242,7 +245,7 @@ as one growing verifier:
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
 | producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result | bridge gates and the contracts above |
 | lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
-| compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
+| compilation authority | externally gated: the internal compiler projection is ruled, but a sealed accepted-lock projection plus exact envelope SHA-256 join is still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
 makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
@@ -295,8 +298,8 @@ on the separately blocked compilation-authority join.
   `omega-bootstrap`, including every transitive source and build input. Prove
   it valid under the provisional Delta ledger; final validity belongs to the
   Delta-v1 freeze.
-- [ ] Once the package/security owner publishes the canonical accepted-lock
-  projection, join the structurally checked multi-unit
+- [ ] Once the package/security owner seals and publishes the canonical
+  accepted-lock projection, join the structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
   to that independently accepted commitment and compare the exact envelope
   SHA-256. Structural validity alone is never compilation authority. This item
