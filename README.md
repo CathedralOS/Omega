@@ -126,11 +126,12 @@ current Rust pipeline predates that cut and is being migrated; `StateGraph` and
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
 The separate bootstrap architecture rebuilds that product through increasingly
-capable Alpha → Beta → Gamma → Delta languages, then one hosted edge from the
-Delta-written, `Ωself`-limited `omega-bootstrap` into the full production Omega
-compiler. Delta is independently specified; Omega-like spelling does not make
-it an Omega subset. `Ωself` is a source profile rather than another language
-rung. An optional Omega→Omega rebuild may optimize
+capable Alpha → Beta → Gamma → Delta languages. The Gamma→Delta edge executes
+the Delta-written compiler through the lower-rung Delta→Gamma route; that exact
+compiler then builds the Delta-written, `Ωself`-limited `omega-bootstrap`, which
+performs the hosted build of full production Omega. Delta is independently
+specified; Omega-like spelling does not make it an Omega subset. `Ωself` is a
+source profile rather than another language rung. An optional Omega→Omega rebuild may optimize
 that compiler's own binary, but produces the same compiler and is not another
 rung or required dependency. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map

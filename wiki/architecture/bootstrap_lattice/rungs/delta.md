@@ -23,16 +23,17 @@ it should resemble Omega where consistency is cheap, but shared spelling does
 not make it an Omega subset. Delta compiler artifacts may be slow and
 conservatively lowered; those are artifact properties, not language features.
 
-Delta v1 is designed around the complete `omega-bootstrap` source closure plus
-explicit coherence, safety, robustness, and maintainability arguments. D0, the
-sample corpus, and the Rust producer may reveal useful facilities but cannot
-admit them. Exact arithmetic, ordinary fixed backing, explicit tags, and a
-sealed byte-I/O host surface are simpler candidates to measure first. Broader
-arithmetic domains, allocation machinery, payload sums, or general boundary
-traits enter v1 only when they reduce total bridge-source and assurance cost or
-make the compiler-host language materially safer, more coherent, or less
-brittle; their omission is not a goal in itself. Delta is therefore neither a
-token census of the bridge nor a disguised subset of Omega.
+Delta v1 is designed around the complete canonical Delta-compiler and
+`omega-bootstrap` source closures plus explicit coherence, safety, robustness,
+and maintainability arguments. D0, the sample corpus, and the Rust producer may
+reveal useful facilities but cannot admit them. Exact arithmetic, ordinary fixed
+backing, explicit tags, and a sealed byte-I/O host surface are simpler candidates
+to measure first. Broader arithmetic domains, allocation machinery, payload
+sums, or general boundary traits enter v1 only when they reduce total required-
+source and assurance cost or make the compiler-host language materially safer,
+more coherent, or less brittle; their omission is not a goal in itself. Delta
+is therefore neither a token census of the required programs nor a disguised
+subset of Omega.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 product-compiler source profile `Ωself` and rejects the rest. That bridge
@@ -43,6 +44,15 @@ Delta's own self-hosting compiler and `omega-bootstrap` are distinct artifacts.
 The former establishes and exercises the Delta language; the latter is the
 Delta program that compiles `Ωself` Omega source. Success of the former proves
 compiler-host feasibility, not completeness of the latter.
+
+The completed cold publication of that compiler is lower-rooted: the
+Beta-written Delta→Gamma elaborator translates the exact Delta compiler source,
+and Gamma's Beta-written interpreter executes it on that same source to emit the
+native compiler artifact. The current route already runs the complete compiler
+on bounded inputs; complete source coverage and artifact publication remain
+open engineering work. This is the concrete `Gamma → Delta` edge. A Rust-built
+or Delta-self-built artifact may remain a differential control, but neither may
+substitute for this required publication and refinement join.
 
 ## Implementation
 
@@ -57,8 +67,7 @@ compiler-host feasibility, not completeness of the latter.
 - `bootstrap/omega-bootstrap/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by
-  `omega-bootstrap` remains
-  the closure criterion.
+  both the Delta compiler and `omega-bootstrap` remains the closure criterion.
 - `bootstrap/rungs/delta/build/` contains the checked-in bootstrap binaries
   produced by this work.
 - `bootstrap/rungs/delta/samples/bootstrap-storage.alp` is the first fixed-backing
@@ -104,7 +113,8 @@ compiler conservatively. It must compile the `Ωself` source that implements the
 product optimizer and advanced lowering; it need not duplicate those passes:
 
 ```text
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (implements full Ω)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
@@ -128,17 +138,19 @@ provisional bridge host surface is only source-byte input, artifact-byte output,
 diagnostic-byte output, and process termination. Target configuration is
 explicit input; filesystem, environment, clock, network, process-spawn, atomics,
 MMIO, interrupt, and general foreign-call authority are not presumed. If the
-complete bridge source demonstrates another unavoidable host operation, it must
-be specified and added to the trust ledger explicitly.
+complete canonical-compiler or bridge source demonstrates another unavoidable
+host operation, it must be specified and added to the trust ledger explicitly.
 
 ## Closure criteria
 
-Delta closes only when its complete deterministic `omega-bootstrap` source
-closure is valid under a versioned, independently specified Delta contract; the
-lattice-built compiler accepts all conforming programs within published bounds;
-and native, self-built, and Delta-to-Gamma routes agree at their declared
-observations. The resulting bridge must then accept exactly frozen `Ωself` and
-perform the one required hosted production build. Exact execution order and
-current bridge capabilities live only in
+Delta closes only when its complete deterministic canonical-compiler and
+`omega-bootstrap` source closures are valid under one versioned, independently
+specified Delta contract; the lattice-built compiler accepts all conforming
+programs within published bounds; the exact Delta compiler artifact can be
+published by the Delta→Gamma/Gamma route without Rust; and native, self-built,
+and lower-rung routes agree at their declared observations. The resulting
+bridge must then accept exactly frozen `Ωself` and perform the one required
+hosted production build. Exact execution order and current bridge capabilities
+live only in
 [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md); this rung definition is
 not a second task queue.

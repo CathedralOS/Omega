@@ -222,18 +222,20 @@ be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
 it is not required to be a syntactic or semantic Omega subset.
 
 Delta v1 and `Ωself` are separate and asymmetric contracts. Delta v1 is a
-literal independent language selected from the complete `omega-bootstrap`
-source closure plus explicit compiler-host coherence, robustness, safety, and
-maintainability arguments. `Ωself` is an incidental subset of ordinary Omega
+literal independent language selected from the complete required Delta source
+closures—the canonical Delta compiler and `omega-bootstrap`—plus explicit
+compiler-host coherence, robustness, safety, and maintainability arguments.
+`Ωself` is an incidental subset of ordinary Omega
 selected from the production compiler's own complete source closure and the
-measured retain/refactor tradeoff. Neither manifest substitutes for a general
-language/profile definition.
+measured retain/refactor tradeoff. No exact source manifest substitutes for a
+general language/profile definition.
 
-These are the only two feature inventories being selected. The source used to
-write `omega-bootstrap` is governed by Delta v1; the Omega source it accepts is
-governed by `Ωself`. The resulting product compiler's user-facing feature set is
-not a third choice: it implements the already-authoritative full Omega
-specification. Generated-code quality is likewise not a language inventory.
+These are the only two feature inventories being selected. The sources used to
+write the canonical Delta compiler and `omega-bootstrap` are governed by the
+same Delta v1 contract; the Omega source the bridge accepts is governed by
+`Ωself`. The resulting product compiler's user-facing feature set is not a
+third choice: it implements the already-authoritative full Omega specification.
+Generated-code quality is likewise not a language inventory.
 The frozen D0/O0/O1 envelopes are regression contracts for existing vertical
 slices, not additional inventories or numbered ancestors of these two
 contracts.
@@ -244,13 +246,14 @@ behavior or ambient host authority, specified failure, lower-rung meaning for
 every admitted construct, and Omega spelling and ordinary meaning whenever
 Delta retains the same construct. The exact scalar, arithmetic, aggregate,
 control, allocation, and boundary inventory remains provisional until the
-bridge source and explicit compiler-host design arguments justify it. A
-facility's presence in D0 or acceptance by the Rust producer does not admit it
-to v1.
+canonical compiler/bridge sources and explicit compiler-host design arguments
+justify it. A facility's presence in D0 or acceptance by the Rust producer does
+not admit it to v1.
 
 The selection rule is whole-bootstrap cost, not literal feature count. A
-facility may be retained because it makes the bridge materially smaller, safer,
-more regular, more maintainable, or easier to assure than its replacement.
+facility may be retained because it makes either required Delta program
+materially smaller, safer, more regular, more maintainable, or easier to assure
+than its replacement.
 Thus Delta may use only Exact integer arithmetic if that suffices, or one narrow
 modular operation if artifact encoding alone requires it; it need not retain
 general arithmetic domains. Conversely, a small companion operation may remain
@@ -273,10 +276,21 @@ implements the complete Omega specification:
 
 ```text
 Alpha → Beta → Gamma → Delta
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma elaboration + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
+
+The first native Delta compiler is not an unexplained extra seed. The canonical
+Delta→Gamma meaning route executes the Delta-written compiler on its own source
+and publishes that artifact through the already-rooted Gamma interpreter. The
+result may then self-rebuild for reproducibility and regression coverage. This
+is what the `Gamma → Delta` build edge means: Gamma supplies a Rust-free way to
+run the Delta compiler, not a proof-checker stage and not a second native Delta
+backend. The final gate joins the exact compiler source, its elaboration and
+Gamma execution, the produced artifact, and lower-rooted refinement before that
+artifact may build `omega-bootstrap`.
 
 `Ωself` is a source profile, not an Epsilon language or another rung. It inherits
 Omega semantics and has no private syntax. The bootstrap compiler is not a
@@ -344,8 +358,8 @@ The two contracts settle at one explicit join. Product checkpoints yield a
 provisional `Ωself` while the general Delta-written bridge supplies the
 implementation and assurance costs used to settle its retained features. At
 the completed join, `Ωself` freezes from the final product closure and those
-measured costs, while Delta v1 freezes from the complete bridge closure plus
-explicit compiler-host coherence, safety, and maintainability arguments. The
+measured costs, while Delta v1 freezes from the complete required Delta source
+closures plus explicit compiler-host coherence, safety, and maintainability arguments. The
 publications remain separately scoped and versioned; neither is a language rung
 that must be frozen before the other. This co-evolution is a design discovery
 loop, not a runtime or build cycle.
@@ -397,12 +411,14 @@ execution order.
    admitted capability lands with lower-rung meaning, direct artifact
    refinement, resource behavior, and a negative boundary; reference-producer
    agreement remains diagnostic evidence.
-3. The complete product source and complete general bridge form one settlement
-   join. It publishes `Ωself` from the product closure plus measured bridge
-   cost, and Delta v1 from the bridge closure plus explicit language-coherence,
-   robustness, safety, and maintainability arguments.
-4. The lattice-built Delta compiler builds the exact validated
-   `omega-bootstrap` artifact.
+3. The complete product source, canonical Delta compiler, and general bridge
+   form one settlement join. It publishes `Ωself` from the product closure plus
+   measured bridge cost, and Delta v1 from both required Delta closures plus
+   explicit language-coherence, robustness, safety, and maintainability
+   arguments.
+4. Execute the frozen Delta-written compiler through the canonical
+   Delta→Gamma route to publish the exact Rust-free Delta compiler artifact;
+   then use that artifact to build and validate `omega-bootstrap`.
 5. That bridge performs the one required hosted build of the full-spec
    production compiler, including its optimizer and advanced lowering. An
    Omega-to-Omega rebuild of the same source is optional.

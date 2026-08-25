@@ -258,12 +258,12 @@ re-verified as possible — then deriving or checking *everything else*.
 The language names and order are fixed by [D6](decisions.md). Each small
 bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 
-| Rung | Adds (one idea) | Implemented in | Meaning defined by | Status |
+| Rung | Adds (one idea) | Lower-rooted realization | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
 | [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | Alpha-rooted cold start; steady-state `bc.beta` self-host | Beta's written small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/beta/SEMANTICS.md)) | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
 | [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../bootstrap/rungs/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma)) |
-| [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete `omega-bootstrap` source closure | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; the v1 feature inventory and full Rust-free toolchain hosting remain open |
+| [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete canonical Delta-compiler and `omega-bootstrap` source closures | execute the Delta-written compiler through Delta-to-Gamma elaboration and Gamma's interpreter; later self-rebuilds are optional evidence | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; complete elaborator coverage and Rust-free publication of the final compiler remain open |
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
@@ -275,10 +275,18 @@ The build continues through a bridge compiler and the production compiler:
 
 ```text
 Alpha → Beta → Gamma → Delta
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma elaboration + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
+
+The added compiler-publication line is the concrete `Gamma → Delta` edge. A
+Beta-built elaborator maps the Delta-written compiler into Gamma; Gamma's
+Beta-written interpreter executes it on the exact compiler source and emits the
+native Delta compiler artifact. No Rust producer is required in the completed
+path. A Delta self-rebuild can check reproducibility, but it neither creates
+authority nor replaces the lower-rung publication/refinement join.
 
 Delta is independent rather than an Omega subset. `Ωself` is not another
 language rung: it is a mechanically enforced, compositional subset of ordinary
@@ -417,11 +425,11 @@ architecture questions:
 - **Certificate coverage** — continue extending the shared, versioned
   proposition and derivation shape without changing the kernel/artifact-verifier
   responsibility split.
-- **Delta sufficiency** — complete the bridge, prune Delta to the lowest-total-
-  cost robust compiler-host language justified by its complete source closure,
-  then freeze and prove that closure against the resulting v1 contract. Fewer
-  features are not a win when their absence makes the bridge brittle or much
-  larger.
+- **Delta sufficiency** — complete the canonical Delta compiler and bridge,
+  prune Delta to the lowest-total-cost robust compiler-host language justified
+  by both complete source closures, then freeze and prove those closures against
+  the resulting v1 contract. Fewer features are not a win when their absence
+  makes either required program brittle or much larger.
 - **Omega product-compiler source profile** — derive and enforce `Ωself` from
   the exact production compiler dependency manifest, with explicit exclusions
   and negative gates.

@@ -8,21 +8,21 @@ to produce an artifact. The final Delta program on the hosted path is
 compiler.
 
 Delta is an independent compiler-host language, not an Omega subset. Its v1
-contract is being discovered from the complete `omega-bootstrap` source closure
-plus explicit coherence, safety, robustness, and maintainability arguments, and
-is tracked in
+contract is being discovered from the complete canonical Delta-compiler and
+`omega-bootstrap` source closures plus explicit coherence, safety, robustness,
+and maintainability arguments, and is tracked in
 [`../../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
 
 The corpus and disposable Rust producer are discovery inputs, not a feature
-vote. A construct belongs to Delta v1 when the bridge demonstrates a concrete
-need or an explicit language-coherence, robustness, safety, or maintainability
-argument shows that retaining it reduces whole-bootstrap cost; its lower-rung
-meaning must also close. Shared constructs should retain Omega spelling and
-ordinary meaning where that is cheap. Source outside Delta v1 rejects as Delta
-source; rejection of Omega outside `Ωself` is `omega-bootstrap`'s separate
-responsibility. The working host surface is sealed byte input, artifact output,
-diagnostic output, and process termination rather than a general boundary-trait
-system.
+vote. A construct belongs to Delta v1 when the canonical compiler or bridge
+demonstrates a concrete need, or an explicit language-coherence, robustness,
+safety, or maintainability argument shows that retaining it reduces
+whole-bootstrap cost; its lower-rung meaning must also close. Shared constructs
+should retain Omega spelling and ordinary meaning where that is cheap. Source
+outside Delta v1 rejects as Delta source; rejection of Omega outside `Ωself` is
+`omega-bootstrap`'s separate responsibility. The working host surface is sealed
+byte input, artifact output, diagnostic output, and process termination rather
+than a general boundary-trait system.
 
 - [`samples/`](samples/) contains the executable language corpus.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks provisional candidates and the
@@ -50,6 +50,7 @@ system.
   Rust producer and executable reference. It is not Delta's semantic authority.
 
 The lower-rung Delta-to-Gamma route under [`../../omega-bootstrap/meaning/`](../../omega-bootstrap/meaning/)
-defines the meaning profile being widened toward `omega-bootstrap`.
+defines the meaning profile being widened across the canonical Delta compiler
+and `omega-bootstrap`.
 The former `compiler/delta` and `compiler/delta-rs` entries are retired; gates
 use the canonical `delta` and `delta-rust` roles from `bootstrap/paths.sh`.

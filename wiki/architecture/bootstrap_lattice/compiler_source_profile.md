@@ -10,9 +10,13 @@ language specification; generated-code quality is an artifact property. The
 actual build sequence is:
 
 ```text
+Delta compiler source ∈ Delta v1
+             │
+             └──[Delta→Gamma + Gamma execution]───────▶ delta compiler
+
 omega-bootstrap source ∈ Delta v1
              │
-             └──[lattice-built Delta compiler]──▶ omega-bootstrap
+             └──[delta compiler]──────────────────────▶ omega-bootstrap
 
 production-compiler source ∈ Ωself
              │
@@ -32,13 +36,15 @@ language specification, while `Ωself` is an incidental authoring restriction
 on source written in an already-specified language. Do not turn the compiler
 artifacts between them into extra languages.
 
-Two source-surface selections therefore discharge three different artifact
-obligations. The lattice-built Delta compiler must compile the exact Delta
-bridge closure. `omega-bootstrap` must compile every program admitted by
-`Ωself`, exactly but not necessarily efficiently. The resulting production
-`omega` must implement full Omega, including the optimizer and advanced
-lowering. The last obligation is tested against the full language and compiler
-suites; it is never inferred from the smaller `Ωself` census.
+Two source-surface selections therefore discharge three required artifact
+obligations. The Delta compiler must first be published through the lower-rung
+Delta→Gamma route and accept both required Delta closures under one language
+contract. That compiler must build `omega-bootstrap`. The bridge must compile
+every program admitted by `Ωself`, exactly but not necessarily efficiently.
+The resulting production `omega` must implement full Omega, including the
+optimizer and advanced lowering. The last obligation is tested against the full
+language and compiler suites; it is never inferred from the smaller `Ωself`
+census.
 
 `Ωself` is retained as the short symbol for the product compiler's ordinary-
 Omega source profile. The required use of that profile is a cross-language
@@ -48,7 +54,7 @@ self-hosting.
 
 | Source contract | What it is | Selected from | What does **not** define it |
 | --- | --- | --- | --- |
-| Delta v1 | an independent literal language specification | the complete Delta source closure of `omega-bootstrap` plus explicit compiler-host coherence, robustness, safety, and maintainability arguments | D0, samples, or whatever the Rust producer happens to accept |
+| Delta v1 | an independent literal language specification | the complete Delta source closures of the canonical Delta compiler and `omega-bootstrap`, plus explicit compiler-host coherence, robustness, safety, and maintainability arguments | D0, samples, or whatever the Rust producer happens to accept |
 | `Ωself` | a compositional profile of ordinary Omega | the complete Omega source closure of the production compiler, with retain/refactor settled by measured bridge cost | Delta's features, a file allowlist, or the current compiler's exact AST permutations |
 
 Full Omega is the already-separate product language specification. It is what
@@ -65,6 +71,7 @@ compiler artifacts instead have the following implementation obligations:
 
 | Compiler artifact | Written in | Accepts | Obligation |
 | --- | --- | --- | --- |
+| canonical Delta compiler | Delta | Delta v1 | be publishable through Delta→Gamma/Gamma without Rust and compile both required Delta source closures |
 | `omega-bootstrap` | Delta | `Ωself` | compile every admitted program with exact Omega meaning; unsupported Omega rejects |
 | production `omega` | Omega constrained to `Ωself` | full Omega | implement the complete language, optimizer, and lowering pipeline |
 | optional rebuilt `omega` | the same `Ωself`-constrained Omega source, now compiled by production `omega` | full Omega | improve the compiler executable itself and add reproducibility evidence |
@@ -117,6 +124,7 @@ tables, procedures, and explicit invariants that remain inside `Ωself`.
 The bootstrap closure condition is therefore:
 
 ```text
+the complete canonical Delta-compiler source closure ∈ Delta v1
 the complete omega-bootstrap source closure ∈ Delta v1
 the complete production-compiler source closure ∈ Ωself
 omega-bootstrap correctly compiles every input admitted by Ωself
@@ -137,10 +145,10 @@ count, or syntax-tree permutation is not an implementation of `Ωself`.
 ## Delta design budget
 
 Delta should have C-like systems power without inheriting C's undefined and
-ambient behavior. Its v1 inventory is derived from the complete
-`omega-bootstrap` source closure rather than from D0, the sample corpus, or the
-Rust producer. The following are candidate tools, not facilities already voted
-into the language:
+ambient behavior. Its v1 inventory is derived from the complete required Delta
+source closures—the canonical Delta compiler and `omega-bootstrap`—rather than
+from D0, the sample corpus, or the Rust producer. The following are candidate
+tools, not facilities already voted into the language:
 
 - fixed-width scalars, bytes, predictable aggregates, arrays, slices, and
   explicit representation;
@@ -179,16 +187,18 @@ The working boundary is sealed byte input, artifact output, diagnostic output,
 and process termination. Target configuration belongs in the deterministic
 input. Filesystem traversal, environment access, clocks, networking, process
 spawning, and general boundary-trait realization remain outside v1 unless the
-bridge source demonstrates an unavoidable requirement. Fixed backing can be
-ordinary zero-initialized program storage rather than a host service.
+canonical compiler or bridge source demonstrates an unavoidable requirement.
+Fixed backing can be ordinary zero-initialized program storage rather than a
+host service.
 
 Discovery does not make the contract corpus-shaped. During construction, each
-new facility must record either its concrete bridge requirement or its explicit
-language-coherence, robustness, safety, or maintainability argument, along with
-the simpler rejected alternative and its lower-rung meaning and negative gates.
-Before freezing v1, publish the complete source manifest and feature inventory,
-remove accidental producer behavior, then specify the retained grammar and edge
-cases independently of those particular files. The working inventory lives in
+new facility must record either its concrete need in one of the two required
+Delta programs or its explicit language-coherence, robustness, safety, or
+maintainability argument, along with the simpler rejected alternative and its
+lower-rung meaning and negative gates. Before freezing v1, publish both complete
+source manifests and the feature inventory, remove accidental producer
+behavior, then specify the retained grammar and edge cases independently of
+those particular files. The working inventory lives in
 the Delta rung's
 [`FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
@@ -226,15 +236,15 @@ preserve the Rust on-ramp's compatibility scanner.
 
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the
-complete `omega-bootstrap` closure; `Ωself` is derived from the cost and
-robustness of the production compiler source. Neither contract should be made
-artificially resemble the other, and neither source manifest is allowed to
-stand in for a language/profile definition.
+complete canonical-compiler and `omega-bootstrap` closures; `Ωself` is derived
+from the cost and robustness of the production compiler source. Neither
+contract should be made artificially resemble the other, and no exact source
+manifest is allowed to stand in for a language/profile definition.
 
 That gives the design loop exactly two feature inventories:
 
-1. What literal facilities must Delta provide so the bridge can be implemented
-   robustly?
+1. What literal facilities must Delta provide so its canonical compiler and the
+   bridge can both be implemented robustly?
 2. Which ordinary Omega facilities may the production compiler use in its own
    source while the bridge remains tractable?
 
@@ -267,7 +277,7 @@ not a standing requirement.
 | Must the product compiler implement full Omega? | settled: yes; this is not selected by bootstrap profiling |
 | Must the first product-compiler binary be optimized? | settled: no; conservative generation is sufficient |
 | Must an Omega→Omega rebuild occur? | settled: no; it is optional optimization and reproducibility work |
-| Which facilities belong to Delta v1? | open until the complete bridge closure and compiler-host arguments close |
+| Which facilities belong to Delta v1? | open until both required Delta source closures and compiler-host arguments close |
 | Which ordinary Omega facilities belong to `Ωself`? | open until the complete product closure and measured bridge join close |
 
 Named fields, payload sums, generics, domains, schema tags, and transition
@@ -308,18 +318,23 @@ establishes the implementation and assurance cost.
 
 | Omega facility in the compiler's own source | Working disposition | Decision test |
 | --- | --- | --- |
+| modules, imports, authored aliases, and logical source placement | presumptively retain; final placement input still open | checkpoint 000001 uses ten imports but mostly omits explicit `module` items; require resolver-owned logical placements and normative visibility rather than repository-path inference, while keeping private cross-module access blocked pending its language ruling |
 | propositions, proof facts/contracts, quotients, and proof-program mathematics | avoid in new compiler source; presumptively exclude | retain only if the compiler implementation itself has an unavoidable use; implementing proof checking for user programs is not such a use |
 | executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
 | dependent types and proof-indexed data/control | avoid in new compiler source; presumptively exclude | same source-need and total-cost test; implementing these features for user programs is not itself a reason to use them in compiler implementation code |
 | ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
+| concrete Trapping arithmetic and explicit casts | measure | checkpoint 000001 uses cursor, UTF-8/scalar, and byte-conversion operations; compare the complete ordinary rules with narrow checked helpers, and do not silently decide the unresolved `u32` cursor versus `u64` slice-count interaction |
 | bool-only prefix logical negation | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 uses ordinary `!` in product lexer state; OMGLOW7/CKIR6 and OMGRFN8 now measure least-version OMGRSW1/2/3 production, exact Boolean meaning through independent source and CKIR evaluators plus the Rust-free route, conservative native/self artifact emission, and one immutable R1–R5 source-to-artifact composition without adding a resolution schema |
 | ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
 | borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; compare a regular descriptor/view path with fixed-buffer-plus-span duplication, while keeping growable `Vec`-like allocation a separate question and retaining the unresolved `u32` cursor versus `u64` count ruling |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
+| state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
+| boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface |
 | static provider path arguments | measure from checkpoint 000001 | the checkpoint proves only path-valued static arguments to sealed provider selection; it is not evidence for general generic declarations |
 | basic generic declarations and calls | open; expected useful but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
+| generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
@@ -450,7 +465,7 @@ The selection rule is total cost, not the smallest feature count:
 ```text
 benefit and robustness in the production Omega source closure
 ──────────────────────────────────
-implementation + assurance cost in the omega-bootstrap Delta source closure
+implementation + assurance cost in the required Delta compiler/bridge source closures
 ```
 
 Payload sums are likely favorable. Basic generics may be as later compiler
@@ -473,6 +488,7 @@ pipeline, although that compiler's own machine code may still be conservatively
 generated.
 
 ```text
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
 Delta bridge source ──[Delta compiler]──▶ omega-bootstrap (slow binary)
 Ωself product source ──[omega-bootstrap]──▶ omega (full compiler; conservative binary)
 the same product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
@@ -509,7 +525,8 @@ freeze join as distinct milestones:
 5. Repeat for later source checkpoints and resolve every remaining row. At the
    completed product-source/bridge join, freeze both publications: `Ωself`
    from the final product manifest plus measured bridge cost, and Delta v1 from
-   the final bridge closure plus its explicit compiler-host arguments. The
+   the final canonical-compiler and bridge closures plus its explicit
+   compiler-host arguments. The
    already-running mechanical enforcement becomes the frozen `Ωself`
    acceptance gate; the Delta conformance and lower-rung gates become the
    frozen Delta-v1 acceptance gates.
@@ -533,15 +550,16 @@ The manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
 
-Delta's provisional ledger evolves while `omega-bootstrap` is written. At the
-joint settlement, prune accidental producer/corpus behavior, publish the
-general Delta v1 grammar and semantics, and prove the exact bridge closure valid
-under it. The Omega product-source manifest plus measured bridge cost decide
-`Ωself`; the Delta bridge-source manifest plus explicit compiler-host
-coherence arguments decide Delta v1. They remain separately scoped and
-versioned contracts, but their freeze is one milestone rather than sequential
-language rungs or a circular build dependency. Neither manifest substitutes
-for the corresponding general profile or language contract.
+Delta's provisional ledger evolves while the canonical compiler and
+`omega-bootstrap` are written. At the joint settlement, prune accidental
+producer/corpus behavior, publish the general Delta v1 grammar and semantics,
+and prove both exact Delta closures valid under it. The Omega product-source
+manifest plus measured bridge cost decide `Ωself`; the two required Delta
+source manifests plus explicit compiler-host coherence arguments decide Delta
+v1. The two contracts remain separately scoped and versioned, but their freeze
+is one milestone rather than sequential language rungs or a circular build
+dependency. No exact manifest substitutes for the corresponding general
+profile or language contract.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while useful. It is neither a bootstrap dependency nor an
