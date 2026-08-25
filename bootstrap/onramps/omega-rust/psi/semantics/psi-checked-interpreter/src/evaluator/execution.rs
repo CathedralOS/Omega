@@ -30,6 +30,7 @@ impl<'program> Evaluator<'program> {
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
             filesystem_operation_attempts: Vec::new(),
+            filesystem_logical_handles: FilesystemLogicalHandles::default(),
             filesystem_observation_path_bytes: 0,
             filesystem_observation_resource_halt: None,
             filesystem_operation_attempt_stack: Vec::new(),

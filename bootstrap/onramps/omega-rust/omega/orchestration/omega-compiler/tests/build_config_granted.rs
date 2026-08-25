@@ -10,10 +10,11 @@
 //! (undeclared services; unpinned custom boundary).
 
 use omega_compiler::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildObservationClass, CompileOptions, PackageCompilationInputs,
-    PackageSourceBinding, compile, compile_to_checked,
-    compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
+    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
+    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
+    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -54,6 +55,8 @@ data Stager {{
     fs: FilesystemHost;
     log: Console;
     fd: i32;
+    clone_fd: i32;
+    handle: i64;
     buffer: [u8; 6];
     n: i64;
     rc: i32;
@@ -67,12 +70,15 @@ reaches
     self.log.write_line("build: staging");
     self.fd = self.fs.open("{source}/inputs/table.txt", 0);
     self.n = self.fs.read(self.fd, &mut self.buffer, 6);
+    self.handle = self.fs.get_osfhandle(self.fd);
     self.rc = self.fs.close(self.fd);
     self.fd = self.fs.create("{stage}/asset.tmp", 438);
     transition self.fd >= 0 {{ true -> put(builder) _ -> done(builder) }}
     state put(&mut self, builder: &mut Build) {{
-        self.n = self.fs.write(self.fd, "staged by build\n");
-        _ = self.fs.sync(self.fd);
+        self.clone_fd = self.fs.duplicate(self.fd);
+        self.n = self.fs.write(self.clone_fd, "staged by build\n");
+        _ = self.fs.sync(self.clone_fd);
+        self.n = self.fs.close(self.clone_fd);
         self.n = self.fs.close(self.fd);
         self.rc = self.fs.rename("{stage}/asset.tmp", "{stage}/asset.bin");
         transition true {{ true -> done(builder) _ -> done(builder) }}
@@ -114,7 +120,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 4);
+    assert_eq!(checked_observations.schema_version(), 5);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -125,7 +131,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        5
+        6
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -144,10 +150,13 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         vec![
             (2, BuildFilesystemProvider::RealScoped, 3, 0),
             (4, BuildFilesystemProvider::RealScoped, 6, 0),
+            (30, BuildFilesystemProvider::RealScoped, 3, 0),
             (8, BuildFilesystemProvider::RealScoped, 0, 0),
             (1, BuildFilesystemProvider::RealScoped, 4, 0),
+            (45, BuildFilesystemProvider::RealScoped, 5, 0),
             (5, BuildFilesystemProvider::RealScoped, 16, 0),
             (43, BuildFilesystemProvider::RealScoped, 0, 0),
+            (8, BuildFilesystemProvider::RealScoped, 0, 0),
             (8, BuildFilesystemProvider::RealScoped, 0, 0),
             (18, BuildFilesystemProvider::RealScoped, 0, 0),
         ]
@@ -206,6 +215,91 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
             ),
         ]
     );
+
+    let [
+        open,
+        read,
+        get_osfhandle,
+        close_source,
+        create,
+        duplicate,
+        write,
+        sync,
+        close_clone,
+        close_output,
+        rename,
+    ] = checked_observations.filesystem_operation_attempts()
+    else {
+        panic!("fixture must retain its complete logical-handle operation sequence")
+    };
+    let source_descriptor = open
+        .logical_handle_output()
+        .expect("successful open creates a logical descriptor");
+    assert_eq!(
+        source_descriptor.kind(),
+        BuildFilesystemLogicalHandleKind::Descriptor
+    );
+    assert_eq!(source_descriptor.identity().get(), 1);
+    assert_eq!(
+        source_descriptor.source(),
+        BuildFilesystemLogicalHandleOutputSource::Created
+    );
+    let [read_source] = read.logical_handle_inputs() else {
+        panic!("read retains its descriptor operand")
+    };
+    assert_eq!(read_source.operand_ordinal(), 0);
+    assert_eq!(
+        read_source.resolution(),
+        BuildFilesystemLogicalHandleInputResolution::Resolved(source_descriptor.identity())
+    );
+    let borrowed_handle = get_osfhandle
+        .logical_handle_output()
+        .expect("get_osfhandle retains a borrowed native handle");
+    assert_eq!(
+        borrowed_handle.kind(),
+        BuildFilesystemLogicalHandleKind::Native
+    );
+    assert_eq!(borrowed_handle.identity().get(), 2);
+    assert_eq!(
+        borrowed_handle.source(),
+        BuildFilesystemLogicalHandleOutputSource::Borrowed(source_descriptor.identity())
+    );
+    assert_eq!(
+        close_source.retired_logical_handles(),
+        &[source_descriptor.identity(), borrowed_handle.identity()],
+        "closing the descriptor also retires its borrowed native view"
+    );
+
+    let output_descriptor = create
+        .logical_handle_output()
+        .expect("successful create mints a fresh descriptor lifetime");
+    assert_eq!(output_descriptor.identity().get(), 3);
+    let duplicate_descriptor = duplicate
+        .logical_handle_output()
+        .expect("successful duplicate mints a distinct descriptor lifetime");
+    assert_eq!(duplicate_descriptor.identity().get(), 4);
+    assert_eq!(
+        duplicate_descriptor.source(),
+        BuildFilesystemLogicalHandleOutputSource::Duplicated(output_descriptor.identity())
+    );
+    for operation in [write, sync, close_clone] {
+        let [input] = operation.logical_handle_inputs() else {
+            panic!("clone operation retains one descriptor input")
+        };
+        assert_eq!(
+            input.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Resolved(duplicate_descriptor.identity())
+        );
+    }
+    assert_eq!(
+        close_clone.retired_logical_handles(),
+        &[duplicate_descriptor.identity()]
+    );
+    assert_eq!(
+        close_output.retired_logical_handles(),
+        &[output_descriptor.identity()]
+    );
+    assert!(rename.logical_handle_inputs().is_empty());
 
     let report = compile(CompileOptions {
         root_path: PathBuf::from(project.join("main.omg")),
@@ -279,6 +373,7 @@ reaches
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.fd = self.fs.create("{forbidden}", 438);
     self.fd = self.fs.create("{unresolvable}", 438);
+    self.rc = self.fs.close(self.fd);
     self.rc = self.fs.remove("{absent_output}");
     self.rc = self.fs.rename("{mixed_from}", "{mixed_to}");
     self.rc = self.fs.rename("{rename_from}", "{rename_to}");
@@ -324,6 +419,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let [
         denied_create,
         unresolved_create,
+        failed_close,
         absent_remove,
         mixed_rename,
         denied_rename,
@@ -373,6 +469,23 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         unresolved_refusal.reason(),
         BuildFilesystemGrantRefusalReason::Unresolvable
     );
+
+    assert_eq!(failed_close.operation_tag(), 8);
+    assert_eq!(failed_close.result(), -1);
+    let [unknown_descriptor] = failed_close.logical_handle_inputs() else {
+        panic!("failed close retains its unresolved descriptor operand")
+    };
+    assert_eq!(unknown_descriptor.operand_ordinal(), 0);
+    assert_eq!(
+        unknown_descriptor.kind(),
+        BuildFilesystemLogicalHandleKind::Descriptor
+    );
+    assert_eq!(
+        unknown_descriptor.resolution(),
+        BuildFilesystemLogicalHandleInputResolution::Unknown
+    );
+    assert!(failed_close.logical_handle_output().is_none());
+    assert!(failed_close.retired_logical_handles().is_empty());
 
     assert_eq!(absent_remove.operation_tag(), 9);
     assert_eq!(absent_remove.result(), -1);
@@ -451,6 +564,131 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert!(!rename_from.exists());
     assert!(!rename_to.exists());
     assert!(!unresolvable.exists());
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn source_descriptor_cannot_amplify_read_grant_into_mutation_authority() {
+    let profile = omega_target::TargetProfile::host();
+    let project = std::env::temp_dir().join(format!(
+        "omega-build-config-descriptor-grant-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create project directory");
+    let source_file = project.join("source.txt");
+    std::fs::write(&source_file, "source remains immutable\n").expect("seed source file");
+
+    #[cfg(unix)]
+    let original_mode = {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        std::fs::set_permissions(&source_file, std::fs::Permissions::from_mode(0o640))
+            .expect("set source fixture mode");
+        std::fs::metadata(&source_file).unwrap().mode() & 0o7777
+    };
+
+    std::fs::write(
+        project.join("build.omg"),
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
+data Build {{ subsystem: Subsystem; freestanding: bool; }}
+
+data SourceMetadataWriter {{
+    fs: FilesystemHost;
+    descriptor: i32;
+    result: i32;
+}}
+
+machine SourceMetadataWriter::build(&mut self, builder: &mut Build)
+reaches
+    FilesystemHost
+{{
+    builder.roots.bind({root_owner}::ProgramEntry, Main::main);
+    self.descriptor = self.fs.open("{source_file}", 0);
+    self.result = self.fs.set_file_permissions(self.descriptor, 511);
+    self.result = self.fs.lock_file(self.descriptor, 6);
+    self.result = self.fs.close(self.descriptor);
+    builder.freestanding = false;
+}}
+"#,
+            source_file = source_file.display().to_string().replace('\\', "/"),
+            target = profile.target_name(),
+            root_owner = profile.root_slot_owner_name(),
+        ),
+    )
+    .expect("write build.omg");
+    std::fs::write(
+        project.join("main.omg"),
+        r#"use omega::language::std::console;
+data Main { console: Console; }
+machine Main::main(&mut self) { self.console.exit_process(70); }
+"#,
+    )
+    .expect("write main.omg");
+
+    let report = compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(project.join("build")),
+        target_name: Some(profile.target_name().to_owned()),
+        write_output: false,
+    })
+    .expect("a denied descriptor metadata mutation is an ordinary build result");
+    let observations = report
+        .build_observation_summary
+        .expect("descriptor mutation denial remains observable");
+    let [opened, denied_mutation, denied_lock, closed] =
+        observations.filesystem_operation_attempts()
+    else {
+        panic!("open, denied metadata/lock mutations, and close must remain ordered evidence")
+    };
+    assert_eq!(opened.operation_tag(), 2);
+    assert!(opened.result() >= 0);
+    let opened_identity = opened
+        .logical_handle_output()
+        .expect("successful source open creates a logical descriptor")
+        .identity();
+    assert_eq!(denied_mutation.operation_tag(), 17);
+    assert_eq!(denied_mutation.result(), -1);
+    assert_eq!(denied_mutation.post_error(), 13);
+    let [descriptor_input] = denied_mutation.logical_handle_inputs() else {
+        panic!("denied descriptor mutation must name its logical input")
+    };
+    assert_eq!(
+        descriptor_input.resolution(),
+        BuildFilesystemLogicalHandleInputResolution::Resolved(opened_identity)
+    );
+    assert_eq!(denied_lock.operation_tag(), 46);
+    assert_eq!(denied_lock.result(), -1);
+    assert_eq!(denied_lock.post_error(), 13);
+    let [lock_input] = denied_lock.logical_handle_inputs() else {
+        panic!("denied lock must name its logical descriptor input")
+    };
+    assert_eq!(
+        lock_input.resolution(),
+        BuildFilesystemLogicalHandleInputResolution::Resolved(opened_identity)
+    );
+    assert_eq!(closed.operation_tag(), 8);
+    assert_eq!(closed.result(), 0);
+    assert_eq!(closed.retired_logical_handles(), &[opened_identity]);
+    assert_eq!(
+        std::fs::read_to_string(&source_file).unwrap(),
+        "source remains immutable\n"
+    );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        assert_eq!(
+            std::fs::metadata(&source_file).unwrap().mode() & 0o7777,
+            original_mode,
+            "read-authorized source descriptor must not mutate source metadata"
+        );
+    }
 
     let _ = std::fs::remove_dir_all(&project);
 }

@@ -428,8 +428,8 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v4
-carries operation-attempt schema v5, retaining each completed operation's exact
+stay separate from capability/API comparison bytes. Observation schema v5
+carries operation-attempt schema v6, retaining each completed operation's exact
 provider, stable tag, scalar result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -439,8 +439,19 @@ unrepresentable rooted paths, and retained-path budget exhaustion reject before
 host access; budget exhaustion non-catchably halts evaluation. Partial typed
 outcomes survive evaluator failure, while worker
 failure marks evidence unavailable; Omega emits fixed non-admission counts and
-no review row. It omits complete arguments, descriptor/logical-handle lineage,
-mutable byte regions, returned path bytes, and content, so it remains an
+no review row. Descriptor, native, and find operands retain exact
+Resolved/Null/Unknown logical lifetimes. Successful opens mint monotonic IDs;
+duplicates and borrowed native views retain their source, successful closes
+retain every invalidation, failed closes retire nothing, and provider-token
+reuse after close receives a fresh ID. A token live in another logical domain
+rejects before provider access; provider acceptance of an otherwise Unknown
+token traps. Virtual duplicates share the source cursor;
+real descriptors retain rooted write authority through duplicate and borrowed
+views, denying content, extent, metadata, ownership, and host-lock mutation
+before sponsor or host access when admitted only for source reads;
+`open_at`/`unlink_at` names are one portable relative component; real path
+outputs are lossless or reject. It still omits complete scalar/byte arguments,
+mutable byte regions, retained returned-path bytes, and content, so it remains an
 incomplete trace and makes no receipt, replayability, or source-rebuildability
 claim. Canonical operation transcripts,
 recorded inputs, staged-output commitments, and replay checking remain required

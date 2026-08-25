@@ -37,6 +37,21 @@ fn check_byte_len(length: usize) -> EvalResult<()> {
     Ok(())
 }
 
+fn checked_relative_component(bytes: Vec<u8>) -> EvalResult<Vec<u8>> {
+    if bytes.is_empty()
+        || bytes == b"."
+        || bytes == b".."
+        || bytes.contains(&b'/')
+        || bytes.contains(&b'\\')
+        || bytes.contains(&0)
+    {
+        return trap(
+            "filesystem relative-name operand is not one nonempty portable path component",
+        );
+    }
+    Ok(bytes)
+}
+
 /// Both interpreter providers model Win32 HANDLEs with their i32 descriptor
 /// tables. Reject values outside that synthetic domain instead of allowing a
 /// lossy cast to alias an unrelated open descriptor.
@@ -374,6 +389,246 @@ pub(super) enum PreparedFilesystemCall {
     Errno,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PreparedFilesystemLogicalHandleInput {
+    pub(super) operand_ordinal: u8,
+    pub(super) kind: FilesystemLogicalHandleKind,
+    pub(super) raw: i64,
+    pub(super) null_allowed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FilesystemLogicalHandleResultSuccess {
+    NonNegative,
+    NotMinusOne,
+    Zero,
+    NonZero,
+}
+
+impl FilesystemLogicalHandleResultSuccess {
+    pub(super) const fn accepts(self, result: i64) -> bool {
+        match self {
+            Self::NonNegative => result >= 0,
+            Self::NotMinusOne => result != -1,
+            Self::Zero => result == 0,
+            Self::NonZero => result != 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PreparedFilesystemLogicalHandleOutput {
+    Created {
+        kind: FilesystemLogicalHandleKind,
+        success: FilesystemLogicalHandleResultSuccess,
+    },
+    Duplicated {
+        source_operand_ordinal: u8,
+        success: FilesystemLogicalHandleResultSuccess,
+    },
+    Borrowed {
+        source_operand_ordinal: u8,
+        success: FilesystemLogicalHandleResultSuccess,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum FilesystemLogicalHandleRetirementSuccess {
+    Zero,
+    NonZero,
+}
+
+impl FilesystemLogicalHandleRetirementSuccess {
+    pub(super) const fn accepts(self, result: i64) -> bool {
+        match self {
+            Self::Zero => result == 0,
+            Self::NonZero => result != 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PreparedFilesystemLogicalHandleRetirement {
+    pub(super) operand_ordinal: u8,
+    pub(super) success: FilesystemLogicalHandleRetirementSuccess,
+}
+
+pub(super) struct PreparedFilesystemLogicalHandlePlan {
+    pub(super) inputs: Vec<PreparedFilesystemLogicalHandleInput>,
+    pub(super) input_success: Option<FilesystemLogicalHandleResultSuccess>,
+    pub(super) output: Option<PreparedFilesystemLogicalHandleOutput>,
+    pub(super) retirement: Option<PreparedFilesystemLogicalHandleRetirement>,
+}
+
+impl PreparedFilesystemCall {
+    /// Project the closed canonical call into descriptor/handle roles before a
+    /// provider consumes it. Scalar values that merely share an integer ABI
+    /// width (pointers, offsets, flags, ownership IDs) never enter this plan.
+    pub(super) fn logical_handle_plan(&self) -> PreparedFilesystemLogicalHandlePlan {
+        use FilesystemLogicalHandleKind as Kind;
+        use FilesystemLogicalHandleResultSuccess as ResultSuccess;
+        use FilesystemLogicalHandleRetirementSuccess as RetireSuccess;
+
+        let input =
+            |operand_ordinal, kind, raw, null_allowed| PreparedFilesystemLogicalHandleInput {
+                operand_ordinal,
+                kind,
+                raw,
+                null_allowed,
+            };
+        let mut inputs = Vec::new();
+        let mut input_success = None;
+        let mut output = None;
+        let mut retirement = None;
+        match self {
+            Self::Create { .. } | Self::Open { .. } | Self::OpenCreate { .. } => {
+                output = Some(PreparedFilesystemLogicalHandleOutput::Created {
+                    kind: Kind::Descriptor,
+                    success: ResultSuccess::NonNegative,
+                });
+            }
+            Self::Read { fd, .. }
+            | Self::Write { fd, .. }
+            | Self::ReadAt { fd, .. }
+            | Self::WriteAt { fd, .. }
+            | Self::Seek { fd, .. }
+            | Self::SetFilePermissions { fd, .. }
+            | Self::ReadDir { fd, .. }
+            | Self::GetOsfHandle { fd }
+            | Self::ReadFileMetadata { fd, .. }
+            | Self::SetLen { fd, .. }
+            | Self::SetFileTimes { fd, .. }
+            | Self::Sync { fd }
+            | Self::SyncData { fd }
+            | Self::Duplicate { fd }
+            | Self::LockFile { fd, .. }
+            | Self::ChangeFileOwner { fd, .. } => {
+                inputs.push(input(0, Kind::Descriptor, i64::from(*fd), false));
+                input_success = Some(match self {
+                    Self::Read { .. }
+                    | Self::Write { .. }
+                    | Self::ReadAt { .. }
+                    | Self::WriteAt { .. }
+                    | Self::Seek { .. }
+                    | Self::ReadDir { .. }
+                    | Self::GetOsfHandle { .. }
+                    | Self::Duplicate { .. } => ResultSuccess::NonNegative,
+                    Self::SetFilePermissions { .. }
+                    | Self::ReadFileMetadata { .. }
+                    | Self::SetLen { .. }
+                    | Self::SetFileTimes { .. }
+                    | Self::Sync { .. }
+                    | Self::SyncData { .. }
+                    | Self::LockFile { .. }
+                    | Self::ChangeFileOwner { .. } => ResultSuccess::Zero,
+                    _ => unreachable!("descriptor-input operation group is exhaustive"),
+                });
+                output = match self {
+                    Self::GetOsfHandle { .. } => {
+                        Some(PreparedFilesystemLogicalHandleOutput::Borrowed {
+                            source_operand_ordinal: 0,
+                            success: ResultSuccess::NonNegative,
+                        })
+                    }
+                    Self::Duplicate { .. } => {
+                        Some(PreparedFilesystemLogicalHandleOutput::Duplicated {
+                            source_operand_ordinal: 0,
+                            success: ResultSuccess::NonNegative,
+                        })
+                    }
+                    _ => None,
+                };
+            }
+            Self::Close { fd } => {
+                inputs.push(input(0, Kind::Descriptor, i64::from(*fd), false));
+                input_success = Some(ResultSuccess::Zero);
+                retirement = Some(PreparedFilesystemLogicalHandleRetirement {
+                    operand_ordinal: 0,
+                    success: RetireSuccess::Zero,
+                });
+            }
+            Self::OpenAt { dirfd, .. } => {
+                inputs.push(input(0, Kind::Descriptor, i64::from(*dirfd), false));
+                input_success = Some(ResultSuccess::NonNegative);
+                output = Some(PreparedFilesystemLogicalHandleOutput::Created {
+                    kind: Kind::Descriptor,
+                    success: ResultSuccess::NonNegative,
+                });
+            }
+            Self::UnlinkAt { dirfd, .. } => {
+                inputs.push(input(0, Kind::Descriptor, i64::from(*dirfd), false));
+                input_success = Some(ResultSuccess::Zero);
+            }
+            Self::FindFirst { .. } => {
+                output = Some(PreparedFilesystemLogicalHandleOutput::Created {
+                    kind: Kind::Find,
+                    success: ResultSuccess::NotMinusOne,
+                });
+            }
+            Self::FindNext { handle, .. } => {
+                inputs.push(input(0, Kind::Find, *handle, false));
+                input_success = Some(ResultSuccess::NonZero);
+            }
+            Self::FindClose { handle } => {
+                inputs.push(input(0, Kind::Find, *handle, false));
+                input_success = Some(ResultSuccess::NonZero);
+                retirement = Some(PreparedFilesystemLogicalHandleRetirement {
+                    operand_ordinal: 0,
+                    success: RetireSuccess::NonZero,
+                });
+            }
+            Self::OpenPathHandle { template_file, .. } => {
+                inputs.push(input(6, Kind::Native, *template_file, true));
+                input_success = Some(ResultSuccess::NotMinusOne);
+                output = Some(PreparedFilesystemLogicalHandleOutput::Created {
+                    kind: Kind::Native,
+                    success: ResultSuccess::NotMinusOne,
+                });
+            }
+            Self::CloseHandle { handle } => {
+                inputs.push(input(0, Kind::Native, *handle, false));
+                input_success = Some(ResultSuccess::NonZero);
+                retirement = Some(PreparedFilesystemLogicalHandleRetirement {
+                    operand_ordinal: 0,
+                    success: RetireSuccess::NonZero,
+                });
+            }
+            Self::FinalPathNameByHandle { handle, .. }
+            | Self::SetFileTime { handle, .. }
+            | Self::LockFileEx { handle, .. }
+            | Self::UnlockFile { handle, .. } => {
+                inputs.push(input(0, Kind::Native, *handle, false));
+                input_success = Some(ResultSuccess::NonZero);
+            }
+            Self::Remove { .. }
+            | Self::CreateDir { .. }
+            | Self::RemoveDir { .. }
+            | Self::CreateDirName { .. }
+            | Self::SetPermissions { .. }
+            | Self::Rename { .. }
+            | Self::HardLink { .. }
+            | Self::Symlink { .. }
+            | Self::ReadLink { .. }
+            | Self::Canonicalize { .. }
+            | Self::CreateHardLink { .. }
+            | Self::GetLastError
+            | Self::RemoveName { .. }
+            | Self::RemoveDirName { .. }
+            | Self::ReadMetadata { .. }
+            | Self::ReadSymlinkMetadata { .. }
+            | Self::ChangeOwner { .. }
+            | Self::ChangeOwnerNoFollow { .. }
+            | Self::Errno => {}
+        }
+        PreparedFilesystemLogicalHandlePlan {
+            inputs,
+            input_success,
+            output,
+            retirement,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -438,6 +693,27 @@ mod tests {
     }
 
     #[test]
+    fn at_family_names_are_exact_portable_relative_components() {
+        let Ok(accepted) = checked_relative_component(b"entry.bin".to_vec()) else {
+            panic!("one ordinary component must be accepted")
+        };
+        assert_eq!(accepted, b"entry.bin");
+        for rejected in [
+            b"".as_slice(),
+            b".".as_slice(),
+            b"..".as_slice(),
+            b"nested/entry".as_slice(),
+            b"nested\\entry".as_slice(),
+            b"nul\0entry".as_slice(),
+        ] {
+            assert!(
+                checked_relative_component(rejected.to_vec()).is_err(),
+                "unexpected accepted relative component: {rejected:?}"
+            );
+        }
+    }
+
+    #[test]
     fn every_canonical_operation_rejects_wrong_arity_before_cursor_creation() {
         for operation in FilesystemHostOperation::ALL {
             let expected = operation.operand_kinds().len();
@@ -470,6 +746,84 @@ mod tests {
         assert!(!real_source.contains("frame: &Frame"));
         assert!(!virtual_source.contains("handle as i32"));
         assert!(!real_source.contains("handle as i32"));
+    }
+
+    #[test]
+    fn logical_handle_plan_distinguishes_descriptor_native_find_and_pointer_scalars() {
+        let descriptor_open = PreparedFilesystemCall::Create {
+            path: b"file".to_vec(),
+            mode: 0,
+        }
+        .logical_handle_plan();
+        assert!(descriptor_open.inputs.is_empty());
+        assert!(matches!(
+            descriptor_open.output,
+            Some(PreparedFilesystemLogicalHandleOutput::Created {
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                ..
+            })
+        ));
+
+        let borrowed = PreparedFilesystemCall::GetOsfHandle { fd: 7 }.logical_handle_plan();
+        assert_eq!(
+            borrowed.inputs,
+            vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                raw: 7,
+                null_allowed: false,
+            }]
+        );
+        assert!(matches!(
+            borrowed.output,
+            Some(PreparedFilesystemLogicalHandleOutput::Borrowed {
+                source_operand_ordinal: 0,
+                ..
+            })
+        ));
+
+        let native_open = PreparedFilesystemCall::OpenPathHandle {
+            path: b"file".to_vec(),
+            desired_access: 0,
+            share_mode: 0,
+            security_attributes: 123,
+            creation_disposition: 0,
+            flags_and_attributes: 0,
+            template_file: 0,
+        }
+        .logical_handle_plan();
+        assert_eq!(
+            native_open.inputs,
+            vec![PreparedFilesystemLogicalHandleInput {
+                operand_ordinal: 6,
+                kind: FilesystemLogicalHandleKind::Native,
+                raw: 0,
+                null_allowed: true,
+            }],
+            "security_attributes is pointer-shaped but only template_file is a handle"
+        );
+
+        let find = PreparedFilesystemCall::FindFirst {
+            pattern: b"dir/*".to_vec(),
+            data: array_output(FIND_DATA_OUTPUT_BYTES),
+        }
+        .logical_handle_plan();
+        assert!(matches!(
+            find.output,
+            Some(PreparedFilesystemLogicalHandleOutput::Created {
+                kind: FilesystemLogicalHandleKind::Find,
+                ..
+            })
+        ));
+
+        let hard_link = PreparedFilesystemCall::CreateHardLink {
+            link: b"link".to_vec(),
+            existing: b"file".to_vec(),
+            security_attributes: 123,
+        }
+        .logical_handle_plan();
+        assert!(hard_link.inputs.is_empty());
+        assert!(hard_link.output.is_none());
     }
 
     #[test]
@@ -724,16 +1078,18 @@ impl<'program> Evaluator<'program> {
                 name: a.bytes()?,
                 mode: a.i32()?,
             },
-            FilesystemHostOperation::OpenAt => PreparedFilesystemCall::OpenAt {
-                dirfd: a.fd()?,
-                name: a.bytes()?,
-                flags: a.i32()?,
-            },
-            FilesystemHostOperation::UnlinkAt => PreparedFilesystemCall::UnlinkAt {
-                dirfd: a.fd()?,
-                name: a.bytes()?,
-                flags: a.i32()?,
-            },
+            FilesystemHostOperation::OpenAt => {
+                let dirfd = a.fd()?;
+                let name = checked_relative_component(a.bytes()?)?;
+                let flags = a.i32()?;
+                PreparedFilesystemCall::OpenAt { dirfd, name, flags }
+            }
+            FilesystemHostOperation::UnlinkAt => {
+                let dirfd = a.fd()?;
+                let name = checked_relative_component(a.bytes()?)?;
+                let flags = a.i32()?;
+                PreparedFilesystemCall::UnlinkAt { dirfd, name, flags }
+            }
             FilesystemHostOperation::SetPermissions => PreparedFilesystemCall::SetPermissions {
                 path: a.bytes()?,
                 mode: a.u32()?,

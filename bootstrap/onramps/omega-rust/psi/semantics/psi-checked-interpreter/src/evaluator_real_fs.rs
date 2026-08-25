@@ -14,8 +14,10 @@
 //! a namespace leaf canonicalize only its parent and authorize the leaf
 //! itself. Thus `..` traversal and parent symlink escapes are refused without
 //! mistaking an existing leaf symlink's target for the entry a namespace
-//! syscall actually mutates. Fd-based ops need no re-check: an fd only enters
-//! the table through an authorized open.
+//! syscall actually mutates. Every fd retains whether its rooted origin had a
+//! write grant; descriptor-based writes, metadata mutations, and host-visible
+//! file locks re-check that bit before sponsor or host access. A read-authorized
+//! source descriptor can therefore never amplify into mutation authority.
 //!
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
@@ -107,6 +109,7 @@ fn read_only_open_bypasses_sponsor(
 const ENOTSUP: i32 = 45;
 const EBADF: i32 = 9;
 const EACCES: i32 = 13;
+const EINVAL: i32 = 22;
 const ENOENT: i32 = 2;
 const ENOTDIR: i32 = 20;
 const MAX_FILESYSTEM_OBSERVATION_PATH_BYTES: usize = 16 * 1024 * 1024;
@@ -210,6 +213,10 @@ struct RealFd {
     path: PathBuf,
     sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
     append: bool,
+    /// Whether this descriptor's canonical rooted origin is covered by a
+    /// compiler write grant. This is independent of the OS open mode: metadata
+    /// operations can succeed on read-only descriptors on some hosts.
+    write_granted: bool,
 }
 
 pub(super) struct RealFs {
@@ -251,6 +258,10 @@ impl RealFs {
         sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
         append: bool,
     ) -> i64 {
+        let write_granted = self
+            .grants
+            .as_ref()
+            .is_none_or(|grants| grants.matching_root(&path, true).is_some());
         let fd = self.next_fd;
         self.next_fd += 1;
         self.files.insert(
@@ -260,9 +271,14 @@ impl RealFs {
                 path,
                 sponsor_descriptor,
                 append,
+                write_granted,
             },
         );
         i64::from(fd)
+    }
+
+    fn descriptor_write_granted(&self, fd: i32) -> Option<bool> {
+        self.files.get(&fd).map(|entry| entry.write_granted)
     }
 }
 
@@ -302,6 +318,18 @@ fn real_path(bytes: &[u8]) -> Option<PathBuf> {
     }
 }
 
+fn real_os_bytes(value: &std::ffi::OsStr) -> Option<Vec<u8>> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        Some(value.as_bytes().to_vec())
+    }
+    #[cfg(not(unix))]
+    {
+        value.to_str().map(|value| value.as_bytes().to_vec())
+    }
+}
+
 /// List a real directory as `(name, d_type)` entries for dirent packing:
 /// `.`/`..` first (native getdirentries reports them; the wrapper's decode
 /// skips them by name), then the immediate children SORTED for determinism --
@@ -324,14 +352,9 @@ fn real_dirent_entries(path: &Path) -> Result<Vec<(Vec<u8>, u8)>, i32> {
             Ok(_) => 8,                          // DT_REG
             Err(_) => 0,                         // DT_UNKNOWN
         };
-        children.push((
-            dir_entry
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-                .into_bytes(),
-            d_type,
-        ));
+        let file_name = dir_entry.file_name();
+        let bytes = real_os_bytes(&file_name).ok_or(EINVAL)?;
+        children.push((bytes, d_type));
     }
     children.sort();
     let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
@@ -534,6 +557,9 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             PreparedFilesystemCall::Write { fd, bytes } => {
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let prepared = match self.prepare_sponsored_write(fd, bytes.len(), None)? {
                     Ok(prepared) => prepared,
                     Err(errno) => {
@@ -629,6 +655,9 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             PreparedFilesystemCall::SetLen { fd, length } => {
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let length = u64::try_from(length.max(0)).expect("nonnegative i64 fits in u64");
                 let prepared = self.prepare_sponsored_set_extent(fd, length)?;
                 let outcome = match self.real_fs_mut().files.get_mut(&fd) {
@@ -745,6 +774,9 @@ impl<'program> super::Evaluator<'program> {
             PreparedFilesystemCall::WriteAt { fd, bytes, offset } => {
                 // `pwrite(fd, buf, offset)`: write at an absolute offset
                 // WITHOUT moving the cursor (same emulation).
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let prepared = match self.prepare_sponsored_write(fd, bytes.len(), Some(offset))? {
                     Ok(prepared) => prepared,
                     Err(errno) => {
@@ -899,7 +931,10 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path(&path, false, 0) {
                     Some(path) => match std::fs::canonicalize(&path) {
                         Ok(resolved) => {
-                            let mut bytes = resolved.to_string_lossy().into_owned().into_bytes();
+                            let Some(mut bytes) = real_os_bytes(resolved.as_os_str()) else {
+                                self.real_fs_mut().errno = EINVAL;
+                                return Ok(Value::Int(0));
+                            };
                             bytes.push(0);
                             buffer.write(&bytes)?;
                             1
@@ -985,7 +1020,10 @@ impl<'program> super::Evaluator<'program> {
                 match path {
                     Some(path) => match std::fs::canonicalize(path) {
                         Ok(path) => {
-                            let path = path.display().to_string().into_bytes();
+                            let Some(path) = real_os_bytes(path.as_os_str()) else {
+                                self.real_fs_mut().errno = 1113; // ERROR_NO_UNICODE_TRANSLATION
+                                return Ok(Value::Int(0));
+                            };
                             if path.len() < capacity.host {
                                 let mut bytes = path.clone();
                                 bytes.push(0);
@@ -1027,6 +1065,9 @@ impl<'program> super::Evaluator<'program> {
                     self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
                     return Ok(Value::Int(0));
                 };
+                if !self.require_real_descriptor_write_grant(handle, true) {
+                    return Ok(Value::Int(0));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&handle) {
                     Some(entry) => {
@@ -1084,7 +1125,10 @@ impl<'program> super::Evaluator<'program> {
                 match self.authorized_path_no_follow(&path, false, 0) {
                     Some(path) => match std::fs::read_link(&path) {
                         Ok(target) => {
-                            let bytes = target.to_string_lossy().into_owned().into_bytes();
+                            let Some(bytes) = real_os_bytes(target.as_os_str()) else {
+                                self.real_fs_mut().errno = EINVAL;
+                                return Ok(Value::Int(-1));
+                            };
                             let n = bytes.len().min(count.host);
                             buffer.write(&bytes[..n])?;
                             n as i64
@@ -1120,8 +1164,12 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             PreparedFilesystemCall::SetFilePermissions { fd, mode } => {
-                // `fchmod(fd, mode)`: by descriptor; no re-authorization (the
-                // fd entered through an authorized open).
+                // `fchmod(fd, mode)`: the descriptor must retain write grant
+                // even when the host permits metadata changes on a read-only
+                // open file description.
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => {
@@ -1161,6 +1209,9 @@ impl<'program> super::Evaluator<'program> {
                     .get(16..24)
                     .map(|bytes| i64::from_le_bytes(bytes.try_into().unwrap()))
                     .unwrap_or(0);
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
                     Some(entry) => {
@@ -1187,6 +1238,9 @@ impl<'program> super::Evaluator<'program> {
             PreparedFilesystemCall::LockFile { fd, operation } => {
                 // `flock(fd, op)`: LOCK_SH=1 LOCK_EX=2 LOCK_NB=4 LOCK_UN=8,
                 // served by std's advisory file locks on the real handle.
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => real_lock(&entry.file, operation, &mut real.errno),
@@ -1211,6 +1265,9 @@ impl<'program> super::Evaluator<'program> {
                     self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
                     return Ok(Value::Int(0));
                 };
+                if !self.require_real_descriptor_write_grant(fd, true) {
+                    return Ok(Value::Int(0));
+                }
                 let flags = flags as i32;
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
@@ -1232,6 +1289,9 @@ impl<'program> super::Evaluator<'program> {
                     self.real_fs_mut().errno = 6; // ERROR_INVALID_HANDLE
                     return Ok(Value::Int(0));
                 };
+                if !self.require_real_descriptor_write_grant(fd, true) {
+                    return Ok(Value::Int(0));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => match entry.file.unlock() {
@@ -1276,6 +1336,9 @@ impl<'program> super::Evaluator<'program> {
             }
             PreparedFilesystemCall::ChangeFileOwner { fd, uid, gid } => {
                 // `fchown(fd, uid, gid)`: by descriptor.
+                if !self.require_real_descriptor_write_grant(fd, false) {
+                    return Ok(Value::Int(-1));
+                }
                 let real = self.real_fs_mut();
                 match real.files.get(&fd) {
                     Some(entry) => {
@@ -1424,6 +1487,27 @@ impl<'program> super::Evaluator<'program> {
                 )
             }
             None => Ok(-1),
+        }
+    }
+
+    /// Enforce the compiler grant retained by an opened descriptor before a
+    /// descriptor-based mutation reaches sponsor accounting or the host.
+    /// Missing descriptors preserve each ABI family's native error shape.
+    fn require_real_descriptor_write_grant(&mut self, fd: i32, win32_errors: bool) -> bool {
+        match self
+            .real_fs
+            .as_ref()
+            .and_then(|filesystem| filesystem.descriptor_write_granted(fd))
+        {
+            Some(true) => true,
+            Some(false) => {
+                self.real_fs_mut().errno = if win32_errors { 5 } else { EACCES };
+                false
+            }
+            None => {
+                self.real_fs_mut().errno = if win32_errors { 6 } else { EBADF };
+                false
+            }
         }
     }
 
