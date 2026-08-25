@@ -488,14 +488,12 @@ obligations remain mandatory. CKIR3 additionally requires:
    observations. The Rust-free Delta-to-Gamma meaning route independently
    checks the same semantic graph, result, and exhaustion boundaries. A Rust
    product compiler may remain differential evidence only.
-8. The refinement carrier receives a new version and a derived simultaneous
-   component ceiling; an older OMGRFN frame rejects CKIR3. Independent
-   persisted-Beta responsibilities separately reconstruct: exact frame and
-   source custody; source-to-OMGRSW1 resolution; OMGRSW1 declarations/types and
-   constant tables; resolved bodies plus physically artifact-free source
-   meaning; and CKIR3 result plus complete conservative ELF. A composition gate
-   joins all five over the same exact frame with phase-isolated cross-pairs and
-   mutations; it does not merge them into one verifier.
+8. Lower-rooted CKIR3 refinement uses the distinct `OMGRFN4` version-4 carrier
+   and exact 4,497,544-byte simultaneous ceiling defined by
+   [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md).
+   The five logical responsibilities and the constant-table/source-root/
+   artifact-root ownership boundary are normative there. Earlier OMGRFN
+   carriers and checkers remain frozen and reject CKIR3.
 
 Only that evidence closes the selected bounded, finite-call, returning
 source-to-artifact relation. It does not grant compilation authority without

@@ -62,6 +62,15 @@ witness-, CKIR-, and ELF-local mutations. These five responsibilities now close
 the selected finite-call source-to-artifact relation below Delta. No OMGRFN2
 checker is relabeled or widened in place.
 
+The CKIR3 constant-aggregate successor is separately specified as
+[`OMGRFN4`](OMGCOMP_REFINEMENT_WITNESS_V4.md). Its 4,497,544-byte simultaneous
+ceiling follows directly from the already-published CKIR3 component maxima.
+The contract keeps frame/source custody, resolution, intrinsic constant-table
+structure, source-derived roots and meaning, and complete CKIR/result/artifact
+reconstruction as five independent responsibilities over one exact carrier.
+Implementations and their same-frame composition gate remain open; no earlier
+OMGRFN checker is widened to provide CKIR3 evidence.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
