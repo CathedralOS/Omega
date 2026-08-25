@@ -146,11 +146,19 @@ the selected revision at depth one and disables automatic maintenance/GC;
 strict transferred-byte and object-store quotas still require a hardened
 execution backend.
 Selected Git objects are not trusted merely because Git named them. Before any
-snapshot stage exists, the parent recomputes SHA-1/SHA-256 commit and blob IDs,
-checks the commit's root-tree edge, reconstructs the canonical recursive tree
-from authenticated leaves, compares its Merkle root, and preflights every
-materialization destination. This strengthens source custody; it does not turn
-the still-unisolated resolver into an admission boundary.
+snapshot stage exists, an exact requested object ID must equal the selected
+commit. The parent recomputes SHA-256 commit and blob IDs, computes SHA-1 with
+collision detection, checks the commit's root-tree edge, retains and verifies
+every explicit child-tree edge, reconstructs the canonical recursive tree
+including empty subtrees, compares its Merkle root, and preflights every
+materialization destination. Empty subtrees remain explicit directories in the
+immutable snapshot. Collision detection keeps legacy SHA-1 repositories usable;
+it does not make SHA-1 collision resistant, and SHA-256 remains preferred. This
+strengthens source custody; it does not turn the still-unisolated resolver into
+an admission boundary. Reuse re-authenticates the selected Git graph and compares
+the published snapshot directly with the resulting source identity. Rewritable
+snapshot metadata is checked for consistency but never acts as the content
+baseline.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.

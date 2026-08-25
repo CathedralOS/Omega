@@ -135,13 +135,16 @@ complete.
   metadata/origin/config verification, sealed Git configuration, and
   pre-materialization rejection of `.gitmodules` and gitlinks. Git source is
   now read from a parent-authenticated selected object graph. The resolver
-  recomputes the raw commit and every blob object ID, checks the commit's root
-  tree edge, reconstructs all canonical tree objects from the authenticated
-  leaves, and compares the resulting Merkle root before any snapshot stage can
-  exist. SHA-1 and SHA-256 exact revisions are covered through fixed vectors and
-  real repositories. Materialization then proceeds without checkout, filters,
-  hooks, or submodules; the snapshot is re-hashed, made read-only, atomically
-  published, and revalidated before reuse. The Git parent is now selected only
+  requires an exact requested object ID to equal the selected commit, recomputes
+  the raw commit and every blob object ID, collision-checks SHA-1, checks the
+  commit's root tree edge, retains every explicit child-tree edge, reconstructs
+  all canonical tree objects including empty trees, and compares the resulting
+  Merkle root before any snapshot stage can exist. SHA-1 and SHA-256 exact
+  revisions are covered through fixed vectors and real repositories.
+  Materialization preserves explicit empty directories and then proceeds
+  without checkout, filters, hooks, or submodules; the snapshot is re-hashed,
+  made read-only, atomically published, and revalidated before reuse. The Git
+  parent is now selected only
   from a closed platform list of absolute concrete paths, never ambient `PATH`;
   macOS excludes Apple's `/usr/bin/git` dispatcher. Its canonical regular-file
   bytes are hashed under a 256 MiB ceiling, retained as a diagnostic source
@@ -211,12 +214,19 @@ complete.
     hardened execution boundary and receipt.
 
   Completed 2026-08-24: parent-owned Git object authentication recomputes
-  commit/blob SHA-1 or SHA-256 identities, proves the commit-to-root-tree edge,
-  reconstructs the canonical recursive tree graph from authenticated leaves,
-  and checks destination containment before snapshot staging. Object-byte,
-  commit, edge, tree-root, and destination mismatches reject without creating a
-  stage. This is real resolver evidence, but it does not weaken any remaining
-  isolation, cache-custody, resource, SSH-custody, or receipt requirement.
+  commit/blob identities, proves the commit-to-root-tree edge, reconstructs the
+  canonical recursive tree graph from authenticated leaves and explicit child
+  edges, and checks destination containment before snapshot staging. A follow-up
+  hostile review closed three gaps: exact requested IDs are now compared with
+  the selected authenticated commit, SHA-1 hashing detects and rejects known
+  collision attacks, and explicit empty subtrees are authenticated and
+  materialized rather than dropped. Object-byte, commit, edge, tree-root,
+  collision, exact-pin, and destination mismatches reject without creating a
+  stage. Reuse now compares the published source directly with identity derived
+  from freshly authenticated entries; rewriting both source and descriptive
+  snapshot metadata cannot self-authorize replacement bytes. This is real
+  resolver evidence, but it does not weaken any remaining isolation,
+  cache-custody, resource, SSH-custody, or receipt requirement.
 
   Completed 2026-08-24: symbolic revisions no longer silently choose a SHA-1
   cache. A sealed, launch/output/deadline-bounded `ls-remote` preflight asks for
