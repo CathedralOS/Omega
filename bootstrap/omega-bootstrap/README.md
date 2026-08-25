@@ -204,6 +204,12 @@ language, generation, or architectural role; new documentation and work use
   independently evaluates the representative CKIR3 to result 70, reconstructs
   its exact 12,288-byte three-segment ELF, and requires Gamma to reproduce that
   publication plus isolated 251/252 empty-output controls. The focused
+  [`gates/delta-checked-ir-v3-resources.sh`](gates/delta-checked-ir-v3-resources.sh)
+  separately exercises genuine canonical node/child maxima, derived image,
+  selected-machine live-stack, text, exact ELF, and complete encoded-CKIR
+  boundaries. It keeps all 14 cases on the native path while limiting the
+  persisted-self path to six nonredundant representatives and independently
+  reconstructing every successful ELF. The focused
   [`gates/delta-ckir3-composite.sh`](gates/delta-ckir3-composite.sh) runs every
   native/self producer/backend pairing over exact source frames, including the
   renamed/declaration-reordered/authored-field-reordered/nested positive, derives

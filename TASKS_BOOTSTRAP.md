@@ -274,7 +274,7 @@ on the separately blocked compilation-authority join.
     `262,144/262,145` boundaries through native and self-built lowerers, with
     exact positives independently evaluating to 70 and adjacent 252 failures
     publishing nothing.
-  - [ ] Complete constant-graph, checked-IR, constant-image, selected-machine
+  - [x] Complete constant-graph, checked-IR, constant-image, selected-machine
     frame, text, and ELF limits with genuine canonical maxima or greatest-
     realizable boundaries rather than header-only proxy overages.
   - [ ] Establish the greatest source-realizable `OMGLOW3` input-frame boundary

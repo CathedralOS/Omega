@@ -393,6 +393,15 @@ read-only image. These are aggregate maxima, not permission to bypass the
 narrower source-literal, source-byte, statement, expression-depth, type-layout,
 frame, or text limits.
 
+The selected entry-machine frame can reach 262,128 bytes: the mandatory
+16-byte root live-stack allowance makes the next realizable 262,144-byte frame
+exhaust the 262,144-byte live-stack ceiling. Canonical text can reach exactly
+1,048,576 bytes; the next realizable operation mix is 1,048,587 bytes. A
+canonical entry artifact can simultaneously reach the 1,183,744-byte ELF
+ceiling with exact RX and read-only-image maxima. The isolated image and text
+overages select 252 before a larger canonical ELF can be published; a fabricated
+1,183,745-byte output is therefore not an adjacent positive candidate.
+
 For refinement observations that execute cyclic state control, the source-only
 evaluator retains at most 16 active machine frames and the CKIR-only evaluator
 retains at most 64. Each independently permits at most 65,536 dynamic block
