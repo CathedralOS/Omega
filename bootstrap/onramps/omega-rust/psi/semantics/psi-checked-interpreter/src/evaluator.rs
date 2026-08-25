@@ -3,7 +3,7 @@ use crate::{
     EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
     FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemLogicalHandleInput,
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
-    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
+    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout,
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
     FilesystemOperationResult, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
     MeasuredEvaluation,
@@ -136,101 +136,13 @@ const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
 /// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
 /// filesystem reports for every entry — it has no real clock. A recognizable
 /// round value (2001-09-09T01:46:40Z). Native `stat` returns the real time.
-/// The accessed/created times are offset to DISTINCT modeled values so a test
-/// can confirm each `st_*time` field is decoded from its own stat offset:
-/// created (birthtime) <= modified <= accessed, as is realistic.
+/// The canonical metadata observation constructor supplies distinct modeled
+/// values for the remaining timestamps and identity/allocation fields.
 const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
-const VIRTUAL_ATIME_SECS: i64 = 1_000_000_100;
-const VIRTUAL_BIRTHTIME_SECS: i64 = 999_999_900;
-/// Change time (`st_ctime`): metadata-change time, distinct from the others so a
-/// decode-offset bug is caught. Realistically birthtime <= ctime ~ mtime.
-const VIRTUAL_CTIME_SECS: i64 = 1_000_000_050;
-/// Device id (`st_dev`): fixed non-zero modeled value. Native returns the real
-/// device; tests assert this constant in the interpreter and only that two files
-/// on the same FS share a device natively.
-const VIRTUAL_DEV: u64 = 16_777_220;
-/// Allocation fields (`st_blocks` = 512-byte block count, `st_blksize` = preferred
-/// I/O block size): the hermetic FS reports fixed modeled values. Native `stat`
-/// returns the real allocation; tests assert these constants in the interpreter and
-/// only `blksize > 0` natively (it is filesystem-dependent).
-const VIRTUAL_BLOCKS: u64 = 8;
-const VIRTUAL_BLKSIZE: u64 = 4096;
-/// The hermetic FS reports FIXED identity/ownership fields (`st_ino`/`st_uid`/
-/// `st_gid`): it has no real inodes or process identity. Native `stat` returns the
-/// real values; tests assert these exact constants in the interpreter and only the
-/// deterministic relationships (two hard links share an inode; two files share an
-/// owner) natively.
-const VIRTUAL_INO: u64 = 1_000_000;
+/// The hermetic ownership mutation model uses the same fixed identities as the
+/// canonical metadata observation.
 const VIRTUAL_UID: u32 = 501;
 const VIRTUAL_GID: u32 = 20;
-
-/// Byte offsets at which the hermetic FS lays out a `struct stat` for the HOST
-/// target, mirroring the selected target's checked `StatLayout` policy. A
-/// program compiled for `host()` runs here, so the differential canary guards
-/// this Rust carrier against the `.omg` layout policy.
-///
-/// Non-windows hosts use the darwin/POSIX layout (every field has a real home).
-/// Windows uses the msvcrt `_stat64` layout (56 bytes); the fields absent or
-/// width-mismatched in `_stat64` (ino/uid/gid, the status-CHANGE time, blocks,
-/// blksize) live in a SYNTHETIC TAIL (>=64) that the interpreter fills but a real
-/// native `_stat64` leaves zero -- so native windows reports 0 for those.
-mod host_stat_offsets {
-    #[cfg(not(target_os = "windows"))]
-    pub const DEV: usize = 0;
-    #[cfg(not(target_os = "windows"))]
-    pub const MODE: usize = 4;
-    #[cfg(not(target_os = "windows"))]
-    pub const NLINK: usize = 6;
-    #[cfg(not(target_os = "windows"))]
-    pub const INO: usize = 8;
-    #[cfg(not(target_os = "windows"))]
-    pub const UID: usize = 16;
-    #[cfg(not(target_os = "windows"))]
-    pub const GID: usize = 20;
-    #[cfg(not(target_os = "windows"))]
-    pub const ATIME: usize = 32;
-    #[cfg(not(target_os = "windows"))]
-    pub const MTIME: usize = 48;
-    #[cfg(not(target_os = "windows"))]
-    pub const CTIME: usize = 64;
-    #[cfg(not(target_os = "windows"))]
-    pub const BTIME: usize = 80;
-    #[cfg(not(target_os = "windows"))]
-    pub const SIZE: usize = 96;
-    #[cfg(not(target_os = "windows"))]
-    pub const BLOCKS: usize = 104;
-    #[cfg(not(target_os = "windows"))]
-    pub const BLKSIZE: usize = 112;
-
-    // msvcrt `_stat64` real fields (0..55)
-    #[cfg(target_os = "windows")]
-    pub const DEV: usize = 0;
-    #[cfg(target_os = "windows")]
-    pub const MODE: usize = 6;
-    #[cfg(target_os = "windows")]
-    pub const NLINK: usize = 8;
-    #[cfg(target_os = "windows")]
-    pub const ATIME: usize = 32;
-    #[cfg(target_os = "windows")]
-    pub const MTIME: usize = 40;
-    #[cfg(target_os = "windows")]
-    pub const BTIME: usize = 48; // windows st_ctime == creation time
-    #[cfg(target_os = "windows")]
-    pub const SIZE: usize = 24;
-    // synthetic tail (native `_stat64` leaves these zero)
-    #[cfg(target_os = "windows")]
-    pub const INO: usize = 64;
-    #[cfg(target_os = "windows")]
-    pub const UID: usize = 72;
-    #[cfg(target_os = "windows")]
-    pub const GID: usize = 76;
-    #[cfg(target_os = "windows")]
-    pub const CTIME: usize = 80; // no change time on windows -> synthetic
-    #[cfg(target_os = "windows")]
-    pub const BLOCKS: usize = 88;
-    #[cfg(target_os = "windows")]
-    pub const BLKSIZE: usize = 96;
-}
 
 pub(crate) fn run(
     checked: &CheckedTrees,
@@ -424,6 +336,7 @@ pub(crate) fn run_granted_build_machine_arguments(
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
@@ -552,6 +465,7 @@ fn run_on_current_thread(
     options: InterpretOptions,
 ) -> InterpretOutcome {
     let mut evaluator = Evaluator::new_checked(checked, stdin);
+    evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
@@ -805,6 +719,10 @@ struct Evaluator<'program> {
     virtual_next_fd: i32,
     /// Directories in the virtual filesystem (create_dir/remove_dir).
     virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
+    /// Exact checked physical carrier selected for canonical metadata results.
+    /// Omega supplies this closed descriptor; Psi never receives target names
+    /// or programmable-layout source.
+    filesystem_metadata_layout: FilesystemMetadataLayout,
     /// Open find-enumeration cursors (`find_first`/`find_next`/`find_close`,
     /// the windows dir-walk seam ops, fs rung 3a): handle -> the REMAINING
     /// entries (name bytes, is_dir), snapshotted at `find_first` exactly like
@@ -872,8 +790,8 @@ struct Evaluator<'program> {
     /// calls. Direct scoped path authorizations retain compiler-rooted paths;
     /// typed operands, mutable carriers, and logical handles retain their
     /// completed preparation prefix. Exact path results and file/directory
-    /// observation regions are designated, but canonical metadata observations
-    /// and replay execution remain incomplete.
+    /// observation regions and canonical metadata values are designated, but
+    /// replay execution remains incomplete.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.

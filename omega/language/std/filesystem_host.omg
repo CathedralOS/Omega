@@ -148,8 +148,8 @@ pub boundary trait FilesystemHost {
     // enumeration names is no_nul by construction and skips the Path re-proof.
     machine remove_name(path: &[u8]) -> i32 reaches FilesystemHost;
     machine remove_dir_name(path: &[u8]) -> i32 reaches FilesystemHost;
-    // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
-    // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
+    // Fill `buffer` (>= 144 bytes) with the selected target's complete checked
+    // `StatLayout<StatRecord>` encoding (Rust `fs::metadata`).
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemHost;
     // Like `read_metadata` but for an OPEN descriptor, via `fstat` (Rust
     // `File::metadata`). Reads the real mode/size/times without moving the cursor.

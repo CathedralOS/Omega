@@ -9,8 +9,8 @@
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemObservedByteRegionKind,
-    BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
+    BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemScalarOperandValue, BuildObservationClass, CheckedCompilation, CompileOptions,
     FilesystemSponsor, PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
@@ -203,7 +203,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 17);
+    assert_eq!(checked_observations.schema_version(), 18);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -214,7 +214,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        17
+        18
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1104,6 +1104,234 @@ fn failed_filesystem_preparation_retains_the_completed_rooted_path_operand_prefi
         "the completed metadata carrier must survive its capacity failure: {rendered}"
     );
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn metadata_observation_uses_each_selected_checked_target_layout() {
+    let layouts: [(&str, usize, [(usize, usize); 14]); 4] = [
+        (
+            "macos_arm64",
+            144,
+            [
+                (0, 4),
+                (4, 2),
+                (6, 2),
+                (8, 8),
+                (16, 4),
+                (20, 4),
+                (24, 4),
+                (32, 8),
+                (48, 8),
+                (64, 8),
+                (80, 8),
+                (96, 8),
+                (104, 8),
+                (112, 4),
+            ],
+        ),
+        (
+            "linux_x64",
+            144,
+            [
+                (0, 8),
+                (24, 4),
+                (16, 8),
+                (8, 8),
+                (28, 4),
+                (32, 4),
+                (40, 8),
+                (72, 8),
+                (88, 8),
+                (104, 8),
+                (120, 8),
+                (48, 8),
+                (64, 8),
+                (56, 8),
+            ],
+        ),
+        (
+            "linux_arm64",
+            128,
+            [
+                (0, 8),
+                (16, 4),
+                (20, 4),
+                (8, 8),
+                (24, 4),
+                (28, 4),
+                (32, 8),
+                (72, 8),
+                (88, 8),
+                (104, 8),
+                (120, 8),
+                (48, 8),
+                (64, 8),
+                (56, 4),
+            ],
+        ),
+        (
+            "windows_x64",
+            144,
+            [
+                (0, 4),
+                (6, 2),
+                (8, 2),
+                (64, 8),
+                (72, 4),
+                (76, 4),
+                (16, 4),
+                (32, 8),
+                (40, 8),
+                (80, 8),
+                (48, 8),
+                (24, 8),
+                (88, 8),
+                (96, 4),
+            ],
+        ),
+    ];
+
+    for (target, record_size, fields) in layouts {
+        let project = std::env::temp_dir().join(format!(
+            "omega-build-metadata-layout-{target}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).expect("create metadata-layout project");
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+data MetadataProbe {{
+    filesystem: FilesystemHost;
+    buffer: [u8; 144];
+    descriptor: i32;
+    result: i32;
+}}
+
+machine MetadataProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{{
+    self.buffer[36] = 255;
+    self.buffer[143] = 255;
+    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.result = self.filesystem.read_metadata(path, &mut self.buffer);
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read_file_metadata(self.descriptor, &mut self.buffer);
+    self.result = self.filesystem.close(self.descriptor);
+    self.result = self.filesystem.read_symlink_metadata(path, &mut self.buffer);
+    let missing: &[u8] in Path = builder.source.resolve("missing.omg");
+    self.result = self.filesystem.read_metadata(missing, &mut self.buffer);
+}}
+"#,
+            ),
+        )
+        .expect("write metadata-layout build.omg");
+        std::fs::write(project.join("main.omg"), "const VALUE: u32 = 42;\n")
+            .expect("write metadata-layout main.omg");
+
+        let compilation = compile_to_checked(&project.join("main.omg"), Some(target))
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{target} metadata build failed: {}",
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| diagnostic.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+        let summary = compilation
+            .build_observation_summary()
+            .expect("metadata call produces build observations");
+        let [followed, open, descriptor, close, unfollowed, missing] =
+            summary.filesystem_operation_attempts()
+        else {
+            panic!("{target}: expected stat/open/fstat/close/lstat/missing-stat operations")
+        };
+        assert_eq!(
+            [
+                followed.operation_tag(),
+                open.operation_tag(),
+                descriptor.operation_tag(),
+                close.operation_tag(),
+                unfollowed.operation_tag(),
+                missing.operation_tag()
+            ],
+            [38, 2, 39, 8, 40, 38],
+            "{target}"
+        );
+        for (attempt, kind) in [
+            (
+                followed,
+                BuildFilesystemMetadataObservationKind::FollowedPath,
+            ),
+            (
+                descriptor,
+                BuildFilesystemMetadataObservationKind::OpenDescriptor,
+            ),
+            (
+                unfollowed,
+                BuildFilesystemMetadataObservationKind::UnfollowedFinalPath,
+            ),
+        ] {
+            assert_eq!(
+                attempt.result(),
+                BuildFilesystemOperationResult::Scalar(0),
+                "{target}"
+            );
+            let [metadata] = attempt.metadata_observations() else {
+                panic!("{target}: successful metadata operation must retain one row")
+            };
+            assert_eq!(metadata.kind(), kind);
+            assert_eq!(metadata.output_operand_ordinal(), 1);
+            assert_eq!(metadata.referenced_device(), 0);
+            assert_eq!(metadata.size(), 23);
+        }
+        assert_eq!(
+            missing.result(),
+            BuildFilesystemOperationResult::Scalar(-1),
+            "{target}"
+        );
+        assert!(
+            missing.metadata_observations().is_empty(),
+            "{target}: failed stat retained metadata"
+        );
+        let carrier = followed
+            .mutable_byte_operands()
+            .iter()
+            .find(|operand| operand.operand_ordinal() == 1)
+            .expect("metadata output carrier")
+            .post_bytes();
+        assert_eq!(carrier.len(), 144, "{target}");
+        let mut occupied = [false; 144];
+        for (offset, width) in fields {
+            occupied[offset..offset + width].fill(true);
+        }
+        for (offset, byte) in carrier.iter().copied().enumerate() {
+            if !occupied[offset] {
+                assert_eq!(
+                    byte, 0,
+                    "{target}: padding/tail byte {offset} was not zeroed"
+                );
+            }
+        }
+        assert!(
+            carrier[record_size..].iter().all(|byte| *byte == 0),
+            "{target}"
+        );
+        let (rdev_offset, rdev_width) = fields[6];
+        assert!(
+            carrier[rdev_offset..rdev_offset + rdev_width]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }
 
 #[test]

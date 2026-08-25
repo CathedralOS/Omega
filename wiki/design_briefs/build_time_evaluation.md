@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-schema v17 carries operation-attempt schema v17, retaining in call-start order
+schema v18 carries operation-attempt schema v18, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -495,10 +495,20 @@ EOF retains an empty row and failure retains none. The zero-copy designation
 adds no sponsor charge. `read_dir` similarly designates exact
 `DirectoryRecords`; `find_first` and entry-producing `find_next` designate
 complete 320-byte `FindEntry` records. Directory EOF and no-entry find returns
-retain empty rows, while failed enumeration retains none. Canonical metadata
-semantics and replay execution remain absent. It is an incomplete operation trace,
-not a transcript or receipt, and makes no replayability or source-
-rebuildability claim.
+retain empty rows, while failed enumeration retains none. Successful path,
+descriptor, and no-follow metadata operations retain one target-neutral
+canonical row containing all 14 `StatRecord` fields. After target selection,
+the compiler extracts and validates the already-checked
+`StatLayout<StatRecord>` from its earliest coherent private typed/layout state
+and passes only that closed descriptor to the Psi evaluator. The evaluator
+zeroes and serializes the complete authored ABI carrier (whose API minimum is
+144 bytes) through the descriptor and checks it against the semantic row.
+Filesystem-reaching builds load and
+check the standard filesystem layout policy before execution; console-only
+builds need no such layout. This is an internal checker seam, not a public IR
+contract or reason to add nominal Chi. Replay execution remains absent. It is
+an incomplete operation trace, not a transcript or receipt, and makes no
+replayability or source-rebuildability claim.
 
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities

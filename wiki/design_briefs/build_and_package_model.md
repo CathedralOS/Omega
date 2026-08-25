@@ -674,7 +674,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v17 carries operation-attempt schema v17: an ordered
+Observation schema v18 carries operation-attempt schema v18: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -745,8 +745,18 @@ Package commitments bind its kind and coordinates plus the referenced mutable
 post-state. `read_dir` similarly designates exact `DirectoryRecords`, while
 `find_first` and entry-producing `find_next` designate complete 320-byte
 `FindEntry` records. Directory EOF and no-entry find returns retain empty rows;
-failed enumeration retains none. Canonical metadata observations and replay
-execution remain absent, so the row is still non-replayable.
+failed enumeration retains none. Successful path, descriptor, and no-follow
+metadata operations additionally retain one canonical target-neutral row with
+all 14 `StatRecord` fields. The compiler obtains the selected target's checked
+`StatLayout<StatRecord>` from private typed/layout state, validates its exact
+fields, widths, bounds, and non-overlap, and passes only that closed descriptor
+to the Psi evaluator. The evaluator zeroes and fills the complete authored ABI
+carrier (whose API minimum is 144 bytes) through that layout and checks it
+against the semantic row; package
+commitment binds both. Filesystem-reaching builds load and check the standard
+layout policy before execution. This private seam does not create a public IR
+contract or nominal Chi. Replay execution remains absent, so the row remains
+non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

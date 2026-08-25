@@ -1368,8 +1368,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v17
-  carries operation-attempt schema v17: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v18
+  carries operation-attempt schema v18: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1409,7 +1409,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v17 retains each successfully typed non-handle
+  Operation-attempt schema v18 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1474,9 +1474,21 @@ complete.
   320-byte output record as `FindEntry`; a no-entry `find_next` and directory EOF
   retain zero-length rows, while failed `find_first`/`read_dir` retain none. All
   regions are cross-checked against operation result, kind, output ordinal, and
-  retained post-carrier before a returned outcome is admitted. This deliberately
-  incomplete trace still lacks canonical metadata observations and the replay
-  executor.
+  retained post-carrier before a returned outcome is admitted. Successful
+  `read_metadata`, `read_file_metadata`, and `read_symlink_metadata` calls now
+  retain one target-neutral canonical metadata row with exact follow/open/
+  no-follow meaning and all 14 `StatRecord` fields. The compiler extracts the
+  selected target's already-checked `StatLayout<StatRecord>` from its earliest
+  coherent private typed/layout state, validates exact fields, widths, bounds,
+  and non-overlap, then gives only that closed descriptor to the Psi evaluator.
+  The evaluator serializes through that descriptor, zeroes the complete
+  authored ABI carrier (whose API minimum is 144 bytes), and cross-checks the
+  carrier against the canonical row.
+  Package commitment binds both the semantic row and target-specific carrier.
+  A filesystem-reaching build therefore loads and checks the standard
+  filesystem layout policy before execution; console-only execution does not
+  require it. This does not expose the private IR or introduce nominal Chi.
+  The trace still lacks the replay executor and makes no receipt claim.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

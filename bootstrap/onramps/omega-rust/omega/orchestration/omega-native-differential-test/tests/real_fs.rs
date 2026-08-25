@@ -139,6 +139,7 @@ fn real_mode_stages_files_on_disk_and_hermetic_default_does_not() {
         &[],
         InterpretOptions {
             filesystem: FilesystemAccess::RealUnscoped,
+            ..InterpretOptions::default()
         },
     );
     assert!(!real.is_error(), "real-mode run errored: {:?}", real.error);
@@ -223,6 +224,7 @@ machine Main::main(&mut self) {{
         &[],
         InterpretOptions {
             filesystem: FilesystemAccess::RealUnscoped,
+            ..InterpretOptions::default()
         },
     );
     assert!(!real.is_error(), "real duplicate probe: {:?}", real.error);
@@ -364,6 +366,7 @@ fn scoped_grants_enforce_read_and_write_roots() {
                 read_roots: vec![grant_root(1, base.join("src"))],
                 write_roots: vec![grant_root(2, base.join("out"))],
             }),
+            ..InterpretOptions::default()
         },
     );
     assert!(
@@ -576,6 +579,7 @@ fn scoped_namespace_mutations_authorize_the_leaf_not_its_symlink_target() {
                 read_roots: vec![grant_root(1, outside.clone())],
                 write_roots: vec![grant_root(2, inside.clone())],
             }),
+            ..InterpretOptions::default()
         },
     );
     assert!(
@@ -742,6 +746,7 @@ fn scoped_wrapper_read_dir_count_enumerates_a_real_directory() {
                 read_roots: vec![grant_root(1, assets.clone())],
                 write_roots: vec![],
             }),
+            ..InterpretOptions::default()
         },
     );
     assert!(
@@ -919,6 +924,7 @@ machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
             read_roots: vec![],
             write_roots: vec![grant_root(2, out.clone())],
         }),
+        ..InterpretOptions::default()
     };
 
     let ignored_operand_failure = evaluate_build_machine_with_filesystem_measured(
@@ -1149,6 +1155,7 @@ machine ResourceProbe::run(&mut self, build: &mut Build) {{
             },
             sponsor: sponsor.clone(),
         },
+        ..InterpretOptions::default()
     };
 
     evaluate_build_machine_with_filesystem_measured(
@@ -1231,6 +1238,7 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
                 read_roots: vec![],
                 write_roots: vec![grant_root(2, out.clone())],
             }),
+            ..InterpretOptions::default()
         },
     )
     .expect("granted build run");
@@ -1678,6 +1686,7 @@ fn real_provider_serves_the_full_virtual_op_set() {
                 read_roots: vec![],
                 write_roots: vec![grant_root(2, base.clone())],
             }),
+            ..InterpretOptions::default()
         },
     );
     assert!(

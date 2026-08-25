@@ -314,6 +314,33 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             digest.update(region.length().to_le_bytes());
         }
         digest.update(
+            u64::try_from(attempt.metadata_observations().len())
+                .expect("build observation metadata count fits u64")
+                .to_le_bytes(),
+        );
+        for metadata in attempt.metadata_observations() {
+            digest.update([metadata.output_operand_ordinal()]);
+            digest.update([match metadata.kind() {
+                omega_compiler::BuildFilesystemMetadataObservationKind::FollowedPath => 0,
+                omega_compiler::BuildFilesystemMetadataObservationKind::OpenDescriptor => 1,
+                omega_compiler::BuildFilesystemMetadataObservationKind::UnfollowedFinalPath => 2,
+            }]);
+            digest.update(metadata.device().to_le_bytes());
+            digest.update(metadata.mode().to_le_bytes());
+            digest.update(metadata.link_count().to_le_bytes());
+            digest.update(metadata.inode().to_le_bytes());
+            digest.update(metadata.user().to_le_bytes());
+            digest.update(metadata.group().to_le_bytes());
+            digest.update(metadata.referenced_device().to_le_bytes());
+            digest.update(metadata.access_time().to_le_bytes());
+            digest.update(metadata.modification_time().to_le_bytes());
+            digest.update(metadata.change_time().to_le_bytes());
+            digest.update(metadata.birth_time().to_le_bytes());
+            digest.update(metadata.size().to_le_bytes());
+            digest.update(metadata.blocks_512().to_le_bytes());
+            digest.update(metadata.preferred_block_size().to_le_bytes());
+        }
+        digest.update(
             u64::try_from(attempt.mutable_byte_operand_resolutions().len())
                 .expect("build observation mutable-byte-resolution count fits u64")
                 .to_le_bytes(),
@@ -695,6 +722,41 @@ reaches FilesystemHost
         summary
     }
 
+    fn compiled_metadata_observation(main_source: &str) -> BuildObservationSummary {
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-metadata-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("build.omg"),
+            r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {}
+
+data MetadataProbe { filesystem: FilesystemHost; buffer: [u8; 144]; result: i32; }
+
+machine MetadataProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{
+    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.result = self.filesystem.read_metadata(input, &mut self.buffer);
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), main_source).unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("metadata build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
@@ -723,8 +785,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 17);
-        assert_eq!(first.filesystem_operation_schema_version(), 17);
+        assert_eq!(first.schema_version(), 18);
+        assert_eq!(first.filesystem_operation_schema_version(), 18);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
@@ -880,6 +942,30 @@ reaches FilesystemHost
             build_observation_commitment(&first),
             build_observation_commitment(&changed),
             "one changed observed file-content region changes observation identity"
+        );
+    }
+
+    #[test]
+    fn observation_commitment_binds_canonical_metadata() {
+        let short = compiled_metadata_observation("const VALUE: u8 = 1;\n");
+        let long = compiled_metadata_observation("const VALUE: u64 = 123456789;\n");
+        let [short_attempt] = short.filesystem_operation_attempts() else {
+            panic!("metadata fixture performs one stat")
+        };
+        let [long_attempt] = long.filesystem_operation_attempts() else {
+            panic!("metadata fixture performs one stat")
+        };
+        let [short_metadata] = short_attempt.metadata_observations() else {
+            panic!("successful short stat retains canonical metadata")
+        };
+        let [long_metadata] = long_attempt.metadata_observations() else {
+            panic!("successful long stat retains canonical metadata")
+        };
+        assert_ne!(short_metadata.size(), long_metadata.size());
+        assert_ne!(
+            build_observation_commitment(&short),
+            build_observation_commitment(&long),
+            "changed canonical metadata changes package observation identity"
         );
     }
 

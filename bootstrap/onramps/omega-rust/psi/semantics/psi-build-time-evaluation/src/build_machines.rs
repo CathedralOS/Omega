@@ -11,6 +11,7 @@ pub use psi_checked_interpreter::{
     FilesystemAccess as BuildMachineFilesystemAccess,
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
+    FilesystemMetadataLayout as BuildMachineFilesystemMetadataLayout,
     FilesystemSponsor as BuildMachineFilesystemSponsor, FsGrants as BuildMachineFilesystemGrants,
 };
 
@@ -27,6 +28,7 @@ pub enum BuildMachineExecutionMode {
     /// entry's existing checked-interpreter contract.
     Granted {
         filesystem: BuildMachineFilesystemAccess,
+        filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout,
     },
 }
 
@@ -97,14 +99,18 @@ pub fn evaluate_build_machine_arguments_measured(
             .map(MeasuredBuildMachineEvaluation::hermetic)
             .map_err(BuildMachineEvaluationError::Pure)
         }
-        BuildMachineExecutionMode::Granted { filesystem } => {
-            psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
-                program.typed(),
-                machine_name,
-                arguments,
-                psi_checked_interpreter::InterpretOptions { filesystem },
-            )
-            .map_err(BuildMachineEvaluationError::Granted)
-        }
+        BuildMachineExecutionMode::Granted {
+            filesystem,
+            filesystem_metadata_layout,
+        } => psi_checked_interpreter::evaluate_build_machine_with_filesystem_measured(
+            program.typed(),
+            machine_name,
+            arguments,
+            psi_checked_interpreter::InterpretOptions {
+                filesystem,
+                filesystem_metadata_layout,
+            },
+        )
+        .map_err(BuildMachineEvaluationError::Granted),
     }
 }
