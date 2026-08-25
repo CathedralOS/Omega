@@ -262,6 +262,7 @@ impl SyntaxTrees {
             Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
                 scope: constant.scope.clone(),
                 name: constant.name.clone(),
+                is_public: constant.is_public,
                 type_reference: self.copy_type_reference_handle(other, constant.type_reference),
                 value: self.copy_expression_handle(other, constant.value),
             }),

@@ -24,6 +24,7 @@ pub(crate) struct PendingAuthoredExpression {
 pub(crate) struct PendingConstDeclaration {
     pub(crate) semantic_name: String,
     pub(crate) source_span: psi_source::SourceSpan,
+    pub(crate) is_public: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -254,6 +255,11 @@ impl Lowerer {
             self.sources,
             &self.pending_const_declarations,
         );
+        crate::constant::finalize_const_declarations(
+            &mut self.symbol_resolved_trees,
+            &self.pending_const_declarations,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::constant::finalize_const_selections(
             &mut self.symbol_resolved_trees,
             &self.pending_const_selections,

@@ -77,6 +77,15 @@ impl TypedTreesSnapshot {
     pub fn from_typed_trees(program: &TypedTrees) -> Self {
         Self {
             roots: TypedRootsSnapshot {
+                const_declarations: program
+                    .const_declarations()
+                    .iter()
+                    .map(|declaration| ConstDeclarationSnapshot {
+                        has_symbol: declaration.symbol.is_valid(),
+                        name: program.symbols.display_path(declaration.symbol, "::"),
+                        is_public: declaration.is_public,
+                    })
+                    .collect(),
                 data_definitions: program
                     .data_definitions()
                     .iter()
@@ -245,6 +254,7 @@ pub enum ExternalBindingValueSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedRootsSnapshot {
+    pub const_declarations: Vec<ConstDeclarationSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
@@ -253,6 +263,13 @@ pub struct TypedRootsSnapshot {
     pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConstDeclarationSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub is_public: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

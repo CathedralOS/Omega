@@ -44,6 +44,14 @@ pub fn lower_symbol_resolved_trees(
             .authored_declaration_selections()
             .clone(),
     );
+    for declaration in &symbol_resolved_trees.const_declarations {
+        lowerer
+            .typed_trees
+            .push_const_declaration(psi_typed_trees::constant::ConstDeclaration {
+                symbol: declaration.symbol,
+                is_public: declaration.is_public,
+            });
+    }
     lowerer.typed_trees.evidence_forwardings = symbol_resolved_trees
         .evidence_forwardings
         .iter()

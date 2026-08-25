@@ -1756,6 +1756,32 @@ fn substituted_const_retains_authored_declaration_selection_custody() {
 }
 
 #[test]
+fn retains_const_declaration_visibility_after_value_substitution() {
+    let source = r#"
+        pub const PUBLIC_SIZE: u64 = 4;
+        const Buffer::PRIVATE_SIZE: u64 = 2;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const visibility");
+    let syntax = parse_syntax_trees(&tokens).expect("parse const visibility");
+    let program = lower_syntax_trees(&syntax).expect("resolve const visibility");
+
+    assert_eq!(program.const_declarations.len(), 2);
+    assert!(program.const_declarations[0].is_public);
+    assert!(!program.const_declarations[1].is_public);
+    assert!(
+        program
+            .const_declarations
+            .iter()
+            .all(|declaration| declaration.symbol.is_valid())
+    );
+    let snapshot = program.snapshot_json().expect("resolved const snapshot");
+    assert!(snapshot.contains("\"name\":\"PUBLIC_SIZE\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

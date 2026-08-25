@@ -96,7 +96,7 @@ fn provider_selection_retains_two_structural_type_paths() {
 
 #[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
-    let tokens = Lexer::new("pub const Counter::ZERO: i32 = 0;")
+    let tokens = Lexer::new("pub measure Counter::Zero(value: i32) -> i32 { 0 }")
         .tokenize()
         .expect("tokenize declaration");
     let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
@@ -254,6 +254,32 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     assert!(snapshot.contains("\"is_public\":true"));
     assert!(snapshot.contains("\"kind\":\"witness\""));
     assert!(snapshot.contains("\"kind\":\"transparent\""));
+}
+
+#[test]
+fn parses_public_and_private_const_declarations() {
+    let source = r#"
+        pub const PUBLIC_LIMIT: u64 = 4;
+        const Limits::PRIVATE_LIMIT: u64 = 2;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const declarations");
+    let parsed = parse_syntax_trees(&tokens).expect("parse const declarations");
+    let declarations = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Const(declaration) => Some(declaration),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(declarations.len(), 2);
+    assert!(declarations[0].is_public);
+    assert!(!declarations[1].is_public);
+    let snapshot = parsed.snapshot_json().expect("const syntax snapshot");
+    assert!(snapshot.contains("\"kind\":\"const\""));
+    assert!(snapshot.contains("\"is_public\":true"));
 }
 
 #[test]

@@ -49,6 +49,7 @@ pub struct ConstDefinition {
     /// the not-yet-accepted free-floating form.
     pub scope: Identifier,
     pub name: Identifier,
+    pub is_public: bool,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub value: crate::expression::ExpressionHandle,
 }
