@@ -6,8 +6,8 @@ use psi_source::{SourceFile, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
-    BuiltinFunction, BuiltinType, Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
-    SymbolNameStorageKind, SymbolPath,
+    BuiltinFunction, BuiltinType, BuiltinTypeAtom, Symbol, SymbolHandle, SymbolKind, SymbolName,
+    SymbolNameRef, SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -342,6 +342,19 @@ impl SymbolTable {
         self.child_handles(self.root)?
             .nth(builtin_type.ordinal())
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
+    }
+
+    /// Classify only an exact compiler-installed root builtin slot. A package
+    /// declaration with the same spelling, or a generated source-free symbol,
+    /// is deliberately not a compiler atom.
+    pub fn builtin_type_atom(&self, symbol: SymbolHandle) -> Option<BuiltinTypeAtom> {
+        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinType {
+            return None;
+        }
+        self.child_handles(self.root)?
+            .take(BUILTIN_TYPE_COUNT)
+            .position(|candidate| candidate == symbol)
+            .and_then(BuiltinTypeAtom::from_ordinal)
     }
 
     pub fn display_path(&self, symbol: SymbolHandle, separator: &str) -> String {

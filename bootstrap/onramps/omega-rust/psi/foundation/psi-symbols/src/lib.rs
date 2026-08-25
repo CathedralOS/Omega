@@ -10,8 +10,8 @@ mod symbol;
 mod table;
 
 pub use builtin::{
-    BuiltinFunction, BuiltinType, builtin_function_symbols, builtin_type_member_symbols,
-    builtin_type_symbols,
+    BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, builtin_function_symbols,
+    builtin_type_member_symbols, builtin_type_symbols,
 };
 pub use kind::SymbolKind;
 pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};

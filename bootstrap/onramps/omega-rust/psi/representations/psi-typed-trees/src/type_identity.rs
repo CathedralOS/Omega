@@ -693,6 +693,9 @@ impl TypeIdentityContext<'_> {
         if self.qualification == TypeIdentityQualification::Ordinary {
             return path;
         }
+        if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
+            return compound("compiler-type", [atom("atom", builtin_atom.identity())]);
+        }
         let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
             PackageQualifiedNominalOwner::Package(package.digest())
         } else if program.symbols.symbol_source_origin(symbol)
@@ -1271,7 +1274,9 @@ mod tests {
         SemanticDomainId,
     };
     use psi_source::{SourceMap, SourceOrigin, SourceSpan, Span};
-    use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use psi_symbols::{
+        SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
 
     #[test]
     fn same_spelled_package_nominals_have_distinct_qualified_identities() {
@@ -1376,6 +1381,75 @@ mod tests {
             "{unresolved}"
         );
         assert!(unresolved.as_str().contains("Pending"), "{unresolved}");
+    }
+
+    #[test]
+    fn package_qualified_builtin_types_use_closed_atoms_without_name_spoofing() {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = SymbolTableBuilder::child_handles(
+            symbols.insert_children(
+                root,
+                builtin_type_symbols()
+                    .into_iter()
+                    .chain([(SymbolKind::Data, SymbolNameRef::Static("bool"))]),
+            ),
+        )
+        .collect::<Vec<_>>();
+        let builtins = &children[..psi_symbols::BUILTIN_TYPE_COUNT];
+        let lookalike = children[psi_symbols::BUILTIN_TYPE_COUNT];
+        let mut symbols = symbols.finish();
+        for atom in psi_symbols::BuiltinTypeAtom::ALL {
+            assert_eq!(
+                symbols.builtin_type_atom(builtins[atom.ordinal()]),
+                Some(atom),
+            );
+        }
+        let generated =
+            symbols.insert_generated_root_from(builtins[0], SymbolKind::Data, "bool$generated");
+        let mut program = TypedTrees {
+            symbols,
+            ..TypedTrees::default()
+        };
+        let builtin = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins[0],
+                name: Identifier::generated("spoofed-diagnostic"),
+            });
+        let lookalike = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: lookalike,
+                name: Identifier::generated("ignored"),
+            });
+        let generated = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: generated,
+                name: Identifier::generated("ignored"),
+            });
+
+        let builtin = program.package_qualified_type_identity(builtin);
+        let lookalike = program.package_qualified_type_identity(lookalike);
+        let generated = program.package_qualified_type_identity(generated);
+
+        assert!(builtin.as_str().contains("compiler-type"), "{builtin}");
+        assert!(builtin.as_str().contains("bool"), "{builtin}");
+        assert!(
+            !builtin.as_str().contains("spoofed-diagnostic"),
+            "{builtin}"
+        );
+        assert!(
+            lookalike.as_str().contains("unresolved-owner"),
+            "{lookalike}"
+        );
+        assert!(!lookalike.as_str().contains("compiler-type"), "{lookalike}");
+        assert!(
+            generated.as_str().contains("unresolved-owner"),
+            "{generated}"
+        );
+        assert!(!generated.as_str().contains("compiler-type"), "{generated}");
     }
 
     #[test]
