@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v16 carries operation-attempt schema v16, retaining exact
+Observation schema v17 carries operation-attempt schema v17, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -353,8 +353,11 @@ already-custodied mutable post-carrier with a closed sequential/positioned kind,
 output ordinal, and returned length. EOF retains a zero-length row; failure
 retains none. These zero-copy rows add no byte-sponsor charge. Package
 commitments bind their kind, coordinates, and referenced mutable post-state.
-Directory/find and metadata output semantics plus replay execution remain absent, so this is
-an incomplete trace rather than a transcript or receipt.
+`read_dir` similarly designates exact `DirectoryRecords`; `find_first` and
+entry-producing `find_next` designate their complete 320-byte `FindEntry`
+record. Directory EOF and no-entry find returns retain empty rows, while failed
+enumeration emits none. Canonical metadata semantics and replay execution remain
+absent, so this is an incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

@@ -19,9 +19,9 @@ use filesystem_logical_handles::FilesystemLogicalHandles;
 #[path = "evaluator/filesystem_preparation.rs"]
 mod filesystem_preparation;
 use filesystem_preparation::{
-    PreparedByteOutput, PreparedFilesystemCall, PreparedFilesystemLogicalHandleOutput,
-    PreparedFilesystemLogicalHandlePlan, PreparedFilesystemMutableObservationPlan,
-    PreparedFilesystemPreparation, synthetic_handle_fd,
+    FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
+    PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
+    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, synthetic_handle_fd,
 };
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
@@ -871,9 +871,9 @@ struct Evaluator<'program> {
     /// Ordered operation-attempt evidence for exact canonical filesystem host
     /// calls. Direct scoped path authorizations retain compiler-rooted paths;
     /// typed operands, mutable carriers, and logical handles retain their
-    /// completed preparation prefix. Exact path results and file-read regions
-    /// are designated, but directory/metadata observations and replay execution
-    /// remain incomplete.
+    /// completed preparation prefix. Exact path results and file/directory
+    /// observation regions are designated, but canonical metadata observations
+    /// and replay execution remain incomplete.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.

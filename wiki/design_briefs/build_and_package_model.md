@@ -654,7 +654,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v16 carries operation-attempt schema v16: an ordered
+Observation schema v17 carries operation-attempt schema v17: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -722,8 +722,11 @@ already-retained mutable post-carrier as sequential or positioned file content.
 Its length must equal the nonnegative result; EOF retains an empty row and
 failure retains none. The row copies no bytes and adds no sponsor charge.
 Package commitments bind its kind and coordinates plus the referenced mutable
-post-state. Directory/find output, canonical metadata observations, and replay execution
-remain absent, so the row is still non-replayable.
+post-state. `read_dir` similarly designates exact `DirectoryRecords`, while
+`find_first` and entry-producing `find_next` designate complete 320-byte
+`FindEntry` records. Directory EOF and no-entry find returns retain empty rows;
+failed enumeration retains none. Canonical metadata observations and replay
+execution remain absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

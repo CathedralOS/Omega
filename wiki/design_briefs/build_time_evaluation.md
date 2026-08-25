@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-schema v16 carries operation-attempt schema v16, retaining in call-start order
+schema v17 carries operation-attempt schema v17, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -492,8 +492,11 @@ incomplete. Successful `read`/`read_at` calls designate the
 exact returned prefix of the already-retained mutable post-carrier as
 sequential or positioned file content. Length equals the nonnegative result;
 EOF retains an empty row and failure retains none. The zero-copy designation
-adds no sponsor charge. Directory/find and metadata output semantics plus
-replay execution remain absent. It is an incomplete operation trace,
+adds no sponsor charge. `read_dir` similarly designates exact
+`DirectoryRecords`; `find_first` and entry-producing `find_next` designate
+complete 320-byte `FindEntry` records. Directory EOF and no-entry find returns
+retain empty rows, while failed enumeration retains none. Canonical metadata
+semantics and replay execution remain absent. It is an incomplete operation trace,
 not a transcript or receipt, and makes no replayability or source-
 rebuildability claim.
 

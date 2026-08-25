@@ -307,6 +307,8 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             digest.update([match region.kind() {
                 omega_compiler::BuildFilesystemObservedByteRegionKind::SequentialFileRead => 0,
                 omega_compiler::BuildFilesystemObservedByteRegionKind::PositionedFileRead => 1,
+                omega_compiler::BuildFilesystemObservedByteRegionKind::DirectoryRecords => 2,
+                omega_compiler::BuildFilesystemObservedByteRegionKind::FindEntry => 3,
             }]);
             digest.update(region.offset().to_le_bytes());
             digest.update(region.length().to_le_bytes());
@@ -721,8 +723,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 16);
-        assert_eq!(first.filesystem_operation_schema_version(), 16);
+        assert_eq!(first.schema_version(), 17);
+        assert_eq!(first.filesystem_operation_schema_version(), 17);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
