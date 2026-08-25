@@ -310,7 +310,7 @@ establishes the implementation and assurance cost.
 | dependent types and proof-indexed data/control | avoid in new compiler source; presumptively exclude | same source-need and total-cost test; implementing these features for user programs is not itself a reason to use them in compiler implementation code |
 | ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
-| ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3 constant tranche establish checking, layout, aggregate copy, and exact artifact evidence; CKIR4 now demonstrates native/self runtime construction and structural Call/Copy for `source.omg`, while its Rust-free, complete lower-rooted, resource, and composition costs are still closing; compare that complete cost with the clarity and regularity loss from positional compiler data |
+| ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
 | fixed arrays and checked indexing | measure | the same probe closes general frontend rules and guarded-index obligations through length 65,536; the selected private checked-IR tranche measures direct layout/lowering, then compare the total cost with arena/library encodings |
 | immutable borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses one general `&[u8]` parameter, `.len`, guarded indexing, and many differently sized keyword literals; compare a shared descriptor path with fixed-buffer-plus-length duplication, without presuming mutable slices, subslicing, `Vec`, or allocation |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
@@ -414,6 +414,18 @@ intervals by target ordinal, join every cyclic predecessor, and preserve the
 result across declaration order. This selected lower-rooted tranche is closed;
 that does not decide general coverage, the final disposition of records,
 arrays, generated source, or any later checkpoint feature.
+
+The CKIR4 successor extends that evidence to one general runtime named-record
+constructor while reusing nominal layout and structural Call/Copy. It accepts
+only pure, non-trapping literal, parameter, named-field-load, structural-
+parameter, and nested-constructor fields, then canonicalizes authored names to
+declaration ordinals. Native and Delta-self-built producers are byte-identical;
+focused Gamma routes reproduce producer/backend 0/251/252 meaning; independent
+checkers reconstruct objects, result, and every ELF byte; and eight persisted-
+Beta executables compose the five `OMGRFN5` responsibilities over one unchanged
+16,274-byte carrier. This closes the selected implementation/assurance cost for
+ordinary named fields without freezing the final profile or deciding effectful
+constructor-field evaluation order.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

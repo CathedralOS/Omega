@@ -259,13 +259,16 @@ language, generation, or architectural role; new documentation and work use
   harness, so implementation does not depend on the unresolved private
   cross-module rule. Native and Delta-self-built producers now agree
   byte-for-byte on that target and general controls; the corresponding
-  backends agree on representative nested constructor/Call/Copy inputs, and
-  independent CKIR4 result/object/ELF reconstruction is executable. `OMGRFN5`
-  frame/source custody, resolution, and intrinsic-table responsibilities are
-  closed.
-  Rust-free meaning, complete source-body and CKIR/ELF lower-rooted duties, the
-  adjacent resource matrix, and one unchanged-frame composition gate remain
-  open; the tranche is not yet reported complete.
+  backends agree on representative nested constructor/Call/Copy inputs.
+  Focused Rust-free producer/backend meaning gates reproduce exact success and
+  251/252 boundaries. All five `OMGRFN5` responsibilities are closed through
+  eight bounded persisted-Beta executables: frame/source custody, resolution,
+  intrinsic tables, source lowering, physically artifact-free source meaning,
+  complete CKIR4/result validation, and exact ELF reconstruction. One composite
+  feeds them the same unchanged 16,274-byte exact carrier and isolates every
+  source/witness, witness/CKIR4, CKIR4/ELF, and result join. The selected
+  runtime-record tranche is closed; general bridge coverage and final `Ωself`
+  disposition remain open.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

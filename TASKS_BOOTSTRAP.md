@@ -141,9 +141,9 @@ are absent, and `u32` cursors compare directly with the specified-`u64` slice
 length without a settled cross-carrier rule. Those are product-language ruling
 blockers recorded under `OMEGA-PRODUCT-COMPILER-SOURCE` in
 [`TASKS.md`](TASKS.md). They do not block bridge implementation for source
-forms whose meaning is already settled, including the next same-module
-runtime-record tranche. No implementation or engineering difficulty below is
-otherwise a design blocker.
+forms whose meaning is already settled, as the closed same-module runtime-
+record tranche demonstrates. No implementation or engineering difficulty below
+is otherwise a design blocker.
 
 Omega also does not yet specify observable evaluation order among effectful or
 trapping fields of a runtime named-record literal. CKIR4 therefore admits only
@@ -239,9 +239,9 @@ as one growing verifier:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-| resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes; the focused CKIR3 producer closes constant aggregates, `<=`, guardless jumps, and cyclic interval custody across native/self bytes, including adversarial arm-local, ordinal-transfer, complete-predecessor, and declaration-order controls, plus representative constant-aggregate 0/251/252 observations through Rust-free Gamma | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) |
-| producer composition | CKIR1 and CKIR2 remain closed; focused CKIR3 native, self-built, and mixed producer/backend pairs now yield exact CKIR3, independently evaluated result, and independently reconstructed ELF | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate; the selected CKIR3 `OMGRFN4` constant-aggregate tranche is closed through five independent responsibilities implemented by nine persisted-Beta executables and one unchanged-exact-frame composition gate. Responsibility 4 includes physically artifact-free source meaning; responsibility 5 includes complete CKIR3/result validation and independent exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md) |
+| resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed; CKIR3 closes typed constant aggregates and interval custody; CKIR4 closes declaration-ordered runtime named-record construction through structural Call/Copy. Each selected successor has native/self-built production and representative Rust-free 0/251/252 meaning | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md) |
+| producer composition | CKIR1 and CKIR2 remain closed; focused CKIR3 and CKIR4 native, self-built, and mixed producer/backend paths yield exact checked IR, independently evaluated results, and independently reconstructed ELF | bridge gates and the contracts above |
+| lower-rooted artifact reconstruction | CKIR1 is closed through `OMGRFN2`, CKIR2 through `OMGRFN3`, CKIR3 through `OMGRFN4`, and CKIR4 through `OMGRFN5`. Each version assigns five independent responsibilities and composes their bounded executables over one unchanged exact frame; the CKIR4 split uses eight executables so source lowering, physically artifact-free source meaning, result validation, and exact ELF reconstruction remain distinct | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -249,12 +249,12 @@ makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
 The next actionable bridge work is the remaining capabilities actually used by
-published product checkpoints. The CKIR3 constant-aggregate slice now has
-producer, Rust-free meaning, responsibility-local refinement, and
-same-exact-frame composition in focused gates. That versioned slice is bounded
-cost and implementation evidence, not general language coverage or admission
-to final `Ωself`. Do not idle on the separately blocked compilation-authority
-join.
+published product checkpoints. The CKIR3 constant-aggregate and CKIR4 runtime-
+record slices now have producer, Rust-free meaning, responsibility-local
+refinement, and same-exact-frame composition in focused gates. These versioned
+slices are bounded cost and implementation evidence, not general language
+coverage or admission to final `Ωself`. Do not idle on the separately blocked
+compilation-authority join.
 
 - [x] Close the checkpoint-000001 constant-aggregate vertical slice specified by
   [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md).
@@ -338,7 +338,7 @@ join.
   lower-rooted routes compose at their explicit versioned seams. Exact fixture
   counts and byte-layout rules remain in the CKIR3 contract and gates rather
   than this queue.
-- [ ] Close the checkpoint-000001 runtime named-record construction through
+- [x] Close the checkpoint-000001 runtime named-record construction through
   existing structural Call/Copy paths, as specified by
   [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md).
   This slice adds one general way to construct a recursively copyable named
@@ -353,21 +353,21 @@ join.
   - [x] Compose the exact `compiler/psi/source/source.omg` unit with a same-
     logical-module harness that passes a runtime `SourceId` through
     `SourceUnit::clear` and observes the copied `id.value`.
-  - [ ] Carry authored-field reordering, nested records, 0/251/252 resource and
+  - [x] Carry authored-field reordering, nested records, 0/251/252 resource and
     semantic boundaries, Rust-free meaning, and independent result/ELF
     reconstruction without recognizing `SourceId` or the checkpoint filename.
-  - [ ] Close the distinct `OMGRFN5` lower-rooted responsibilities and one
+  - [x] Close the distinct `OMGRFN5` lower-rooted responsibilities and one
     unchanged-frame composition gate before reporting the slice complete.
     - [x] Reconstruct frame structure and exact `OMGCOMP` source custody.
     - [x] Reconstruct exact source-to-`OMGRSW1` resolution, including inherited
       role-3 bindings and authored parameter-name spans.
     - [x] Reconstruct the `OMGRSW1`-to-CKIR4 declaration, layout, type, root,
       intrinsic-constant, and opcode-13 nominal-envelope join.
-    - [ ] Reconstruct source-body lowering and physically artifact-free source
+    - [x] Reconstruct source-body lowering and physically artifact-free source
       meaning, including runtime constructor canonicalization and Call/Copy.
     - [x] Reconstruct complete CKIR4/result meaning, constructor object/frame
       extents, and every exact ELF byte.
-    - [ ] Compose every responsibility over one immutable canonical `OMGRFN5`
+    - [x] Compose every responsibility over one immutable canonical `OMGRFN5`
       carrier with phase-local mutations and valid-but-mismatched cross-pairs.
 
   Acceptance: construction admits only pure, non-trapping literal, parameter,
