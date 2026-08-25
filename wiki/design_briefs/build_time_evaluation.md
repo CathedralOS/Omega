@@ -394,18 +394,24 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v3 carries operation-attempt schema v4, retaining in call-start order
-each completed operation's exact provider, stable tag, scalar return, and
-post-operation error state for a successful build evaluation. Grant-gate
-denials retain each exact operand ordinal, read/write access, and closed
-unresolvable/outside-root reason; ordinary host errors do not fabricate one.
+schema v4 carries operation-attempt schema v5, retaining in call-start order
+each completed operation's exact provider, stable tag, scalar return,
+post-operation error state, and every direct scoped path authorization for a
+successful build evaluation. Each authorized path retains its exact operand
+ordinal, read/write access, closed Source/Output root, and canonical
+slash-separated relative UTF-8 bytes without a host absolute prefix. Grant-gate
+denials remain distinct; ordinary host errors do not fabricate one and retain
+any authorization that preceded the host failure.
 Runtime descriptor values are not logical handles. A granted evaluation failure
 retains partial usage and observations with an explicit returned/evaluator-halt
 outcome; worker creation or panic marks evidence unavailable. Omega emits only
-fixed non-admission counts and no review row on failure. Concrete operands,
-rooted paths, mutable byte regions, and content are absent. It is an incomplete
-operation trace, not a transcript or receipt, and makes no replayability or
-source-rebuildability claim.
+fixed non-admission counts and no review row on failure. Duplicate identities,
+conflicting equal roots, unresolved roots, unrepresentable rooted paths, and
+the 16 MiB aggregate retained-path ceiling reject before host access. Complete
+operands, descriptor/logical-handle lineage, mutable byte regions, returned
+path bytes, and content are absent. It is an incomplete operation trace, not a
+transcript or receipt, and makes no replayability or source-rebuildability
+claim.
 
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities

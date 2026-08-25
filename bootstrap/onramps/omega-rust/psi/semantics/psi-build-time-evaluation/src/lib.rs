@@ -17,6 +17,7 @@ pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use admission::BuildTimeAdmissionPlan;
 pub use build_machines::{
     BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
     BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor, PreparedBuildMachineProgram,
     evaluate_build_machine_arguments_measured,
 };

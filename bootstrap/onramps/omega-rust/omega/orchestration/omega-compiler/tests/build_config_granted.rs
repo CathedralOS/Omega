@@ -11,8 +11,9 @@
 
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemProvider,
-    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
-    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemRoot, BuildObservationClass, CompileOptions, PackageCompilationInputs,
+    PackageSourceBinding, compile, compile_to_checked,
+    compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -35,6 +36,8 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
     let build_dir = project.join("build");
     let stage = build_dir.join("stage");
     std::fs::create_dir_all(&stage).expect("create project dirs");
+    std::fs::create_dir_all(project.join("inputs")).expect("create fixture input directory");
+    std::fs::write(project.join("inputs/table.txt"), "table\n").expect("seed fixture input");
 
     std::fs::write(
         project.join("build.omg"),
@@ -51,25 +54,31 @@ data Stager {{
     fs: FilesystemHost;
     log: Console;
     fd: i32;
+    buffer: [u8; 6];
     n: i64;
+    rc: i32;
 }}
 
-machine Stager::build(&mut self, b: &mut Build)
+machine Stager::build(&mut self, builder: &mut Build)
 reaches
     FilesystemHost + Console
 {{
-    b.roots.bind({root_owner}::ProgramEntry, Main::main);
+    builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.log.write_line("build: staging");
-    self.fd = self.fs.create("{stage}/asset.bin", 438);
-    transition self.fd >= 0 {{ true -> put(b) _ -> done(b) }}
-    state put(&mut self, b: &mut Build) {{
+    self.fd = self.fs.open("{source}/inputs/table.txt", 0);
+    self.n = self.fs.read(self.fd, &mut self.buffer, 6);
+    self.rc = self.fs.close(self.fd);
+    self.fd = self.fs.create("{stage}/asset.tmp", 438);
+    transition self.fd >= 0 {{ true -> put(builder) _ -> done(builder) }}
+    state put(&mut self, builder: &mut Build) {{
         self.n = self.fs.write(self.fd, "staged by build\n");
         _ = self.fs.sync(self.fd);
         self.n = self.fs.close(self.fd);
-        transition true {{ true -> done(b) _ -> done(b) }}
+        self.rc = self.fs.rename("{stage}/asset.tmp", "{stage}/asset.bin");
+        transition true {{ true -> done(builder) _ -> done(builder) }}
     }}
-    state done(&mut self, b: &mut Build) {{
-        b.freestanding = false;
+    state done(&mut self, builder: &mut Build) {{
+        builder.freestanding = false;
     }}
 }}
 "#,
@@ -77,6 +86,7 @@ reaches
             // (`C:\Users\...` would read `\U` as an escape sequence); every
             // host fs API accepts them.
             stage = stage.display().to_string().replace('\\', "/"),
+            source = project.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
         ),
@@ -104,7 +114,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 3);
+    assert_eq!(checked_observations.schema_version(), 4);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -115,7 +125,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        4
+        5
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -132,10 +142,14 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(
         attempts,
         vec![
-            (1, BuildFilesystemProvider::RealScoped, 3, 0),
+            (2, BuildFilesystemProvider::RealScoped, 3, 0),
+            (4, BuildFilesystemProvider::RealScoped, 6, 0),
+            (8, BuildFilesystemProvider::RealScoped, 0, 0),
+            (1, BuildFilesystemProvider::RealScoped, 4, 0),
             (5, BuildFilesystemProvider::RealScoped, 16, 0),
             (43, BuildFilesystemProvider::RealScoped, 0, 0),
             (8, BuildFilesystemProvider::RealScoped, 0, 0),
+            (18, BuildFilesystemProvider::RealScoped, 0, 0),
         ]
     );
     assert!(
@@ -143,6 +157,54 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
             .filesystem_operation_attempts()
             .iter()
             .all(|attempt| attempt.grant_refusals().is_empty())
+    );
+    let rooted_paths: Vec<_> = checked_observations
+        .filesystem_operation_attempts()
+        .iter()
+        .flat_map(|attempt| {
+            attempt.authorized_paths().iter().map(|path| {
+                (
+                    attempt.operation_tag(),
+                    path.operand_ordinal(),
+                    path.access(),
+                    path.root(),
+                    path.relative_path().to_vec(),
+                )
+            })
+        })
+        .collect();
+    assert_eq!(
+        rooted_paths,
+        vec![
+            (
+                2,
+                0,
+                BuildFilesystemGrantAccess::Read,
+                BuildFilesystemRoot::Source,
+                b"inputs/table.txt".to_vec(),
+            ),
+            (
+                1,
+                0,
+                BuildFilesystemGrantAccess::Write,
+                BuildFilesystemRoot::Output,
+                b"stage/asset.tmp".to_vec(),
+            ),
+            (
+                18,
+                0,
+                BuildFilesystemGrantAccess::Write,
+                BuildFilesystemRoot::Output,
+                b"stage/asset.tmp".to_vec(),
+            ),
+            (
+                18,
+                1,
+                BuildFilesystemGrantAccess::Write,
+                BuildFilesystemRoot::Output,
+                b"stage/asset.bin".to_vec(),
+            ),
+        ]
     );
 
     let report = compile(CompileOptions {
@@ -189,6 +251,9 @@ fn declared_filesystem_build_machine_cannot_write_under_source_root() {
 
     let forbidden = project.join("stage/blocked.bin");
     let unresolvable = project.join("missing-parent/blocked.bin");
+    let absent_output = project.join("build/absent.bin");
+    let mixed_from = project.join("build/mixed-from.bin");
+    let mixed_to = project.join("stage/mixed-to.bin");
     let rename_from = project.join("stage/rename-from.bin");
     let rename_to = project.join("stage/rename-to.bin");
     std::fs::write(
@@ -207,20 +272,25 @@ data SourceWriter {{
     rc: i32;
 }}
 
-machine SourceWriter::build(&mut self, b: &mut Build)
+machine SourceWriter::build(&mut self, builder: &mut Build)
 reaches
     FilesystemHost
 {{
-    b.roots.bind({root_owner}::ProgramEntry, Main::main);
+    builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.fd = self.fs.create("{forbidden}", 438);
     self.fd = self.fs.create("{unresolvable}", 438);
+    self.rc = self.fs.remove("{absent_output}");
+    self.rc = self.fs.rename("{mixed_from}", "{mixed_to}");
     self.rc = self.fs.rename("{rename_from}", "{rename_to}");
-    b.freestanding = false;
+    builder.freestanding = false;
 }}
 "#,
             // Forward slashes so the embedded path lexes on windows too.
             forbidden = forbidden.display().to_string().replace('\\', "/"),
             unresolvable = unresolvable.display().to_string().replace('\\', "/"),
+            absent_output = absent_output.display().to_string().replace('\\', "/"),
+            mixed_from = mixed_from.display().to_string().replace('\\', "/"),
+            mixed_to = mixed_to.display().to_string().replace('\\', "/"),
             rename_from = rename_from.display().to_string().replace('\\', "/"),
             rename_to = rename_to.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
@@ -251,8 +321,13 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         .expect("denied filesystem attempt remains an observed build-host operation");
     assert_eq!(observations.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(observations.realized(), BuildObservationClass::Volatile);
-    let [denied_create, unresolved_create, denied_rename] =
-        observations.filesystem_operation_attempts()
+    let [
+        denied_create,
+        unresolved_create,
+        absent_remove,
+        mixed_rename,
+        denied_rename,
+    ] = observations.filesystem_operation_attempts()
     else {
         panic!("create and rename denials must remain in ordered operation evidence")
     };
@@ -263,6 +338,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(denied_create.result(), -1);
     assert_eq!(denied_create.post_error(), 13);
+    assert!(denied_create.authorized_paths().is_empty());
     let create_refusal = denied_create
         .grant_refusals()
         .first()
@@ -282,6 +358,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(unresolved_create.result(), -1);
     assert_eq!(unresolved_create.post_error(), 2);
+    assert!(unresolved_create.authorized_paths().is_empty());
     let unresolved_refusal = unresolved_create
         .grant_refusals()
         .first()
@@ -297,6 +374,41 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         BuildFilesystemGrantRefusalReason::Unresolvable
     );
 
+    assert_eq!(absent_remove.operation_tag(), 9);
+    assert_eq!(absent_remove.result(), -1);
+    assert_eq!(absent_remove.post_error(), 2);
+    assert!(absent_remove.grant_refusals().is_empty());
+    let [authorized_absent] = absent_remove.authorized_paths() else {
+        panic!("host failure after grant authorization must retain the rooted path")
+    };
+    assert_eq!(authorized_absent.operand_ordinal(), 0);
+    assert_eq!(
+        authorized_absent.access(),
+        BuildFilesystemGrantAccess::Write
+    );
+    assert_eq!(authorized_absent.root(), BuildFilesystemRoot::Output);
+    assert_eq!(authorized_absent.relative_path(), b"absent.bin");
+
+    assert_eq!(mixed_rename.operation_tag(), 18);
+    assert_eq!(mixed_rename.result(), -1);
+    assert_eq!(mixed_rename.post_error(), 13);
+    let [authorized_from] = mixed_rename.authorized_paths() else {
+        panic!("accepted first rename operand must remain visible when the sibling refuses")
+    };
+    assert_eq!(authorized_from.operand_ordinal(), 0);
+    assert_eq!(authorized_from.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(authorized_from.root(), BuildFilesystemRoot::Output);
+    assert_eq!(authorized_from.relative_path(), b"mixed-from.bin");
+    let [mixed_refusal] = mixed_rename.grant_refusals() else {
+        panic!("mixed rename must retain its refused sibling operand")
+    };
+    assert_eq!(mixed_refusal.operand_ordinal(), 1);
+    assert_eq!(mixed_refusal.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(
+        mixed_refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+
     assert_eq!(denied_rename.operation_tag(), 18);
     assert_eq!(
         denied_rename.provider(),
@@ -304,6 +416,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(denied_rename.result(), -1);
     assert_eq!(denied_rename.post_error(), 13);
+    assert!(denied_rename.authorized_paths().is_empty());
     let rename_refusals: Vec<_> = denied_rename
         .grant_refusals()
         .iter()

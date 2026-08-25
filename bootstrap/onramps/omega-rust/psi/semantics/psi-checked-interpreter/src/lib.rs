@@ -149,11 +149,12 @@ pub struct EvaluationUsage {
 
 /// Schema for the current incomplete filesystem operation-attempt evidence.
 ///
-/// This records call-start order, exact provider, and a typed returned or
-/// evaluator-halted outcome. It is not the canonical replay transcript:
-/// arguments, rooted paths, mutable output regions, logical handles, and
-/// retained content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 4;
+/// This records call-start order, exact provider, every successfully authorized
+/// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
+/// and a typed returned or evaluator-halted outcome. It is not the canonical
+/// replay transcript: complete operands, mutable output regions, logical
+/// handles, and retained content are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -176,6 +177,8 @@ pub enum FilesystemGrantAccess {
 pub enum FilesystemGrantRefusalReason {
     Unresolvable,
     OutsideGrantedRoots,
+    UnrepresentableRootedPath,
+    ObservationEvidenceLimitExceeded,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,6 +186,80 @@ pub struct FilesystemGrantRefusal {
     operand_ordinal: u8,
     access: FilesystemGrantAccess,
     reason: FilesystemGrantRefusalReason,
+}
+
+/// Compiler-issued identity for one scoped filesystem grant root.
+///
+/// The checked interpreter treats this as an opaque coordinate. The caller
+/// owns its meaning (for example, Omega assigns distinct identities to the
+/// immutable package source and writable build output roots). Zero is reserved
+/// so an omitted/default identity cannot enter evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FilesystemGrantRootIdentity(u32);
+
+impl FilesystemGrantRootIdentity {
+    pub const fn new(value: u32) -> Option<Self> {
+        if value == 0 { None } else { Some(Self(value)) }
+    }
+
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+/// One compiler-supplied physical grant root and its evidence identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemGrantRoot {
+    identity: FilesystemGrantRootIdentity,
+    path: std::path::PathBuf,
+}
+
+impl FilesystemGrantRoot {
+    pub fn new(identity: FilesystemGrantRootIdentity, path: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            identity,
+            path: path.into(),
+        }
+    }
+
+    pub const fn identity(&self) -> FilesystemGrantRootIdentity {
+        self.identity
+    }
+
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+}
+
+/// One scoped path that passed the grant gate before host access.
+///
+/// `relative_path` uses `/` between UTF-8 components, never carries a leading
+/// separator, and is empty for the root itself. It therefore contains no host
+/// absolute path or compiler working-directory spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemAuthorizedPath {
+    operand_ordinal: u8,
+    access: FilesystemGrantAccess,
+    root: FilesystemGrantRootIdentity,
+    relative_path: Vec<u8>,
+}
+
+impl FilesystemAuthorizedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn access(&self) -> FilesystemGrantAccess {
+        self.access
+    }
+
+    pub const fn root(&self) -> FilesystemGrantRootIdentity {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,6 +303,7 @@ pub struct FilesystemOperationAttempt {
     operation_tag: u16,
     provider: FilesystemObservationProvider,
     outcome: Option<FilesystemOperationAttemptOutcome>,
+    authorized_paths: Vec<FilesystemAuthorizedPath>,
     grant_refusals: Vec<FilesystemGrantRefusal>,
 }
 
@@ -235,6 +313,7 @@ impl FilesystemOperationAttempt {
             operation_tag,
             provider,
             outcome: None,
+            authorized_paths: Vec::new(),
             grant_refusals: Vec::new(),
         }
     }
@@ -269,6 +348,10 @@ impl FilesystemOperationAttempt {
 
     pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {
         &self.grant_refusals
+    }
+
+    pub fn authorized_paths(&self) -> &[FilesystemAuthorizedPath] {
+        &self.authorized_paths
     }
 }
 
@@ -319,6 +402,7 @@ impl EvaluationObservations {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildMachineEvaluationFailureKind {
+    InvalidFilesystemGrant,
     Exit,
     Unsupported,
     Trap,
@@ -607,10 +691,10 @@ pub struct FsGrants {
     /// Trees the program may READ from (open read-only, stat). A write root
     /// implicitly grants read-back -- staging then verifying is the normal
     /// build shape -- so these are the read-ONLY trees.
-    pub read_roots: Vec<std::path::PathBuf>,
+    pub read_roots: Vec<FilesystemGrantRoot>,
     /// Trees the program may WRITE under: create/truncate/append opens,
     /// remove, create_dir/remove_dir, and BOTH ends of a rename.
-    pub write_roots: Vec<std::path::PathBuf>,
+    pub write_roots: Vec<FilesystemGrantRoot>,
 }
 
 /// Options for [`interpret_entry_with_options`]. `Default` selects the hermetic

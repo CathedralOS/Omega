@@ -410,14 +410,32 @@ pub(crate) fn run_granted_build_machine_arguments(
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
-                        evaluator.real_fs = Some(real_fs::RealFs::new(None, None));
+                        evaluator.real_fs = Some(
+                            real_fs::RealFs::new(None, None)
+                                .expect("unscoped filesystem has no grant configuration"),
+                        );
                     }
                     FilesystemAccess::RealScoped(grants) => {
-                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None));
+                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None).map_err(
+                            |message| {
+                                BuildMachineEvaluationFailure::without_evidence(
+                                    BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
+                                    message,
+                                )
+                            },
+                        )?);
                     }
                     FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-                        evaluator.real_fs =
-                            Some(real_fs::RealFs::new(Some(grants), Some(sponsor)));
+                        evaluator.real_fs = Some(
+                            real_fs::RealFs::new(Some(grants), Some(sponsor)).map_err(
+                                |message| {
+                                    BuildMachineEvaluationFailure::without_evidence(
+                                        BuildMachineEvaluationFailureKind::InvalidFilesystemGrant,
+                                        message,
+                                    )
+                                },
+                            )?,
+                        );
                     }
                 }
                 let result = evaluator.run_build_machine_arguments_with_policy(
@@ -519,13 +537,38 @@ fn run_on_current_thread(
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
-            evaluator.real_fs = Some(real_fs::RealFs::new(None, None));
+            evaluator.real_fs = Some(
+                real_fs::RealFs::new(None, None)
+                    .expect("unscoped filesystem has no grant configuration"),
+            );
         }
         FilesystemAccess::RealScoped(grants) => {
-            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), None));
+            let filesystem = match real_fs::RealFs::new(Some(grants), None) {
+                Ok(filesystem) => filesystem,
+                Err(message) => {
+                    return InterpretOutcome::error(
+                        message,
+                        evaluator.stdout,
+                        evaluator.stderr,
+                        evaluator.usage,
+                    );
+                }
+            };
+            evaluator.real_fs = Some(filesystem);
         }
         FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants), Some(sponsor)));
+            let filesystem = match real_fs::RealFs::new(Some(grants), Some(sponsor)) {
+                Ok(filesystem) => filesystem,
+                Err(message) => {
+                    return InterpretOutcome::error(
+                        message,
+                        evaluator.stdout,
+                        evaluator.stderr,
+                        evaluator.usage,
+                    );
+                }
+            };
+            evaluator.real_fs = Some(filesystem);
         }
     }
     let result = evaluator.run_entry(entry_machine_name);
@@ -798,9 +841,17 @@ struct Evaluator<'program> {
     /// as its dynamic backstop.
     non_fs_host_boundary_touched: bool,
     /// Ordered operation-attempt evidence for exact canonical filesystem host
-    /// calls. This remains deliberately incomplete until rooted arguments,
-    /// mutable outputs, logical handles, and retained content are recorded.
+    /// calls. Direct scoped path authorizations retain compiler-rooted paths;
+    /// this remains deliberately incomplete until complete operands, mutable
+    /// outputs, logical handle lineage, and retained content are recorded.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+    /// Aggregate retained rooted-path bytes. This compiler-side account is not
+    /// observable by Omega code and prevents successful grant evidence from
+    /// growing without a dedicated bound.
+    filesystem_observation_path_bytes: usize,
+    /// Pending non-catchable halt set when retaining a successfully authorized
+    /// rooted path would exceed the compiler's evidence-custody bound.
+    filesystem_observation_resource_halt: Option<String>,
     /// Stack of call-start indices used to attach nested provider-side facts to
     /// the exact active operation attempt.
     filesystem_operation_attempt_stack: Vec<usize>,

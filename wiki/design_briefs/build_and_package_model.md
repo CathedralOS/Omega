@@ -574,16 +574,20 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v3 carries operation-attempt schema v4: an ordered
+Observation schema v4 carries operation-attempt schema v5: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
-and post-operation error state. Grant-gate denials retain every exact operand
-ordinal, read/write access, and unresolvable/outside-root reason; host errors
-carry no fabricated refusal. Granted evaluator failures retain partial usage and
-typed returned/evaluator-halt outcomes; worker failures mark evidence
-unavailable. Omega emits fixed non-admission counts and no review row. Concrete
-operands, rooted paths, mutable outputs, logical handles, and content remain
-absent; raw
-runtime descriptor returns therefore remain non-replayable.
+post-operation error state, and every direct scoped path authorization.
+Authorized paths retain exact operand/access, closed Source/Output root, and
+canonical slash-separated relative UTF-8 bytes without physical root spellings.
+Grant denials remain distinct; host errors retain prior authorization without
+fabricating a refusal. Duplicate/conflicting/unresolved roots, unrepresentable
+paths, and the 16 MiB aggregate retained-path ceiling reject before host access;
+ceiling exhaustion non-catchably halts the evaluator. Granted evaluator
+failures retain partial usage and typed outcomes; worker
+failures mark evidence unavailable. Omega emits fixed non-admission counts and
+no review row. Complete operands, descriptor/logical-handle lineage, mutable
+outputs, returned path bytes, and content remain absent; raw runtime descriptor
+returns therefore remain non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -678,14 +682,15 @@ loaded by the operating system. Those stronger source/toolchain joins remain
 part of sealing `PackageInstance`.
 
 Ratified 2026-08-24: the implementation should read each row from the earliest
-coherent checked compiler state that contains it. Different rows may come from different
-internal representations; the final projection must be total, but no single
-intermediate representation must contain every row. This may couple the checker
-to compiler-private representations: the checker is part of the compiler and
-moves with them. That coupling does not make an internal representation a
-package format or public compatibility surface. The representations remain
-Psi-owned semantic state; using one "earlier" than Terminal Psi does not create
-a separate semantic owner or bypass the Psi pipeline.
+coherent checked compiler state that contains it. Different rows may come from
+different internal representations; the final projection must be total, but no
+single intermediate representation must contain every row. This may couple the
+checker to compiler-private representations: the checker is part of the
+compiler and moves with them. That coupling does not make an internal
+representation a package format or public compatibility surface. The
+representations remain Psi-owned semantic state; using one "earlier" than
+Terminal Psi does not create a separate semantic owner or bypass the Psi
+pipeline.
 
 This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for format stability. It has no execution semantics or

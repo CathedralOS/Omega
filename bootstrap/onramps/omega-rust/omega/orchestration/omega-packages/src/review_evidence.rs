@@ -1,9 +1,9 @@
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemProvider,
-    BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
-    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    BuildFilesystemRoot, BuildObservationClass, BuildObservationSummary,
+    CompilerExecutableCommitment, DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageSourceConsumptionCommitment,
 };
 use sha2::{Digest, Sha256};
@@ -202,6 +202,17 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         digest.update(attempt.result().to_le_bytes());
         digest.update(attempt.post_error().to_le_bytes());
         digest.update(
+            u64::try_from(attempt.authorized_paths().len())
+                .expect("build observation authorized-path count fits u64")
+                .to_le_bytes(),
+        );
+        for path in attempt.authorized_paths() {
+            digest.update([path.operand_ordinal()]);
+            digest.update([grant_access_tag(path.access())]);
+            digest.update([filesystem_root_tag(path.root())]);
+            hash_bytes(&mut digest, path.relative_path());
+        }
+        digest.update(
             u64::try_from(attempt.grant_refusals().len())
                 .expect("build observation refusal count fits u64")
                 .to_le_bytes(),
@@ -247,9 +258,96 @@ const fn grant_access_tag(access: BuildFilesystemGrantAccess) -> u8 {
     }
 }
 
+const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
+    match root {
+        BuildFilesystemRoot::Source => 0,
+        BuildFilesystemRoot::Output => 1,
+    }
+}
+
 const fn grant_refusal_reason_tag(reason: BuildFilesystemGrantRefusalReason) -> u8 {
     match reason {
         BuildFilesystemGrantRefusalReason::Unresolvable => 0,
         BuildFilesystemGrantRefusalReason::OutsideGrantedRoots => 1,
+        BuildFilesystemGrantRefusalReason::UnrepresentableRootedPath => 2,
+        BuildFilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => 3,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_compiler::compile_to_checked;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_OBSERVATION_FIXTURE: AtomicU64 = AtomicU64::new(1);
+
+    fn compiled_observation(relative_output: &str) -> BuildObservationSummary {
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        let build_dir = project.join("build");
+        let output = build_dir.join(relative_output);
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {{}}
+
+data RootedWriter {{ filesystem: FilesystemHost; descriptor: i32; result: i32; }}
+
+machine RootedWriter::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+    self.descriptor = self.filesystem.create("{output}", 438);
+    self.result = self.filesystem.close(self.descriptor);
+}}
+"#,
+                output = output.display().to_string().replace('\\', "/"),
+            ),
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("filesystem build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
+    #[test]
+    fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
+        let first = compiled_observation("stage/artifact.bin");
+        let relocated = compiled_observation("stage/artifact.bin");
+        assert_eq!(first, relocated);
+        assert_eq!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&relocated)
+        );
+
+        let changed = compiled_observation("stage/changed.bin");
+        assert_ne!(first, changed);
+        assert_ne!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&changed)
+        );
+        assert_eq!(first.schema_version(), 4);
+        assert_eq!(first.filesystem_operation_schema_version(), 5);
+        let [create, close] = first.filesystem_operation_attempts() else {
+            panic!("fixture performs create and close")
+        };
+        let [path] = create.authorized_paths() else {
+            panic!("create retains one rooted output path")
+        };
+        assert_eq!(path.root(), BuildFilesystemRoot::Output);
+        assert_eq!(path.relative_path(), b"stage/artifact.bin");
+        assert!(close.authorized_paths().is_empty());
     }
 }
