@@ -2,10 +2,11 @@ use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
-    CompilerExecutableCommitment, DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
+    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
+    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageSourceConsumptionCommitment,
 };
 use sha2::{Digest, Sha256};
@@ -201,7 +202,16 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
     for attempt in summary.filesystem_operation_attempts() {
         digest.update(attempt.operation_tag().to_le_bytes());
         digest.update([filesystem_provider_tag(attempt.provider())]);
-        digest.update(attempt.result().to_le_bytes());
+        match attempt.result() {
+            BuildFilesystemOperationResult::Scalar(value) => {
+                digest.update([0]);
+                digest.update(value.to_le_bytes());
+            }
+            BuildFilesystemOperationResult::LogicalHandle(identity) => {
+                digest.update([1]);
+                digest.update(identity.get().to_le_bytes());
+            }
+        }
         digest.update(attempt.post_error().to_le_bytes());
         digest.update(
             u64::try_from(attempt.scalar_operands().len())
@@ -553,8 +563,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 7);
-        assert_eq!(first.filesystem_operation_schema_version(), 8);
+        assert_eq!(first.schema_version(), 8);
+        assert_eq!(first.filesystem_operation_schema_version(), 9);
         let [create, write, close] = first.filesystem_operation_attempts() else {
             panic!("fixture performs create, write, and close")
         };
@@ -563,6 +573,15 @@ reaches FilesystemHost
         };
         assert_eq!(path.root(), BuildFilesystemRoot::Output);
         assert_eq!(path.relative_path(), b"stage/artifact.bin");
+        let created_identity = create
+            .logical_handle_output()
+            .expect("successful create retains its logical descriptor")
+            .identity();
+        assert_eq!(
+            create.result(),
+            BuildFilesystemOperationResult::LogicalHandle(created_identity)
+        );
+        assert_eq!(write.result(), BuildFilesystemOperationResult::Scalar(9));
         assert_eq!(
             create.scalar_operands()[0].value(),
             BuildFilesystemScalarOperandValue::I32(438)

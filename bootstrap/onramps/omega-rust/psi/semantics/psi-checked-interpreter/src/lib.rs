@@ -154,7 +154,7 @@ pub struct EvaluationUsage {
 /// and a typed returned or evaluator-halted outcome. It is not the canonical
 /// replay transcript: path-like byte operands beyond rooted grant evidence,
 /// complete returned content, and complete content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 8;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 9;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -455,8 +455,17 @@ pub enum FilesystemEvaluationHaltKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemOperationResult {
+    Scalar(i64),
+    LogicalHandle(FilesystemLogicalHandleIdentity),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemOperationAttemptOutcome {
-    Returned { result: i64, post_error: i32 },
+    Returned {
+        result: FilesystemOperationResult,
+        post_error: i32,
+    },
     EvaluationHalted(FilesystemEvaluationHaltKind),
 }
 
@@ -479,9 +488,10 @@ impl FilesystemGrantRefusal {
 /// non-admission evidence.
 ///
 /// The operation tag is an append-only compiler-owned identity. No package
-/// string enters this row. Runtime descriptor numbers may still appear in
-/// `result`, but descriptor/handle use is separately normalized into logical
-/// lifetimes. Mutable carrier regions retain complete pre/post snapshots, but
+/// string enters this row. Successful descriptor/handle results and uses are
+/// normalized into logical lifetimes; provider token numbers do not survive.
+/// Failed handle-result sentinels remain scalar results. Mutable carrier
+/// regions retain complete pre/post snapshots, but
 /// complete path/content custody is still absent, so this remains below
 /// receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -530,7 +540,7 @@ impl FilesystemOperationAttempt {
         self.outcome
     }
 
-    pub const fn result(&self) -> Option<i64> {
+    pub const fn result(&self) -> Option<FilesystemOperationResult> {
         match self.outcome {
             Some(FilesystemOperationAttemptOutcome::Returned { result, .. }) => Some(result),
             _ => None,

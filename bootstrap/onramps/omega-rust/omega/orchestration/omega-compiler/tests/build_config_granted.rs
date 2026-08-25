@@ -12,10 +12,10 @@
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildFilesystemScalarOperandValue, BuildObservationClass, CompileOptions,
-    PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
-    compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
+    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
+    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -121,7 +121,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 7);
+    assert_eq!(checked_observations.schema_version(), 8);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -132,16 +132,23 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        8
+        9
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
         .iter()
         .map(|attempt| {
+            let result = match attempt.result() {
+                BuildFilesystemOperationResult::Scalar(value) => (0, value),
+                BuildFilesystemOperationResult::LogicalHandle(identity) => (
+                    1,
+                    i64::try_from(identity.get()).expect("fixture identity fits i64"),
+                ),
+            };
             (
                 attempt.operation_tag(),
                 attempt.provider(),
-                attempt.result(),
+                result,
                 attempt.post_error(),
             )
         })
@@ -149,17 +156,17 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(
         attempts,
         vec![
-            (2, BuildFilesystemProvider::RealScoped, 3, 0),
-            (4, BuildFilesystemProvider::RealScoped, 6, 0),
-            (30, BuildFilesystemProvider::RealScoped, 3, 0),
-            (8, BuildFilesystemProvider::RealScoped, 0, 0),
-            (1, BuildFilesystemProvider::RealScoped, 4, 0),
-            (45, BuildFilesystemProvider::RealScoped, 5, 0),
-            (5, BuildFilesystemProvider::RealScoped, 16, 0),
-            (43, BuildFilesystemProvider::RealScoped, 0, 0),
-            (8, BuildFilesystemProvider::RealScoped, 0, 0),
-            (8, BuildFilesystemProvider::RealScoped, 0, 0),
-            (18, BuildFilesystemProvider::RealScoped, 0, 0),
+            (2, BuildFilesystemProvider::RealScoped, (1, 1), 0),
+            (4, BuildFilesystemProvider::RealScoped, (0, 6), 0),
+            (30, BuildFilesystemProvider::RealScoped, (1, 2), 0),
+            (8, BuildFilesystemProvider::RealScoped, (0, 0), 0),
+            (1, BuildFilesystemProvider::RealScoped, (1, 3), 0),
+            (45, BuildFilesystemProvider::RealScoped, (1, 4), 0),
+            (5, BuildFilesystemProvider::RealScoped, (0, 16), 0),
+            (43, BuildFilesystemProvider::RealScoped, (0, 0), 0),
+            (8, BuildFilesystemProvider::RealScoped, (0, 0), 0),
+            (8, BuildFilesystemProvider::RealScoped, (0, 0), 0),
+            (18, BuildFilesystemProvider::RealScoped, (0, 0), 0),
         ]
     );
     assert!(
@@ -461,7 +468,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         denied_create.provider(),
         BuildFilesystemProvider::RealScoped
     );
-    assert_eq!(denied_create.result(), -1);
+    assert_eq!(
+        denied_create.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(denied_create.post_error(), 13);
     assert!(denied_create.authorized_paths().is_empty());
     let create_refusal = denied_create
@@ -481,7 +491,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         unresolved_create.provider(),
         BuildFilesystemProvider::RealScoped
     );
-    assert_eq!(unresolved_create.result(), -1);
+    assert_eq!(
+        unresolved_create.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(unresolved_create.post_error(), 2);
     assert!(unresolved_create.authorized_paths().is_empty());
     let unresolved_refusal = unresolved_create
@@ -500,7 +513,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
 
     assert_eq!(failed_close.operation_tag(), 8);
-    assert_eq!(failed_close.result(), -1);
+    assert_eq!(
+        failed_close.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     let [unknown_descriptor] = failed_close.logical_handle_inputs() else {
         panic!("failed close retains its unresolved descriptor operand")
     };
@@ -517,7 +533,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert!(failed_close.retired_logical_handles().is_empty());
 
     assert_eq!(absent_remove.operation_tag(), 9);
-    assert_eq!(absent_remove.result(), -1);
+    assert_eq!(
+        absent_remove.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(absent_remove.post_error(), 2);
     assert!(absent_remove.grant_refusals().is_empty());
     let [authorized_absent] = absent_remove.authorized_paths() else {
@@ -532,7 +551,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(authorized_absent.relative_path(), b"absent.bin");
 
     assert_eq!(mixed_rename.operation_tag(), 18);
-    assert_eq!(mixed_rename.result(), -1);
+    assert_eq!(
+        mixed_rename.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(mixed_rename.post_error(), 13);
     let [authorized_from] = mixed_rename.authorized_paths() else {
         panic!("accepted first rename operand must remain visible when the sibling refuses")
@@ -556,7 +578,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         denied_rename.provider(),
         BuildFilesystemProvider::RealScoped
     );
-    assert_eq!(denied_rename.result(), -1);
+    assert_eq!(
+        denied_rename.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(denied_rename.post_error(), 13);
     assert!(denied_rename.authorized_paths().is_empty());
     let rename_refusals: Vec<_> = denied_rename
@@ -676,13 +701,19 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         panic!("open, denied metadata/lock mutations, and close must remain ordered evidence")
     };
     assert_eq!(opened.operation_tag(), 2);
-    assert!(opened.result() >= 0);
     let opened_identity = opened
         .logical_handle_output()
         .expect("successful source open creates a logical descriptor")
         .identity();
+    assert_eq!(
+        opened.result(),
+        BuildFilesystemOperationResult::LogicalHandle(opened_identity)
+    );
     assert_eq!(denied_mutation.operation_tag(), 17);
-    assert_eq!(denied_mutation.result(), -1);
+    assert_eq!(
+        denied_mutation.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(denied_mutation.post_error(), 13);
     let [descriptor_input] = denied_mutation.logical_handle_inputs() else {
         panic!("denied descriptor mutation must name its logical input")
@@ -692,7 +723,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         BuildFilesystemLogicalHandleInputResolution::Resolved(opened_identity)
     );
     assert_eq!(denied_lock.operation_tag(), 46);
-    assert_eq!(denied_lock.result(), -1);
+    assert_eq!(
+        denied_lock.result(),
+        BuildFilesystemOperationResult::Scalar(-1)
+    );
     assert_eq!(denied_lock.post_error(), 13);
     let [lock_input] = denied_lock.logical_handle_inputs() else {
         panic!("denied lock must name its logical descriptor input")
@@ -702,7 +736,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         BuildFilesystemLogicalHandleInputResolution::Resolved(opened_identity)
     );
     assert_eq!(closed.operation_tag(), 8);
-    assert_eq!(closed.result(), 0);
+    assert_eq!(closed.result(), BuildFilesystemOperationResult::Scalar(0));
     assert_eq!(closed.retired_logical_handles(), &[opened_identity]);
     assert_eq!(
         std::fs::read_to_string(&source_file).unwrap(),

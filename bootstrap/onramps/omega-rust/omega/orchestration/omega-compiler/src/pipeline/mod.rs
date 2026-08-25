@@ -60,9 +60,10 @@ pub use build_config::{
     BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
     BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutput,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMutableByteOperand,
-    BuildFilesystemMutableI64Operand, BuildFilesystemOperationAttempt, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemMutableI64Operand, BuildFilesystemOperationAttempt,
+    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemRoot,
+    BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue, BuildObservationClass,
+    BuildObservationSummary,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{

@@ -192,7 +192,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 7;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 8;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -534,13 +534,32 @@ const fn project_logical_handle_output_source(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemOperationResult {
+    Scalar(i64),
+    LogicalHandle(BuildFilesystemLogicalHandleIdentity),
+}
+
+const fn project_operation_result(
+    result: psi_checked_interpreter::FilesystemOperationResult,
+) -> BuildFilesystemOperationResult {
+    match result {
+        psi_checked_interpreter::FilesystemOperationResult::Scalar(value) => {
+            BuildFilesystemOperationResult::Scalar(value)
+        }
+        psi_checked_interpreter::FilesystemOperationResult::LogicalHandle(identity) => {
+            BuildFilesystemOperationResult::LogicalHandle(project_logical_handle_identity(identity))
+        }
+    }
+}
+
 /// One completed call from a successful build evaluation. This partial row is
 /// execution evidence, not a replay event or receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemOperationAttempt {
     operation_tag: u16,
     provider: BuildFilesystemProvider,
-    result: i64,
+    result: BuildFilesystemOperationResult,
     post_error: i32,
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
     byte_operands: Vec<BuildFilesystemByteOperand>,
@@ -562,7 +581,7 @@ impl BuildFilesystemOperationAttempt {
         self.provider
     }
 
-    pub const fn result(&self) -> i64 {
+    pub const fn result(&self) -> BuildFilesystemOperationResult {
         self.result
     }
 
@@ -1699,9 +1718,11 @@ pub(crate) fn compute_build_config(
                     BuildFilesystemProvider::RealScoped
                 }
             },
-                result: attempt
-                    .result()
-                    .expect("successful build evaluation cannot retain a halted filesystem call"),
+                result: project_operation_result(
+                    attempt
+                        .result()
+                        .expect("successful build evaluation cannot retain a halted filesystem call"),
+                ),
                 post_error: attempt
                     .post_error()
                     .expect("successful build evaluation cannot retain a halted filesystem call"),

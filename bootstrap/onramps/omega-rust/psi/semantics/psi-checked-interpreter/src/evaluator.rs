@@ -5,7 +5,8 @@ use crate::{
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
     FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
-    InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    FilesystemOperationResult, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
+    MeasuredEvaluation,
 };
 
 mod filesystem_host_operation;

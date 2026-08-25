@@ -574,8 +574,8 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v7 carries operation-attempt schema v8: an ordered
-successful-run call-start trace of exact provider, operation tag, scalar return,
+Observation schema v8 carries operation-attempt schema v9: an ordered
+successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
 canonical slash-separated relative UTF-8 bytes without physical root spellings.
@@ -596,9 +596,13 @@ descriptors retain their rooted write grant through duplicate and borrowed
 views; content, extent, metadata, ownership, and host-lock mutations deny before
 sponsor or host access when the origin was admitted only for source reads.
 `open_at`/`unlink_at` accept only one portable relative component, while real
-path outputs are lossless or reject. Fully prepared calls whose evidence
-reservation succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars
-plus exact immutable write/FILETIME payloads;
+path outputs are lossless or reject. Successful descriptor/find/native-handle
+results retain only their logical identity in evidence; provider token integers
+do not survive. Non-handle
+results and failed handle-result sentinels remain exact scalar values, and
+package commitments type-tag both result lanes. Fully prepared calls whose
+evidence reservation succeeds retain ordinal-ordered non-handle
+I32/U32/I64/U64 scalars plus exact immutable write/FILETIME payloads;
 validated at-family components retain their exact portable bytes. Rooted and
 path-alias spellings never enter the payload lane. Mutable byte carriers retain
 their complete pre/post capacity, including unchanged tails, and mutable i64

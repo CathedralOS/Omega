@@ -118,8 +118,16 @@ impl<'program> Evaluator<'program> {
                     .real_fs
                     .as_ref()
                     .map_or(self.virtual_errno, |filesystem| filesystem.errno);
+                let observation_result = self.filesystem_operation_attempts[attempt_index]
+                    .logical_handle_output
+                    .map_or(FilesystemOperationResult::Scalar(result), |output| {
+                        FilesystemOperationResult::LogicalHandle(output.identity())
+                    });
                 self.filesystem_operation_attempts[attempt_index].outcome =
-                    Some(FilesystemOperationAttemptOutcome::Returned { result, post_error });
+                    Some(FilesystemOperationAttemptOutcome::Returned {
+                        result: observation_result,
+                        post_error,
+                    });
                 Ok(value)
             }
             Err(halt) => {

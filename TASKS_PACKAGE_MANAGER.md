@@ -774,9 +774,9 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v7
-  carries operation-attempt schema v8: an ordered successful-run call-start
-  trace of exact provider, operation tag, scalar return, post-operation error
+  `final_path_name_by_handle` are unconditionally so. Observation schema v8
+  carries operation-attempt schema v9: an ordered successful-run call-start
+  trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
   read/write access, closed Source/Output root identity, and canonical
@@ -806,6 +806,10 @@ complete.
   extent/metadata changes, ownership changes, and host-visible locks reject
   before sponsor or host access when the origin was admitted only for source
   reads.
+  Successful descriptor, native-handle, and find-handle results retain only the
+  minted logical identity; provider token integers do not survive into compiler
+  or package evidence. Non-handle results and failed handle-result sentinels
+  remain exact scalar values. Package commitments type-tag the two result lanes.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
@@ -827,8 +831,8 @@ complete.
   retroactively. Package review commitments frame scalar tags, ordinals,
   immutable bytes, and mutable pre/post states exactly and never render payload
   bytes as text.
-  This deliberately incomplete trace may still expose runtime descriptor values
-  and omits path-like byte operands not yet represented by rooted evidence,
+  This deliberately incomplete trace omits path-like byte operands not yet
+  represented by rooted evidence,
   retained returned-path bytes, preparation-failure operand prefixes, and
   complete content custody.
   The granted evaluator's structured failure now retains partial usage and
@@ -984,7 +988,9 @@ complete.
   and source-review packets as live baseline state, including when all old
   source is unavailable. This closes the review-restart mechanism, not accepted
   lock persistence: the capsule has no `PackageInstance`, resolution, project-
-  mutation, or lock-promotion path, and Q7 still blocks that promotion.
+  mutation, or lock-promotion path. Promotion remains blocked on the named
+  owner decision, "What compiler/toolchain provenance seals a package
+  instance?"
 
 - **LOCK-CLOSURE-VALIDATION.** Port useful closure/reachability validation to
   `PackageKey` and instance identities.
@@ -1271,8 +1277,9 @@ complete.
   lineage. This exposed and fixed local snapshot deduplication that previously
   collapsed distinct lineages onto one physical compiler root. Missing old
   source is covered both with live review state and a reopened review-only
-  baseline; missing accepted-lock state remains blocked on Q7 rather than being
-  simulated with that non-admitting capsule. A fixture-derived
+  baseline; missing accepted-lock state remains blocked on the exact producer-
+  provenance decision in `OWNER_QUESTIONS.md` rather than being simulated with
+  that non-admitting capsule. A fixture-derived
   `provider-switchboard` update now changes only the canonical build selection
   from `MonotonicClock` to `WallClock`; compiler-issued package-qualified
   projections prove both endpoints, and reconciliation emits one changed,
