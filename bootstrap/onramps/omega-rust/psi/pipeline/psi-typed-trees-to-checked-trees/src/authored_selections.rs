@@ -51,7 +51,11 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
-                ) => declaration_target(member.member_symbol),
+                ) => declaration_target(crate::flow::effective_member_symbol(
+                    program,
+                    member.receiver,
+                    member,
+                )),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
@@ -144,7 +148,7 @@ fn intrinsic_operator_operand_is_primitive(
     crate::operators::expression_type_reference_for_origin(program, operand, origin)
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
-        || expression_primitive_type_without_origin(program, operand).is_some()
+        || expression_is_intrinsic_primitive_without_origin(program, operand)
 }
 
 fn checked_operator_target(
@@ -189,19 +193,22 @@ fn checked_operator_target(
                 ExpressionNode::Unary(unary) => unary.operand,
                 _ => return None,
             };
-            expression_primitive_type_without_origin(program, operand).map(|_| {
+            expression_is_intrinsic_primitive_without_origin(program, operand).then_some(
                 CheckedResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                )
-            })
+                ),
+            )
         })
 }
 
-fn expression_primitive_type_without_origin(
+fn expression_is_intrinsic_primitive_without_origin(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
-) -> Option<psi_typed_trees::types::PrimitiveType> {
+) -> bool {
     let type_reference = match program.tables.expression_table.expression(expression) {
+        ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {
+            return true;
+        }
         ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol),
         ExpressionNode::Call(call) => program
             .machines()
@@ -209,18 +216,43 @@ fn expression_primitive_type_without_origin(
             .flat_map(|machine| program.machine_states(machine))
             .find_map(|state| (state.symbol == call.target_symbol).then_some(state.return_type)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Member(member) => type_reference_for_symbol(
+            program,
+            crate::flow::effective_member_symbol(program, member.receiver, member),
+        ),
         ExpressionNode::Borrow(inner) => {
-            return expression_primitive_type_without_origin(program, inner.target);
+            return expression_is_intrinsic_primitive_without_origin(program, inner.target);
         }
         _ => None,
-    }?;
-    program.primitive_type_reference(type_reference)
+    };
+    type_reference
+        .and_then(|type_reference| program.primitive_type_reference(type_reference))
+        .is_some()
 }
 
 fn type_reference_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            match member {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return Some(field.type_reference);
+                }
+                psi_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(type_reference) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find_map(|field| (field.symbol == symbol).then_some(field.type_reference))
+                    {
+                        return Some(type_reference);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
     for machine in program.machines() {
         if let Some(type_reference) = program
             .machine_owned_data(machine)

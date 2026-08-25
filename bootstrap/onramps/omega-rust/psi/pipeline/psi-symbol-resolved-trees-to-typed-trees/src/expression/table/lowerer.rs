@@ -302,7 +302,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
-                self.require_exact_struct_literal_symbols(expression, struct_literal)?;
                 let omitted = self.nullary_erased_initializers(struct_literal);
                 let mut fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
                 for initializer in omitted {
@@ -575,52 +574,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 })
             })
             .collect()
-    }
-
-    fn require_exact_struct_literal_symbols(
-        &self,
-        expression: resolved::expression::ExpressionHandle,
-        literal: &resolved::expression::TableStructLiteral,
-    ) -> Result<(), Diagnostic> {
-        let unresolved_case = literal.case_name.is_some()
-            && literal
-                .case_symbol
-                .is_none_or(|case_symbol| !case_symbol.is_valid());
-        let unresolved_field = self
-            .source
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|field| !field.field_symbol.is_valid());
-        if literal.type_symbol.is_valid() && !unresolved_case && unresolved_field.is_none() {
-            return Ok(());
-        }
-
-        let detail = if !literal.type_symbol.is_valid() {
-            format!(
-                "unknown struct-literal type `{}`",
-                literal.type_name.as_str()
-            )
-        } else if unresolved_case {
-            format!(
-                "unknown case `{}` for struct-literal type `{}`",
-                literal
-                    .case_name
-                    .as_ref()
-                    .map_or("<missing>", |name| name.as_str()),
-                literal.type_name.as_str()
-            )
-        } else {
-            let field = unresolved_field.expect("unresolved field checked above");
-            format!(
-                "unknown field `{}` for struct-literal selection `{}`",
-                field.name.as_str(),
-                literal.type_name.as_str()
-            )
-        };
-        Err(Diagnostic::error(format!(
-            "cannot lower struct literal without exact declaration identity: {detail}"
-        ))
-        .with_source_span(self.source.source_span(expression)))
     }
 
     fn synthesize_nullary_initializer(
