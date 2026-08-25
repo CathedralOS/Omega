@@ -82,7 +82,11 @@ same-frame composition gate remain open. No earlier OMGRFN checker is widened
 to provide CKIR3 evidence. A separate focused, physically artifact-free source
 evaluator now closes responsibility 4's `16/17` active-frame and
 `65,536/65,537` dynamic-block-entry boundaries; it is boundary evidence, not a
-claim that the complete source-lowering/meaning responsibility is closed.
+claim that the complete source-lowering/meaning responsibility is closed. A
+separate CKIR-only checker closes responsibility 5's `64/65` active-frame and
+same global block-entry boundaries, including structurally valid backend/ELF
+production for evaluator-over cases. It likewise does not close complete
+CKIR/result/artifact reconstruction.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

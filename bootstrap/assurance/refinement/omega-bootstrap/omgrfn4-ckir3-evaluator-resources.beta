@@ -1,0 +1,341 @@
+; OMGRFN4 responsibility-5 focused CKIR-only evaluator resource checker.
+;
+; This checker deliberately recognizes two independently encoded, complete
+; CKIR3 families: a finite scalar call chain and a cyclic three-block scalar
+; counter.  It validates every row in those families before evaluation.  The
+; call family pins 64/65 active machine frames; the counter family pins the
+; global 65536/65537 dynamic block-entry boundary.  OMGCOMP, OMGRSW1, and ELF
+; remain opaque through the composed OMGRFN4 component envelope.
+
+proc rfr_u16(at) {
+    return refinement_ckir_byte(at)+refinement_ckir_byte(at+1)*256
+}
+
+proc rfr_u32(at) {
+    return refinement_ckir_byte(at)+refinement_ckir_byte(at+1)*256
+        +refinement_ckir_byte(at+2)*65536+refinement_ckir_byte(at+3)*16777216
+}
+
+; Table bases at word[540000+table*8], widths at word[540200+table*8].
+; Header counts at word[540400+table*8], value/place counts at 540600/540608.
+proc rfr_row(table,row,offset) {
+    return rfr_u32(word[540000+table*8]+row*word[540200+table*8]+offset)
+}
+
+proc rfr_row_byte(table,row,offset) {
+    return refinement_ckir_byte(word[540000+table*8]+row*word[540200+table*8]+offset)
+}
+
+; Keeping count and table wire order explicit makes the resource fixtures
+; independent of a generic decoder worklist.
+proc rfr_header() {
+    let n=0 let cursor=80
+    state fixed {
+        to bad when (word[524304]!=1) to bad when (word[524360]!=70)
+        to bad when (word[524368]!=70) to bad when (word[524336]<80)
+        to bad when (refinement_ckir_byte(0)!='O') to bad when (refinement_ckir_byte(1)!='M')
+        to bad when (refinement_ckir_byte(2)!='G') to bad when (refinement_ckir_byte(3)!='C')
+        to bad when (refinement_ckir_byte(4)!='K') to bad when (refinement_ckir_byte(5)!='I')
+        to bad when (refinement_ckir_byte(6)!='R') to bad when (refinement_ckir_byte(7)!=0)
+        to bad when (rfr_u16(8)!=3) to bad when (rfr_u16(10)!=0)
+        to bad when (rfr_u16(12)!=1) to bad when (rfr_u16(14)!=1)
+        to bad when (rfr_u32(16)!=0) to bad when (rfr_u32(20)!=word[524336])
+        n=rfr_u32(36) to counts
+    }
+    state counts {
+        word[540400]=rfr_u32(24) word[540408]=rfr_u32(28)
+        word[540416]=rfr_u32(32) word[540424]=n
+        word[540432]=rfr_u32(40) word[540440]=rfr_u32(44)
+        word[540448]=rfr_u32(48)
+        word[540456]=rfr_u32(72) word[540464]=rfr_u32(76)
+        word[540472]=rfr_u32(52) word[540480]=rfr_u32(56)
+        word[540488]=rfr_u32(60)
+        word[540600]=rfr_u32(64) word[540608]=rfr_u32(68)
+        word[540200]=24 word[540208]=20 word[540216]=16 word[540224]=36
+        word[540232]=20 word[540240]=32 word[540248]=20 word[540256]=24
+        word[540264]=4 word[540272]=40 word[540280]=4 word[540288]=44
+        to chain when (n==64) to chain when (n==65) to loop_shape when (n==1) to bad
+    }
+    state chain {
+        to bad when (word[540400]!=4) to bad when (word[540408]!=1)
+        to bad when (word[540416]!=0) to bad when (word[540432]!=0)
+        to bad when (word[540440]!=n) to bad when (word[540448]!=0)
+        to bad when (word[540456]!=0) to bad when (word[540464]!=0)
+        to bad when (word[540472]!=n*2-1) to bad when (word[540480]!=n-1)
+        to bad when (word[540488]!=n) to bad when (word[540600]!=n)
+        to bad when (word[540608]!=n-1) word[540800]=1 to bases
+    }
+    state loop_shape {
+        to bad when (word[540400]!=4) to bad when (word[540408]!=1)
+        to bad when (word[540416]!=0) to bad when (word[540432]!=0)
+        to bad when (word[540440]!=3) to bad when (word[540448]!=1)
+        to bad when (word[540456]!=0) to bad when (word[540464]!=0)
+        to bad when (word[540472]!=6) to bad when (word[540480]!=6)
+        to bad when (word[540488]!=3) to bad when (word[540600]!=7)
+        to bad when (word[540608]!=0) word[540800]=2 to bases
+    }
+    state bases {
+        word[540000]=cursor cursor=cursor+word[540400]*24
+        word[540008]=cursor cursor=cursor+word[540408]*20
+        word[540016]=cursor cursor=cursor+word[540416]*16
+        word[540024]=cursor cursor=cursor+word[540424]*36
+        word[540032]=cursor cursor=cursor+word[540432]*20
+        word[540040]=cursor cursor=cursor+word[540440]*32
+        word[540048]=cursor cursor=cursor+word[540448]*20
+        word[540056]=cursor cursor=cursor+word[540456]*24
+        word[540064]=cursor cursor=cursor+word[540464]*4
+        word[540072]=cursor cursor=cursor+word[540472]*40
+        word[540080]=cursor cursor=cursor+word[540480]*4
+        word[540088]=cursor cursor=cursor+word[540488]*44
+        to bad when (cursor!=word[524336]) return 0
+    }
+    state bad { return 251 }
+}
+
+proc rfr_common_types() {
+    ; Type 0 is the empty nominal owner.
+    state nominal {
+        to bad when (rfr_row(0,0,0)!=0) to bad when (rfr_row_byte(0,0,4)!=4)
+        to bad when (rfr_row_byte(0,0,5)!=0) to bad when (rfr_u16(word[540000]+6)!=0)
+        to bad when (rfr_row(0,0,8)!=0) to bad when (rfr_row(0,0,12)!=0)
+        to bad when (rfr_row(0,0,16)!=0) to bad when (rfr_row(0,0,20)!=0)
+        to record
+    }
+    state record {
+        to bad when (rfr_row(1,0,0)!=0) to bad when (rfr_row(1,0,4)!=0)
+        to bad when (rfr_row(1,0,8)!=0) to bad when (rfr_row(1,0,12)!=0)
+        to bad when (rfr_row_byte(1,0,16)!=0)
+        to bad when (rfr_row_byte(1,0,17)!=0)
+        to bad when (rfr_row_byte(1,0,18)!=0)
+        to bad when (rfr_row_byte(1,0,19)!=0)
+        return 0
+    }
+    state bad { return 251 }
+}
+
+proc rfr_scalar_type(id,kind,low,high) {
+    state check {
+        to bad when (rfr_row(0,id,0)!=id)
+        to bad when (rfr_row_byte(0,id,4)!=kind)
+        to bad when (rfr_row_byte(0,id,5)!=0)
+        to bad when (rfr_u16(word[540000]+id*24+6)!=0)
+        to bad when (rfr_row(0,id,8)!=0) to bad when (rfr_row(0,id,12)!=0)
+        to bad when (rfr_row(0,id,16)!=low) to bad when (rfr_row(0,id,20)!=high)
+        return 0
+    }
+    state bad { return 251 }
+}
+
+proc rfr_machine_row(id,block_start,block_count) {
+    state check {
+        to bad when (rfr_row(3,id,0)!=id) to bad when (rfr_row(3,id,4)!=0)
+        to bad when (rfr_row_byte(3,id,8)!=2) to bad when (rfr_row_byte(3,id,9)!=0)
+        to bad when (rfr_u16(word[540000+3*8]+id*36+10)!=0)
+        to bad when (rfr_row(3,id,12)!=word[540816])
+        to bad when (rfr_row(3,id,16)!=0) to bad when (rfr_row(3,id,20)!=0)
+        to bad when (rfr_row(3,id,24)!=block_start)
+        to bad when (rfr_row(3,id,28)!=block_count)
+        to bad when (rfr_row(3,id,32)!=block_start)
+        return 0
+    }
+    state bad { return 251 }
+}
+
+; Expected block parameter start/count are staged at 541000/541008.
+proc rfr_block_row(id,owner,op_start,op_count) {
+    state check {
+        to bad when (rfr_row(5,id,0)!=id) to bad when (rfr_row(5,id,4)!=owner)
+        to bad when (rfr_row_byte(5,id,8)!=2) to bad when (rfr_row_byte(5,id,9)!=0)
+        to bad when (rfr_u16(word[540000+5*8]+id*32+10)!=0)
+        to bad when (rfr_row(5,id,12)!=word[541000])
+        to bad when (rfr_row(5,id,16)!=word[541008])
+        to bad when (rfr_row(5,id,20)!=op_start)
+        to bad when (rfr_row(5,id,24)!=op_count)
+        to bad when (rfr_row(5,id,28)!=id)
+        return 0
+    }
+    state bad { return 251 }
+}
+
+; Expected kind/result/type/span/immediate are staged at 541100..541140.
+proc rfr_op(id,owner,block,opcode) {
+    state check {
+        to bad when (rfr_row(9,id,0)!=id) to bad when (rfr_row(9,id,4)!=owner)
+        to bad when (rfr_row(9,id,8)!=block)
+        to bad when (rfr_row_byte(9,id,12)!=opcode)
+        to bad when (rfr_row_byte(9,id,13)!=word[541100])
+        to bad when (rfr_u16(word[540000+9*8]+id*40+14)!=0)
+        to bad when (rfr_row(9,id,16)!=word[541108])
+        to bad when (rfr_row(9,id,20)!=word[541116])
+        to bad when (rfr_row(9,id,24)!=word[541124])
+        to bad when (rfr_row(9,id,28)!=word[541132])
+        to bad when (rfr_row(9,id,32)!=word[541140]) to bad when (rfr_row(9,id,36)!=0)
+        return 0
+    }
+    state bad { return 251 }
+}
+
+; Expected operand spans and target 1 are staged at 541200..541232.
+proc rfr_term(id,kind,value,target0) {
+    state check {
+        to bad when (rfr_row(11,id,0)!=id) to bad when (rfr_row(11,id,4)!=rfr_row(5,id,4))
+        to bad when (rfr_row(11,id,8)!=id)
+        to bad when (rfr_row_byte(11,id,12)!=kind)
+        to bad when (rfr_row_byte(11,id,13)!=0)
+        to bad when (rfr_u16(word[540000+11*8]+id*44+14)!=0)
+        to bad when (rfr_row(11,id,16)!=value)
+        to bad when (rfr_row(11,id,20)!=target0)
+        to bad when (rfr_row(11,id,24)!=word[541200])
+        to bad when (rfr_row(11,id,28)!=word[541208])
+        to bad when (rfr_row(11,id,32)!=word[541216])
+        to bad when (rfr_row(11,id,36)!=word[541224])
+        to bad when (rfr_row(11,id,40)!=word[541232])
+        return 0
+    }
+    state bad { return 251 }
+}
+
+proc rfr_chain() {
+    let n=word[540400+3*8] let i=0 let status=0 let op=0 let frames=0
+    state types {
+        status=rfr_common_types() to bad when (status!=0)
+        status=rfr_scalar_type(1,3,0,1) to bad when (status!=0)
+        status=rfr_scalar_type(2,2,0,2147483647) to bad when (status!=0)
+        status=rfr_scalar_type(3,1,0,255) to bad when (status!=0)
+        word[540816]=3 to rows
+    }
+    state rows { to row when (i<n) i=0 to operands }
+    state row {
+        status=rfr_machine_row(i,i,1) to bad when (status!=0)
+        op=i*2 to final_row when (i+1==n)
+        word[541000]=0 word[541008]=0
+        status=rfr_block_row(i,i,op,2) to bad when (status!=0)
+        word[541100]=2 word[541108]=i word[541116]=0
+        word[541124]=i word[541132]=0 word[541140]=0
+        status=rfr_op(op,i,i,2) to bad when (status!=0)
+        word[541100]=1 word[541108]=i word[541116]=3
+        word[541124]=i word[541132]=1 word[541140]=i+1
+        status=rfr_op(op+1,i,i,10) to bad when (status!=0)
+        word[541200]=n-1 word[541208]=0 word[541216]=4294967295
+        word[541224]=n-1 word[541232]=0
+        status=rfr_term(i,4,i,4294967295)
+        to bad when (status!=0) i=i+1 to rows
+    }
+    state final_row {
+        word[541000]=0 word[541008]=0
+        status=rfr_block_row(i,i,op,1) to bad when (status!=0)
+        word[541100]=1 word[541108]=i word[541116]=3
+        word[541124]=n-1 word[541132]=0 word[541140]=70
+        status=rfr_op(op,i,i,1) to bad when (status!=0)
+        word[541200]=n-1 word[541208]=0 word[541216]=4294967295
+        word[541224]=n-1 word[541232]=0
+        status=rfr_term(i,4,i,4294967295)
+        to bad when (status!=0) i=i+1 to rows
+    }
+    state operands {
+        to operand when (i<n-1)
+        ; The validated family has exactly one active frame per dense machine.
+        to exhausted when (word[540400+3*8]>64)
+        frames=1 to evaluate
+    }
+    state operand { to bad when (rfr_row(10,i,0)!=i) i=i+1 to operands }
+    state evaluate {
+        to result when (frames==n)
+        to exhausted when (frames>=64)
+        frames=frames+1
+        to evaluate
+    }
+    state result { to bad when (word[524360]!=70) return 0 }
+    state exhausted { return 252 }
+    state bad { return 251 }
+}
+
+proc rfr_loop() {
+    let status=0 let limit=0 let entries=0 let index=0
+    state types {
+        status=rfr_common_types() to bad when (status!=0)
+        status=rfr_scalar_type(1,2,0,2147483647) to bad when (status!=0)
+        status=rfr_scalar_type(2,3,0,1) to bad when (status!=0)
+        status=rfr_scalar_type(3,1,0,255) to bad when (status!=0)
+        word[540816]=3 to machine
+    }
+    state machine { status=rfr_machine_row(0,0,3) to bad when (status!=0) to blocks }
+    state blocks {
+        word[541000]=0 word[541008]=0
+        status=rfr_block_row(0,0,0,1) to bad when (status!=0)
+        word[541000]=0 word[541008]=1
+        status=rfr_block_row(1,0,1,4) to bad when (status!=0)
+        word[541000]=1 word[541008]=0
+        status=rfr_block_row(2,0,5,1) to bad when (status!=0)
+        to parameter
+    }
+    state parameter {
+        to bad when (rfr_row(6,0,0)!=0) to bad when (rfr_row(6,0,4)!=1)
+        to bad when (rfr_row(6,0,8)!=0) to bad when (rfr_row(6,0,12)!=1)
+        to bad when (rfr_row(6,0,16)!=0)
+        limit=rfr_row(9,1,32)
+        to bad when (limit<65533) to bad when (limit>65534)
+        to operations
+    }
+    state operations {
+        word[541100]=1 word[541108]=1 word[541116]=1
+        word[541124]=0 word[541132]=0 word[541140]=0
+        status=rfr_op(0,0,0,1) to bad when (status!=0)
+        word[541108]=2 word[541140]=limit
+        status=rfr_op(1,0,1,1) to bad when (status!=0)
+        word[541108]=3 word[541140]=1
+        status=rfr_op(2,0,1,1) to bad when (status!=0)
+        word[541108]=4 word[541116]=2 word[541124]=0 word[541132]=2 word[541140]=0
+        status=rfr_op(3,0,1,9) to bad when (status!=0)
+        word[541108]=5 word[541116]=1 word[541124]=2 word[541132]=2
+        status=rfr_op(4,0,1,8) to bad when (status!=0)
+        word[541108]=6 word[541116]=3 word[541124]=4 word[541132]=0 word[541140]=70
+        status=rfr_op(5,0,2,1) to bad when (status!=0)
+        to operands
+    }
+    state operands {
+        to bad when (rfr_row(10,0,0)!=0) to bad when (rfr_row(10,1,0)!=2)
+        to bad when (rfr_row(10,2,0)!=0) to bad when (rfr_row(10,3,0)!=3)
+        to bad when (rfr_row(10,4,0)!=1) to bad when (rfr_row(10,5,0)!=5)
+        to terms
+    }
+    state terms {
+        word[541200]=4 word[541208]=1 word[541216]=4294967295
+        word[541224]=5 word[541232]=0
+        status=rfr_term(0,1,4294967295,1)
+        to bad when (status!=0)
+        word[541200]=5 word[541208]=1 word[541216]=2
+        word[541224]=6 word[541232]=0
+        status=rfr_term(1,2,4,1) to bad when (status!=0)
+        word[541200]=6 word[541208]=0 word[541216]=4294967295
+        word[541224]=6 word[541232]=0
+        status=rfr_term(2,4,6,4294967295)
+        to bad when (status!=0) to entry
+    }
+    state entry { entries=entries+1 to exhausted when (entries>65536) index=0 to loop_entry }
+    state loop_entry {
+        entries=entries+1 to exhausted when (entries>65536)
+        to advance when (index<limit) to done_entry
+    }
+    state advance { index=index+1 to loop_entry }
+    state done_entry {
+        entries=entries+1 to exhausted when (entries>65536)
+        to bad when (word[524360]!=70) return 0
+    }
+    state exhausted { return 252 }
+    state bad { return 251 }
+}
+
+proc rfr_check() {
+    let status=rfr_header()
+    state header { to done when (status!=0) to chain when (word[540800]==1) to loop }
+    state chain { status=rfr_chain() to done }
+    state loop { status=rfr_loop() to done }
+    state done { return status }
+}
+
+proc main() {
+    let status=omgrfn4_component_read()
+    state frame { to done when (status!=0) status=rfr_check() to done }
+    state done { return status }
+}

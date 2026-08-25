@@ -233,7 +233,10 @@ language, generation, or architectural role; new documentation and work use
   source-to-`OMGRSW1` resolution, and the witness-to-CKIR3 declaration/layout/
   selected-entry/intrinsic-DAG join for the selected Unicode family. Source
   lowering/meaning, CKIR/result/artifact reconstruction, and their same-frame
-  composition remain a separate open seam.
+  composition remain a separate open seam. Focused source-only and CKIR-only
+  checkers do close their respective `16/17` and `64/65` active-frame pairs and
+  both `65,536/65,537` dynamic-block-entry pairs without claiming either full
+  responsibility.
 
   The meaning gates deliberately reuse one elaboration and do not duplicate
   the native/self fixture or mutation matrices. On the measured Darwin-arm64

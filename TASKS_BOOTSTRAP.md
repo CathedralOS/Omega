@@ -280,7 +280,7 @@ on the separately blocked compilation-authority join.
   - [x] Establish the greatest source-realizable `OMGLOW3` input-frame boundary
     and its adjacent failure; the nominal component preflight ceilings are not
     permission to manufacture a noncanonical positive.
-  - [ ] Complete evaluator evidence at its versioned owners without a fixture
+  - [x] Complete evaluator evidence at its versioned owners without a fixture
     cross-product: source-only responsibility 4 owns active frames `16/17` and
     dynamic block entries `65,536/65,537`; CKIR-only responsibility 5 owns
     active frames `64/65` and the same global block-entry boundary.
@@ -288,7 +288,7 @@ on the separately blocked compilation-authority join.
     - [x] Close the source-only `16/17` frame and `65,536/65,537` block-entry
       pairs with a physically artifact-free evaluator and genuine source,
       `OMGRSW1`, and CKIR3 fixture production.
-    - [ ] Close the CKIR-only `64/65` frame and `65,536/65,537` block-entry
+    - [x] Close the CKIR-only `64/65` frame and `65,536/65,537` block-entry
       pairs independently of source evaluation.
   - [x] Freeze the distinct `OMGRFN4` lower-rooted carrier, its derived
     4,497,544-byte simultaneous ceiling, and the five-responsibility ownership
