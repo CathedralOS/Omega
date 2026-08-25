@@ -262,7 +262,7 @@ python3 -B - "$T/interval-guarded.beta" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); text=p.read_text(encoding="ascii")
-text=text.replace("fact_hi=src_low_g(44)  to done", "fact_hi=src_low_g(44)  word[23400024]=fact_valid  word[23400032]=fact_kind  word[23400040]=fact_id  word[23400048]=fact_hi  to done",1)
+text=text.replace("fact_hi=src_low_g(44)  to done", "fact_hi=src_low_g(44)  word[23400024]=fact_valid  word[23400032]=fact_kind  word[23400040]=fact_id  word[23400048]=fact_hi  word[23400056]=src_low_g(45)  to done",1)
 text=text.replace("true_seen=1  arm_kind=1", "true_seen=1  arm_kind=1  word[23400016]=1",1)
 text=text.replace("false_seen=1  arm_kind=2", "false_seen=1  arm_kind=2  word[23400016]=2",1)
 text=text.replace("wild_seen=1  arm_kind=3", "wild_seen=1  arm_kind=3  word[23400016]=3",1)
@@ -331,7 +331,8 @@ run_expect "$T/interval" "$T/compact.rfn" 0 "$T/compact.interval.out" "renamed/r
 
 python3 -B - "$FIXTURES/cyclic-range-custody.omg" "$T/cyclic-reordered.omg" \
   "$FIXTURES/arm-local-edge-argument.omg" "$T/arm-no-fact.omg" \
-  "$FIXTURES/negative-missing-cycle-predecessor.omg" "$T/missing-reordered.omg" <<'PY'
+  "$FIXTURES/negative-missing-cycle-predecessor.omg" "$T/missing-reordered.omg" \
+  "$T/impossible-true.omg" <<'PY'
 from pathlib import Path
 import sys
 cyclic=Path(sys.argv[1]).read_text(encoding="ascii")
@@ -355,12 +356,32 @@ Path(sys.argv[4]).write_text(arm.replace(old,new),encoding="ascii")
 missing=Path(sys.argv[5]).read_text(encoding="ascii")
 a=state_span(missing,"inspect"); b=state_span(missing,"back")
 Path(sys.argv[6]).write_text(missing[:a[0]]+missing[b[0]:b[1]]+missing[a[0]:a[1]]+missing[b[1]:],encoding="ascii")
+Path(sys.argv[7]).write_text(r'''// `< 0` has an impossible true arm; the checker also directly asserts that
+// neither target reachability nor interval transfer changes for this arm.
+data ImpossibleArmProbe {}
+
+machine ImpossibleArmProbe::run(&mut self) -> u8 {
+    transition { _ -> start(0) }
+
+    state start(&mut self, index: u32 in Trapping) {
+        transition index < 0 {
+            true -> fail()
+            _ -> pass()
+        }
+    }
+
+    state pass(&mut self) { 70 }
+    state fail(&mut self) { 71 }
+}
+''',encoding="ascii")
 PY
 
 build_case cyclic CustodyCycle run "$FIXTURES/cyclic-range-custody.omg"
 run_expect "$T/interval" "$T/cyclic.rfn" 0 "$T/cyclic.interval.out" "cyclic interval fixed point"
 build_case cyclic_reordered CustodyCycle run "$T/cyclic-reordered.omg"
 run_expect "$T/interval" "$T/cyclic_reordered.rfn" 0 "$T/cyclic-reordered.interval.out" "cyclic declaration-order independence"
+build_case impossible_true ImpossibleArmProbe run "$T/impossible-true.omg"
+run_expect "$T/interval" "$T/impossible_true.rfn" 0 "$T/impossible-true.interval.out" "less-than-zero impossible true arm"
 
 build_interval_negative() { # name owner source
   NAME=$1 OWNER=$2 SOURCE=$3
@@ -380,7 +401,9 @@ run_expect "$T/lowering" "$T/unicode.rfn" 0 "$T/unicode.out" "exact Unicode+harn
 run_expect "$T/roots" "$T/unicode.rfn" 0 "$T/unicode.roots.out" "exact Unicode+harness roots"
 run_expect "$T/interval" "$T/unicode.rfn" 0 "$T/unicode.interval.out" "exact Unicode+harness interval fixed point"
 
-python3 -B - "$T/compact.rfn" "$T/root-mutated.rfn" "$T/op12-mutated.rfn" "$T/oversized.rfn" <<'PY'
+python3 -B - "$T/compact.rfn" "$T/unicode.rfn" "$T/root-mutated.rfn" \
+  "$T/op12-mutated.rfn" "$T/oversized.rfn" "$T/child-span-mutated.rfn" \
+  "$T/block-partition-mutated.rfn" <<'PY'
 from pathlib import Path
 import struct,sys
 frame=bytearray(Path(sys.argv[1]).read_bytes())
@@ -400,7 +423,7 @@ for op in range(counts[7]):
         struct.pack_into("<I",root,at+32,(current-1) & 0xffffffff)
         break
 else: raise SystemExit("compact control has no opcode 11")
-Path(sys.argv[2]).write_bytes(root)
+Path(sys.argv[3]).write_bytes(root)
 op12=bytearray(frame)
 for op in range(counts[7]):
     at=operations+op*40
@@ -408,14 +431,35 @@ for op in range(counts[7]):
         op12[at+12]=9
         break
 else: raise SystemExit("compact control has no opcode 12")
-Path(sys.argv[3]).write_bytes(op12)
-Path(sys.argv[4]).write_bytes(frame+b"\0"*(4_497_545-len(frame)))
+Path(sys.argv[4]).write_bytes(op12)
+Path(sys.argv[5]).write_bytes(frame+b"\0"*(4_497_545-len(frame)))
+child_span=bytearray(frame)
+for node in range(counts[12]):
+    at=constants+node*24
+    if struct.unpack_from("<I",child_span,at+12)[0]>0:
+        struct.pack_into("<I",child_span,at+8,counts[13])
+        break
+else: raise SystemExit("compact control has no structural constant")
+Path(sys.argv[6]).write_bytes(child_span)
+
+uframe=bytearray(Path(sys.argv[2]).read_bytes())
+uomg,uwitness=struct.unpack_from("<2I",uframe,16)
+wbase=40+uomg
+wcounts=struct.unpack_from("<11I",uframe,wbase+20)
+wcursor=wbase+72
+for count,size in zip(wcounts[:7],(36,48,28,28,24,24,24)):
+    wcursor+=count*size
+if wcounts[7]<2: raise SystemExit("Unicode control lacks a second machine")
+struct.pack_into("<I",uframe,wcursor+40+28,0)
+Path(sys.argv[7]).write_bytes(uframe)
 PY
 run_expect "$T/lowering" "$T/root-mutated.rfn" 0 "$T/root-mutated.ops.out" "root mutation operation opacity"
 run_expect "$T/roots" "$T/root-mutated.rfn" 251 "$T/root-mutated.roots.out" "source-derived opcode-11 root mutation"
 run_expect "$T/interval" "$T/root-mutated.rfn" 0 "$T/root-mutated.interval.out" "root mutation interval opacity"
 run_expect "$T/lowering" "$T/op12-mutated.rfn" 251 "$T/op12-mutated.ops.out" "opcode-12 mutation"
 run_expect "$T/interval" "$T/op12-mutated.rfn" 0 "$T/op12-mutated.interval.out" "opcode-12 mutation interval opacity"
+run_expect "$T/roots" "$T/child-span-mutated.rfn" 251 "$T/child-span-mutated.out" "constant child-span safety"
+run_expect "$T/roots" "$T/block-partition-mutated.rfn" 251 "$T/block-partition-mutated.out" "machine block-partition safety"
 run_expect "$T/lowering" "$T/oversized.rfn" 252 "$T/oversized.ops.out" "operation public ceiling"
 run_expect "$T/roots" "$T/oversized.rfn" 252 "$T/oversized.roots.out" "root public ceiling"
 run_expect "$T/interval" "$T/oversized.rfn" 252 "$T/oversized.interval.out" "interval public ceiling"

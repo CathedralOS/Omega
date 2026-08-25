@@ -15,9 +15,12 @@
 ; word[23400016..40] active arm kind/fact
 
 proc v4_interval_source_reachable() {
+    state impossible { to impossible_check when (word[23400016]==1) to entry }
+    state impossible_check { to no when (word[23400056]==1) to entry }
     state entry { to yes when (src_low_g(5)==4294967295) }
     return word[23000000+src_low_g(5)*8]
     state yes { return 1 }
+    state no { return 0 }
 }
 
 proc v4_interval_transfer(target,param,low,high) {
@@ -49,7 +52,12 @@ proc src_low_parse_arguments(target,arm_field) {
     state loop { to bad when (i>=count) expected=src_param(param+i,3) to expression }
     state expression { to done when (src_low_expression()!=0) low=src_low_g(21) high=src_low_g(22) to assignable }
     state assignable { to structural when (src_type(expected,0)>=4) to scalar }
-    state scalar { to bad when (src_low_scalar_assignable(expected,src_low_g(20))==0) v4_interval_transfer(target,param+i,low,high) to done when (word[10000000]!=0) to materialize }
+    state scalar { to analysis when (word[23400008]==1) to bad when (src_low_scalar_assignable(expected,src_low_g(20))==0) to materialize }
+    state analysis { to integer_literal when (src_low_g(20)==4294967294) to boolean_literal when (src_low_g(20)==4294967293) to typed_analysis }
+    state integer_literal { to bad when (src_type(expected,0)>2) to transfer }
+    state boolean_literal { to bad when (src_type(expected,0)!=3) to transfer }
+    state typed_analysis { to bad when (src_low_types_same(expected,src_low_g(20))==0) to transfer }
+    state transfer { v4_interval_transfer(target,param+i,low,high) to done when (word[10000000]!=0) src_low_gset(27,0) to store }
     state materialize { to done when (src_low_materialize(src_type(expected,9))!=0) to store }
     state structural { to bad when (src_low_types_same(expected,src_low_g(20))==0) to bad when (src_low_g(27)==4294967295) to store }
     state store { src_low_term_set(src_low_g(6),arm_field+i,src_low_g(27)) i=i+1 to comma when (word[524416]==44) to close }
@@ -107,9 +115,31 @@ proc v4_interval_compute_replay() {
     state done { return status }
 }
 
+proc v4_interval_overlap_selftest() {
+    let state_id=0 let param=0 let type_id=0 let high=0
+    state states { to one when (state_id<word[10000056]) return 0 }
+    state one { to next when (src_state(state_id,4)==0) param=src_state(state_id,3) type_id=src_param(param,3) to next when (src_type(type_id,0)>2) high=src_type(type_id,8) to run }
+    state next { state_id=state_id+1 to states }
+    state run {
+        src_low_gset(5,4294967295) word[23000000+state_id*8]=0 word[23100000+param*8]=0
+        v4_interval_transfer(state_id,param,high,high+1)
+        to bad when (word[23000000+state_id*8]!=1) to bad when (word[23100000+param*8]!=1)
+        to bad when (word[23200000+param*8]!=high) to bad when (word[23300000+param*8]!=high)
+        word[23000000+state_id*8]=0 word[23100000+param*8]=0
+        v4_interval_transfer(state_id,param,high+1,high+2)
+        to bad when (word[23000000+state_id*8]!=0) to bad when (word[23100000+param*8]!=0)
+        word[23400016]=1 word[23400056]=1
+        v4_interval_reach_target(state_id) v4_interval_transfer(state_id,param,high,high)
+        to bad when (word[23000000+state_id*8]!=0) to bad when (word[23100000+param*8]!=0)
+        word[23400016]=0 word[23400056]=0
+        return 0
+    }
+    state bad { return src_reject() }
+}
+
 proc omgrfn4_r4_interval_check() {
     let status=omgrfn4_component_read() let i=0
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() v3_call_begin() to types }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) status=v4_interval_overlap_selftest() to done when (status!=0) src_init_words() v3_call_begin() to types }
     state types { src_low_gset(11,4294967295) src_low_gset(12,4294967295) to scan }
     state scan { to one when (i<word[10000144]) to ready }
     state one { to next when (src_ck_type(i,1)!=0) to bool when (src_ck_type(i,0)==3) to u32 when (src_ck_type(i,0)==2) to next }
