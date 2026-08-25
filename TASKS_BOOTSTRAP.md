@@ -32,28 +32,12 @@ In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-boot
 → omega [→ omega]`. Language growth stops at Delta. Everything to its right is
 a compiler artifact or a build edge, not another language rung.
 
-Alpha through Delta are increasingly capable bootstrap languages. Production
-Omega is more capable still, but it is reached by compiling ordinary Omega
-source rather than by defining another bootstrap language between Delta and
-Omega.
-
-Only two source contracts are still being selected. They are not successive
-Omega editions, compiler generations, or two implementations of the same
-language:
+Only two source contracts remain open:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
 | Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
-
-Keep the nouns distinct:
-
-| Name | Kind | Not this |
-| --- | --- | --- |
-| Delta | literal bootstrap language | an Omega subset or an early Omega edition |
-| `Ωself` | restriction on the product compiler's ordinary Omega source | a language, dialect, rung, or compiler binary |
-| `omega-bootstrap` | Delta-written bridge compiler artifact | `omega0`, a partial-semantics compiler, or the production compiler |
-| `omega` | full-spec production compiler | a new language generation each time it rebuilds itself |
 
 `omega-bootstrap` is written in Delta and need only accept `Ωself`. The
 production source is written in `Ωself` but must define a compiler that accepts
@@ -61,7 +45,7 @@ full Omega and contains the production optimizer and advanced lowering. A
 compiler does not need to use a language feature in order to implement that
 feature for its users.
 
-Do not collapse those two source choices into the three artifact obligations:
+Those two source choices discharge three artifact obligations:
 
 | Artifact | Must accept | Must contain or produce |
 | --- | --- | --- |
@@ -69,25 +53,18 @@ Do not collapse those two source choices into the three artifact obligations:
 | `omega-bootstrap` | frozen `Ωself` | a semantically exact, possibly conservative production-compiler executable |
 | production `omega` | full Omega | the full optimizer, advanced lowering, and specified artifact behavior |
 
-The first production `omega` executable may be slow because of how
-`omega-bootstrap` generated it. That does not make its accepted language or
-the compiler implementation contained in it partial.
+The first production binary may be slow because the bridge lowered it
+conservatively; its accepted language and the compiler implementation it
+contains are still complete. Only the optional bracketed edge is an Omega
+self-rebuild. Detailed rationale and the feature-disposition procedure live in
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
-Only the optional bracketed `omega` → `omega` edge is strict self-hosting. It
-may improve the compiler executable and add reproducibility evidence, but it is
-not a bootstrap dependency, language generation, or second implementation.
-There is no omega0, omega1, or Epsilon rung. O0 and O1 are bounded regression
-canaries only. Generated-code quality is an artifact property, not a third
-source-surface choice.
-
-These standing rulings are not tasks:
+Guardrails for this queue:
 
 - The proof kernel is cross-cutting assurance, with Beta and Gamma
   implementations; Gamma is not the proof-checker rung.
-- Direct lower-rooted source-to-artifact refinement grants compiler authority.
-  Diverse double compilation (DDC), compiler multiplicity, cross-build
-  agreement, and byte agreement are not trust requirements; retain a second
-  producer only for measured bug-finding value. See
+- Compiler authority follows direct lower-rooted source-to-artifact refinement;
+  cross-compiler agreement is optional bug-finding evidence. See
   [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
