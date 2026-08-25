@@ -51,10 +51,13 @@ open.
 The CKIR2 exact-root/call tranche uses the distinct
 [`OMGRFN3`](OMGCOMP_REFINEMENT_WITNESS_V3.md) frame. Its first persisted-Beta
 responsibility closes version-3 framing and complete OMGCOMP/source custody;
-the remaining source-to-role-3 witness, witness-to-CKIR2 tables,
-body/call/result, and CKIR2-to-ELF responsibilities must close before the
-versioned-call tranche gains lower-rooted authority. No OMGRFN2 checker is
-relabeled or widened in place.
+the second independently reconstructs the complete source-to-role-3 witness;
+the third reconstructs witness-to-CKIR2 declarations, layout, types, root, and
+tables. The fifth responsibility is split into focused CKIR/result validation
+and CKIR2-to-ELF gates, both closed. The body/call/source-only-result
+responsibility and final composition remain open, so the versioned-call tranche
+does not yet have lower-rooted authority. No OMGRFN2 checker is relabeled or
+widened in place.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

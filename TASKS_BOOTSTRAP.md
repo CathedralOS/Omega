@@ -37,13 +37,23 @@ Omega is more capable still, but it is reached by compiling ordinary Omega
 source rather than by defining another bootstrap language between Delta and
 Omega.
 
-Only two source inventories are still being selected. They are not successive
-Omega editions or two implementations of the same language:
+Only two source contracts are still being selected. They are not successive
+Omega editions, compiler generations, or two implementations of the same
+language:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
 | Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
+
+Keep the nouns distinct:
+
+| Name | Kind | Not this |
+| --- | --- | --- |
+| Delta | literal bootstrap language | an Omega subset or an early Omega edition |
+| `Ωself` | restriction on the product compiler's ordinary Omega source | a language, dialect, rung, or compiler binary |
+| `omega-bootstrap` | Delta-written bridge compiler artifact | `omega0`, a partial-semantics compiler, or the production compiler |
+| `omega` | full-spec production compiler | a new language generation each time it rebuilds itself |
 
 `omega-bootstrap` is written in Delta and need only accept `Ωself`. The
 production source is written in `Ωself` but must define a compiler that accepts
@@ -103,6 +113,19 @@ Two lanes co-evolve until their join:
 | production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
 | bridge and language closure | this file | implement general profile rules in Delta; maintain the Delta ledger; freeze both contracts at their completed closures |
 
+The immediate executable order is:
+
+1. finish and compose the one remaining `OMGRFN3` body/call/source-result
+   responsibility for the already-implemented CKIR2 slice;
+2. continue general checkpoint-000001 capabilities, one compositional vertical
+   slice at a time;
+3. consume later product-source checkpoints as they are published; and
+4. perform the profile/language freezes and hosted builds only after both
+   complete source closures exist.
+
+The accepted-lock authority join may land whenever its external contract is
+published. It does not reorder or block the first three items.
+
 Product Psi/Omega implementation and any chosen source refactor stay in
 `TASKS.md`. This queue must not turn possible `Ωself` exclusions into separate
 proof, generics, domain, field-tag, data-shape, or transition projects. Those
@@ -140,8 +163,9 @@ The compilation-authority join is separately waiting on the package/security
 owner, not on a bootstrap language ruling. There is not yet a canonical accepted
 lock/closure wire, acceptance root, or accepted-lock-to-`OMGCOMP` projection for
 the bridge to consume. Continue fixture-driven resolution, checking, lowering,
-and refinement while that owner closes `ACCEPTED-LOCK-SCHEMA`; do not invent a
-bridge-local receipt and call it authority.
+and refinement while the P1 package-admission work in [`TASKS.md`](TASKS.md)
+closes that product contract; do not invent a bridge-local receipt and call it
+authority.
 
 ### Rolling invariant — maintain the provisional Delta ledger
 
@@ -218,7 +242,7 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
 | producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; the CKIR2 `OMGRFN3` frame/source-custody layer is closed and its remaining independent refinement responsibilities are open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
+| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 `OMGRFN3` layers 1–3 and the layer-5 CKIR/result and ELF responsibilities are closed, leaving only body/call/source-result reconstruction and final composition | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
 | compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -231,13 +255,15 @@ capabilities actually used by published product checkpoints. Do not idle on the
 separately blocked compilation-authority join.
 
 - [ ] Complete the independent `OMGRFN3` source-to-artifact refinement for the
-  implemented CKIR2 exact-root and typed finite-call tranche. Its resolver,
-  checked IR, conservative artifact, result, native/self-built composition, and
-  Rust-free meaning are closed. Finish and compose the remaining persisted-Beta
-  witness, table/layout, body/call/result, and CKIR2-to-ELF responsibilities,
-  with responsibility-local negatives for root, target, signature, order,
-  cycle, resources, ABI staging, reachable closure, and exact bytes. This is a
-  versioned bridge slice, not admission of recursion or a final `Ωself` ruling.
+  implemented CKIR2 exact-root and typed finite-call tranche. Layers 1–3 already
+  close frame/source custody, source→witness resolution, and witness→CKIR2
+  tables; layer 5 already closes CKIR/result validation and CKIR2→ELF. Finish
+  layer 4's body/call lowering and physically artifact-free source result, run
+  all five responsibilities over the same exact frame, and add them to the
+  lattice gate. Preserve responsibility-local negatives for bindings, call
+  order, cycles, resources, source/artifact cross-pairs, ABI staging, reachable
+  closure, and exact bytes. This is a versioned bridge slice, not admission of
+  recursion or a final `Ωself` ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
