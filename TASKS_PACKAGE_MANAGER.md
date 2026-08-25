@@ -390,6 +390,22 @@ complete.
   escaped Omega literals. Atomic application after admission, broader target
   vocabulary, and orchestration of reconciled compiler bindings remain.
 
+- **DECLARATION-SELECTION-AND-CARRIED-IDENTITY.** Enforce the settled split
+  between direct source authority and inferred nominal flow. Any authored path,
+  member, field, case, operator, conformance, or explicit cleanup selection must
+  resolve to the current package or one direct dependency. A foreign type
+  received through a declared dependency may still be moved, borrowed, stored,
+  returned, passed back through that surface, and checked for copy/affine/linear
+  behavior; compiler-planned layout and automatic cleanup do not grant source
+  access to the owning package.
+
+  Acceptance: diagnostics name the selected declaration's owning package and
+  the missing direct dependency. The lock retains its existing transitive
+  closure, while package/artifact evidence records exact declaration-level
+  semantic dependencies with private-versus-public disposition. Whole-package
+  keying remains a sound conservative gate until those exact edges land; no
+  inferred type silently widens source nameability.
+
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
 
@@ -500,10 +516,10 @@ complete.
   `PackageKeyIdentity` through the retained source map, and underdeclared reach
   already fails checking. This is the intended source for a compiler-owned,
   target-scoped admission projection, but the current implementation is not yet
-  admissible. Explicit `export` remains owner-blocked: the parser accepts it,
-  symbol resolution drops it, and the language has not settled whether it is a
-  same-package module surface, a cross-package re-export, or retired in favor
-  of `pub`. Ordinary `pub machine` visibility is now retained through syntax,
+  admissible. The unused `export path [as alias]` item is retired through
+  parser, syntax identity/snapshot, visualization, and source-profile rows;
+  `pub` is the sole package-owned API marker. Ordinary `pub machine` visibility
+  is now retained through syntax,
   resolved, typed, checked, snapshot, copy, and specialization paths. Public
   omission is a strict empty ceiling for service reach, synchronous invocation,
   suspension, blocking, and crash; checked underdeclaration rejects. Machine
@@ -579,14 +595,14 @@ complete.
   unnamed `requires` and `ensures` through the same closed structural
   fact/expression lane as public callables, joined to exactly one checked
   `StateSignature` owner. Generic
-  selected-conformance telescopes, invariants, named evidence contracts,
+  selected-conformance telescopes, named evidence contracts,
   boundary clauses, and unsupported expression forms still fail closed. Exact
   checked crash capsules keyed by trait and requirement now project each
   abstract published crash ceiling as canonical cause-and-guard routes without
   fabricating realized body sites or calls; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
-  `pub` instead of silently compiling a private API. Settled export semantics,
-  the remaining named/boundary public-trait contract lanes, call-bearing domain
+  `pub` instead of silently compiling a private API. The remaining
+  named/boundary public-trait contract lanes, call-bearing domain
   predicates, semantic-role/operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,

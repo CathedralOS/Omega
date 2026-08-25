@@ -5,7 +5,6 @@ use crate::parser::data::{
     parse_machine_type_parameters,
 };
 use crate::parser::domain::parse_domain_definition;
-use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
@@ -33,9 +32,8 @@ pub(super) fn parse_item<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, Item> {
     if input.at_keyword(KeywordKind::Pub) {
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
-        // General semantic export rules still live in explicit `export` items
-        // until module scoping grows up. Data retains this bit because public
-        // structural declarations publish their source shape. Numbered data
+        // Data retains this bit because public structural declarations publish
+        // their source shape. Numbered data
         // retains it on both its schema and wire-derived plain-data roots.
         // Domains retain it because a public transparent alias may not publish
         // a private constituent; machines retain it because public checked
@@ -106,9 +104,10 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_contextual("export") {
-        let input = input.take_contextual("export")?;
-        let (item, rest) = parse_export_item(syntax_trees, input)?;
-        return Ok((Item::Export(item), rest));
+        return Err(input.error_here(
+            "the `export` item is retired: mark package-owned declarations `pub`, use an \
+             ordinary public wrapper, or declare the package whose declarations source selects",
+        ));
     }
 
     if input.at_keyword(KeywordKind::Data) {
@@ -389,7 +388,6 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     Err(input.expected_one_of_here(&[
         "`use`",
-        "`export`",
         "`data`",
         "`domain`",
         "`abi`",

@@ -1,0 +1,9 @@
+// Package APIs are declared with `pub`; an export alias neither owns nor
+// authorizes the declaration it names.
+export dependency::Thing as Thing;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

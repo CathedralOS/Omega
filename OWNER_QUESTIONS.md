@@ -13,35 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-24.
 
-## Q1 — Does `export` re-export dependencies, or should it be retired?
-
-The parser accepts `export path [as alias];`, but symbol resolution deliberately
-drops the item. The language guide instead makes `pub` on package-owned
-declarations the visibility boundary and requires imports to stay within the
-requester's declared dependency graph. No settled text says whether `export`
-is a same-package module surface or permits one package to expose another
-package's declaration under a new path.
-
-Choose whether the explicit item has a smaller coherent purpose or is removed.
-If retained, its semantics must specify:
-
-- whether the target must be owned by the exporting package;
-- whether an alias changes presentation only while exact nominal ownership
-  remains the target declaration's `PackageKey`;
-- whether consumers must directly declare the target package or may reach it
-  through the exporter;
-- how public API, capability reach, compatibility, and lock closure record the
-  edge; and
-- exact missing, private, ambiguous, cyclic, and duplicate-export rejection.
-
-Recommended direction: retire explicit `export` in package v1 and use `pub` for
-package-owned declarations. Require an ordinary public wrapper when a package
-intentionally presents dependency behavior. A smaller valid alternative is a
-same-package, module-only export whose target retains exact package-owned
-identity. Do not allow a dependency declaration to be relabeled as exporter-
-owned or let an alias hide the package/reach edge.
-
-## Q2 — Should trait requirements admit named witness contracts?
+## Q1 — Should trait requirements admit named witness contracts?
 
 Concrete machines use named `requires`/`ensures` contracts as erased witness
 input/output lanes. Public trait requirement syntax currently does not admit the
@@ -63,7 +35,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q3 — What does a boundary clause mean on an abstract requirement?
+## Q2 — What does a boundary clause mean on an abstract requirement?
 
 Boundary syntax distinguishes host and named boundary levels before semantic
 lowering, but the state-signature path collapses them to one undifferentiated
@@ -83,7 +55,7 @@ real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
 
-## Q4 — What compiler/toolchain provenance seals a package instance?
+## Q3 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
@@ -113,7 +85,7 @@ producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
 
-## Q5 — How does `build.omg` name its package-scoped filesystem roots?
+## Q4 — How does `build.omg` name its package-scoped filesystem roots?
 
 The build executor already gives each package an immutable source root and a
 fresh writable staging root, and the checked interpreter enforces those grants.

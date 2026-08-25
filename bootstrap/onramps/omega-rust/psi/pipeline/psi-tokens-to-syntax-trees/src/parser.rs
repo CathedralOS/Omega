@@ -4,7 +4,6 @@ mod context;
 mod data;
 mod diagnostics;
 mod domain;
-mod export_item;
 mod expression;
 mod file;
 mod input;

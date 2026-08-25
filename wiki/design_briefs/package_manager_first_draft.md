@@ -126,6 +126,23 @@ The CLI may conservatively edit only canonical direct dependency rows. For a
 more elaborate `build.omg`, it emits a proposed source patch and performs no
 mutation.
 
+Direct rows authorize authored selection of declarations from that package;
+they are not required merely to carry an inferred foreign nominal type returned
+through another declared dependency. Moving, borrowing, storing, returning, or
+passing such a value back through the visible surface does not make its owner
+source-nameable. Selecting an owner-declared field, case, method, operator,
+conformance, or explicit cleanup operation does and requires a direct row.
+Compiler-planned layout, multiplicity, and automatic cleanup remain carried type
+semantics.
+
+There is no `export` item. `pub` exposes only package-owned declarations, and an
+ordinary public wrapper presents dependency behavior without relabeling the
+dependency's nominal identity. The accepted lock still retains the complete
+transitive closure. Compiler evidence ultimately records exact declaration
+dependencies, distinguishing private artifact/rebuild edges from dependencies
+that enter public compatibility identity; whole-package keying is a sound
+conservative implementation until then.
+
 ## Dependency planning before build execution
 
 Dependency-source projection must be hermetic even though later build staging

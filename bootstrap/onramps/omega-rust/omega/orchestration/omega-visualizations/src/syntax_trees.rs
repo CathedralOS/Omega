@@ -365,7 +365,6 @@ fn item_kind(item: &Item) -> &'static str {
     match item {
         Item::Data(_) => "data",
         Item::Domain(_) => "domain",
-        Item::Export(_) => "export",
         Item::Machine(_) => "machine",
         Item::Measure(_) => "measure",
         Item::Module(_) => "module",
@@ -555,24 +554,6 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 encoding,
                 value.members.len()
             )
-        }
-        Item::Export(value) => {
-            let path = syntax
-                .items
-                .identifier_path_members(value.path)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            if let Some(alias) = &value.alias {
-                format!(
-                    "export {path} as {}\nsegments: {}",
-                    alias.as_str(),
-                    value.path.len()
-                )
-            } else {
-                format!("export {path}\nsegments: {}", value.path.len())
-            }
         }
         Item::Use(value) => {
             let path = syntax

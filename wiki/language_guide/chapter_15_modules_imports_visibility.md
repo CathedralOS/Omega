@@ -184,6 +184,40 @@ use dungeon::rooms::Room;
 
 Imports do not execute code. They only affect name resolution.
 
+### Declaration selection and carried foreign types
+
+A direct dependency authorizes authored source to select declarations owned by
+that package. This includes static paths and declarations selected through an
+inferred receiver: fields, cases, methods, operators, conformances, and an
+explicit cleanup call all retain their declaring package. A package absent from
+the requester's direct dependency set cannot be selected by hiding its name
+behind a value whose type was inferred.
+
+Nominal identity may nevertheless flow through another package's API without
+granting that selection authority:
+
+```omega
+let handle = filesystem::open(path);   // inferred lower-package handle type
+filesystem::read(&handle);
+filesystem::close(handle);
+```
+
+The caller may move, borrow, store, return, and pass the value through declared
+dependencies. This remains legal for copyable, affine, and linear values;
+multiplicity is checked from the carried type contract and does not create a
+source dependency. Compiler-planned layout, move/copy behavior, and automatic
+affine cleanup likewise travel with the type. An authored call to the owning
+package's operation is different and requires that package as a direct
+dependency.
+
+The foreign nominal identity is never hidden from artifacts. The transitive
+lock closure retains its owning package, and semantic dependency records retain
+the exact declaration when available. A private occurrence affects rebuild and
+artifact identity; an occurrence in a public signature also affects public
+compatibility identity. Whole-package dependency keying is a sound conservative
+implementation because it only over-rejects reuse; exact declaration edges are
+the normative form.
+
 ## Visibility
 
 Declarations are private by default unless marked public.
@@ -203,6 +237,13 @@ pub machine Player::take_damage(
 
 Visibility is a source-level API boundary. It does not bypass proof,
 ownership, or boundary checks.
+
+Omega has no `export` item. `pub` exposes declarations owned by the current
+package; it does not relabel dependency-owned identity. A package presents
+dependency behavior under its own API through an ordinary public wrapper. A
+future ownership-preserving path alias would be name presentation only, never
+visibility widening or an implicit dependency edge. `export` is not reserved
+and remains available as an ordinary identifier where an identifier is expected.
 
 ### Public data shape
 

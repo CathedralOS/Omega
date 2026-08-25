@@ -3725,6 +3725,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "modules/export_item_retired",
     "traits/trait_invariant_clause_retired",
     "traits/trait_contract_undeclared_self_member",
     "tasks/task_runtime_provider_contract_narrowing",

@@ -158,7 +158,6 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                 }
             }
             Item::WireData(_)
-            | Item::Export(_)
             | Item::Conformance(_)
             | Item::Module(_)
             | Item::Package(_)

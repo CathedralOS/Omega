@@ -892,6 +892,23 @@ The package is the dependency-reach boundary:
 - a subsystem requiring a meaningfully different reach set is a separate
   package rather than a hidden nested manifest.
 
+Direct dependency rows authorize authored selection of declarations owned by
+the named package; they are not required merely because that package's nominal
+type flows through an already-declared dependency's API. Such a value may be
+moved, borrowed, stored, returned, passed back through the declaring surface,
+and checked for multiplicity without granting access to its owner's methods,
+fields, cases, operators, conformances, or explicit cleanup operations.
+Compiler-planned layout and automatic cleanup are carried type semantics rather
+than authored declaration selection.
+
+The transitive closure still retains the type owner's exact package instance.
+Artifact dependency evidence retains the exact foreign declaration when the
+checked program uses it: private flow affects rebuild/content identity, while a
+public-signature occurrence also affects semantic API compatibility. A coarse
+whole-package edge is a sound over-rejecting implementation until exact
+declaration edges land. `pub` exposes only declarations owned by the current
+package; there is no `export` item that relabels a dependency declaration.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type
