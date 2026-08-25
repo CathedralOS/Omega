@@ -538,6 +538,15 @@ envelope, and the selected-provider set deliberately remains one opaque,
 blocking row even with sealed provider identity; finer explanation does not
 change that ownership boundary.
 
+Authored conformance authority follows the same compiler-owned join. Explicit
+static conformance arguments are retained at resolution; checked trait
+operators retain the conformance selected for the operator token; and generic
+specialization retains the exact unique conformance inferred for an unbound
+`satisfies` requirement. The latter is package-qualified in specialization
+identity and attached to the authored call token. Explicit and inferred
+selections remain separate rows, and each selected declaration's owner must be
+self or a direct dependency before package code is admitted.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

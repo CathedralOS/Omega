@@ -215,6 +215,9 @@ pub struct MachineSpecialization {
     /// Exact package-scoped conformances selected for explicit proof-static
     /// evidence binders. Separate from callable machine arguments.
     pub conformance_arguments: Vec<psi_symbols::SymbolHandle>,
+    /// Exact package-scoped conformances selected by unique generic-bound
+    /// inference rather than named proof-static evidence at the call site.
+    pub inferred_conformance_arguments: Vec<psi_symbols::SymbolHandle>,
     /// Closed, argument-sensitive identities for the selected conformance
     /// family members. Two applications of the same declaration with
     /// different telescopes are distinct even though `conformance_arguments`

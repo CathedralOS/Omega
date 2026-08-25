@@ -84,16 +84,23 @@ fn expression_candidates(
             kind: Kind::Operator,
             target: CandidateTarget::LateBound(LateBinding::CheckedOperator),
         }),
-        ExpressionNode::Call(call)
+        ExpressionNode::Call(call) => {
             if call.operational_acknowledgement.origin
-                == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source =>
-        {
-            candidates.push(Candidate {
+                == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+            {
+                candidates.push(Candidate {
+                    expression,
+                    source_span: call.target.source_span(),
+                    kind: Kind::Call,
+                    target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
+                });
+            }
+            collect_static_conformance_candidates(
+                program,
                 expression,
-                source_span: call.target.source_span(),
-                kind: Kind::Call,
-                target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
-            });
+                &call.machine_arguments,
+                &mut candidates,
+            );
         }
         ExpressionNode::Member(member) => candidates.push(Candidate {
             expression,
@@ -195,6 +202,38 @@ fn expression_candidates(
     candidates
         .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
     candidates
+}
+
+fn collect_static_conformance_candidates(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+    arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
+    candidates: &mut Vec<Candidate>,
+) {
+    for argument in arguments {
+        if argument.symbol.is_valid()
+            && program.symbols.get(argument.symbol).kind == psi_symbols::SymbolKind::Conformance
+            && argument.path.iter().any(|member| member.is_source_backed())
+        {
+            candidates.push(Candidate {
+                expression,
+                source_span: path_span(
+                    &argument.path,
+                    program.tables.bodies.expressions.source_span(expression),
+                ),
+                kind: Kind::Conformance,
+                target: CandidateTarget::Resolved(argument.symbol),
+            });
+        }
+        if let Some(application) = &argument.application {
+            collect_static_conformance_candidates(
+                program,
+                expression,
+                &application.arguments,
+                candidates,
+            );
+        }
+    }
 }
 
 fn resolved_or_late(symbol: SymbolHandle, late: LateBinding) -> CandidateTarget {

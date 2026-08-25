@@ -2,8 +2,8 @@ use psi_checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionIntrinsic,
-    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
-    AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
@@ -26,6 +26,7 @@ pub(crate) fn finalize_checked_authored_selections(
     facts: &CheckFacts,
 ) -> Result<(), Diagnostic> {
     let mut resolutions = Vec::new();
+    let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
 
     for (expression, node) in expressions.iter_expressions() {
@@ -39,10 +40,39 @@ pub(crate) fn finalize_checked_authored_selections(
                     occurrence.ordinal()
                 )));
             };
+
+            if selection.kind() == AuthoredDeclarationSelectionKind::Call
+                && let ExpressionNode::Call(call) = node
+            {
+                for selected_symbol in
+                    checked_call_conformance_targets(program, facts, expression, call.target_symbol)
+                {
+                    let inferred = (
+                        selection.source_span(),
+                        selection.exposure(),
+                        selected_symbol,
+                    );
+                    if !inferred_conformances.contains(&inferred) {
+                        inferred_conformances.push(inferred);
+                    }
+                }
+            }
             let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
                 continue;
             };
 
+            if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator {
+                for selected_symbol in checked_operator_conformance_targets(facts, expression) {
+                    let inferred = (
+                        selection.source_span(),
+                        selection.exposure(),
+                        selected_symbol,
+                    );
+                    if !inferred_conformances.contains(&inferred) {
+                        inferred_conformances.push(inferred);
+                    }
+                }
+            }
             let target = match (binding, node) {
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
@@ -125,8 +155,88 @@ pub(crate) fn finalize_checked_authored_selections(
         };
         result.map_err(|error| finalization_diagnostic(resolution, error))?;
     }
+    for (source_span, exposure, selected_symbol) in inferred_conformances {
+        let already_retained = selections.iter().any(|selection| {
+            selection.source_span() == source_span
+                && selection.exposure() == exposure
+                && selection.kind()
+                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+                && matches!(
+                    selection.target(),
+                    AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == selected_symbol
+                )
+        });
+        if !already_retained {
+            selections
+                .record_resolved(
+                    source_span,
+                    exposure,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance,
+                    selected_symbol,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to retain checked authored conformance selection: {error:?}"
+                    ))
+                    .with_source_span(source_span)
+                })?;
+        }
+    }
     program.retain_authored_declaration_selections(selections);
     Ok(())
+}
+
+fn checked_operator_conformance_targets(
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Vec<SymbolHandle> {
+    let mut targets = Vec::new();
+    for (_, operator_use) in facts.operators.uses.iter() {
+        if operator_use.expression != expression
+            || operator_use.status != CheckedOperatorResolutionStatus::Resolved
+        {
+            continue;
+        }
+        let Some(candidate) = facts.operators.selected_candidate(operator_use) else {
+            continue;
+        };
+        if candidate.is_trait_backed() && !targets.contains(&candidate.conformance_symbol) {
+            targets.push(candidate.conformance_symbol);
+        }
+    }
+    targets
+}
+
+fn checked_call_conformance_targets(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    authored_target: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    let target = checked_call_target(program, facts, expression, authored_target);
+    let Some(machine_symbol) = program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target)
+            .then_some(machine.symbol)
+    }) else {
+        return Vec::new();
+    };
+
+    let mut targets = Vec::new();
+    for specialization in &program.machine_specializations {
+        if specialization.instance != machine_symbol {
+            continue;
+        }
+        for selected in &specialization.inferred_conformance_arguments {
+            if !targets.contains(selected) {
+                targets.push(*selected);
+            }
+        }
+    }
+    targets
 }
 
 fn checked_call_target(

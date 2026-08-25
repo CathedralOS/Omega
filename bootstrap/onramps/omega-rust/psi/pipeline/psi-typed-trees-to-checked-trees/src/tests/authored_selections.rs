@@ -156,6 +156,66 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
 }
 
 #[test]
+fn successful_checking_retains_inferred_generic_call_conformance() {
+    let source = r#"
+        trait Marker { }
+        data Good { }
+        GoodMarker: Good satisfies Marker;
+
+        machine accepts<T>(value: T) -> bool
+        where T satisfies Marker
+        {
+            true
+        }
+
+        machine caller(value: Good) -> bool { accepts(value) }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let selected = resolved
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "GoodMarker")
+        })
+        .expect("GoodMarker conformance")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    assert!(
+        checked
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::Conformance
+                    && matches!(
+                        selection.target(),
+                        AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if target.selected_symbol() == selected
+                    )
+            }),
+        "selections={:#?}; specializations={:#?}",
+        checked.authored_declaration_selections(),
+        checked.machine_specializations,
+    );
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.inferred_conformance_arguments == [selected])
+        .expect("specialization retains its exact inferred conformance");
+    assert!(
+        specialization.conformance_arguments.is_empty(),
+        "inferred conformance must not impersonate an explicit evidence argument"
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
 fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
     let source = r#"
         domain [u8]::Path requires no_nul(self);

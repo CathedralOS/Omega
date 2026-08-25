@@ -51,6 +51,10 @@ Must own:
   application while preserving that application's own argument pack separately
   from the enclosing machine telescope. This stage does not infer missing
   arguments or decide that the application satisfies an evidence binder.
+- Recording each exact source-backed static conformance argument as an authored
+  declaration selection at the argument path's span. Nested static applications
+  are walked recursively; this records explicit source choice, not an inferred
+  conformance selected later by checking.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 - Preflighting signature-free requirement paths after symbol assignment and

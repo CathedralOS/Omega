@@ -587,11 +587,27 @@ complete.
   declaration-spelling surface, so nested expression origins no longer leave
   an ordinary `&&` occurrence unresolved at package admission.
 
+  Milestone 2026-08-25: source-backed static conformance arguments on generic
+  calls now retain the exact package-scoped conformance selected by each
+  authored argument, including nested static applications. Checked trait-backed
+  operators append the exact selected conformance at the operator token. For an
+  unbound generic `where Element satisfies Trait` requirement, specialization
+  validation now retains the one conformance whose uniqueness it proved,
+  separates that inferred selection from explicit evidence arguments, and
+  includes its package-qualified declaration identity in specialization
+  fingerprinting. The checked ledger attaches that inferred declaration to the
+  authored call occurrence. A root-middle-leaf package canary rejects root's
+  inferred `GoodMarker` selection when leaf is only transitive and accepts it
+  after root admits leaf directly.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
-  forms and nominal type references on public/private declaration surfaces;
-  public expression positions and remaining authored conformance/cleanup forms
-  are not yet total. The package manager stays disabled until those gaps close.
+  forms, nominal type references on public/private declaration surfaces,
+  explicit static conformance arguments, inferred generic-call conformances,
+  and checked trait-operator conformances. Public expression positions,
+  statement-call occurrence custody, named conformance selectors in callable
+  bounds, and explicit cleanup forms are not yet total. The package manager
+  stays disabled until those gaps close.
   Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.
