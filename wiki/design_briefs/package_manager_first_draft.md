@@ -402,6 +402,9 @@ operational/audit data. Projection verifies each declaration against the
 selected plan's exact package owner, or against an exact authored
 toolchain-source identity when the plan carries no package owner. Package-less
 user source, unresolved/source-free ownership, and owner drift reject.
+Explanatory source custody records every exact requirement declaration
+separately from its realizing machine, so the reviewer receives both sides of
+each provider row.
 Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
 The selected-provider row may therefore mix authored coordinates and compiler-

@@ -1283,6 +1283,10 @@ crashes Abort
             && location.relative_path() == "main.omg"
     }));
     assert!(provider_locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ProviderRequirementDeclaration
+            && location.relative_path() == "main.omg"
+    }));
+    assert!(provider_locations.iter().any(|location| {
         location.role() == PackageReviewSourceLocationRole::ProviderRealization
             && location.relative_path() == "main.omg"
     }));

@@ -1566,9 +1566,12 @@ complete.
   rescans typed trees by reduced nominal identity after projection. Provider
   candidate derivation now captures an internal
   sidecar beside each semantic plan: its exact boundary schema symbol, optional
-  nominal provider symbol, and the exact realizing machine for every row,
-  including external leaves and checked adapters. Selection keeps that pair
-  intact and adds the exact build-override or target-default call sites, or the
+  nominal provider symbol, and the exact requirement plus realizing machine for
+  every row, including external leaves and checked adapters. Selected-provider
+  explanatory custody now emits a distinct canonical source role for every
+  retained requirement declaration as well as every realization, so review
+  cannot show only the implementation half of a provider row. Selection keeps
+  that pair intact and adds the exact build-override or target-default call sites, or the
   closed `UniqueCoveringProviderSelection` reason for an implicit choice;
   semantic sorting moves plans and provenance together. The single selected-
   provider review row can therefore combine authored coordinates with compiler-

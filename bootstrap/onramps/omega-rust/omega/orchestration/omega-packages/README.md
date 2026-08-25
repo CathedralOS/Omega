@@ -415,6 +415,10 @@ plan: an owned declaration must match its exact `PackageKeyIdentity`, while a
 package-less plan declaration must have an exact authored toolchain-source
 identity. Package-less user source, unresolved/source-free ownership, and every
 owner mismatch reject rather than entering review evidence.
+The selected-provider source sidecar independently anchors every exact
+requirement declaration and realizing machine under distinct fixed roles; a
+conflict therefore binds both sides of each realization row to the source shown
+to the reviewer.
 Checked-adapter bindings resolve by canonical overload plus exact package owner
 without a short-name fallback. Authored provider choices retain two structural
 type paths, resolve to exact typed trait/data symbols, and match plans only by

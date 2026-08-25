@@ -1738,6 +1738,7 @@ pub enum PackageReviewSourceLocationRole {
     ProviderSelection,
     ProviderSchemaDeclaration,
     ProviderTypeDeclaration,
+    ProviderRequirementDeclaration,
     ProviderRealization,
     SemanticDependencyConsumer,
     SemanticDependencyDeclaration,
@@ -2616,6 +2617,14 @@ fn selected_provider_row_source(
             )?);
         } else {
             compiler_derivations.push(PackageReviewSyntheticSourceKind::FreeExternalProviderType);
+        }
+
+        for requirement in &retained.provider.row_requirements {
+            locations.push(canonical_source_location(
+                compilation,
+                *requirement,
+                PackageReviewSourceLocationRole::ProviderRequirementDeclaration,
+            )?);
         }
 
         for realization in &retained.provider.row_realizations {

@@ -269,6 +269,10 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                     && location.relative_path() == "main.omg"
             }));
             assert!(locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ProviderRequirementDeclaration
+                    && location.relative_path() == "main.omg"
+            }));
+            assert!(locations.iter().any(|location| {
                 location.role() == PackageReviewSourceLocationRole::ProviderRealization
                     && location.relative_path() == "main.omg"
             }));
