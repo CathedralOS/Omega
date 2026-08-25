@@ -774,7 +774,7 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v8
+  `final_path_name_by_handle` are unconditionally so. Observation schema v9
   carries operation-attempt schema v9: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
@@ -855,9 +855,24 @@ complete.
   executable real-scoped canaries prove ignored-operand traps and invalid
   outputs occur before disk mutation or grant consultation. The canonical trait
   test pins each operation's exact operand order/kind and result width.
-  Complete path-like byte serialization, transcripts/content custody,
-  cleanup-gated publication, output-tree
-  commitment, and replay remain. Raw byte-valued inputs reject above a
+  Sponsored package review now commits the complete fresh Output tree after a
+  successful evaluator has released its provider and descriptors and before
+  cleanup-gated publication. The canonical tree includes sorted root-relative
+  portable UTF-8 paths, empty directories, canonical directory/ordinary/
+  executable/symlink modes, file lengths and content digests, and validated
+  self-contained relative symlink spelling. It excludes ambient metadata,
+  physical roots, inode identity, and hard-link topology. Capture requires a
+  quiescent sponsor, cross-checks its namespace kinds, extents, and hard-link
+  groups against the physical tree, and rejects unknown kinds, portability or
+  custody disagreement, external symlinks, and bounded-resource excess. A
+  successful hermetic build receives the explicit empty-tree commitment;
+  unsponsored caller-owned build roots are not represented as package output.
+  The package observation commitment binds the tree digest, entry count, and
+  unique file-byte count, and the fixture review proves that evidence survives
+  disposal of the physical session. This remains commitment-only: complete
+  path-like byte serialization, operation transcripts, retained content,
+  generated-output handoff, and replay remain. Same-user host racing is not
+  solved by this custody rung. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
   conversion shared by both providers and reject negative, wrapped, or

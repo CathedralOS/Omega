@@ -194,6 +194,15 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
     digest.update([observation_class_tag(summary.ceiling())]);
     digest.update([observation_class_tag(summary.realized())]);
     digest.update(summary.filesystem_operation_schema_version().to_le_bytes());
+    match summary.staged_output_tree() {
+        None => digest.update([0]),
+        Some(tree) => {
+            digest.update([1]);
+            digest.update(tree.digest());
+            digest.update(tree.entry_count().to_le_bytes());
+            digest.update(tree.file_bytes().to_le_bytes());
+        }
+    }
     digest.update(
         u64::try_from(summary.filesystem_operation_attempts().len())
             .expect("build observation attempt count fits u64")
@@ -563,8 +572,11 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 8);
+        assert_eq!(first.schema_version(), 9);
         assert_eq!(first.filesystem_operation_schema_version(), 9);
+        assert!(first.staged_output_tree().is_none());
+        assert!(relocated.staged_output_tree().is_none());
+        assert!(bytes_changed.staged_output_tree().is_none());
         let [create, write, close] = first.filesystem_operation_attempts() else {
             panic!("fixture performs create, write, and close")
         };

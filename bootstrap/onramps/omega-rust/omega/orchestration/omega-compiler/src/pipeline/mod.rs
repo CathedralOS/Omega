@@ -2,6 +2,7 @@ mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
 mod build_config;
+mod build_staged_output;
 mod calling_policy_plans;
 mod checked_entry;
 pub mod compile_options;
@@ -65,6 +66,7 @@ pub use build_config::{
     BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue, BuildObservationClass,
     BuildObservationSummary,
 };
+pub use build_staged_output::BuildStagedOutputTreeCommitment;
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

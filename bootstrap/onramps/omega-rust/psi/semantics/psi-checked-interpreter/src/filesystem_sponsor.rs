@@ -212,6 +212,50 @@ pub struct FilesystemSponsorSnapshot {
     pub open_descriptors: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSponsorNamespaceSnapshot {
+    entries: Vec<FilesystemSponsorNamespaceEntry>,
+    open_descriptors: u64,
+    transaction_prepared: bool,
+}
+
+impl FilesystemSponsorNamespaceSnapshot {
+    pub fn entries(&self) -> &[FilesystemSponsorNamespaceEntry] {
+        &self.entries
+    }
+
+    pub const fn open_descriptors(&self) -> u64 {
+        self.open_descriptors
+    }
+
+    pub const fn transaction_prepared(&self) -> bool {
+        self.transaction_prepared
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSponsorNamespaceEntry {
+    relative_path: PathBuf,
+    kind: FilesystemSponsorNamespaceEntryKind,
+}
+
+impl FilesystemSponsorNamespaceEntry {
+    pub fn relative_path(&self) -> &Path {
+        &self.relative_path
+    }
+
+    pub const fn kind(&self) -> FilesystemSponsorNamespaceEntryKind {
+        self.kind
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemSponsorNamespaceEntryKind {
+    Directory,
+    Symlink { spelling_bytes: u64 },
+    Object { group: u64, extent: u64 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemSponsorEntry {
     Directory,
@@ -363,6 +407,50 @@ impl FilesystemSponsor {
             total_logical_bytes: account.committed.total_logical_bytes,
             unique_objects: usize_to_u64(account.committed.objects.len())?,
             open_descriptors: usize_to_u64(account.committed.descriptors.len())?,
+        })
+    }
+
+    /// Read-only logical namespace and quiescence evidence for compiler-owned
+    /// staged-output capture. Object groups are account-local correlation IDs;
+    /// they are never canonical package identity.
+    pub fn namespace_snapshot(
+        &self,
+    ) -> Result<FilesystemSponsorNamespaceSnapshot, FilesystemSponsorError> {
+        let account = self.lock_account()?;
+        let entries = account
+            .committed
+            .namespace
+            .iter()
+            .map(|(relative_path, entry)| {
+                let kind = match entry {
+                    NamespaceEntry::Directory => FilesystemSponsorNamespaceEntryKind::Directory,
+                    NamespaceEntry::Symlink { spelling_bytes } => {
+                        FilesystemSponsorNamespaceEntryKind::Symlink {
+                            spelling_bytes: *spelling_bytes,
+                        }
+                    }
+                    NamespaceEntry::Object(object_id) => {
+                        let object = account
+                            .committed
+                            .objects
+                            .get(object_id)
+                            .ok_or(FilesystemSponsorError::TransactionNoLongerCurrent)?;
+                        FilesystemSponsorNamespaceEntryKind::Object {
+                            group: object_id.0,
+                            extent: object.extent,
+                        }
+                    }
+                };
+                Ok(FilesystemSponsorNamespaceEntry {
+                    relative_path: relative_path.clone(),
+                    kind,
+                })
+            })
+            .collect::<Result<Vec<_>, FilesystemSponsorError>>()?;
+        Ok(FilesystemSponsorNamespaceSnapshot {
+            entries,
+            open_descriptors: usize_to_u64(account.committed.descriptors.len())?,
+            transaction_prepared: account.prepared_transaction.is_some(),
         })
     }
 
@@ -1323,6 +1411,48 @@ mod tests {
                 open_descriptors: 0,
             })
         );
+    }
+
+    #[test]
+    fn namespace_snapshot_exposes_groups_extents_and_quiescence() {
+        let sponsor = sponsor_with(limits(5, 20, 20));
+        commit_directory(&sponsor, "output");
+        let first = commit_object(&sponsor, "output/first", 7);
+        let second = path(&sponsor, "output/second");
+        sponsor
+            .prepare_hard_link(&first, &second)
+            .unwrap()
+            .commit()
+            .unwrap();
+
+        let descriptor = sponsor.prepare_open(&first).unwrap().commit().unwrap();
+        let snapshot = sponsor.namespace_snapshot().unwrap();
+        assert_eq!(snapshot.open_descriptors(), 1);
+        assert!(!snapshot.transaction_prepared());
+        assert_eq!(snapshot.entries().len(), 3);
+        let groups = snapshot
+            .entries()
+            .iter()
+            .filter_map(|entry| match entry.kind() {
+                FilesystemSponsorNamespaceEntryKind::Object { group, extent } => {
+                    assert_eq!(extent, 7);
+                    Some(group)
+                }
+                FilesystemSponsorNamespaceEntryKind::Directory => None,
+                FilesystemSponsorNamespaceEntryKind::Symlink { .. } => {
+                    panic!("fixture has no symlink")
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0], groups[1]);
+
+        sponsor
+            .prepare_close(&descriptor)
+            .unwrap()
+            .commit()
+            .unwrap();
+        assert_eq!(sponsor.namespace_snapshot().unwrap().open_descriptors(), 0);
     }
 
     #[test]

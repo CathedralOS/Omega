@@ -468,6 +468,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 observations.filesystem_operation_attempts().is_empty(),
                 "hermetic fixture review cannot fabricate rooted filesystem accesses"
             );
+            let staged_output = observations
+                .staged_output_tree()
+                .expect("sponsored package review commits even an empty staged-output tree");
+            assert_eq!(staged_output.entry_count(), 0);
+            assert_eq!(staged_output.file_bytes(), 0);
             assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",
