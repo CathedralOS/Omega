@@ -189,7 +189,13 @@ language, generation, or architectural role; new documentation and work use
   without CKIR publication through native and self-built paths. Those
   negatives include a carrier-compatibility regression that previously let
   mixed typed `u8 <= u32` publish invalid CKIR3; both producer routes now reject
-  before publication. Its focused Rust-free
+  before publication. The narrow
+  [`gates/delta-resolved-to-ckir3-greatest-frame.sh`](gates/delta-resolved-to-ckir3-greatest-frame.sh)
+  gate separately proves that the nominal 791,600-byte component sum is not
+  canonical: the simultaneously realizable maximum is a 267,224-byte OMGCOMP
+  plus 461,424-byte OMGRSW1 in a 728,680-byte frame, and the first adjacent
+  byte returns 252 without publication through native or self-built lowerers.
+  Its focused Rust-free
   [`gates/delta-resolved-to-ckir3-meaning.sh`](gates/delta-resolved-to-ckir3-meaning.sh)
   elaborates the same general lowerer once through persisted Beta and requires
   exact native/Gamma agreement for a compact typed constant DAG, aggregate

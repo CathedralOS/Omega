@@ -277,7 +277,7 @@ on the separately blocked compilation-authority join.
   - [x] Complete constant-graph, checked-IR, constant-image, selected-machine
     frame, text, and ELF limits with genuine canonical maxima or greatest-
     realizable boundaries rather than header-only proxy overages.
-  - [ ] Establish the greatest source-realizable `OMGLOW3` input-frame boundary
+  - [x] Establish the greatest source-realizable `OMGLOW3` input-frame boundary
     and its adjacent failure; the nominal component preflight ceilings are not
     permission to manufacture a noncanonical positive.
   - [ ] Complete the source-only and CKIR-only evaluator active-frame and
