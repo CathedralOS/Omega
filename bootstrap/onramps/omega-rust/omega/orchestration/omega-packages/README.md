@@ -40,6 +40,11 @@ real package fixture demonstrates an irreducible external contract.
   projection qualifies those symbols by exact package ownership and emits
   blocking canonical semantic-dependency rows; checked-tree handles never
   escape into review artifacts or lock-shaped data.
+- Authored declaration identity separately rejects every exact selection of an
+  owner-attached `T::drop` hook, both before checked evaluation and after late
+  call finalization. Automatic cleanup is compiler-carried semantics rather
+  than an authored selection; ordinary same-spelled machines do not match by
+  name alone.
 - Proposition/named-evidence projection joins structural typed applications to
   checked acceptance and witness disposition. Diagnostic renderings are never
   package identity; missing structural coordinates are retained in their

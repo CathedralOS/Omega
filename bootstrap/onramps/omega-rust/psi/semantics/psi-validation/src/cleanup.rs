@@ -44,6 +44,16 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
     }
 }
 
+pub fn validate_reserved_cleanup_selections(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn reserved_cleanup_selected_by(
     program: &TypedTrees,
     selected_symbol: SymbolHandle,

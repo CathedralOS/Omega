@@ -49,6 +49,7 @@ use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
     validate_value_position_calls,
 };
+pub use crate::cleanup::validate_reserved_cleanup_selections;
 pub use crate::content_conservation::{
     ContentConservationSourcePlan, build_content_conservation_plans,
 };
@@ -251,6 +252,7 @@ fn validate_program_internal(
     let fact_plan = psi_facts::build_definition_fact_plan(program);
 
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
+    cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);
     validate_proposition_definitions(program, &mut diagnostics);
     proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
 
