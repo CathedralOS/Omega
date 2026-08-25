@@ -21,3 +21,6 @@
 
 # Local scratch reproductions (not part of the project)
 /scratch_repro/
+
+# Generated linkable runtime payloads; the tracked .gitkeep skeleton is unaffected.
+/target_runtime/**
