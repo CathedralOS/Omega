@@ -95,12 +95,16 @@ proc v4_constant_match(raw) {
     state one {
         to next when (v4_ckir_constant(candidate,1)!=v4_raw(raw,0))
         to next when (v4_ckir_constant(candidate,3)!=v4_raw(raw,3))
-        to next when (v4_ckir_constant(candidate,4)!=v4_raw(raw,4)) i=0 to children
+        to next when (v4_ckir_constant(candidate,4)!=v4_raw(raw,4))
+        to bad when (v4_ckir_constant(candidate,3)>word[525208])
+        to bad when (v4_ckir_constant(candidate,2)>word[525208]-v4_ckir_constant(candidate,3))
+        i=0 to children
     }
     state children { to child when (i<v4_raw(raw,3)) to matched }
     state child {
         source_child=v4_raw_child(v4_raw(raw,2)+i)
         actual_child=v4_ckir_child(v4_ckir_constant(candidate,2)+i)
+        to bad when (actual_child>=word[525200])
         to next when (actual_child!=v4_raw(source_child,5)) i=i+1 to children
     }
     state matched { to bad when (found!=4294967295) found=candidate to next }
@@ -189,7 +193,7 @@ proc v4_constants_complete() {
 ; Inclusive comparison keeps the inherited right-before-left materialization.
 proc src_low_expression() {
     let left_type=0 let right_type=0 let target=0 let opcode=9 let inclusive=0
-    state init { src_low_gset(41,0) to add }
+    state init { src_low_gset(41,0) src_low_gset(45,0) to add }
     state add { to done when (src_low_add()!=0) to compare }
     state compare { to less when (word[524416]==60) return 0 }
     state less { to done when (src_low_push_expr()!=0) src_next() to equal when (word[524416]==61) to right }
@@ -205,7 +209,8 @@ proc src_low_expression() {
     state right_numeric { to bad when (right_type>=word[10000048]) to bad when (src_type(right_type,0)>2) to emit }
     state emit { src_low_gset(41,0) to emit_binary when (src_low_g(25)==0) to less_fact when (inclusive==0) to inclusive_fact }
     state inclusive_fact { src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)) to emit_binary }
-    state less_fact { to emit_binary when (src_low_stack(8,2)==0) src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)-1) to emit_binary }
+    state less_fact { to impossible_true when (src_low_stack(8,2)==0) src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)-1) to emit_binary }
+    state impossible_true { src_low_gset(45,1) to emit_binary }
     state emit_binary { to done when (src_low_binary(opcode,target,src_low_g(11),4294967293)!=0) src_low_gset(21,0) src_low_gset(22,1) to done }
     state bad { src_reject() }
     state done { return word[10000000] }

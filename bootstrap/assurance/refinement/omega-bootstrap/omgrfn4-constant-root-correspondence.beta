@@ -11,7 +11,7 @@
 ; the operation companion runs the full partition loader.
 proc v4_root_model_load() {
     let i=0 let row=0 let kind=0 let target=0 let source=0 let owner=0
-    let start=0 let count=0 let cursor=0 let blocks=0 let block_count=0 let state_id=0
+    let start=0 let count=0 let cursor=0 let blocks=0 let block_count=0 let state_id=0 let block_cursor=0 let ordinal=0
     state declarations { to declaration when (i<l4_count(3)) i=0 to types }
     state declaration {
         row=l4_base(3)+i*28 kind=l4_wbyte(row+4) source=l4_wu32(row+8)
@@ -56,23 +56,26 @@ proc v4_root_model_load() {
         src_field_set(i,1,l4_named_span(source,start)) src_field_set(i,2,count) src_field_set(i,3,target)
         i=i+1 to fields
     }
-    state machines { to machine when (i<l4_count(7)) i=0 to blocks_loop }
+    state machines { to machine when (i<l4_count(7)) i=0 to machine_exact }
     state machine {
         row=l4_base(7)+i*40 owner=l4_wu32(row+8) blocks=l4_wu32(row+28) block_count=l4_wu32(row+32)
-        to bad when (owner>=l4_count(5)) to bad when (blocks>l4_count(9))
+        to bad when (l4_wu32(row)!=i) to bad when (owner>=l4_count(5))
+        to bad when (blocks!=block_cursor) to bad when (blocks<i) to bad when (blocks>l4_count(9))
         to bad when (block_count<1) to bad when (block_count>l4_count(9)-blocks)
         src_machine_set(i,9,src_record(owner,8)) src_machine_set(i,12,blocks-i)
         src_machine_set(i,13,block_count-1) src_machine_set(i,15,blocks)
-        src_machine_set(i,16,word[535512+i*8]) i=i+1 to machines
+        src_machine_set(i,16,word[535512+i*8]) block_cursor=block_cursor+block_count i=i+1 to machines
     }
+    state machine_exact { to bad when (block_cursor!=l4_count(9)) i=0 to blocks_loop }
     state blocks_loop { to block when (i<l4_count(9)) i=0 to finish }
     state block {
-        row=l4_base(9)+i*40 owner=l4_wu32(row+4) start=l4_wu32(row+16) count=l4_wu32(row+20)
-        to bad when (owner>=l4_count(7)) to bad when (i<src_machine(owner,15))
+        row=l4_base(9)+i*40 owner=l4_wu32(row+4) ordinal=l4_wu32(row+8) start=l4_wu32(row+16) count=l4_wu32(row+20)
+        to bad when (l4_wu32(row)!=i) to bad when (owner>=l4_count(7)) to bad when (i<src_machine(owner,15))
         to bad when (i>=src_machine(owner,15)+src_machine(owner,13)+1)
+        to bad when (ordinal!=i-src_machine(owner,15))
         source=src_machine(owner,16) to bad when (count<start)
         to bad when (l4_source_span_ok(source,start,count-start)==0)
-        to entry when (l4_wu32(row+8)==0)
+        to entry when (ordinal==0)
         state_id=i-owner-1 src_state_set(state_id,6,start) src_state_set(state_id,7,count)
         src_state_set(state_id,8,i) to next
     }
