@@ -1756,6 +1756,65 @@ fn lowers_domain_definitions() {
 }
 
 #[test]
+fn resolves_exact_case_symbols_in_domain_proof_expressions() {
+    let source = r#"
+    data Command {
+        case Move(dx: i32);
+        case Say(volume: i32);
+    }
+
+    domain Command::Interactive
+    requires
+        self in Command::Move | Command::Say;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let command = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Command")
+        .expect("Command data");
+    let expected_cases = program
+        .data_members(command.members)
+        .iter()
+        .filter_map(|member| match member {
+            psi_symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Command::Interactive")
+        .expect("interactive domain");
+    let [psi_symbol_resolved_trees::domain::ProofFact::Expression(expression)] =
+        program.proof_facts(domain.facts)
+    else {
+        panic!("case union should remain one proof expression");
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Binary(union) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("proof expression should remain a case union");
+    };
+
+    for (expression, expected_case) in [union.left, union.right].into_iter().zip(expected_cases) {
+        let psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
+            program.tables.bodies.expressions.expression(expression)
+        else {
+            panic!("union operand should remain a case membership");
+        };
+        assert!(!membership.domain_symbol.is_valid());
+        assert_eq!(membership.case_type_symbol, command.symbol);
+        assert_eq!(membership.case_symbol, expected_case);
+    }
+}
+
+#[test]
 fn resolves_free_machine_calls_in_domain_predicates() {
     let source = r#"
     boundary machine no_wrap(base: addr, length: u64) -> bool;

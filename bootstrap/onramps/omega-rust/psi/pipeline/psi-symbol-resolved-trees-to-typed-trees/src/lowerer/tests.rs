@@ -1529,6 +1529,85 @@ fn lowers_domain_definitions() {
 }
 
 #[test]
+fn lowers_case_union_domain_proofs_from_exact_resolved_symbols() {
+    let source = r#"
+    data Command {
+        case Move(dx: i32);
+        case Say(volume: i32);
+    }
+
+    domain Command::Interactive
+    requires
+        self in Command::Move | Command::Say;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let expected_symbols = resolved_program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Command")
+        .map(|definition| {
+            let cases = resolved_program
+                .data_members(definition.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            (definition.symbol, cases)
+        })
+        .expect("Command data");
+    let typed_trees =
+        lower_symbol_resolved_trees(&resolved_program).expect("case-union proof should lower");
+    let domain = typed_trees
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Command::Interactive")
+        .expect("interactive domain");
+    let [psi_typed_trees::domain::ProofFact::Expression(expression)] =
+        typed_trees.proof_facts(domain)
+    else {
+        panic!("case union should lower as one proof expression");
+    };
+    let psi_typed_trees::expression::ExpressionNode::Binary(union) =
+        typed_trees.expression_table.expression(*expression)
+    else {
+        panic!("proof expression should remain a union");
+    };
+
+    for (expression, expected_case) in [union.left, union.right]
+        .into_iter()
+        .zip(expected_symbols.1)
+    {
+        let psi_typed_trees::expression::ExpressionNode::Binary(equality) =
+            typed_trees.expression_table.expression(expression)
+        else {
+            panic!("case membership should lower to exact tag equality");
+        };
+        let psi_typed_trees::expression::ExpressionNode::Name(case) =
+            typed_trees.expression_table.expression(equality.right)
+        else {
+            panic!("tag equality should retain an exact case path");
+        };
+        assert_eq!(case.head_symbol, expected_symbols.0);
+        assert_eq!(case.symbol, expected_case);
+        assert_eq!(
+            typed_trees
+                .expression_table
+                .name_path_member_symbols(case.member_symbols),
+            [expected_symbols.0, expected_case]
+        );
+    }
+}
+
+#[test]
 fn normalizes_domain_constraints_by_short_name_and_carrier() {
     let source = r#"
     data Box<T> {
