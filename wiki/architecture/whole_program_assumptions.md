@@ -51,20 +51,24 @@ real.
   not the definition of component. Removing that fence must only admit more
   closures without changing already-accepted programs.
 
-## Footnotes / unknowns
+## Settled component shape and implementation gaps
 
-[^artifact]: The component artifact format is undesigned: what a compiled,
-signed, loadable realization contains (mapping lifetime cohorts, code, layout
-report, requirement/provider manifest, schemas, resource-demand records,
-version/migration tables, authority-flow report) and how it is
-content-addressed.
+[^artifact]: A component capsule targets one exact closed requirement
+application and contains canonical Terminal Psi, reconstructed obligation
+evidence, symbolic imports/exports, lifecycle and resource demands,
+target-semantics dependencies, and optional target-native realizations with
+their refinement evidence. The concrete encoding, content addressing, mapping
+lifetime cohorts, and loader representation remain implementation work.
 
-[^abi]: The cross-component ABI representation is undesigned. Crossings name
-requirement identities with evaluated calling, state, and representation plans;
-the concrete entry-acquisition protocol, stack ownership, dispatch handoff, and
-artifact encoding remain open.
+[^abi]: Crossings name exact requirement identities with evaluated calling,
+state, representation, entry, and observation plans. Runtime call authority is
+an explicit routed `Service<R> in Bound`, not a bare trait value or public
+vtable. The concrete entry-acquisition algorithm, stack ownership, dispatch
+handoff, and binary encoding remain implementation work.
 
 [^loader]: Loader/linker responsibilities (who patches what at load time, how
 content-addressed code dedup works in memory) belong to the consumer OS's
-design and are out of scope here; the language side only owes a loadable
-artifact.
+design and are out of scope here. Omega owes the verified capsule, local
+acceptance envelope, linear installation/era transitions, and replayable
+deployment record; Cathedral chooses mappings, cohorts, scheduler/device
+quiescence, rollback, and the irreducible update nucleus.

@@ -151,63 +151,63 @@ Working interpretation:
   provider must come from the toolchain, target configuration, or an explicitly
   whitelisted boundary package.
 
-## Boundary-Trait Values And Bindings
+## Service Bindings
 
-An ordinary trait name is not a runtime type; use `dyn Trait` for local dynamic
-dispatch. A boundary trait name in value position instead denotes the selected
-binding for that service:
+A trait name is an interface identity, never a runtime carrier. Use `dyn Trait`
+for local dynamic dispatch. Authority to call a selected boundary service is an
+explicit core carrier:
 
 ```omega
 data Application {
-    logging: LoggingService;
+    logging: Service<LoggingService> in Bound;
 }
 ```
 
-The binding names a provider slot, not a provider-era address. In a statically
-composed build the compiler can erase the indirection. In a replaceable build,
-each call resolves the slot to one era and retains that era until the call
-leaves. The source API is the same in both builds.
-
-Boundary bindings use ordinary multiplicity:
+`Service<R>` names the stable slot for the exact closed boundary-requirement
+application `R`; it does not contain a local conformance table or one provider
+era's code address. `Bound` is routed authority established by component
+installation/publication. It cannot arise from a record literal, zero
+initialization, target bytes, or the mere existence of a provider. An
+application root receives the established service explicitly:
 
 ```omega
-boundary trait LoggingService [copy] {
-    machine write(text: &[u8]);
-}
-
-boundary trait DeviceControl {
-    machine reset(&mut self);
-}
-
-boundary trait Connection [linear] {
-    machine release(self);
+machine Application::start(
+    logging: Service<LoggingService> in Bound
+) -> Application
+{
+    Application { logging }
 }
 ```
 
-`[copy]` means the binding authority is fungible. The default is affine:
-move it or share it by borrow, but do not duplicate it. `[linear]` additionally
-requires explicit discharge. Copying a rebindable binding creates no retention
-edge to an old provider era; active calls and era-custodied session values do.
+In a statically fused build the compiler may erase the carrier and dispatch
+directly. In an independently emitted build each call acquires exactly one
+published era from the stable slot, retains that era until matching leave, and
+then releases it. Rebinding changes the slot's current era; it does not rewrite
+or reinject every `Service<R>` value.
 
-A service that accounts for or may refuse duplication does not use `[copy]`.
-It exposes an ordinary operation instead:
+`Service<R>` is affine by default. Code may move it or lend it by borrow, but
+copying call authority requires an explicit owner-authorized duplication route
+that returns another established carrier. A service-specific obligation that
+must be discharged is represented by an ordinary linear session,
+registration, or lease returned by a service operation; multiplicity is never
+written on the boundary trait itself. Active calls and era-custodied returned
+values may pin one provider era, while the rebindable service carrier does not.
 
-```omega
-boundary trait LicensedService {
-    machine duplicate() -> LicensedService;
-}
-```
+Boundary requirements have an implicit shared service receiver when none is
+written. `&mut self` requires exclusive access to the `Service<R>` carrier and
+`self` consumes it. This receiver is distinct from the selected provider's
+private state receiver.
 
-Boundary requirements have an implicit shared binding receiver when none is
-written. `&mut self` requires exclusive binding access, while `self` consumes
-the binding. This receiver is distinct from the selected provider's internal
-state mutation.
+Composite service authorities take the restrictive meet of their parents'
+multiplicities. Projecting from a borrowed composite yields a borrowed service
+carrier. Obtaining an owned child consumes and attenuates the composite, with
+every omitted linear obligation returned or discharged; projection never
+manufactures an owned, copyable call authority.
 
-Composite bindings take the restrictive meet of their parents' multiplicities.
-Projecting a parent from `&Composite` yields a borrowed parent binding. An
-owned parent is obtained only by consuming and attenuating the composite, with
-every omitted linear obligation returned or discharged. A borrowed projection
-never silently manufactures an owned, copyable sub-binding.
+The current implementation's bare boundary-trait value spelling is a
+transitional compatibility fence. It must migrate to `Service<R> in Bound`;
+new design and examples must not infer a runtime carrier or its multiplicity
+from a trait declaration.
 
 ### Local dynamic interfaces over bindings
 
@@ -217,7 +217,7 @@ ledgered for unloading. An ordinary local proxy bridges the two mechanisms:
 
 ```omega
 data LoggingProxy {
-    service: LoggingService;
+    service: Service<LoggingService> in Bound;
 }
 
 ComponentLogger:

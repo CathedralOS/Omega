@@ -131,13 +131,43 @@ The replaceable unit is a selected provider realization plus the closed code,
 state, resource, and version graph it owns. It is not intrinsically a package.
 Calls across that closure name requirements; concrete calls remain legal
 inside it. Whether a requirement is statically fused or preserved as a
-replaceable edge is a build/deployment choice.
+replaceable edge is an owner-controlled `build.omg` selection. The exact closed
+requirement application is the stable slot identity; providers, artifacts,
+eras, authored strings, and ordinals are not.
+
+The boundary trait is an interface, not a runtime value. Calls through an
+independent slot require a routed authority carrier, `Service<R> in Bound`,
+established by installation/publication. A fused selection may erase that
+carrier and call directly. An independent selection resolves the current era
+at every call entry. Multiplicity belongs to `Service<R>`, not to `R`.
+
+A runtime candidate is existential behind its service contract. Its capsule
+retains canonical Terminal Psi, reconstructed obligation evidence, symbolic
+imports and exports, lifecycle and resource demand, and optional target-native
+realizations. It may execute as verified interpreted Psi, as native code with a
+checked Psi-to-target realization, or as opaque admitted native code. Local and
+remote native lowering are the same trust modality; opaque native has no Omega
+semantic subject and enters the disclosed executable TCB.
+
+The initial build freezes a deployment envelope for each independent slot. A
+runtime verifier may accept a future capsule only when it fits that envelope;
+widening imports, authority, observation policy, target semantics, resources,
+execution modality, or admissions requires a new owner-controlled composition.
+The candidate never authorizes its own installation.
 
 Quiesce, capture, upgrade, install, resume, and rollback are ordinary machines
 coordinated by a package. The replacement plan declares its drain/coexistence
 policy and point of no return before publication. Before that point an abort
 must restore the old arrangement; afterward recovery is roll-forward or a
 separately admitted reverse replacement.
+
+Hot-swappability is not a trait or marker. The service contract publishes what
+callers may observe across replacement, provider projections and selected
+migration machines prove any promised continuity, and composition checks the
+whole closure. When no continuity is promised, a stateful candidate may publish
+first and the old era may drain afterward. A continuity-preserving transfer may
+require a linear entry-freeze token or an explicitly blocking slot contract;
+Prop evidence cannot stand in for that operational state.
 
 Every live old-era activation, continuation, state object, registration,
 authority, and external claim receives an explicit disposition: drain, retain
@@ -216,10 +246,19 @@ planned first customer. Its implementation validates that ordinary data,
 machines, traits, domains, ownership, and boundary providers express the
 required protocol.
 
-## Deliberately Deferred Component Work
+The owner-authorized build state and the runtime deployment journal are not one
+atomic record. Runtime installation uses durable intent, activation, and
+finalization phases, with defined restart reconciliation for an interrupted
+update. The journal retains the accepting envelope, evidence, admissions, slot
+publication history, and live-era state. Omega specifies the checkable record
+and linear lifecycle transitions; Cathedral selects rollback, roll-forward,
+cohort, scheduler, device-quiescence, and retention policy.
+
+## Component Implementation Work
 
 The remaining representation work includes the artifact and mapping-cohort
 manifest, durable encoding for runtime-selected entry-ledger/disposition
 receipts, concrete entry-acquisition algorithms, outbound calls from old
 continuations, exact liveness accounting, and optional continuation migration.
-These complete the component-runtime protocol described above.
+These complete the component-runtime protocol described above and are tracked
+in `../../TASKS.md`; they are not unresolved language design.
