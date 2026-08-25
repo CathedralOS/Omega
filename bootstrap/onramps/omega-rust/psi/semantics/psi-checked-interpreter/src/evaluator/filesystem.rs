@@ -1,4 +1,11 @@
 use super::*;
+use crate::{FilesystemByteOperand, FilesystemScalarOperand};
+
+fn checked_observation_evidence_total(current: usize, additional: usize) -> Option<usize> {
+    current
+        .checked_add(additional)
+        .filter(|total| *total <= MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES)
+}
 
 impl<'program> Evaluator<'program> {
     /// Record one exact canonical operation in call-start order around the
@@ -27,8 +34,12 @@ impl<'program> Evaluator<'program> {
         let mut outcome = match self.prepare_filesystem_call(operation, arguments, frame) {
             Ok(call) => {
                 let logical_handle_plan = call.logical_handle_plan();
-                self.record_logical_handle_inputs(attempt_index, &logical_handle_plan);
-                self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
+                let (scalar_operands, byte_operands) = call.operand_observation_plan();
+                self.record_operand_observations(attempt_index, scalar_operands, byte_operands)
+                    .and_then(|()| {
+                        self.record_logical_handle_inputs(attempt_index, &logical_handle_plan);
+                        self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
+                    })
                     .and_then(|()| {
                         self.serve_filesystem_call(call)
                             .map(|value| (value, logical_handle_plan))
@@ -105,6 +116,29 @@ impl<'program> Evaluator<'program> {
                 Err(halt)
             }
         }
+    }
+
+    fn record_operand_observations(
+        &mut self,
+        attempt_index: usize,
+        scalar_operands: Vec<FilesystemScalarOperand>,
+        byte_operands: Vec<FilesystemByteOperand>,
+    ) -> EvalResult<()> {
+        let retained_bytes = byte_operands.iter().try_fold(0usize, |total, operand| {
+            total.checked_add(operand.bytes.len())
+        });
+        let Some(next_total) = retained_bytes.and_then(|bytes| {
+            checked_observation_evidence_total(self.filesystem_observation_evidence_bytes, bytes)
+        }) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte immutable-operand ceiling"
+            )));
+        };
+        self.filesystem_observation_evidence_bytes = next_total;
+        let attempt = &mut self.filesystem_operation_attempts[attempt_index];
+        attempt.scalar_operands = scalar_operands;
+        attempt.byte_operands = byte_operands;
+        Ok(())
     }
 
     fn record_logical_handle_inputs(
@@ -1511,6 +1545,7 @@ mod tests {
         FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES, PreparedTransferCount,
         checked_filesystem_transfer_count,
     };
+    use super::{MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, checked_observation_evidence_total};
 
     #[test]
     fn transfer_count_rejects_wrap_and_unbounded_allocation() {
@@ -1537,5 +1572,18 @@ mod tests {
                 host: MAX_FILESYSTEM_TRANSFER_BYTES,
             })
         );
+    }
+
+    #[test]
+    fn observation_evidence_budget_accepts_exact_limit_and_rejects_overflow() {
+        assert_eq!(
+            checked_observation_evidence_total(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1, 1),
+            Some(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES)
+        );
+        assert_eq!(
+            checked_observation_evidence_total(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, 1),
+            None
+        );
+        assert_eq!(checked_observation_evidence_total(usize::MAX, 1), None);
     }
 }

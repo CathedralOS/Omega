@@ -13,8 +13,9 @@ use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
-    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, CompileOptions,
+    PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
+    compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -120,7 +121,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 5);
+    assert_eq!(checked_observations.schema_version(), 6);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -131,7 +132,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        6
+        7
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -232,6 +233,28 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     else {
         panic!("fixture must retain its complete logical-handle operation sequence")
     };
+    assert_eq!(open.scalar_operands().len(), 1);
+    assert_eq!(open.scalar_operands()[0].operand_ordinal(), 1);
+    assert_eq!(
+        open.scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::I32(0)
+    );
+    assert_eq!(read.scalar_operands().len(), 1);
+    assert_eq!(
+        read.scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::U64(6)
+    );
+    assert_eq!(create.scalar_operands().len(), 1);
+    assert_eq!(
+        create.scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::I32(438)
+    );
+    assert!(write.scalar_operands().is_empty());
+    let [written_bytes] = write.byte_operands() else {
+        panic!("write must retain its immutable payload operand")
+    };
+    assert_eq!(written_bytes.operand_ordinal(), 1);
+    assert_eq!(written_bytes.bytes(), b"staged by build\n");
     let source_descriptor = open
         .logical_handle_output()
         .expect("successful open creates a logical descriptor");

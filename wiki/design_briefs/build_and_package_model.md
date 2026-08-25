@@ -574,7 +574,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v5 carries operation-attempt schema v6: an ordered
+Observation schema v6 carries operation-attempt schema v7: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -596,9 +596,17 @@ descriptors retain their rooted write grant through duplicate and borrowed
 views; content, extent, metadata, ownership, and host-lock mutations deny before
 sponsor or host access when the origin was admitted only for source reads.
 `open_at`/`unlink_at` accept only one portable relative component, while real
-path outputs are lossless or reject. Complete scalar/byte operands, mutable
-outputs, retained returned-path bytes, and content remain absent, so the row is
-still non-replayable.
+path outputs are lossless or reject. Fully prepared calls whose evidence
+reservation succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars
+plus exact immutable write/FILETIME payloads;
+validated at-family components retain their exact portable bytes. Rooted and
+path-alias spellings never enter the payload lane. A separate 256 MiB aggregate
+immutable-evidence sponsor reserves custody before that call's provider access;
+prior or nested staging effects remain cleanup-contained. Package
+commitments frame these rows without rendering payload bytes as text. Path-like
+bytes not yet represented by rooted evidence, mutable regions, preparation-
+failure operand prefixes, retained returned-path bytes, and complete content
+remain absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

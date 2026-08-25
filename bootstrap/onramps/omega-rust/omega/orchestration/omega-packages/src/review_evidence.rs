@@ -3,9 +3,9 @@ use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
-    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
+    CompilerExecutableCommitment, DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageSourceConsumptionCommitment,
 };
 use sha2::{Digest, Sha256};
@@ -204,6 +204,41 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         digest.update(attempt.result().to_le_bytes());
         digest.update(attempt.post_error().to_le_bytes());
         digest.update(
+            u64::try_from(attempt.scalar_operands().len())
+                .expect("build observation scalar-operand count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.scalar_operands() {
+            digest.update([operand.operand_ordinal()]);
+            match operand.value() {
+                BuildFilesystemScalarOperandValue::I32(value) => {
+                    digest.update([0]);
+                    digest.update(value.to_le_bytes());
+                }
+                BuildFilesystemScalarOperandValue::U32(value) => {
+                    digest.update([1]);
+                    digest.update(value.to_le_bytes());
+                }
+                BuildFilesystemScalarOperandValue::I64(value) => {
+                    digest.update([2]);
+                    digest.update(value.to_le_bytes());
+                }
+                BuildFilesystemScalarOperandValue::U64(value) => {
+                    digest.update([3]);
+                    digest.update(value.to_le_bytes());
+                }
+            }
+        }
+        digest.update(
+            u64::try_from(attempt.byte_operands().len())
+                .expect("build observation byte-operand count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.byte_operands() {
+            digest.update([operand.operand_ordinal()]);
+            hash_bytes(&mut digest, operand.bytes());
+        }
+        digest.update(
             u64::try_from(attempt.authorized_paths().len())
                 .expect("build observation authorized-path count fits u64")
                 .to_le_bytes(),
@@ -336,7 +371,11 @@ mod tests {
 
     static NEXT_OBSERVATION_FIXTURE: AtomicU64 = AtomicU64::new(1);
 
-    fn compiled_observation(relative_output: &str) -> BuildObservationSummary {
+    fn compiled_observation(
+        relative_output: &str,
+        mode: i32,
+        payload: &str,
+    ) -> BuildObservationSummary {
         let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
         let project = std::env::temp_dir().join(format!(
             "omega-review-observation-{}-{sequence}",
@@ -353,16 +392,19 @@ mod tests {
 
 target windows_x64 {{}}
 
-data RootedWriter {{ filesystem: FilesystemHost; descriptor: i32; result: i32; }}
+data RootedWriter {{ filesystem: FilesystemHost; descriptor: i32; written: i64; result: i32; }}
 
 machine RootedWriter::build(&mut self, builder: &mut Build)
 reaches FilesystemHost
 {{
-    self.descriptor = self.filesystem.create("{output}", 438);
+    self.descriptor = self.filesystem.create("{output}", {mode});
+    self.written = self.filesystem.write(self.descriptor, "{payload}");
     self.result = self.filesystem.close(self.descriptor);
 }}
 "#,
                 output = output.display().to_string().replace('\\', "/"),
+                mode = mode,
+                payload = payload,
             ),
         )
         .unwrap();
@@ -424,30 +466,47 @@ reaches FilesystemHost
 
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
-        let first = compiled_observation("stage/artifact.bin");
-        let relocated = compiled_observation("stage/artifact.bin");
+        let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
+        let relocated = compiled_observation("stage/artifact.bin", 438, "payload-a");
         assert_eq!(first, relocated);
         assert_eq!(
             build_observation_commitment(&first),
             build_observation_commitment(&relocated)
         );
 
-        let changed = compiled_observation("stage/changed.bin");
+        let changed = compiled_observation("stage/changed.bin", 438, "payload-a");
         assert_ne!(first, changed);
         assert_ne!(
             build_observation_commitment(&first),
             build_observation_commitment(&changed)
         );
-        assert_eq!(first.schema_version(), 5);
-        assert_eq!(first.filesystem_operation_schema_version(), 6);
-        let [create, close] = first.filesystem_operation_attempts() else {
-            panic!("fixture performs create and close")
+        let scalar_changed = compiled_observation("stage/artifact.bin", 420, "payload-a");
+        assert_ne!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&scalar_changed),
+            "one changed scalar operand changes observation identity"
+        );
+        let bytes_changed = compiled_observation("stage/artifact.bin", 438, "payload-b");
+        assert_ne!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&bytes_changed),
+            "one changed immutable byte operand changes observation identity"
+        );
+        assert_eq!(first.schema_version(), 6);
+        assert_eq!(first.filesystem_operation_schema_version(), 7);
+        let [create, write, close] = first.filesystem_operation_attempts() else {
+            panic!("fixture performs create, write, and close")
         };
         let [path] = create.authorized_paths() else {
             panic!("create retains one rooted output path")
         };
         assert_eq!(path.root(), BuildFilesystemRoot::Output);
         assert_eq!(path.relative_path(), b"stage/artifact.bin");
+        assert_eq!(
+            create.scalar_operands()[0].value(),
+            BuildFilesystemScalarOperandValue::I32(438)
+        );
+        assert_eq!(write.byte_operands()[0].bytes(), b"payload-a");
         assert!(close.authorized_paths().is_empty());
     }
 

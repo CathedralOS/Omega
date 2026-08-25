@@ -32,6 +32,7 @@ impl<'program> Evaluator<'program> {
             filesystem_operation_attempts: Vec::new(),
             filesystem_logical_handles: FilesystemLogicalHandles::default(),
             filesystem_observation_path_bytes: 0,
+            filesystem_observation_evidence_bytes: 0,
             filesystem_observation_resource_halt: None,
             filesystem_operation_attempt_stack: Vec::new(),
             usage: EvaluationUsage::empty(),

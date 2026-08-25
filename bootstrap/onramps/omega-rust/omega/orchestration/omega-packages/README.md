@@ -257,7 +257,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v5 carries operation-attempt schema v6, retaining exact
+Observation schema v6 carries operation-attempt schema v7, retaining exact
 providers, operation tags, scalar returns, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -278,10 +278,18 @@ their source cursor. Real descriptors retain rooted write authority through
 duplicate and borrowed views; content, extent, metadata, ownership, and
 host-lock mutation deny before sponsor or host access when the descriptor came
 from source-read authority alone. `open_at`/`unlink_at` accept one portable
-relative component; real-provider path outputs are lossless or reject. Complete
-scalar/byte operands, mutable outputs, retained returned-path bytes, and content
-remain absent, so this is an incomplete trace rather than a transcript or
-receipt.
+relative component; real-provider path outputs are lossless or reject. Fully
+prepared calls whose evidence reservation succeeds retain ordinal-ordered
+non-handle I32/U32/I64/U64
+scalars, exact authored immutable write/FILETIME payloads, and validated at-
+family component bytes. Rooted/path-alias spellings stay out of the payload
+lane. A separate 256 MiB aggregate immutable-evidence sponsor reserves before
+that call's provider access; prior or nested staging effects remain cleanup-
+contained. The package commitment frames exact tags/ordinals/bytes and does not
+render payloads as text. Path-like bytes not represented by rooted
+evidence, mutable outputs, preparation-failure operand prefixes, retained
+returned-path bytes, and complete content remain absent, so this is an
+incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

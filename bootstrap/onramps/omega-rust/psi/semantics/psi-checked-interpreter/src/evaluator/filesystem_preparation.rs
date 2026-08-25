@@ -1,4 +1,5 @@
 use super::*;
+use crate::{FilesystemByteOperand, FilesystemScalarOperand, FilesystemScalarOperandValue};
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
 const FILETIME_BYTES: usize = 8;
@@ -460,6 +461,23 @@ pub(super) struct PreparedFilesystemLogicalHandlePlan {
     pub(super) retirement: Option<PreparedFilesystemLogicalHandleRetirement>,
 }
 
+fn observed_scalar(
+    operand_ordinal: u8,
+    value: FilesystemScalarOperandValue,
+) -> FilesystemScalarOperand {
+    FilesystemScalarOperand {
+        operand_ordinal,
+        value,
+    }
+}
+
+fn observed_bytes(operand_ordinal: u8, value: &[u8]) -> FilesystemByteOperand {
+    FilesystemByteOperand {
+        operand_ordinal,
+        bytes: value.to_vec(),
+    }
+}
+
 impl PreparedFilesystemCall {
     /// Project the closed canonical call into descriptor/handle roles before a
     /// provider consumes it. Scalar values that merely share an integer ABI
@@ -627,6 +645,155 @@ impl PreparedFilesystemCall {
             retirement,
         }
     }
+
+    /// Project canonical non-handle scalars and immutable payload bytes from a
+    /// fully prepared call. Path spellings and path-like byte aliases are
+    /// deliberately excluded: scoped path evidence owns their portable rooted
+    /// form and must never be bypassed by a raw absolute spelling.
+    pub(super) fn operand_observation_plan(
+        &self,
+    ) -> (Vec<FilesystemScalarOperand>, Vec<FilesystemByteOperand>) {
+        use FilesystemScalarOperandValue as Scalar;
+
+        let mut scalars = Vec::new();
+        let mut bytes = Vec::new();
+
+        match self {
+            Self::Create { mode, .. } => scalars.push(observed_scalar(1, Scalar::I32(*mode))),
+            Self::Open { flags, .. } => scalars.push(observed_scalar(1, Scalar::I32(*flags))),
+            Self::OpenCreate { flags, mode, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I32(*flags)));
+                scalars.push(observed_scalar(2, Scalar::I32(*mode)));
+            }
+            Self::Read { count, .. } => {
+                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
+            }
+            Self::Write { bytes: value, .. } => bytes.push(observed_bytes(1, value)),
+            Self::ReadAt { count, offset, .. } => {
+                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
+                scalars.push(observed_scalar(3, Scalar::I64(*offset)));
+            }
+            Self::WriteAt {
+                bytes: value,
+                offset,
+                ..
+            } => {
+                bytes.push(observed_bytes(1, value));
+                scalars.push(observed_scalar(2, Scalar::I64(*offset)));
+            }
+            Self::Seek { offset, whence, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I64(*offset)));
+                scalars.push(observed_scalar(2, Scalar::I32(*whence)));
+            }
+            Self::CreateDir { mode, .. } | Self::CreateDirName { mode, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I32(*mode)));
+            }
+            Self::OpenAt { name, flags, .. } | Self::UnlinkAt { name, flags, .. } => {
+                bytes.push(observed_bytes(1, name));
+                scalars.push(observed_scalar(2, Scalar::I32(*flags)));
+            }
+            Self::SetPermissions { mode, .. } | Self::SetFilePermissions { mode, .. } => {
+                scalars.push(observed_scalar(1, Scalar::U32(*mode)));
+            }
+            Self::ReadLink { count, .. } | Self::ReadDir { count, .. } => {
+                scalars.push(observed_scalar(2, Scalar::U64(count.raw)));
+            }
+            Self::CreateHardLink {
+                security_attributes,
+                ..
+            } => scalars.push(observed_scalar(2, Scalar::I64(*security_attributes))),
+            Self::OpenPathHandle {
+                desired_access,
+                share_mode,
+                security_attributes,
+                creation_disposition,
+                flags_and_attributes,
+                ..
+            } => {
+                scalars.push(observed_scalar(1, Scalar::U32(*desired_access)));
+                scalars.push(observed_scalar(2, Scalar::U32(*share_mode)));
+                scalars.push(observed_scalar(3, Scalar::I64(*security_attributes)));
+                scalars.push(observed_scalar(4, Scalar::U32(*creation_disposition)));
+                scalars.push(observed_scalar(5, Scalar::U32(*flags_and_attributes)));
+            }
+            Self::FinalPathNameByHandle {
+                capacity, flags, ..
+            } => {
+                scalars.push(observed_scalar(2, Scalar::U64(capacity.raw)));
+                scalars.push(observed_scalar(3, Scalar::U32(*flags)));
+            }
+            Self::SetFileTime {
+                creation,
+                last_access,
+                last_write,
+                ..
+            } => {
+                scalars.push(observed_scalar(1, Scalar::I64(*creation)));
+                bytes.push(observed_bytes(2, last_access));
+                bytes.push(observed_bytes(3, last_write));
+            }
+            Self::LockFileEx {
+                flags,
+                reserved,
+                length_low,
+                length_high,
+                ..
+            } => {
+                scalars.push(observed_scalar(1, Scalar::U32(*flags)));
+                scalars.push(observed_scalar(2, Scalar::U32(*reserved)));
+                scalars.push(observed_scalar(3, Scalar::U32(*length_low)));
+                scalars.push(observed_scalar(4, Scalar::U32(*length_high)));
+            }
+            Self::UnlockFile {
+                offset_low,
+                offset_high,
+                length_low,
+                length_high,
+                ..
+            } => {
+                scalars.push(observed_scalar(1, Scalar::U32(*offset_low)));
+                scalars.push(observed_scalar(2, Scalar::U32(*offset_high)));
+                scalars.push(observed_scalar(3, Scalar::U32(*length_low)));
+                scalars.push(observed_scalar(4, Scalar::U32(*length_high)));
+            }
+            Self::SetLen { length, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I64(*length)));
+            }
+            Self::LockFile { operation, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I32(*operation)));
+            }
+            Self::ChangeOwner { uid, gid, .. }
+            | Self::ChangeOwnerNoFollow { uid, gid, .. }
+            | Self::ChangeFileOwner { uid, gid, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I32(*uid)));
+                scalars.push(observed_scalar(2, Scalar::I32(*gid)));
+            }
+            Self::Close { .. }
+            | Self::Remove { .. }
+            | Self::RemoveDir { .. }
+            | Self::Rename { .. }
+            | Self::HardLink { .. }
+            | Self::Symlink { .. }
+            | Self::Canonicalize { .. }
+            | Self::FindFirst { .. }
+            | Self::FindNext { .. }
+            | Self::FindClose { .. }
+            | Self::CloseHandle { .. }
+            | Self::GetOsfHandle { .. }
+            | Self::GetLastError
+            | Self::RemoveName { .. }
+            | Self::RemoveDirName { .. }
+            | Self::ReadMetadata { .. }
+            | Self::ReadFileMetadata { .. }
+            | Self::ReadSymlinkMetadata { .. }
+            | Self::SetFileTimes { .. }
+            | Self::Sync { .. }
+            | Self::SyncData { .. }
+            | Self::Duplicate { .. }
+            | Self::Errno => {}
+        }
+        (scalars, bytes)
+    }
 }
 
 #[cfg(test)]
@@ -639,6 +806,292 @@ mod tests {
                 .map(|_| Value::Int(0).cell())
                 .collect::<Vec<_>>(),
         )
+    }
+
+    fn transfer_count() -> PreparedTransferCount {
+        PreparedTransferCount { raw: 1, host: 1 }
+    }
+
+    fn mutable_byte_input(length: usize) -> PreparedMutableByteInput {
+        PreparedMutableByteInput {
+            output: array_output(length),
+            bytes: vec![0; length],
+        }
+    }
+
+    fn mutable_i64() -> PreparedI64Output {
+        PreparedI64Output {
+            cell: Value::Int(7).cell(),
+            initial: 7,
+        }
+    }
+
+    fn prepared_call_fixture(operation: FilesystemHostOperation) -> PreparedFilesystemCall {
+        let path = || b"/root/file".to_vec();
+        let name = || b"entry".to_vec();
+        match operation {
+            FilesystemHostOperation::Create => PreparedFilesystemCall::Create {
+                path: path(),
+                mode: -1,
+            },
+            FilesystemHostOperation::Open => PreparedFilesystemCall::Open {
+                path: path(),
+                flags: -1,
+            },
+            FilesystemHostOperation::OpenCreate => PreparedFilesystemCall::OpenCreate {
+                path: path(),
+                flags: -1,
+                mode: -1,
+            },
+            FilesystemHostOperation::Read => PreparedFilesystemCall::Read {
+                fd: 3,
+                buffer: array_output(1),
+                count: transfer_count(),
+            },
+            FilesystemHostOperation::Write => PreparedFilesystemCall::Write {
+                fd: 3,
+                bytes: b"payload".to_vec(),
+            },
+            FilesystemHostOperation::ReadAt => PreparedFilesystemCall::ReadAt {
+                fd: 3,
+                buffer: array_output(1),
+                count: transfer_count(),
+                offset: i64::MIN,
+            },
+            FilesystemHostOperation::WriteAt => PreparedFilesystemCall::WriteAt {
+                fd: 3,
+                bytes: b"payload".to_vec(),
+                offset: i64::MIN,
+            },
+            FilesystemHostOperation::Close => PreparedFilesystemCall::Close { fd: 3 },
+            FilesystemHostOperation::Remove => PreparedFilesystemCall::Remove { path: path() },
+            FilesystemHostOperation::Seek => PreparedFilesystemCall::Seek {
+                fd: 3,
+                offset: i64::MIN,
+                whence: -1,
+            },
+            FilesystemHostOperation::CreateDir => PreparedFilesystemCall::CreateDir {
+                path: path(),
+                mode: -1,
+            },
+            FilesystemHostOperation::RemoveDir => {
+                PreparedFilesystemCall::RemoveDir { path: path() }
+            }
+            FilesystemHostOperation::CreateDirName => PreparedFilesystemCall::CreateDirName {
+                name: path(),
+                mode: -1,
+            },
+            FilesystemHostOperation::OpenAt => PreparedFilesystemCall::OpenAt {
+                dirfd: 3,
+                name: name(),
+                flags: -1,
+            },
+            FilesystemHostOperation::UnlinkAt => PreparedFilesystemCall::UnlinkAt {
+                dirfd: 3,
+                name: name(),
+                flags: -1,
+            },
+            FilesystemHostOperation::SetPermissions => PreparedFilesystemCall::SetPermissions {
+                path: path(),
+                mode: u32::MAX,
+            },
+            FilesystemHostOperation::SetFilePermissions => {
+                PreparedFilesystemCall::SetFilePermissions {
+                    fd: 3,
+                    mode: u32::MAX,
+                }
+            }
+            FilesystemHostOperation::Rename => PreparedFilesystemCall::Rename {
+                from: path(),
+                to: path(),
+            },
+            FilesystemHostOperation::HardLink => PreparedFilesystemCall::HardLink {
+                original: path(),
+                link: path(),
+            },
+            FilesystemHostOperation::Symlink => PreparedFilesystemCall::Symlink {
+                target: path(),
+                link: path(),
+            },
+            FilesystemHostOperation::ReadLink => PreparedFilesystemCall::ReadLink {
+                path: path(),
+                buffer: array_output(1),
+                count: transfer_count(),
+            },
+            FilesystemHostOperation::Canonicalize => PreparedFilesystemCall::Canonicalize {
+                path: path(),
+                buffer: array_output(PATH_MAX_OUTPUT_BYTES),
+            },
+            FilesystemHostOperation::ReadDir => PreparedFilesystemCall::ReadDir {
+                fd: 3,
+                buffer: array_output(1),
+                count: transfer_count(),
+                position: mutable_i64(),
+            },
+            FilesystemHostOperation::FindFirst => PreparedFilesystemCall::FindFirst {
+                pattern: path(),
+                data: array_output(FIND_DATA_OUTPUT_BYTES),
+            },
+            FilesystemHostOperation::FindNext => PreparedFilesystemCall::FindNext {
+                handle: 11,
+                data: array_output(FIND_DATA_OUTPUT_BYTES),
+            },
+            FilesystemHostOperation::FindClose => PreparedFilesystemCall::FindClose { handle: 11 },
+            FilesystemHostOperation::CreateHardLink => PreparedFilesystemCall::CreateHardLink {
+                link: path(),
+                existing: path(),
+                security_attributes: i64::MIN,
+            },
+            FilesystemHostOperation::OpenPathHandle => PreparedFilesystemCall::OpenPathHandle {
+                path: path(),
+                desired_access: u32::MAX,
+                share_mode: u32::MAX,
+                security_attributes: i64::MIN,
+                creation_disposition: u32::MAX,
+                flags_and_attributes: u32::MAX,
+                template_file: 0,
+            },
+            FilesystemHostOperation::CloseHandle => {
+                PreparedFilesystemCall::CloseHandle { handle: 3 }
+            }
+            FilesystemHostOperation::GetOsfHandle => PreparedFilesystemCall::GetOsfHandle { fd: 3 },
+            FilesystemHostOperation::FinalPathNameByHandle => {
+                PreparedFilesystemCall::FinalPathNameByHandle {
+                    handle: 3,
+                    buffer: array_output(1),
+                    capacity: transfer_count(),
+                    flags: u32::MAX,
+                }
+            }
+            FilesystemHostOperation::SetFileTime => PreparedFilesystemCall::SetFileTime {
+                handle: 3,
+                creation: i64::MIN,
+                last_access: vec![1; FILETIME_BYTES + 1],
+                last_write: vec![2; FILETIME_BYTES + 1],
+            },
+            FilesystemHostOperation::LockFileEx => PreparedFilesystemCall::LockFileEx {
+                handle: 3,
+                flags: u32::MAX,
+                reserved: u32::MAX,
+                length_low: u32::MAX,
+                length_high: u32::MAX,
+                overlapped: mutable_byte_input(OVERLAPPED_BYTES),
+            },
+            FilesystemHostOperation::UnlockFile => PreparedFilesystemCall::UnlockFile {
+                handle: 3,
+                offset_low: u32::MAX,
+                offset_high: u32::MAX,
+                length_low: u32::MAX,
+                length_high: u32::MAX,
+            },
+            FilesystemHostOperation::GetLastError => PreparedFilesystemCall::GetLastError,
+            FilesystemHostOperation::RemoveName => {
+                PreparedFilesystemCall::RemoveName { path: path() }
+            }
+            FilesystemHostOperation::RemoveDirName => {
+                PreparedFilesystemCall::RemoveDirName { path: path() }
+            }
+            FilesystemHostOperation::ReadMetadata => PreparedFilesystemCall::ReadMetadata {
+                path: path(),
+                buffer: array_output(STAT_OUTPUT_BYTES),
+            },
+            FilesystemHostOperation::ReadFileMetadata => PreparedFilesystemCall::ReadFileMetadata {
+                fd: 3,
+                buffer: array_output(STAT_OUTPUT_BYTES),
+            },
+            FilesystemHostOperation::ReadSymlinkMetadata => {
+                PreparedFilesystemCall::ReadSymlinkMetadata {
+                    path: path(),
+                    buffer: array_output(STAT_OUTPUT_BYTES),
+                }
+            }
+            FilesystemHostOperation::SetLen => PreparedFilesystemCall::SetLen {
+                fd: 3,
+                length: i64::MIN,
+            },
+            FilesystemHostOperation::SetFileTimes => PreparedFilesystemCall::SetFileTimes {
+                fd: 3,
+                times: mutable_byte_input(TIMESPEC_PAIR_BYTES),
+            },
+            FilesystemHostOperation::Sync => PreparedFilesystemCall::Sync { fd: 3 },
+            FilesystemHostOperation::SyncData => PreparedFilesystemCall::SyncData { fd: 3 },
+            FilesystemHostOperation::Duplicate => PreparedFilesystemCall::Duplicate { fd: 3 },
+            FilesystemHostOperation::LockFile => PreparedFilesystemCall::LockFile {
+                fd: 3,
+                operation: -1,
+            },
+            FilesystemHostOperation::ChangeOwner => PreparedFilesystemCall::ChangeOwner {
+                path: path(),
+                uid: -1,
+                gid: -1,
+            },
+            FilesystemHostOperation::ChangeOwnerNoFollow => {
+                PreparedFilesystemCall::ChangeOwnerNoFollow {
+                    path: path(),
+                    uid: -1,
+                    gid: -1,
+                }
+            }
+            FilesystemHostOperation::ChangeFileOwner => PreparedFilesystemCall::ChangeFileOwner {
+                fd: 3,
+                uid: -1,
+                gid: -1,
+            },
+            FilesystemHostOperation::Errno => PreparedFilesystemCall::Errno,
+        }
+    }
+
+    fn expected_immutable_byte_ordinals(operation: FilesystemHostOperation) -> &'static [u8] {
+        match operation {
+            FilesystemHostOperation::Write | FilesystemHostOperation::WriteAt => &[1],
+            FilesystemHostOperation::OpenAt | FilesystemHostOperation::UnlinkAt => &[1],
+            FilesystemHostOperation::SetFileTime => &[2, 3],
+            FilesystemHostOperation::Create
+            | FilesystemHostOperation::Open
+            | FilesystemHostOperation::OpenCreate
+            | FilesystemHostOperation::Read
+            | FilesystemHostOperation::ReadAt
+            | FilesystemHostOperation::Close
+            | FilesystemHostOperation::Remove
+            | FilesystemHostOperation::Seek
+            | FilesystemHostOperation::CreateDir
+            | FilesystemHostOperation::RemoveDir
+            | FilesystemHostOperation::CreateDirName
+            | FilesystemHostOperation::SetPermissions
+            | FilesystemHostOperation::SetFilePermissions
+            | FilesystemHostOperation::Rename
+            | FilesystemHostOperation::HardLink
+            | FilesystemHostOperation::Symlink
+            | FilesystemHostOperation::ReadLink
+            | FilesystemHostOperation::Canonicalize
+            | FilesystemHostOperation::ReadDir
+            | FilesystemHostOperation::FindFirst
+            | FilesystemHostOperation::FindNext
+            | FilesystemHostOperation::FindClose
+            | FilesystemHostOperation::CreateHardLink
+            | FilesystemHostOperation::OpenPathHandle
+            | FilesystemHostOperation::CloseHandle
+            | FilesystemHostOperation::GetOsfHandle
+            | FilesystemHostOperation::FinalPathNameByHandle
+            | FilesystemHostOperation::LockFileEx
+            | FilesystemHostOperation::UnlockFile
+            | FilesystemHostOperation::GetLastError
+            | FilesystemHostOperation::RemoveName
+            | FilesystemHostOperation::RemoveDirName
+            | FilesystemHostOperation::ReadMetadata
+            | FilesystemHostOperation::ReadFileMetadata
+            | FilesystemHostOperation::ReadSymlinkMetadata
+            | FilesystemHostOperation::SetLen
+            | FilesystemHostOperation::SetFileTimes
+            | FilesystemHostOperation::Sync
+            | FilesystemHostOperation::SyncData
+            | FilesystemHostOperation::Duplicate
+            | FilesystemHostOperation::LockFile
+            | FilesystemHostOperation::ChangeOwner
+            | FilesystemHostOperation::ChangeOwnerNoFollow
+            | FilesystemHostOperation::ChangeFileOwner
+            | FilesystemHostOperation::Errno => &[],
+        }
     }
 
     #[test]
@@ -824,6 +1277,134 @@ mod tests {
         .logical_handle_plan();
         assert!(hard_link.inputs.is_empty());
         assert!(hard_link.output.is_none());
+    }
+
+    #[test]
+    fn operand_observation_plan_preserves_width_payload_and_safe_components() {
+        let open_at = PreparedFilesystemCall::OpenAt {
+            dirfd: 7,
+            name: b"entry.bin".to_vec(),
+            flags: -1,
+        };
+        let (scalars, bytes) = open_at.operand_observation_plan();
+        assert_eq!(scalars.len(), 1);
+        assert_eq!(scalars[0].operand_ordinal(), 2);
+        assert_eq!(scalars[0].value(), FilesystemScalarOperandValue::I32(-1));
+        assert_eq!(bytes.len(), 1);
+        assert_eq!(bytes[0].operand_ordinal(), 1);
+        assert_eq!(bytes[0].bytes(), b"entry.bin");
+
+        let write = PreparedFilesystemCall::Write {
+            fd: 3,
+            bytes: b"a\0b".to_vec(),
+        };
+        let (scalars, bytes) = write.operand_observation_plan();
+        assert!(scalars.is_empty(), "raw descriptor tokens are not scalars");
+        assert_eq!(bytes[0].bytes(), b"a\0b");
+
+        let set_time = PreparedFilesystemCall::SetFileTime {
+            handle: 3,
+            creation: i64::MIN,
+            last_access: (0u8..12).collect(),
+            last_write: (20u8..32).collect(),
+        };
+        let (scalars, bytes) = set_time.operand_observation_plan();
+        assert_eq!(
+            scalars[0].value(),
+            FilesystemScalarOperandValue::I64(i64::MIN)
+        );
+        assert_eq!(bytes[0].bytes(), &(0u8..12).collect::<Vec<_>>());
+        assert_eq!(bytes[1].bytes(), &(20u8..32).collect::<Vec<_>>());
+
+        let native_open = PreparedFilesystemCall::OpenPathHandle {
+            path: b"file".to_vec(),
+            desired_access: u32::MAX,
+            share_mode: 2,
+            security_attributes: 123,
+            creation_disposition: 4,
+            flags_and_attributes: 5,
+            template_file: 99,
+        };
+        let (scalars, bytes) = native_open.operand_observation_plan();
+        assert_eq!(
+            scalars
+                .iter()
+                .map(|operand| operand.operand_ordinal())
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4, 5],
+            "path and logical-handle ordinals stay outside scalar evidence"
+        );
+        assert_eq!(
+            scalars[0].value(),
+            FilesystemScalarOperandValue::U32(u32::MAX)
+        );
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn every_canonical_operation_has_exact_scalar_and_immutable_byte_roles() {
+        use super::super::filesystem_host_operation::FilesystemHostOperandKind as Kind;
+
+        for operation in FilesystemHostOperation::ALL {
+            let call = prepared_call_fixture(operation);
+            let logical_plan = call.logical_handle_plan();
+            let logical_ordinals = logical_plan
+                .inputs
+                .iter()
+                .map(|input| input.operand_ordinal)
+                .collect::<std::collections::BTreeSet<_>>();
+            let (scalars, bytes) = call.operand_observation_plan();
+            let actual_scalars = scalars
+                .iter()
+                .map(|operand| {
+                    let kind = match operand.value() {
+                        FilesystemScalarOperandValue::I32(_) => Kind::I32,
+                        FilesystemScalarOperandValue::U32(_) => Kind::U32,
+                        FilesystemScalarOperandValue::I64(_) => Kind::I64,
+                        FilesystemScalarOperandValue::U64(_) => Kind::U64,
+                    };
+                    (operand.operand_ordinal(), kind)
+                })
+                .collect::<Vec<_>>();
+            let expected_scalars = operation
+                .operand_kinds()
+                .iter()
+                .copied()
+                .enumerate()
+                .filter_map(|(ordinal, kind)| {
+                    let ordinal = u8::try_from(ordinal).unwrap();
+                    matches!(kind, Kind::I32 | Kind::U32 | Kind::I64 | Kind::U64)
+                        .then_some((ordinal, kind))
+                        .filter(|(ordinal, _)| !logical_ordinals.contains(ordinal))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                actual_scalars, expected_scalars,
+                "scalar evidence role drift for `{operation}`"
+            );
+
+            let actual_bytes = bytes
+                .iter()
+                .map(|operand| operand.operand_ordinal())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                actual_bytes,
+                expected_immutable_byte_ordinals(operation),
+                "immutable byte evidence role drift for `{operation}`"
+            );
+
+            let mut observed_ordinals = logical_ordinals;
+            for ordinal in actual_scalars
+                .iter()
+                .map(|(ordinal, _)| *ordinal)
+                .chain(actual_bytes.iter().copied())
+            {
+                assert!(
+                    observed_ordinals.insert(ordinal),
+                    "operand `{ordinal}` of `{operation}` entered two evidence roles"
+                );
+            }
+        }
     }
 
     #[test]
