@@ -9,7 +9,9 @@ use psi_terminal_semantics::{CallResultRule, call_composition_semantic_row};
 
 use crate::ModuleError;
 
-use super::reconstruction::ReconstructedOperationObligation;
+use super::reconstruction::{
+    ReconstructedOperationObligation, ReconstructedTerminalObligationOwner,
+};
 use super::substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
 };
@@ -56,10 +58,20 @@ pub(super) fn compose_call_operation(
                     .id,
                 value_term(operation.result.expect_scalar().id, value_types),
             );
-            for (required, obligation) in
-                callee.contract.requires.iter().zip(requirement_obligations)
+            for (requirement_position, (required, obligation)) in callee
+                .contract
+                .requires
+                .iter()
+                .zip(requirement_obligations)
+                .enumerate()
             {
                 operation_obligations.push(ReconstructedOperationObligation {
+                    owner: ReconstructedTerminalObligationOwner::CallRequires {
+                        machine: machine.id,
+                        operation: operation.id,
+                        requirement_position: u32::try_from(requirement_position)
+                            .expect("validated call requirement position fits u32"),
+                    },
                     obligation: Obligation {
                         id: *obligation,
                         proposition: substitute_proposition_values(required, &substitutions),
@@ -106,10 +118,20 @@ pub(super) fn compose_call_operation(
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
-            for (required, obligation) in
-                callee.contract.requires.iter().zip(requirement_obligations)
+            for (requirement_position, (required, obligation)) in callee
+                .contract
+                .requires
+                .iter()
+                .zip(requirement_obligations)
+                .enumerate()
             {
                 operation_obligations.push(ReconstructedOperationObligation {
+                    owner: ReconstructedTerminalObligationOwner::CallRequires {
+                        machine: machine.id,
+                        operation: operation.id,
+                        requirement_position: u32::try_from(requirement_position)
+                            .expect("validated call requirement position fits u32"),
+                    },
                     obligation: Obligation {
                         id: *obligation,
                         proposition: substitute_proposition_structural_places(
@@ -179,10 +201,20 @@ pub(super) fn compose_call_operation(
                     &result_substitution,
                 )
             };
-            for (required, obligation) in
-                callee.contract.requires.iter().zip(requirement_obligations)
+            for (requirement_position, (required, obligation)) in callee
+                .contract
+                .requires
+                .iter()
+                .zip(requirement_obligations)
+                .enumerate()
             {
                 operation_obligations.push(ReconstructedOperationObligation {
+                    owner: ReconstructedTerminalObligationOwner::CallRequires {
+                        machine: machine.id,
+                        operation: operation.id,
+                        requirement_position: u32::try_from(requirement_position)
+                            .expect("validated call requirement position fits u32"),
+                    },
                     obligation: Obligation {
                         id: *obligation,
                         proposition: substitute(required),
@@ -235,10 +267,20 @@ pub(super) fn compose_call_operation(
                 })
                 .collect::<BTreeMap<_, _>>();
             substitutions.insert(callee_result.place, (call_result.place, Vec::new()));
-            for (required, obligation) in
-                callee.contract.requires.iter().zip(requirement_obligations)
+            for (requirement_position, (required, obligation)) in callee
+                .contract
+                .requires
+                .iter()
+                .zip(requirement_obligations)
+                .enumerate()
             {
                 operation_obligations.push(ReconstructedOperationObligation {
+                    owner: ReconstructedTerminalObligationOwner::CallRequires {
+                        machine: machine.id,
+                        operation: operation.id,
+                        requirement_position: u32::try_from(requirement_position)
+                            .expect("validated call requirement position fits u32"),
+                    },
                     obligation: Obligation {
                         id: *obligation,
                         proposition: substitute_proposition_structural_places(

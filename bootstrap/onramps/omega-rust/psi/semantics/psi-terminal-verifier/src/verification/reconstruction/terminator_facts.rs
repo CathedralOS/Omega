@@ -7,7 +7,7 @@ use psi_proof_kernel::{Obligation, ObligationClass};
 use psi_terminal::{Block, TerminalMachine, Terminator};
 
 use super::super::substitution::substitute_proposition_places;
-use super::{ReconstructedOperationObligation, path_facts};
+use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, path_facts};
 
 pub(super) fn append_terminator(
     terminator: &Terminator,
@@ -70,9 +70,9 @@ pub(super) fn append_terminator(
             }
         }
         Terminator::Return {
+            edge,
             value,
             cleanup_actions,
-            ..
         } => {
             let result = machine
                 .result
@@ -82,13 +82,23 @@ pub(super) fn append_terminator(
                 value_term(result.id),
                 value_term(*value),
             ));
-            for cleanup in cleanup_actions.iter().filter_map(|action| match action {
-                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
-                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(_)
-                | psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => None,
-            }) {
+            for (cleanup_position, cleanup) in
+                cleanup_actions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, action)| match action {
+                        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            Some((position, cleanup))
+                        }
+                        psi_terminal::TerminalAffineCleanupAction::DiscardRoot(_)
+                        | psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+                    })
+            {
                 append_nominal_cleanup_obligations(
                     cleanup,
+                    machine.id,
+                    *edge,
+                    cleanup_position,
                     machines,
                     &axioms,
                     operation_obligations,
@@ -96,10 +106,13 @@ pub(super) fn append_terminator(
             }
             exits.push(axioms);
         }
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-            for cleanup in cleanups {
+        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
+            for (cleanup_position, cleanup) in cleanups.iter().enumerate() {
                 append_nominal_cleanup_obligations(
                     cleanup,
+                    machine.id,
+                    *edge,
+                    cleanup_position,
                     machines,
                     &axioms,
                     operation_obligations,
@@ -130,6 +143,9 @@ pub(super) fn append_terminator(
 
 fn append_nominal_cleanup_obligations(
     cleanup: &psi_terminal::NominalAffineCleanup,
+    machine: MachineId,
+    edge: psi_core::EdgeId,
+    cleanup_position: usize,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     axioms: &[Proposition],
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
@@ -142,13 +158,22 @@ fn append_nominal_cleanup_obligations(
         .cleanup_receiver
         .map(|receiver| BTreeMap::from([(receiver, cleanup.place)]))
         .unwrap_or_default();
-    for (required, obligation) in target
+    for (requirement_position, (required, obligation)) in target
         .contract
         .requires
         .iter()
         .zip(&cleanup.requirement_obligations)
+        .enumerate()
     {
         operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                machine,
+                edge,
+                cleanup_position: u32::try_from(cleanup_position)
+                    .expect("validated cleanup position fits u32"),
+                requirement_position: u32::try_from(requirement_position)
+                    .expect("validated cleanup requirement position fits u32"),
+            },
             obligation: Obligation {
                 id: *obligation,
                 proposition: substitute_proposition_places(required, &receiver),

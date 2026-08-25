@@ -810,6 +810,16 @@ to stabilize that seam. It becomes warranted only if implementation discovers a
 real reusable semantic boundary; an existing coherent stage such as Exact is
 preferred whenever it preserves the same meaning with less machinery.
 
+The first bounded replay component exists at Terminal Psi. The verifier exposes
+one complete ordered obligation set for executable operations, call and nominal
+cleanup requirements, and contract guarantees; each row retains exact owner,
+class, proposition, assumptions, and reconstructed axioms. Verification consumes
+and retains the same set. A canonical ledger binds it to exact Terminal-Psi and
+source-backed verifier trust-graph identities while leaving certificate route
+as separate provenance. Decoding is not acceptance: the consumer reconstructs
+the set and requires exact equality. This component does not establish ordinary
+package capability/API evidence or authorize a `PackageInstance`.
+
 The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked
 dependency obligations compose upward, while open obligations remain visible

@@ -5,9 +5,7 @@ use std::collections::BTreeSet;
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
 #[cfg(test)]
 use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm};
-use psi_proof_kernel::{
-    AcceptedFact, AdmissionProfile, EvidenceError, Obligation, ObligationClass, verify_obligation,
-};
+use psi_proof_kernel::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
 use psi_terminal::TerminalModule;
 
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};
@@ -32,8 +30,12 @@ use evidence_provenance::validate_evidence_producer_provenance;
 pub use float_meaning_projection::*;
 use integer_foundation::*;
 pub use proof_bundle::*;
-use reconstruction::reconstruct_machine_semantics;
-pub use reconstruction::{ReconstructedOperationObligation, reconstruct_operation_obligations};
+use reconstruction::reconstruct_validated_terminal_obligations;
+pub use reconstruction::{
+    ReconstructedOperationObligation, ReconstructedTerminalObligation,
+    ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet,
+    reconstruct_operation_obligations, reconstruct_terminal_obligations,
+};
 pub(crate) use substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
 };
@@ -128,6 +130,7 @@ use affine_joins::{
 pub struct VerifiedTerminalModule<'module> {
     validated: ValidatedTerminalModule<'module>,
     proof_bundle: ProofBundle,
+    reconstructed_obligations: ReconstructedTerminalObligationSet,
     accepted_facts: Vec<AcceptedFact>,
 }
 
@@ -146,6 +149,12 @@ impl<'module> VerifiedTerminalModule<'module> {
     pub const fn proof_bundle(&self) -> &ProofBundle {
         &self.proof_bundle
     }
+
+    /// The complete verifier-reconstructed proof question consumed for this
+    /// result. This is retained separately from producer-selected proof routes.
+    pub const fn reconstructed_obligations(&self) -> &ReconstructedTerminalObligationSet {
+        &self.reconstructed_obligations
+    }
 }
 
 pub fn verify_module<'module>(
@@ -155,6 +164,18 @@ pub fn verify_module<'module>(
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
     let validated = validate_module(module).map_err(VerificationError::Module)?;
     validate_evidence_producer_provenance(module, proof_bundle)?;
+    let reconstructed_obligations =
+        reconstruct_validated_terminal_obligations(module).map_err(VerificationError::Module)?;
+    let contexts = module
+        .machines
+        .iter()
+        .map(|machine| {
+            validated
+                .value_context(machine)
+                .map(|context| (machine.id, context))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()
+        .map_err(VerificationError::Module)?;
     let mut evidence = BTreeMap::new();
     for entry in &proof_bundle.evidence {
         if evidence
@@ -166,52 +187,26 @@ pub fn verify_module<'module>(
     }
 
     let mut accepted_facts = Vec::new();
-    for machine in &module.machines {
-        let context = validated
-            .value_context(machine)
-            .map_err(VerificationError::Module)?;
-        let semantics =
-            reconstruct_machine_semantics(module, machine).map_err(VerificationError::Module)?;
-        for site in &semantics.operation_obligations {
-            let route = evidence
-                .remove(&site.obligation.id)
-                .ok_or(VerificationError::MissingEvidence(site.obligation.id))?;
-            let accepted = verify_obligation(
-                &context,
-                &site.obligation,
-                &machine.contract.requires,
-                &site.semantic_axioms,
-                route,
-                profile,
-            )
-            .map_err(|error| VerificationError::RejectedEvidence {
-                obligation: site.obligation.id,
-                error,
-            })?;
-            accepted_facts.push(accepted);
-        }
-        for clause in &machine.contract.ensures {
-            let route = evidence
-                .remove(&clause.obligation)
-                .ok_or(VerificationError::MissingEvidence(clause.obligation))?;
-            let accepted = verify_obligation(
-                &context,
-                &Obligation {
-                    id: clause.obligation,
-                    proposition: clause.proposition.clone(),
-                    class: ObligationClass::Derivable,
-                },
-                &machine.contract.requires,
-                &semantics.exit_axioms,
-                route,
-                profile,
-            )
-            .map_err(|error| VerificationError::RejectedEvidence {
-                obligation: clause.obligation,
-                error,
-            })?;
-            accepted_facts.push(accepted);
-        }
+    for site in reconstructed_obligations.obligations() {
+        let context = contexts
+            .get(&site.owner.machine())
+            .expect("validated reconstructed obligation owner exists");
+        let route = evidence
+            .remove(&site.obligation.id)
+            .ok_or(VerificationError::MissingEvidence(site.obligation.id))?;
+        let accepted = verify_obligation(
+            &context,
+            &site.obligation,
+            &site.requirements,
+            &site.semantic_axioms,
+            route,
+            profile,
+        )
+        .map_err(|error| VerificationError::RejectedEvidence {
+            obligation: site.obligation.id,
+            error,
+        })?;
+        accepted_facts.push(accepted);
     }
 
     if let Some(obligation) = evidence.keys().next().copied() {
@@ -220,6 +215,7 @@ pub fn verify_module<'module>(
     Ok(VerifiedTerminalModule {
         validated,
         proof_bundle: proof_bundle.clone(),
+        reconstructed_obligations,
         accepted_facts,
     })
 }

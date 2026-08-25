@@ -519,6 +519,18 @@ receipt are wired through end to end. The earlier public
 `PackageInstance` constructor was removed: the real type must not exist as a
 caller-constructible tuple of arbitrary toolchain and evidence fingerprints.
 
+Terminal replay now has one complete verifier-owned obligation set covering
+operation sites, call requirements, nominal cleanup requirements, and contract
+guarantees. Rows retain exact semantic owners, assumptions, reconstructed
+axioms, and obligation class. The verifier consumes and retains this exact set.
+Its canonical ledger encoding binds the Terminal-Psi subject and source-backed
+verifier trust graph but deliberately excludes the selected proof route; a
+consumer must reconstruct and compare the ledger locally after decoding it.
+This is not a package-evidence or lock-promotion API. Ordinary package
+capability/API obligations, source-to-artifact binding, transitive open rows,
+and schema-delta composition remain to be built before `PackageInstance` can
+exist honestly.
+
 ## Target command surface
 
 ```text

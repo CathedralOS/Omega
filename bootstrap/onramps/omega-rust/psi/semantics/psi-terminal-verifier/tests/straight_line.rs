@@ -137,6 +137,46 @@ fn verifier_reconstructs_every_contract_obligation() {
 }
 
 #[test]
+fn proof_route_changes_do_not_change_the_reconstructed_question() {
+    let mut module = unit_module();
+    let obligation = ObligationId::new(903).expect("obligation");
+    module.machines[0].contract.ensures = vec![ContractClause {
+        obligation,
+        proposition: Proposition::Truth,
+    }];
+    let kernel_bundle = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+        }],
+    };
+    let certificate_bundle = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(903).expect("evidence"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                },
+            }),
+        }],
+    };
+    let kernel =
+        verify_module(&module, &kernel_bundle, &AdmissionProfile::default()).expect("kernel route");
+    let certificate = verify_module(&module, &certificate_bundle, &AdmissionProfile::default())
+        .expect("certificate route");
+    assert_ne!(kernel.proof_bundle(), certificate.proof_bundle());
+    assert_eq!(
+        kernel.reconstructed_obligations(),
+        certificate.reconstructed_obligations()
+    );
+}
+
+#[test]
 fn contract_guarantees_are_canonical_by_obligation_identity() {
     let mut module = unit_module();
     module.machines[0].contract.ensures = vec![

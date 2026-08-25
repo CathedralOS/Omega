@@ -34,6 +34,11 @@ const VERIFIER_LIB_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/s
 const VERIFIER_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/validation.rs");
 const VERIFIER_SOURCE: &[u8] = include_bytes!("../../psi-terminal-verifier/src/verification.rs");
+const VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE: &[u8] = include_bytes!("../build.rs");
+const VERIFIER_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/psi-terminal-verifier-source-closure.bin"
+));
 const EVIDENCE_PROVENANCE_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/evidence_provenance.rs");
 const VERIFIER_CALL_COMPOSITION_SOURCE: &[u8] =
@@ -81,6 +86,7 @@ const PROOF_KERNEL_INTEGER_AFFINE_SOURCE: &[u8] =
 const PROOF_KERNEL_INTEGER_CAST_SOURCE: &[u8] =
     include_bytes!("../../psi-proof-kernel/src/integer_cast.rs");
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
+const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
@@ -252,6 +258,10 @@ impl TrustDependencyNode {
 pub struct TerminalTrustGraphIdentity([u8; 32]);
 
 impl TerminalTrustGraphIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
