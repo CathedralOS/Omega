@@ -126,14 +126,31 @@ not become Delta features without specified behavior, lower-rung meaning, and
 explicit failure. Maintain that evidence only in
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
-## Current decision blocker
+## Current decision blockers
 
 The visibility rule for private access between distinct logical modules in one
 package is unspecified. Until it is ruled, the bridge rejects that case. Public
 cross-package access and same-module private access remain unblocked, including
 the current two-package nominal-data artifact. The selected constant-aggregate
-slice is deliberately same-module and does not depend on this ruling. No other
-item below is presently design-blocked merely because it is large or difficult.
+slice is deliberately same-module and does not depend on this ruling.
+
+Checkpoint 000001's product lexer also conflicts with the current language
+guide: Unicode XID identifiers contradict its ASCII-transparent wording,
+`\u{...}` escapes contradict its explicit prohibition, raw-string semantics
+are absent, and `u32` cursors compare directly with the specified-`u64` slice
+length without a settled cross-carrier rule. Those are product-language ruling
+blockers recorded under `OMEGA-PRODUCT-COMPILER-SOURCE` in
+[`TASKS.md`](TASKS.md). They do not block bridge implementation for source
+forms whose meaning is already settled, including the next same-module
+runtime-record tranche. No implementation or engineering difficulty below is
+otherwise a design blocker.
+
+Omega also does not yet specify observable evaluation order among effectful or
+trapping fields of a runtime named-record literal. CKIR4 therefore admits only
+pure, non-trapping leaf fields and canonicalizes them by declaration ordinal;
+broader constructor fields remain design-blocked until the language owner rules
+their order. The exact `SourceId { value: source_id }` dependency does not need
+that ruling.
 
 The compilation-authority join is separately waiting on the package/security
 owner, not on a bootstrap language ruling. Compiler-issued
@@ -321,6 +338,37 @@ join.
   lower-rooted routes compose at their explicit versioned seams. Exact fixture
   counts and byte-layout rules remain in the CKIR3 contract and gates rather
   than this queue.
+- [ ] Close the checkpoint-000001 runtime named-record construction through
+  existing structural Call/Copy paths, as specified by
+  [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md).
+  This slice adds one general way to construct a recursively copyable named
+  record from runtime field values. It reuses existing nominal layout,
+  structural parameters, attached calls, and copy; it
+  does not add sums, slices, structural returns, new receiver resolution, or
+  private cross-module access.
+
+  - [x] Freeze `OMGLOW4`/CKIR4 while retaining exact `OMGCOMP` and `OMGRSW1`.
+  - [ ] Produce and conservatively lower runtime record values through native
+    and Delta-self-built bridge paths with exact byte identity.
+  - [ ] Compose the exact `compiler/psi/source/source.omg` unit with a same-
+    logical-module harness that passes a runtime `SourceId` through
+    `SourceUnit::clear` and observes the copied `id.value`.
+  - [ ] Carry authored-field reordering, nested records, 0/251/252 resource and
+    semantic boundaries, Rust-free meaning, and independent result/ELF
+    reconstruction without recognizing `SourceId` or the checkpoint filename.
+  - [ ] Close the distinct `OMGRFN5` lower-rooted responsibilities and one
+    unchanged-frame composition gate before reporting the slice complete.
+
+  Acceptance: construction admits only pure, non-trapping literal, parameter,
+  named-field-load, structural-parameter, and nested-constructor fields; maps
+  names to declaration ordinals; snapshots every recursively copyable field;
+  and retains each constructed value for synchronous calls and copying.
+  Missing, duplicate, unknown, mistyped, or noncopyable fields reject 251, as
+  do calls, arithmetic, casts, indexing, and other field forms whose observable
+  order Omega has not ruled. The four/five field boundary and adjacent frame/
+  text/artifact ceilings reject 252 before publication. Exact product-source
+  integration is same-module and therefore does not depend on the private
+  cross-module ruling.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

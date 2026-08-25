@@ -63,6 +63,151 @@ Explicit arguments are then lowered and materialized left-to-right. The Call
 row is emitted after its receiver and all arguments. Nested calls follow the
 same rule at expression depth at most eight.
 
+## Canonical private call ABI and templates
+
+Opcode 10 uses a bridge-private, closed-image calling convention. It is not the
+System V source ABI and is not an FFI promise. `rdi` carries the callee receiver
+address, `rsi` points at caller-owned eight-byte argument cells, and `eax`
+carries a scalar result. Structural arguments are immutable addresses. All
+other state is private to the two machine frames; no call argument or result is
+published in ELF metadata.
+
+### Reachable-machine frames and shared scratch
+
+The backend reconstructs the closure reachable from the exact selected entry
+through opcode-10 edges. For each reachable machine in machine-ID order it
+assigns one frame independently:
+
+1. the incoming receiver address occupies the eight-byte slot at `[rbp-8]`;
+2. values owned by the machine are visited in global value-ID order, with a
+   scalar aligned to four bytes and occupying four bytes and a structural value
+   aligned to eight bytes and occupying one eight-byte address slot;
+3. places owned by the machine are visited in global place-ID order, aligned to
+   eight bytes, and occupy one eight-byte address slot each;
+4. the shared scratch-cell count is the maximum of both target argument counts
+   of every terminator owned by the machine, every opcode-10 explicit argument
+   count owned by the machine, and zero;
+5. scratch begins at the next eight-byte-aligned cursor and occupies exactly
+   eight bytes per scratch cell; and
+6. the complete frame is rounded to 16-byte alignment.
+
+Let `V(v)` and `P(p)` retain the CKIR1 meanings for the positive frame
+displacements of value and place slots, and let `C` be the positive displacement
+immediately before the first scratch cell. A call with `n` explicit arguments
+uses exactly the cells at displacements `C+8` through `C+8n`. For argument
+ordinal `j`, zero based, define:
+
+```text
+A(j,n) = C + 8 * (n - j)
+```
+
+The caller emits argument stores in increasing ordinal while their frame
+displacements decrease: argument zero is at `[rbp-A(0,n)]`, the lowest address,
+and argument `j` is consequently at `[rsi+8*j]` after `rsi` is initialized.
+This reversal is canonical. It is not an implementation-selected stack order.
+The same scratch extent is reused by state edges and later calls only after the
+current operation has consumed it.
+
+Every individual frame is at most 262,144 bytes. A native call contributes the
+eight-byte return address and the callee prologue contributes one saved eight-
+byte `rbp`, so the selected root starts with live-stack cost
+`frame(entry)+16`. In topological call-graph order, an edge from caller to callee
+has candidate live cost:
+
+```text
+live(caller) + frame(callee) + 16
+```
+
+The greatest predecessor cost is retained for each callee, and every retained
+cost is at most 262,144 bytes. Thus the selected root frame is at most 262,128
+bytes. This is a live-stack exhaustion check over the complete finite DAG, not
+a recursion depth or runtime fuel limit.
+
+### Caller staging and opcode-10 bytes
+
+Using the CKIR1 helpers `LV(v)`, `SV(v)`, `LP(p)`, and `REL(target)`, the caller
+stages explicit arguments `v0..v(n-1)` in source/parameter ordinal order. A
+scalar argument `vj` emits:
+
+```text
+LV(vj); 89 85 -A(j,n)
+```
+
+A structural argument emits:
+
+```text
+48 8B 85 -V(vj); 48 89 85 -A(j,n)
+```
+
+Only the low four bytes of a scalar cell are defined and consumed. A structural
+cell contains the complete eight-byte immutable address. After all argument
+cells are staged, operand-zero receiver place `p` and the argument-block pointer
+are installed exactly as follows:
+
+```text
+LP(p); 48 89 C7                         mov rdi,rax
+31 F6                                   xor esi,esi              when n = 0
+48 8D B5 -A(0,n)                        lea rsi,[rbp-A(0,n)]      when n > 0
+E8 REL(callee entry block)              call callee
+```
+
+For a Unit call, those bytes complete the operation. For a scalar-result call,
+the callee returns the checked result in `eax` and the caller appends
+`SV(result)`. There is no second caller-side range check: the exact callee result
+type equals the call result type, and every callee `ReturnValue` performs the
+declared-result check before its epilogue. A Unit return leaves `eax`
+uninterpreted.
+
+Arguments are fully materialized before staging, so a nested call completes
+before its enclosing call writes these cells. The caller frame and every
+structural argument's source object remain live for the complete synchronous
+callee invocation. The callee cannot mutate a structural parameter through its
+value slot or retain its address through a structural result, because neither
+operation exists in CKIR2.
+
+### Callee prologue, parameters, and result
+
+Every reachable machine's entry block, including the selected entry, begins
+with the exact prologue:
+
+```text
+55                              push rbp
+48 89 E5                        mov rbp,rsp
+48 81 EC frame_size             sub rsp,frame_size
+48 89 BD F8 FF FF FF            mov [rbp-8],rdi
+```
+
+The selected entry has no explicit parameters and therefore does not read
+`rsi`. For an ordinary callee, machine parameters are then installed in
+parameter ordinal. Let parameter `j` have value ID `v` and exact type `t`. A
+scalar parameter emits:
+
+```text
+8B 86 (8*j); CHECK(t); SV(v)
+```
+
+A structural parameter emits:
+
+```text
+48 8B 86 (8*j); 48 89 85 -V(v)
+```
+
+The scalar load reads the low four bytes of its eight-byte argument cell and
+checks the destination parameter's exact interval before committing its value
+slot. The structural load copies the immutable address, not the aggregate's
+semantic leaves. After parameter installation, the entry block emits its
+ordinary operations and terminator; non-entry blocks of the same machine reuse
+the active frame and do not repeat the prologue.
+
+`ReturnUnit` emits exactly `C9 C3`. `ReturnValue(v)` emits
+`LV(v); CHECK(machine result type); C9 C3`, leaving the checked scalar in `eax`.
+Calls target the callee's exact entry-block offset with signed rel32. Reachable
+machines are emitted in increasing machine-ID order and their blocks in block-
+ID order, so both sizing and final emission reconstruct the same call target.
+Every frame size, scratch base, parameter displacement, result slot, live-stack
+cost, instruction length, and call displacement is computed and checked before
+the first ELF byte is published.
+
 ## Finite acyclic call graph
 
 Every Call row contributes an edge from its owner machine to its callee. The

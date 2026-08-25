@@ -250,6 +250,15 @@ language, generation, or architectural role; new documentation and work use
   by the native/self and mixed composite gates. Directly elaborating the cyclic
   Omega fixture is not used to paper over that gap: `omega2gamma` currently
   refuses its structured selected-owner array field-access path.
+- [`compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md)
+  freezes the next, still-open runtime named-record tranche. It retains exact
+  `OMGCOMP`, `OMGRSW1`, the CKIR3 header/tables, existing nominal layout, and
+  structural call/copy transport; opcode 13 alone constructs a fresh,
+  immutable, address-backed copyable record of at most four fields. The exact
+  product target is `compiler/psi/source/source.omg` plus a same-logical-module
+  harness, so implementation can proceed without the unresolved private
+  cross-module rule. No producer, backend, meaning, `OMGRFN5`, or composition
+  closure is claimed yet.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact
