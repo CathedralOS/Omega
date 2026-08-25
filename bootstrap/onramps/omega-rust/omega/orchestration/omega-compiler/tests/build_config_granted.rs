@@ -55,6 +55,7 @@ data RootProbe {{
     descriptor: i32;
     code: i32;
     result: i64;
+    position: i64;
     buffer: [u8; 4096];
     small_buffer: [u8; 1];
 }}
@@ -202,7 +203,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 16);
+    assert_eq!(checked_observations.schema_version(), 17);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -213,7 +214,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        16
+        17
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1375,6 +1376,55 @@ fn zero_length_positioned_read_region_survives_compiler_projection() {
     assert_eq!(region.length(), 0);
     assert_eq!(read_at.observed_bytes(region), Some(b"".as_slice()));
     assert_eq!(read_at.result(), BuildFilesystemOperationResult::Scalar(0));
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[cfg(unix)]
+#[test]
+fn directory_record_region_survives_compiler_projection() {
+    let (project, profile) = rooted_build_probe_project(
+        "directory-record-region",
+        r#"    let directory: &[u8] in Path = builder.source.resolve("entries");
+    self.descriptor = self.filesystem.open(directory, 0);
+    self.result = self.filesystem.read_dir(
+        self.descriptor,
+        &mut self.buffer,
+        4096,
+        &mut self.position
+    );"#,
+    );
+    std::fs::create_dir(project.join("entries")).expect("create source directory fixture");
+    std::fs::write(project.join("entries/item.txt"), b"item")
+        .expect("create directory entry fixture");
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("enumerating a granted source directory succeeds");
+    let observations = checked
+        .build_observation_summary()
+        .expect("filesystem build publishes observation evidence");
+    let [_, read_dir] = observations.filesystem_operation_attempts() else {
+        panic!("fixture opens and enumerates one source directory")
+    };
+    let [region] = read_dir.observed_byte_regions() else {
+        panic!("successful directory read retains one record region")
+    };
+    assert_eq!(
+        region.kind(),
+        BuildFilesystemObservedByteRegionKind::DirectoryRecords
+    );
+    assert_eq!(region.output_operand_ordinal(), 1);
+    assert_eq!(region.offset(), 0);
+    let BuildFilesystemOperationResult::Scalar(result) = read_dir.result() else {
+        panic!("read_dir returns a scalar byte count")
+    };
+    assert!(result > 0);
+    assert_eq!(region.length(), result as u64);
+    assert_eq!(
+        read_dir
+            .observed_bytes(region)
+            .expect("directory record bytes remain custodied")
+            .len(),
+        region.length() as usize
+    );
     let _ = std::fs::remove_dir_all(&project);
 }
 

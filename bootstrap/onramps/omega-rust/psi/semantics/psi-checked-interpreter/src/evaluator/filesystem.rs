@@ -422,40 +422,48 @@ impl<'program> Evaluator<'program> {
         operation: FilesystemHostOperation,
         result: i64,
     ) -> EvalResult<()> {
-        let expected_kind = match operation {
-            FilesystemHostOperation::Read => {
-                Some(FilesystemObservedByteRegionKind::SequentialFileRead)
-            }
-            FilesystemHostOperation::ReadAt => {
-                Some(FilesystemObservedByteRegionKind::PositionedFileRead)
+        let expected = match operation {
+            FilesystemHostOperation::Read if result >= 0 => usize::try_from(result)
+                .ok()
+                .map(|length| (FilesystemObservedByteRegionKind::SequentialFileRead, length)),
+            FilesystemHostOperation::ReadAt if result >= 0 => usize::try_from(result)
+                .ok()
+                .map(|length| (FilesystemObservedByteRegionKind::PositionedFileRead, length)),
+            FilesystemHostOperation::ReadDir if result >= 0 => usize::try_from(result)
+                .ok()
+                .map(|length| (FilesystemObservedByteRegionKind::DirectoryRecords, length)),
+            FilesystemHostOperation::FindFirst if result >= 0 => Some((
+                FilesystemObservedByteRegionKind::FindEntry,
+                FIND_DATA_OUTPUT_BYTES,
+            )),
+            FilesystemHostOperation::FindNext if result == 1 => Some((
+                FilesystemObservedByteRegionKind::FindEntry,
+                FIND_DATA_OUTPUT_BYTES,
+            )),
+            FilesystemHostOperation::FindNext if result == 0 => {
+                Some((FilesystemObservedByteRegionKind::FindEntry, 0))
             }
             _ => None,
         };
         let attempt = &self.filesystem_operation_attempts[attempt_index];
-        let expected = expected_kind.is_some() && result >= 0;
-        if !expected {
+        let Some((expected_kind, expected_length)) = expected else {
             if attempt.observed_byte_regions.is_empty() {
                 return Ok(());
             }
             return Err(Halt::Trap(format!(
                 "canonical filesystem operation `{operation}` retained an unexpected observed-byte region"
             )));
-        }
+        };
 
         let [region] = &attempt.observed_byte_regions[..] else {
             return Err(Halt::Trap(format!(
                 "successful canonical filesystem operation `{operation}` did not retain exactly one observed-byte region"
             )));
         };
-        let length = usize::try_from(result).map_err(|_| {
-            Halt::Trap(format!(
-                "canonical filesystem operation `{operation}` returned an unrepresentable observed-byte length `{result}`"
-            ))
-        })?;
-        if region.kind != expected_kind.expect("successful read has an expected kind")
+        if region.kind != expected_kind
             || region.output_operand_ordinal != 1
             || region.offset != 0
-            || region.length != length
+            || region.length != expected_length
         {
             return Err(Halt::Trap(format!(
                 "canonical filesystem operation `{operation}` retained an inconsistent observed-byte region"
@@ -1388,11 +1396,25 @@ impl<'program> Evaluator<'program> {
                         let (chunk, next_position) =
                             dirent_record_chunk(&records, start, count.host);
                         if chunk.is_empty() {
+                            self.record_observed_byte_region(
+                                1,
+                                FilesystemObservedByteRegionKind::DirectoryRecords,
+                                &buffer,
+                                0,
+                                0,
+                            )?;
                             0
                         } else {
                             let n = chunk.len();
                             buffer.write(chunk)?;
                             position.write(next_position as i64)?;
+                            self.record_observed_byte_region(
+                                1,
+                                FilesystemObservedByteRegionKind::DirectoryRecords,
+                                &buffer,
+                                0,
+                                n,
+                            )?;
                             n as i64
                         }
                     }
@@ -1418,6 +1440,13 @@ impl<'program> Evaluator<'program> {
                         let (name, is_dir) =
                             entries.pop_front().expect("dot entries are always present");
                         self.write_find_data(&data, &name, is_dir)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::FindEntry,
+                            &data,
+                            0,
+                            FIND_DATA_OUTPUT_BYTES,
+                        )?;
                         let handle = self.virtual_next_find;
                         self.virtual_next_find += 1;
                         self.virtual_finds.insert(handle, entries);
@@ -1439,9 +1468,25 @@ impl<'program> Evaluator<'program> {
                 {
                     Some((name, is_dir)) => {
                         self.write_find_data(&data, &name, is_dir)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::FindEntry,
+                            &data,
+                            0,
+                            FIND_DATA_OUTPUT_BYTES,
+                        )?;
                         1
                     }
-                    None => 0,
+                    None => {
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::FindEntry,
+                            &data,
+                            0,
+                            0,
+                        )?;
+                        0
+                    }
                 }
             }
             PreparedFilesystemCall::FindClose { handle } => {
@@ -1638,7 +1683,7 @@ impl<'program> Evaluator<'program> {
         name: &[u8],
         is_dir: bool,
     ) -> EvalResult<()> {
-        let mut record = vec![0u8; 320];
+        let mut record = vec![0u8; FIND_DATA_OUTPUT_BYTES];
         let attributes: u32 = if is_dir { 0x10 } else { 0x80 };
         record[0..4].copy_from_slice(&attributes.to_le_bytes());
         let name_len = name.len().min(259);
@@ -1949,7 +1994,7 @@ mod tests {
     use super::super::filesystem_preparation::{
         FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
         PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandlePlan,
-        PreparedTransferCount, checked_filesystem_transfer_count,
+        PreparedI64Output, PreparedTransferCount, checked_filesystem_transfer_count,
     };
     use super::*;
 
@@ -2461,6 +2506,36 @@ mod tests {
                 .is_err(),
             "positioned and sequential read regions are distinct"
         );
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
+            FilesystemObservedByteRegionKind::DirectoryRecords;
+        evaluator
+            .validate_observed_byte_regions(0, FilesystemHostOperation::ReadDir, 4)
+            .unwrap_or_else(|_| panic!("directory record region validates"));
+
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
+            FilesystemObservedByteRegionKind::FindEntry;
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length =
+            FIND_DATA_OUTPUT_BYTES;
+        evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0]
+            .pre_bytes
+            .resize(FIND_DATA_OUTPUT_BYTES, 9);
+        evaluator.filesystem_operation_attempts[0].mutable_byte_operands[0]
+            .post_bytes
+            .resize(FIND_DATA_OUTPUT_BYTES, 0);
+        evaluator
+            .validate_observed_byte_regions(0, FilesystemHostOperation::FindFirst, 7)
+            .unwrap_or_else(|_| panic!("find_first record region validates"));
+        evaluator
+            .validate_observed_byte_regions(0, FilesystemHostOperation::FindNext, 1)
+            .unwrap_or_else(|_| panic!("find_next record region validates"));
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length = 0;
+        evaluator
+            .validate_observed_byte_regions(0, FilesystemHostOperation::FindNext, 0)
+            .unwrap_or_else(|_| panic!("find_next empty region validates"));
+
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].kind =
+            FilesystemObservedByteRegionKind::SequentialFileRead;
+        evaluator.filesystem_operation_attempts[0].observed_byte_regions[0].length = 4;
         evaluator.filesystem_operation_attempts[0]
             .mutable_byte_operands
             .clear();
@@ -2470,6 +2545,130 @@ mod tests {
                 .is_err(),
             "semantic region requires its retained post-carrier"
         );
+    }
+
+    #[test]
+    fn virtual_directory_enumeration_designates_exact_output_regions() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        evaluator.virtual_dirs.insert(b"dir".to_vec());
+        evaluator
+            .virtual_files
+            .insert(b"dir/entry".to_vec(), b"payload".to_vec());
+        let descriptor = evaluator.virtual_open_flags(b"dir".to_vec(), 0);
+        assert!(descriptor >= 0);
+
+        let directory_output = mutable_byte_output(&[9; 512]);
+        let directory = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ReadDir {
+                fd: descriptor,
+                buffer: directory_output.clone(),
+                count: PreparedTransferCount {
+                    raw: 512,
+                    host: 512,
+                },
+                position: PreparedI64Output::test_fixture(0),
+            })
+            .unwrap_or_else(|_| panic!("directory enumeration succeeds"));
+        let Value::Int(directory_length) = directory else {
+            panic!("read_dir returns a byte length")
+        };
+        assert!(directory_length > 0);
+        let directory_length = usize::try_from(directory_length)
+            .unwrap_or_else(|_| panic!("directory fixture length is representable"));
+        let directory_bytes = directory_output
+            .snapshot()
+            .unwrap_or_else(|_| panic!("directory output remains readable"));
+        assert!(
+            directory_bytes[directory_length..]
+                .iter()
+                .all(|byte| *byte == 9)
+        );
+
+        let eof_output = mutable_byte_output(&[9; 512]);
+        let eof = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ReadDir {
+                fd: descriptor,
+                buffer: eof_output.clone(),
+                count: PreparedTransferCount {
+                    raw: 512,
+                    host: 512,
+                },
+                position: PreparedI64Output::test_fixture(i64::MAX),
+            })
+            .unwrap_or_else(|_| panic!("directory EOF succeeds"));
+        assert!(matches!(eof, Value::Int(0)));
+        assert_eq!(
+            eof_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("EOF output remains readable")),
+            &[9; 512]
+        );
+
+        let first_output = mutable_byte_output(&[9; 322]);
+        let first = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::FindFirst {
+                pattern: b"dir/*".to_vec(),
+                data: first_output.clone(),
+            })
+            .unwrap_or_else(|_| panic!("find_first succeeds"));
+        let Value::Int(find_handle) = first else {
+            panic!("find_first returns its handle")
+        };
+        assert!(find_handle >= 0);
+        assert_eq!(
+            &first_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("first find output remains readable"))
+                [FIND_DATA_OUTPUT_BYTES..],
+            &[9, 9]
+        );
+
+        let next_output = mutable_byte_output(&[9; 322]);
+        let next = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::FindNext {
+                handle: find_handle,
+                data: next_output,
+            })
+            .unwrap_or_else(|_| panic!("find_next succeeds"));
+        assert!(matches!(next, Value::Int(1)));
+
+        let empty_output = mutable_byte_output(&[9; 322]);
+        let empty = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::FindNext {
+                handle: -1,
+                data: empty_output.clone(),
+            })
+            .unwrap_or_else(|_| panic!("unknown find handle returns no entry"));
+        assert!(matches!(empty, Value::Int(0)));
+        assert_eq!(
+            empty_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("empty find output remains readable")),
+            &[9; 322]
+        );
+
+        let rows = &evaluator.filesystem_operation_attempts[0].observed_byte_regions;
+        assert_eq!(rows.len(), 5);
+        assert_eq!(
+            rows[0].kind(),
+            FilesystemObservedByteRegionKind::DirectoryRecords
+        );
+        assert_eq!(rows[0].length(), directory_length);
+        assert_eq!(
+            rows[1].kind(),
+            FilesystemObservedByteRegionKind::DirectoryRecords
+        );
+        assert_eq!(rows[1].length(), 0);
+        assert!(rows[2..].iter().all(|row| {
+            row.kind() == FilesystemObservedByteRegionKind::FindEntry
+                && row.output_operand_ordinal() == 1
+                && row.offset() == 0
+        }));
+        assert_eq!(rows[2].length(), FIND_DATA_OUTPUT_BYTES);
+        assert_eq!(rows[3].length(), FIND_DATA_OUTPUT_BYTES);
+        assert_eq!(rows[4].length(), 0);
     }
 
     #[test]

@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v16
-  carries operation-attempt schema v16: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v17
+  carries operation-attempt schema v17: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1407,7 +1407,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v16 retains each successfully typed non-handle
+  Operation-attempt schema v17 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1466,9 +1466,15 @@ complete.
   returned length. The region length must equal the nonnegative scalar result and fit the
   retained post-state; successful EOF retains a zero-length row, while failure
   retains none. The bytes are recovered from that post-state rather than copied
-  a fourth time, so the row consumes no additional byte sponsor. This
-  deliberately incomplete trace still lacks semantic directory/find output,
-  canonical metadata observations, and the replay executor.
+  a fourth time, so the row consumes no additional byte sponsor. Successful
+  `read_dir` uses the same rule with a closed `DirectoryRecords` kind. Successful
+  `find_first` and entry-producing `find_next` designate the complete fixed
+  320-byte output record as `FindEntry`; a no-entry `find_next` and directory EOF
+  retain zero-length rows, while failed `find_first`/`read_dir` retain none. All
+  regions are cross-checked against operation result, kind, output ordinal, and
+  retained post-carrier before a returned outcome is admitted. This deliberately
+  incomplete trace still lacks canonical metadata observations and the replay
+  executor.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

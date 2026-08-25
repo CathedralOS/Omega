@@ -154,10 +154,10 @@ pub struct EvaluationUsage {
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
 /// exact path-like byte operands, each successfully resolved mutable carrier
 /// and logical-handle input even when later preparation fails, and a typed
-/// returned or evaluator-halted outcome. Exact path results and successful
-/// file-read regions are semantically designated, but directory/metadata
+/// returned or evaluator-halted outcome. Exact path results and successful file
+/// and directory observation regions are designated, but canonical metadata
 /// observations and replay execution are not complete yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 16;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 17;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -354,6 +354,8 @@ pub struct FilesystemReturnedPath {
 pub enum FilesystemObservedByteRegionKind {
     SequentialFileRead,
     PositionedFileRead,
+    DirectoryRecords,
+    FindEntry,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -654,9 +656,9 @@ impl FilesystemGrantRefusal {
 /// normalized into logical lifetimes; provider token numbers do not survive.
 /// Failed handle-result sentinels remain scalar results. Mutable carriers
 /// retain both their successfully resolved preparation prefix and complete
-/// provider-visible pre/post snapshots. Path results and successful file-read
-/// regions have semantic rows; directory/metadata observations and replay
-/// execution remain incomplete, so this stays below receipt strength.
+/// provider-visible pre/post snapshots. Path results and successful file and
+/// directory observations have semantic rows; canonical metadata observations
+/// and replay execution remain incomplete, so this stays below receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,

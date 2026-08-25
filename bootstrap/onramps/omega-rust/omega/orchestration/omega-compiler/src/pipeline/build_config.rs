@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 16;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 17;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -437,6 +437,8 @@ impl BuildFilesystemReturnedPath {
 pub enum BuildFilesystemObservedByteRegionKind {
     SequentialFileRead,
     PositionedFileRead,
+    DirectoryRecords,
+    FindEntry,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -870,9 +872,9 @@ impl BuildObservationSummary {
 
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: exact path results and file-read
-    /// regions are present, while directory/metadata observation semantics and
-    /// replay execution remain incomplete.
+    /// intentionally not a replay transcript: exact path results and file/
+    /// directory observation regions are present, while canonical metadata
+    /// observations and replay execution remain incomplete.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -2052,6 +2054,12 @@ pub(crate) fn compute_build_config(
                             }
                             psi_checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead => {
                                 BuildFilesystemObservedByteRegionKind::PositionedFileRead
+                            }
+                            psi_checked_interpreter::FilesystemObservedByteRegionKind::DirectoryRecords => {
+                                BuildFilesystemObservedByteRegionKind::DirectoryRecords
+                            }
+                            psi_checked_interpreter::FilesystemObservedByteRegionKind::FindEntry => {
+                                BuildFilesystemObservedByteRegionKind::FindEntry
                             }
                         },
                         offset: u64::try_from(region.offset()).map_err(|_| {

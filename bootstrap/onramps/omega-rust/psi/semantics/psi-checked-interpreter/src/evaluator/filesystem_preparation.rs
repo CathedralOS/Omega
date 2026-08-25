@@ -7,7 +7,7 @@ use crate::{
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
 const FILETIME_BYTES: usize = 8;
-const FIND_DATA_OUTPUT_BYTES: usize = 320;
+pub(super) const FIND_DATA_OUTPUT_BYTES: usize = 320;
 const OVERLAPPED_BYTES: usize = 32;
 const PATH_MAX_OUTPUT_BYTES: usize = 1024;
 const STAT_OUTPUT_BYTES: usize = 144;
@@ -170,6 +170,14 @@ pub(super) struct PreparedI64Output {
 }
 
 impl PreparedI64Output {
+    #[cfg(test)]
+    pub(super) fn test_fixture(initial: i64) -> Self {
+        Self {
+            cell: Value::Int(initial).cell(),
+            initial,
+        }
+    }
+
     pub(super) fn write(&self, value: i64) -> EvalResult<()> {
         *self.cell.borrow_mut() = Value::Int(value);
         Ok(())
