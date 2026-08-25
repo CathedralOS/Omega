@@ -1,0 +1,352 @@
+; OMGRFN4 responsibility-4 physically artifact-free source result.
+;
+; The focused gate composes this after the version-4 frame reader truncated
+; before its CKIR accessor, the independently reconstructed source/witness
+; model, the CKIR-independent source-lowering helpers, and the role-3 call
+; parser/emitter prefix.  Aggregate literals are retained as a private raw DAG;
+; opcode 11 carries a raw-node ID and installs that tree directly into owner
+; memory.  No CKIR or ELF accessor is present in the persisted executable.
+;
+; Private disjoint memory map:
+;   word[28000000 .. 29572864) raw nodes (32768 * 48 bytes)
+;   word[30000000 .. 30524288) raw child IDs (65536 * 8 bytes)
+;   word[30600000 .. 30601024) record parse scratch (8 * 128 bytes)
+;   word[30700000 .. 30765536) array parse scratch (8 * 8192 bytes)
+;   byte[32000000 .. 32131072) selected-owner storage
+;   word[33000000 .. 37718592) value frames (16 * 294912 bytes)
+;   word[38000000 .. 42194304) place frames (16 * 262144 bytes)
+;   word[43000000 .. 43032768) edge staging (4096 * 8 bytes)
+;   word[43100000 .. 43100128) frame results
+;   word[43101000 .. 43101128) frame current blocks
+;   byte[43200000 .. 43331072) overlap-safe copy snapshot
+;   word[43400000] dynamic block-entry count
+;
+; The published source evaluator bounds are 16 active machine frames and
+; 65,536 dynamic block entries.  Attempting the adjacent value returns 252.
+
+; Source meaning resolves each authored self call directly against the
+; independently reconstructed source machine table.  The sibling lowering
+; proposition owns the distinct source-to-role-3-row join and static call
+; graph; this companion owns the runtime call target and its 16-frame
+; observation.
+proc v3_call_binding(source,start,count) {
+    let i=0 let row=0 let target=0 let owner=src_machine(src_low_g(4),2)
+    state rows { to one when (i<l4_count(3)) to bad }
+    state one { row=l4_base(3)+i*28 to next when (l4_wbyte(row+4)!=2) to next when (l4_wu32(row+20)!=count) to next when (src_spans_equal(l4_named_span(source,start),l4_named_span(l4_wu32(row+8),l4_wu32(row+16)),count)==0) target=l4_wu32(row+24) to next when (src_machine(target,2)!=owner) word[19990000]=target return 0 }
+    state next { i=i+1 to rows }
+    state bad { return src_reject() }
+}
+
+proc v4s_raw(id,column) { return word[28000000+id*48+column*8] }
+proc v4s_raw_set(id,column,value) { word[28000000+id*48+column*8]=value return value }
+proc v4s_child(id) { return word[30000000+id*8] }
+proc v4s_child_set(id,value) { word[30000000+id*8]=value return value }
+
+proc v4s_token_equal_named(named_start,named_count) {
+    state length { to no when (word[524416]!=256) to no when (word[524432]!=named_count) }
+    return src_spans_equal(named_start,word[524424],named_count)
+    state no { return 0 }
+}
+
+proc v4s_constant_add(type_id,first,count,scalar) {
+    let raw=word[27900000]
+    state capacity { to exhausted when (raw>=32768) }
+    v4s_raw_set(raw,0,type_id) v4s_raw_set(raw,1,word[27900024])
+    v4s_raw_set(raw,2,first) v4s_raw_set(raw,3,count)
+    v4s_raw_set(raw,4,scalar) word[27900016]=raw word[27900000]=raw+1 return 0
+    state exhausted { return src_exhaust() }
+}
+
+proc v4s_record_field(record) {
+    let i=src_record(record,3) let end=i+src_record(record,4)
+    state loop { to one when (i<end) return 4294967295 }
+    state one { to next when (v4s_token_equal_named(src_field(i,1),src_field(i,2))==0) return i }
+    state next { i=i+1 to loop }
+}
+
+proc v4s_parse_constant(type_id,depth) {
+    let kind=src_type(type_id,0) let record=0 let field=0 let ordinal=0
+    let count=0 let expected=0 let first=word[27900008] let raw_child=0
+    let height=0 let child_height=0 let scalar=0 let scratch=0 let i=0
+    state depth_check { to exhausted when (depth>=8) to scalar_kind when (kind<=3) to record_kind when (kind==4) to array_kind }
+    state scalar_kind {
+        to bool_true when (kind==3) to bool_false when (kind==3)
+        to bad when (word[524416]!=257) scalar=word[524432]
+        to bad when (scalar<src_type(type_id,7)) to bad when (scalar>src_type(type_id,8))
+        src_next() word[27900024]=0 return v4s_constant_add(type_id,word[27900008],0,scalar)
+    }
+    state bool_true { to bool_one when (src_token_word(37,4)==1) to bool_false }
+    state bool_one { scalar=1 src_next() word[27900024]=0 return v4s_constant_add(type_id,word[27900008],0,scalar) }
+    state bool_false { to bad when (src_token_word(41,5)==0) scalar=0 src_next() word[27900024]=0 return v4s_constant_add(type_id,word[27900008],0,scalar) }
+    state record_kind {
+        record=src_type(type_id,3) expected=src_record(record,4)
+        to exhausted when (expected>4)
+        to bad when (v4s_token_equal_named(src_record(record,0),src_record(record,1))==0)
+        src_next() to bad when (word[524416]!=123) src_next()
+        scratch=30600000+depth*128 i=0 to record_clear
+    }
+    state record_clear { to record_clear_one when (i<4) to record_fields }
+    state record_clear_one { word[scratch+i*16]=4294967295 word[scratch+i*16+8]=0 i=i+1 to record_clear }
+    state record_fields { to record_done when (word[524416]==125) to bad when (word[524416]!=256) field=v4s_record_field(record) to bad when (field==4294967295) ordinal=field-src_record(record,3) to bad when (word[scratch+ordinal*16+8]!=0) word[scratch+ordinal*16+8]=1 src_next() to colon }
+    state colon { to bad when (word[524416]!=58) src_next() to child }
+    state child { to bad when (v4s_parse_constant(src_field(field,3),depth+1)!=0) raw_child=word[27900016] word[scratch+ordinal*16]=raw_child child_height=v4s_raw(raw_child,1) to keep_height when (child_height+1<=height) height=child_height+1 to separator }
+    state keep_height { to separator }
+    state separator { to comma when (word[524416]==44) to record_fields }
+    state comma { src_next() to record_fields }
+    state record_done { src_next() i=0 first=word[27900008] to record_emit_children }
+    state record_emit_children { to record_emit_one when (i<expected) word[27900024]=height return v4s_constant_add(type_id,first,expected,0) }
+    state record_emit_one { to bad when (word[scratch+i*16+8]==0) to exhausted when (word[27900008]>=65536) v4s_child_set(word[27900008],word[scratch+i*16]) word[27900008]=word[27900008]+1 i=i+1 to record_emit_children }
+    state array_kind {
+        expected=src_type(type_id,5) to exhausted when (expected>1024)
+        to bad when (word[524416]!=91) src_next() count=0 scratch=30700000+depth*8192 height=0 to array_values
+    }
+    state array_values { to array_done when (word[524416]==93) to bad when (count>=expected) to array_child }
+    state array_child { to bad when (v4s_parse_constant(src_type(type_id,4),depth+1)!=0) raw_child=word[27900016] child_height=v4s_raw(raw_child,1) to keep_array_height when (child_height+1<=height) height=child_height+1 to array_save }
+    state keep_array_height { to array_save }
+    state array_save { word[scratch+count*8]=raw_child count=count+1 to array_comma when (word[524416]==44) to array_values }
+    state array_comma { src_next() to array_values }
+    state array_done { to bad when (count!=expected) src_next() i=0 first=word[27900008] to array_emit }
+    state array_emit { to array_emit_one when (i<count) word[27900024]=height return v4s_constant_add(type_id,first,count,0) }
+    state array_emit_one { to exhausted when (word[27900008]>=65536) v4s_child_set(word[27900008],word[scratch+i*8]) word[27900008]=word[27900008]+1 i=i+1 to array_emit }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+
+; Inclusive comparison preserves the R4 right-before-left materialization and
+; publishes its arm-local interval fact for the separate fixed-point relation.
+proc src_low_expression() {
+    let left_type=0 let right_type=0 let target=0 let opcode=9 let inclusive=0
+    state init { src_low_gset(41,0) to add }
+    state add { to done when (src_low_add()!=0) to compare }
+    state compare { to less when (word[524416]==60) return 0 }
+    state less { to done when (src_low_push_expr()!=0) src_next() to equal when (word[524416]==61) to right }
+    state equal { inclusive=1 opcode=12 src_next() to right }
+    state right { to done when (src_low_add()!=0) right_type=src_low_g(20) to pop }
+    state pop { to done when (src_low_pop_left()!=0) left_type=src_low_g(20) target=left_type to choose }
+    state choose { to left_literal when (left_type==4294967294) to left_typed }
+    state left_literal { target=right_type to both_literal when (right_type==4294967294) to right_numeric }
+    state both_literal { target=4294967295 to emit }
+    state left_typed { to bad when (left_type>=word[10000048]) to bad when (src_type(left_type,0)>2) to right_check }
+    state right_check { to emit when (right_type==4294967294) to typed_right }
+    state typed_right { to bad when (right_type>=word[10000048]) to bad when (src_type(right_type,0)>2) to bad when (src_low_types_same(left_type,right_type)==0) to emit }
+    state right_numeric { to bad when (right_type>=word[10000048]) to bad when (src_type(right_type,0)>2) to emit }
+    state emit { src_low_gset(41,0) to emit_binary when (src_low_g(25)==0) to less_fact when (inclusive==0) to inclusive_fact }
+    state inclusive_fact { src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)) to emit_binary }
+    state less_fact { to emit_binary when (src_low_stack(8,2)==0) src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)-1) to emit_binary }
+    state emit_binary { to done when (src_low_binary(opcode,target,src_low_g(11),4294967293)!=0) src_low_gset(21,0) src_low_gset(22,1) to done }
+    state bad { src_reject() }
+    state done { return word[10000000] }
+}
+
+proc v4s_guardless_transition() {
+    let target=0 let block=0 let count=0
+    state open { src_next() to bad when (word[524416]!=256) to wildcard }
+    state wildcard { to bad when (word[524432]!=1) to bad when (refinement_source_byte(word[524424])!='_') src_next() to dash }
+    state dash { to bad when (src_expect_token(45)!=0) to arrow }
+    state arrow { to bad when (src_expect_token(62)!=0) to name }
+    state name { to bad when (word[524416]!=256) target=src_low_find_state(src_low_g(4),word[524424],word[524432]) to bad when (target==4294967295) block=src_state(target,8) src_next() to paren }
+    state paren { to bad when (src_expect_token(40)!=0) to args }
+    state args { to bad when (src_low_parse_arguments(target,6)!=0) count=src_low_g(40) to close }
+    state close { to bad when (word[524416]!=125) src_next() src_low_term_set(src_low_g(6),0,1) src_low_term_set(src_low_g(6),1,4294967295) src_low_term_set(src_low_g(6),2,block) src_low_term_set(src_low_g(6),3,count) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) return 0 }
+    state bad { return src_reject() }
+}
+
+; Runtime source meaning needs exact branch targets and edge arguments, but the
+; separate R4 lowering proposition owns interval-fact fixed-point construction.
+; This parser therefore reconstructs the complete authored Boolean branch
+; without carrying the static fact-merge machinery into the evaluator binary.
+proc v4_guarded_transition_after_keyword() {
+    let true_seen=0 let false_seen=0 let wild_seen=0 let arm_kind=0
+    let target=0 let target_block=0 let true_target=4294967295
+    let false_target=4294967295 let wild_target=4294967295
+    let true_count=0 let false_count=0 let wild_count=0 let guard_value=0 let i=0
+    state guard { to done when (src_low_expression()!=0) to guard_type }
+    state guard_type { to literal when (src_low_g(20)==4294967293) to typed }
+    state literal { to done when (src_low_materialize(src_low_g(11))!=0) to guard_save }
+    state typed { to bad when (src_low_g(20)>=word[10000048]) to bad when (src_type(src_low_g(20),0)!=3) to done when (src_low_materialize(src_type(src_low_g(20),9))!=0) to guard_save }
+    state guard_save { guard_value=src_low_g(27) to done when (src_expect_token(123)!=0) to arms }
+    state arms { to close when (word[524416]==125) to label }
+    state label { to bad when (word[524416]!=256) to true_check }
+    state true_check { to true_arm when (src_token_word(37,4)==1) to false_check }
+    state true_arm { to bad when (true_seen==1) true_seen=1 arm_kind=1 src_next() to arrow0 }
+    state false_check { to false_arm when (src_token_word(41,5)==1) to wild_check }
+    state false_arm { to bad when (false_seen==1) false_seen=1 arm_kind=2 src_next() to arrow0 }
+    state wild_check { to bad when (word[524432]!=1) to bad when (refinement_source_byte(word[524424])!='_') to bad when (wild_seen==1) wild_seen=1 arm_kind=3 src_next() to arrow0 }
+    state arrow0 { to done when (src_expect_token(45)!=0) to arrow1 }
+    state arrow1 { to done when (src_expect_token(62)!=0) to target_name }
+    state target_name { to bad when (word[524416]!=256) target=src_low_find_state(src_low_g(4),word[524424],word[524432]) to bad when (target==4294967295) target_block=src_state(target,8) src_next() to open }
+    state open { to done when (src_expect_token(40)!=0) to args_kind }
+    state args_kind { to args_true when (arm_kind==1) to args_false when (arm_kind==2) to args_wild }
+    state args_true { to done when (src_low_parse_arguments(target,6)!=0) true_target=target_block true_count=src_low_g(40) to arms }
+    state args_false { to done when (src_low_parse_arguments(target,13)!=0) false_target=target_block false_count=src_low_g(40) to arms }
+    state args_wild { to done when (src_low_parse_arguments(target,20)!=0) wild_target=target_block wild_count=src_low_g(40) to arms }
+    state close { src_next() to coverage }
+    state coverage { to normalize when (wild_seen==1) to bad when (true_seen==0) to bad when (false_seen==0) to normalize }
+    state normalize { to target1 when (true_seen==1) true_target=wild_target true_count=wild_count i=0 to copy_true }
+    state copy_true { to copy_true_one when (i<true_count) to target1 }
+    state copy_true_one { src_low_term_set(src_low_g(6),6+i,src_lower_term(src_low_g(6),20+i)) i=i+1 to copy_true }
+    state target1 { to emit when (false_seen==1) false_target=wild_target false_count=wild_count i=0 to copy_false }
+    state copy_false { to copy_false_one when (i<false_count) to emit }
+    state copy_false_one { src_low_term_set(src_low_g(6),13+i,src_lower_term(src_low_g(6),20+i)) i=i+1 to copy_false }
+    state emit { src_low_term_set(src_low_g(6),0,2) src_low_term_set(src_low_g(6),1,guard_value) src_low_term_set(src_low_g(6),2,true_target) src_low_term_set(src_low_g(6),3,true_count) src_low_term_set(src_low_g(6),4,false_target) src_low_term_set(src_low_g(6),5,false_count) src_low_gset(13,1) return 0 }
+    state bad { src_reject() }
+    state done { return word[10000000] }
+}
+
+proc src_low_transition() {
+    src_next()
+    state choose { to guardless when (word[524416]==123) return v4_guarded_transition_after_keyword() }
+    state guardless { return v4s_guardless_transition() }
+}
+
+proc src_low_body(start,end) {
+    let destination_type=0 let destination_place=0 let rhs_type=0 let source_ref=0
+    let immediate=0 let destination_kind=0 let destination_id=0 let raw=0
+    state init { word[10000128]=end word[524408]=start src_low_gset(9,0) src_low_gset(10,0) src_low_gset(13,0) src_next() to loop }
+    state loop { to finish when (word[524416]==0) to limit }
+    state limit { to exhausted when (src_low_g(10)>=32) to transition when (src_token_word(27,10)==1) to expression }
+    state transition { src_low_gset(10,src_low_g(10)+1) to done when (src_low_transition()!=0) to bad when (word[524416]!=0) to finish }
+    state expression { to done when (src_low_expression()!=0) to assignment when (word[524416]==61) to unit_statement when (src_low_g(20)==4294967292) to result }
+    state unit_statement { to done when (src_expect_token(59)!=0) src_low_gset(10,src_low_g(10)+1) to loop }
+    state assignment { destination_type=src_low_g(20) destination_place=src_low_g(28) destination_kind=src_low_g(25) destination_id=src_low_g(26) to bad when (src_low_g(23)==0) to bad when (src_low_g(24)==0) to bad when (destination_place==4294967295) src_next() to aggregate when (src_type(destination_type,0)>=4) to rhs }
+    state aggregate { to aggregate_parse when (word[524416]==91) to aggregate_nominal when (word[524416]==256) to rhs }
+    state aggregate_nominal { to rhs when (src_type(destination_type,0)!=4) to rhs when (v4s_token_equal_named(src_record(src_type(destination_type,3),0),src_record(src_type(destination_type,3),1))==0) to aggregate_parse }
+    state aggregate_parse { to done when (v4s_parse_constant(destination_type,0)!=0) raw=word[27900016] src_low_gset(50,destination_place) src_low_gset(51,0) src_low_gset(52,raw) to done when (src_low_emit(11,0,4294967295,1)!=0) to assignment_end }
+    state rhs { to done when (src_low_expression()!=0) rhs_type=src_low_g(20) to structural when (src_type(destination_type,0)>=4) to scalar }
+    state scalar { to bad when (src_low_scalar_assignable(destination_type,rhs_type)==0) to done when (src_low_materialize(src_type(destination_type,9))!=0) source_ref=src_low_g(27) to store }
+    state store { src_low_gset(50,destination_place) src_low_gset(51,source_ref) src_low_gset(52,0) to done when (src_low_emit(6,0,4294967295,2)!=0) to assignment_end }
+    state structural { to bad when (src_low_types_same(destination_type,rhs_type)==0) to bad when (src_type_copyable(destination_type)==0) immediate=1 source_ref=src_low_g(27) to structural_place when (src_low_g(28)!=4294967295) to structural_value }
+    state structural_place { immediate=2 source_ref=src_low_g(28) to copy }
+    state structural_value { to bad when (source_ref==4294967295) to copy }
+    state copy { src_low_gset(50,destination_place) src_low_gset(51,source_ref) src_low_gset(52,immediate) to done when (src_low_emit(7,0,4294967295,2)!=0) to assignment_end }
+    state assignment_end { to done when (src_expect_token(59)!=0) src_low_gset(10,src_low_g(10)+1) to loop when (src_low_g(5)==4294967295) to loop when (word[19600000+src_low_g(5)*32]!=1) to loop when (word[19600008+src_low_g(5)*32]!=destination_kind) to loop when (word[19600016+src_low_g(5)*32]!=destination_id) word[19600000+src_low_g(5)*32]=0 to loop }
+    state result { to bad when (src_low_g(8)==4294967295) to bad when (src_low_scalar_assignable(src_low_g(8),src_low_g(20))==0) to done when (src_low_materialize(src_type(src_low_g(8),9))!=0) src_low_term_set(src_low_g(6),0,4) src_low_term_set(src_low_g(6),1,src_low_g(27)) src_low_term_set(src_low_g(6),2,4294967295) src_low_term_set(src_low_g(6),3,0) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) src_low_gset(10,src_low_g(10)+1) to bad when (word[524416]!=0) to finish }
+    state finish { to result_required when (src_low_g(8)!=4294967295) to unit }
+    state result_required { to bad when (src_low_g(13)==0) return 0 }
+    state unit { to done when (src_low_g(13)!=0) src_low_term_set(src_low_g(6),0,3) src_low_term_set(src_low_g(6),1,4294967295) src_low_term_set(src_low_g(6),2,4294967295) src_low_term_set(src_low_g(6),3,0) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) return 0 }
+    state exhausted { src_exhaust() to done }
+    state bad { src_reject() }
+    state done { return word[10000000] }
+}
+
+proc v4s_type_size(type_id) {
+    let kind=src_ck_type(type_id,0)
+    state scalar { to word_kind when (kind==2) to nominal when (kind==4) to array when (kind==5) return 1 }
+    state word_kind { return 4 }
+    state nominal { return src_record(src_ck_type(type_id,2),5) }
+    state array { return v4s_type_size(src_ck_type(type_id,2))*src_ck_type(type_id,3) }
+}
+
+proc v4s_load(type_id,address) {
+    state word_kind { to word_value when (src_ck_type(type_id,0)==2) return byte[32000000+address] }
+    state word_value { return byte[32000000+address]+byte[32000000+address+1]*256+byte[32000000+address+2]*65536+byte[32000000+address+3]*16777216 }
+}
+
+proc v4s_store(type_id,address,value) {
+    state range { to trap when (value<src_ck_type(type_id,4)) to trap when (value>src_ck_type(type_id,5)) to word_kind when (src_ck_type(type_id,0)==2) byte[32000000+address]=value return 0 }
+    state word_kind { byte[32000000+address]=value%256 byte[32000000+address+1]=(value/256)%256 byte[32000000+address+2]=(value/65536)%256 byte[32000000+address+3]=(value/16777216)%256 return 0 }
+    state trap { return 251 }
+}
+
+proc v4s_copy(type_id,destination,source) {
+    let size=v4s_type_size(type_id) let i=0
+    state bound { to exhausted when (size>131072) to snapshot }
+    state snapshot { to snapshot_one when (i<size) i=0 to commit }
+    state snapshot_one { byte[43200000+i]=byte[32000000+source+i] i=i+1 to snapshot }
+    state commit { to commit_one when (i<size) return 0 }
+    state commit_one { byte[32000000+destination+i]=byte[43200000+i] i=i+1 to commit }
+    state exhausted { return src_exhaust() }
+}
+
+proc v4s_install(raw,destination,depth) {
+    let type_id=v4s_raw(raw,0) let kind=src_type(type_id,0) let record=0
+    let field=0 let child=0 let node=0 let first=v4s_raw(raw,2)
+    let count=v4s_raw(raw,3) let i=0 let offset=0
+    state depth_check { to exhausted when (depth>=8) to scalar when (kind<=3) to record_kind when (kind==4) to array_kind }
+    state scalar { return v4s_store(src_type(type_id,9),destination,v4s_raw(raw,4)) }
+    state record_kind { record=src_type(type_id,3) to bad when (count!=src_record(record,4)) field=src_record(record,3) to fields }
+    state fields { to field_one when (i<count) return 0 }
+    state field_one { node=v4s_child(first+i) offset=src_field(field+i,4) to bad when (v4s_install(node,destination+offset,depth+1)!=0) i=i+1 to fields }
+    state array_kind { to bad when (count!=src_type(type_id,5)) child=src_type(type_id,4) to elements }
+    state elements { to element when (i<count) return 0 }
+    state element { node=v4s_child(first+i) offset=v4s_type_size(src_type(child,9))*i to bad when (v4s_install(node,destination+offset,depth+1)!=0) i=i+1 to elements }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+
+proc v4s_edge(depth,block,argument_field,count) {
+    let state_id=block-word[43102000+depth*8]-1 let value_base=33000000+depth*294912
+    let i=0 let parameter=0
+    state stage { to stage_one when (i<count) i=0 to commit }
+    state stage_one { word[43000000+i*8]=word[value_base+src_lower_term(word[43101000+depth*8],argument_field+i)*8] i=i+1 to stage }
+    state commit { to commit_one when (i<count) return 0 }
+    state commit_one { parameter=src_state(state_id,3)+i word[value_base+parameter*8]=word[43000000+i*8] i=i+1 to commit }
+}
+
+proc v4s_eval_machine(machine,depth) {
+    let value_base=33000000+depth*294912 let place_base=38000000+depth*262144
+    let block=0 let op=0 let op_end=0 let opcode=0 let result=0 let result_type=0
+    let start=0 let a=0 let b=0 let value=0 let address=0 let base_type=0
+    let field=0 let target=0 let count=0 let callee=0 let parameter=0 let i=0 let raw=0
+    state depth_check { to exhausted when (depth>=16) word[43102000+depth*8]=machine block=src_machine(machine,15) to block_begin }
+    state block_begin { to exhausted when (word[43400000]>=65536) word[43400000]=word[43400000]+1 op=src_low_block(block,0) op_end=op+src_low_block(block,1) to operations }
+    state operations { to operation when (op<op_end) to terminator }
+    state operation { opcode=src_lower_op(op,2) result=src_lower_op(op,4) result_type=src_lower_op(op,5) start=src_lower_op(op,6) to dispatch }
+    state dispatch { to constant when (opcode==1) to self_place when (opcode==2) to field_place when (opcode==3) to index_place when (opcode==4) to load when (opcode==5) to store when (opcode==6) to copy when (opcode==7) to add when (opcode==8) to less when (opcode==9) to call when (opcode==10) to aggregate when (opcode==11) to less_equal when (opcode==12) to trap }
+    state constant { word[value_base+result*8]=src_lower_op(op,8) to op_next }
+    state self_place { word[place_base+result*8]=0 to op_next }
+    state field_place { a=src_lower_operand(start) field=src_lower_op(op,8) word[place_base+result*8]=word[place_base+a*8]+src_field(field,4) to op_next }
+    state index_place { a=src_lower_operand(start) b=src_lower_operand(start+1) value=word[value_base+b*8] base_type=src_lower_place_type(a) to trap when (value>=src_ck_type(base_type,3)) word[place_base+result*8]=word[place_base+a*8]+value*v4s_type_size(src_ck_type(base_type,2)) to op_next }
+    state load { a=src_lower_operand(start) address=word[place_base+a*8] word[value_base+result*8]=v4s_load(result_type,address) to op_next }
+    state store { a=src_lower_operand(start) b=src_lower_operand(start+1) address=word[place_base+a*8] value=word[value_base+b*8] to trap when (v4s_store(src_lower_place_type(a),address,value)!=0) to op_next }
+    state copy { a=src_lower_operand(start) b=src_lower_operand(start+1) address=word[place_base+a*8] to copy_value when (src_lower_op(op,8)==1) value=word[place_base+b*8] to copy_ready }
+    state copy_value { value=word[value_base+b*8] to copy_ready }
+    state copy_ready { to trap when (v4s_copy(src_lower_place_type(a),address,value)!=0) to op_next }
+    state aggregate { a=src_lower_operand(start) raw=src_lower_op(op,8) address=word[place_base+a*8] to failed when (v4s_install(raw,address,0)!=0) to op_next }
+    state add { a=src_lower_operand(start) b=src_lower_operand(start+1) value=word[value_base+a*8]+word[value_base+b*8] to byte_overflow when (src_ck_type(result_type,0)==1) to word_overflow }
+    state byte_overflow { to trap when (value>255) to add_range }
+    state word_overflow { to trap when (value>4294967295) to add_range }
+    state add_range { to trap when (value<src_ck_type(result_type,4)) to trap when (value>src_ck_type(result_type,5)) word[value_base+result*8]=value to op_next }
+    state less { a=src_lower_operand(start) b=src_lower_operand(start+1) word[value_base+result*8]=0 to less_true when (word[value_base+a*8]<word[value_base+b*8]) to op_next }
+    state less_true { word[value_base+result*8]=1 to op_next }
+    state less_equal { a=src_lower_operand(start) b=src_lower_operand(start+1) word[value_base+result*8]=0 to less_equal_true when (word[value_base+a*8]<=word[value_base+b*8]) to op_next }
+    state less_equal_true { word[value_base+result*8]=1 to op_next }
+    state call { callee=src_lower_op(op,8) a=src_lower_operand(start) count=src_lower_op(op,7)-1 i=0 to call_args }
+    state call_args { to call_arg when (i<count) to call_run }
+    state call_arg { parameter=src_machine(callee,5)+i value=word[value_base+src_lower_operand(start+1+i)*8] word[33000000+(depth+1)*294912+parameter*8]=value i=i+1 to call_args }
+    state call_run { value=v4s_eval_machine(callee,depth+1) to call_failed when (value!=0) to call_unit when (src_machine(callee,7)==4294967295) value=word[43100000+(depth+1)*8] word[value_base+result*8]=value to op_next }
+    state call_failed { to exhausted when (value==252) to trap }
+    state call_unit { to op_next }
+    state op_next { op=op+1 to operations }
+    state terminator { word[43101000+depth*8]=block opcode=src_lower_term(block,0) to jump when (opcode==1) to branch when (opcode==2) to return_unit when (opcode==3) to return_value }
+    state jump { target=src_lower_term(block,2) count=src_lower_term(block,3) to edge0 }
+    state branch { value=word[value_base+src_lower_term(block,1)*8] to branch_true when (value!=0) target=src_lower_term(block,4) count=src_lower_term(block,5) to edge1 }
+    state branch_true { target=src_lower_term(block,2) count=src_lower_term(block,3) to edge0 }
+    state edge0 { to failed when (v4s_edge(depth,target,6,count)!=0) block=target to block_begin }
+    state edge1 { to failed when (v4s_edge(depth,target,13,count)!=0) block=target to block_begin }
+    state return_value { to return_unit when (src_machine(machine,7)==4294967295) value=word[value_base+src_lower_term(block,1)*8] word[43100000+depth*8]=value return 0 }
+    state return_unit { word[43100000+depth*8]=4294967295 return 0 }
+    state failed { return word[10000000] }
+    state exhausted { return src_exhaust() }
+    state trap { return src_reject() }
+}
+
+proc v4s_source_result_check() {
+    let root=word[10000232] let clear=0 let owner_size=0 let value=0
+    state library { to entry when (root!=4294967295) return 0 }
+    state entry { owner_size=src_record(src_machine(root,2),5) to exhausted when (owner_size>131072) to clear_owner }
+    state clear_owner { to clear_one when (clear<owner_size) word[43400000]=0 to run }
+    state clear_one { byte[32000000+clear]=0 clear=clear+1 to clear_owner }
+    state run { to done when (v4s_eval_machine(root,0)!=0) value=word[43100000] to bad when (value!=word[524360]) return 0 }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+    state done { return word[530800] }
+}
+
+proc main() {
+    let status=omgrfn4_component_read()
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[27900000]=0 word[27900008]=0 to lowering }
+    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) to result }
+    state result { status=v4s_source_result_check() to done }
+    state done { return status }
+}
