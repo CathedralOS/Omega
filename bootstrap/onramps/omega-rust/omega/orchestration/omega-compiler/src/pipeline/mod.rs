@@ -55,12 +55,13 @@ pub use artifacts::{
 };
 pub use build_config::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
-    BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
-    BuildFilesystemOperationAttempt, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemByteOperand, BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal,
+    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleIdentity,
+    BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
+    BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutput,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationAttempt,
+    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperand,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{

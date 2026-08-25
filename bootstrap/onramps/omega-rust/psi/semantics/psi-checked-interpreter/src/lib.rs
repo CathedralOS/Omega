@@ -152,9 +152,9 @@ pub struct EvaluationUsage {
 /// This records call-start order, exact provider, every successfully authorized
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
 /// and a typed returned or evaluator-halted outcome. It is not the canonical
-/// replay transcript: complete scalar/byte operands, mutable output regions,
-/// and retained content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 6;
+/// replay transcript: path-like byte operands beyond rooted grant evidence,
+/// mutable output regions, and complete returned content are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -242,6 +242,52 @@ pub struct FilesystemAuthorizedPath {
     access: FilesystemGrantAccess,
     root: FilesystemGrantRootIdentity,
     relative_path: Vec<u8>,
+}
+
+/// Canonical non-handle scalar value consumed by one filesystem operation.
+/// Width and signedness remain explicit so ABI-distinct operands never compare
+/// equal merely because the interpreter carries both in an `i64`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemScalarOperandValue {
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemScalarOperand {
+    operand_ordinal: u8,
+    value: FilesystemScalarOperandValue,
+}
+
+impl FilesystemScalarOperand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> FilesystemScalarOperandValue {
+        self.value
+    }
+}
+
+/// Immutable non-path payload bytes consumed by one operation. Rooted paths
+/// and path-like byte aliases stay in path evidence so compiler/cache absolute
+/// spellings cannot leak through this row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemByteOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl FilesystemByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
 }
 
 impl FilesystemAuthorizedPath {
@@ -390,13 +436,15 @@ impl FilesystemGrantRefusal {
 /// The operation tag is an append-only compiler-owned identity. No package
 /// string enters this row. Runtime descriptor numbers may still appear in
 /// `result`, but descriptor/handle use is separately normalized into logical
-/// lifetimes. Complete scalar operands and content custody are still absent, so
-/// this remains below receipt strength.
+/// lifetimes. Mutable regions and complete path/content custody are still
+/// absent, so this remains below receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
     provider: FilesystemObservationProvider,
     outcome: Option<FilesystemOperationAttemptOutcome>,
+    scalar_operands: Vec<FilesystemScalarOperand>,
+    byte_operands: Vec<FilesystemByteOperand>,
     authorized_paths: Vec<FilesystemAuthorizedPath>,
     logical_handle_inputs: Vec<FilesystemLogicalHandleInput>,
     logical_handle_output: Option<FilesystemLogicalHandleOutput>,
@@ -410,6 +458,8 @@ impl FilesystemOperationAttempt {
             operation_tag,
             provider,
             outcome: None,
+            scalar_operands: Vec::new(),
+            byte_operands: Vec::new(),
             authorized_paths: Vec::new(),
             logical_handle_inputs: Vec::new(),
             logical_handle_output: None,
@@ -444,6 +494,14 @@ impl FilesystemOperationAttempt {
             }
             _ => None,
         }
+    }
+
+    pub fn scalar_operands(&self) -> &[FilesystemScalarOperand] {
+        &self.scalar_operands
+    }
+
+    pub fn byte_operands(&self) -> &[FilesystemByteOperand] {
+        &self.byte_operands
     }
 
     pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {

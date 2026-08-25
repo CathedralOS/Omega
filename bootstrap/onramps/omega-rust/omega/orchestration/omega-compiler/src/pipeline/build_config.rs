@@ -192,7 +192,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 5;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 6;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -289,6 +289,65 @@ impl BuildFilesystemAuthorizedPath {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemScalarOperandValue {
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemScalarOperand {
+    operand_ordinal: u8,
+    value: BuildFilesystemScalarOperandValue,
+}
+
+impl BuildFilesystemScalarOperand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn value(self) -> BuildFilesystemScalarOperandValue {
+        self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemByteOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+const fn project_scalar_operand_value(
+    value: psi_checked_interpreter::FilesystemScalarOperandValue,
+) -> BuildFilesystemScalarOperandValue {
+    match value {
+        psi_checked_interpreter::FilesystemScalarOperandValue::I32(value) => {
+            BuildFilesystemScalarOperandValue::I32(value)
+        }
+        psi_checked_interpreter::FilesystemScalarOperandValue::U32(value) => {
+            BuildFilesystemScalarOperandValue::U32(value)
+        }
+        psi_checked_interpreter::FilesystemScalarOperandValue::I64(value) => {
+            BuildFilesystemScalarOperandValue::I64(value)
+        }
+        psi_checked_interpreter::FilesystemScalarOperandValue::U64(value) => {
+            BuildFilesystemScalarOperandValue::U64(value)
+        }
     }
 }
 
@@ -441,6 +500,8 @@ pub struct BuildFilesystemOperationAttempt {
     provider: BuildFilesystemProvider,
     result: i64,
     post_error: i32,
+    scalar_operands: Vec<BuildFilesystemScalarOperand>,
+    byte_operands: Vec<BuildFilesystemByteOperand>,
     authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
     logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
     logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
@@ -463,6 +524,14 @@ impl BuildFilesystemOperationAttempt {
 
     pub const fn post_error(&self) -> i32 {
         self.post_error
+    }
+
+    pub fn scalar_operands(&self) -> &[BuildFilesystemScalarOperand] {
+        &self.scalar_operands
+    }
+
+    pub fn byte_operands(&self) -> &[BuildFilesystemByteOperand] {
+        &self.byte_operands
     }
 
     pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
@@ -1518,6 +1587,22 @@ pub(crate) fn compute_build_config(
                     resolution: project_logical_handle_input_resolution(input.resolution()),
                 })
                 .collect();
+            let scalar_operands = attempt
+                .scalar_operands()
+                .iter()
+                .map(|operand| BuildFilesystemScalarOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    value: project_scalar_operand_value(operand.value()),
+                })
+                .collect();
+            let byte_operands = attempt
+                .byte_operands()
+                .iter()
+                .map(|operand| BuildFilesystemByteOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
             let logical_handle_output = attempt.logical_handle_output().map(|output| {
                 BuildFilesystemLogicalHandleOutput {
                     kind: project_logical_handle_kind(output.kind()),
@@ -1550,6 +1635,8 @@ pub(crate) fn compute_build_config(
                 post_error: attempt
                     .post_error()
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
+                scalar_operands,
+                byte_operands,
                 authorized_paths,
                 logical_handle_inputs,
                 logical_handle_output,

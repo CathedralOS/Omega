@@ -428,8 +428,8 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v5
-carries operation-attempt schema v6, retaining each completed operation's exact
+stay separate from capability/API comparison bytes. Observation schema v6
+carries operation-attempt schema v7, retaining each completed operation's exact
 provider, stable tag, scalar result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -450,12 +450,18 @@ real descriptors retain rooted write authority through duplicate and borrowed
 views, denying content, extent, metadata, ownership, and host-lock mutation
 before sponsor or host access when admitted only for source reads;
 `open_at`/`unlink_at` names are one portable relative component; real path
-outputs are lossless or reject. It still omits complete scalar/byte arguments,
-mutable byte regions, retained returned-path bytes, and content, so it remains an
-incomplete trace and makes no receipt, replayability, or source-rebuildability
-claim. Canonical operation transcripts,
-recorded inputs, staged-output commitments, and replay checking remain required
-before any `Receipted` verdict.
+outputs are lossless or reject. Fully prepared calls whose evidence reservation
+succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars, exact
+authored immutable write/FILETIME payloads, and validated at-family component
+bytes. Rooted/path-alias spellings stay out of the payload lane. A separate 256
+MiB aggregate immutable-evidence sponsor reserves before that call's provider
+access; prior or nested staging effects remain cleanup-contained. Package
+commitments hash these bytes without rendering them. Path-like bytes not
+represented by rooted evidence, mutable regions, retained returned-path bytes,
+preparation-failure operand prefixes, and complete content remain absent, so
+this makes no receipt, replayability, or source-rebuildability claim. Canonical
+operation transcripts, recorded inputs, staged-output commitments, and replay
+checking remain required before any `Receipted` verdict.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
