@@ -26,7 +26,9 @@ scalar `<=` behavior.
 sizes are unrelated to Unicode, record-literal fields appear in an order other
 than declaration order, arrays nest through two record layers, and a completed
 copy aggregate is copied before the source is mutated. The copied nested value
-must remain 70.
+must remain 70. Its result is deliberately `u32`, matching the copied field's
+exact type: CKIR3 adds neither numeric conversion nor aggregate-flow narrowing,
+and this fixture does not make either unrelated capability part of the tranche.
 
 `guardless-transition.omg` isolates the ordinary one-wildcard-arm source form.
 It lowers to the inherited CKIR `Jump` with no synthetic Boolean value or

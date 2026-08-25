@@ -377,7 +377,7 @@ checked IR, and the artifact. This is general multi-unit custody needed by the
 current product checkpoint, not a new Delta feature inventory or an `Ωself`
 decision.
 
-The next selected checkpoint-000001 semantic/artifact tranche is recursively
+The current selected checkpoint-000001 semantic/artifact tranche is recursively
 constant scalar, record, and fixed-array construction from the exact standalone
 `compiler/psi/generated/unicode_tables.omg` unit, together with scalar `<=`,
 guardless transitions, cyclic state-parameter interval custody, and a
@@ -390,8 +390,13 @@ successor to the frozen CKIR2 handoff must let the backend derive layout and
 materialize private read-only data without exploding the source into thousands
 of place/store operations or accepting producer-selected layout bytes. This
 slice directly prices generated ordinary-Omega data and the measured Stage-08
-expansion hotspot; it does not decide the final disposition of records, arrays,
-generated source, or any later checkpoint feature.
+expansion hotspot. Its focused Delta-written producer and backend now pass
+native/Delta-self-built byte-identity gates independently: the producer lowers
+the exact Unicode unit plus general controls to CKIR3, and the backend validates
+that private graph and derives the read-only image and ELF. Their composition,
+Rust-free meaning, and lower-rooted reconstruction remain open. This progress
+does not decide the final disposition of records, arrays, generated source, or
+any later checkpoint feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

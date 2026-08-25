@@ -168,6 +168,19 @@ language, generation, or architectural role; new documentation and work use
   responsibilities and isolates witness, CKIR, and ELF ownership with local
   mutations. The complete versioned-call slice is now part of the canonical
   lattice; it remains bounded evidence rather than final `Ωself` admission.
+- [`compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md)
+  adds a typed canonical constant DAG, aggregate copy, scalar `<=`, canonical
+  guardless jumps, and state-edge interval custody for the selected generated-
+  data tranche. The focused
+  [`gates/delta-resolved-to-ckir3.sh`](gates/delta-resolved-to-ckir3.sh)
+  closes native/Delta-self-built producer identity over the exact Unicode unit,
+  renamed and cyclic positives, semantic negatives, and literal-resource
+  boundaries. The independent
+  [`gates/delta-checked-ir-v3-backend.sh`](gates/delta-checked-ir-v3-backend.sh)
+  validates the constant graph, derives layout and a private read-only image,
+  and emits native/self-identical two- or three-segment ELF bytes. These are
+  separate focused seams: producer-to-backend execution/composition, Rust-free
+  meaning, and lower-rooted CKIR3 refinement remain open.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact
