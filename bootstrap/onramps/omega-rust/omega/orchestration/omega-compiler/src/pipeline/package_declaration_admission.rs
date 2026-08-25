@@ -78,94 +78,33 @@ pub(super) fn validate_authored_declaration_selections(
             continue;
         }
 
-        if program.symbols.get(selected).kind == SymbolKind::Proposition {
-            let Some(declaration) = program
-                .propositions()
-                .iter()
-                .find(|declaration| declaration.symbol == selected)
+        let selected_kind = program.symbols.get(selected).kind;
+        if psi_typed_trees::visibility::requires_declaration_visibility(selected_kind) {
+            let Some(visibility) =
+                psi_typed_trees::visibility::declaration_visibility(program, selected)
             else {
                 diagnostics.push(
                     Diagnostic::error(format!(
-                        "selected proposition `{}` has no retained declaration visibility",
+                        "selected {:?} `{}` has no retained declaration visibility",
+                        selected_kind,
                         program.symbols.display_path(selected, "::")
                     ))
                     .with_source_span(source_span),
                 );
                 continue;
             };
-            if !declaration.is_public {
-                let owner = program.symbols.symbol_package_identity(selected);
-                if owner != Some(requester) {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "package {} selects private proposition `{}`",
-                            packages.package_label(requester),
-                            program.symbols.display_path(selected, "::"),
-                        ))
-                        .with_source_span(source_span),
-                    );
-                    continue;
-                }
-            }
-        }
-
-        if program.symbols.get(selected).kind == SymbolKind::Const {
-            let Some(declaration) = program
-                .const_declarations()
-                .iter()
-                .find(|declaration| declaration.symbol == selected)
-            else {
+            let owner = program.symbols.symbol_package_identity(selected);
+            if !visibility.is_public() && owner != Some(requester) {
                 diagnostics.push(
                     Diagnostic::error(format!(
-                        "selected const `{}` has no retained declaration visibility",
-                        program.symbols.display_path(selected, "::")
+                        "package {} selects private {} `{}`",
+                        packages.package_label(requester),
+                        visibility.kind(),
+                        program.symbols.display_path(selected, "::"),
                     ))
                     .with_source_span(source_span),
                 );
                 continue;
-            };
-            if !declaration.is_public {
-                let owner = program.symbols.symbol_package_identity(selected);
-                if owner != Some(requester) {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "package {} selects private const `{}`",
-                            packages.package_label(requester),
-                            program.symbols.display_path(selected, "::"),
-                        ))
-                        .with_source_span(source_span),
-                    );
-                    continue;
-                }
-            }
-        }
-
-        if program.symbols.get(selected).kind == SymbolKind::Operator {
-            let Some(declaration) =
-                psi_typed_trees::operator::declaration_by_symbol(program, selected)
-            else {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "selected operator `{}` has no retained declaration visibility",
-                        program.symbols.display_path(selected, "::")
-                    ))
-                    .with_source_span(source_span),
-                );
-                continue;
-            };
-            if !declaration.is_public {
-                let owner = program.symbols.symbol_package_identity(selected);
-                if owner != Some(requester) {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "package {} selects private operator `{}`",
-                            packages.package_label(requester),
-                            program.symbols.display_path(selected, "::"),
-                        ))
-                        .with_source_span(source_span),
-                    );
-                    continue;
-                }
             }
         }
 

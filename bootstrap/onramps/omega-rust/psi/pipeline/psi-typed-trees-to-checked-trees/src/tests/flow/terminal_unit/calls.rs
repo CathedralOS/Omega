@@ -294,7 +294,7 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     let checked = checked(
         r#"
-        data Acknowledgement [linear] {
+        pub data Acknowledgement [linear] {
             root: u64;
             provider_execution: u64;
             invocation: u64;
@@ -302,7 +302,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
             acknowledgement: u64;
         }
 
-        domain Acknowledgement::Pending;
+        pub domain Acknowledgement::Pending;
 
         boundary machine Acknowledgement::settle(self)
         reaches PortIo
@@ -508,10 +508,10 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
 fn retains_numbered_record_field_custody_for_unit_call_closure() {
     let checked = checked(
         r#"
-        data Token [linear] { value: u64; }
-        data Envelope { #7 token: Token; }
+        pub data Token [linear] { value: u64; }
+        pub data Envelope { #7 token: Token; }
 
-        domain Envelope::Pending;
+        pub domain Envelope::Pending;
 
         boundary machine Envelope::settle(self)
         reaches PortIo
@@ -618,10 +618,10 @@ fn retains_completion_receipt_for_result_bearing_boundary_call() {
 fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
     let checked = checked(
         r#"
-        data Token [linear] { value: u64; }
-        data Envelope { #7 left: Token; #9 right: Token; }
+        pub data Token [linear] { value: u64; }
+        pub data Envelope { #7 left: Token; #9 right: Token; }
 
-        domain Envelope::Pending;
+        pub domain Envelope::Pending;
 
         boundary machine Envelope::settle(self)
         reaches PortIo
@@ -700,11 +700,11 @@ fn retains_disjoint_sibling_custody_inside_one_affine_aggregate() {
 fn retains_nested_record_field_custody_for_unit_call_closure() {
     let checked = checked(
         r#"
-        data Token [linear] { value: u64; }
-        data Pocket { #9 token: Token; }
-        data Envelope { #7 pocket: Pocket; }
+        pub data Token [linear] { value: u64; }
+        pub data Pocket { #9 token: Token; }
+        pub data Envelope { #7 pocket: Pocket; }
 
-        domain Envelope::Pending;
+        pub domain Envelope::Pending;
 
         boundary machine Envelope::settle(self)
         reaches PortIo

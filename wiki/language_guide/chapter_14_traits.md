@@ -160,8 +160,9 @@ PowerOrder:
 The normalized row key is always `(declaring trait, complete requirement
 overload identity)`, including inherited requirements whose short names collide
 and same-named overloads whose result-domain selections differ. Private
-satisfier machines may back a public conformance: callers name the authorized
-conformance surface, not its private realization. Two semantic rows remain
+satisfier machines may back an externally selected conformance: callers name
+the authorized conformance surface, not its private realization. Two semantic
+rows remain
 distinct even when a later lowering safely shares their physical code.
 
 A requirement path used without a call signature must resolve to exactly one
@@ -1214,11 +1215,12 @@ available; the resolved lifetime is retained in semantic identity and an
 ambiguous lifetime rejects. A bare name denotes a conformance argument only
 when it is already closed, including a forwarded evidence binder.
 
-The conformance telescope is public semantic identity. Adding, removing, or
-reordering a type, `const`, or static-machine binder breaks every concrete
-application. A lifetime-telescope change likewise changes semantic identity
-and may turn a formerly valid elision ambiguous; compatibility reporting must
-surface both consequences at the declaration.
+The conformance telescope is semantic identity for every concrete application.
+Adding, removing, or reordering a type, `const`, or static-machine binder breaks
+every such application. A lifetime-telescope change likewise changes semantic
+identity and may turn a formerly valid elision ambiguous; if the conformance is
+published under the eventual package-visibility rule, compatibility reporting
+must surface both consequences at the declaration.
 
 Those arguments specialize authored default signatures and bodies. They also
 compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
@@ -1240,10 +1242,11 @@ through the same block's normalized map.
 
 Foreign-type conformance (`LocalName: ForeignType satisfies MyTrait { ... }`
 declared in your package) owns a closed member set and cannot extend another
-package's conformance. Two third parties may publish differently named
+package's conformance. Two third parties may declare differently named
 conformances over the same foreign type and trait without an orphan exception
-or global overlap conflict because every use passes one exact name. Ordinary
-visibility and package-name collisions still reject normally.
+or global overlap conflict because every use passes one exact name. The exact
+cross-package publication spelling remains unsettled; this coherence property
+does not depend on making every named conformance public.
 
 The item remains identifier-led and `satisfies` stays a contextual keyword.
 

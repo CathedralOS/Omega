@@ -353,66 +353,66 @@ fn validate_package_source_frontier(
 /// authored `data Package` before compilation.
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
-data Subsystem {
+pub data Subsystem {
     case Console;
     case Gui;
     case EfiApplication;
     case Unspecified(value: u16);
 }
-data Build {
+pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
 }
-data Source {
+pub data Source {
     case Path(location: &[u8]);
     case Git(repository: &[u8], revision: &[u8]);
 }
-machine Build::depend(&mut self, source: Source) {
+pub machine Build::depend(&mut self, source: Source) {
 }
-machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 "#;
 
 const FILESYSTEM_BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
-data Subsystem {
+pub data Subsystem {
     case Console;
     case Gui;
     case EfiApplication;
     case Unspecified(value: u16);
 }
-data BuildSource {
+pub data BuildSource {
 }
-data BuildOutput {
+pub data BuildOutput {
 }
-data Build {
+pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
     source: BuildSource;
     output: BuildOutput;
     filesystem: FilesystemHost;
 }
-data Source {
+pub data Source {
     case Path(location: &[u8]);
     case Git(repository: &[u8], revision: &[u8]);
 }
-machine Build::depend(&mut self, source: Source) {
+pub machine Build::depend(&mut self, source: Source) {
 }
-machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
-machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
+pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
 }
-machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
+pub machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
 }
-machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
+pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
 }
 "#;
 
 const PACKAGE_PRELUDE: &str = r#"
 // Toolchain-provided package declaration vocabulary.
-data Package {
+pub data Package {
     name: &[u8];
 }
 "#;

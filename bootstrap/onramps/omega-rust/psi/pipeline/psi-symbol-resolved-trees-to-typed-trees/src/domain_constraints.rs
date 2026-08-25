@@ -86,6 +86,22 @@ fn normalize_constraint_span(
             continue;
         };
 
+        if let Some(authored) = domain_constraint.authored_selection {
+            program
+                .record_resolved_authored_declaration_selection_once(
+                    authored.source_span,
+                    authored.exposure,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainMembership,
+                    domain.symbol,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to retain authored domain-constraint selection: {error:?}"
+                    ))
+                    .with_source_span(authored.source_span)
+                })?;
+        }
+
         let index_parameters = program.domain_type_parameters(domain);
         let index_parameters = if index_parameters.is_empty() {
             &[][..]
@@ -130,6 +146,7 @@ fn normalize_constraint_span(
                 predicate_body: domain.predicate_body,
                 semantic_roles,
                 establishment_routes: domain.establishment_routes.clone(),
+                authored_selection: None,
             }));
             continue;
         }
@@ -188,6 +205,7 @@ fn normalize_constraint_span(
                 establishment_routes: declaration
                     .map(|domain| domain.establishment_routes.clone())
                     .unwrap_or_default(),
+                authored_selection: None,
             }));
         }
     }

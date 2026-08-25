@@ -1531,19 +1531,17 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &hidden.0.join("main.omg"),
         Some(target),
         package_inputs(&hidden.0),
     )
-    .expect("private-domain contract fixture should check before package review");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("a public callable must not expose a private domain");
+    .expect_err("ordinary visibility must reject a private domain in a public contract");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("exposes non-public domain `u64::Hidden`")
+                .contains("public interface selects private domain `u64::Hidden`")
         }),
         "unexpected diagnostics: {diagnostics:#?}"
     );
@@ -2178,9 +2176,9 @@ fn review_projects_exact_concrete_machine_arguments_in_contract_calls() {
     let changed = TempPackage::new();
     let source = |selected: &str| {
         format!(
-            r#"machine chosen(value: u64) -> u64 {{ value }}
-machine alternate(value: u64) -> u64 {{ value }}
-machine apply<machine Selected>(value: u64) -> u64
+            r#"pub machine chosen(value: u64) -> u64 {{ value }}
+pub machine alternate(value: u64) -> u64 {{ value }}
+pub machine apply<machine Selected>(value: u64) -> u64
 where machine Selected(value: u64) -> u64
 {{
     Selected(value)
@@ -2264,7 +2262,7 @@ fn review_projects_contract_machine_binders_by_canonical_static_ordinal() {
         package.write(
             "main.omg",
             &format!(
-                r#"machine apply<machine Selected>(value: u64) -> u64
+                r#"pub machine apply<machine Selected>(value: u64) -> u64
 where machine Selected(value: u64) -> u64
 {{
     Selected(value)
@@ -2389,7 +2387,7 @@ fn review_projects_exact_concrete_type_arguments_in_contract_calls() {
     let changed = TempPackage::new();
     let source = |selected_type: &str| {
         format!(
-            r#"machine tag<Value>() -> u64 {{ 0 }}
+            r#"pub machine tag<Value>() -> u64 {{ 0 }}
 boundary machine trusted_zero() -> u64
 ensures result == tag<{selected_type}>();
 "#,
@@ -2462,7 +2460,7 @@ fn review_projects_canonical_integer_const_arguments_in_contract_calls() {
     let changed = TempPackage::new();
     let source = |selected_value: &str| {
         format!(
-            r#"machine constant<const Value: u64>() -> u64 {{ 7 }}
+            r#"pub machine constant<const Value: u64>() -> u64 {{ 7 }}
 boundary machine trusted_constant() -> u64
 ensures result == constant<{selected_value}>();
 "#,
@@ -2544,8 +2542,8 @@ fn review_alpha_normalizes_forwarded_type_and_const_binders() {
                   selected_type: &str,
                   selected_const: &str| {
         format!(
-            r#"machine tag<Value>() -> u64 {{ 0 }}
-machine constant<const Value: u64>() -> u64 {{ 0 }}
+            r#"pub machine tag<Value>() -> u64 {{ 0 }}
+pub machine constant<const Value: u64>() -> u64 {{ 0 }}
 pub machine generic_type<{first}, {second}>() -> u64
 requires tag<{selected_type}>() == tag<{selected_type}>()
 {{
@@ -2663,8 +2661,8 @@ fn review_projects_recursive_generic_data_arguments_in_contract_calls() {
     let changed = TempPackage::new();
     let source = |nested_type: &str| {
         format!(
-            r#"data Wrapper<Value> {{ value: Value; }}
-machine tag<Value>() -> u64 {{ 0 }}
+            r#"pub data Wrapper<Value> {{ value: Value; }}
+pub machine tag<Value>() -> u64 {{ 0 }}
 boundary machine trusted_tag() -> u64
 ensures result == tag<Wrapper<{nested_type}>>();
 "#,
@@ -2750,8 +2748,8 @@ fn review_alpha_normalizes_lifetime_bearing_nested_type_arguments() {
     let changed = TempPackage::new();
     let source = |view_lifetime: &str, left: &str, right: &str, selected: &str| {
         format!(
-            r#"data View<'{view_lifetime}, Value> {{ value: &'{view_lifetime} Value; }}
-machine tag<Value>() -> u64 {{ 0 }}
+            r#"pub data View<'{view_lifetime}, Value> {{ value: &'{view_lifetime} Value; }}
+pub machine tag<Value>() -> u64 {{ 0 }}
 pub machine generic_tag<'{left}, '{right}>(
     first: &'{left} u64,
     second: &'{right} u64
@@ -4486,14 +4484,14 @@ fn public_machine_cannot_hide_realized_reach_invocation_or_operational_effects()
     let cases = [
         (
             "invocation",
-            r#"boundary trait Handler { machine handle(); }
+            r#"pub boundary trait Handler { machine handle(); }
 pub machine public_api(handler: &mut Handler) { handler.handle(); }
 "#,
             &["omits `invokes handler;`"][..],
         ),
         (
             "operational",
-            r#"boundary trait Waiting { machine wait() reaches Waiting suspends; blocks; }
+            r#"pub boundary trait Waiting { machine wait() reaches Waiting suspends; blocks; }
 pub machine public_api(waiting: &mut Waiting)
 reaches Waiting
 invokes waiting;
@@ -4537,8 +4535,8 @@ fn exact_synchronous_invocations_change_comparison_encoding() {
     let invoking = TempPackage::new();
     quiet.write(
         "main.omg",
-        r#"boundary trait Handler { machine handle(); }
-boundary trait Host { machine ping() reaches Host; }
+        r#"pub boundary trait Handler { machine handle(); }
+pub boundary trait Host { machine ping() reaches Host; }
 pub machine dispatch(handler: &mut Handler)
 reaches Host
 invokes handler;
@@ -4548,8 +4546,8 @@ invokes Host;
     );
     invoking.write(
         "main.omg",
-        r#"boundary trait Handler { machine handle(); }
-boundary trait Host { machine ping() reaches Host; }
+        r#"pub boundary trait Handler { machine handle(); }
+pub boundary trait Host { machine ping() reaches Host; }
 pub machine dispatch(handler: &mut Handler)
 invokes handler;
 invokes Host;
@@ -5714,18 +5712,19 @@ pub domain Packet::Ready
         "build.omg",
         "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
     );
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &private.0.join("main.omg"),
         Some("windows_x64"),
         package_inputs(&private.0),
     )
-    .expect("private predicate target fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("public predicate must not expose a package-private domain");
+    .expect_err("ordinary visibility must reject a private domain in a public predicate");
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| { diagnostic.message.contains("exposes non-public domain") })
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private domain `Packet::Base`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
     );
 }
 
@@ -6010,19 +6009,20 @@ machine build(builder: &mut Build) { }
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
         Some("windows_x64"),
         package_inputs(&package.0),
     )
-    .expect("private progress profile fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("review must reject a private profile in a public trait contract");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("exposes non-public progress profile")
-    }));
+    .expect_err("ordinary visibility must reject a private profile in a public trait contract");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private domain `SchedulerHandle::WeakFair`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]
@@ -6460,7 +6460,7 @@ fn public_trait_contract_calls_use_the_same_checked_projection() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"machine computed_zero() -> u64 { 0 }
+        r#"pub machine computed_zero() -> u64 { 0 }
 pub trait Worker {
     machine wait() -> u64
     ensures result == computed_zero();

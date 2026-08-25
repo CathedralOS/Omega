@@ -6,24 +6,17 @@
 // unconditional `enable` operation. An acknowledgement is minted by an inbound
 // interrupt provider and must be completed exactly once.
 //
-// Both obligations are ordinary linear data. Their fields carry the runtime
-// identities needed by the selected provider. Active guards use an exact
-// routed result; acknowledgement entry occurrence evidence is bound at runtime.
-// Pending names one stable core-owned entry requirement through `established
-// by`; installation makes its matching parameter inbound.
-// Reconstructing the same fields therefore does not recreate either runtime
-// obligation.
+// Both obligations are public opaque linear data. Their runtime identities are
+// owned by the selected provider and are not source-level representation.
+// Active guards use an exact routed result; acknowledgement entry occurrence
+// evidence is bound at runtime. Pending names one stable core-owned entry
+// requirement through `established by`; installation makes its matching
+// parameter inbound. No package can reconstruct either obligation from fields.
 
 use omega::language::core::assembly;
 
-data InterruptMaskGuard [linear] {
-    root: u64;
-    invocation: u64;
-    control: u64;
-    guard: u64;
-    prior_state: u64;
-    masked_state: u64;
-}
+pub boundary data InterruptMaskGuard [linear];
+pub boundary data InterruptAcknowledgement [linear];
 
 pub domain InterruptMaskGuard::Active
 established by InterruptMaskControl::save_and_mask;
@@ -35,20 +28,6 @@ pub boundary trait InterruptMaskControl {
     reaches MachineControl
     ensures
         result in InterruptMaskGuard::Active;
-}
-
-boundary machine InterruptMaskGuard::restore(self)
-reaches MachineControl
-requires
-    self in InterruptMaskGuard::Active
-ensures true;
-
-data InterruptAcknowledgement [linear] {
-    root: u64;
-    provider_execution: u64;
-    invocation: u64;
-    policy: u64;
-    acknowledgement: u64;
 }
 
 // One stable semantic requirement owns inbound acknowledgement establishment.
@@ -65,6 +44,12 @@ pub boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches <= MachineControl + PortIo;
 }
+
+boundary machine InterruptMaskGuard::restore(self)
+reaches MachineControl
+requires
+    self in InterruptMaskGuard::Active
+ensures true;
 
 boundary machine InterruptAcknowledgement::complete(self)
 reaches PortIo

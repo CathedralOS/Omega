@@ -137,11 +137,12 @@ reaches machine_control
 The public contract above does not make `cli` safe by hiding it. The selected
 provider's checked implementation still uses `pushfq`/`cli`; those instruction
 contracts require the appropriate authority, contribute the normalized
-interrupt-control reach, and record flag/state changes. The live ordinary
-`InterruptMaskGuard` carrier exposes only compact settlement identities. Its
-routed `Active` qualification records valid issuance and forces the caller to
-consume `restore`; reconstructing the same runtime fields, copying the linear
-value, or directly restoring the saved state is not a valid protocol.
+interrupt-control reach, and record flag/state changes. The public
+`InterruptMaskGuard` carrier is opaque boundary data; compact settlement
+identities remain provider-owned representation. Its routed `Active`
+qualification records valid issuance and forces the caller to consume
+`restore`; package code cannot inspect or reconstruct fields, copy the linear
+value, or directly restore the saved state.
 
 ## No quiet spelling
 

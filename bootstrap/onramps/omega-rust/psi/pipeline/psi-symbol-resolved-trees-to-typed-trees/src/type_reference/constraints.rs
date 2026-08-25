@@ -45,6 +45,12 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
                     name,
                     arguments,
+                    authored_selection: domain.name.is_source_backed().then_some(
+                        typed::types::AuthoredDomainConstraintSelection {
+                            source_span: domain.name.source_span(),
+                            exposure,
+                        },
+                    ),
                     ..Default::default()
                 })
             }
@@ -210,6 +216,12 @@ fn lower_type_constraint_node_with_context(
                     subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
                     name,
                     arguments,
+                    authored_selection: domain.name.is_source_backed().then_some(
+                        typed::types::AuthoredDomainConstraintSelection {
+                            source_span: domain.name.source_span(),
+                            exposure,
+                        },
+                    ),
                     ..Default::default()
                 },
             ))

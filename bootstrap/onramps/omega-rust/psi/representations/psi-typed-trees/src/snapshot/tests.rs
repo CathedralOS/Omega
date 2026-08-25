@@ -136,6 +136,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
                     requirement,
                 },
             ],
+            authored_selection: None,
         }),
     );
 

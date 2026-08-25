@@ -114,6 +114,7 @@ mod tests {
                     predicate_body: DomainPredicateBody::Present,
                     semantic_roles: DomainSemanticRoles::default(),
                     establishment_routes: Vec::new(),
+                    authored_selection: None,
                 })]);
         let predicate_result =
             program

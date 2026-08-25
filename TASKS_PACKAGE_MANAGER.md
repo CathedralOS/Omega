@@ -764,10 +764,42 @@ complete.
   closed instead of producing partial rows; those are compiler coverage work,
   not an open package-manager design choice.
 
+  Milestone 2026-08-25: the visibility canary audit removed one stale premise:
+  `pub measure` deliberately parse-rejects because a declared measure belongs
+  to the private `terminates by` ranking witness, while `terminates` alone is
+  the published guarantee. A package-aware canary now proves a public recursive
+  machine may cite its same-package private declared measure. The public-source
+  survey also found two interrupt obligation carriers exposed by public traits
+  while still private. Both now use Omega's existing coherent opaque surface,
+  `pub boundary data ... [linear];`; provider settlement identity is no longer
+  published as structural fields. The language guide and hardware/privilege
+  briefs describe the same opaque representation boundary.
+
+  Remaining owner decision: named conformances are top-level selected
+  declarations but currently have no retainable visibility; direct dependency
+  admission therefore makes them accidentally public. `OWNER_QUESTIONS.md` Q2
+  isolates whether they receive ordinary `pub` (recommended) or are explicitly
+  public by definition. Do not close this task or encode a conformance review
+  row until that language rule is settled.
+
+  Milestone 2026-08-25: one shared typed-tree visibility resolver now gates all
+  settled independently nameable declaration families in both public
+  interfaces and cross-package authored selections. Genuine fields, variants,
+  and states inherit their exact owner; carrier-qualified domains and operators
+  retain independent visibility. Package canaries cover private/public data,
+  domain, machine, and trait selection plus carrier mismatch. Qualified domain
+  constraints now preserve their source span until carrier-aware normalization
+  binds the exact domain and records it in the authored-selection ledger, so a
+  private domain cannot cross a package boundary through a type annotation.
+  Toolchain build vocabulary and the core layout/optional/filesystem/console
+  surfaces now mark the APIs they actually publish; implementation helpers
+  remain private. Named conformance remains the sole declaration-visibility
+  family withheld behind Q2.
+
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
   a public contract selecting a private proposition/const/operator, a public
-  machine with a private ranking witness, direct citation of a public measure,
+  machine with a private ranking witness, parser rejection of `pub measure`,
   and a public bodyless proposition that grants no fact by declaration alone.
   Survey every private nominal reachable from an existing public signature:
   publish it only when structural construction is intended, and stop for a

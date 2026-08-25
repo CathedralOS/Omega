@@ -310,18 +310,18 @@ exact descriptor.
 
 ## Visibility
 
-Declarations are private by default unless marked `pub`. Every independently
-nameable source declaration supports the same rule, including `data`, `domain`,
-`trait`, `machine`, wire schemas, `operator`, `proposition`, `measure`, and
-`const` declarations.
+Declarations are private by default unless marked `pub`. Independently
+nameable data, domains, traits, machines, wire schemas, operators,
+propositions, and constants support that rule. A declared ranking measure is
+private proof machinery for `terminates by`; the parser rejects `pub measure`.
+Named-conformance publication remains a separate unsettled language question,
+not an implicit exception granted by qualification or direct dependency.
 
 Qualification does not imply visibility inheritance. A declaration such as
-`Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant or
-measure is a standalone declaration with its own visibility, even though its
-path names a carrier. This is the same reason a third-party named conformance
-does not become part of its subject type. Only a genuine nested member with one
-exact semantic owner inherits that owner's visibility, such as a trait
-requirement or a member of a named conformance.
+`Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant is
+a standalone declaration with its own visibility, even though its path names a
+carrier. Only a genuine nested member with one exact semantic owner inherits
+that owner's visibility, such as a field, variant, state, or trait requirement.
 
 ```omega
 pub data Player {
@@ -330,7 +330,7 @@ pub data Player {
 
 pub proposition valid_damage(amount: i32) = amount >= 0;
 
-pub measure Tree::Height(node: &Tree) -> Nat;
+measure Tree::Height(node: &Tree) -> Nat;
 
 pub const MAX_DAMAGE: i32 = 100;
 

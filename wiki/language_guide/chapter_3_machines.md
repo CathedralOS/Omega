@@ -405,13 +405,14 @@ discarded, or nested in a value expression.
 
 The ranking witness is implementation evidence, not public contract identity.
 Changing a valid witness revalidates the implementation without changing what
-callers or external requirement bindings see. A measure must be `pub` when
-another package names it directly, but selecting that measure from a public
-machine's `terminates by` clause does not publish the private ranking witness.
-Cross-package operational recursion remains unsupported until a compositional
-termination interface is designed; any such interface must close from
-published termination evidence and must neither expose nor inspect private
-measures. See
+callers or external requirement bindings see. Declared measures are always
+package-private; the parser rejects `pub measure`, and another package cannot
+name one directly. A public machine may use its package's private measure in
+`terminates by` because that clause remains implementation, while `terminates`
+is the published guarantee. Cross-package operational recursion remains
+unsupported until a compositional termination interface is designed; any such
+interface must close from published termination evidence and must neither
+expose nor inspect private measures. See
 [termination_ranking_and_progress.md](../design_briefs/termination_ranking_and_progress.md).
 
 ## Contracts

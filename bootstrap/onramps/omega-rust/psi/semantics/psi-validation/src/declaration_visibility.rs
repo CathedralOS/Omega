@@ -20,44 +20,27 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
             continue;
         };
         let symbol = target.selected_symbol();
-        let (kind, is_public) = match program.symbols.get(symbol).kind {
-            SymbolKind::Proposition => (
-                "proposition",
-                program
-                    .propositions()
-                    .iter()
-                    .find(|declaration| declaration.symbol == symbol)
-                    .map(|declaration| declaration.is_public),
-            ),
-            SymbolKind::Const => (
-                "const",
-                program
-                    .const_declarations()
-                    .iter()
-                    .find(|declaration| declaration.symbol == symbol)
-                    .map(|declaration| declaration.is_public),
-            ),
-            SymbolKind::Operator => (
-                "operator",
-                psi_typed_trees::operator::declaration_by_symbol(program, symbol)
-                    .map(|declaration| declaration.is_public),
-            ),
-            _ => continue,
-        };
-        let Some(is_public) = is_public else {
+        let symbol_kind = program.symbols.get(symbol).kind;
+        if !psi_typed_trees::visibility::requires_declaration_visibility(symbol_kind) {
+            continue;
+        }
+        let Some(visibility) = psi_typed_trees::visibility::declaration_visibility(program, symbol)
+        else {
             diagnostics.push(
                 Diagnostic::error(format!(
-                    "public interface selects {kind} `{}` without retained declaration visibility",
+                    "public interface selects {:?} `{}` without retained declaration visibility",
+                    symbol_kind,
                     program.symbols.display_path(symbol, "::")
                 ))
                 .with_source_span(selection.source_span()),
             );
             continue;
         };
-        if !is_public {
+        if !visibility.is_public() {
             diagnostics.push(
                 Diagnostic::error(format!(
-                    "public interface selects private {kind} `{}`",
+                    "public interface selects private {} `{}`",
+                    visibility.kind(),
                     program.symbols.display_path(symbol, "::")
                 ))
                 .with_source_span(selection.source_span()),
