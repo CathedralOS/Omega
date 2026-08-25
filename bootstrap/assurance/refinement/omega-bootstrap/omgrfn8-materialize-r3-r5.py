@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure source materializer for OMGRFN8 R3, R4, and R5 Beta checkers."""
+"""Pure source materializer for OMGRFN8/9 R3, R4, and R5 Beta checkers."""
 
 from __future__ import annotations
 
@@ -161,11 +161,10 @@ def write_checked(output: Path, name: str, source: str) -> str:
     return f"{name}\t{proc_count}\t{max_locals}\n"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("output", type=Path)
-    args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+def materialize(output: Path, outer: int = 8) -> None:
+    if outer not in (8, 9):
+        raise ValueError(f"unsupported OMGRFN outer version: {outer}")
+    output.mkdir(parents=True, exist_ok=True)
 
     core = one_source_core(read("omgrfn4-source-witness-independent.beta"))
     declarations = read("omgrfn7-source-witness-independent.beta")
@@ -173,16 +172,16 @@ def main() -> None:
     r3 = replace_exact(
         read("omgrfn7-witness-ckir5-tables.beta"),
         "proc main() { return omgrfn7_r3_check() }",
-        "proc main() { return omgrfn8_r3_check() }",
+        f"proc main() {{ return omgrfn{outer}_r3_check() }}",
     )
     r4_lowering = prune(
         core + "\n" + declarations + "\n" + read("omgrfn7-source-ckir5-lowering.beta")
-        + "\nproc main() { return omgrfn8_r4_lowering_check() }\n"
+        + f"\nproc main() {{ return omgrfn{outer}_r4_lowering_check() }}\n"
     )
     r4_result = prune(
         core + "\n" + lean_result_declarations(declarations) + "\n"
         + read("omgrfn7-source-lowering-meaning.beta")
-        + "\nproc main() { return omgrfn8_r4_source_result_check() }\n"
+        + f"\nproc main() {{ return omgrfn{outer}_r4_source_result_check() }}\n"
     )
     for forbidden in ("witness_byte", "ckir", "_elf_byte", "word[500088]", "word[500096]"):
         if forbidden in r4_result:
@@ -215,14 +214,22 @@ proc main(){let s=omgrfn5_component_read() state a { to z when(s!=0) s=ckir_deco
     )
 
     rows = [
-        write_checked(args.output, "r3", r3),
-        write_checked(args.output, "r4-lowering", r4_lowering),
-        write_checked(args.output, "r4-source-result", r4_result),
-        write_checked(args.output, "r5-structure", r5_structure),
-        write_checked(args.output, "r5-result", r5_result),
-        write_checked(args.output, "r5-elf", r5_elf),
+        write_checked(output, "r3", r3),
+        write_checked(output, "r4-lowering", r4_lowering),
+        write_checked(output, "r4-source-result", r4_result),
+        write_checked(output, "r5-structure", r5_structure),
+        write_checked(output, "r5-result", r5_result),
+        write_checked(output, "r5-elf", r5_elf),
     ]
-    (args.output / "manifest-r3-r5.tsv").write_text("".join(rows), encoding="ascii")
+    (output / "manifest-r3-r5.tsv").write_text("".join(rows), encoding="ascii")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("output", type=Path)
+    parser.add_argument("--outer", type=int, choices=(8, 9), default=8)
+    args = parser.parse_args()
+    materialize(args.output, args.outer)
 
 
 if __name__ == "__main__":

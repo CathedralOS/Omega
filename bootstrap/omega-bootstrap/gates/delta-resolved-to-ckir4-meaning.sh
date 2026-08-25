@@ -6,7 +6,8 @@ MODE=${1:-v4}
 case "$MODE" in
   v4) SCHEMA_LABEL=CKIR4; FRAME_COMMAND=pack ;;
   v6) SCHEMA_LABEL=CKIR6; FRAME_COMMAND=pack-v7 ;;
-  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6]" >&2; exit 2 ;;
+  v7) SCHEMA_LABEL=CKIR7; FRAME_COMMAND=pack-v8 ;;
+  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7]" >&2; exit 2 ;;
 esac
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -40,8 +41,10 @@ FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-fixture.py"
 FRAME="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-frame.py"
 if [ "$MODE" = v4 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v4_reference.py"
-else
+elif [ "$MODE" = v6 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v6_reference.py"
+else
+  REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v7_reference.py"
 fi
 RUNNER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-ckir4-meaning-runner.py"
 DECODER="$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/decode-gamma-output.py"
@@ -101,7 +104,7 @@ machine MeaningFiveProbe::run(&mut self) -> u8 {{
 Path(sys.argv[1]).write_text(source(True), encoding="ascii")
 Path(sys.argv[2]).write_text(source(False), encoding="ascii")
 PY
-else
+elif [ "$MODE" = v6 ]; then
 python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
 from pathlib import Path
 import sys
@@ -121,6 +124,42 @@ resource = canonical.replace("!!false", "!!!!!!!!false", 1)
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
+else
+python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
+from pathlib import Path
+import sys
+
+canonical = '''data LogicalBinaryMeaning {}
+machine LogicalBinaryMeaning::run(&mut self) -> u8 {
+    transition !false || false && true {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+semantic = '''data LogicalBinaryMeaning {}
+machine LogicalBinaryMeaning::probe(&self) -> bool { true }
+machine LogicalBinaryMeaning::run(&mut self) -> u8 {
+    transition true || self.probe() {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+resource = '''data LogicalBinaryMeaning {}
+machine LogicalBinaryMeaning::run(&mut self) -> u8 {
+    transition !!!!!!!true && true { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
+    Path(path).write_text(source, encoding="ascii")
+PY
 fi
 
 prepare() { # label owner machine source...
@@ -128,13 +167,13 @@ prepare() { # label owner machine source...
   shift 3
   python3 -B "$FIXTURE" build "$T/$LABEL.omgc" "$OWNER" "$MACHINE" "$@"
   "$T/resolver.native" < "$T/$LABEL.omgc" > "$T/$LABEL.omgrsw"
-  if [ "$MODE" = v6 ]; then
+  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ]; then
     python3 - "$T/$LABEL.omgrsw" <<'PY'
 from pathlib import Path
 import struct, sys
 raw = Path(sys.argv[1]).read_bytes()
 if len(raw) < 10 or raw[:8] != b"OMGRSW1\0" or struct.unpack_from("<H", raw, 8)[0] != 1:
-    raise SystemExit("logical-not meaning carrier did not select least OMGRSW1")
+    raise SystemExit("Boolean meaning carrier did not select least OMGRSW1")
 PY
   fi
   python3 -B "$FRAME" "$FRAME_COMMAND" "$T/$LABEL.omgc" "$T/$LABEL.omgrsw" > "$T/$LABEL.omglow"
@@ -144,10 +183,14 @@ prepare canonical FieldReceiverProbe run \
   "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/direct-field-receiver.omg"
 prepare semantic-251 MeaningFiveProbe run "$T/semantic.omg"
 prepare resource-252 MeaningFiveProbe run "$T/resource.omg"
-else
+elif [ "$MODE" = v6 ]; then
 prepare canonical LogicalNotMeaning run "$T/canonical.omg"
 prepare semantic-251 LogicalNotMeaning run "$T/semantic.omg"
 prepare resource-252 LogicalNotMeaning run "$T/resource.omg"
+else
+prepare canonical LogicalBinaryMeaning run "$T/canonical.omg"
+prepare semantic-251 LogicalBinaryMeaning run "$T/semantic.omg"
+prepare resource-252 LogicalBinaryMeaning run "$T/resource.omg"
 fi
 : > "$T/empty.expected"
 
@@ -224,9 +267,12 @@ for line in Path(sys.argv[1]).read_text(encoding="ascii").splitlines():
 if sys.argv[3] == "v4":
     summary = ("ConstructRecord -> Call -> Copy result 70; malformed-five=251 "
                "before valid-five=252")
-else:
+elif sys.argv[3] == "v6":
     summary = ("LogicalNot false->true->false result 70; non-bool=251 and "
                "expression-depth-9=252")
+else:
+    summary = ("pure LogicalNot/LogicalAnd/LogicalOr result 70 with && precedence; "
+               "effectful short-circuit operand=251 and expression-depth-9=252")
 print(f"resolved-to-{sys.argv[4]} meaning: {summary}; exact publication through "
       "canonical Gamma; " + " ".join(rows)
       + f" {sys.argv[4]}={Path(sys.argv[2]).stat().st_size}B")

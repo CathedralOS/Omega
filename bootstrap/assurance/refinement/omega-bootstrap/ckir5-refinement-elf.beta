@@ -1,4 +1,4 @@
-; Lower-rooted exact CKIR5/6 -> limited Linux x86-64 ELF checker.
+; Lower-rooted exact CKIR5/6/7 -> limited Linux x86-64 ELF checker.
 ; Concatenate after the shared OMGRFN7/8 R5 envelope and CKIR structure checker
 ; with both earlier main procedures removed.
 ;
@@ -25,7 +25,7 @@ proc elf_align(value, alignment) {
 ; structure conjunct's responsibility.
 proc elf_assign_operation_types() {
     let op=0  let owner=0  let block=0  let kind=0  let result=0  let type_id=0
-    let start=0  let count=0  let next_operand=0  let opcode=0  let logical_not_count=0
+    let start=0  let count=0  let next_operand=0  let opcode=0  let logical_not_count=0 let logical_binary_count=0
     state begin { ckir_initialize_value_scopes()  to operations }
     state operations { to one when (op < ckir_count(9))  to finish }
     state one {
@@ -39,11 +39,13 @@ proc elf_assign_operation_types() {
         to bad when (start != next_operand)
         to bad when (ckir_span_ok(start,count,ckir_count(10)) == 0)
         to bad when (opcode < 1)
-        to bad when (opcode > 15)
+        to bad when (opcode > 17)
         to schema5_opcode when (ckir_schema() == 5)
+        to schema6_opcode when (ckir_schema() == 6)
         to result_kind
     }
-    state schema5_opcode { to bad when (opcode == 15)  to result_kind }
+    state schema5_opcode { to bad when (opcode >= 15)  to result_kind }
+    state schema6_opcode { to bad when (opcode > 15)  to result_kind }
     state result_kind {
         next_operand=next_operand+count
         to no_result when (kind == 0)
@@ -67,7 +69,7 @@ proc elf_assign_operation_types() {
         word[7600000+result*8]=type_id  word[8200000+result*8]=block
         word[8500000+result*8]=op  word[525216]=result+1  to operation_ready
     }
-    state operation_ready { to logical_not when (opcode == 15)  to next }
+    state operation_ready { to logical_not when (opcode == 15) to logical_binary when (opcode == 16) to logical_binary when (opcode == 17) to next }
     state logical_not {
         to bad when (kind != 1)
         to bad when (count != 1)
@@ -79,15 +81,30 @@ proc elf_assign_operation_types() {
         logical_not_count=logical_not_count+1
         to next
     }
+    state logical_binary {
+        to bad when (kind != 1)
+        to bad when (count != 2)
+        to bad when (ckir_op_word(op,32) != 0)
+        to bad when (ckir_op_word(op,36) != 0)
+        to bad when (ckir_type_byte(type_id,4) != 3)
+        to bad when (ckir_value_visible(ckir_operand(start),owner,block,op) == 0)
+        to bad when (ckir_value_visible(ckir_operand(start+1),owner,block,op) == 0)
+        to bad when (ckir_value_type(ckir_operand(start)) != type_id)
+        to bad when (ckir_value_type(ckir_operand(start+1)) != type_id)
+        logical_binary_count=logical_binary_count+1
+        to next
+    }
     state next { op=op+1  to operations }
     state finish {
         to bad when (next_operand != ckir_count(10))
         to bad when (word[525208] != ckir_count(12))
         to bad when (word[525216] != ckir_count(13))
         to logical_not_required when (ckir_schema() == 6)
+        to logical_binary_required when (ckir_schema() == 7)
         return 0
     }
     state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
+    state logical_binary_required { to bad when (logical_binary_count == 0) return 0 }
     state bad { return 251 }
 }
 
@@ -477,6 +494,8 @@ proc elf_emit_operation(operation) {
         to constructor when (opcode == 13)
         to case_constructor when (opcode == 14)
         to logical_not when (opcode == 15)
+        to logical_and when (opcode == 16)
+        to logical_or when (opcode == 17)
         to less_equal
     }
     state constant {
@@ -667,6 +686,8 @@ proc elf_emit_operation(operation) {
         status = elf_store_value(result)
         to done
     }
+    state logical_and { a=ckir_operand(start) b=ckir_operand(start+1) status=elf_load_value(a) to done when (status!=0) status=elf_code2(35,133) to done when (status!=0) status=elf_code_s32(0-elf_value_slot(b)) to done when (status!=0) status=elf_store_value(result) to done }
+    state logical_or { a=ckir_operand(start) b=ckir_operand(start+1) status=elf_load_value(a) to done when (status!=0) status=elf_code2(11,133) to done when (status!=0) status=elf_code_s32(0-elf_value_slot(b)) to done when (status!=0) status=elf_store_value(result) to done }
     state call { argument_count=ckir_op_word(operation,28)-1  ordinal=0  to call_arguments }
     state call_arguments { to call_receiver when (ordinal == argument_count)  b=ckir_operand(start+1+ordinal)  displacement=0-(word[525288]+(argument_count-ordinal)*8)  to call_structural when (ckir_type_byte(ckir_value_type(b),4) > 3)  status=elf_load_value(b)  to done when (status != 0)  status=elf_code2(137,133)  to call_store }
     state call_structural { status=elf_code3(72,139,133)  to done when (status != 0)  status=elf_code_s32(0-elf_value_slot(b))  to done when (status != 0)  status=elf_code3(72,137,133)  to done when (status != 0)  to call_store }
