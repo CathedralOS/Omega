@@ -112,6 +112,21 @@ write("alias-module-ambiguity", k11, k22, "dep.omg", "root.omg",
 write("import-local-collision", k11, k22, "dep.omg", "root.omg",
       "geometry", "runner", "vendor", "Duo", "Duo", "execute")
 
+# Structural envelopes whose source/alias relations must reject before any
+# producer witness is trusted.
+dep = "module geometry; pub data Duo [copy] { left: u8; right: u8; }\n"
+root = ("module runner; use vendor::geometry::Duo; data Vault { payload: Duo; } "
+        "machine Vault::execute(&mut self) -> u8 { self.payload.left }\n")
+undeclared_alias = manifest(k11, k22, "dep.omg", "root.omg", "geometry", "runner",
+                            "unused", "Vault", "execute")
+out.joinpath("undeclared-alias.omgc").write_bytes(
+    encode([("dep.omg", dep), ("root.omg", root)], undeclared_alias))
+private_dep = "module geometry; data Duo [copy] { left: u8; right: u8; }\n"
+out.joinpath("private-import.omgc").write_bytes(
+    encode([("dep.omg", private_dep), ("root.omg", root)],
+           manifest(k11, k22, "dep.omg", "root.omg", "geometry", "runner",
+                    "vendor", "Vault", "execute")))
+
 # Structurally valid OMGCOMP whose source disagrees with the resolver-owned
 # module.  A resolver witness cannot be produced; pair it with pinned witness
 # bytes below to isolate layer 2's source/module relation.
@@ -128,6 +143,10 @@ long_root = ("module runner; use vendor::geometry::Duo; data Vault { "
              + "x"*65 + ": Duo; } machine Vault::execute(&mut self) -> u8 { 0 }\n")
 long_manifest = manifest(k11, k22, "dep.omg", "root.omg", "geometry", "runner",
                          "vendor", "Vault", "execute")
+exact_root = ("module runner; use vendor::geometry::Duo; data Vault { "
+              + "x"*64 + ": Duo; } machine Vault::execute(&mut self) -> u8 { 0 }\n")
+out.joinpath("ident-64.omgc").write_bytes(
+    encode([("dep.omg", long_dep), ("root.omg", exact_root)], long_manifest))
 out.joinpath("long-ident.omgc").write_bytes(
     encode([("dep.omg", long_dep), ("root.omg", long_root)], long_manifest))
 PY
@@ -161,10 +180,17 @@ build_witness() {
     "$T/$NAME.ckir" "$T/$NAME.elf" --result 70 > "$T/$NAME.rfn"
 }
 
-for NAME in canonical renamed reversed-order custody-labels alias-row-order; do
+for NAME in canonical renamed reversed-order custody-labels alias-row-order ident-64; do
   build_witness "$NAME"
   run_expect "$T/check" "$T/$NAME.rfn" 0 "valid $NAME source/witness"
 done
+
+# Custody labels do not enter identity or the witness.  Cross-pairing the same
+# logical source/manifest with changed labels proves that relation explicitly.
+cmp "$T/renamed.witness" "$T/custody-labels.witness" >/dev/null
+python3 "$PACKER" "$T/controls/custody-labels.omgc" "$T/renamed.witness" \
+  "$T/canonical.ckir" "$T/canonical.elf" --result 70 > "$T/custody-cross.rfn"
+run_expect "$T/check" "$T/custody-cross.rfn" 0 "custody-label-invariant cross-pair"
 
 # The canonical positive is independently pinned byte-for-byte.  This both
 # enumerates every expected row/reserved byte and prevents a common producer
@@ -263,7 +289,8 @@ python3 "$PACKER" "$T/controls/module-mismatch.omgc" "$T/pinned.witness" \
   "$T/canonical.ckir" "$T/canonical.elf" --result 70 > "$T/module-mismatch.rfn"
 run_expect "$T/check" "$T/module-mismatch.rfn" 251 "authored/owned module mismatch"
 
-for NAME in alias-module-ambiguity import-local-collision; do
+for NAME in alias-module-ambiguity import-local-collision undeclared-alias \
+  private-import; do
   run_expect "$T/resolver" "$T/controls/$NAME.omgc" 251 \
     "$NAME producer-side semantic rejection"
   python3 "$PACKER" "$T/controls/$NAME.omgc" "$T/pinned.witness" \
