@@ -1243,7 +1243,10 @@ complete.
   receipts, sealed representation
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
-  normalization remain.
+  normalization remain. Successful portable fixture execution is blocked on
+  OWNER_QUESTIONS Q8: the executor has exact physical source/output grants, but
+  package code has no settled stable rooted-path surface and must not embed
+  compiler-host absolute paths or inherit the process working directory.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.
