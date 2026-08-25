@@ -355,11 +355,13 @@ refactor costs, and final retain/exclude disposition remain open.
 The CKIR2 successor now adds an explicit selected root and typed finite acyclic
 attached-machine calls, including calls across source files in one logical
 module. Native, Delta-self-built, and Rust-free meaning routes compose to the
-same checked IR, conservative ELF, and result. Its independent `OMGRFN3`
-lower-rooted source-to-artifact reconstruction remains open. Neither the
-implemented slice nor its eventual refinement completion decides that calls,
-records, arrays, or attached machines belong to final `Ωself`; it supplies the
-implementation and assurance cost needed by that later decision.
+same checked IR, conservative ELF, and result. Independent `OMGRFN3` framing,
+source→witness, witness→CKIR2 tables, CKIR/result, and CKIR2→ELF reconstruction
+are closed; resolved body/call lowering, an artifact-free source result, and
+final five-way composition remain open. Neither the implemented slice nor its
+eventual refinement completion decides that calls, records, arrays, or attached
+machines belong to final `Ωself`; it supplies the implementation and assurance
+cost needed by that later decision.
 
 The next checkpoint-000001 tranche begins with the private
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
