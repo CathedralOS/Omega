@@ -118,7 +118,7 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — MEANING CROSS-CHECK: gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta alpha-assembler
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — shared typed canonical-byte decoder" gamma test-canonical-bytes.sh
-step "gamma — the proof kernel, written IN gamma"    proof-kernel-gates gamma-checker.sh gamma
+step "proof kernel — Gamma implementation"           proof-kernel-gates gamma-checker.sh gamma
 step "cross-check — checkers agree (Beta, Gamma, type-erased typed)" proof-kernel-gates checker-diamond.sh gamma
 step "seam — definitional eq vs operational eval"  proof-kernel-gates semantics-diamond.sh gamma
 step "seam — inductive universals vs operational eval" proof-kernel-gates induction-soundness.sh gamma
