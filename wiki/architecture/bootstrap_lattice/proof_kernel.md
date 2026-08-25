@@ -107,17 +107,71 @@ READMEs. They are intentionally not duplicated in this kernel-boundary document.
 ## Trust and soundness
 
 Kernel acceptance is authoritative only for the kernel judgment. Connecting
-that judgment to program execution requires the soundness bridge:
+that judgment to meaning requires the certificate to identify its exact
+semantic subject. Artifact acceptance has one terminal subject: the produced
+artifact refines the canonical source operational semantics under a
+verifier-reconstructed observation profile. Supporting derivations may instead
+state a judgment in one exact intended mathematical model, or a global
+consequence over every model of one exact theory. They become usable by the
+artifact claim only through explicit checked bridges.
+
+The complete assurance graph distinguishes every node:
 
 ```text
-kernel accepts C : P
-    ⟹ P is true in the pinned operational semantics
+global theory consequence: Gamma entails P
+    + exact intended model M satisfies Gamma
+        -> P holds in M
+
+intended mathematical model M
+    <-> domain- and operation-indexed representation bridge
+canonical source operational system S
+    <- refinement under required observation profile O
+formal target operational system T
+
+physical deployment H
+    -- disclosed realization admission --> formal target T
 ```
 
-That full metatheorem remains research work. Today every logical capability must
+The hardware edge belongs to deployment assurance, not the reusable artifact
+seal. Identical bytes may be verified once against `T`; each deployment reports
+the irreducible admission that its silicon realizes that formal target.
+
+Source already marks several bridge applications. `satisfies` names an
+implementation-to-trait-theory join, discharged by checked conformance evidence
+or a disclosed admission. `embed` denotes an injection from a fixed-width
+machine carrier into a bounded subset of proof `Int`; exact `as Nat` separately
+consumes nonnegativity. `terminates by` maps operational states to a
+well-founded mathematical rank and owes a decrease proof on every cycle edge.
+These forms identify where a bridge applies; none authenticates its own bridge.
+
+Representation is indexed by carrier, mathematical model, arithmetic domain,
+operation, and semantics version. Exact arithmetic owes a no-overflow proof and
+otherwise rejects; it does not acquire a trap branch. Wrapping commutes with
+modular arithmetic, Saturating with clamping, and Trapping relates both its
+successful and trapping outcomes.
+
+The observation profile is part of the verifier-reconstructed obligation, not
+producer configuration. Canonical source semantics, formal target semantics,
+boundary/component contracts, and consumer deployment policy determine it. A
+producer may neither choose nor weaken the profile. Exact profile identity is a
+sound conservative replay gate. Normatively, reuse across profiles requires a
+canonical checked forgetting projection from the proved profile to the
+requested profile; profiles may be incomparable, so names or field inclusion
+never imply strength.
+
+Every certificate and bridge records the exact subject/model/theory identity,
+semantics version, observation profile, target capsule, admitted premises, and
+bridge dependencies. No transitive join is inferred merely because two roots
+mention similar propositions. Consequently, an honest verdict is always
+qualified: artifact `A` refines source `S` under profile `O` and semantics
+versions `V`, subject to admissions `D`. Human-facing reports must not collapse
+that into an unqualified `verified` label.
+
+The full metatheorems connecting kernel judgments, intended models, and pinned
+operational execution remain research work. Today every logical capability must
 ship with an operational seam that compares kernel-provability with independent
 evaluation or decision on a positive corpus and a negative battery. These seams
-are strong regression evidence, not substitutes for the theorem.
+are strong regression evidence, not substitutes for the theorems.
 
 Fuel bounds ensure normalization and checking terminate operationally. Fuel
 exhaustion is rejection or an explicit incomplete result; it is never evidence
@@ -150,6 +204,6 @@ assurance across the self-host edge.
 
 The theoretical
 [matching-logic research lane](../../design_briefs/matching_logic_proof_research.md)
-does not alter this boundary. It first asks which semantic subject the accepted
-judgment denotes, then evaluates matching logic as a producer, independent
-diamond, or import format before any kernel role is considered.
+does not alter this boundary. It evaluates matching logic as a producer,
+independent diamond, or import format for the same verifier-reconstructed,
+subject-qualified obligations before any kernel role is considered.

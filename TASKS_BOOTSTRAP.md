@@ -71,6 +71,10 @@ Guardrails for this queue:
 
 - The proof kernel is cross-cutting assurance, with Beta and Gamma
   implementations; Gamma is not the proof-checker rung.
+- Artifact authority is subject-qualified operational refinement, never bare
+  kernel acceptance. Bootstrap gates reconstruct the source/artifact subjects,
+  observation profile, semantics versions, checked bridge graph, and disclosed
+  admissions; a physical-target claim remains a deployment admission.
 - Compiler authority follows direct lower-rooted source-to-artifact refinement;
   cross-compiler agreement is optional bug-finding evidence. See
   [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).

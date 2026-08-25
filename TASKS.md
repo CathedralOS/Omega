@@ -2440,6 +2440,31 @@ Remaining:
   rejects or changes the recorded trust closure; measured mutual proof
   recursion checks while an unmeasured cycle rejects; an admitted law makes
   every dependent normalization admission-dependent.
+- **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
+  enforceable in canonical ledgers, certificates, artifact seals, deployment
+  records, replay, and human-facing reports. The verifier reconstructs one
+  formal-target-to-canonical-source operational-refinement root and its exact
+  observation profile; producers may supply neither. Supporting rows name an
+  exact intended mathematical model or global theory and reach the root only
+  through explicit checked bridge rows.
+
+  Give every subject and bridge a versioned identity. Retain exact theory/model
+  satisfaction, domain- and operation-indexed `embed`/`as` representation
+  relations, and the rank-to-operational-edge join used by `terminates by`.
+  Exact arithmetic owes no-overflow and rejects without it; Wrapping,
+  Saturating, and Trapping use distinct commuting/outcome relations. Add
+  positive and negative canaries for swapped models, semantics versions,
+  target capsules, bridge directions, arithmetic domains, observation profiles,
+  and admissions.
+
+  Begin with exact observation-profile equality as a sound conservative replay
+  gate. Define the normative cross-profile relation through checked canonical
+  forgetting projections, permitting incomparable profiles and rejecting an
+  empty or producer-weakened profile. Keep formal-target-to-silicon evidence as
+  a deployment-scoped admission rather than contaminating the reusable artifact
+  seal. Render every verdict with source/artifact subjects, semantics versions,
+  profile, and disclosed artifact/deployment admissions; never emit an
+  unqualified `verified` label.
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace the current trusted Rust fusion of
   artifact traversal and algebraic reduction with the settled two-part closure.
   A total low-rung generator consumes canonical terminal-Psi bytes, validates
@@ -7917,8 +7942,9 @@ specifications:
   termination interface for a call-graph SCC without exposing or inspecting
   any member's private `terminates by` measure; unsupported cross-package SCCs
   continue to reject until that interface exists;
-- matching logic as a proof/semantics interchange: after Q1 fixes the semantic
-  subject, encode one fixpoint-free Terminal Psi obligation, reconstruct its
+- matching logic as a proof/semantics interchange: under the settled
+  subject-qualified operational-refinement root, encode one fixpoint-free
+  Terminal Psi obligation, reconstruct its
   theory and goal independently from canonical artifact subjects, and compare
   total trusted bridge size, certificate size, checking cost, constructive
   assumptions, and positive/negative results against the current route; then

@@ -80,34 +80,51 @@ constructive by default and treats excluded middle as an explicit admitted
 boundary claim. Importing a classical matching-logic calculus silently would be
 a semantic-policy change, not a checker refactor.
 
-## The owner question that precedes the experiment
+## Settled semantic subjects for the experiment
 
-Omega must first say what kind of semantic consequence artifact verification
-needs:
+Artifact verification has one terminal subject: the formal target artifact
+refines canonical source operational meaning under an observation profile
+reconstructed by the verifier. The producer supplies neither that subject nor
+the profile. Supporting proofs may use two subordinate subjects:
 
 ```text
 all-model consequence
     every model satisfying an Omega theory satisfies the obligation
 
-initial/intended-model consequence
-    the obligation holds in the initial or otherwise intended Omega model
+intended-model consequence
+    the obligation holds in one exact mathematical model;
+    initiality, quotient, finality, or another construction is recorded
 
 canonical operational judgment
-    the reconstructed artifact judgment holds in one pinned transition system
+    the reconstructed execution/refinement judgment holds between pinned
+    source and formal-target transition systems
 ```
 
-These are not interchangeable. The paper proves global completeness for the
-first shape in its restricted fragment. Characterizing an intended initial
-model may require no-junk or least-fixed-point machinery. Directly constructing
-one canonical operational model may make global completeness irrelevant while
-leaving matching logic useful as a notation or secondary checker.
+The subjects are not interchangeable. A global theorem is a sound sufficient
+route into a particular model only with checked evidence that the model
+satisfies the exact theory. Structural induction depends on the intended
+generated model; it is not recovered by adding no-junk or fixpoint axioms merely
+to fit a global completeness result. Operational termination and artifact
+refinement remain claims about actual traces in pinned transition systems.
 
-This decision is tracked as Q1 in
-[`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
+Every join is explicit and fingerprinted. `satisfies` marks a
+theory-to-specific-implementation application; checked conformance evidence or
+a disclosed admission discharges it. `embed`/`as` mark a domain-parametric
+machine-carrier-to-mathematics correspondence. `terminates by` joins a
+well-founded mathematical rank to operational cycle edges. These source forms
+locate bridge applications and prove nothing by spelling alone.
+
+Certificate identity includes the exact subject, theory/model and semantics
+versions, target capsule, observation profile, bridge graph, and admissions.
+The profile is reconstructed from canonical semantics and consumer deployment
+policy. Cross-profile reuse requires a checked canonical forgetting projection;
+profiles may be incomparable. The formal-target-to-physical-silicon edge is a
+separate disclosed deployment admission.
 
 ## Bounded investigation
 
-If Q2 leaves a genuine matching-logic customer, investigate in this order.
+If this settled subject model leaves a genuine matching-logic customer,
+investigate in this order.
 
 ### 1. Encode one fixpoint-free vertical slice
 
@@ -181,7 +198,7 @@ The low-risk candidates are:
 Replacing the bootstrap proof kernel is not an initial experiment. It becomes a
 candidate only if an end-to-end comparison shows a smaller total trusted base,
 acceptable certificates, and a proved bridge to Omega's chosen semantic
-subject.
+subjects and operational-refinement root.
 
 ## Standing constraints
 

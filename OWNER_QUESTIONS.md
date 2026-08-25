@@ -13,31 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-25.
 
-## Q1 — What semantic subject does artifact proof establish?
-
-The proof kernel checks a finite derivation of `P` from explicit premises, and
-the artifact verifier reconstructs the exact obligation from canonical source
-and artifact subjects. The remaining soundness bridge must state what it means
-for that accepted proposition to be true.
-
-Choose and relate the semantic subjects used by authoritative verification:
-
-- global consequence over every model satisfying a declarative Omega theory;
-- consequence in an initial or otherwise intended model; or
-- a judgment in one pinned canonical operational transition system.
-
-Different obligation classes may use different subjects only if their join is
-explicit and proved. Do not infer that a global completeness theorem applies to
-an initial-model or canonical-execution claim, and do not add no-junk,
-fixpoint, or model-selection axioms merely to recover that theorem.
-
-This decision gates the bounded matching-logic investigation in
-[`wiki/design_briefs/matching_logic_proof_research.md`](wiki/design_briefs/matching_logic_proof_research.md).
-The investigation may produce an untrusted proof producer, an independent
-semantic diamond, or a proof-import lane; it does not replace the current
-kernel by default.
-
-## Q2 — May authored code invoke the reserved `T::drop` machine?
+## Q1 — May authored code invoke the reserved `T::drop` machine?
 
 Chapter 17 defines `T::drop(&mut self)` as the ordinary reserved machine shape
 selected by compiler-planned automatic cleanup. It also says the body receives
@@ -79,7 +55,7 @@ allow both authored and automatic invocation on the same live place, or record
 an `ExplicitCleanupCall` package row without first defining its ownership
 semantics.
 
-## Q3 — How does composition select and partition component artifacts?
+## Q2 — How does composition select and partition component artifacts?
 
 The semantic unit is settled: a component is one selected provider realization
 plus the closed code, state, resource, registration, continuation, and version
