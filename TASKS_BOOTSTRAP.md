@@ -282,6 +282,18 @@ history to retain as active checkboxes.
   role-3 mutations, resources, Rust-free meaning, and direct artifact
   reconstruction. Keep the first fixture same-module so the private
   cross-module ruling is not smuggled into this tranche.
+
+  Producer checkpoint: the distinct `OMGRSW2` and `OMGLOW5` relations are now
+  specified without CKIR widening. One shared implementation preserves exact
+  OMGRSW1/OMGLOW4 behavior and lowers the successor relation through existing
+  `SelfPlace -> FieldPlace -> Call`. Native and Delta-self-built routes accept
+  a nonzero-offset complete-`SourceUnit` API carrier with exact result 70 and
+  reject relation swaps, absent/scalar/wrong-owner fields, shared-to-mutable
+  calls, and parenthesized/chained receivers. Focused Rust-free producer meaning
+  uses a compact runtime-record argument carrier. The item remains open for the
+  distinct `OMGRFN6` lower-rooted responsibilities, receiver-base source-only
+  evaluator, complete mutation/resource matrix, and artifact reconstruction;
+  do not widen or relabel OMGRFN5.
 - [ ] Then price closed payload-bearing sum data as the next checked-IR
   facility unless a newer product checkpoint changes the measured order. The
   first slice may use the already-specified tag-zero/declaration-order ABI,

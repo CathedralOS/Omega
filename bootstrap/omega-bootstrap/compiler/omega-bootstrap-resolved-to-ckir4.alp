@@ -47,6 +47,7 @@ data Main {
     comparison_opcode: i32;
 
     expr_tree_depth: i32; expr_path_depth: i32; expr_stack_used: i32;
+    expr_receiver_shape: i32; left_receiver_shape: i32;
 
 
 
@@ -60,13 +61,13 @@ data Main {
     bundle_mode: i32; input_n: i32; decoded: i32;
     label_start: i32; label_len: i32; label_segment_start: i32;
     label_segment_len: i32; content_start: i32; content_len: i32;
-    // OMGLOW4 keeps its two components in separate bounded arrays.
+    // OMGLOW4/5 keep their two components in separate bounded arrays.
     frame_header: [u8; 32];
     witness: [u8; 524288];
     source: [u8; 267280];
     i32_backing0: [i32; 496800];
     i32_backing1: [i32; 513024];
-    i32_backing2: [i32; 453248];
+    i32_backing2: [i32; 453256];
 
     // Logical i32 table partitions (half-open backing ranges).
     // backing 0: 496800 / 524288 cells
@@ -175,7 +176,7 @@ data Main {
     //   [414720..447488) op_result_ids (32768)
     //   [447488..480256) op_result_types (32768)
     //   [480256..513024) op_operand_starts (32768)
-    // backing 2: 453248 / 524288 cells
+    // backing 2: 453256 / 524288 cells
     //   [0..32768) op_operand_counts (32768)
     //   [32768..65536) op_immediate0 (32768)
     //   [65536..98304) op_immediate1 (32768)
@@ -235,6 +236,7 @@ data Main {
     //   [447104..449152) witness_block_body_ends (2048)
     //   [449152..451200) witness_block_param_starts (2048)
     //   [451200..453248) witness_block_param_counts (2048)
+    //   [453248..453256) stack_receiver_shapes (8)
     words: [u8; 65];
 
 
@@ -364,9 +366,10 @@ data Main {
 
 
 
-    // OMGRSW1 header and table offsets.
+    // OMGRSW1/2 header and shared table offsets.
     w_unit_count: i32; w_import_count: i32; w_binding_count: i32;
     w_declaration_count: i32; w_record_count: i32; w_field_count: i32;
+    resolution_version: i32; field_receiver_count: i32;
     w_machine_count: i32; w_machine_parameter_count: i32;
     w_block_count: i32; w_block_parameter_count: i32;
     witness_selected: i32;
@@ -660,10 +663,13 @@ machine Main::read_frame(&mut self) {
     state fixed3() { transition self.frame_header[3] == 76 { true -> fixed4() _ -> bad() } }
     state fixed4() { transition self.frame_header[4] == 79 { true -> fixed5() _ -> bad() } }
     state fixed5() { transition self.frame_header[5] == 87 { true -> fixed6() _ -> bad() } }
-    state fixed6() { transition self.frame_header[6] == 52 { true -> fixed7() _ -> bad() } }
+    state fixed6() { transition self.frame_header[6] == 52 { true -> relation1() _ -> relation2_check() } }
+    state relation1() { self.resolution_version = 1; transition 0 { _ -> fixed7() } }
+    state relation2_check() { transition self.frame_header[6] == 53 { true -> relation2() _ -> bad() } }
+    state relation2() { self.resolution_version = 2; transition 0 { _ -> fixed7() } }
     state fixed7() { transition self.frame_header[7] == 0 { true -> version() _ -> bad() } }
     state version() {
-        transition self.frame_header[8] == 4 { true -> version1() _ -> bad() }
+        transition self.frame_header[8] == self.resolution_version + 3 { true -> version1() _ -> bad() }
     }
     state version1() { transition self.frame_header[9] == 0 { true -> version2() _ -> bad() } }
     state version2() { transition self.frame_header[10] == 0 { true -> version3() _ -> bad() } }
@@ -882,9 +888,9 @@ machine Main::decode_witness_header(&mut self) {
     state magic3() { transition self.witness[3] == 82 { true -> magic4() _ -> bad() } }
     state magic4() { transition self.witness[4] == 83 { true -> magic5() _ -> bad() } }
     state magic5() { transition self.witness[5] == 87 { true -> magic6() _ -> bad() } }
-    state magic6() { transition self.witness[6] == 49 { true -> magic7() _ -> bad() } }
+    state magic6() { transition self.witness[6] == 48 + self.resolution_version { true -> magic7() _ -> bad() } }
     state magic7() { transition self.witness[7] == 0 { true -> fixed0() _ -> bad() } }
-    state fixed0() { transition self.witness[8] == 1 { true -> fixed1() _ -> bad() } }
+    state fixed0() { transition self.witness[8] == self.resolution_version { true -> fixed1() _ -> bad() } }
     state fixed1() { transition self.witness[9] == 0 { true -> fixed2() _ -> bad() } }
     state fixed2() { transition self.witness[10] == 0 { true -> fixed3() _ -> bad() } }
     state fixed3() { transition self.witness[11] == 0 { true -> fixed4() _ -> bad() } }
@@ -1885,6 +1891,7 @@ machine Main::push_expression(&mut self) {
         self.i32_backing0[64 + self.expr_stack_used] = self.expr_path_depth;
         self.i32_backing2[376832 + self.expr_stack_used] = self.expr_value_id;
         self.i32_backing2[376840 + self.expr_stack_used] = self.expr_place_id;
+        self.i32_backing2[453248 + self.expr_stack_used] = self.expr_receiver_shape;
         self.expr_stack_used = self.expr_stack_used + 1;
         transition 0 { _ -> done() }
     }
@@ -1907,6 +1914,7 @@ machine Main::pop_left_expression(&mut self) {
         self.path_depth = self.i32_backing0[64 + self.expr_stack_used];
         self.left_value_id = self.i32_backing2[376832 + self.expr_stack_used];
         self.left_place_id = self.i32_backing2[376840 + self.expr_stack_used];
+        self.left_receiver_shape = self.i32_backing2[453248 + self.expr_stack_used];
         transition 0 { _ -> done() }
     }
     state bad() { self.reject(); }
@@ -1952,6 +1960,7 @@ machine Main::parse_primary(&mut self) {
     self.expr_lvalue = 0; self.expr_mutable = 0;
     self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
     self.expr_value_id = 0 - 1; self.expr_place_id = 0 - 1;
+    self.expr_receiver_shape = 0;
     self.expr_tree_depth = 1; self.expr_path_depth = 0;
     transition self.tok == 257 { true -> integer() _ -> identifier() }
     state integer() {
@@ -1968,6 +1977,7 @@ machine Main::parse_primary(&mut self) {
         self.expr_type = self.i32_backing0[34632 + self.current_machine];
         self.expr_lvalue = 1; self.expr_mutable = self.current_receiver_mut;
         self.expr_subject_kind = 3; self.expr_subject_id = self.i32_backing0[33736 + self.current_machine];
+        self.expr_receiver_shape = 1;
         self.next_token(); transition self.bundle_mode == 1 { true -> self_place() _ -> done() }
     }
     state self_place() {
@@ -1993,7 +2003,7 @@ machine Main::parse_primary(&mut self) {
     state parameter_refine() { self.refine_expression_fact(); self.next_token(); transition 0 { _ -> done() } }
     state paren() { transition self.tok == 40 { true -> paren_open() _ -> bad() } }
     state paren_open() { self.next_token(); self.parse_expression(); transition self.status == 0 { true -> paren_close() _ -> done() } }
-    state paren_close() { self.expect_token(41); transition 0 { _ -> done() } }
+    state paren_close() { self.expect_token(41); self.expr_receiver_shape = 0; transition 0 { _ -> done() } }
     state bad() { self.reject(); }
     state done() { }
 }
@@ -2007,6 +2017,7 @@ machine Main::parse_postfix(&mut self) {
         self.left_type = self.expr_type; self.left_mutable = self.expr_mutable;
         self.left_subject_kind = self.expr_subject_kind;
         self.left_value_id = self.expr_value_id; self.left_place_id = self.expr_place_id;
+        self.left_receiver_shape = self.expr_receiver_shape;
         self.next_token(); transition self.tok == 256 { true -> member_name() _ -> bad() }
     }
     state member_name() { self.call_saved_start = self.tok_start; self.call_saved_len = self.tok_len; self.next_token(); transition self.tok == 40 { true -> call_base() _ -> member_base() } }
@@ -2023,8 +2034,12 @@ machine Main::parse_postfix(&mut self) {
         self.expr_subject_kind = 1;
         self.expr_tree_depth = self.expr_tree_depth + 1;
         self.expr_path_depth = self.expr_path_depth + 1;
-        transition self.expr_tree_depth <= 8 { true -> member_refine() _ -> exhausted() }
+        transition self.expr_tree_depth <= 8 { true -> member_shape() _ -> exhausted() }
     }
+    state member_shape() { transition self.left_receiver_shape == 1 { true -> member_shape_depth() _ -> member_shape_other() } }
+    state member_shape_depth() { transition self.expr_path_depth == 1 { true -> member_shape_direct() _ -> member_shape_other() } }
+    state member_shape_direct() { self.expr_receiver_shape = 2; transition 0 { _ -> member_refine() } }
+    state member_shape_other() { self.expr_receiver_shape = 0; transition 0 { _ -> member_refine() } }
     state member_refine() {
         self.refine_expression_fact();
         transition self.bundle_mode == 1 { true -> member_place_check() _ -> member_advance() }
@@ -2040,7 +2055,13 @@ machine Main::parse_postfix(&mut self) {
     }
     state member_advance() { transition 0 { _ -> loop() } }
 
-    state call_base() { transition self.left_type >= 0 { true -> call_nominal() _ -> bad() } }
+    state call_base() { transition self.resolution_version == 1 { true -> call_shape_v1() _ -> call_shape_v2() } }
+    state call_shape_v1() { transition self.left_receiver_shape == 1 { true -> call_nominal_type() _ -> bad() } }
+    state call_shape_v2() { transition self.left_receiver_shape == 1 { true -> call_nominal_type() _ -> call_shape_field() } }
+    state call_shape_field() { transition self.left_receiver_shape == 2 { true -> call_field_count() _ -> bad() } }
+    state call_field_count() { transition self.bundle_mode == 1 { true -> call_field_count_add() _ -> call_nominal_type() } }
+    state call_field_count_add() { self.field_receiver_count = self.field_receiver_count + 1; transition 0 { _ -> call_nominal_type() } }
+    state call_nominal_type() { transition self.left_type >= 0 { true -> call_nominal() _ -> bad() } }
     state call_nominal() { transition self.i32_backing0[363080 + self.left_type] == 4 { true -> call_place() _ -> bad() } }
     state call_place() { transition self.bundle_mode == 0 { true -> call_binding() _ -> call_place_emitted() } }
     state call_place_emitted() { transition self.left_place_id >= 0 { true -> call_binding() _ -> bad() } }
@@ -3362,10 +3383,13 @@ machine Main::check_all_bodies(&mut self) {
     state graph_outgoing_next() { self.j = self.j + 1; transition 0 { _ -> graph_outgoing() } }
     state graph_all_processed() { transition self.x == self.machine_count { true -> graph_bindings_begin() _ -> bad() } }
     state graph_bindings_begin() { self.i = 0; transition 0 { _ -> graph_bindings() } }
-    state graph_bindings() { transition self.i < self.w_binding_count { true -> graph_binding_role() _ -> done() } }
+    state graph_bindings() { transition self.i < self.w_binding_count { true -> graph_binding_role() _ -> graph_relation() } }
     state graph_binding_role() { self.table_pos = self.w_bindings + self.i * 28; transition self.witness[self.table_pos + 8] == 3 { true -> graph_binding_used() _ -> graph_binding_next() } }
     state graph_binding_used() { transition self.call_binding_consumed[self.i] == 1 { true -> graph_binding_next() _ -> bad() } }
     state graph_binding_next() { self.i = self.i + 1; transition 0 { _ -> graph_bindings() } }
+    state graph_relation() { transition self.resolution_version == 1 { true -> graph_relation_v1() _ -> graph_relation_v2() } }
+    state graph_relation_v1() { transition self.field_receiver_count == 0 { true -> done() _ -> bad() } }
+    state graph_relation_v2() { transition self.field_receiver_count > 0 { true -> done() _ -> bad() } }
     state bad() { self.reject(); }
     state done() { }
 }
@@ -3789,7 +3813,7 @@ machine Main::main(&mut self) {
     state operations() {
         self.bundle_mode = 1;
         self.op_count = 0; self.operand_count = 0; self.place_count = 0;
-        self.value_count = self.param_count; self.i = 0;
+        self.value_count = self.param_count; self.field_receiver_count = 0; self.i = 0;
         transition 0 { _ -> operation_blocks() }
     }
     state operation_blocks() { transition self.i < self.block_count { true -> operation_block() _ -> bodies() } }

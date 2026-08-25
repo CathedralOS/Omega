@@ -47,8 +47,13 @@ data Main {
     // 33312..57887 six field columns; 57888..59295 eleven machine columns;
     // 59296..71583 six machine-parameter columns; 71584..90015 nine block columns;
     // 90016..114591 six block-parameter columns; 114592..180127 eight raw-type columns;
-    // 180128..192415 six canonical-type columns.
-    tables: [i32; 192416];
+    // 180128..192415 six canonical-type columns;
+    // 192416..204703 three private role-3 receiver columns.  These retain a
+    // direct-vs-field discriminator and the exact field-token span only until
+    // target resolution.  OMGRSW1 publishes neither receiver syntax nor a
+    // field offset: the shared role-3 row still names only the callee token
+    // and resolved machine declaration.
+    tables: [i32; 204704];
 
 
     words: [u8; 58];
@@ -74,7 +79,7 @@ data Main {
     candidate_kind: i32; candidate_flags: i32; candidate_payload0: i32;
     candidate_payload1: i32; candidate_lo: i32; candidate_hi: i32;
     array_pending: i32; array_progress: i32;
-    selected_machine: i32; witness_length: i32;
+    selected_machine: i32; witness_length: i32; resolution_version: i32;
 }
 
 machine Main::reject(&mut self) {
@@ -460,6 +465,9 @@ machine Main::add_binding(&mut self, role: i32, start: i32, count: i32) {
         self.tables[18720+self.result_id]=count;
         self.tables[22816+self.result_id]=0-1;
         self.tables[26912+self.result_id]=0-1;
+        self.tables[192416+self.result_id]=0;
+        self.tables[196512+self.result_id]=0;
+        self.tables[200608+self.result_id]=0;
         transition role==3 { true -> machine_target() _ -> complete() }
     }
     state machine_target() {
@@ -722,13 +730,25 @@ machine Main::skip_balanced_body(&mut self) {
 
 machine Main::scan_self_call(&mut self) {
     // The caller has already matched the builtin receiver token.  Consume only
-    // enough lookahead to distinguish `self.name(` from field/path access.  The
-    // exact role-3 reference span is the authored machine-name token.
+    // enough lookahead to distinguish `self.name(` and the one admitted field
+    // receiver `self.field.name(` from all other field/path access.  The exact
+    // role-3 reference span remains the authored machine-name token.
     self.next_token(); transition self.status==0 { true -> dot() _ -> done() }
     state dot() { transition self.tok==46 { true -> name_begin() _ -> done() } }
     state name_begin() { self.next_token(); transition self.tok==256 { true -> name_save() _ -> done() } }
-    state name_save() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.next_token(); transition self.tok==40 { true -> call() _ -> done() } }
+    state name_save() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.next_token(); transition self.tok==40 { true -> call() _ -> field_dot() } }
     state call() { self.add_binding(3,self.saved_start,self.saved_len); transition 0 { _ -> done() } }
+    state field_dot() { transition self.tok==46 { true -> field_save() _ -> done() } }
+    state field_save() { self.x=self.saved_start; self.y=self.saved_len; self.next_token(); transition self.tok==256 { true -> field_machine() _ -> done() } }
+    state field_machine() { self.saved_start=self.tok_start; self.saved_len=self.tok_len; self.next_token(); transition self.tok==40 { true -> field_call() _ -> done() } }
+    state field_call() {
+        self.add_binding(3,self.saved_start,self.saved_len);
+        self.resolution_version=2;
+        self.tables[192416+self.result_id]=1;
+        self.tables[196512+self.result_id]=self.x-self.tables[336+self.current_source];
+        self.tables[200608+self.result_id]=self.y;
+        transition 0 { _ -> done() }
+    }
     state done() { }
 }
 
@@ -1011,11 +1031,35 @@ machine Main::resolve_one_binding(&mut self, id: i32) {
 
 machine Main::resolve_self_machine_binding(&mut self, id: i32) {
     // Role-3 parsing temporarily stores the caller machine in the declaration
-    // slot.  Attached owners have already been resolved when this pass runs.
+    // slot.  Attached owners and nominal field types have already been resolved
+    // when this pass runs.  Direct calls select the caller owner; the one
+    // admitted field-receiver form selects the exact named field's nominal
+    // owner without publishing that private parse discriminator.
     self.current_source=self.tables[2336+id]; self.x=self.tables[22816+id];
     transition self.x>=0 { true -> caller_range() _ -> bad() }
     state caller_range() { transition self.x<self.machine_count { true -> owner() _ -> bad() } }
-    state owner() { self.y=self.tables[58144+self.x]; transition self.y>=0 { true -> begin() _ -> bad() } }
+    state owner() { self.y=self.tables[58144+self.x]; transition self.y>=0 { true -> receiver_kind() _ -> bad() } }
+    state receiver_kind() { transition self.tables[192416+id]==0 { true -> begin() _ -> field_kind() } }
+    state field_kind() { transition self.tables[192416+id]==1 { true -> field_find() _ -> bad() } }
+    state field_find() {
+        self.field_name_exists(
+            self.y,
+            self.tables[336+self.current_source]+self.tables[196512+id],
+            self.tables[200608+id]
+        );
+        transition self.match_ok==1 { true -> field_raw() _ -> bad() }
+    }
+    state field_raw() { self.k=self.tables[41504+self.i]; transition self.tables[114592+self.k]==4 { true -> field_binding() _ -> bad() } }
+    state field_binding() { self.k=self.tables[163744+self.k]; transition self.k>=0 { true -> field_declaration() _ -> bad() } }
+    state field_declaration() { self.k=self.tables[22816+self.k]; transition self.k>=0 { true -> field_data() _ -> bad() } }
+    state field_data() { transition self.tables[31008+self.k]==1 { true -> field_module() _ -> bad() } }
+    state field_module() {
+        self.j=self.tables[31520+self.tables[32800+self.y]];
+        self.x=self.tables[31520+self.k];
+        transition self.tables[32+self.j]==self.tables[32+self.x] { true -> field_module_path() _ -> bad() }
+    }
+    state field_module_path() { transition self.tables[64+self.j]==self.tables[64+self.x] { true -> field_owner() _ -> bad() } }
+    state field_owner() { self.y=self.tables[32544+self.k]; transition self.y>=0 { true -> begin() _ -> bad() } }
     state begin() {
         self.saved_start=self.tables[336+self.current_source]+self.tables[14624+id];
         self.saved_len=self.tables[18720+id]; self.i=0; self.result_id=0-1; self.found_count=0;
@@ -1225,10 +1269,12 @@ machine Main::emit_u32(&mut self, value: i32) {
 }
 
 machine Main::publish_witness(&mut self) {
-    // OMGRSW1\0, exact schema/header, then canonical tables.
+    // OMGRSW1 retains its exact frozen relation.  A source using the admitted
+    // direct field-receiver form selects OMGRSW2; its table schema is unchanged
+    // because exact source plus the existing role-3 target derives the receiver.
     write_byte(79); write_byte(77); write_byte(71); write_byte(82);
-    write_byte(83); write_byte(87); write_byte(49); write_byte(0);
-    write_byte(1); write_byte(0); write_byte(0); write_byte(0);
+    write_byte(83); write_byte(87); write_byte(48+self.resolution_version); write_byte(0);
+    write_byte(self.resolution_version); write_byte(0); write_byte(0); write_byte(0);
     write_byte(0); write_byte(0); write_byte(72); write_byte(0);
     self.emit_u32(self.witness_length); self.emit_u32(self.source_count);
     self.emit_u32(self.import_count); self.emit_u32(self.binding_count);
@@ -1338,6 +1384,7 @@ machine Main::main(&mut self) {
     self.status=0; self.import_count=0; self.binding_count=0; self.declaration_count=0;
     self.record_count=0; self.field_count=0; self.machine_count=0; self.machine_parameter_count=0;
     self.block_count=0; self.block_parameter_count=0; self.raw_type_count=0;
+    self.resolution_version=1;
     self.init_words(); self.slurp(); transition self.status==0 { true -> envelope() _ -> finish() }
     state envelope() { self.decode_envelope(); transition self.status==0 { true -> sources() _ -> finish() } }
     state sources() { self.parse_sources(); transition self.status==0 { true -> imports() _ -> finish() } }

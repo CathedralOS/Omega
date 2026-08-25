@@ -90,20 +90,22 @@ Path(sys.argv[1]).write_text(source(True), encoding="ascii")
 Path(sys.argv[2]).write_text(source(False), encoding="ascii")
 PY
 
-prepare() { # label owner machine source
-  python3 -B "$FIXTURE" build "$T/$1.omgc" "$2" "$3" "$4"
-  "$T/resolver.native" < "$T/$1.omgc" > "$T/$1.omgrsw1"
-  python3 -B "$FRAME" pack "$T/$1.omgc" "$T/$1.omgrsw1" > "$T/$1.omglow4"
+prepare() { # label owner machine source...
+  LABEL=$1 OWNER=$2 MACHINE=$3
+  shift 3
+  python3 -B "$FIXTURE" build "$T/$LABEL.omgc" "$OWNER" "$MACHINE" "$@"
+  "$T/resolver.native" < "$T/$LABEL.omgc" > "$T/$LABEL.omgrsw"
+  python3 -B "$FRAME" pack "$T/$LABEL.omgc" "$T/$LABEL.omgrsw" > "$T/$LABEL.omglow"
 }
-prepare canonical DirectCallProbe run \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/direct-call.omg"
+prepare canonical FieldReceiverProbe run \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/direct-field-receiver.omg"
 prepare semantic-251 MeaningFiveProbe run "$T/semantic.omg"
 prepare resource-252 MeaningFiveProbe run "$T/resource.omg"
 : > "$T/empty.expected"
 
 native_case() { # label expected-status
   set +e
-  "$T/lowerer.native" < "$T/$1.omglow4" > "$T/$1.expected"
+  "$T/lowerer.native" < "$T/$1.omglow" > "$T/$1.expected"
   STATUS=$?
   set -e
   [ "$STATUS" -eq "$2" ] || {
@@ -130,7 +132,7 @@ python3 -B "$FIXTURE" inspect "$T/canonical.expected" | \
 
 launch_gamma() { # label timeout
   python3 -B "$RUNNER" run "$T/interp.exe" "$T/lowerer.gamma" \
-    "$T/$1.omglow4" "$T/$1.observation" "$T/timings.tsv" \
+    "$T/$1.omglow" "$T/$1.observation" "$T/timings.tsv" \
     "resolved-to-CKIR4 meaning $1" "$2"
 }
 check_gamma() { # label expected-status

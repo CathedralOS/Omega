@@ -3,6 +3,7 @@
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](OMEGA_BOOTSTRAP_COMPILATION.md) |
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
+[`OMGRSW2`](OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
 [`OMGCOMP refinement`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 
 This contract fixes the bridge-private boundary between multi-unit Omega source
@@ -176,6 +177,11 @@ private access across distinct modules remain unsupported rather than acquiring
 guessed resolution rules. A final-name collision between an import and a
 same-module declaration also fails closed. None of these exclusions blocks the
 public cross-package nominal-data artifact.
+
+The distinct [`OMGRSW2`](OMEGA_BOOTSTRAP_RESOLUTION_V2.md) successor admits the
+narrow same-module `self.field.machine(...)` relation without widening this
+frozen identity. A shared resolver implementation emits the least required
+version; sources in this contract still produce byte-identical OMGRSW1.
 
 Every implementation milestone carries phase-isolated semantic negatives,
 exact/adjacent resources, deterministic output, native and Delta-self-built

@@ -17,6 +17,11 @@ and publication rule in
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) remains
 normative. Schema majors 1, 2, and 3 and their meanings remain frozen.
 
+The separate
+[`OMGRSW2/OMGLOW5 source relation`](OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md)
+also lowers direct nominal field receivers into this unchanged CKIR4 schema.
+Nothing in that successor changes the byte-level contract below.
+
 ## 1. Versioned lowering frame and unchanged CKIR tables
 
 The resolved-source lowerer consumes `OMGLOW4`, not an earlier OMGLOW frame:
@@ -41,8 +46,9 @@ fields, normalized scalar/record/array types, machine parameters, block
 parameters, and role-3 same-owner call bindings needed by this tranche. Runtime
 record construction is body meaning reconstructed by the lowerer; it is not a
 new resolver-selected row. An implementation must not publish an `OMGRSW2`, a
-field offset, or a constructor row merely to carry information already present
-in exact source plus OMGRSW1.
+field offset, or a constructor row merely for record construction information
+already present in exact source plus OMGRSW1. The later OMGRSW2 identity exists
+only for its genuinely broader field-receiver resolution relation.
 
 The inherited component ceilings remain at most 267,280 OMGCOMP bytes, 524,288
 OMGRSW1 bytes, and 791,600 bytes for the complete nominal frame. The greatest
@@ -347,9 +353,14 @@ identity, structural loads, structural returns, aggregate call results,
 direct constructor-result value IDs as state-edge arguments, aggregate
 transition literals, or constant evaluation of runtime expressions. It does
 not add payload
-sums, slices, strings, allocation, source pointers/references, recursion, field
-receivers, imported or cross-package calls, or private access between distinct
+sums, slices, strings, allocation, source pointers/references, recursion,
+imported or cross-package calls, or private access between distinct
 logical modules.
+
+The original OMGLOW4/OMGRSW1 source relation excludes field receivers. The
+versioned OMGLOW5/OMGRSW2 relation admits only direct same-module
+`self.field.machine(...)`; computed, indexed, parameter, parenthesized, chained,
+distinct-module, imported, and cross-package receivers remain excluded.
 
 It also leaves unchanged the inherited exclusions of general boundary calls,
 generics, domains, proofs, atomics, threads, exceptions, target generality,
@@ -439,6 +450,7 @@ requires:
 
 Only that evidence closes this bounded runtime named-record-construction
 source-to-artifact relation. It does not close slices, payload sums, boundary
-intrinsics, field receivers, structural returns, or the complete
-checkpoint-000001 compiler path, and it grants no compilation authority without
-the separately accepted lock/closure and exact OMGCOMP commitment join.
+intrinsics, the separate OMGRSW2 field-receiver relation, structural returns,
+or the complete checkpoint-000001 compiler path, and it grants no compilation
+authority without the separately accepted lock/closure and exact OMGCOMP
+commitment join.
