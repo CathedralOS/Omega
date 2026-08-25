@@ -292,6 +292,7 @@ fn bind_git_package_source(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_root(name: &str) -> PathBuf {
@@ -717,6 +718,179 @@ mod tests {
         assert_eq!(https.resolution(), ssh.resolution());
 
         let _ = std::fs::remove_dir_all(&snapshot);
+    }
+
+    fn run_test_git<I, S>(directory: &Path, args: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        let output = Command::new("git")
+            .current_dir(directory)
+            .args(args)
+            .output()
+            .expect("spawn test Git");
+        assert!(
+            output.status.success(),
+            "test Git command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn test_git_head(directory: &Path) -> String {
+        let output = Command::new("git")
+            .current_dir(directory)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .expect("read test Git head");
+        assert!(output.status.success());
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    #[test]
+    fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
+        let repository = temp_root("git-reconciliation-repository");
+        write_package(&repository, "shared-dependency");
+        run_test_git(&repository, ["init", "--quiet"]);
+        run_test_git(
+            &repository,
+            ["config", "user.email", "omega@example.invalid"],
+        );
+        run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+        run_test_git(&repository, ["add", "."]);
+        run_test_git(&repository, ["commit", "--quiet", "-m", "first"]);
+        let first_revision = test_git_head(&repository);
+        std::fs::write(
+            repository.join("main.omg"),
+            "machine Main::main() {}\nmachine Main::changed() {}\n",
+        )
+        .expect("change dependency source");
+        run_test_git(&repository, ["add", "main.omg"]);
+        run_test_git(&repository, ["commit", "--quiet", "-m", "second"]);
+        let second_revision = test_git_head(&repository);
+
+        let root = temp_root("git-reconciliation-root");
+        std::fs::create_dir_all(&root).expect("create reconciliation root");
+        let canonical_repository = "https://github.com/CathedralOS/reconciliation-probe.git";
+        std::fs::write(
+            root.join("build.omg"),
+            format!(
+                r#"const PACKAGE: Package = Package {{ name: "reconciliation-root" }};
+
+machine build(builder: &mut Build) {{
+    builder.depend_as("first_revision", Source::Git {{
+        repository: "{canonical_repository}",
+        revision: "{first_revision}"
+    }});
+    builder.depend_as("second_revision", Source::Git {{
+        repository: "{canonical_repository}",
+        revision: "{second_revision}"
+    }});
+}}
+"#,
+            ),
+        )
+        .expect("write conflicting root requests");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n")
+            .expect("write reconciliation root source");
+
+        let cache = temp_root("git-reconciliation-cache");
+        let source_limits = LocalSourceLimits::default();
+        let file_url = format!("file://{}", repository.display());
+        let lineage = SourceLineage::git(canonical_repository).expect("canonical Git lineage");
+        let first = bind_git_package_source(
+            lineage.clone(),
+            resolve_git_source(
+                &GitSourceSpec {
+                    url: file_url.clone(),
+                    rev: Some(first_revision.clone()),
+                },
+                cache.join("first"),
+                source_limits,
+            )
+            .expect("resolve first immutable Git custody"),
+            source_limits,
+        )
+        .expect("bind first declared package custody")
+        .into_custody();
+        let second = bind_git_package_source(
+            lineage,
+            resolve_git_source(
+                &GitSourceSpec {
+                    url: file_url,
+                    rev: Some(second_revision.clone()),
+                },
+                cache.join("second"),
+                source_limits,
+            )
+            .expect("resolve second immutable Git custody"),
+            source_limits,
+        )
+        .expect("bind second declared package custody")
+        .into_custody();
+        assert_eq!(first.key(), second.key());
+        assert_ne!(first.resolution(), second.resolution());
+        assert_ne!(first.snapshot_root(), second.snapshot_root());
+
+        let root_custody = resolve_external_local_package_source(
+            &root,
+            cache.join("root"),
+            source_limits,
+            ExternalSourceContext::derive(b"real-custody-reconciliation"),
+        )
+        .expect("resolve root custody")
+        .into_custody();
+        let error = crate::closure_resolution::resolve_package_source_closure::<
+            std::convert::Infallible,
+            _,
+        >(root_custody, |_, request| {
+            let DependencySourceRequest::Git { revision, .. } = request else {
+                unreachable!("root authors only Git requests")
+            };
+            Ok(if revision == &first_revision {
+                first.clone()
+            } else {
+                assert_eq!(revision, &second_revision);
+                second.clone()
+            })
+        })
+        .expect_err("one package key cannot reconcile two immutable revisions");
+
+        let [conflict] = error.conflicts().expect("exact custody conflict") else {
+            panic!("one package key must conflict")
+        };
+        assert_eq!(conflict.key(), first.key());
+        let [first_candidate, second_candidate] = conflict.candidates() else {
+            panic!("both immutable custodies must be retained")
+        };
+        assert_ne!(
+            first_candidate.custody().resolution(),
+            second_candidate.custody().resolution()
+        );
+        let mut request_rows = conflict
+            .candidates()
+            .iter()
+            .flat_map(|candidate| candidate.requesting_paths())
+            .map(|path| {
+                let [step] = path.steps() else {
+                    panic!("dependency conflict path must have one root step")
+                };
+                (step.dependency_index(), step.alias().as_str().to_owned())
+            })
+            .collect::<Vec<_>>();
+        request_rows.sort();
+        assert_eq!(
+            request_rows,
+            vec![
+                (0, "first_revision".to_owned()),
+                (1, "second_revision".to_owned())
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(&repository);
+        let _ = std::fs::remove_dir_all(&root);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     #[cfg(unix)]

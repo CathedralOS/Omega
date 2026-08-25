@@ -1212,12 +1212,20 @@ complete.
   from `MonotonicClock` to `WallClock`; compiler-issued package-qualified
   projections prove both endpoints, and reconciliation emits one changed,
   opaque-blocking selected-provider-set conflict with baseline/candidate source
-  locations before triage blocks the update. Fixture-
-  executed build-provider operations, canonical observation transcripts/
+  locations before triage blocks the update. Real-custody reconciliation now
+  resolves two actual commits of one local Git
+  repository through the hardened Git snapshot path, binds both snapshots to
+  one canonical network lineage and declared package key, and proves the
+  closure rejects their distinct immutable resolutions while retaining both
+  exact root request ordinals and aliases. The private remote canary remains
+  explicitly ignored when CathedralOS SSH credentials are unavailable; it
+  rejects rather than substituting ambient or fabricated transport evidence.
+  Still remaining: fixture-executed build-provider operations, canonical
+  observation transcripts/
   receipts, sealed representation
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
-  normalization, and real-custody reconciliation conflicts remain.
+  normalization remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

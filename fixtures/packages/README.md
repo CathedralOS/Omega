@@ -47,10 +47,17 @@ from `MonotonicClock` to `WallClock` under immutable baseline/candidate custody.
 It produces one compiler-owned, opaque-blocking selected-provider-set conflict
 and blocks triage.
 
+Real-custody reconciliation coverage creates two actual commits of one declared
+Git package, resolves both through immutable Git snapshots, binds them to one
+canonical package lineage/key, and verifies closure reconciliation rejects with
+both root dependency rows retained as explanation paths.
+
 The admission matrix must additionally cover remote compiler-backed
 transport-normalized lineage, retained dangerous authority, missing
 accepted-lock state, and conflicting instance requests for one `PackageKey`.
 Missing old source is already covered with both live and reopened review-only
 baselines. `remote-journal` provides the local and remote source-custody
 retained-dangerous-authority case; sealed remote admission still depends on the
-accepted-lock pipeline.
+accepted-lock pipeline. The private-network canary remains ignored unless the
+environment has CathedralOS GitHub SSH custody; missing credentials reject and
+never trigger a substitute transport.

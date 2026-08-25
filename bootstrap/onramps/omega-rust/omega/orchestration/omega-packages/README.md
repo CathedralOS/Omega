@@ -590,3 +590,8 @@ A fixture-derived `provider-switchboard` update also changes the selected type
 under separate immutable baseline/candidate custody. The compiler-owned row is
 reported as one opaque-blocking conflict with exact authored provenance, and
 update triage blocks it.
+A real-Git reconciliation canary resolves two commits of one declared package
+into separate immutable snapshots, assigns the same canonical package key, and
+proves closure reconciliation rejects while retaining both exact requester
+rows. Remote CathedralOS fixture verification remains credential-gated and
+fail-closed.
