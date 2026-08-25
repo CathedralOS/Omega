@@ -385,14 +385,17 @@ Authored toolchain nominals now retain a domain-separated commitment over the
 canonical toolchain-relative source path and exact bytes. Compiler-generated
 symbols inherit the package/toolchain provenance of a mandatory authored
 derivation origin, while truly source-free symbols remain unresolved and
-compiler-intrinsic atoms remain explicitly toolchain-unbound. The projection
+the 22 exact compiler-installed builtin types use closed compiler atoms selected
+by root slot and symbol kind rather than spelling. Same-named package types and
+source-free generated types remain unresolved; other compiler-semantic atoms
+remain explicitly toolchain-unbound until they gain closed carriers. The projection
 uses that same exact source commitment inside every structural type identity;
 the frontend `SourceId` used to join a nominal to its source never enters the
 canonical bytes, and a missing join rejects review rather than substituting the
 weaker generic toolchain marker. The projection includes selected provider
 mechanisms, and provider plans/trust rows retain
 exact package owners for the realizing machine, provider type, service schema,
-and requirement owner. Review v37 additionally binds the exact schema,
+and requirement owner. Review v38 additionally binds the exact schema,
 provider-type, requirement, and realizing-machine declarations as canonical
 nominal identities, so readable plan/overload strings are never declaration
 identity.
@@ -414,7 +417,7 @@ that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. Exact source-body presence survives
-resolved and typed copies. Review v37 uses inferred transitive reach only for
+resolved and typed copies. Review v38 uses inferred transitive reach only for
 actual checked bodies and records bodyless supply explicitly instead of copying
 its published ceiling into a false realization. Its concrete row retains the
 preselection body base rather than reconstructing it from the current callable;
@@ -559,7 +562,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v37 projection therefore
+remain separately bound. The current incomplete review-v38 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

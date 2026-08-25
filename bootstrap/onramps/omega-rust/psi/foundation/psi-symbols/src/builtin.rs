@@ -2,6 +2,130 @@ use super::{SymbolKind, SymbolNameRef};
 
 pub const BUILTIN_TYPE_COUNT: usize = 22;
 
+/// Closed semantic identity for every compiler-installed source-free type.
+/// Ordinals are the exact root-child slots installed by
+/// [`builtin_type_symbols`]; names are diagnostic only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BuiltinTypeAtom {
+    Bool,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    /// Pointer-width address, distinct from integer counts.
+    Address,
+    F32,
+    F64,
+    Slice,
+    Result,
+    SyscallResult,
+    Terminal,
+    Never,
+    UInt,
+    Int,
+    /// Atomic types retain distinct identities even where layout matches the
+    /// underlying primitive.
+    AtomicBool,
+    AtomicU32,
+    AtomicU64,
+}
+
+impl BuiltinTypeAtom {
+    pub const ALL: [Self; BUILTIN_TYPE_COUNT] = [
+        Self::Bool,
+        Self::I8,
+        Self::I16,
+        Self::I32,
+        Self::I64,
+        Self::U8,
+        Self::U16,
+        Self::U32,
+        Self::U64,
+        Self::Address,
+        Self::F32,
+        Self::F64,
+        Self::Slice,
+        Self::Result,
+        Self::SyscallResult,
+        Self::Terminal,
+        Self::Never,
+        Self::UInt,
+        Self::Int,
+        Self::AtomicBool,
+        Self::AtomicU32,
+        Self::AtomicU64,
+    ];
+
+    pub fn from_ordinal(ordinal: usize) -> Option<Self> {
+        Self::ALL.get(ordinal).copied()
+    }
+
+    pub fn ordinal(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("builtin type atom belongs to its closed inventory")
+    }
+
+    pub const fn identity(self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Address => "address",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+            Self::Slice => "slice",
+            Self::Result => "result",
+            Self::SyscallResult => "syscall-result",
+            Self::Terminal => "terminal",
+            Self::Never => "never",
+            Self::UInt => "uint",
+            Self::Int => "int",
+            Self::AtomicBool => "atomic-bool",
+            Self::AtomicU32 => "atomic-u32",
+            Self::AtomicU64 => "atomic-u64",
+        }
+    }
+
+    pub const fn symbol_name(self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Address => "addr",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+            Self::Slice => "Slice",
+            Self::Result => "Result",
+            Self::SyscallResult => "SyscallResult",
+            Self::Terminal => "Terminal",
+            Self::Never => "Never",
+            Self::UInt => "UInt",
+            Self::Int => "Int",
+            Self::AtomicBool => "AtomicBool",
+            Self::AtomicU32 => "AtomicU32",
+            Self::AtomicU64 => "AtomicU64",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
     UInt,
@@ -440,47 +564,12 @@ impl BuiltinFunction {
 }
 
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
-    [
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("i8")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("i16")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("i32")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("i64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("u16")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("u32")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
-        // `addr` -- a pointer-width ADDRESS type, distinct from u64 counts
-        // (index_count_and_address_model brief: address and count are separate
-        // axes). Naive pointer-width for now (rides the 8-byte path); the
-        // in-region/aligned capability discipline is a later rung.
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("addr")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("Slice")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("Result")),
+    BuiltinTypeAtom::ALL.map(|atom| {
         (
             SymbolKind::BuiltinType,
-            SymbolNameRef::Static("SyscallResult"),
-        ),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("Terminal")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("Never")),
-        (
-            SymbolKind::BuiltinType,
-            SymbolNameRef::Static(BuiltinType::UInt.name()),
-        ),
-        (
-            SymbolKind::BuiltinType,
-            SymbolNameRef::Static(BuiltinType::Int.name()),
-        ),
-        // Atomic types (chapter 17, concurrency stage 1). Layout matches the
-        // underlying primitive; the type name is retained so atomic method
-        // calls (load/store/fetch_add/compare_exchange) can be resolved by
-        // name in later stages.
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicBool")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU32")),
-        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU64")),
-    ]
+            SymbolNameRef::Static(atom.symbol_name()),
+        )
+    })
 }
 
 pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BuiltinFunction::COUNT]
@@ -798,6 +887,17 @@ mod builtin_ordinal_tests {
                 builtin_type.name(),
                 "ordinal for {:?} does not match the symbol table position",
                 builtin_type
+            );
+        }
+        for atom in BuiltinTypeAtom::ALL {
+            assert_eq!(
+                table[atom.ordinal()],
+                (
+                    SymbolKind::BuiltinType,
+                    SymbolNameRef::Static(atom.symbol_name()),
+                ),
+                "closed builtin atom {:?} must retain its exact root slot",
+                atom,
             );
         }
     }

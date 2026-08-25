@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 37);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 38);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -2293,6 +2293,21 @@ machine build(builder: &mut Build) { }
     assert_eq!(borrow.parameters().len(), 2);
     assert!(borrow.type_parameters().is_empty());
     assert!(!borrow.return_type().canonical().is_empty());
+    assert!(
+        borrow.parameters()[0]
+            .type_identity()
+            .canonical()
+            .contains("compiler-type"),
+        "source-free builtin u8 must use a closed compiler atom: {}",
+        borrow.parameters()[0].type_identity().canonical(),
+    );
+    assert!(
+        !borrow.parameters()[0]
+            .type_identity()
+            .canonical()
+            .contains("unresolved-owner"),
+        "compiler builtins must not remain unresolved in package review",
+    );
     let identity = original
         .callables()
         .iter()

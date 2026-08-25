@@ -396,7 +396,7 @@ reconstructs them from reduced nominal identity. Provider candidate derivation
 captures a compiler-internal
 sidecar beside each semantic plan: exact schema and optional nominal-provider
 symbols, plus the exact requirement and realizing machine for every external or
-checked-adapter row. Review v37 encodes those declarations as exact
+checked-adapter row. Review v38 encodes those declarations as exact
 package-qualified nominal identities; readable plan and overload strings remain
 operational/audit data. Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
@@ -424,7 +424,11 @@ exact source-backed toolchain commitment, or an unresolved marker; generic
 binders remain owner-free and alpha-normalized. Private `SourceId` state joins
 the declaration to its source but never enters canonical review bytes. A
 missing join rejects exact review rather than falling back to the weaker generic
-toolchain marker. Public signature identity separately layers
+toolchain marker. The 22 exact compiler-installed root builtin types use closed
+compiler atoms selected by root slot and symbol kind, never package-controlled
+spelling; same-named package declarations and source-free generated symbols
+remain unresolved. Other source-free compiler semantics still require closed
+structural carriers. Public signature identity separately layers
 alpha-normalized erased-lifetime topology over runtime type identity, so a
 renamed lifetime is stable while changing which region a field or result
 borrows changes package evidence. Public data rows include their complete
@@ -892,7 +896,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v37 bytes cannot be promoted merely because the future artifact reuses
+review-v38 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in
