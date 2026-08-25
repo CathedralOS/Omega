@@ -1,5 +1,7 @@
 use psi_diagnostics::Diagnostic;
+use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use psi_language_semantics::{MachineSupplyMode, TerminationGuarantee, TerminationInterface};
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::SignatureContractKind;
@@ -14,6 +16,53 @@ pub(crate) fn validate_cleanup_machine_declarations(
     }) {
         validate_cleanup_machine(program, machine, diagnostics);
     }
+}
+
+/// Reject authored access to the one compiler-selected cleanup hook attached
+/// to a nominal owner. Automatic edge cleanup is deliberately absent from the
+/// authored-selection ledger, so matching an exact retained declaration here
+/// cannot reject compiler-planned cleanup. Spelling is never sufficient: an
+/// unattached ordinary machine named `drop` remains callable.
+pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for selection in program.authored_declaration_selections() {
+        let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+            continue;
+        };
+        let Some(cleanup) = reserved_cleanup_selected_by(program, target.selected_symbol()) else {
+            continue;
+        };
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "reserved cleanup machine `{}` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation",
+                cleanup.name,
+            ))
+            .with_source_span(selection.source_span()),
+        );
+    }
+}
+
+fn reserved_cleanup_selected_by(
+    program: &TypedTrees,
+    selected_symbol: SymbolHandle,
+) -> Option<&Machine> {
+    program.machines().iter().find(|machine| {
+        let owner = machine.attached_data_symbol;
+        machine.attached_data.is_some()
+            && owner.is_valid()
+            && machine.name.as_str().rsplit("::").next() == Some("drop")
+            && program
+                .data_definitions()
+                .iter()
+                .any(|data| data.symbol == owner)
+            && (machine.symbol == selected_symbol
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == selected_symbol))
+    })
 }
 
 fn validate_cleanup_machine(
@@ -126,5 +175,177 @@ fn named_type_matches(
             *symbol == expected_self_symbol && name.as_str() == "Self"
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_reserved_cleanup_selection_diagnostics;
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    };
+    use psi_source::{SourceId, SourceSpan, Span};
+    use psi_symbols::SymbolHandle;
+    use psi_typed_trees::TypedTrees;
+    use psi_typed_trees::data::DataDefinition;
+    use psi_typed_trees::machine::Machine;
+    use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::state::State;
+
+    fn source_span(index: usize) -> SourceSpan {
+        SourceSpan::new(SourceId(7), Span::new(index, index + 1))
+    }
+
+    fn machine_with_entry(
+        program: &mut TypedTrees,
+        machine_symbol: u32,
+        entry_symbol: u32,
+        name: &'static str,
+        owner: Option<(u32, &'static str)>,
+    ) -> (SymbolHandle, SymbolHandle) {
+        let machine_symbol = SymbolHandle::from_arena_index(machine_symbol);
+        let entry_symbol = SymbolHandle::from_arena_index(entry_symbol);
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: Identifier::generated_static(name),
+            attached_data: owner.map(|(_, owner_name)| Identifier::generated_static(owner_name)),
+            attached_data_symbol: owner.map_or_else(SymbolHandle::invalid, |(symbol, _)| {
+                SymbolHandle::from_arena_index(symbol)
+            }),
+            ..Machine::default()
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: entry_symbol,
+                name: Identifier::generated_static("entry"),
+                ..State::default()
+            },
+        );
+        program.push_machine(machine);
+        (machine_symbol, entry_symbol)
+    }
+
+    fn record_selection(
+        program: &mut TypedTrees,
+        index: usize,
+        kind: AuthoredDeclarationSelectionKind,
+        symbol: SymbolHandle,
+    ) {
+        program
+            .record_resolved_authored_declaration_selection_once(
+                source_span(index),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                kind,
+                symbol,
+            )
+            .expect("fixture selection should enter the authored ledger");
+    }
+
+    #[test]
+    fn source_selection_of_exact_owner_attached_drop_rejects_in_every_retained_form() {
+        let mut program = TypedTrees::default();
+        let owner_symbol = SymbolHandle::from_arena_index(10);
+        program.push_data_definition(DataDefinition {
+            symbol: owner_symbol,
+            name: Identifier::generated_static("Resource"),
+            ..DataDefinition::default()
+        });
+        let (cleanup_machine, cleanup_entry) = machine_with_entry(
+            &mut program,
+            20,
+            21,
+            "Resource::drop",
+            Some((10, "Resource")),
+        );
+
+        // Qualified and receiver calls share the checked Call selection kind;
+        // depending on resolution timing they retain the machine or its entry.
+        record_selection(
+            &mut program,
+            1,
+            AuthoredDeclarationSelectionKind::Call,
+            cleanup_machine,
+        );
+        record_selection(
+            &mut program,
+            2,
+            AuthoredDeclarationSelectionKind::Call,
+            cleanup_entry,
+        );
+        record_selection(
+            &mut program,
+            3,
+            AuthoredDeclarationSelectionKind::StaticArgument,
+            cleanup_entry,
+        );
+        record_selection(
+            &mut program,
+            4,
+            AuthoredDeclarationSelectionKind::StaticPathSegment,
+            cleanup_machine,
+        );
+
+        let mut diagnostics = Vec::new();
+        collect_reserved_cleanup_selection_diagnostics(&program, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 4);
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic
+                .message
+                .contains("reserved cleanup machine `Resource::drop` is compiler-selected")
+        }));
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.source_span)
+                .collect::<Vec<_>>(),
+            (1..=4).map(source_span).map(Some).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn ordinary_drop_machines_and_core_drop_remain_authored_callables() {
+        let mut program = TypedTrees::default();
+        let (ordinary_drop, ordinary_entry) =
+            machine_with_entry(&mut program, 30, 31, "drop", None);
+        let (core_drop, core_entry) =
+            machine_with_entry(&mut program, 40, 41, "omega::core::drop", None);
+        let owner_symbol = SymbolHandle::from_arena_index(50);
+        program.push_data_definition(DataDefinition {
+            symbol: owner_symbol,
+            name: Identifier::generated_static("Resource"),
+            ..DataDefinition::default()
+        });
+        let (drop_counter, drop_counter_entry) = machine_with_entry(
+            &mut program,
+            60,
+            61,
+            "Resource::drop_counter",
+            Some((50, "Resource")),
+        );
+
+        for (index, symbol) in [
+            ordinary_drop,
+            ordinary_entry,
+            core_drop,
+            core_entry,
+            drop_counter,
+            drop_counter_entry,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            record_selection(
+                &mut program,
+                index + 1,
+                AuthoredDeclarationSelectionKind::Call,
+                symbol,
+            );
+        }
+
+        let mut diagnostics = Vec::new();
+        collect_reserved_cleanup_selection_diagnostics(&program, &mut diagnostics);
+        assert!(diagnostics.is_empty());
     }
 }

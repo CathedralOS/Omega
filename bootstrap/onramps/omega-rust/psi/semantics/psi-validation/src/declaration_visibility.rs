@@ -10,6 +10,10 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // This collector is rerun after checked late-binding finalizes receiver
+    // calls, making it the common gate for legality tied to exact authored
+    // declaration identity as well as visibility.
+    crate::cleanup::collect_reserved_cleanup_selection_diagnostics(program, diagnostics);
     validate_public_const_declared_types(program, diagnostics);
 
     for selection in program.authored_declaration_selections() {
