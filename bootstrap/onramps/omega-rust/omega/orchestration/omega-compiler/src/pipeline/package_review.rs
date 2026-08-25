@@ -26,7 +26,6 @@ use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -3110,14 +3109,14 @@ fn project_public_domains(
                     compilation,
                     definition.target_type,
                     &binders,
-                ),
+                )?,
                 index_arguments: definition
                     .index_arguments
                     .iter()
                     .map(|argument| {
                         review_type_identity_with_binders(compilation, *argument, &binders)
                     })
-                    .collect(),
+                    .collect::<Result<Vec<_>, _>>()?,
                 predicate_body: definition.predicate_body,
                 predicate_facts,
                 alias_expansion,
@@ -3580,7 +3579,7 @@ fn project_type_parameters_after(
                     compilation,
                     type_reference,
                     &binders,
-                ))
+                )?)
             }
             psi_typed_trees::data::TypeParameterKind::Machine { .. }
             | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
@@ -3790,12 +3789,17 @@ fn review_type_identity_with_binders(
     compilation: &CheckedCompilation,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-) -> PackageReviewTypeIdentity {
-    PackageReviewTypeIdentity {
-        canonical: compilation
-            .package_qualified_type_identity_with_binders(type_reference, binders)
-            .into_string(),
-    }
+) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    let identity = compilation
+        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+            type_reference,
+            binders,
+            compilation.exact_toolchain_sources(),
+        )
+        .ok_or_else(missing_exact_toolchain_type_owner)?;
+    Ok(PackageReviewTypeIdentity {
+        canonical: identity.into_string(),
+    })
 }
 
 fn review_type_identity_with_binders_and_substitutions(
@@ -3803,16 +3807,24 @@ fn review_type_identity_with_binders_and_substitutions(
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
-) -> PackageReviewTypeIdentity {
-    PackageReviewTypeIdentity {
-        canonical: compilation
-            .package_qualified_type_identity_with_binders_and_substitutions(
-                type_reference,
-                binders,
-                substitutions,
-            )
-            .into_string(),
-    }
+) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    let identity = compilation
+        .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
+            type_reference,
+            binders,
+            substitutions,
+            compilation.exact_toolchain_sources(),
+        )
+        .ok_or_else(missing_exact_toolchain_type_owner)?;
+    Ok(PackageReviewTypeIdentity {
+        canonical: identity.into_string(),
+    })
+}
+
+fn missing_exact_toolchain_type_owner() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "package review structural type identity is missing exact source-backed toolchain ownership",
+    )]
 }
 
 /// Public signature identity layers erased borrow-region relationships over
@@ -3827,7 +3839,12 @@ fn review_signature_type_identity_with_binders(
     lifetime_binders: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     let runtime = compilation
-        .package_qualified_type_identity_with_binders(type_reference, binders)
+        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+            type_reference,
+            binders,
+            compilation.exact_toolchain_sources(),
+        )
+        .ok_or_else(missing_exact_toolchain_type_owner)?
         .into_string();
     let lifetime = review_lifetime_topology(compilation, type_reference, lifetime_binders)?;
     Ok(PackageReviewTypeIdentity {
@@ -4872,7 +4889,7 @@ fn project_proposition_endpoint(
                                 compilation,
                                 type_reference,
                                 &binder_symbols,
-                            ),
+                            )?,
                         )
                     }
                     PropositionBinderKind::Machine => PackageReviewPropositionBinderKind::Machine,
@@ -4891,7 +4908,7 @@ fn project_proposition_endpoint(
                 &binder_symbols,
             )
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     let evidence = match declaration.body {
         PropositionBody::Primitive => PackageReviewPropositionEvidence::FactOnly,
         PropositionBody::Witness { evidence } => PackageReviewPropositionEvidence::Witness(
@@ -4961,7 +4978,7 @@ fn project_evidence_interface(
                 &[],
             )
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let mut requirements = Vec::new();
     collect_evidence_requirements(
         compilation,
@@ -5034,7 +5051,7 @@ fn collect_evidence_requirements(
                 inherited_substitutions,
             )
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let visit = (
         nominal_identity(compilation, trait_symbol)?,
         argument_identities.clone(),
@@ -5263,7 +5280,7 @@ fn project_contract_expression_with_substitutions(
             };
             Ok(PackageReviewContractExpression::Cast {
                 value: Box::new(child(cast.value)?),
-                target: review_type_identity_with_binders(compilation, cast.target_type, binders),
+                target: review_type_identity_with_binders(compilation, cast.target_type, binders)?,
                 arithmetic_domain: match cast.domain {
                     psi_numerics::arithmetic::ArithmeticDomain::Exact => {
                         PackageReviewArithmeticDomain::Exact
@@ -5286,7 +5303,7 @@ fn project_contract_expression_with_substitutions(
                     .map(|argument| {
                         review_type_identity_with_binders(compilation, *argument, binders)
                     })
-                    .collect(),
+                    .collect::<Result<Vec<_>, _>>()?,
                 form: match cast.form {
                     psi_language_core::cast_form::CastForm::Value => PackageReviewCastForm::Value,
                     psi_language_core::cast_form::CastForm::RecastShared => {
@@ -6334,17 +6351,8 @@ fn nominal_owner_from_symbols(
 fn toolchain_source_identity(
     source_file: &psi_source::SourceFile,
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
-    let custody_entry = super::package_source_consumption::canonical_source_entry(source_file)?;
-    let mut digest = Sha256::new();
-    digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
-    digest.update(
-        u64::try_from(custody_entry.len())
-            .expect("canonical source custody entry length fits u64")
-            .to_le_bytes(),
-    );
-    digest.update(custody_entry);
     Ok(PackageReviewToolchainSourceIdentity {
-        digest: digest.finalize().into(),
+        digest: super::package_source_consumption::toolchain_source_identity_digest(source_file)?,
     })
 }
 
