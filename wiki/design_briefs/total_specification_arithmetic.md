@@ -72,7 +72,7 @@ address carrier's exclusive one-past bound, and range geometry is stated
 transparently:
 
 ```omega
-proposition no_wrap(base: addr, length: u64) =
+pub proposition no_wrap(base: addr, length: u64) =
     embed(base) + embed(length) <= addr::Bound;
 ```
 

@@ -25,7 +25,7 @@ interpretation, or historical fact has been established for that data.
 For example, a concrete range authority has ordinary runtime geometry:
 
 ```omega
-data Extent [linear] {
+pub data Extent [linear] {
     base: addr;
     length: u64;
 }
@@ -34,6 +34,10 @@ data Extent [linear] {
 The fields describe a range. Membership in `Extent::Granted` states that the
 range descends from a live admitted or checked authority claim. Reconstructing
 the same fields creates another value but does not reproduce that membership.
+Publishing this structural carrier is therefore deliberate: callers may name
+and construct geometry, including geometry offered to the public root-provider
+requirement, while only the selected admitted provider can establish
+`Granted`. The record literal is not an authority mint.
 
 Multiplicity belongs to the data type. `Extent` is linear because every owned
 range must eventually be discharged. Its outstanding provenance cannot be
@@ -276,14 +280,14 @@ numbers in different spaces never compose.
 The proposition is transparent source mathematics:
 
 ```omega
-proposition no_wrap(base: addr, length: u64) =
+pub proposition no_wrap(base: addr, length: u64) =
     embed(base) + embed(length) <= addr::Bound;
 ```
 
 `addr::Bound` is the selected target's exclusive one-past address bound as
 proof `Int`. Proving this formula establishes geometry only. `Granted` also has
 `established by` routes, so the same proof cannot create range authority or
-provider lineage. Core's current `boundary machine no_wrap(...) -> bool`
+provider lineage. Core's current `pub boundary machine no_wrap(...) -> bool`
 declaration is transitional bootstrap spelling until the typed target-capsule
 projection lands; it has no executable meaning.
 

@@ -1124,12 +1124,15 @@ reject. The ledger is a compiler-internal sidecar and does not justify nominal
 Chi.
 
 Expression custody follows the declaration that publishes it. Public machine
-contracts and ranking expressions, public data/domain predicates, and public
-trait contracts use public-interface exposure; executable state/body
-expressions remain private. Membership facts retain their selected domain path
-as a declaration row, while their parameter/local value roots remain lexical
-places. Visibility-dependent nested declaration expressions wait for the
-source visibility rule rather than inheriting publicity by guesswork.
+contracts, public data/domain predicates, and public trait contracts use
+public-interface exposure; executable state/body expressions and
+`terminates by` ranking witnesses remain private. The public termination
+promise is `terminates`, not the measure used to prove it. Membership facts
+retain their selected domain path as a declaration row, while their
+parameter/local value roots remain lexical places. Independently nameable
+declarations own ordinary `pub`, including carrier-qualified declarations;
+only genuine members with one exact semantic owner inherit visibility. A
+public-interface selection of a private declaration rejects.
 
 Generic conformance bounds follow the same authored-authority rule. A subject
 parameter and optional evidence binder are lexical. The right-hand trait is an

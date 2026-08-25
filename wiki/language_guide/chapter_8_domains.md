@@ -210,6 +210,11 @@ domain Reservation::Confirmed
     established by Confirms::confirm;
 ```
 
+A carrier-qualified domain is still an independently nameable declaration.
+It is private unless marked `pub`; it does not inherit visibility from its
+carrier. Conversely, publishing a domain does not publish a private carrier,
+and any public signature that names both must be able to name both.
+
 The `established by` clause does not execute those requirements. It authorizes
 their selected conformances to establish the domain at exact qualified subject positions.
 Normally that subject is the requirement's result. A matching non-`self`

@@ -146,6 +146,11 @@ shape are ambiguous and reject. A second surface spelling requires a second
 declaration, which may forward to the same implementation. A named `operator`
 with no fixed-token surface remains callable by its path.
 
+An operator is an independently nameable declaration and is package-private by
+default. `pub operator` permits another package to select it. A qualified
+spelling such as `Vector::add` does not inherit `Vector`'s visibility; the
+operator owns its own source visibility.
+
 So `left + right` resolves to `i32::add` for `i32` operands. The public
 signature and any proof obligations stay visible on the declaration; only the
 primitive lowering hides behind `boundary` when the operator is a boundary

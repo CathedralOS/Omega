@@ -11,7 +11,7 @@
 //
 use omega::language::core::content;
 
-data Extent [linear] {
+pub data Extent [linear] {
     base: addr;
     length: u64;
 }
@@ -19,12 +19,12 @@ data Extent [linear] {
 // TRANSITIONAL bootstrap spelling. This is a proof proposition, not a callable
 // boundary machine. Once the sealed target capsule exposes `addr::Bound`, write:
 //
-// proposition no_wrap(base: addr, length: u64) =
+// pub proposition no_wrap(base: addr, length: u64) =
 //     embed(base) + embed(length) <= addr::Bound;
 //
 // The formula imports the embeddings' derived nonnegative/range facts. It is
 // never wrapping `addr` arithmetic and has no executable call surface.
-boundary machine no_wrap(base: addr, length: u64) -> bool;
+pub boundary machine no_wrap(base: addr, length: u64) -> bool;
 
 // `Granted` is authority evidence, not a structural invariant. Constructing
 // the geometry above does not establish it; checked transformations must

@@ -589,7 +589,7 @@ External.
 An `Extent` is transparent geometry:
 
 ```omega
-data Extent [linear] {
+pub data Extent [linear] {
     base: addr;
     length: u64;
 }

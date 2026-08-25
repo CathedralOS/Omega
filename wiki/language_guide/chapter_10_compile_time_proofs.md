@@ -65,6 +65,12 @@ proposition converges_together<machine Left, machine Right>(
 ) evidence ConvergenceEvidence<Left, Right>;
 ```
 
+Like every independently nameable declaration, a proposition is package-private
+unless marked `pub`. Publishing a bodyless proposition exports the family name
+and signature, not a universally true instance. Trust and admission attach to
+the exact evidence-producing boundary or unchecked `ensures` edge; they never
+attach merely because a proposition family is public.
+
 `evidence` answers one question: what may proof-only code project from a term
 of this proposition? A witness-bearing proposition names exactly one
 interface. The interface is not a result type or ordinary `where` constraint,

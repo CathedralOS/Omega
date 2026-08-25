@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: corrected implementation plan, 2026-08-24.
+Status: corrected implementation plan, 2026-08-25.
 
 This file tracks the Cargo-like source/package service under `omega`. The
 governing design is:
@@ -515,7 +515,7 @@ complete.
   diagnostics; emit semantic dependency evidence. Canary the full three-package
   `root -> middle -> leaf` matrix, including carried flow, inferred field/method,
   case construction/membership, operator and conformance selection, explicit
-  versus automatic cleanup once owner question Q3 settles source-callable
+  versus automatic cleanup once owner question Q2 settles source-callable
   `drop`, toolchain declarations, spoofed same-name cleanup,
   and private/public evidence disposition.
 
@@ -630,17 +630,16 @@ complete.
 
   Milestone 2026-08-25: declaration-owned expression lowering now carries the
   owning declaration's public/private exposure into the authored-selection
-  ledger. Public machine contracts and ranking expressions, public data/domain
-  predicates, and public trait contracts are public-interface positions;
-  machine states and executable bodies remain private implementation even when
-  their machine is public. Standalone declarations without `pub` remain
-  private, and domain-owned operator inheritance remains behind owner question
-  Q1. Proof-membership facts now retain their exact domain path and exposure as
-  first-class rows; lexical parameters and locals no longer masquerade as late
-  declaration selections. Compiler-recognized byte-sequence predicate calls
-  finalize as intrinsics, while an exact declaration with the same spelling
-  retains declaration identity. A root-middle-leaf canary rejects a public
-  contract's transitive-only domain selection and accepts it with exact public
+  ledger. Public machine contracts, public data/domain predicates, and public
+  trait contracts are public-interface positions; machine states, executable
+  bodies, and `terminates by` ranking witnesses remain private implementation
+  even when their machine is public. Standalone declarations without `pub`
+  remain private. Proof-membership facts now retain their exact domain path and
+  exposure as first-class rows; lexical parameters and locals no longer
+  masquerade as late declaration selections. Compiler-recognized byte-sequence
+  predicate calls finalize as intrinsics, while an exact declaration with the
+  same spelling retains declaration identity. A root-middle-leaf canary rejects
+  a public contract's transitive-only domain selection and accepts it with exact public
   exposure after direct admission.
 
   Milestone 2026-08-25: generic conformance bounds on machines and traits now
@@ -651,7 +650,7 @@ complete.
   evidence binder remain lexical. Rows inherit the enclosing declaration's
   exposure. A root-middle-leaf canary rejects a public callable's named
   transitive-only conformance bound and accepts it after direct admission.
-  This custody does not preempt Q1's separate declaration-publication rule.
+  This custody does not replace the declaration's settled publication rule.
 
   Milestone 2026-08-25: checked flow now retains a package-neutral exact
   semantic-dependency sidecar. Machine-head types, checked call-result types,
@@ -680,14 +679,35 @@ complete.
   expression positions whose visibility is settled, and named conformance
   selectors in callable and trait bounds. Visibility-dependent nested positions
   and explicit cleanup classification are not yet total. Explicit cleanup is
-  language-blocked on owner question Q3 because an authored `value.drop()` currently
+  language-blocked on owner question Q2 because an authored `value.drop()` currently
   behaves as an ordinary mutable call and may be followed by automatic cleanup;
   classification alone cannot define that ownership event. The package manager
   stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
-  artifact/lock admission are not complete. Visibility for independently
-  selectable roots that currently reject `pub` remains owner question Q1.
+  artifact/lock admission are not complete. Visibility implementation for all
+  independently selectable roots remains in the task below.
+
+- [ ] **COMPLETE-STANDALONE-DECLARATION-VISIBILITY.** Extend ordinary `pub`
+  retention through syntax, symbols, typed/checked trees, snapshots, package
+  review, and compatibility identity for independently nameable `operator`,
+  `proposition`, `measure`, and `const` declarations. Carrier-qualified roots
+  own their visibility; only genuine members of one exact semantic owner
+  inherit it. Reject every public-interface selection of a private declaration.
+  Keep `terminates by` and its selected measure private proof evidence even on
+  a public machine, while allowing another package to cite an explicitly public
+  measure. Compiler intrinsics remain a closed non-package selection category.
+
+  Add cross-package pass/fail canaries for every declaration kind, a
+  carrier-qualified domain or operator whose carrier has different visibility,
+  a public contract selecting a private proposition/const/operator, a public
+  machine with a private ranking witness, direct citation of a public measure,
+  and a public bodyless proposition that grants no fact by declaration alone.
+  Survey every private nominal reachable from an existing public signature:
+  publish it only when structural construction is intended, and stop for a
+  separate opaque-public-type design if publishing its representation would be
+  wrong. Core `Extent` is the deliberate structural case; its geometry is
+  public while `Extent::Granted` remains the routed authority.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.

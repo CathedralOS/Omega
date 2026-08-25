@@ -254,13 +254,17 @@ new language-visible IR stage. An unresolved or unjoinable authored occurrence
 rejects rather than disappearing from the gate.
 
 Expressions owned by a public declaration's published contract or predicate
-are public-interface selections. This includes public machine contracts and
-ranking expressions, public data/domain predicates, and public trait contracts.
-Executable machine states and bodies remain private implementation even when
-the machine is public. A membership fact selects its domain declaration; its
-value parameter or local is a lexical place and does not become a package row.
-Nested declaration families inherit public exposure only after their source
-visibility rule says so.
+are public-interface selections. This includes public machine contracts,
+public data/domain predicates, and public trait contracts. Executable machine
+states and bodies remain private implementation even when the machine is
+public. A `terminates by` ranking expression is likewise private proof evidence:
+`terminates` is the public promise, while the rank is how the implementation
+discharges it. A membership fact selects its domain declaration; its value
+parameter or local is a lexical place and does not become a package row.
+
+Every declaration selected from a public-interface position must itself be
+publicly visible. The compiler rejects a public contract or predicate that
+names a private declaration rather than silently promoting the target.
 
 Generic conformance bounds apply the same distinction. Their subject and
 evidence binder are lexical; the right-hand trait, or both declarations in a
@@ -303,23 +307,52 @@ ownership rule; compiler-selected cleanup does not depend on that answer.
 
 ## Visibility
 
-Declarations are private by default unless marked public.
+Declarations are private by default unless marked `pub`. Every independently
+nameable source declaration supports the same rule, including `data`, `domain`,
+`trait`, `machine`, wire schemas, `operator`, `proposition`, `measure`, and
+`const` declarations.
+
+Qualification does not imply visibility inheritance. A declaration such as
+`Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant or
+measure is a standalone declaration with its own visibility, even though its
+path names a carrier. This is the same reason a third-party named conformance
+does not become part of its subject type. Only a genuine nested member with one
+exact semantic owner inherits that owner's visibility, such as a trait
+requirement or a member of a named conformance.
 
 ```omega
 pub data Player {
     health: i32;
 }
 
+pub proposition valid_damage(amount: i32) = amount >= 0;
+
+pub measure Tree::Height(node: &Tree) -> Nat;
+
+pub const MAX_DAMAGE: i32 = 100;
+
 pub machine Player::take_damage(
     &mut self,
     amount: i32
-) {
+)
+requires valid_damage(amount)
+{
     self.health = self.health - amount;
 }
 ```
 
 Visibility is a source-level API boundary. It does not bypass proof,
 ownership, or boundary checks.
+
+A bodyless `pub proposition related(a: T, b: T);` publishes the proposition
+family's vocabulary. It does not assert any application of that family and
+does not create an admission. Evidence-producing `requires`, `ensures`, and
+boundary edges remain the places where proposition instances are assumed,
+proved, or admitted.
+
+Compiler intrinsics are a separate closed selection category. Their
+availability is fixed by the language/toolchain and cannot be acquired by a
+package declaring a public lookalike.
 
 Omega has no `export` item. `pub` exposes declarations owned by the current
 package; it does not relabel dependency-owned identity. A package presents
@@ -349,6 +382,12 @@ record may be freely assembled; an authority *about* that range remains
 evidence-backed and cannot be forged by placing the two beside each other.
 When an invariant is not structurally expressible, useful operations require a
 routed qualification such as `Tree::Valid`.
+
+This is deliberate for core's public linear `Extent`: its fields publish only
+range geometry. `Extent::Granted` is the routed authority, and an admitted root
+provider decides whether arbitrary caller-constructed geometry receives that
+qualification. Linearity tracks the occurrence; it does not make the record
+literal an authority mint.
 
 Changing a published source shape changes package-instance and public-contract
 identity and causes dependents to rebuild or fail loudly. It does not silently
