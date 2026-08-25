@@ -212,8 +212,10 @@ A direct dependency authorizes authored source to select declarations owned by
 that package. This includes static paths and declarations selected through an
 inferred receiver: fields, cases, methods, operators, conformances, and an
 ordinary explicitly named consuming call all retain their declaring package.
-Compiler-selected automatic `T::drop` is carried type semantics; whether source
-may invoke that reserved machine is not yet part of the settled ownership rule.
+Compiler-selected automatic `T::drop` is carried type semantics. The exact
+owner-attached hook is compiler-only and authored selection of it rejects;
+source code ends a lifetime early through the ordinary consuming
+`omega::core::drop(value)` machine or an owner-published protocol operation.
 A package absent from the requester's direct dependency set cannot be selected
 by hiding its name behind a value whose type was inferred.
 
@@ -302,8 +304,9 @@ making a transitive package source-nameable.
 The checked carrier retains an automatic cleanup machine by its exact
 attachment to the nominal declaration. A package-controlled machine with the
 same trailing `drop` spelling on another type cannot become that dependency.
-Whether authored code may call the reserved cleanup machine remains a separate
-ownership rule; compiler-selected cleanup does not depend on that answer.
+The attachment grants no authored source authority: only compiler-planned
+cleanup may select it, including cleanup reached through an erased owner's
+exact descriptor.
 
 ## Visibility
 

@@ -514,6 +514,22 @@ production. Wider predicates, bodies that can inspect or change receiver facts,
 nested/erased receivers, claims, qualifications, locals, and non-root edges
 remain fenced.
 
+The exact attached cleanup machine is a compiler-only edge dependency. Source
+cannot select it as a call, static-machine value, or forwarded declaration;
+authored early disposal is the ordinary consuming `omega::core::drop(value)`
+call, whose callee edge receives the same checked plan. The complete row keeps
+Type-side discharge eligibility separate from proposition prerequisites,
+operational reach/effects/work, and derived guarantees. An unmet proposition
+premise must be proved locally or already be authored in `requires`; cleanup
+analysis never promotes it into a new caller demand.
+
+The eventual erased-owner carrier retains payload/storage custody beside size,
+alignment, movement, and this exact cleanup plan in its compiler-built
+descriptor. Terminal verification must reconstruct that the descriptor plan
+belongs to the hidden concrete type and remains eligible under the package's
+retained facts. Borrowed erased views carry no referent-cleanup disposition.
+This is descriptor lifecycle metadata, not a `Drop` conformance.
+
 An unconditional jump and each ordered conditional successor may carry an
 independent canonical reverse-declaration subset of the same eligible
 parameters. Verification removes exactly those places from the corresponding

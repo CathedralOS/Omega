@@ -29,7 +29,6 @@ pub enum AuthoredDeclarationSelectionKind {
     StaticArgument,
     Operator,
     Conformance,
-    ExplicitCleanupCall,
 }
 
 /// The checked fact family which must supply a declaration selected too late

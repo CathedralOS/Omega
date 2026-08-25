@@ -508,15 +508,16 @@ complete.
 
   Implementation slices: retain exact symbols for every selected path segment,
   struct-literal type/case/fields, and case membership; capture explicit type,
-  member, call, conformance, and any source-callable cleanup occurrences with
-  exposure; join dynamic
+  member, call, and conformance occurrences with exposure; reject authored
+  selection of the reserved owner-attached cleanup hook before package
+  admission; join dynamic
   calls, overloads, operators, inferred conformances, and automatic cleanup
   after checking; carry canonical package names through compiler handoff for
   diagnostics; emit semantic dependency evidence. Canary the full three-package
   `root -> middle -> leaf` matrix, including carried flow, inferred field/method,
-  case construction/membership, operator and conformance selection, explicit
-  versus automatic cleanup once owner question Q1 settles source-callable
-  `drop`, toolchain declarations, spoofed same-name cleanup,
+  case construction/membership, operator and conformance selection, ordinary
+  consuming `omega::core::drop` versus compiler-selected cleanup, rejected
+  authored hook selection, toolchain declarations, spoofed same-name cleanup,
   and private/public evidence disposition.
 
   Progress 2026-08-24: resolved and typed expressions now retain exact symbols
@@ -678,11 +679,11 @@ complete.
   conformances, checked trait-operator conformances, and declaration-owned
   expression positions whose visibility is settled, and named conformance
   selectors in callable and trait bounds. Visibility-dependent nested positions
-  and explicit cleanup classification are not yet total. Explicit cleanup is
-  language-blocked on owner question Q1 because an authored `value.drop()` currently
-  behaves as an ordinary mutable call and may be followed by automatic cleanup;
-  classification alone cannot define that ownership event. The package manager
-  stays disabled until those gaps close.
+  and reserved-cleanup rejection are not yet total. Today an authored
+  `value.drop()` may still behave as an ordinary mutable call and be followed by
+  automatic cleanup; reject every source selection of that exact owner-attached
+  hook, and treat `omega::core::drop(value)` as an ordinary consuming call. The
+  package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
   artifact/lock admission are not complete. Visibility implementation for all
