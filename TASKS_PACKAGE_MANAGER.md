@@ -283,6 +283,19 @@ complete.
   but not hostile same-user racing, platform ACL policy, or native process
   isolation.
 
+  Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
+  source identity, checkout-free materialization, bounded parent process, and
+  immutable publication form a coherent portable core. The next strict-boundary
+  slice is one validated typed Git request accepted by every public resolver
+  route: validate and sanitize lineage before persistence or launch, make raw
+  resolver entrypoints private, enforce one explicit protocol/request policy,
+  and apply compiler-owned absolute size ceilings. Remaining P0 work is native
+  fetch/materialization confinement, effective endpoint and SSH credential
+  custody, during-operation resource quotas, handle-relative cache custody,
+  canonical build-observable source metadata, and a locally reconstructed
+  opaque strict receipt. Redirect, helper, local-fixture, and diagnostic routes
+  must not bypass the same request validator.
+
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
   process boundary, materialization/archive policy is enforced before
@@ -475,6 +488,23 @@ complete.
   case construction/membership, operator and conformance selection, explicit
   versus automatic cleanup, toolchain declarations, spoofed same-name cleanup,
   and private/public evidence disposition.
+
+  Progress 2026-08-24: resolved and typed expressions now retain exact symbols
+  for every name-path segment, member, struct type/case/field, and case
+  membership; contracts use the same exact resolver. Attached nominal identity
+  now survives checked machine lowering and drives automatic cleanup without
+  name fallback. Compilation carries canonical package names solely for
+  diagnostics while exact package identity remains the gate key. A
+  deterministic compiler-owned authored-selection occurrence ledger survives
+  resolved, typed, copied, specialized, and checked trees, and expression
+  handles retain every associated occurrence. Build-time const-generic and
+  placed-view probes now lower with the assembled package source map instead of
+  losing source ownership. Production capture still must populate every
+  authored occurrence with lexical exposure, late checked facts must finalize
+  it, the direct-dependency and pre-execution gates must consume it, and exact
+  carried-semantic-dependency evidence must be emitted. Visibility for
+  independently selectable roots that currently reject `pub` remains owner
+  question Q2.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
