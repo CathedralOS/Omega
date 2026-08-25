@@ -71,25 +71,26 @@ requirement until those joins are sealed.
 Each package may define:
 
 ```omega
-machine build(
-    builder: &mut Build,
-    filesystem: &mut Filesystem
-)
-    reaches Filesystem + Console
+machine build(builder: &mut Build)
+    reaches FilesystemHost, Console
+    invokes FilesystemHost;
+    invokes Console;
 {
     ...
 }
 ```
 
-The tool invokes the machine with a zero-initialized `Build` and scoped standard
-providers. Filesystem access is rooted to the package/build directories in the
-current implementation direction. Console logging is a declared service call,
-not output silently intercepted by the interpreter.
+The tool invokes the exact one-parameter machine with a build-activation handle
+and scoped standard providers. `Build` both exposes activation-scoped services
+and accumulates the durable build result; ephemeral capabilities never enter
+that normalized result. Console logging is a declared service call, not output
+silently intercepted by the interpreter.
 
-The exact surface may omit unused providers through ordinary requirement/
-provider machinery. Whether a particular one-purpose build service warrants a
-public boundary trait remains an implementation discovery; no service or
-authority is ambient either way.
+Unused build-host services are absent from the machine's ordinary
+`reaches`/`invokes` contract and are not supplied through its activation.
+Whether a particular one-purpose build service warrants a public boundary
+trait remains an implementation discovery; no service or authority is ambient
+either way.
 
 ## Code, not config grammar
 
@@ -97,7 +98,10 @@ authority is ambient either way.
 does not introduce `depends {}`, `target {}`, or another block dialect.
 
 ```omega
-machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+machine build(builder: &mut Build)
+reaches FilesystemHost;
+invokes FilesystemHost;
+{
     builder.depend(Source::Path {
         location: "../../contracts/uefi"
     });
@@ -106,12 +110,19 @@ machine build(builder: &mut Build, filesystem: &mut Filesystem) {
         cathedral::targets::uefi_x86_64::ProgramEntry,
         Application::start
     );
-    filesystem.copy(
-        "assets/font.bin",
-        builder.output("font.bin")
-    );
+
+    // Illustrative ordinary-library spellings; BUILD-ROOTED-PATH-SURFACE owns
+    // the final names, not new grammar.
+    let input = builder.source.resolve("assets/font.bin");
+    let generated = builder.output.resolve("font.bin");
+    BuildFilesystem::copy(input, generated);
+    builder.include_generated(generated);
 }
 ```
+
+The filesystem calls above show the settled roles; their final ordinary-library
+names remain implementation work, not new grammar. Resolving a path and
+publishing a generated output are separate operations.
 
 The dependency's own `PACKAGE` supplies its name. Its default local import
 alias is derived mechanically from kebab-case to snake_case; only a real local
@@ -136,6 +147,40 @@ order. Legacy standalone compilation retains only a narrow explicit
 `depend_as(..., Source::Path { ... })` compatibility scanner until its canaries
 migrate.
 
+## Package-scoped filesystem roots
+
+The build executor supplies two facets through the `Build` activation:
+
+- one immutable root for the exact package source occurrence; and
+- one fresh writable staging root for that build occurrence.
+
+These are authority-bearing root capabilities, not path strings and not fields
+of the durable build result. A source relative name becomes usable only after a
+checked route binds its ordinary `&[u8] in Path` bytes to one exact root
+occurrence. The resulting rooted path retains that root identity plus canonical
+relative bytes. A routed qualification may certify the completed resolution,
+but an erased domain over bare bytes cannot supply the missing root identity.
+
+Resolution rejects absolute input, traversal beyond the root, ambiguous root
+membership, and symlink escape before host access. `canonicalize` and other
+operations returning an authorized path either return a value bound to the same
+root or reject. `read_link` returns the stored payload only as inert bytes;
+following that payload requires a new checked resolution. Thus an outside link
+target may be inspected but never traversed through the package grant.
+
+Writing into staging does not add anything to compilation. Only an explicit
+handoff after successful build evaluation and evidence custody may publish a
+staged file or tree. Failure discards the staging occurrence. Source roots,
+staging roots, open handles, and rooted-path authority cannot escape the build
+activation or enter runtime package data.
+
+Canonical evidence renders rooted paths with stable spellings such as
+`/source/assets/font.bin` and `/output/font.bin`. Those spellings are
+serialization only: package code cannot use their byte prefixes to mint or
+select authority. Evidence identity retains the closed root role/occurrence and
+canonical relative bytes, never a compiler-host absolute path or process
+working directory.
+
 ## Normalized `Build` core
 
 The durable schema contains only pipeline-consumed selections and outputs:
@@ -149,6 +194,10 @@ data Build {
     outputs: BuildOutputs;
 }
 ```
+
+This is the durable projection, not a claim that the source-visible activation
+handle serializes every ephemeral facet it exposes. In particular, its source
+and staging roots are absent from this schema.
 
 Hosted versus freestanding, subsystem/image format, default providers, calling
 policies, fault supply, and resource supply belong to the selected target
@@ -576,9 +625,9 @@ through an exact requirement symbol owned by canonical toolchain
 calls even when an evaluator grant exists. The canonical signature maps to one
 of 50 closed, explicitly tagged operation identities; both providers match the
 same enum exhaustively, while aliases and platform alternatives stay distinct.
-Future rooted evidence must reject or virtualize absolute path bytes returned
-unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
-by `read_link`.
+Authorized results from `canonicalize` and `final_path_name_by_handle` remain
+bound to their exact root or reject. `read_link` returns only inert payload
+bytes; using that payload as a path requires checked resolution through a root.
 Observation schema v10 carries operation-attempt schema v9: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
@@ -600,8 +649,9 @@ rejects before provider access. Virtual duplicates share the source cursor. Real
 descriptors retain their rooted write grant through duplicate and borrowed
 views; content, extent, metadata, ownership, and host-lock mutations deny before
 sponsor or host access when the origin was admitted only for source reads.
-`open_at`/`unlink_at` accept only one portable relative component, while real
-path outputs are lossless or reject. Successful descriptor/find/native-handle
+`open_at`/`unlink_at` accept only one portable relative component. Real path
+outputs either reconstruct one lossless root-relative result under the same
+grant or reject. Successful descriptor/find/native-handle
 results retain only their logical identity in evidence; provider token integers
 do not survive. Non-handle
 results and failed handle-result sentinels remain exact scalar values, and
@@ -1267,7 +1317,11 @@ syntactic local-Path compatibility scanner that may skip malformed rows;
 package-aware compilation never consults it, and no admission path may treat it
 as authoritative dependency projection. This seam must be removed before
 install/update mutation.
-`TASKS_PACKAGE_MANAGER.md` owns that migration.
+The package-facing source/staging root capabilities, checked relative resolver,
+and explicit generated-tree handoff are settled but not yet implemented. The
+existing physical grants and rooted observation precursor are their backend
+foundation; `TASKS_PACKAGE_MANAGER.md` owns the remaining surface and fixture
+work as well as that compatibility-scanner migration.
 
 ## Still open
 

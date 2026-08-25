@@ -88,6 +88,11 @@ complete.
   fresh disposable child session beneath it, keeps resolver snapshots
   immutable, and publishes results only after the child is cleaned up
   successfully. Ordinary standalone compiler build roots remain caller-owned.
+- The one `Build` activation exposes an immutable package-source root and a
+  fresh writable staging root as ephemeral capabilities. Checked resolution
+  binds canonical relative `Path` bytes to one exact root occurrence; virtual
+  `/source` and `/output` spellings are evidence serialization only. Generated
+  content enters compilation only through explicit successful handoff.
 - Claim-free opaque boundary data always emits package-qualified
   representation-TCB evidence. Introduction or material change recommends
   code/ABI audit but is not, by opacity alone, a blocking trust claim; exact
@@ -1382,6 +1387,27 @@ complete.
   a tampered read-only snapshot canary rejects before compiler consumption.
   Sealed admission evidence remains gated on the final admission pipeline.
 
+- [ ] **BUILD-ROOTED-PATH-SURFACE.** Expose the executor's existing immutable
+  Source grant and writable Output grant through activation-scoped facets of
+  the canonical one-parameter `Build` value. Add the smallest ordinary-library
+  resolver and filesystem surface needed by `generated-table`; add no grammar,
+  and place no capabilities in the durable build projection.
+
+  Resolution must bind one exact root occurrence to canonical relative
+  `&[u8] in Path` bytes and reject absolute input, traversal, ambiguous roots,
+  and symlink escape before provider access. Authorized path-returning
+  operations preserve the same root or reject. `read_link` returns inert
+  payload and following it requires checked resolution. Stable `/source/...`
+  and `/output/...` renderings belong only to evidence.
+
+  Acceptance: `generated-table` reads `inputs/table.txt`, writes a generated
+  Omega file only under its fresh staging root, and introduces it through an
+  explicit successful handoff. A failed build publishes nothing. Canaries pin
+  source mutation, output escape, working-directory dependence, host-absolute
+  path leakage, unvalidated link traversal, and output-without-handoff
+  rejection. Successful evidence retains exact Source/Output occurrence plus
+  canonical relative bytes.
+
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
   authority, claim-free opaque representation, dangerous-mechanism escalation,
@@ -1441,11 +1467,11 @@ complete.
   receipts, sealed representation
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
-  normalization remain. Successful portable fixture execution is blocked on
-  the portable build-filesystem surface in `OWNER_QUESTIONS.md`: the executor
-  has exact physical source/output grants, but package code has no settled
-  stable rooted-path surface and must not embed compiler-host absolute paths or
-  inherit the process working directory.
+  normalization remain. Successful portable fixture execution now depends on
+  `BUILD-ROOTED-PATH-SURFACE`: the semantic direction is settled and the
+  executor already has exact physical Source/Output grants, but the
+  package-facing capability, resolver, and explicit generated-tree handoff are
+  not implemented.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.
