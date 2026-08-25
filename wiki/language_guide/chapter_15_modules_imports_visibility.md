@@ -256,6 +256,13 @@ declaration, and a uniquely inferred generic conformance is attributed to the
 call token. Compiler-owned build markers and lowered assembly operations retain
 closed intrinsic meanings instead of fictional package owners.
 
+Every explicit static argument path also selects its declaration, recursively
+through nested static applications. Conformance paths remain evidence
+selections; type, static-machine, and forwarded-binder paths use the common
+static-argument category while retaining their exact symbol. Integer literals
+select no declaration. Named const reduction retains the selected const's
+provenance separately, so erasing its value does not erase dependency custody.
+
 Only authored selection rows are checked against the direct dependency set.
 Carried nominal identity, compiler-planned layout and move/copy behavior, and
 automatic cleanup produce semantic dependency evidence but never manufacture

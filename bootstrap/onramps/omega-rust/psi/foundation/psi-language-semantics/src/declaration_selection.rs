@@ -26,6 +26,7 @@ pub enum AuthoredDeclarationSelectionKind {
     CaseMembership,
     DomainMembership,
     Call,
+    StaticArgument,
     Operator,
     Conformance,
     ExplicitCleanupCall,
@@ -45,6 +46,7 @@ pub enum AuthoredDeclarationSelectionLateBinding {
     CheckedStructLiteralField,
     CheckedCaseMembership,
     CheckedCall,
+    CheckedStaticArgument,
     CheckedOperator,
     CheckedConformance,
 }

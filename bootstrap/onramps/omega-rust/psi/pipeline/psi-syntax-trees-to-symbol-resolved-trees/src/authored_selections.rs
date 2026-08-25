@@ -119,7 +119,7 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<StatementCandidate
                         target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
                     });
                 }
-                collect_statement_static_conformance_candidates(
+                collect_statement_static_argument_candidates(
                     program,
                     &call.machine_arguments,
                     call.target.source_span(),
@@ -133,25 +133,22 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<StatementCandidate
     candidates
 }
 
-fn collect_statement_static_conformance_candidates(
+fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
     arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
     fallback_span: SourceSpan,
     candidates: &mut Vec<StatementCandidate>,
 ) {
     for argument in arguments {
-        if argument.symbol.is_valid()
-            && program.symbols.get(argument.symbol).kind == psi_symbols::SymbolKind::Conformance
-            && argument.path.iter().any(|member| member.is_source_backed())
-        {
+        if argument.path.iter().any(|member| member.is_source_backed()) {
             candidates.push(StatementCandidate {
                 source_span: path_span(&argument.path, fallback_span),
-                kind: Kind::Conformance,
-                target: CandidateTarget::Resolved(argument.symbol),
+                kind: static_argument_kind(program, argument.symbol),
+                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
             });
         }
         if let Some(application) = &argument.application {
-            collect_statement_static_conformance_candidates(
+            collect_statement_static_argument_candidates(
                 program,
                 &application.arguments,
                 fallback_span,
@@ -187,7 +184,7 @@ fn expression_candidates(
                     target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
                 });
             }
-            collect_static_conformance_candidates(
+            collect_static_argument_candidates(
                 program,
                 expression,
                 &call.machine_arguments,
@@ -296,35 +293,45 @@ fn expression_candidates(
     candidates
 }
 
-fn collect_static_conformance_candidates(
+fn collect_static_argument_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
     arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
     candidates: &mut Vec<Candidate>,
 ) {
     for argument in arguments {
-        if argument.symbol.is_valid()
-            && program.symbols.get(argument.symbol).kind == psi_symbols::SymbolKind::Conformance
-            && argument.path.iter().any(|member| member.is_source_backed())
-        {
+        if argument.path.iter().any(|member| member.is_source_backed()) {
             candidates.push(Candidate {
                 expression,
                 source_span: path_span(
                     &argument.path,
                     program.tables.bodies.expressions.source_span(expression),
                 ),
-                kind: Kind::Conformance,
-                target: CandidateTarget::Resolved(argument.symbol),
+                kind: static_argument_kind(program, argument.symbol),
+                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
             });
         }
         if let Some(application) = &argument.application {
-            collect_static_conformance_candidates(
+            collect_static_argument_candidates(
                 program,
                 expression,
                 &application.arguments,
                 candidates,
             );
         }
+    }
+}
+
+fn static_argument_kind(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> Kind {
+    if symbol.is_valid()
+        && matches!(
+            program.symbols.get(symbol).kind,
+            psi_symbols::SymbolKind::Conformance | psi_symbols::SymbolKind::ConformanceParameter
+        )
+    {
+        Kind::Conformance
+    } else {
+        Kind::StaticArgument
     }
 }
 

@@ -254,6 +254,15 @@ closed intrinsic meanings; they neither invent a package symbol nor disappear
 from the ledger. Ordinary statement calls still require the selected
 declaration's owner as a direct dependency.
 
+All source-backed static argument paths are declaration selections too,
+including recursively nested applications. Explicit conformance evidence keeps
+its dedicated kind; type, static-machine, and forwarded-binder paths share a
+static-argument kind while retaining the exact selected symbol. Integer
+literals select nothing. A named const that is reduced before ordinary
+resolution retains its const-declaration provenance through the existing
+substitution row. Unresolved static paths remain explicit obligations and fail
+closed at package admission.
+
 ## Authored requests versus accepted lock state
 
 `build.omg` records update intent: source locator, revision selector, explicit

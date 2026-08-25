@@ -1390,6 +1390,44 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
 }
 
 #[test]
+fn captures_expression_static_type_and_machine_arguments() {
+    let source = r#"
+        data Card { }
+        machine chosen(value: &Card) -> bool { true }
+        machine apply<T, machine Selected>(value: &T) -> bool
+        where machine Selected(value: &T) -> bool
+        {
+            Selected(value)
+        }
+        machine caller(value: &Card) -> bool {
+            apply<Card, chosen>(value)
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize static arguments");
+    let syntax = parse_syntax_trees(&tokens).expect("parse static arguments");
+    let program = lower_syntax_trees(&syntax).expect("resolve static arguments");
+    let selected_kinds = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+        })
+        .filter_map(|selection| match selection.target() {
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                Some(program.symbols.get(target.selected_symbol()).kind)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(selected_kinds.contains(&psi_symbols::SymbolKind::Data));
+    assert!(selected_kinds.contains(&psi_symbols::SymbolKind::State));
+}
+
+#[test]
 fn captures_statement_calls_and_their_explicit_conformance_arguments() {
     let source = r#"
         trait Marker { }
@@ -1418,6 +1456,12 @@ fn captures_statement_calls_and_their_explicit_conformance_arguments() {
                 .is_some_and(|alias| alias.as_str() == "GoodMarker")
         })
         .expect("GoodMarker conformance")
+        .symbol;
+    let selected_type = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Good")
+        .expect("Good data")
         .symbol;
     let selections = program.authored_declaration_selections();
     let statement_calls = program
@@ -1456,6 +1500,15 @@ fn captures_statement_calls_and_their_explicit_conformance_arguments() {
         }),
         "selections={selections:#?}"
     );
+    assert!(selections.iter().any(|selection| {
+        selection.kind()
+            == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticArgument
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if target.selected_symbol() == selected_type
+            )
+    }));
     assert!(selections.iter().any(|selection| {
         selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
             && matches!(
