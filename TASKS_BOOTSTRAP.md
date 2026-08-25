@@ -242,8 +242,8 @@ as one growing verifier:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-| resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
-| producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result | bridge gates and the contracts above |
+| resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes; the focused CKIR3 producer now closes constant aggregates, `<=`, guardless jumps, and cyclic interval custody across native/self bytes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) |
+| producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result; CKIR3 producer and backend pass independently but are not yet composed | bridge gates and the contracts above |
 | lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
 | compilation authority | externally gated: the internal compiler projection is ruled, but a sealed accepted-lock projection plus exact envelope SHA-256 join is still required | compilation and witness contracts above |
 
@@ -271,6 +271,15 @@ on the separately blocked compilation-authority join.
   and uses a typed semantic constant graph plus aggregate copy whose layout is
   derived by the backend. Do not expand the tables into thousands of
   source-shaped store operations or accept producer-selected layout bytes.
+
+  Progress: the Delta-written CKIR3 producer and direct backend now pass focused
+  native/Delta-self-built byte-identity gates. The producer exercises the exact
+  Unicode unit plus the general renamed/nested, guardless, cyclic, semantic-
+  negative, and literal-resource fixtures; the backend independently validates
+  the canonical constant DAG, derives its read-only image, and emits the
+  conditional three-segment ELF. Producer-to-backend execution/composition,
+  Rust-free meaning, complete mutation coverage, and the versioned lower-rooted
+  refinement remain before this item can close.
 
   Acceptance: the exact Unicode source and harness produce result 70; renamed,
   reordered, smaller, and nested positives preserve ordinary Omega meaning;

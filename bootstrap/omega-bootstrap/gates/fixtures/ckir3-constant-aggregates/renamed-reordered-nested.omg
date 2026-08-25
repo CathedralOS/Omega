@@ -21,7 +21,7 @@ data AggregateProbe {
     duplicate: TinyCatalog;
 }
 
-machine AggregateProbe::run(&mut self) -> u8 {
+machine AggregateProbe::run(&mut self) -> u32 {
     self.original = TinyCatalog {
         bands: [
             TinyBand {
