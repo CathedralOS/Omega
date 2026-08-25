@@ -48,7 +48,9 @@ complete.
   structural identity may be joined to later checked acceptance only after the
   compilation succeeds. The final projection is total, but no one internal
   stage must contain every row. Do not introduce nominal Chi merely to collect
-  or stabilize compiler internals across versions.
+  or stabilize compiler internals across versions. Psi may repeat an invariant
+  as a downstream backstop without becoming the required source from which the
+  package checker reconstructs an already-settled fact.
 - Proposition and named-evidence rows join the typed structural application to
   its checked acceptance, witness interface, and admission disposition. Never
   use checked diagnostic renderings as identity. If an exact binder, argument,

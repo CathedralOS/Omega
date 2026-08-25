@@ -101,7 +101,9 @@ them after successful compilation. Terminal Psi evidence is additional and is
 required only for claims about final realization or by a hardened profile;
 absence of that evidence never implies a weaker Terminal
 guarantee. A new named stage is warranted only by a reusable semantic boundary,
-not by package-report format stability.
+not by package-report format stability. Psi may repeat an invariant as a
+downstream compiler check without forcing package admission to reconstruct an
+already-settled fact from Psi.
 
 Compiler-issued package review also retains a separate commitment to the exact
 reconciled package/alias graph and source bytes consumed by the frontend.
