@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-20.
+Last pruned: 2026-08-25.
 
 ## Reach, resources, and progress
 
@@ -65,8 +65,10 @@ Last pruned: 2026-08-20.
 - Settle the boundary between browsable core declarations and
   compiler-managed primitive carriers. Current direction keeps `Array`, `Vec`,
   and `Slice` public; text is bytes plus an encoding domain.
-- Settle case payload binding, generic payloads, tag/payload layout, and the
-  relation between case-union domains and exhaustiveness.
+- Settle explicit discriminants versus the first-case/tag-zero invariant,
+  generic payload layout under stable representations, and the remaining
+  generic case-union/exhaustiveness interactions. Ordinary transition-arm
+  payload binding already uses the data-pattern rules in Chapter 1.
 - Define foreign-type domain imports, orphan/coherence restrictions, and their
   authority-report representation.
 - Decide whether any core generic properties beyond `copy`, `linear`, `sized`,

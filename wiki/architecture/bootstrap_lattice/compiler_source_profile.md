@@ -126,8 +126,11 @@ production omega correctly implements full Ω
 It is not necessary for `omega-bootstrap` to accept every Omega program. Its
 acceptance completeness is deliberately limited; its semantic correctness is
 not. It must reject unsupported constructs rather than approximate them, and
-every construct it does accept has exactly its normal Omega meaning, ABI,
-layout, and artifact contract. General parsing, checking, and lowering rules
+every construct it does accept has exactly its normal Omega meaning and artifact
+contract and conforms to every specified layout/ABI constraint.
+Byte identity is required only where Omega pins a stable representation; the
+compiler-controlled default layout need not match another conforming compiler.
+General parsing, checking, and lowering rules
 must implement the admitted profile; matching the present source file, statement
 count, or syntax-tree permutation is not an implementation of `Ωself`.
 
@@ -315,7 +318,7 @@ establishes the implementation and assurance cost.
 | borrowed slices and byte-string literals | presumptively retain | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; compare a regular descriptor/view path with fixed-buffer-plus-span duplication, while keeping growable `Vec`-like allocation a separate question and retaining the unresolved `u32` cursor versus `u64` count ruling |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | static provider path arguments | measure from checkpoint 000001 | the checkpoint proves only path-valued static arguments to sealed provider selection; it is not evidence for general generic declarations |
-| basic generic declarations and calls | presumptively retain for later source, but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
+| basic generic declarations and calls | open; expected useful but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
 | concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
@@ -342,110 +345,24 @@ those user-facing features without expressing its own algorithms in them.
 Every row still resolves by the same measured whole-bootstrap cost test; none
 is a ruling merely because it appears in this table.
 
-The first concrete frontend cost result for the record/array/attached-machine
-cluster is the bootstrap-owned
-[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md).
-It closes a general checker-only implementation and its native, self-built, and
-lower-rung meaning evidence. The corresponding artifact route has selected the
-versioned private checked-IR handoff and a direct conservative backend rather
-than widening Terminal Psi for bridge-only operations. That selection does not
-resolve the rows above. The exact finite, acyclic, returning source→CKIR1→ELF
-contract and evidence are closed for this selected cluster; full-width integer
-pressure, the remaining checkpoint facilities, competing product-source
-refactor costs, and final retain/exclude disposition remain open.
+The current cost evidence reaches selected finite calls, constant aggregates,
+runtime named records, and same-module direct-field receivers through CKIR4.
+Each selected slice has native/self-built production, representative Rust-free
+meaning, independent result/artifact reconstruction, resource and mutation
+teeth, and responsibility-local lower-rooted composition. This establishes
+bounded implementation and assurance costs; it does not admit those facilities
+to final `Ωself` or claim general checkpoint coverage. Exact schemas, carrier
+sizes, fixtures, and version histories live beside
+[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md),
+the versioned `OMEGA_BOOTSTRAP_CHECKED_IR*` contracts under
+[`bootstrap/omega-bootstrap/compiler/`](../../../bootstrap/omega-bootstrap/compiler/),
+and the versioned `OMGCOMP_REFINEMENT_WITNESS*` contracts under
+[`bootstrap/assurance/refinement/omega-bootstrap/`](../../../bootstrap/assurance/refinement/omega-bootstrap/).
 
-The CKIR2 successor now adds an explicit selected root and typed finite acyclic
-attached-machine calls, including calls across source files in one logical
-module. Native, Delta-self-built, and Rust-free meaning routes compose to the
-same checked IR, conservative ELF, and result. Independent `OMGRFN3` framing,
-source→witness, witness→CKIR2 tables, CKIR/result, and CKIR2→ELF reconstruction
-now compose with resolved body/call lowering and a physically artifact-free
-source result over one exact role-3 frame. Neither this completed versioned slice
-decides that calls, records, arrays, or attached machines belong to final
-`Ωself`; it supplies the implementation and assurance cost needed by that later
-decision.
-
-The private
-[`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-transport now closes structural multi-unit custody. It canonically maps the
-exact source bundle onto opaque package commitments, requester-local aliases,
-resolver-owned logical module placement, optional agreeing authored module
-claims, and one exact root. The format deliberately does not turn labels into
-identity, interpret `build.omg`, or grant resolver authority: compilation must
-join it to an
-independently accepted lock/closure commitment and independently reconstruct
-module declarations, direct reach, visibility, name resolution, semantic order,
-checked IR, and the artifact. This is general multi-unit custody needed by the
-current product checkpoint, not a new Delta feature inventory or an `Ωself`
-decision.
-
-The current selected checkpoint-000001 semantic/artifact tranche is recursively
-constant scalar, record, and fixed-array construction from the exact standalone
-`compiler/psi/generated/unicode_tables.omg` unit, together with scalar `<=`,
-guardless transitions, cyclic state-parameter interval custody, and a
-same-module behavioral harness. The general capability is a typed semantic
-constant graph or pool, aggregate copy, nested indexing, canonical
-unconditional control, and declaration-order-independent propagation of
-arm-local range facts across state edges—not recognition of the generated
-filename, its exact literal count, or its two table lengths. The versioned CKIR3
-successor to the frozen CKIR2 handoff makes the backend derive layout and
-materialize private read-only data without exploding the source into thousands
-of place/store operations or accepting producer-selected layout bytes. This
-slice directly prices generated ordinary-Omega data and the measured Stage-08
-expansion hotspot. Its focused Delta-written producer and backend pass native/
-Delta-self-built byte-identity gates independently: the producer lowers the
-exact Unicode unit plus general controls to CKIR3, and the backend validates
-that private graph and derives the read-only image and ELF. All native, self-
-built, and mixed producer/backend pairs now compose to the same independently
-evaluated result and independently reconstructed ELF. Its lower-rooted evidence
-uses the distinct private `OMGRFN4` carrier with five independent responsibility
-owners; that transport and ownership contract is frozen. Nine persisted-Beta
-executables now close all five selected-tranche responsibilities: frame/source
-custody, source-to-resolution reconstruction, the resolution-to-CKIR3
-declaration/layout/selected-root/intrinsic-table join, source lowering with
-physically artifact-free meaning, and complete CKIR3/result plus independently
-reconstructed exact ELF. One composite feeds all nine the same unchanged exact
-carrier and exercises cross-pairs, phase-local opacity, and local mutations.
-The source and CKIR evaluators also close their owned active-frame and dynamic-
-block resource boundaries. Focused Rust-free Gamma routes reproduce
-representative producer and backend 0/251/252 observations exactly. Focused
-native/self controls distinguish a canonical guardless jump from an authored-
-true branch, install arm-local facts before checking edge arguments, transfer
-intervals by target ordinal, join every cyclic predecessor, and preserve the
-result across declaration order. This selected lower-rooted tranche is closed;
-that does not decide general coverage, the final disposition of records,
-arrays, generated source, or any later checkpoint feature.
-
-The CKIR4 successor extends that evidence to one general runtime named-record
-constructor while reusing nominal layout and structural Call/Copy. It accepts
-only pure, non-trapping literal, parameter, named-field-load, structural-
-parameter, and nested-constructor fields, then canonicalizes authored names to
-declaration ordinals. Native and Delta-self-built producers are byte-identical;
-focused Gamma routes reproduce producer/backend 0/251/252 meaning; independent
-checkers reconstruct objects, result, and every ELF byte; and eight persisted-
-Beta executables compose the five `OMGRFN5` responsibilities over immutable
-16,274-byte opener and 16,417-byte complete-`SourceUnit`-API carriers. The
-second varies calls, bindings, block parameters, root result type, and witness
-extent without changing the frozen formats. This closes the selected
-implementation/assurance cost for ordinary named fields without freezing the
-final profile or deciding effectful constructor-field evaluation order.
-
-The next measured source relation retains CKIR4 and versions resolution instead
-of manufacturing a new artifact schema. OMGRSW2 admits only direct same-module
-`self.field.machine(...)`; OMGLOW5 pairs that witness with exact source and
-lowers the existing `SelfPlace`, `FieldPlace`, and `Call` operations. A shared
-implementation emits the least required version, preserving byte-identical
-OMGRSW1/OMGLOW4 for inherited sources. Native and Delta-self-built routes now
-compose the complete current `SourceUnit` API through a nonzero-offset field to
-result 70, with exact receiver-shape and version-cross-pair negatives. Focused
-Rust-free producer meaning uses a compact runtime-record argument carrier.
-The distinct OMGRFN6 carrier now closes all five lower-rooted responsibilities
-over one immutable 16,817-byte exact `SourceUnit` field-receiver frame. The
-shared checkers preserve OMGRFN5, carry the nonzero receiver base through the
-artifact-free evaluator, retain responsibility-local opacity, and reconstruct
-the unchanged CKIR4 result and exact ELF. The selected same-module capability
-is therefore closed implementation/assurance cost evidence; distinct-module
-visibility and final `Ωself` disposition remain open.
+Structural multi-unit custody is separately closed by
+[`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).
+It does not grant resolver or accepted-lock authority; that join remains an
+external compilation-authority dependency rather than an `Ωself` feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
@@ -514,9 +431,9 @@ source arrives, but checkpoint 000001 currently proves only static provider path
 arguments, not general generic declarations. Proof syntax and dependent typing
 are not favorable defaults. This is a total-cost profile, not a contest to remove
 the most features: retaining a cheap general facility is preferable to forcing
-large, brittle, monomorphic compiler source. Profile growth is an architectural
-change and must update the profile rules, compiler, meaning route, diagnostics,
-and negative gates together.
+large, brittle, monomorphic compiler source. Profile growth or a product-source
+closure change reopens the profile and must update the rules, compiler, meaning
+route, diagnostics, and negative gates together.
 
 ## One required hosted production build
 

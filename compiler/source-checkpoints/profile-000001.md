@@ -67,12 +67,12 @@ capacity remain separate gates.
 | concrete Trapping arithmetic and casts | cursor math, UTF-8/scalar arithmetic, byte conversion | measure against narrow checked helpers in the bridge |
 | state machines, scalar state parameters, mutation, and calls | every lexical scan and hosted adapter loop | retain candidate; branching value-machine results are deliberately unnecessary |
 | explicit result fields for branching operations | bounded appends and lexical predicates | retain candidate source convention pending general bridge call-cost evidence |
-| boundary traits and target-selected realizations | hosted byte input and process exit | retain only the sealed compiler-host byte/exit surface needed by product entrypoints |
+| boundary traits and target-selected realizations | hosted byte input and process exit | retain candidate for the product source forms actually used; do not confuse this Omega source facility with Delta's separately sealed bridge-host interface |
 | static provider path arguments | sealed `select_provider<Console, ConsoleNativeProvider>` calls in the transitive console closure | measure against a non-generic sealed provider binding; this checkpoint contains no general generic declarations and does not admit them by implication |
 | generated ordinary-Omega data | Unicode XID range arrays | retain generated-source closure rules; generator and external data stay pinned inputs |
-| propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally; likely final exclusion because implementing full-Omega proof checking does not require proof syntax in compiler source |
+| propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally for this checkpoint; final disposition belongs to the complete source/bridge join |
 | termination/ranking clauses | one ranking clause | retain candidate; ranking is executable compiler control evidence and must not be swept into the proof-surface exclusion |
-| dependent bounds and linear types | unused in checkpoint | reject provisionally; likely final exclusion, subject to later source closures |
+| dependent bounds and linear types | unused in checkpoint | reject provisionally for this checkpoint; distinguish dependent/proof-indexed forms from ordinary ownership when later source arrives |
 | domains and authored generic domain families | unused in checkpoint | reject provisionally; the canary isolates a generic domain declaration, while typed semantic use remains unresolved |
 | advanced authored generic constraints | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
 | specialization and reflection | no distinct accepted authored syntax to census | no profile claim yet; add a row only when Omega has an accepted source spelling |
@@ -129,21 +129,19 @@ counts. Typed semantic distinctions, ABI/layout, lowering coverage, Delta
 capacity behavior, and measured bridge costs remain explicitly unresolved and
 are not claimed by this artifact.
 
-The adapter does not yet publish the complete canonical token/diagnostic byte
-stream. That observation format and the Rust-comparator differential are the
-next product-source checkpoint, not evidence claimed here.
+The adapter does not publish the complete canonical token/diagnostic byte
+stream. This checkpoint therefore claims no such observation contract or
+cross-producer comparison.
 
 ## Measured performance
 
 On the checkpoint host, one 12-source native compile spent about 14% in typed
 to checked trees and 84% in control flow to abstract operations; source loading,
 parsing, report generation, and native image writing were not the dominant
-cost. Unicode data now uses two fixed array literals rather than roughly 1,500
-indexed initializer statements, but the current backend still expands the
-large aggregate heavily. Follow-up performance work should therefore measure a
-general static/generated-data representation and Stage-08 expansion rather
-than treating test parallelism or HTML report suppression as the primary fix.
-The selected bootstrap slice and its semantic, resource, and refinement
+cost. Unicode data uses two fixed array literals rather than roughly 1,500
+indexed initializer statements, while the measured backend still expands the
+large aggregate heavily. This is a checkpoint observation, not an active work
+order. The selected bootstrap slice and its semantic, resource, and refinement
 acceptance are tracked in
 [`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md); that implementation evidence
 does not by itself freeze records, arrays, or generated data into final

@@ -36,13 +36,12 @@ therefore trust closure, not a producer-language cleanup. Meaning-route Rust
 removal otherwise outranks producer replacement. (This is why the Rust-free
 Delta-to-Gamma elaborator outranks native-producer optimization. See D6.)
 
-## D2 — Meaning is realized by ELABORATION to the nearest canonical interpreter — not a fresh native interpreter per rung.
+## D2 — Delta meaning is realized by nonoptimizing elaboration to Gamma.
 
-The overview's canonical nesting is realized as: **a Rust-free elaborator
-translates each rung's programs down into the
-nearest rung that already has a canonical interpreter, and that interpreter runs
-them.** Delta's meaning is exposed by a Rust-free Delta-to-Gamma elaborator;
-Gamma's canonical `interp.beta` runs the result.
+Alpha and Beta retain their own written small-step semantics. Gamma's canonical
+evaluator is `interp.beta`. Delta therefore uses a Rust-free, nonoptimizing
+elaboration into Gamma rather than adding a fresh native interpreter. Gamma's
+canonical interpreter runs the result.
 
 **Rationale.** Same semantic content as a bespoke interpreter (delta's
 operational semantics written down in a lower rung), but *staged* as
@@ -56,8 +55,8 @@ checks keep it honest: (a) it is auditable Beta on the seed lineage; (b) the
 
 **Reconciliation with the overview.** Gamma is the general-purpose interpreter
 substrate. Delta elaborates to Gamma; the proof kernel is a separate assurance
-service and is not part of the language path. This refines the overview without
-changing “meaning = reference interpreter.”
+service and is not part of the language path. This does not replace the written
+Alpha or Beta meanings with executable reference tools.
 
 ## D3 — Trust flows through PROOFS, not through trusting native binaries. Native-code trust ends at translation validation.
 

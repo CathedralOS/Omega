@@ -8,8 +8,8 @@ This page is a map and a placement guide. It should help answer two questions:
 The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
-How Omega builds *itself*—the trust architecture and the
-`alpha`/`beta`/`gamma`/… rung chain—is a separate ownership domain described by
+How Omega builds *itself*—the trust architecture and the exact
+`Alpha → Beta → Gamma → Delta` language spine—is a separate ownership domain described by
 [The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md) and its
 [target repository structure](bootstrap_lattice/repository_structure.md).
 
@@ -59,9 +59,6 @@ packages.
 Omega/
 |-- Cargo.toml
 |-- README.md
-|-- apps/
-|   `-- README.md                                         # Reserved hosted product entrypoints.
-|
 |-- bootstrap/onramps/omega-rust/
 |   |-- apps/
 |   |   `-- [CRATE] omega-cli/                            # Current Rust `omega` development command.
