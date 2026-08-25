@@ -1675,8 +1675,16 @@ pub(crate) fn compute_build_config(
                     .iter()
                     .map(|attempt| attempt.grant_refusals().len())
                     .sum::<usize>();
+                let scalar_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.scalar_operands().len())
+                    .sum::<usize>();
+                let byte_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.byte_operands().len())
+                    .sum::<usize>();
                 format!(
-                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s)",
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s)",
                     attempts.len()
                 )
             })

@@ -504,7 +504,7 @@ serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
 Observation schema v10
-carries operation-attempt schema v9, retaining each completed operation's exact
+carries operation-attempt schema v10, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -540,11 +540,14 @@ state follows evaluation of every authored argument; post-state follows
 provider return or halt, including unchanged input-only ABI carriers.
 Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
 aggregate operand-evidence sponsor reserves immutable bytes and both mutable
-copies before that call's provider access; prior or nested staging effects
+copies before that call's provider access. Each successfully typed non-handle
+scalar and immutable payload is retained as preparation advances, so a later
+preparation halt keeps the completed ordinal prefix; the fully prepared call
+must reproduce those rows exactly before provider access. Prior or nested staging effects
 remain cleanup-contained. Package commitments hash immutable and mutable rows
 without rendering them. Path-like bytes not represented by rooted evidence,
-retained returned-path bytes, preparation-failure operand prefixes, and
-complete content remain absent, so
+retained returned-path bytes, preparation-failure path/logical-handle/mutable
+prefixes, and complete content remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.

@@ -155,7 +155,7 @@ pub struct EvaluationUsage {
 /// and a typed returned or evaluator-halted outcome. It is not the canonical
 /// replay transcript: path-like byte operands beyond rooted grant evidence,
 /// complete returned content, and complete content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 9;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
