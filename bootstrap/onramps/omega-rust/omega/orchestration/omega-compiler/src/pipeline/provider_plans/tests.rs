@@ -104,7 +104,22 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
         panic!("one two-row external provider plan")
     };
     assert_eq!(derived.plan.rows.len(), 2);
+    assert_eq!(derived.provenance.row_requirements.len(), 2);
     assert_eq!(derived.provenance.row_realizations.len(), 2);
+    let pair = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Pair")
+        .expect("Pair boundary trait");
+    let expected_requirements = typed
+        .trait_machine_signatures(pair)
+        .iter()
+        .map(|signature| signature.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        derived.provenance.row_requirements, expected_requirements,
+        "provider rows retain their exact requirement declarations in schema order",
+    );
     let expected = ["first_leaf", "second_leaf"]
         .into_iter()
         .map(|name| {
@@ -1708,6 +1723,7 @@ fn duplicate_exact_target_defaults_do_not_conflict() {
                     psi_symbols::SymbolHandle::invalid(),
                 ),
                 provider_type: None,
+                row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
             },
         }],

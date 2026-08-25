@@ -808,7 +808,7 @@ complete.
   omission is a strict empty ceiling for service reach, synchronous invocation,
   suspension, blocking, and crash; checked underdeclaration rejects. Machine
   body presence now survives symbol-resolved and typed copies instead
-  of being reconstructed from synthesized states. Package review v35 reports
+  of being reconstructed from synthesized states. Package review v36 reports
   `inferred_transitive` reach only for an actual checked body and records an
   explicit no-checked-body disposition for bodyless boundary, accepted,
   requirement, and external supply. It never relabels a published ceiling as
@@ -897,13 +897,20 @@ complete.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. The remaining
   advanced call-bearing domain predicates, semantic-role/operator lanes,
-  generated/toolchain symbol ownership, package-qualified provider
-  binding/selection identities, exact semantic-subject commitments,
-  non-provider trust ownership, receipted build-operation transcripts, staged-
-  output commitments, certificate closure, and reproducibility verdicts still
-  need one recheckable projection. Exact provenance for the realizing
-  package, provider type, service schema, and requirement owner is already
-  retained on provider plans and their provider trust rows.
+  exact toolchain structural-type ownership, source-free compiler-semantic
+  subjects, compiler-intrinsic provider-binding ownership, exact semantic-
+  subject commitments, receipted build-operation transcripts, staged-output
+  commitments, certificate closure, and reproducibility verdicts still need
+  one recheckable projection. Direct nominal projection now follows mandatory
+  derivation provenance for generated package and toolchain symbols while
+  keeping genuinely source-free symbols unresolved. Exact
+  provenance for each provider schema, provider type, requirement declaration,
+  and realizing machine is retained from derivation through review; readable
+  plan and overload strings are not declaration identity. Canonical
+  `AcceptedClaim` rows already close non-provider claim ownership under exact
+  package identity. The legacy free-string/FNV trust-lock path remains to be
+  retired and must not be promoted into package evidence or used to manufacture
+  trust for domain declarations.
   Until the remaining joins exist, no projection may be persisted as accepted
   evidence. The compiler now exposes
   an explicitly review-only, in-memory projection for the reconciled root
@@ -976,7 +983,7 @@ complete.
   `Volatile`, including a denied attempt, while pure, console-only, and declared-
   but-unreachable filesystem rows remain `Hermetic`. Console-only granted
   execution no longer installs real filesystem authority. Compiler-issued
-  package review carries this summary outside v35 capability/API comparison
+  package review carries this summary outside v36 capability/API comparison
   bytes. It is explicitly not a receipt and makes no replayability or source-
   rebuildability claim.
   Exact rows for the unsupported forms and proof/admission dispositions still
@@ -994,8 +1001,11 @@ complete.
   remain distinct and no leaf-name fallback remains. The exact selected plans
   survive cycle, ABI, and checked-fact construction without a name-based
   candidate rejoin. Several downstream schema/grant joins and
-  compiler-intrinsic toolchain
-  ownership are not yet package-qualified or sealed. Build-bound progress
+  compiler-intrinsic toolchain ownership are not yet package-qualified or
+  sealed. Selected-provider provenance now additionally retains the exact
+  requirement declaration for every row and review v36 encodes exact nominal
+  identities for the schema, optional provider type, each requirement, and each
+  realizing machine. Build-bound progress
   obligations now retain and match the compiler-derived package owners of both
   the provider service and exact requirement, including through component
   manifests and audit rendering; no readable-name lookup remains on retained
@@ -1007,7 +1017,7 @@ complete.
   closing the implicit-entry-state ownership gap discovered by the crash
   projection. Review identity now retains the exact deployment target profile,
   so profiles such as Windows and UEFI cannot collapse merely because they
-  share a native ABI. A v35 length-framed binary comparison encoding now covers
+  share a native ABI. A v36 length-framed binary comparison encoding now covers
   every retained public-domain, public-data, public-trait, callable,
   representation-TCB, crash/proof predicate, proposition/witness, authority
   flow, dangerous-authority classification, mutation, and selected-provider
@@ -1075,7 +1085,7 @@ complete.
   realized filesystem-touch fact separate from deterministic evaluator usage.
   The compiler derives the static class from exact reachable toolchain service
   identity, retains the versioned Hermetic/Volatile summary through checked and
-  full reports and compiler-issued package review, and keeps it outside v35
+  full reports and compiler-issued package review, and keeps it outside v36
   capability/API comparison bytes. Console-only execution no longer installs
   real filesystem authority. Both statement- and value-position filesystem
   dispatch now require an exact requirement symbol owned by the canonical
@@ -1249,7 +1259,7 @@ complete.
   row making a final-realization claim. Ordinary successful compilation is not
   itself a complete proof verdict. Dangerous overdeclaration is now exact for
   checked bodies: retained source-body presence selects inferred transitive
-  reach, and v35 emits separate audit-recommended slack rows without treating a
+  reach, and v36 emits separate audit-recommended slack rows without treating a
   bodyless declaration as a failed realization. The standalone
   `psi-proof` boundary obligation ledger is not wired into production and must
   not be cited as enforcement.
@@ -1318,7 +1328,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v35
+  create a placeholder `PackageInstance` or bless current incomplete review v36
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is
@@ -1534,7 +1544,7 @@ complete.
   `Console` is additionally classified as process authority because reach is
   trait-granular and that canonical trait includes `exit_process`; a
   package-owned `Console` lookalike cannot mint the class. Comparison encoding
-  v35 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
+  v36 retains these rows. `ProgramStorageEntry` is not mislabeled as executable-
   installation authority merely because it receives already-installed roots;
   that class must come from exact installation evidence. Network, dynamic
   loading, signing, secrets, executable installation, DMA/IOMMU, and sealed
@@ -1558,7 +1568,7 @@ complete.
   `boundary data`, including private declarations and declarations with no
   reach or claim. The row is target-scoped by the containing projection and
   explicitly records both ABI commitment and external mechanism as `Unbound`;
-  it does not fabricate layout or realization. Comparison encoding v35 retains
+  it does not fabricate layout or realization. Comparison encoding v36 retains
   the lane. Exact mechanism/ABI selection, semantic-subject and certificate
   checking, and admission-policy outcomes remain.
 

@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v35 rows are not promoted
+subjects or provenance. The current incomplete review-v36 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -904,7 +904,10 @@ declaration and exact exposing callables while deriving the row. No later source
 join reconstructs those coordinates from reduced nominal identity.
 Provider candidate derivation captures a compiler-internal sidecar beside each
 semantic plan: exact boundary-schema and optional nominal-provider symbols, and
-the exact realizing machine for every external or checked-adapter row. Selection
+the exact requirement plus realizing machine for every external or
+checked-adapter row. Review v36 encodes those schema, provider, requirement, and
+realization declarations as package-qualified nominal identities; readable
+plan and overload strings remain operational/audit data. Selection
 and canonical sorting keep that pair intact, adding exact authored build/target-
 default sites or a closed reason for an implicit unique choice. The resulting
 selected-provider row may mix authored coordinates and compiler-derived reasons

@@ -1435,26 +1435,46 @@ impl PackageReviewCheckedServiceReach {
     }
 }
 
+/// Exact declarations bound to one selected provider realization row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPackageProviderRowIdentity {
+    requirement: PackageReviewNominalIdentity,
+    realization: PackageReviewNominalIdentity,
+}
+
+impl CheckedPackageProviderRowIdentity {
+    pub const fn requirement(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement
+    }
+
+    pub const fn realization(&self) -> &PackageReviewNominalIdentity {
+        &self.realization
+    }
+}
+
 /// One selected provider plan retained for human/LLM review.
 ///
 /// The realizing package is exact and participates in `plan_fingerprint`.
 /// That existing 64-bit fingerprint is review/execution compatibility data,
 /// not a collision-resistant package-admission identity.
-/// Provider type, schema, and requirement labels are paired with exact package
-/// owners in the retained schema. A checked-adapter row carries its canonical
-/// overload identity and exact machine package owner; compiler consumers have
-/// already rejoined both to typed semantics. Provider-selection names and
-/// compiler-intrinsic toolchain ownership remain unsealed review data.
+/// Schema, provider type, row requirement, and realizing machine retain exact
+/// package-qualified declaration identities. Readable provider-plan strings
+/// remain execution/audit data and are not asked to stand in for those
+/// declarations. Compiler-intrinsic toolchain ownership remains unsealed review
+/// data.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     plan_name: String,
     plan_fingerprint: u64,
     realizing_package: Option<PackageKeyIdentity>,
+    schema_declaration: PackageReviewNominalIdentity,
     provider_type: String,
     provider_type_package: Option<PackageKeyIdentity>,
+    provider_type_declaration: Option<PackageReviewNominalIdentity>,
     schema: omega_effects::provider_plan::ServiceSchema,
     target: String,
     rows: Vec<omega_effects::provider_plan::ProviderPlanRow>,
+    row_declarations: Vec<CheckedPackageProviderRowIdentity>,
 }
 
 impl CheckedPackageProviderReview {
@@ -1470,12 +1490,20 @@ impl CheckedPackageProviderReview {
         self.realizing_package
     }
 
+    pub const fn schema_declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.schema_declaration
+    }
+
     pub fn provider_type(&self) -> &str {
         &self.provider_type
     }
 
     pub const fn provider_type_package(&self) -> Option<PackageKeyIdentity> {
         self.provider_type_package
+    }
+
+    pub const fn provider_type_declaration(&self) -> Option<&PackageReviewNominalIdentity> {
+        self.provider_type_declaration.as_ref()
     }
 
     pub fn service_schema(&self) -> &str {
@@ -1492,6 +1520,10 @@ impl CheckedPackageProviderReview {
 
     pub fn rows(&self) -> &[omega_effects::provider_plan::ProviderPlanRow] {
         &self.rows
+    }
+
+    pub fn row_declarations(&self) -> &[CheckedPackageProviderRowIdentity] {
+        &self.row_declarations
     }
 }
 
@@ -2002,21 +2034,54 @@ pub fn project_checked_package_review(
     });
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
     let dangerous_authority_slack = project_dangerous_authority_slack(compilation, &callables)?;
-    let selected_providers: Vec<_> = compilation
-        .selected_provider_plans()
-        .plans()
-        .iter()
-        .map(|plan| CheckedPackageProviderReview {
+    let selected_plans = compilation.selected_provider_plans().plans();
+    let selected_provider_provenance = compilation.selected_provider_provenance();
+    if selected_plans.len() != selected_provider_provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "selected-provider review provenance is not aligned with the canonical selected plan set",
+        )]);
+    }
+    let mut selected_providers = Vec::with_capacity(selected_plans.len());
+    for (plan, retained) in selected_plans.iter().zip(selected_provider_provenance) {
+        if retained.plan != *plan
+            || retained.provider.row_requirements.len() != plan.rows.len()
+            || retained.provider.row_realizations.len() != plan.rows.len()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` has incomplete or misaligned declaration provenance",
+                plan.name,
+            ))]);
+        }
+        let row_declarations = retained
+            .provider
+            .row_requirements
+            .iter()
+            .zip(&retained.provider.row_realizations)
+            .map(|(requirement, realization)| {
+                Ok(CheckedPackageProviderRowIdentity {
+                    requirement: nominal_identity(compilation, *requirement)?,
+                    realization: nominal_identity(compilation, *realization)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        selected_providers.push(CheckedPackageProviderReview {
             plan_name: plan.name.clone(),
             plan_fingerprint: plan.identity_fingerprint(),
             realizing_package: plan.origin_package_identity,
+            schema_declaration: nominal_identity(compilation, retained.provider.schema.symbol())?,
             provider_type: plan.provider_type.clone(),
             provider_type_package: plan.provider_type_package_identity,
+            provider_type_declaration: retained
+                .provider
+                .provider_type
+                .map(|symbol| nominal_identity(compilation, symbol))
+                .transpose()?,
             schema: plan.schema.clone(),
             target: plan.target.clone(),
             rows: plan.rows.clone(),
-        })
-        .collect();
+            row_declarations,
+        });
+    }
     let (public_traits, public_trait_sources) = finalize_projected_rows(
         compilation,
         public_traits,
@@ -6242,14 +6307,19 @@ fn nominal_owner(
     compilation: &CheckedCompilation,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
-    if let Some(package) = compilation.typed.symbols.symbol_package_identity(symbol) {
+    nominal_owner_from_symbols(&compilation.typed.symbols, symbol)
+}
+
+fn nominal_owner_from_symbols(
+    symbols: &psi_symbols::SymbolTable,
+    symbol: SymbolHandle,
+) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
+    if let Some(package) = symbols.symbol_package_identity(symbol) {
         return Ok(PackageReviewNominalOwner::Package(package));
     }
-    let Some(source_file) = compilation
-        .typed
-        .symbols
-        .symbol_source_span(symbol)
-        .and_then(|span| compilation.typed.symbols.source_file(span))
+    let Some(source_file) = symbols
+        .symbol_provenance_source_span(symbol)
+        .and_then(|span| symbols.source_file(span))
     else {
         return Ok(PackageReviewNominalOwner::Unresolved);
     };
@@ -6311,8 +6381,10 @@ fn exactly_one<'item, Item>(
 
 #[cfg(test)]
 mod tests {
-    use super::toolchain_source_identity;
-    use psi_source::{SourceFile, SourceId, SourceOrigin};
+    use super::{PackageReviewNominalOwner, nominal_owner_from_symbols, toolchain_source_identity};
+    use psi_core::PackageKeyIdentity;
+    use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
+    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -6345,6 +6417,37 @@ mod tests {
             origin: SourceOrigin::Toolchain,
             source: Arc::from(source),
         }
+    }
+
+    fn generated_symbol_owner(
+        origin: SourceOrigin,
+        package_identity: Option<PackageKeyIdentity>,
+    ) -> PackageReviewNominalOwner {
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("toolchain/std/origin.omg"),
+                String::from("origin"),
+                PathBuf::from("toolchain/std"),
+                package_identity,
+                origin,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let authored = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(
+                SymbolKind::Machine,
+                SymbolNameRef::Source(SourceSpan::new(source_id, Span::new(0, 6))),
+            )],
+        ))
+        .next()
+        .expect("authored derivation origin");
+        let mut symbols = builder.finish();
+        let generated =
+            symbols.insert_generated_root_from(authored, SymbolKind::Machine, "generated_origin");
+        nominal_owner_from_symbols(&symbols, generated).expect("generated nominal owner")
     }
 
     #[test]
@@ -6388,5 +6491,34 @@ mod tests {
         ))
         .expect_err("nested virtual path outside the toolchain root must reject");
         assert!(error[0].message.contains("outside its canonical root"));
+    }
+
+    #[test]
+    fn generated_nominals_follow_exact_derivation_ownership() {
+        assert!(matches!(
+            generated_symbol_owner(SourceOrigin::Toolchain, None),
+            PackageReviewNominalOwner::ToolchainSource(_)
+        ));
+
+        let package_identity =
+            PackageKeyIdentity::from_digest([41; 32]).expect("nonzero package identity");
+        assert_eq!(
+            generated_symbol_owner(SourceOrigin::User, Some(package_identity)),
+            PackageReviewNominalOwner::Package(package_identity)
+        );
+
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let source_free = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Static("source_free"))],
+        ))
+        .next()
+        .expect("source-free symbol");
+        let symbols: SymbolTable = builder.finish();
+        assert_eq!(
+            nominal_owner_from_symbols(&symbols, source_free).expect("source-free nominal owner"),
+            PackageReviewNominalOwner::Unresolved
+        );
     }
 }

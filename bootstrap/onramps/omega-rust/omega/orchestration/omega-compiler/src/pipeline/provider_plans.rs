@@ -2179,6 +2179,7 @@ impl ProviderSchemaDeclaration {
 pub(super) struct ProviderPlanProvenance {
     pub(super) schema: ProviderSchemaDeclaration,
     pub(super) provider_type: Option<psi_symbols::SymbolHandle>,
+    pub(super) row_requirements: Vec<psi_symbols::SymbolHandle>,
     pub(super) row_realizations: Vec<psi_symbols::SymbolHandle>,
 }
 
@@ -2286,10 +2287,17 @@ pub(super) fn derive_satisfies_plans_with_provenance(
             );
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
-                machine.name.as_str(),
-                clause.name.as_str(),
+                machine,
+                clause.symbol,
                 requirement.as_str(),
             );
+            let requirement_symbol = exact_satisfied_requirement_symbol(
+                typed,
+                machine,
+                clause.symbol,
+                requirement.as_str(),
+            )
+            .unwrap_or_else(psi_symbols::SymbolHandle::invalid);
             for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
                 typed,
                 &provider_type,
@@ -2322,6 +2330,7 @@ pub(super) fn derive_satisfies_plans_with_provenance(
                             provenance: ProviderPlanProvenance {
                                 schema: schema_declaration,
                                 provider_type: provider_type_symbol,
+                                row_requirements: Vec::new(),
                                 row_realizations: Vec::new(),
                             },
                         });
@@ -2337,6 +2346,10 @@ pub(super) fn derive_satisfies_plans_with_provenance(
                     requirement_identity: requirement_identity.clone(),
                     binding: row_binding.clone(),
                 });
+                plans[position]
+                    .provenance
+                    .row_requirements
+                    .push(requirement_symbol);
                 plans[position]
                     .provenance
                     .row_realizations
@@ -2524,6 +2537,7 @@ fn derive_boundary_operator_plans_with_provenance(
                         provenance: ProviderPlanProvenance {
                             schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
                             provider_type: provider_type_symbol,
+                            row_requirements: Vec::new(),
                             row_realizations: Vec::new(),
                         },
                     });
@@ -2542,6 +2556,10 @@ fn derive_boundary_operator_plans_with_provenance(
                 requirement_identity: schema.methods[0].requirement_identity.clone(),
                 binding,
             });
+            plans[position]
+                .provenance
+                .row_requirements
+                .push(operator.symbol);
             plans[position]
                 .provenance
                 .row_realizations
@@ -2607,28 +2625,66 @@ pub(crate) fn satisfied_requirement_identity(
 
 fn exact_satisfied_requirement_identity(
     typed: &TypedTrees,
-    machine_name: &str,
-    trait_name: &str,
+    machine: &psi_typed_trees::machine::Machine,
+    trait_symbol: psi_symbols::SymbolHandle,
     requirement_name: &str,
 ) -> String {
     let Some(definition) = typed
         .traits()
         .iter()
-        .find(|definition| same_semantic_name(definition.name.as_str(), trait_name))
+        .find(|definition| definition.symbol == trait_symbol)
     else {
         return String::new();
     };
+    let Some(requirement_symbol) =
+        exact_satisfied_requirement_symbol(typed, machine, trait_symbol, requirement_name)
+    else {
+        return String::new();
+    };
+    typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .find(|signature| signature.symbol == requirement_symbol)
+        .map(|signature| {
+            typed
+                .normalized_trait_requirement_overload_identity(definition, signature)
+                .identity()
+        })
+        .unwrap_or_default()
+}
+
+fn exact_satisfied_requirement_symbol(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    trait_symbol: psi_symbols::SymbolHandle,
+    requirement_name: &str,
+) -> Option<psi_symbols::SymbolHandle> {
+    let definition = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == trait_symbol)?;
     let named = typed
         .trait_machine_signatures(definition)
         .iter()
         .filter(|signature| signature.name.as_str() == requirement_name)
         .collect::<Vec<_>>();
-    match named.as_slice() {
-        [single] => typed
-            .normalized_trait_requirement_overload_identity(definition, single)
-            .identity(),
-        _ => satisfied_requirement_identity(typed, machine_name, trait_name, requirement_name),
-    }
+    let selected = match named.as_slice() {
+        [single] => Some(*single),
+        many => {
+            let implementation_dispatch = typed
+                .machine_states(machine)
+                .first()
+                .map(|entry| typed.normalized_result_dispatch_set(entry.return_type));
+            let mut matching = many.iter().copied().filter(|signature| {
+                implementation_dispatch.as_ref().is_some_and(|dispatch| {
+                    typed.normalized_result_dispatch_set(signature.return_type) == *dispatch
+                })
+            });
+            let selected = matching.next();
+            selected.filter(|_| matching.next().is_none())
+        }
+    }?;
+    Some(selected.symbol)
 }
 
 fn exact_external_binding_identity<'typed>(
@@ -3608,6 +3664,14 @@ pub(super) fn selected_provider_plan_facts_with_provenance(
                 provenance.row_realizations.len(),
             )));
         }
+        if provenance.row_requirements.len() != plan.rows.len() {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` has {} semantic rows but {} retained requirement symbols",
+                plan.name,
+                plan.rows.len(),
+                provenance.row_requirements.len(),
+            )));
+        }
         let schema_symbol = provenance.schema.symbol();
         let schema_is_exact = match provenance.schema {
             ProviderSchemaDeclaration::BoundaryTrait(symbol) => typed
@@ -3645,6 +3709,35 @@ pub(super) fn selected_provider_plan_facts_with_provenance(
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "selected provider plan `{}` has a row without its exact realizing machine",
+                    plan.name,
+                )));
+            }
+        }
+        for (row, requirement) in plan.rows.iter().zip(&provenance.row_requirements) {
+            let trait_requirement_is_exact = typed.traits().iter().any(|definition| {
+                typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .any(|signature| {
+                        signature.symbol == *requirement
+                            && typed
+                                .normalized_trait_requirement_overload_identity(
+                                    definition, signature,
+                                )
+                                .identity()
+                                == row.requirement_identity
+                    })
+            });
+            let boundary_operator_is_exact = typed.operators().iter().any(|operator| {
+                operator.is_boundary
+                    && operator.symbol == *requirement
+                    && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                        typed, operator,
+                    ) == row.requirement_identity
+            });
+            if !trait_requirement_is_exact && !boundary_operator_is_exact {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                    "selected provider plan `{}` has a row without its exact requirement declaration",
                     plan.name,
                 )));
             }
