@@ -59,9 +59,10 @@ pub use build_config::{
     BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleIdentity,
     BuildFilesystemLogicalHandleInput, BuildFilesystemLogicalHandleInputResolution,
     BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutput,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationAttempt,
-    BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperand,
-    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMutableByteOperand,
+    BuildFilesystemMutableI64Operand, BuildFilesystemOperationAttempt, BuildFilesystemProvider,
+    BuildFilesystemRoot, BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, BuildObservationSummary,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{

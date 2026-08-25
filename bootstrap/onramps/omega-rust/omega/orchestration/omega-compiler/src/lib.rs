@@ -17,6 +17,7 @@ pub use pipeline::{
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
+    BuildFilesystemMutableByteOperand, BuildFilesystemMutableI64Operand,
     BuildFilesystemOperationAttempt, BuildFilesystemProvider, BuildFilesystemRoot,
     BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue, BuildObservationClass,
     BuildObservationSummary, BuildTimeValue, ByteOrder, CheckedCompilation,

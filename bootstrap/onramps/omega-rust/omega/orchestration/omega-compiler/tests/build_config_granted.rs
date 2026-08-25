@@ -121,7 +121,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 6);
+    assert_eq!(checked_observations.schema_version(), 7);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -132,7 +132,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        7
+        8
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -244,6 +244,12 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         read.scalar_operands()[0].value(),
         BuildFilesystemScalarOperandValue::U64(6)
     );
+    let [read_buffer] = read.mutable_byte_operands() else {
+        panic!("read must retain its complete mutable buffer")
+    };
+    assert_eq!(read_buffer.operand_ordinal(), 1);
+    assert_eq!(read_buffer.pre_bytes(), &[0; 6]);
+    assert_eq!(read_buffer.post_bytes(), b"table\n");
     assert_eq!(create.scalar_operands().len(), 1);
     assert_eq!(
         create.scalar_operands()[0].value(),

@@ -428,8 +428,8 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v6
-carries operation-attempt schema v7, retaining each completed operation's exact
+stay separate from capability/API comparison bytes. Observation schema v7
+carries operation-attempt schema v8, retaining each completed operation's exact
 provider, stable tag, scalar result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -453,12 +453,17 @@ before sponsor or host access when admitted only for source reads;
 outputs are lossless or reject. Fully prepared calls whose evidence reservation
 succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars, exact
 authored immutable write/FILETIME payloads, and validated at-family component
-bytes. Rooted/path-alias spellings stay out of the payload lane. A separate 256
-MiB aggregate immutable-evidence sponsor reserves before that call's provider
-access; prior or nested staging effects remain cleanup-contained. Package
-commitments hash these bytes without rendering them. Path-like bytes not
-represented by rooted evidence, mutable regions, retained returned-path bytes,
-preparation-failure operand prefixes, and complete content remain absent, so
+bytes. Mutable byte carriers retain their complete pre/post capacity, including
+unchanged tails, and mutable i64 carriers retain exact pre/post values. Pre-
+state follows evaluation of every authored argument; post-state follows
+provider return or halt, including unchanged input-only ABI carriers.
+Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
+aggregate operand-evidence sponsor reserves immutable bytes and both mutable
+copies before that call's provider access; prior or nested staging effects
+remain cleanup-contained. Package commitments hash immutable and mutable rows
+without rendering them. Path-like bytes not represented by rooted evidence,
+retained returned-path bytes, preparation-failure operand prefixes, and
+complete content remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Canonical
 operation transcripts, recorded inputs, staged-output commitments, and replay
 checking remain required before any `Receipted` verdict.

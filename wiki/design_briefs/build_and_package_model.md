@@ -574,7 +574,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v6 carries operation-attempt schema v7: an ordered
+Observation schema v7 carries operation-attempt schema v8: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -600,13 +600,17 @@ path outputs are lossless or reject. Fully prepared calls whose evidence
 reservation succeeds retain ordinal-ordered non-handle I32/U32/I64/U64 scalars
 plus exact immutable write/FILETIME payloads;
 validated at-family components retain their exact portable bytes. Rooted and
-path-alias spellings never enter the payload lane. A separate 256 MiB aggregate
-immutable-evidence sponsor reserves custody before that call's provider access;
-prior or nested staging effects remain cleanup-contained. Package
-commitments frame these rows without rendering payload bytes as text. Path-like
-bytes not yet represented by rooted evidence, mutable regions, preparation-
-failure operand prefixes, retained returned-path bytes, and complete content
-remain absent, so the row is still non-replayable.
+path-alias spellings never enter the payload lane. Mutable byte carriers retain
+their complete pre/post capacity, including unchanged tails, and mutable i64
+carriers retain exact pre/post values. Pre-state follows evaluation of every
+authored argument; post-state follows provider return or halt, including
+unchanged input-only ABI carriers. A separate 256 MiB aggregate operand-
+evidence sponsor reserves immutable bytes and both mutable copies before that
+call's provider access; prior or nested staging effects remain cleanup-
+contained. Package commitments frame these rows without rendering payload
+bytes as text. Path-like bytes not yet represented by rooted evidence,
+preparation-failure operand prefixes, retained returned-path bytes, and complete
+content remain absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

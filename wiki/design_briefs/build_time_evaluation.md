@@ -394,7 +394,7 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v6 carries operation-attempt schema v7, retaining in call-start order
+schema v7 carries operation-attempt schema v8, retaining in call-start order
 each completed operation's exact provider, stable tag, scalar return,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -419,19 +419,23 @@ real-provider path outputs use lossless native bytes or reject.
 Fully prepared calls whose evidence reservation succeeds retain ordinal-ordered
 non-handle scalars with explicit I32/U32/I64/U64 identity, complete authored
 immutable write/FILETIME payloads, and exact validated at-family components.
-Rooted/path-alias spellings remain out of the payload lane. A separate 256 MiB
-aggregate immutable-evidence sponsor reserves custody before that call's
-provider access. Exhaustion halts that call; prior or nested staging effects
-remain cleanup-contained. Package commitment framing hashes bytes without
-rendering them.
+Rooted/path-alias spellings remain out of the payload lane. Mutable byte
+carriers retain their complete pre/post capacity, including unchanged tails;
+mutable i64 carriers retain exact pre/post values. Pre-state follows evaluation
+of every authored argument, while post-state follows provider return or halt.
+Input-only mutable ABI carriers remain explicit even when unchanged. A separate
+256 MiB aggregate operand-evidence sponsor reserves immutable bytes and both
+mutable copies before that call's provider access. Exhaustion halts that call;
+prior or nested staging effects remain cleanup-contained. Package commitment
+framing hashes immutable and mutable evidence without rendering it.
 A granted evaluation failure
 retains partial usage and observations with an explicit returned/evaluator-halt
 outcome; worker creation or panic marks evidence unavailable. Omega emits only
 fixed non-admission counts and no review row on failure. Duplicate identities,
 conflicting equal roots, unresolved roots, unrepresentable rooted paths, and
 the 16 MiB aggregate retained-path ceiling reject before host access. Complete
-path-like byte operands not represented by rooted evidence, mutable byte
-regions, retained returned-path bytes, preparation-failure operand prefixes,
+path-like byte operands not represented by rooted evidence, retained
+returned-path bytes, preparation-failure operand prefixes,
 and complete content custody are absent. It is an incomplete operation trace,
 not a transcript or receipt, and makes no replayability or source-
 rebuildability claim.

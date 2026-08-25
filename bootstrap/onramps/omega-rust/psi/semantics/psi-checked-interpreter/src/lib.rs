@@ -153,8 +153,8 @@ pub struct EvaluationUsage {
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
 /// and a typed returned or evaluator-halted outcome. It is not the canonical
 /// replay transcript: path-like byte operands beyond rooted grant evidence,
-/// mutable output regions, and complete returned content are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 7;
+/// complete returned content, and complete content custody are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -287,6 +287,51 @@ impl FilesystemByteOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+/// Complete provider-visible state of one mutable byte carrier immediately
+/// before and after the operation's provider invocation. Both vectors equal
+/// the resolved carrier capacity; unchanged tails remain explicit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemMutableByteOperand {
+    operand_ordinal: u8,
+    pre_bytes: Vec<u8>,
+    post_bytes: Vec<u8>,
+}
+
+impl FilesystemMutableByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn pre_bytes(&self) -> &[u8] {
+        &self.pre_bytes
+    }
+
+    pub fn post_bytes(&self) -> &[u8] {
+        &self.post_bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemMutableI64Operand {
+    operand_ordinal: u8,
+    pre_value: i64,
+    post_value: i64,
+}
+
+impl FilesystemMutableI64Operand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn pre_value(self) -> i64 {
+        self.pre_value
+    }
+
+    pub const fn post_value(self) -> i64 {
+        self.post_value
     }
 }
 
@@ -436,8 +481,9 @@ impl FilesystemGrantRefusal {
 /// The operation tag is an append-only compiler-owned identity. No package
 /// string enters this row. Runtime descriptor numbers may still appear in
 /// `result`, but descriptor/handle use is separately normalized into logical
-/// lifetimes. Mutable regions and complete path/content custody are still
-/// absent, so this remains below receipt strength.
+/// lifetimes. Mutable carrier regions retain complete pre/post snapshots, but
+/// complete path/content custody is still absent, so this remains below
+/// receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
@@ -445,6 +491,8 @@ pub struct FilesystemOperationAttempt {
     outcome: Option<FilesystemOperationAttemptOutcome>,
     scalar_operands: Vec<FilesystemScalarOperand>,
     byte_operands: Vec<FilesystemByteOperand>,
+    mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
+    mutable_i64_operands: Vec<FilesystemMutableI64Operand>,
     authorized_paths: Vec<FilesystemAuthorizedPath>,
     logical_handle_inputs: Vec<FilesystemLogicalHandleInput>,
     logical_handle_output: Option<FilesystemLogicalHandleOutput>,
@@ -460,6 +508,8 @@ impl FilesystemOperationAttempt {
             outcome: None,
             scalar_operands: Vec::new(),
             byte_operands: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
             authorized_paths: Vec::new(),
             logical_handle_inputs: Vec::new(),
             logical_handle_output: None,
@@ -502,6 +552,14 @@ impl FilesystemOperationAttempt {
 
     pub fn byte_operands(&self) -> &[FilesystemByteOperand] {
         &self.byte_operands
+    }
+
+    pub fn mutable_byte_operands(&self) -> &[FilesystemMutableByteOperand] {
+        &self.mutable_byte_operands
+    }
+
+    pub fn mutable_i64_operands(&self) -> &[FilesystemMutableI64Operand] {
+        &self.mutable_i64_operands
     }
 
     pub fn grant_refusals(&self) -> &[FilesystemGrantRefusal] {
