@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableI64Operand,
-    FilesystemScalarOperand, FilesystemScalarOperandValue,
+    FilesystemPathLikeOperand, FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
@@ -490,6 +490,13 @@ fn observed_bytes(operand_ordinal: u8, value: &[u8]) -> FilesystemByteOperand {
     }
 }
 
+fn observed_path_like_bytes(operand_ordinal: u8, value: &[u8]) -> FilesystemPathLikeOperand {
+    FilesystemPathLikeOperand {
+        operand_ordinal,
+        bytes: value.to_vec(),
+    }
+}
+
 pub(super) struct PreparedFilesystemMutableByteObservation {
     operand_ordinal: u8,
     output: PreparedByteOutput,
@@ -768,17 +775,23 @@ impl PreparedFilesystemCall {
         }
     }
 
-    /// Project canonical non-handle scalars and immutable payload bytes from a
-    /// fully prepared call. Path spellings and path-like byte aliases are
-    /// deliberately excluded: scoped path evidence owns their portable rooted
-    /// form and must never be bypassed by a raw absolute spelling.
+    /// Project canonical non-handle scalars, immutable payload bytes, and
+    /// unrooted path-like spellings from a fully prepared call. Rooted path
+    /// spellings remain excluded because scoped path evidence owns their
+    /// portable rooted form and must never be bypassed by a raw absolute
+    /// spelling.
     pub(super) fn operand_observation_plan(
         &self,
-    ) -> (Vec<FilesystemScalarOperand>, Vec<FilesystemByteOperand>) {
+    ) -> (
+        Vec<FilesystemScalarOperand>,
+        Vec<FilesystemByteOperand>,
+        Vec<FilesystemPathLikeOperand>,
+    ) {
         use FilesystemScalarOperandValue as Scalar;
 
         let mut scalars = Vec::new();
         let mut bytes = Vec::new();
+        let mut path_like = Vec::new();
 
         match self {
             Self::Create { mode, .. } => scalars.push(observed_scalar(1, Scalar::I32(*mode))),
@@ -807,7 +820,11 @@ impl PreparedFilesystemCall {
                 scalars.push(observed_scalar(1, Scalar::I64(*offset)));
                 scalars.push(observed_scalar(2, Scalar::I32(*whence)));
             }
-            Self::CreateDir { mode, .. } | Self::CreateDirName { mode, .. } => {
+            Self::CreateDir { mode, .. } => {
+                scalars.push(observed_scalar(1, Scalar::I32(*mode)));
+            }
+            Self::CreateDirName { name, mode } => {
+                path_like.push(observed_path_like_bytes(0, name));
                 scalars.push(observed_scalar(1, Scalar::I32(*mode)));
             }
             Self::OpenAt { name, flags, .. } | Self::UnlinkAt { name, flags, .. } => {
@@ -890,21 +907,25 @@ impl PreparedFilesystemCall {
                 scalars.push(observed_scalar(1, Scalar::I32(*uid)));
                 scalars.push(observed_scalar(2, Scalar::I32(*gid)));
             }
+            Self::Symlink { target, .. }
+            | Self::FindFirst {
+                pattern: target, ..
+            }
+            | Self::RemoveName { path: target }
+            | Self::RemoveDirName { path: target } => {
+                path_like.push(observed_path_like_bytes(0, target));
+            }
             Self::Close { .. }
             | Self::Remove { .. }
             | Self::RemoveDir { .. }
             | Self::Rename { .. }
             | Self::HardLink { .. }
-            | Self::Symlink { .. }
             | Self::Canonicalize { .. }
-            | Self::FindFirst { .. }
             | Self::FindNext { .. }
             | Self::FindClose { .. }
             | Self::CloseHandle { .. }
             | Self::GetOsfHandle { .. }
             | Self::GetLastError
-            | Self::RemoveName { .. }
-            | Self::RemoveDirName { .. }
             | Self::ReadMetadata { .. }
             | Self::ReadFileMetadata { .. }
             | Self::ReadSymlinkMetadata { .. }
@@ -914,7 +935,7 @@ impl PreparedFilesystemCall {
             | Self::Duplicate { .. }
             | Self::Errno => {}
         }
-        (scalars, bytes)
+        (scalars, bytes, path_like)
     }
 
     /// Snapshot mutable carriers only after all authored arguments have been
@@ -1295,6 +1316,17 @@ mod tests {
         }
     }
 
+    fn expected_path_like_byte_ordinals(operation: FilesystemHostOperation) -> &'static [u8] {
+        match operation {
+            FilesystemHostOperation::CreateDirName
+            | FilesystemHostOperation::Symlink
+            | FilesystemHostOperation::FindFirst
+            | FilesystemHostOperation::RemoveName
+            | FilesystemHostOperation::RemoveDirName => &[0],
+            _ => &[],
+        }
+    }
+
     #[test]
     fn transfer_counts_are_bounded_without_losing_the_authored_value() {
         assert_eq!(
@@ -1487,21 +1519,23 @@ mod tests {
             name: b"entry.bin".to_vec(),
             flags: -1,
         };
-        let (scalars, bytes) = open_at.operand_observation_plan();
+        let (scalars, bytes, path_like) = open_at.operand_observation_plan();
         assert_eq!(scalars.len(), 1);
         assert_eq!(scalars[0].operand_ordinal(), 2);
         assert_eq!(scalars[0].value(), FilesystemScalarOperandValue::I32(-1));
         assert_eq!(bytes.len(), 1);
         assert_eq!(bytes[0].operand_ordinal(), 1);
         assert_eq!(bytes[0].bytes(), b"entry.bin");
+        assert!(path_like.is_empty());
 
         let write = PreparedFilesystemCall::Write {
             fd: 3,
             bytes: b"a\0b".to_vec(),
         };
-        let (scalars, bytes) = write.operand_observation_plan();
+        let (scalars, bytes, path_like) = write.operand_observation_plan();
         assert!(scalars.is_empty(), "raw descriptor tokens are not scalars");
         assert_eq!(bytes[0].bytes(), b"a\0b");
+        assert!(path_like.is_empty());
 
         let set_time = PreparedFilesystemCall::SetFileTime {
             handle: 3,
@@ -1509,13 +1543,14 @@ mod tests {
             last_access: (0u8..12).collect(),
             last_write: (20u8..32).collect(),
         };
-        let (scalars, bytes) = set_time.operand_observation_plan();
+        let (scalars, bytes, path_like) = set_time.operand_observation_plan();
         assert_eq!(
             scalars[0].value(),
             FilesystemScalarOperandValue::I64(i64::MIN)
         );
         assert_eq!(bytes[0].bytes(), &(0u8..12).collect::<Vec<_>>());
         assert_eq!(bytes[1].bytes(), &(20u8..32).collect::<Vec<_>>());
+        assert!(path_like.is_empty());
 
         let native_open = PreparedFilesystemCall::OpenPathHandle {
             path: b"file".to_vec(),
@@ -1526,7 +1561,7 @@ mod tests {
             flags_and_attributes: 5,
             template_file: 99,
         };
-        let (scalars, bytes) = native_open.operand_observation_plan();
+        let (scalars, bytes, path_like) = native_open.operand_observation_plan();
         assert_eq!(
             scalars
                 .iter()
@@ -1540,10 +1575,11 @@ mod tests {
             FilesystemScalarOperandValue::U32(u32::MAX)
         );
         assert!(bytes.is_empty());
+        assert!(path_like.is_empty());
     }
 
     #[test]
-    fn every_canonical_operation_has_exact_scalar_and_immutable_byte_roles() {
+    fn every_canonical_operation_has_exact_scalar_byte_and_path_like_roles() {
         use super::super::filesystem_host_operation::FilesystemHostOperandKind as Kind;
 
         for operation in FilesystemHostOperation::ALL {
@@ -1557,7 +1593,7 @@ mod tests {
                 .iter()
                 .map(|input| input.operand_ordinal)
                 .collect::<std::collections::BTreeSet<_>>();
-            let (scalars, bytes) = call.operand_observation_plan();
+            let (scalars, bytes, path_like) = call.operand_observation_plan();
             let actual_scalars = scalars
                 .iter()
                 .map(|operand| {
@@ -1596,6 +1632,22 @@ mod tests {
                 expected_immutable_byte_ordinals(operation),
                 "immutable byte evidence role drift for `{operation}`"
             );
+            let actual_path_like = path_like
+                .iter()
+                .map(|operand| operand.operand_ordinal())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                actual_path_like,
+                expected_path_like_byte_ordinals(operation),
+                "path-like byte evidence role drift for `{operation}`"
+            );
+            for operand in &path_like {
+                assert_eq!(
+                    operand.bytes(),
+                    b"/root/file",
+                    "path-like byte evidence content drift for `{operation}`"
+                );
+            }
             let expected_mutable_bytes = operation
                 .operand_kinds()
                 .iter()
@@ -1636,6 +1688,7 @@ mod tests {
                 .iter()
                 .map(|(ordinal, _)| *ordinal)
                 .chain(actual_bytes.iter().copied())
+                .chain(actual_path_like.iter().copied())
             {
                 assert!(
                     observed_ordinals.insert(ordinal),
@@ -1882,7 +1935,13 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn path_like_bytes(&mut self) -> EvalResult<Vec<u8>> {
-        self.raw_bytes().map(|(_, bytes)| bytes)
+        let (operand_ordinal, bytes) = self.raw_bytes()?;
+        self.evaluator
+            .record_prepared_filesystem_path_like_operand(
+                self.attempt_index,
+                observed_path_like_bytes(operand_ordinal, &bytes),
+            )?;
+        Ok(bytes)
     }
 
     fn relative_component(&mut self) -> EvalResult<Vec<u8>> {

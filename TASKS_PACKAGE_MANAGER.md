@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v10
-  carries operation-attempt schema v10: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v11
+  carries operation-attempt schema v11: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1405,7 +1405,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v10 now retains each successfully typed non-handle
+  Operation-attempt schema v11 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1430,10 +1430,15 @@ complete.
   retroactively. Package review commitments frame scalar tags, ordinals,
   immutable bytes, and mutable pre/post states exactly and never render payload
   bytes as text.
-  This deliberately incomplete trace omits path-like byte operands not yet
-  represented by rooted evidence, retained returned-path bytes,
-  preparation-failure prefixes for path, logical-handle, and mutable-carrier
-  operands, and complete content custody.
+  Exact directory-entry names, symlink targets, find patterns, and the other
+  path-like byte operands not represented by rooted authorization now occupy a
+  distinct ordinal-tagged lane. They consume the same aggregate byte sponsor,
+  are retained as preparation advances, survive a later preparation halt, and
+  are cross-checked against the fully prepared call; they never masquerade as
+  rooted grant paths or immutable payloads. This deliberately incomplete trace
+  still omits retained returned-path bytes, preparation-failure prefixes for
+  rooted-path, logical-handle, and mutable-carrier operands, and complete input
+  content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -1476,9 +1481,9 @@ complete.
   returning the original commitment; invalid shape, nonempty or symlink
   destinations, write failure, extra/missing state, and drift reject. Hard-link
   topology is neither retained nor leaked through the content count. This is
-  staged-tree custody and replay only: complete path-like operation operands,
-  operation replay, retained observed inputs, generated-output handoff, and a
-  `Receipted` verdict remain. Same-user host racing is not solved by this
+  staged-tree custody and replay only: complete remaining preparation-failure
+  evidence, operation replay, retained observed inputs, generated-output
+  handoff, and a `Receipted` verdict remain. Same-user host racing is not solved by this
   custody rung. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked

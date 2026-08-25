@@ -52,8 +52,10 @@ data RootProbe {{
     filesystem: FilesystemHost;
     fake: FakeRoot;
     descriptor: i32;
+    code: i32;
     result: i64;
     buffer: [u8; 4096];
+    small_buffer: [u8; 1];
 }}
 
 machine RootProbe::build(&mut self, builder: &mut Build)
@@ -199,7 +201,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 10);
+    assert_eq!(checked_observations.schema_version(), 11);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -210,7 +212,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        10
+        11
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1034,6 +1036,30 @@ invokes FilesystemHost;
 }
 
 #[test]
+fn failed_filesystem_preparation_retains_the_completed_path_like_operand_prefix() {
+    let (project, profile) = rooted_build_probe_project(
+        "path-like-preparation-prefix",
+        r#"    self.result = self.filesystem.find_first("missing/*", &mut self.small_buffer);"#,
+    );
+    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("undersized find-data output must reject build evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("filesystem output requires 320 bytes"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("1 path-like operand(s)"),
+        "the completed find pattern must survive the later buffer-capacity failure: {rendered}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn canonical_build_roots_reject_unrooted_and_noncanonical_paths() {
     let cases = [
         (
@@ -1142,6 +1168,30 @@ fn canonical_source_root_cannot_be_used_for_writes() {
         BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
     );
     assert!(!project.join("blocked.bin").exists());
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn path_like_filesystem_operands_survive_compiler_projection() {
+    let (project, profile) = rooted_build_probe_project(
+        "path-like-symlink-target",
+        r#"    let link: &[u8] in Path = builder.output.resolve("missing-parent/link");
+    self.code = self.filesystem.symlink("missing-target", link);"#,
+    );
+    let checked = compile_rooted_probe_with_sponsored_output(&project, profile, "review")
+        .expect("a refused symlink remains a successful observed build");
+    let observations = checked
+        .build_observation_summary()
+        .expect("filesystem build publishes observation evidence");
+    let [symlink] = observations.filesystem_operation_attempts() else {
+        panic!("fixture performs one symlink operation")
+    };
+    let [target] = symlink.path_like_operands() else {
+        panic!("symlink retains its exact target spelling in the path-like lane")
+    };
+    assert_eq!(target.operand_ordinal(), 0);
+    assert_eq!(target.bytes(), b"missing-target");
+    assert!(symlink.byte_operands().is_empty());
     let _ = std::fs::remove_dir_all(&project);
 }
 

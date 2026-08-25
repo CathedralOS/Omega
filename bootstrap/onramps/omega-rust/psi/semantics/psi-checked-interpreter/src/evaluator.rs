@@ -126,9 +126,9 @@ const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// rather than overflow the host stack. Deep recursive programs are skipped (reported as
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
-/// Aggregate byte custody for immutable filesystem operand evidence retained
-/// during one evaluator run. Individual prepared carriers remain bounded by
-/// their separate 16 MiB evaluator limit.
+/// Aggregate byte custody for immutable and path-like filesystem operand
+/// evidence retained during one evaluator run. Individual prepared carriers
+/// remain bounded by their separate 16 MiB evaluator limit.
 const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
 
 /// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual

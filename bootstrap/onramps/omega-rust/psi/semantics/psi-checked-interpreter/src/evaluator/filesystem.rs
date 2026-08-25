@@ -1,5 +1,5 @@
 use super::*;
-use crate::{FilesystemByteOperand, FilesystemScalarOperand};
+use crate::{FilesystemByteOperand, FilesystemPathLikeOperand, FilesystemScalarOperand};
 
 fn checked_observation_evidence_total(current: usize, additional: usize) -> Option<usize> {
     current
@@ -34,12 +34,14 @@ impl<'program> Evaluator<'program> {
         let mut outcome = match self.prepare_filesystem_call(operation, arguments, frame) {
             Ok(call) => {
                 let logical_handle_plan = call.logical_handle_plan();
-                let (scalar_operands, byte_operands) = call.operand_observation_plan();
+                let (scalar_operands, byte_operands, path_like_operands) =
+                    call.operand_observation_plan();
                 match call.mutable_observation_plan().and_then(|mutable_plan| {
                     self.record_operand_observations(
                         attempt_index,
                         scalar_operands,
                         byte_operands,
+                        path_like_operands,
                         &mutable_plan,
                     )?;
                     Ok(mutable_plan)
@@ -149,10 +151,14 @@ impl<'program> Evaluator<'program> {
         attempt_index: usize,
         scalar_operands: Vec<FilesystemScalarOperand>,
         byte_operands: Vec<FilesystemByteOperand>,
+        path_like_operands: Vec<FilesystemPathLikeOperand>,
         mutable_plan: &PreparedFilesystemMutableObservationPlan,
     ) -> EvalResult<()> {
         let attempt = &self.filesystem_operation_attempts[attempt_index];
-        if attempt.scalar_operands != scalar_operands || attempt.byte_operands != byte_operands {
+        if attempt.scalar_operands != scalar_operands
+            || attempt.byte_operands != byte_operands
+            || attempt.path_like_operands != path_like_operands
+        {
             return Err(Halt::Trap(
                 "incremental filesystem operand evidence disagrees with the fully prepared call"
                     .to_owned(),
@@ -200,6 +206,26 @@ impl<'program> Evaluator<'program> {
         self.filesystem_observation_evidence_bytes = next_total;
         self.filesystem_operation_attempts[attempt_index]
             .byte_operands
+            .push(operand);
+        Ok(())
+    }
+
+    pub(super) fn record_prepared_filesystem_path_like_operand(
+        &mut self,
+        attempt_index: usize,
+        operand: FilesystemPathLikeOperand,
+    ) -> EvalResult<()> {
+        let Some(next_total) = checked_observation_evidence_total(
+            self.filesystem_observation_evidence_bytes,
+            operand.bytes.len(),
+        ) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
+            )));
+        };
+        self.filesystem_observation_evidence_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .path_like_operands
             .push(operand);
         Ok(())
     }

@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 10;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 11;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -341,6 +341,26 @@ pub struct BuildFilesystemByteOperand {
 }
 
 impl BuildFilesystemByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Exact path-like bytes consumed by an operation but not interpreted as one
+/// rooted grant path. This includes directory-entry names, search patterns,
+/// and symlink target spellings; keeping it distinct from payload bytes and
+/// authorized paths preserves the operation's argument semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemPathLikeOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl BuildFilesystemPathLikeOperand {
     pub const fn operand_ordinal(&self) -> u8 {
         self.operand_ordinal
     }
@@ -581,6 +601,7 @@ pub struct BuildFilesystemOperationAttempt {
     post_error: i32,
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
     byte_operands: Vec<BuildFilesystemByteOperand>,
+    path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
     mutable_i64_operands: Vec<BuildFilesystemMutableI64Operand>,
     authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
@@ -613,6 +634,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn byte_operands(&self) -> &[BuildFilesystemByteOperand] {
         &self.byte_operands
+    }
+
+    pub fn path_like_operands(&self) -> &[BuildFilesystemPathLikeOperand] {
+        &self.path_like_operands
     }
 
     pub fn mutable_byte_operands(&self) -> &[BuildFilesystemMutableByteOperand] {
@@ -677,8 +702,9 @@ impl BuildObservationSummary {
 
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: some path-like operands,
-    /// returned-path normalization, and content custody are absent.
+    /// intentionally not a replay transcript: returned-path normalization,
+    /// preparation-failure evidence for other operand classes, and observed
+    /// input-content custody are absent.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1683,8 +1709,12 @@ pub(crate) fn compute_build_config(
                     .iter()
                     .map(|attempt| attempt.byte_operands().len())
                     .sum::<usize>();
+                let path_like_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.path_like_operands().len())
+                    .sum::<usize>();
                 format!(
-                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s)",
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s)",
                     attempts.len()
                 )
             })
@@ -1771,6 +1801,14 @@ pub(crate) fn compute_build_config(
                     bytes: operand.bytes().to_vec(),
                 })
                 .collect();
+            let path_like_operands = attempt
+                .path_like_operands()
+                .iter()
+                .map(|operand| BuildFilesystemPathLikeOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    bytes: operand.bytes().to_vec(),
+                })
+                .collect();
             let mutable_byte_operands = attempt
                 .mutable_byte_operands()
                 .iter()
@@ -1825,6 +1863,7 @@ pub(crate) fn compute_build_config(
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
                 scalar_operands,
                 byte_operands,
+                path_like_operands,
                 mutable_byte_operands,
                 mutable_i64_operands,
                 authorized_paths,
