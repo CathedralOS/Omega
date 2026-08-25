@@ -28,6 +28,13 @@ Two backends: Windows x64 PE (`src/x64.rs`, the default) and macOS arm64 Mach-O
 (`src/aarch64.rs`, `DELTA_ARCH=aarch64`, the runnable+gated one on this platform).
 Standalone crate (own `[workspace]`), so the parent Omega workspace never absorbs it.
 
+The AArch64 backend and Delta-written `lowermachine` both buffer single-byte
+output in 4 KiB blocks and flush before input, line output, return, exit, and
+trap. The raw self-compile fixed point compares that complete implementation.
+Older exact lowering templates are projected to their former one-byte-write
+shape inside `test_aarch64.sh` so they continue to test lowering semantics
+without making a historical host-I/O implementation part of each template.
+
 ## Run
 
 ```
