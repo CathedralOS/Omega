@@ -56,9 +56,11 @@ Three identities remain deliberately separate:
   `arithmetic-kernels`.
 - `PackageKey` joins that name to canonical source lineage. It is the stable
   graph, lock, and nominal-symbol identity across updates.
-- `PackageInstance` joins the key to exact source content, evidence-schema
-  identity, compiler/toolchain provenance, and the compiler-derived
-  package-evidence fingerprint.
+- `PackageInstance` joins the key to exact source content, produced artifact
+  identity, each closure subject's obligation-semantics identity, locally
+  re-derived discharge results, and disclosed open assumptions. Exact
+  certificate routes and compiler/toolchain identity remain derivation and
+  review provenance rather than semantic authority.
 
 For Git, source lineage normalizes transport spellings only when a resolver
 adapter can establish that they designate the same repository namespace. A
@@ -188,11 +190,12 @@ build execution.
 `build.omg` records update intent: source locator, revision selector, explicit
 alias override, targets, roots, providers, and build orchestration. `omega.lock`
 records the accepted resolution: exact commits/trees/content, `PackageKey` and
-`PackageInstance`, dependency closure, evidence-schema identity,
-compiler/toolchain provenance, normalized capability baseline, build
-observations, trust evidence, and policy-resolution references. Compiler and
-toolchain identifiers make evidence reproducible and comparable; they do not
-authorize its truth or prove that anyone audited it.
+`PackageInstance`, dependency closure, per-subject obligation-semantics and
+evidence-schema identity, exact certificate provenance, normalized capability
+baseline, transitive open obligations, build observations, and policy-resolution
+references. Compiler and toolchain identifiers remain separately labeled
+review metadata that supports reproduction and cache partitioning; they do not
+authorize truth or prove that anyone audited it.
 
 The compiler always builds from the lock and never silently re-resolves a
 mutable selector. `omega.lock` is generated but should normally be committed;
@@ -322,11 +325,11 @@ domain path retains its semantic spelling separately from the authored span
 that supplies package provenance. Transparent aliases recursively flatten to
 sorted, deduplicated package-qualified atomic domains. Authored toolchain
 nominals bind a canonical toolchain-relative source path plus exact source-byte
-commitment in review evidence; this is narrower than the whole-toolchain
-commitment required for admission. Compiler carry aliases
-expand to explicit toolchain-unbound atoms until exact toolchain commitment
-lands. Predicate-body presence and the currently representable structural
-expression/membership facts retain the domain carrier, package-qualified
+commitment in review evidence; this records semantic origin without making
+producer pedigree authoritative. Compiler carry aliases expand to explicit
+toolchain-unbound atoms until their exact compiler-owned semantic subject and
+obligation origin land. Predicate-body presence and the currently representable
+structural expression/membership facts retain the domain carrier, package-qualified
 members/domains, and canonical fact ordering. Each fact joins its exact typed
 handle to one checked definition row and one checked ownership record; nested
 members additionally require exact fact-keyed dependency places. Missing,
@@ -712,8 +715,10 @@ not authenticity or proof of review, while canonical decode rechecks graph
 closure, row/package/target identity, ordering, singleton rows, and all resource
 ceilings. It is deliberately a non-admitting checkpoint: no API converts it to
 `PackageInstance`, a conflict resolution, project mutation, or accepted lock.
-The future lock may contain the same normalized material only after its full
-toolchain-provenance and admission envelope is settled.
+The future lock may contain the same normalized material only after a consumer
+reconstructs the exact source-and-artifact obligations, checks the retained
+certificates, propagates every dependency's open obligations, and records its
+own admission decisions. Producer provenance cannot promote the checkpoint.
 
 Useful result states include:
 
@@ -728,6 +733,31 @@ blocked-provenance-change
 Organizations may attach their own review status, signers, quorum, tickets, or
 reason text. Those are governance records, not compiler facts.
 
+## Re-derivable package evidence
+
+A compiler-issued review is permanently review-only. A package instance is
+sealed only when a consumer takes the exact requested source, exact produced
+artifact, canonical semantics, and subject-specific evidence schema;
+reconstructs the complete obligation set; and checks the exact retained
+certificates. The stored result is a cache of that reproducible check rather
+than authority supplied by either compiler or verifier. Certificate identity,
+proof route, and checking dependencies remain derivation provenance outside
+semantic compatibility identity.
+
+Dependency evidence composes transitively. Each subject retains its own
+obligation-semantics identity because one closure may contain evidence produced
+under several versions. Checked obligations compose upward. Missing or
+unproved obligations also compose upward as open rows, never as a producer's
+already-accepted decision; each consuming project applies its own admission
+policy. A checked schema-delta relation may reuse classes proven unchanged and
+derive the precise new gaps for added or strengthened classes. Reinterpreted or
+unknown classes force re-derivation, and no gap becomes admitted implicitly.
+
+Mechanical verification, local admissions, and producer metadata are separate
+report sections. A `verified` verdict contains only locally re-derived facts.
+Compiler/toolchain closure, reproduction, signatures, and audit records remain
+useful provenance but never appear as support for that verdict.
+
 ## Audit authority and compiler provenance
 
 Omega cannot prove that a human or LLM performed a serious audit. A signed
@@ -736,14 +766,16 @@ proves only that strings were recorded. A proof certificate can establish its
 explicit mechanically checked proposition, but not that the surrounding source
 was understood, that an LLM resisted manipulation, or that an upgrade is safe.
 
-The selected local compiler and the people and infrastructure allowed to land
-accepted project state are therefore trust roots. Package evidence is always
-regenerated locally so a dependency cannot declare its own capability result.
-Evidence-schema, compiler, source, verifier, and target identities remain in
-the lock for comparison, replay, cache correctness, and reproducibility—not as
-proof that the producer or review process was honest. A compiler change may
-require regeneration or an explicit schema migration, but hashing the compiler
-does not confer authority on it.
+The people and infrastructure allowed to land accepted project state remain an
+outer trust boundary, but the selected local compiler is an untrusted producer
+for package soundness. Package review is regenerated locally so a dependency
+cannot declare its own capability result; package acceptance independently
+reconstructs the question and checks the certificates. Obligation-semantics,
+schema, source, artifact, and target identities define or scope that check.
+Compiler, toolchain, and execution observations remain in review metadata for
+replay, cache correctness, and reproducibility—not as proof that the producer
+or review process was honest. A compiler change may require regeneration, but
+hashing the compiler does not confer authority on it.
 
 Omega's responsibility is to produce deterministic, bounded review facts,
 recommend an audit for dangerous retained authority, stop on unresolved policy
@@ -789,5 +821,6 @@ same-declared-name packages from distinct lineages retain separate physical
 compiler custody and package-qualified provider evidence. Remote transport
 coverage must preserve the same result rather than relying on content equality.
 The canonical `Console`/process case must additionally prove that classification
-comes from exact toolchain provenance and that a package-owned lookalike cannot
-mint the same risk class.
+comes from the exact compiler-owned declaration identity and that a package-
+owned lookalike cannot mint the same risk class. This is semantic origin
+checking, not producer-pedigree authority.
