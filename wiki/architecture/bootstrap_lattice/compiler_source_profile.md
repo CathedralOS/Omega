@@ -326,8 +326,8 @@ establishes the implementation and assurance cost.
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | concrete Trapping arithmetic and explicit casts | measure | checkpoint 000001 uses cursor, UTF-8/scalar, and byte-conversion operations; compare the complete ordinary rules with narrow checked helpers, and do not silently decide the unresolved `u32` index/cursor versus the `u64` `Array`/`Slice` contracts |
 | same-carrier primitive `<` and `<=` | presumptively retain; selected private-IR cost closed | CKIR1/CKIR3 carry exact unsigned carrier-compatible `u8`/`u32` comparisons and Boolean results; broader operands, `u64`, cross-carrier conversion, and observable operand effects remain separate |
-| exact primitive `==` | presumptively retain; next unblocked measurement | checkpoint 000001 has 63 authored equality tokens—60 same-carrier `u32`, one same-carrier `u8`, one unresolved `u32`/slice-`u64`, and one payload-free-sum case—plus equality introduced by normalized transition guards; close coherent exact-`bool` and same-carrier `u8`/`u32` scalar equality without claiming structural, sum, `!=`, `u64`, or cross-carrier equality |
-| same-carrier primitive `>` and `>=` | presumptively retain; unblocked after scalar equality | checkpoint 000001 has 34 same-carrier `u32 >=` uses and one same-carrier `u32 >` use; two slice-length `u64 >` uses remain outside the current carrier, and real authored-order operations are preferable to reversing `<`/`<=` operands |
+| exact primitive `==` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 63 authored equality tokens—60 same-carrier `u32`, one same-carrier `u8`, one unresolved `u32`/slice-`u64`, and one payload-free-sum case—plus equality introduced by normalized transition guards; OMGLOW9/CKIR8 and OMGRFN10 close exact `bool` and same-carrier `u8`/`u32` scalar equality without claiming structural, sum, `!=`, `u64`, or cross-carrier equality |
+| same-carrier primitive `>` and `>=` | presumptively retain; next unblocked measurement | checkpoint 000001 has 34 same-carrier `u32 >=` uses and one same-carrier `u32 >` use; two slice-length `u64 >` uses remain outside the current carrier, and real authored-order operations are preferable to reversing `<`/`<=` operands |
 | bool-only prefix logical negation | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 uses ordinary `!` in product lexer state; OMGLOW7/CKIR6 and OMGRFN8 now measure least-version OMGRSW1/2/3 production, exact Boolean meaning through independent source and CKIR evaluators plus the Rust-free route, conservative native/self artifact emission, and one immutable R1–R5 source-to-artifact composition without adding a resolution schema |
 | pure, total, nontrapping bool-only `&&` and `||` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 uses 38 conjunctions and 6 disjunctions over primitive predicate leaves; OMGLOW8/CKIR7 and OMGRFN9 measure exact `&&`-before-`||` precedence, left association, token/operation custody, all truth rows, least-version OMGRSW1/2/3, Rust-free lowering meaning, conservative native/self emission, and immutable R1–R5 composition; calls, indexing, Trapping arithmetic, mutation, and other observable skipped work remain outside this eager private-IR relation |
 | ordinary named record fields | presumptively retain | the frontend probe and closed CKIR3/CKIR4 tranches establish checking, nominal layout, aggregate copy, runtime declaration-order construction, structural Call/Copy, Rust-free meaning, independent result/ELF reconstruction, adjacent resource teeth, and lower-rooted same-frame composition for the selected `source.omg` dependency; compare this measured cost with the clarity and regularity loss from positional compiler data |
@@ -368,8 +368,9 @@ is a ruling merely because it appears in this table.
 The current closed cost evidence reaches selected finite calls, constant
 aggregates, runtime named records, same-module direct-field receivers through
 CKIR4, payload-bearing pure sums through CKIR5, bool-only logical negation
-through CKIR6/OMGRFN8, and selected pure/nontrapping Boolean `&&`/`||` through
-CKIR7/OMGRFN9. The Boolean successors have focused OMGLOW7/8 production,
+through CKIR6/OMGRFN8, selected pure/nontrapping Boolean `&&`/`||` through
+CKIR7/OMGRFN9, and selected exact `bool`/`u8`/`u32` equality through
+CKIR8/OMGRFN10. These successors have focused OMGLOW7/8/9 production,
 independent source and CKIR meaning, Rust-free meaning, conservative backends,
 mutation/resource teeth, and immutable lower-rooted R1–R5 compositions.
 Each closed selected slice has native/self-built production, representative Rust-free
@@ -416,6 +417,16 @@ AND/OR emission, and OMGRFN9 R1–R5 composition close the bounded cost. Calls,
 indexing, Trapping arithmetic, mutation, bitwise operators, and other
 observable skipped work remain rejected in this relation. This is not general
 short-circuit lowering or final `Ωself` admission.
+
+Exact primitive equality now has the next complete selected path. OMGLOW9 keeps
+least OMGRSW1/2/3 selection, fixes ordering-above-equality-above-logical
+precedence and left association, and emits one authored-order ScalarEqual row
+per admitted `==`. CKIR8 independently checks and evaluates same-carrier
+`bool`, `u8`, and `u32` rows and the conservative CMP/SETE/MOVZX backend.
+OMGRFN10 composes R1–R5 over one immutable carrier with reachable equal and
+unequal rows for all three carriers. Structural and sum equality, `!=`, `u64`,
+cross-carrier conversion, effectful/trapping operands, and final `Ωself`
+admission remain separate.
 
 Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).

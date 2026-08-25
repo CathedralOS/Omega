@@ -108,13 +108,20 @@ Two lanes co-evolve until their join:
 | production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
 | Delta compiler, bridge, and language closure | this file | close both required Delta source manifests; implement general profile rules in the bridge; maintain the Delta ledger; publish both frozen contracts at the completed source/bridge join |
 
-The immediate executable order is:
+The execution order is:
 
-1. continue general checkpoint-000001 capabilities, one compositional vertical
-   slice at a time;
-2. consume later product-source checkpoints as they are published; and
-3. perform the profile/language freezes and hosted builds only after both
-   complete source closures exist.
+1. continue general checkpoint-000001 capabilities one compositional vertical
+   slice at a time, consuming later product-source checkpoints as published;
+2. at the completed Delta-compiler/bridge/product-source join, publish `Ωself`
+   from the complete production source plus measured bridge cost and Delta v1
+   from both complete required Delta closures plus its compiler-host arguments;
+3. publish the Delta compiler through Gamma, then build and validate
+   `omega-bootstrap` through that artifact; and
+4. perform the one required hosted production build.
+
+The two contracts published in step 2 remain separately scoped and versioned.
+Neither is an upstream language rung for the other, and there is no third
+bootstrap source inventory or circular build dependency.
 
 The recheckable package-evidence/accepted-lock custody join may land whenever
 its external contract is published. It does not reorder or block these items.
@@ -127,22 +134,6 @@ choices stay in the single disposition table in
 Likewise, this queue does not decide whether full Omega has those features: the
 language specification already does. Bootstrap work only prices and implements
 the ordinary-Omega forms retained in the compiler's own source profile.
-
-The required execution order is:
-
-1. consume product checkpoints while growing the general bridge;
-2. settle and freeze both source contracts at the completed
-   Delta-compiler/bridge/product-source join;
-3. publish the Delta compiler through Gamma, then build and validate
-   `omega-bootstrap` through that artifact; and
-4. perform the one required hosted production build.
-
-Step 2 publishes two separately versioned contracts from one evidence join:
-`Ωself` from the complete production source plus measured bridge cost, and
-Delta v1 from the complete required Delta source (compiler plus bridge) and its
-compiler-host arguments.
-Neither is an upstream language rung for the other, and there is no third
-bootstrap source inventory or circular build dependency.
 
 The optional product self-rebuild is not part of this queue. Fixed or paged
 backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
@@ -287,8 +278,8 @@ beside the linked contracts:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-| checked lowering and composition | closed through CKIR7 for selected pure/nontrapping bool-only `&&`/`||`: OMGLOW8 selects least OMGRSW1/2/3, preserves `!` and inherited sums/calls, enforces `&&` precedence and left association, emits one LogicalAnd/LogicalOr per token pair, and has independent meaning plus conservative backend evidence | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V7_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7_BACKEND.md) |
-| lower-rooted artifact reconstruction | closed through the selected CKIR7 logical-binary successor: OMGRFN9 R1–R5 consume one immutable result-70 payload-sum frame, with compact least-OMGRSW1/2 controls, independent purity/precedence/source lowering and meaning, complete CKIR meaning, and exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md), [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md), [`OMGCOMP_REFINEMENT_WITNESS_V9.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md) |
+| checked lowering and composition | closed through CKIR8 for selected pure/nontrapping same-carrier `bool`/`u8`/`u32` equality: OMGLOW9 selects least OMGRSW1/2/3, preserves inherited logical/sum/call forms, fixes comparison/equality/logical precedence and left association, emits one ScalarEqual per authored `==`, and has independent meaning plus conservative backend evidence | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V8_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8_BACKEND.md) |
+| lower-rooted artifact reconstruction | closed through the selected CKIR8 equality successor: OMGRFN10 R1–R5 consume one immutable result-70 payload-sum frame with six reachable equal/unequal `bool`/`u8`/`u32` rows, least-OMGRSW1/2/3 ownership, independent source lowering and meaning, complete CKIR meaning, and exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md), [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md), [`OMGCOMP_REFINEMENT_WITNESS_V9.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md), [`OMGCOMP_REFINEMENT_WITNESS_V10.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -310,7 +301,7 @@ evidence stay in
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts are language-blocked |
-| primitive scalar comparisons | same-carrier primitive `==`, `>`, and `>=`, composed with the already-carried `<`, `<=`, `!`, `&&`, and `||` forms | exact `bool` equality and same-carrier `u8`/`u32` meaning are settled; cross-carrier and `u64` widening remain separate; structural/sum equality requires its own dispatch and representation work |
+| primitive scalar comparisons | close same-carrier primitive `>` and `>=`, composed with the already-carried `<`, `<=`, `==`, `!`, `&&`, and `||` forms | selected exact `bool` and same-carrier `u8`/`u32` equality is closed; cross-carrier and `u64` widening remain separate; structural/sum equality requires its own dispatch and representation work |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic/casts, and the observed ranking clause | observable call-argument order is language-blocked; closed finite calls do not imply broader receivers, recursion, or packages |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
 | generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
@@ -319,15 +310,13 @@ evidence stay in
   parsing, resolution, checking, diagnostics, conservative lowering, and
   artifact reconstruction. Preserve existing versioned-call ownership; a
   transport change alone does not widen accepted source.
-- [ ] Take exact `bool` and same-carrier `u8`/`u32` primitive `==` as the
-  smallest current successor to CKIR7/OMGRFN9, then close same-carrier
-  `>`/`>=`. Keep these compiler-owned
-  primitive routes separate from general `Equatable` synthesis, payload-free
-  or payload-bearing sum equality, record equality, `!=`, `u64`, and
-  cross-carrier conversion. Admit only the already-defined pure, terminating,
-  nontrapping scalar-expression closure until observable operand order is
-  ruled; preserve authored precedence, left association, operand order, and one
-  checked operation per authored operator token.
+- [ ] Take same-carrier primitive `>`/`>=` as the next successor to
+  CKIR8/OMGRFN10. Keep these compiler-owned primitive routes separate from
+  `u64`, cross-carrier conversion, and the already-separate general
+  `Equatable`/structural-equality work. Admit only the already-defined pure,
+  terminating, nontrapping scalar-expression closure until observable operand
+  order is ruled; preserve authored precedence, left association, operand
+  order, and one checked operation per authored operator token.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another

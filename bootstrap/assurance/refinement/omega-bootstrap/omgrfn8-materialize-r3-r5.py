@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure source materializer for OMGRFN8/9 R3, R4, and R5 Beta checkers."""
+"""Pure source materializer for OMGRFN8/9/10 R3, R4, and R5 Beta checkers."""
 
 from __future__ import annotations
 
@@ -162,7 +162,7 @@ def write_checked(output: Path, name: str, source: str) -> str:
 
 
 def materialize(output: Path, outer: int = 8) -> None:
-    if outer not in (8, 9):
+    if outer not in (8, 9, 10):
         raise ValueError(f"unsupported OMGRFN outer version: {outer}")
     output.mkdir(parents=True, exist_ok=True)
 
@@ -227,7 +227,7 @@ proc main(){let s=omgrfn5_component_read() state a { to z when(s!=0) s=ckir_deco
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
-    parser.add_argument("--outer", type=int, choices=(8, 9), default=8)
+    parser.add_argument("--outer", type=int, choices=(8, 9, 10), default=8)
     args = parser.parse_args()
     materialize(args.output, args.outer)
 
