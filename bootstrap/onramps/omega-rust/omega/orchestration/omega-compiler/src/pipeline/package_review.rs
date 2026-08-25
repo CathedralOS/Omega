@@ -1460,10 +1460,11 @@ impl CheckedPackageProviderRowIdentity {
 /// That existing 64-bit fingerprint is review/execution compatibility data,
 /// not a collision-resistant package-admission identity.
 /// Schema, provider type, row requirement, and realizing machine retain exact
-/// package-qualified declaration identities. Readable provider-plan strings
-/// remain execution/audit data and are not asked to stand in for those
-/// declarations. Compiler-intrinsic toolchain ownership remains unsealed review
-/// data.
+/// package-qualified or authored-toolchain declaration identities, and review
+/// rejects if those owners disagree with the selected plan. Readable provider-
+/// plan strings remain execution/audit data and are not asked to stand in for
+/// those declarations. The authored toolchain-source commitment does not yet
+/// seal whole-compiler or source-free compiler-intrinsic identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     plan_name: String,
@@ -2065,18 +2066,73 @@ pub fn project_checked_package_review(
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
+        validate_selected_provider_declaration_owner(
+            &schema_declaration,
+            plan.schema.trait_package_identity,
+            &plan.name,
+            "service schema",
+        )?;
+        let provider_type_declaration = retained
+            .provider
+            .provider_type
+            .map(|symbol| nominal_identity(compilation, symbol))
+            .transpose()?;
+        match provider_type_declaration.as_ref() {
+            Some(declaration) => validate_selected_provider_declaration_owner(
+                declaration,
+                plan.provider_type_package_identity,
+                &plan.name,
+                "provider type",
+            )?,
+            None if plan.provider_type.is_empty()
+                && plan.provider_type_package_identity.is_none() => {}
+            None => {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` has provider-type identity without one exact declaration",
+                    plan.name,
+                ))]);
+            }
+        }
+        for (row, declarations) in plan.rows.iter().zip(&row_declarations) {
+            let mut methods = plan
+                .schema
+                .methods
+                .iter()
+                .filter(|method| method.requirement_identity == row.requirement_identity);
+            let Some(method) = methods.next() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` row `{}` has no exact schema method",
+                    plan.name, row.requirement_identity,
+                ))]);
+            };
+            if methods.next().is_some() {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected provider plan `{}` row `{}` has duplicate schema methods",
+                    plan.name, row.requirement_identity,
+                ))]);
+            }
+            validate_selected_provider_declaration_owner(
+                &declarations.requirement,
+                method.requirement_owner_package_identity,
+                &plan.name,
+                "row requirement",
+            )?;
+            validate_selected_provider_declaration_owner(
+                &declarations.realization,
+                plan.origin_package_identity,
+                &plan.name,
+                "row realization",
+            )?;
+        }
         selected_providers.push(CheckedPackageProviderReview {
             plan_name: plan.name.clone(),
             plan_fingerprint: plan.identity_fingerprint(),
             realizing_package: plan.origin_package_identity,
-            schema_declaration: nominal_identity(compilation, retained.provider.schema.symbol())?,
+            schema_declaration,
             provider_type: plan.provider_type.clone(),
             provider_type_package: plan.provider_type_package_identity,
-            provider_type_declaration: retained
-                .provider
-                .provider_type
-                .map(|symbol| nominal_identity(compilation, symbol))
-                .transpose()?,
+            provider_type_declaration,
             schema: plan.schema.clone(),
             target: plan.target.clone(),
             rows: plan.rows.clone(),
@@ -2141,6 +2197,29 @@ pub fn project_checked_package_review(
         selected_providers,
         row_sources,
     })
+}
+
+fn validate_selected_provider_declaration_owner(
+    declaration: &PackageReviewNominalIdentity,
+    expected_package: Option<PackageKeyIdentity>,
+    plan_name: &str,
+    role: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    let matches = match (expected_package, declaration.owner) {
+        (Some(expected), PackageReviewNominalOwner::Package(actual)) => expected == actual,
+        (None, PackageReviewNominalOwner::ToolchainSource(_)) => true,
+        (Some(_), PackageReviewNominalOwner::ToolchainSource(_))
+        | (None, PackageReviewNominalOwner::Package(_))
+        | (_, PackageReviewNominalOwner::Unresolved) => false,
+    };
+    if matches {
+        Ok(())
+    } else {
+        Err(vec![Diagnostic::error(format!(
+            "selected provider plan `{plan_name}` {role} `{}` disagrees with its exact package/toolchain ownership",
+            declaration.path,
+        ))])
+    }
 }
 
 fn project_semantic_dependencies(
@@ -6761,14 +6840,73 @@ fn exactly_one<'item, Item>(
 #[cfg(test)]
 mod tests {
     use super::{
-        PackageReviewNominalOwner, nominal_owner_from_symbols, toolchain_source_identity,
-        validate_package_type_identity_input, validate_package_type_identity_input_inner,
+        PackageReviewNominalIdentity, PackageReviewNominalOwner,
+        PackageReviewToolchainSourceIdentity, nominal_owner_from_symbols,
+        toolchain_source_identity, validate_package_type_identity_input,
+        validate_package_type_identity_input_inner, validate_selected_provider_declaration_owner,
     };
     use psi_core::PackageKeyIdentity;
     use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
     use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    #[test]
+    fn selected_provider_declaration_ownership_is_exact_and_fail_closed() {
+        let package = PackageKeyIdentity::from_digest([1; 32]).expect("package identity");
+        let other_package =
+            PackageKeyIdentity::from_digest([2; 32]).expect("other package identity");
+        let package_declaration = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(package),
+            path: "service::requirement".to_owned(),
+        };
+        let toolchain_declaration = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::ToolchainSource(
+                PackageReviewToolchainSourceIdentity { digest: [3; 32] },
+            ),
+            path: "service::requirement".to_owned(),
+        };
+        let unresolved_declaration = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Unresolved,
+            path: "service::requirement".to_owned(),
+        };
+
+        validate_selected_provider_declaration_owner(
+            &package_declaration,
+            Some(package),
+            "plan",
+            "row requirement",
+        )
+        .expect("an exact package owner must pass");
+        validate_selected_provider_declaration_owner(
+            &toolchain_declaration,
+            None,
+            "plan",
+            "row requirement",
+        )
+        .expect("an exact authored toolchain source must pass");
+
+        for (declaration, expected_package) in [
+            (&package_declaration, Some(other_package)),
+            (&package_declaration, None),
+            (&toolchain_declaration, Some(package)),
+            (&unresolved_declaration, Some(package)),
+            (&unresolved_declaration, None),
+        ] {
+            let error = validate_selected_provider_declaration_owner(
+                declaration,
+                expected_package,
+                "plan",
+                "row requirement",
+            )
+            .expect_err("mismatched or unresolved ownership must reject");
+            assert!(
+                error[0]
+                    .message
+                    .contains("exact package/toolchain ownership")
+            );
+        }
+    }
 
     #[test]
     fn package_type_identity_rejects_textual_and_unselected_fallbacks() {

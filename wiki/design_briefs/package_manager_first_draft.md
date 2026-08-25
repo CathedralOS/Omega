@@ -398,7 +398,11 @@ sidecar beside each semantic plan: exact schema and optional nominal-provider
 symbols, plus the exact requirement and realizing machine for every external or
 checked-adapter row. Review v41 encodes those declarations as exact
 package-qualified nominal identities; readable plan and overload strings remain
-operational/audit data. Selection and sorting preserve the pair and add exact
+operational/audit data. Projection verifies each declaration against the
+selected plan's exact package owner, or against an exact authored
+toolchain-source identity when the plan carries no package owner. Package-less
+user source, unresolved/source-free ownership, and owner drift reject.
+Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
 The selected-provider row may therefore mix authored coordinates and compiler-
 derived reasons without reconstructing them from reduced names, schemas, or
