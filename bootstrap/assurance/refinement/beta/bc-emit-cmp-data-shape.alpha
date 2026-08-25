@@ -373,66 +373,54 @@ emit_cmp_require_pushes:
         ; Eight binary-left pushes: six equality tests and two signed tests.
         imm r20, 194
         imm r21, 286
-        imm r22, 1
         imm r23, 41059
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 195
         imm r21, 288
-        imm r22, 1
         imm r23, 41248
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 196
         imm r21, 290
-        imm r22, 1
         imm r23, 41437
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 197
         imm r21, 292
-        imm r22, 1
         imm r23, 41626
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 198
         imm r21, 294
-        imm r22, 1
         imm r23, 41815
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 199
         imm r21, 296
-        imm r22, 1
         imm r23, 42004
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 200
         imm r21, 298
-        imm r22, 1
         imm r23, 42292
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 201
         imm r21, 300
-        imm r22, 1
         imm r23, 42768
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; Four exact one-argument emit_lref handoffs.
-        imm r20, 339
-        imm r21, 298
-        imm r22, 2
-        imm r23, 42193
-        call transfer_require_push
-        imm r20, 340
-        imm r21, 300
-        imm r22, 2
-        imm r23, 42569
-        call transfer_require_push
         imm r20, 341
-        imm r21, 300
-        imm r22, 2
-        imm r23, 42668
-        call transfer_require_push
+        imm r21, 298
+        imm r23, 42193
+        call exact_require_argument_push
         imm r20, 342
+        imm r21, 300
+        imm r23, 42569
+        call exact_require_argument_push
+        imm r20, 343
+        imm r21, 300
+        imm r23, 42668
+        call exact_require_argument_push
+        imm r20, 344
         imm r21, 302
-        imm r22, 2
         imm r23, 43003
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 emit_cmp_require_censuses:
@@ -453,10 +441,10 @@ emit_cmp_require_censuses:
         imm r23, 673
         imm r24, 194
         imm r25, 202
-        imm r26, 339
-        imm r27, 343
-        imm r28, 387
-        imm r29, 387                 ; no store-address pushes
+        imm r26, 341
+        imm r27, 345
+        imm r28, 389
+        imm r29, 389                 ; no store-address pushes
         call summary_require_expr_census
         ret
 

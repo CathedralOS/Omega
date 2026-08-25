@@ -103,8 +103,8 @@ parse_body_require_censuses:
         imm r23, 806
         imm r24, 232
         imm r25, 232                  ; no binary pushes
-        imm r26, 369
-        imm r27, 369                  ; no argument pushes
+        imm r26, 371
+        imm r27, 371                  ; no argument pushes
         imm r28, 0
         imm r29, 0                    ; no store-address pushes
         call summary_require_expr_census

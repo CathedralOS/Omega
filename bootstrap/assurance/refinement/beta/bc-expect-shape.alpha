@@ -122,9 +122,8 @@ expect_require_locals_primitives:
 
         imm r20, 90
         imm r21, 130
-        imm r22, 1
         imm r23, 17510
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 expect_require_censuses:

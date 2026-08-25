@@ -360,29 +360,24 @@ emit_str_body_require_primitives:
 emit_str_body_require_pushes:
         imm r20, 93
         imm r21, 141
-        imm r22, 1
         imm r23, 18859
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 94
         imm r21, 142
-        imm r22, 1
         imm r23, 18981
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 95
         imm r21, 142
-        imm r22, 1
         imm r23, 19094
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 96
         imm r21, 142
-        imm r22, 1
         imm r23, 19237
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 97
         imm r21, 144
-        imm r22, 1
         imm r23, 19412
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 emit_str_body_require_censuses:
@@ -404,10 +399,10 @@ emit_str_body_require_censuses:
         imm r23, 382                 ; exclusive primitive row
         imm r24, 93
         imm r25, 98                  ; binary pushes
-        imm r26, 297
-        imm r27, 297                 ; no ordinary argument pushes
-        imm r28, 381
-        imm r29, 381                 ; no store-address pushes
+        imm r26, 299
+        imm r27, 299                 ; no ordinary argument pushes
+        imm r28, 383
+        imm r29, 383                 ; no store-address pushes
         call summary_require_expr_census
 
         imm r20, 18780

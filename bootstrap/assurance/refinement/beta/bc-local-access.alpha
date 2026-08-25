@@ -131,7 +131,7 @@ increment_local_access_kind:
 read_local_access_pcs_init:
         imm r10, 0
 read_local_access_pc:
-        imm r1, 242
+        imm r1, 244
         jlt r10, r1, read_local_access_pc_one
         jmp read_memory_site_pcs_init
 read_local_access_pc_one:
@@ -164,7 +164,7 @@ local_access_pc_block:
         jlt r14, r6, reject
         imm r1, 1
         add r4, r1
-        imm r1, 355
+        imm r1, 359
         jlt r4, r1, local_access_pc_next_block
         imm r1, 524296
         load r7, r1
@@ -190,7 +190,7 @@ local_access_pc_store:
 validate_local_accesses_init:
         imm r10, 0
 validate_local_access_loop:
-        imm r1, 242
+        imm r1, 244
         jlt r10, r1, validate_local_access_one
         jmp validate_memory_sites_init
 validate_local_access_one:

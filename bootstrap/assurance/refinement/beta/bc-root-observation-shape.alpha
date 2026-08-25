@@ -119,9 +119,8 @@ root_observation_require_body_data:
         call transfer_require_primitive
         imm r20, 234
         imm r21, 353
-        imm r22, 1
         imm r23, 51427
-        call transfer_require_push
+        call exact_require_binary_push
 
         ; main.resource returns the loaded word, not a newly invented 252.
         imm r20, 94
@@ -204,8 +203,8 @@ root_observation_require_body_censuses:
         imm r23, 816                  ; address, !=, zero, address
         imm r24, 234
         imm r25, 235                  ; guard-left push
-        imm r26, 369
-        imm r27, 369                  ; no argument pushes
+        imm r26, 371
+        imm r27, 371                  ; no argument pushes
         imm r28, 0
         imm r29, 0                    ; no store-address pushes
         call summary_require_expr_census

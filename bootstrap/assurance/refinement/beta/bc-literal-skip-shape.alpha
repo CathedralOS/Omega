@@ -353,24 +353,20 @@ literal_skip_require_data:
 
         imm r20, 133
         imm r21, 184
-        imm r22, 1
         imm r23, 26724
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 134
         imm r21, 188
-        imm r22, 1
         imm r23, 26960
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 135
         imm r21, 189
-        imm r22, 1
         imm r23, 27082
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 136
         imm r21, 189
-        imm r22, 1
         imm r23, 27195
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 literal_skip_require_censuses:

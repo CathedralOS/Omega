@@ -306,73 +306,61 @@ name_eq_require_primitives:
 name_eq_require_pushes:
         imm r20, 118
         imm r21, 174
-        imm r22, 1
         imm r23, 24975
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 119
         imm r21, 174
-        imm r22, 1
         imm r23, 25010
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 120
         imm r21, 174
-        imm r22, 1
         imm r23, 25083
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 121
         imm r21, 175
-        imm r22, 1
         imm r23, 25230
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 122
         imm r21, 175
-        imm r22, 1
         imm r23, 25265
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 123
         imm r21, 176
-        imm r22, 1
         imm r23, 25478
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 124
         imm r21, 177
-        imm r22, 1
         imm r23, 25631
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 125
         imm r21, 177
-        imm r22, 1
         imm r23, 25688
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 126
         imm r21, 177
-        imm r22, 1
         imm r23, 25748
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 127
         imm r21, 177
-        imm r22, 1
         imm r23, 25774
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 128
         imm r21, 177
-        imm r22, 1
         imm r23, 25831
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 129
         imm r21, 177
-        imm r22, 1
         imm r23, 25988
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 173
         imm r21, 178
         imm r22, 451
         imm r23, 477
         imm r24, 118
         imm r25, 130
-        imm r26, 313                 ; exact empty argument interval
-        imm r27, 313
-        imm r28, 387                 ; exact empty store-address interval
-        imm r29, 387
+        imm r26, 315                 ; exact empty argument interval
+        imm r27, 315
+        imm r28, 389                 ; exact empty store-address interval
+        imm r29, 389
         call summary_require_expr_census
         ret

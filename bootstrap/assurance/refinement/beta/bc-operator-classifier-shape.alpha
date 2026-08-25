@@ -290,29 +290,24 @@ operator_classifier_require_primitives:
 operator_classifier_require_pushes:
         imm r20, 167
         imm r21, 235
-        imm r22, 1
         imm r23, 35047
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 168
         imm r21, 236
-        imm r22, 1
         imm r23, 35179
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 169
         imm r21, 237
-        imm r22, 1
         imm r23, 35311
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 170
         imm r21, 240
-        imm r22, 1
         imm r23, 35565
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 171
         imm r21, 241
-        imm r22, 1
         imm r23, 35697
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 operator_classifier_require_censuses:
@@ -333,10 +328,10 @@ operator_classifier_require_censuses:
         imm r23, 586                 ; checked exclusive primitive row
         imm r24, 167
         imm r25, 172                 ; checked exclusive binary-push row
-        imm r26, 335
-        imm r27, 335                 ; no argument pushes
-        imm r28, 387
-        imm r29, 387                 ; no store-address pushes
+        imm r26, 337
+        imm r27, 337                 ; no argument pushes
+        imm r28, 389
+        imm r29, 389                 ; no store-address pushes
         call summary_require_expr_census
         imm r20, 34977
         imm r21, 35881

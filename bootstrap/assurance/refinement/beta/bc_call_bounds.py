@@ -40,23 +40,23 @@ RANK_SIGNED_DIV10 = 1
 RANK_EXPR_COUNTER = 2
 RANK_BLOCK_COUNTER = 3
 
-EXPECTED_SOURCE_BYTES = 32_064
+EXPECTED_SOURCE_BYTES = 32_565
 EXPECTED_SOURCE_SHA256 = bytes.fromhex(
-    "f844d33e29814f1280bbeee2bf599db2bded2fb9469a7f1bfc870fac522c326d"
+    "fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25"
 )
-EXPECTED_PROCS = 70
-EXPECTED_CALLS = 310
+EXPECTED_PROCS = 71
+EXPECTED_CALLS = 311
 EXPECTED_PARAMS = 27
-EXPECTED_LETS = 51
-EXPECTED_SLOTS = 78
-EXPECTED_NONEMPTY_FRAMES = 47
+EXPECTED_LETS = 52
+EXPECTED_SLOTS = 79
+EXPECTED_NONEMPTY_FRAMES = 48
 EXPECTED_MAX_TEMP_WORDS = 2
 
 EXPR_SCC = frozenset({
     "gen_expr", "gen_sum", "gen_term", "gen_factor", "gen_load",
     "gen_call", "gen_write_byte",
 })
-BLOCK_SCC = frozenset({"gen_stmts", "gen_stmt", "gen_state", "gen_block"})
+BLOCK_SCC = frozenset({"gen_stmts", "gen_stmt", "gen_state", "gen_block", "gen_item"})
 DECIMAL_SCC = frozenset({"emit_dec"})
 
 U32 = struct.Struct("<I")
@@ -486,7 +486,7 @@ def analyze(repo: Path, source: bytes) -> Analysis:
     (expr_probe, block_probe, decimal_summary, expr_phases, block_phases,
      root_summaries) = build_phase_tables(procedures, calls)
     main_summary = root_summaries[by_name["main"]]
-    if main_summary != Summary(12_720, 662):
+    if main_summary != Summary(13_744, 726):
         raise ValueError(
             "bc call bounds: root summary changed: "
             f"explicit={main_summary.explicit_bytes} "

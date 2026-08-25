@@ -18,7 +18,7 @@ summary_require_expr_census:
         imm r10, 0
         imm r11, 0
 summary_primitive_census_loop:
-        imm r1, 816                  ; exact expression primitive-row universe
+        imm r1, 829                  ; exact expression primitive-row universe
         jlt r10, r1, summary_primitive_census_row
         mov r2, r33
         sub r2, r32
@@ -48,7 +48,7 @@ summary_push_census_init:
         imm r10, 0
         imm r11, 0
 summary_push_census_loop:
-        imm r1, 403                  ; exact expression push-row universe
+        imm r1, 407                  ; exact expression push-row universe
         jlt r10, r1, summary_push_census_row
         mov r2, r35
         sub r2, r34

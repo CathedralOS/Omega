@@ -3,7 +3,7 @@
 ; This module rejoins blocks308..314, all immediate calls/returns, locals,
 ; BLOCKDEPTH/RESOURCE accesses, expressions, frames, epilogues, and exhaustive
 ; table/decoded-region inventories. The adjacent summary owns only the
-; root-independent boundary cases and stops before executing gen_stmt.
+; root-independent boundary cases and stops before executing gen_item.
 
 gen_stmts_boundary_require_shape:
         imm r20, 7151616
@@ -142,7 +142,7 @@ gen_stmts_boundary_events:
         imm r22, 44956
         imm r23, 0
         imm r24, 0
-        imm r25, 47192
+        imm r25, 51602
         imm r26, 44965              ; checked but not executed by summary
         call summary_require_call_site
         imm r20, 505
@@ -457,69 +457,56 @@ gen_stmts_boundary_primitives:
 gen_stmts_boundary_pushes:
         imm r20, 207
         imm r21, 309
-        imm r22, 1
         imm r23, 44149
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 208
         imm r21, 310
-        imm r22, 1
         imm r23, 44383
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 209
         imm r21, 311
-        imm r22, 1
         imm r23, 44481
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 210
         imm r21, 311
-        imm r22, 1
         imm r23, 44594
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 211
         imm r21, 311
-        imm r22, 1
         imm r23, 44746
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 212
         imm r21, 312
-        imm r22, 1
         imm r23, 44852
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 213
         imm r21, 313
-        imm r22, 1
         imm r23, 45022
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 214
         imm r21, 314
-        imm r22, 1
         imm r23, 45158
-        call transfer_require_push
-        imm r20, 392
-        imm r21, 309
-        imm r22, 3
-        imm r23, 44263
-        call transfer_require_push
-        imm r20, 393
-        imm r21, 310
-        imm r22, 3
-        imm r23, 44348
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 394
-        imm r21, 311
-        imm r22, 3
-        imm r23, 44717
-        call transfer_require_push
+        imm r21, 309
+        imm r23, 44263
+        call exact_require_store_push
         imm r20, 395
-        imm r21, 313
-        imm r22, 3
-        imm r23, 44993
-        call transfer_require_push
+        imm r21, 310
+        imm r23, 44348
+        call exact_require_store_push
         imm r20, 396
+        imm r21, 311
+        imm r23, 44717
+        call exact_require_store_push
+        imm r20, 397
+        imm r21, 313
+        imm r23, 44993
+        call exact_require_store_push
+        imm r20, 398
         imm r21, 314
-        imm r22, 3
         imm r23, 45129
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 gen_stmts_boundary_censuses:
@@ -540,14 +527,14 @@ gen_stmts_boundary_censuses:
         imm r23, 725                 ; exclusive primitive row
         imm r24, 207
         imm r25, 215
-        imm r26, 344
-        imm r27, 344                 ; no argument pushes
-        imm r28, 392
-        imm r29, 397
+        imm r26, 346
+        imm r27, 346                 ; no argument pushes
+        imm r28, 394
+        imm r29, 399
         call summary_require_expr_census
         imm r20, 44066
         imm r21, 45275
-        imm r22, 6                   ; skip/cbyte/adv/cbyte/gen_stmt/skip
+        imm r22, 6                   ; skip/cbyte/adv/cbyte/gen_item/skip
         imm r23, 5                   ; four source plus synthetic ret
         imm r24, 20                  ; prologue/local/push/raw stores
         call gen_stmts_boundary_scan_region

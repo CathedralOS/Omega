@@ -300,11 +300,10 @@ expression_call_prove_capacity_exit:
         imm r23, 252
         imm r24, 22618
         call transfer_require_primitive
-        imm r20, 381
+        imm r20, 383
         imm r21, 159
-        imm r22, 3
         imm r23, 22602
-        call transfer_require_push
+        call exact_require_store_push
         imm r1, 540520
         imm r2, 1                     ; numeric252 exact writer
         store r1, r2

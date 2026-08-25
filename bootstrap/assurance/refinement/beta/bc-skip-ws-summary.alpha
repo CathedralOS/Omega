@@ -318,29 +318,24 @@ skip_step_require_shape:
 
         imm r20, 21
         imm r21, 36
-        imm r22, 1
         imm r23, 4579
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 22
         imm r21, 38
-        imm r22, 1
         imm r23, 4750
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 23
         imm r21, 40
-        imm r22, 1
         imm r23, 4902
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 24
         imm r21, 40
-        imm r22, 1
         imm r23, 5015
-        call transfer_require_push
-        imm r20, 238
+        call exact_require_binary_push
+        imm r20, 240
         imm r21, 36
-        imm r22, 2
         imm r23, 4538
-        call transfer_require_push
+        call exact_require_argument_push
 
         imm r20, 4711
         imm r21, 4730
@@ -443,9 +438,8 @@ skip_require_shape:
         call transfer_require_primitive
         imm r20, 20
         imm r21, 34
-        imm r22, 1
         imm r23, 4305
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 4419
         imm r21, 4438
         call exact_require_epilogue

@@ -316,7 +316,7 @@ emit_dec_word_positive_q:
         imm r1, 257
         add r2, r1
         imm r1, 534320
-        store r1, r2                  ; exact q passed by push315/event308
+        store r1, r2                  ; exact q passed by push317/event308
         imm r1, 534328
         store r1, r2                  ; same q consumed by child theorem
         mov r21, r2

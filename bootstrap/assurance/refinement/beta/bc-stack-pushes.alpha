@@ -11,7 +11,7 @@
 build_stack_push_sources_init:
         imm r10, 0
 build_binary_push_sources:
-        imm r1, 816
+        imm r1, 829
         jlt r10, r1, build_binary_push_source_one
         jmp build_argument_push_sources_init
 build_binary_push_source_one:
@@ -40,7 +40,7 @@ build_binary_push_source_next:
 build_argument_push_sources_init:
         imm r10, 0
 build_argument_push_sources:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, build_argument_push_source_event
         jmp build_store_push_sources_init
 build_argument_push_source_event:
@@ -79,7 +79,7 @@ build_argument_push_source_next:
 build_store_push_sources_init:
         imm r10, 0
 build_store_push_sources:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, build_store_push_source_one
         jmp check_stack_push_source_counts
 build_store_push_source_one:
@@ -149,13 +149,13 @@ increment_stack_push_kind:
 check_stack_push_source_counts:
         imm r1, 524752
         load r2, r1
-        imm r3, 403
+        imm r3, 407
         jeq r2, r3, check_binary_push_source_count
         jmp reject
 check_binary_push_source_count:
         imm r1, 524760
         load r2, r1
-        imm r3, 235
+        imm r3, 237
         jeq r2, r3, check_argument_push_source_count
         jmp reject
 check_argument_push_source_count:
@@ -167,14 +167,14 @@ check_argument_push_source_count:
 check_store_push_source_count:
         imm r1, 524776
         load r2, r1
-        imm r3, 34
+        imm r3, 36
         jeq r2, r3, resolve_init
         jmp reject
 
 read_stack_push_pcs_init:
         imm r10, 0
 read_stack_push_pc:
-        imm r1, 403
+        imm r1, 407
         jlt r10, r1, read_stack_push_pc_one
         jmp read_helper_pc
 read_stack_push_pc_one:
@@ -207,7 +207,7 @@ stack_push_pc_block:
         jlt r14, r6, reject
         imm r1, 1
         add r4, r1
-        imm r1, 355
+        imm r1, 359
         jlt r4, r1, stack_push_pc_next_block
         imm r1, 524296
         load r7, r1
@@ -233,7 +233,7 @@ stack_push_pc_store:
 validate_stack_pushes_init:
         imm r10, 0
 validate_stack_push_loop:
-        imm r1, 403
+        imm r1, 407
         jlt r10, r1, validate_stack_push_one
         jmp scan_stack_push_artifact_init
 validate_stack_push_one:
@@ -301,7 +301,7 @@ scan_stack_push_artifact_next:
 scan_stack_push_artifact_count:
         imm r1, 524784
         load r2, r1
-        imm r3, 403
+        imm r3, 407
         jeq r2, r3, composition_scan_init
         jmp reject
 
@@ -376,4 +376,19 @@ classify_stack_push_store_value:
         ret
 classify_stack_push_none:
         imm r0, 0
+        ret
+
+; Compact exact-shape adapters keep the push-kind proposition explicit while
+; avoiding hundreds of repeated immediate loads at individual call sites.
+exact_require_binary_push:
+        imm r22, 1
+        call transfer_require_push
+        ret
+exact_require_argument_push:
+        imm r22, 2
+        call transfer_require_push
+        ret
+exact_require_store_push:
+        imm r22, 3
+        call transfer_require_push
         ret

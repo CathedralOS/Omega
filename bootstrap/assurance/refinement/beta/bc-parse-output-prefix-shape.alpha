@@ -178,34 +178,28 @@ parse_output_prefix_primitives:
 parse_output_prefix_pushes:
         imm r20, 230
         imm r21, 346
-        imm r22, 1
         imm r23, 50668
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 231
         imm r21, 347
-        imm r22, 1
         imm r23, 50869
-        call transfer_require_push
-        imm r20, 365
-        imm r21, 345
-        imm r22, 2
-        imm r23, 50419
-        call transfer_require_push
-        imm r20, 366
-        imm r21, 345
-        imm r22, 2
-        imm r23, 50454
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 367
         imm r21, 345
-        imm r22, 2
-        imm r23, 50570
-        call transfer_require_push
+        imm r23, 50419
+        call exact_require_argument_push
         imm r20, 368
+        imm r21, 345
+        imm r23, 50454
+        call exact_require_argument_push
+        imm r20, 369
+        imm r21, 345
+        imm r23, 50570
+        call exact_require_argument_push
+        imm r20, 370
         imm r21, 347
-        imm r22, 2
         imm r23, 50809
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 parse_output_prefix_censuses:
@@ -226,8 +220,8 @@ parse_output_prefix_censuses:
         imm r23, 805                 ; exclusive primitive row
         imm r24, 230
         imm r25, 232
-        imm r26, 365
-        imm r27, 369
+        imm r26, 367
+        imm r27, 371
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census

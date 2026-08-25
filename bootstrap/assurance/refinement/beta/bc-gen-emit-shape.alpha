@@ -296,31 +296,30 @@ gen_emit_require_argument_push:
         mov r31, r21
         mov r20, r30
         imm r21, 146
-        imm r22, 2
         mov r23, r31
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 gen_emit_require_pushes:
-        imm r20, 297                  ; expect('(')
+        imm r20, 299                  ; expect('(')
         imm r21, 19598
         call gen_emit_require_argument_push
-        imm r20, 298                  ; lref(albl) #1
+        imm r20, 300                  ; lref(albl) #1
         imm r21, 19765
         call gen_emit_require_argument_push
-        imm r20, 299                  ; lref(slbl) #1
+        imm r20, 301                  ; lref(slbl) #1
         imm r21, 19864
         call gen_emit_require_argument_push
-        imm r20, 300                  ; lref(albl) #2
+        imm r20, 302                  ; lref(albl) #2
         imm r21, 20074
         call gen_emit_require_argument_push
-        imm r20, 301                  ; lref(slbl) #2
+        imm r20, 303                  ; lref(slbl) #2
         imm r21, 20219
         call gen_emit_require_argument_push
-        imm r20, 302                  ; emit_dec(len)
+        imm r20, 304                  ; emit_dec(len)
         imm r21, 20363
         call gen_emit_require_argument_push
-        imm r20, 303                  ; expect(')')
+        imm r20, 305                  ; expect(')')
         imm r21, 20508
         call gen_emit_require_argument_push
         ret
@@ -344,10 +343,10 @@ gen_emit_require_censuses:
         imm r23, 385                  ; exclusive primitive row
         imm r24, 98
         imm r25, 98                   ; no binary pushes
-        imm r26, 297
-        imm r27, 304                  ; seven argument pushes
-        imm r28, 381
-        imm r29, 381                  ; no store-address pushes
+        imm r26, 299
+        imm r27, 306                  ; seven argument pushes
+        imm r28, 383
+        imm r29, 383                  ; no store-address pushes
         call summary_require_expr_census
         ret
 

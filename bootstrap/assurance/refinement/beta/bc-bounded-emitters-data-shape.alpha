@@ -266,99 +266,81 @@ bounded_emitters_require_slot_primitives:
 
 ; row/block/kind/PC.
 bounded_emitters_require_pushes:
-        imm r20, 304
+        imm r20, 306
         imm r21, 148
-        imm r22, 2
         imm r23, 21255
-        call transfer_require_push
-        imm r20, 305
+        call exact_require_argument_push
+        imm r20, 307
         imm r21, 148
-        imm r22, 2
         imm r23, 21306
-        call transfer_require_push
-        imm r20, 319
+        call exact_require_argument_push
+        imm r20, 321
         imm r21, 213
-        imm r22, 2
         imm r23, 31265
-        call transfer_require_push
+        call exact_require_argument_push
 
         imm r20, 160
         imm r21, 220
-        imm r22, 1
         imm r23, 32504
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 161
         imm r21, 222
-        imm r22, 1
         imm r23, 32707
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 162
         imm r21, 224
-        imm r22, 1
         imm r23, 32910
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 163
         imm r21, 226
-        imm r22, 1
         imm r23, 33113
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 164
         imm r21, 228
-        imm r22, 1
         imm r23, 33316
-        call transfer_require_push
-        imm r20, 320
+        call exact_require_binary_push
+        imm r20, 322
         imm r21, 230
-        imm r22, 2
         imm r23, 33805
-        call transfer_require_push
+        call exact_require_argument_push
 
         imm r20, 165
         imm r21, 231
-        imm r22, 1
         imm r23, 34182
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 166
         imm r21, 231
-        imm r22, 1
         imm r23, 34208
-        call transfer_require_push
-        imm r20, 321
-        imm r21, 231
-        imm r22, 2
-        imm r23, 34043
-        call transfer_require_push
-        imm r20, 322
-        imm r21, 231
-        imm r22, 2
-        imm r23, 34287               ; offset argument push
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 323
         imm r21, 231
-        imm r22, 2
-        imm r23, 34429
-        call transfer_require_push
-
+        imm r23, 34043
+        call exact_require_argument_push
         imm r20, 324
-        imm r21, 232
-        imm r22, 2
-        imm r23, 34593
-        call transfer_require_push
+        imm r21, 231
+        imm r23, 34287               ; offset argument push
+        call exact_require_argument_push
         imm r20, 325
-        imm r21, 232
-        imm r22, 2
-        imm r23, 34628
-        call transfer_require_push
+        imm r21, 231
+        imm r23, 34429
+        call exact_require_argument_push
+
         imm r20, 326
-        imm r21, 233
-        imm r22, 2
-        imm r23, 34815
-        call transfer_require_push
+        imm r21, 232
+        imm r23, 34593
+        call exact_require_argument_push
         imm r20, 327
+        imm r21, 232
+        imm r23, 34628
+        call exact_require_argument_push
+        imm r20, 328
         imm r21, 233
-        imm r22, 2
+        imm r23, 34815
+        call exact_require_argument_push
+        imm r20, 329
+        imm r21, 233
         imm r23, 34850
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 ; effect census: inclusive block interval followed by half-open local, memory,
@@ -392,10 +374,10 @@ bounded_emitters_require_source_censuses:
         imm r23, 388
         imm r24, 0
         imm r25, 0
-        imm r26, 304
-        imm r27, 306
-        imm r28, 387
-        imm r29, 387
+        imm r26, 306
+        imm r27, 308
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_pop_into.
@@ -416,10 +398,10 @@ bounded_emitters_require_source_censuses:
         imm r23, 0
         imm r24, 0
         imm r25, 0
-        imm r26, 319
-        imm r27, 320
-        imm r28, 387
-        imm r29, 387
+        imm r26, 321
+        imm r27, 322
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_push.
@@ -442,8 +424,8 @@ bounded_emitters_require_source_censuses:
         imm r25, 0
         imm r26, 0
         imm r27, 0
-        imm r28, 387
-        imm r29, 387
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         call bounded_emitters_require_source_censuses_tail
@@ -470,8 +452,8 @@ bounded_emitters_require_source_censuses_tail:
         imm r25, 165
         imm r26, 0
         imm r27, 0
-        imm r28, 387
-        imm r29, 387
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_combine.
@@ -492,10 +474,10 @@ bounded_emitters_require_source_censuses_tail:
         imm r23, 0
         imm r24, 0
         imm r25, 0
-        imm r26, 320
-        imm r27, 321
-        imm r28, 387
-        imm r29, 387
+        imm r26, 322
+        imm r27, 323
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_slot_addr.
@@ -516,10 +498,10 @@ bounded_emitters_require_source_censuses_tail:
         imm r23, 570
         imm r24, 165
         imm r25, 167
-        imm r26, 321
-        imm r27, 324
-        imm r28, 387
-        imm r29, 387
+        imm r26, 323
+        imm r27, 326
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_load_slot.
@@ -540,10 +522,10 @@ bounded_emitters_require_source_censuses_tail:
         imm r23, 571
         imm r24, 0
         imm r25, 0
-        imm r26, 324
-        imm r27, 326
-        imm r28, 387
-        imm r29, 387
+        imm r26, 326
+        imm r27, 328
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
 
         ; emit_store_slot.
@@ -564,10 +546,10 @@ bounded_emitters_require_source_censuses_tail:
         imm r23, 572
         imm r24, 0
         imm r25, 0
-        imm r26, 326
-        imm r27, 328
-        imm r28, 387
-        imm r29, 387
+        imm r26, 328
+        imm r27, 330
+        imm r28, 389
+        imm r29, 389
         call bounded_emitters_expr_census
         ret
 

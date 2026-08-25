@@ -31,7 +31,7 @@ ranged_bounds_init:
         store r1, r0                    ; interval row cursor
         imm r10, 0
 ranged_class_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, ranged_class_row
         jmp ranged_class_counts
 ranged_class_row:
@@ -122,7 +122,7 @@ ranged_class_next:
 ranged_class_counts:
         imm r1, 525152
         load r2, r1
-        imm r3, 31
+        imm r3, 33
         jeq r2, r3, ranged_source_count
         jmp reject
 ranged_source_count:
@@ -268,7 +268,7 @@ ranged_require_block_ok:
 ranged_require_edges:
         imm r10, 0
 ranged_edge_loop:
-        imm r1, 291
+        imm r1, 293
         jlt r10, r1, ranged_edge_row
         jmp ranged_predecessor_boundaries
 ranged_edge_row:

@@ -387,64 +387,52 @@ slurp_summary_require_shape:
         ; All selected temporary/address staging roots used by the induction.
         imm r20, 0
         imm r21, 1
-        imm r22, 1
         imm r23, 184
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 1
         imm r21, 2
-        imm r22, 1
         imm r23, 316
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 2
         imm r21, 2
-        imm r22, 1
         imm r23, 430
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 3
         imm r21, 2
-        imm r22, 1
         imm r23, 560
-        call transfer_require_push
-        imm r20, 369
-        imm r21, 2
-        imm r22, 3
-        imm r23, 487
-        call transfer_require_push
-        imm r20, 370
-        imm r21, 4
-        imm r22, 3
-        imm r23, 697
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 371
-        imm r21, 4
-        imm r22, 3
-        imm r23, 761
-        call transfer_require_push
+        imm r21, 2
+        imm r23, 487
+        call exact_require_store_push
         imm r20, 372
         imm r21, 4
-        imm r22, 3
-        imm r23, 816
-        call transfer_require_push
+        imm r23, 697
+        call exact_require_store_push
         imm r20, 373
         imm r21, 4
-        imm r22, 3
-        imm r23, 871
-        call transfer_require_push
+        imm r23, 761
+        call exact_require_store_push
         imm r20, 374
         imm r21, 4
-        imm r22, 3
-        imm r23, 926
-        call transfer_require_push
+        imm r23, 816
+        call exact_require_store_push
         imm r20, 375
         imm r21, 4
-        imm r22, 3
-        imm r23, 981
-        call transfer_require_push
+        imm r23, 871
+        call exact_require_store_push
         imm r20, 376
         imm r21, 4
-        imm r22, 3
+        imm r23, 926
+        call exact_require_store_push
+        imm r20, 377
+        imm r21, 4
+        imm r23, 981
+        call exact_require_store_push
+        imm r20, 378
+        imm r21, 4
         imm r23, 1036
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 ; The selected region is intrinsic-read-only.  Exhaustively scanning decoded

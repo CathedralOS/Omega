@@ -90,11 +90,10 @@ statement_gen_block_require_data:
         imm r23, 0
         imm r24, 45354
         call transfer_require_primitive
-        imm r20, 344
+        imm r20, 346
         imm r21, 315
-        imm r22, 2
         imm r23, 45304
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 statement_gen_block_require_censuses:
@@ -115,10 +114,10 @@ statement_gen_block_require_censuses:
         imm r23, 727
         imm r24, 215
         imm r25, 215
-        imm r26, 344
-        imm r27, 345
-        imm r28, 397
-        imm r29, 397
+        imm r26, 346
+        imm r27, 347
+        imm r28, 399
+        imm r29, 399
         call summary_require_expr_census
         ret
 

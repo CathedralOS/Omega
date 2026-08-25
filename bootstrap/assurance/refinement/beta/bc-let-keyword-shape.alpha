@@ -340,49 +340,40 @@ let_keyword_require_data:
 
         imm r20, 27
         imm r21, 47
-        imm r22, 1
         imm r23, 5695
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 28
         imm r21, 47
-        imm r22, 1
         imm r23, 5746
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 29
         imm r21, 49
-        imm r22, 1
         imm r23, 5878
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 30
         imm r21, 50
-        imm r22, 1
         imm r23, 6063
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 31
         imm r21, 51
-        imm r22, 1
         imm r23, 6248
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 32
         imm r21, 52
-        imm r22, 1
         imm r23, 6433
-        call transfer_require_push
-        imm r20, 240
-        imm r21, 50
-        imm r22, 2
-        imm r23, 6022               ; checked let[0] argument
-        call transfer_require_push
-        imm r20, 241
-        imm r21, 51
-        imm r22, 2
-        imm r23, 6207               ; checked let[1] argument
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 242
+        imm r21, 50
+        imm r23, 6022               ; checked let[0] argument
+        call exact_require_argument_push
+        imm r20, 243
+        imm r21, 51
+        imm r23, 6207               ; checked let[1] argument
+        call exact_require_argument_push
+        imm r20, 244
         imm r21, 52
-        imm r22, 2
         imm r23, 6392               ; checked let[2] argument
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 let_keyword_require_censuses:
@@ -414,8 +405,8 @@ let_keyword_require_censuses:
         imm r23, 116                 ; checked exclusive let primitive row
         imm r24, 27
         imm r25, 33
-        imm r26, 240
-        imm r27, 243
+        imm r26, 242
+        imm r27, 245
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census

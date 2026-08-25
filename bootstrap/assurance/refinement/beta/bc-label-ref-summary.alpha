@@ -168,11 +168,10 @@ label_ref_bind_child:
         imm r1, 535456
         imm r2, 1                    ; local load is selected n
         store r1, r2
-        imm r20, 235
+        imm r20, 237
         imm r21, 6
-        imm r22, 2
         imm r23, 1476
-        call transfer_require_push
+        call exact_require_argument_push
         imm r20, 535456
         imm r21, 1
         call exact_require_cell

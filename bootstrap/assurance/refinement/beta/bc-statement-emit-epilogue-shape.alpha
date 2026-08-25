@@ -91,10 +91,10 @@ statement_emit_epilogue_require_censuses:
         imm r23, 550
         imm r24, 160
         imm r25, 160
-        imm r26, 320
-        imm r27, 320
-        imm r28, 387
-        imm r29, 387
+        imm r26, 322
+        imm r27, 322
+        imm r28, 389
+        imm r29, 389
         call summary_require_expr_census
         ret
 

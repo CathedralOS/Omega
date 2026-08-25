@@ -301,7 +301,7 @@ validate_frame_shapes_init:
         imm r26, 0                     ; total slots
         imm r27, 0                     ; zero-slot procedures
 validate_frame_shapes_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, validate_frame_block
         jmp validate_frame_shape_counts
 validate_frame_block:
@@ -520,11 +520,11 @@ validate_frame_next:
         add r10, r1
         jmp validate_frame_shapes_loop
 validate_frame_shape_counts:
-        imm r1, 70
+        imm r1, 71
         jeq r11, r1, validate_frame_slot_total
         jmp reject
 validate_frame_slot_total:
-        imm r1, 78
+        imm r1, 79
         jeq r26, r1, validate_frame_zero_total
         jmp reject
 validate_frame_zero_total:

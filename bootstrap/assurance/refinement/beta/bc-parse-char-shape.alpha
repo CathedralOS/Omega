@@ -380,29 +380,24 @@ parse_char_require_primitives:
 parse_char_require_pushes:
         imm r20, 178
         imm r21, 257
-        imm r22, 1
         imm r23, 37616
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 179
         imm r21, 258
-        imm r22, 1
         imm r23, 37785
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 180
         imm r21, 260
-        imm r22, 1
         imm r23, 37955
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 181
         imm r21, 262
-        imm r22, 1
         imm r23, 38125
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 182
         imm r21, 264
-        imm r22, 1
         imm r23, 38295
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 parse_char_require_censuses:
@@ -423,10 +418,10 @@ parse_char_require_censuses:
         imm r23, 622                 ; exclusive primitive row
         imm r24, 178
         imm r25, 183                 ; exclusive binary-push row
-        imm r26, 335                 ; exact empty argument-push start
-        imm r27, 335                 ; exact empty argument-push interval
-        imm r28, 387
-        imm r29, 387                 ; exact empty store-address interval
+        imm r26, 337                 ; exact empty argument-push start
+        imm r27, 337                 ; exact empty argument-push interval
+        imm r28, 389
+        imm r29, 389                 ; exact empty store-address interval
         call summary_require_expr_census
         imm r20, 37528
         imm r21, 38523

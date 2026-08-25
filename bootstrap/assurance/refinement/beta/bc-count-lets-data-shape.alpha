@@ -328,69 +328,56 @@ count_lets_require_primitives:
 count_lets_require_pushes:
         imm r20, 137
         imm r21, 194
-        imm r22, 1
         imm r23, 27574
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 138
         imm r21, 195
-        imm r22, 1
         imm r23, 27743
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 139
         imm r21, 195
-        imm r22, 1
         imm r23, 27866
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 140
         imm r21, 195
-        imm r22, 1
         imm r23, 27989
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 141
         imm r21, 195
-        imm r22, 1
         imm r23, 28112
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 142
         imm r21, 195
-        imm r22, 1
         imm r23, 28235
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 143
         imm r21, 195
-        imm r22, 1
         imm r23, 28399
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 144
         imm r21, 199
-        imm r22, 1
         imm r23, 28614
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 145
         imm r21, 200
-        imm r22, 1
         imm r23, 28718
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 146
         imm r21, 201
-        imm r22, 1
         imm r23, 28821
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 147
         imm r21, 202
-        imm r22, 1
         imm r23, 28953
-        call transfer_require_push
-        imm r20, 314
+        call exact_require_binary_push
+        imm r20, 316
         imm r21, 195
-        imm r22, 2
         imm r23, 28358              ; checked c argument to is_alpha
-        call transfer_require_push
-        imm r20, 386
+        call exact_require_argument_push
+        imm r20, 388
         imm r21, 203
-        imm r22, 3
         imm r23, 29039              ; checked CUR restore address push
-        call transfer_require_push
+        call exact_require_store_push
         ret
 
 count_lets_require_expr_census:
@@ -400,9 +387,9 @@ count_lets_require_expr_census:
         imm r23, 523                 ; checked exclusive count primitive row
         imm r24, 137
         imm r25, 148
-        imm r26, 314
-        imm r27, 315
-        imm r28, 386
-        imm r29, 387
+        imm r26, 316
+        imm r27, 317
+        imm r28, 388
+        imm r29, 389
         call summary_require_expr_census
         ret

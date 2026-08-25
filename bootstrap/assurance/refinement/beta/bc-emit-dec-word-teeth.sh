@@ -55,8 +55,8 @@ emit_dec_word_build_teeth() {
     'imm r23, 532                 ; exclusive primitive row' \
     'imm r23, 531                 ; exclusive primitive row'
   emit_dec_word_build_tooth emit-dec-word-argument-undercount \
-    'imm r27, 316                 ; exclusive argument-push row' \
-    'imm r27, 315                 ; exclusive argument-push row'
+    'imm r27, 318                 ; exclusive argument-push row' \
+    'imm r27, 317                 ; exclusive argument-push row'
   emit_dec_word_build_tooth emit-dec-word-drop-division-count \
     'imm r25, 1                   ; division count' \
     'imm r25, 0                   ; division count'
@@ -104,8 +104,8 @@ emit_dec_word_build_teeth() {
     'imm r21, 1                    ; exact one-byte base trace' \
     'imm r21, 2                    ; exact one-byte base trace'
   emit_dec_word_build_tooth emit-dec-word-drop-q-handoff \
-    'store r1, r2                  ; exact q passed by push315/event308' \
-    'store r1, r1                  ; exact q passed by push315/event308'
+    'store r1, r2                  ; exact q passed by push317/event308' \
+    'store r1, r1                  ; exact q passed by push317/event308'
   emit_dec_word_build_tooth emit-dec-word-drop-child-q \
     'store r1, r2                  ; same q consumed by child theorem' \
     'store r1, r1                  ; same q consumed by child theorem'

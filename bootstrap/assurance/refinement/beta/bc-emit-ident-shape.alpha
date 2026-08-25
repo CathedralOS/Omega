@@ -186,24 +186,20 @@ emit_ident_require_primitives:
 emit_ident_require_pushes:
         imm r20, 156
         imm r21, 215
-        imm r22, 1
         imm r23, 31583              ; guard-left k
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 157
         imm r21, 216
-        imm r22, 1
         imm r23, 31736              ; source-base left
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 158
         imm r21, 216
-        imm r22, 1
         imm r23, 31793              ; base+off left
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 159
         imm r21, 216
-        imm r22, 1
         imm r23, 31874              ; increment-left k
-        call transfer_require_push
+        call exact_require_binary_push
         ret
 
 emit_ident_require_censuses:

@@ -14,7 +14,7 @@ raw_load_family_init:
         imm r12, 0                     ; indexed SRC loads
         imm r13, 0                     ; indexed name-table loads
 raw_load_family_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, raw_load_family_row
         jmp raw_load_family_counts
 raw_load_family_row:
@@ -136,7 +136,7 @@ raw_load_family_next:
         jmp raw_load_family_loop
 
 raw_load_family_counts:
-        imm r1, 54
+        imm r1, 58
         jeq r11, r1, raw_load_family_src_total
         jmp reject
 raw_load_family_src_total:

@@ -142,26 +142,22 @@ statement_emit_state_label_require_data:
         imm r24, 45724
         call transfer_require_primitive
         ; Two arguments for each emit_ident_at call.
-        imm r20, 345
-        imm r21, 316
-        imm r22, 2
-        imm r23, 45487
-        call transfer_require_push
-        imm r20, 346
-        imm r21, 316
-        imm r22, 2
-        imm r23, 45516
-        call transfer_require_push
         imm r20, 347
         imm r21, 316
-        imm r22, 2
-        imm r23, 45632
-        call transfer_require_push
+        imm r23, 45487
+        call exact_require_argument_push
         imm r20, 348
         imm r21, 316
-        imm r22, 2
+        imm r23, 45516
+        call exact_require_argument_push
+        imm r20, 349
+        imm r21, 316
+        imm r23, 45632
+        call exact_require_argument_push
+        imm r20, 350
+        imm r21, 316
         imm r23, 45667
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 statement_emit_state_label_require_censuses:
@@ -182,10 +178,10 @@ statement_emit_state_label_require_censuses:
         imm r23, 730
         imm r24, 215
         imm r25, 215
-        imm r26, 345
-        imm r27, 349
-        imm r28, 397
-        imm r29, 397
+        imm r26, 347
+        imm r27, 351
+        imm r28, 399
+        imm r29, 399
         call summary_require_expr_census
         ret
 

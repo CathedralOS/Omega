@@ -35,7 +35,7 @@ stack_register_custody_init:
 stack_owner_prologues_init:
         imm r10, 0
 stack_owner_prologues_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, stack_owner_prologue_candidate
         jmp stack_owner_fallthrough_init
 stack_owner_prologue_candidate:
@@ -88,7 +88,7 @@ stack_owner_prologue_next:
 stack_owner_fallthrough_init:
         imm r10, 0
 stack_owner_fallthrough_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, stack_owner_fallthrough_candidate
         jmp stack_owner_return_events_init
 stack_owner_fallthrough_candidate:
@@ -106,7 +106,7 @@ stack_owner_find_next_proc_init:
         imm r1, 1
         add r11, r1
 stack_owner_find_next_proc:
-        imm r1, 355
+        imm r1, 359
         jlt r11, r1, stack_owner_find_next_proc_candidate
         imm r1, 524296
         load r14, r1
@@ -140,7 +140,7 @@ stack_owner_fallthrough_next:
 stack_owner_return_events_init:
         imm r10, 0
 stack_owner_return_events_loop:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, stack_owner_return_event
         jmp stack_owner_pushes_init
 stack_owner_return_event:
@@ -167,7 +167,7 @@ stack_owner_return_event_next:
 stack_owner_pushes_init:
         imm r10, 0
 stack_owner_pushes_loop:
-        imm r1, 403
+        imm r1, 407
         jlt r10, r1, stack_owner_push
         jmp stack_owner_binary_pops_init
 stack_owner_push:
@@ -196,7 +196,7 @@ stack_owner_push:
 stack_owner_binary_pops_init:
         imm r10, 0
 stack_owner_binary_pops_loop:
-        imm r1, 816
+        imm r1, 829
         jlt r10, r1, stack_owner_binary_pop_candidate
         jmp stack_owner_call_pops_init
 stack_owner_binary_pop_candidate:
@@ -235,7 +235,7 @@ stack_owner_binary_pop_next:
 stack_owner_call_pops_init:
         imm r10, 0
 stack_owner_call_pops_loop:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, stack_owner_call_pop_candidate
         jmp stack_owner_store_pops_init
 stack_owner_call_pop_candidate:
@@ -287,7 +287,7 @@ stack_owner_call_pop_next:
 stack_owner_store_pops_init:
         imm r10, 0
 stack_owner_store_pops_loop:
-        imm r1, 95
+        imm r1, 101
         jlt r10, r1, stack_owner_store_pop_candidate
         jmp stack_owner_count
 stack_owner_store_pop_candidate:
@@ -323,7 +323,7 @@ stack_owner_store_pop_next:
 stack_owner_count:
         imm r1, 525104
         load r2, r1
-        imm r3, 2630
+        imm r3, 2662
         jeq r2, r3, stack_scan_init
         jmp reject
 
@@ -544,24 +544,24 @@ stack_scan_increment:
 stack_scan_counts:
         imm r1, 525112
         load r2, r1
-        imm r3, 2630
+        imm r3, 2662
         jeq r2, r3, stack_scan_write14_count
         jmp reject
 stack_scan_write14_count:
         imm r1, 525120
         load r2, r1
-        imm r3, 324
+        imm r3, 329
         jeq r2, r3, stack_scan_write15_count
         jmp reject
 stack_scan_write15_count:
         imm r1, 525128
         load r2, r1
-        imm r3, 1430
+        imm r3, 1448
         jeq r2, r3, stack_scan_memory_count
         jmp reject
 stack_scan_memory_count:
         imm r1, 525136
         load r2, r1
-        imm r3, 1129
+        imm r3, 1142
         jeq r2, r3, ranged_bounds_init
         jmp reject

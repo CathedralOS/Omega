@@ -104,9 +104,8 @@ main_loop_require_root_link:
         ; then a distinct literal zero on the false return path.
         imm r20, 233
         imm r21, 352
-        imm r22, 1
         imm r23, 51271
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 809
         imm r21, 352
         imm r22, 3

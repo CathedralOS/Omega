@@ -20,22 +20,22 @@ call_bounds_read_init:
         jmp reject
 call_bounds_read_expr_explicit:
         imm r20, 10051584
-        imm r21, 4480                  ; 64 * 70
+        imm r21, 4544                  ; 64 * 71
         call call_bounds_read_table
-        imm r20, 10087424
-        imm r21, 4480
+        imm r20, 10087936
+        imm r21, 4544
         call call_bounds_read_table
-        imm r20, 10123264
-        imm r21, 4480
+        imm r20, 10124288
+        imm r21, 4544
         call call_bounds_read_table
-        imm r20, 10159104
-        imm r21, 4480
+        imm r20, 10160640
+        imm r21, 4544
         call call_bounds_read_table
-        imm r20, 10194944
-        imm r21, 70
+        imm r20, 10196992
+        imm r21, 71
         call call_bounds_read_table
-        imm r20, 10195504
-        imm r21, 70
+        imm r20, 10197560
+        imm r21, 71
         call call_bounds_read_table
         read r0
         imm r1, 0
@@ -92,7 +92,7 @@ call_bounds_find_proc:
         imm r28, 0                     ; result
         imm r10, 0
 call_bounds_find_proc_loop:
-        imm r1, 355
+        imm r1, 359
         jlt r10, r1, call_bounds_find_proc_block
         imm r1, 1
         jeq r27, r1, call_bounds_find_proc_done
@@ -262,11 +262,11 @@ call_bounds_build_edges_init:
         store r1, r0
         imm r10, 0
 call_bounds_build_edges_loop:
-        imm r1, 613
+        imm r1, 617
         jlt r10, r1, call_bounds_build_event
         imm r1, 525008
         load r2, r1
-        imm r3, 310
+        imm r3, 311
         jeq r2, r3, call_bounds_validate_emit_dec_edges
         jmp reject
 call_bounds_build_event:
@@ -357,7 +357,7 @@ call_bounds_validate_emit_dec_edges:
         imm r10, 0
         imm r11, 0
 call_bounds_emit_dec_edge_loop:
-        imm r1, 310
+        imm r1, 311
         jlt r10, r1, call_bounds_emit_dec_edge
         imm r1, 1
         jeq r11, r1, call_bounds_flags_init
@@ -404,21 +404,21 @@ call_bounds_flags_init:
         call call_bounds_set_flag
         imm r1, 524968
         load r2, r1
-        imm r20, 10249312              ; block flags
+        imm r20, 10249320              ; block flags
         call call_bounds_set_flag
         imm r1, 524984
         load r2, r1
-        imm r20, 10249872              ; root flags
+        imm r20, 10249888              ; root flags
         call call_bounds_set_flag
         imm r10, 0
 call_bounds_flags_pass:
-        imm r1, 70
+        imm r1, 71
         jlt r10, r1, call_bounds_flags_edges_init
         jmp call_bounds_check_expr_init
 call_bounds_flags_edges_init:
         imm r11, 0
 call_bounds_flags_edge_loop:
-        imm r1, 310
+        imm r1, 311
         jlt r11, r1, call_bounds_flags_edge
         imm r1, 1
         add r10, r1
@@ -435,9 +435,9 @@ call_bounds_flags_edge:
         load r8, r1                    ; callee
         imm r20, 10248752
         call call_bounds_propagate_expr
-        imm r20, 10249312
+        imm r20, 10249320
         call call_bounds_propagate_stopped
-        imm r20, 10249872
+        imm r20, 10249888
         call call_bounds_propagate_stopped
         imm r1, 1
         add r11, r1
@@ -542,7 +542,7 @@ call_bounds_check_phase_proc_init:
 call_bounds_check_phase_proc_loop:
         imm r1, 525024
         load r2, r1
-        imm r3, 70
+        imm r3, 71
         jlt r2, r3, call_bounds_check_phase_proc
         jmp call_bounds_check_phase_row_done
 call_bounds_check_phase_proc:
@@ -564,13 +564,13 @@ call_bounds_check_phase_proc:
         jeq r2, r3, call_bounds_flag_expr
         imm r3, 2
         jeq r2, r3, call_bounds_flag_block
-        imm r4, 10249872
+        imm r4, 10249888
         jmp call_bounds_flag_load
 call_bounds_flag_expr:
         imm r4, 10248752
         jmp call_bounds_flag_load
 call_bounds_flag_block:
-        imm r4, 10249312
+        imm r4, 10249320
 call_bounds_flag_load:
         imm r1, 525024
         load r2, r1
@@ -618,7 +618,7 @@ call_bounds_check_live_proc:
         store r1, r3
         imm r10, 0
 call_bounds_check_edges_loop:
-        imm r1, 310
+        imm r1, 311
         jlt r10, r1, call_bounds_check_edge
         jmp call_bounds_check_expected
 call_bounds_check_edge:
@@ -804,25 +804,25 @@ call_bounds_load_pair:
         imm r1, 3
         jeq r20, r1, call_bounds_pair_root
         mov r3, r21
-        imm r1, 70
+        imm r1, 71
         mul r3, r1
         add r2, r3
         imm r1, 8
         mul r2, r1
         imm r1, 1
         jeq r20, r1, call_bounds_pair_expr
-        imm r3, 10123264
-        imm r4, 10159104
+        imm r3, 10124288
+        imm r4, 10160640
         jmp call_bounds_pair_load
 call_bounds_pair_expr:
         imm r3, 10051584
-        imm r4, 10087424
+        imm r4, 10087936
         jmp call_bounds_pair_load
 call_bounds_pair_root:
         imm r1, 8
         mul r2, r1
-        imm r3, 10194944
-        imm r4, 10195504
+        imm r3, 10196992
+        imm r4, 10197560
 call_bounds_pair_load:
         add r3, r2
         load r0, r3
@@ -902,7 +902,7 @@ call_bounds_schema_gen_stmts:
         db "    }\n"
         db "    state body {\n"
         db "        to eof when (cbyte() == 0)\n"
-        db "        gen_stmt()\n"
+        db "        gen_item()\n"
         db "        skip_ws()\n"
         db "        to loop\n"
         db "    }\n"

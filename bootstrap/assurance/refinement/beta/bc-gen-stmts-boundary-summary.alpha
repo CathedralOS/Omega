@@ -8,11 +8,11 @@
 ;     RESOURCE!=0: exact numeric 252, decrement to D, return 0;
 ;     RESOURCE=0 and byte='}': ADVC consumes it, decrement to D, return 0;
 ;     RESOURCE=0 and byte=0: cursor unchanged, decrement to D, return 0;
-;     RESOURCE=0 and byte!=0,'}': reach gen_stmt call PC44956 with the
+;     RESOURCE=0 and byte!=0,'}': reach gen_item call PC44956 with the
 ;       proc62 frame active, BLOCKDEPTH=D+1, byte unconsumed, arbitrary prior
 ;       trace unchanged.
 ;
-; The last clause stops before executing gen_stmt. No child outcome, typed
+; The last clause stops before executing gen_item. No child outcome, typed
 ; ResourceKind, totality, or recursive fixed-point meaning is claimed.
 ;
 ; Fresh cells 528856..529136.
@@ -159,20 +159,20 @@ gen_stmts_boundary_context_depth:
         jmp reject
 gen_stmts_boundary_context_potential:
         mov r16, r13
-        imm r1, 70
+        imm r1, 71
         mul r16, r1
         imm r1, 62
         add r16, r1
         imm r1, 8
         mul r16, r1
-        imm r1, 10123264
+        imm r1, 10124288
         add r1, r16
         load r2, r1
         imm r3, 15
         jlt r3, r2, gen_stmts_boundary_context_hidden
         jmp reject
 gen_stmts_boundary_context_hidden:
-        imm r1, 10159104
+        imm r1, 10160640
         add r1, r16
         load r2, r1
         imm r3, 0

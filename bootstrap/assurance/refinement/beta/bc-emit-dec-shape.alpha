@@ -175,29 +175,24 @@ emit_dec_require_primitives:
 emit_dec_require_pushes:
         imm r20, 148
         imm r21, 205
-        imm r22, 1
         imm r23, 29222              ; comparison-left n
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 149
         imm r21, 206
-        imm r22, 1
         imm r23, 29354              ; division-left n
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 150
         imm r21, 207
-        imm r22, 1
         imm r23, 29471              ; remainder-left n
-        call transfer_require_push
+        call exact_require_binary_push
         imm r20, 151
         imm r21, 207
-        imm r22, 1
         imm r23, 29519              ; addition-left remainder
-        call transfer_require_push
-        imm r20, 315
+        call exact_require_binary_push
+        imm r20, 317
         imm r21, 206
-        imm r22, 2
         imm r23, 29402              ; recursive q argument
-        call transfer_require_push
+        call exact_require_argument_push
         ret
 
 emit_dec_require_censuses:
@@ -219,8 +214,8 @@ emit_dec_require_censuses:
         imm r23, 532                 ; exclusive primitive row
         imm r24, 148
         imm r25, 152                 ; exclusive binary-push row
-        imm r26, 315
-        imm r27, 316                 ; exclusive argument-push row
+        imm r26, 317
+        imm r27, 318                 ; exclusive argument-push row
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
