@@ -53,7 +53,7 @@ is one implementation block binding the complete trait surface; Omega never
 assembles one conformance by searching ambient machines.
 
 ```omega
-PowerOrder:
+pub PowerOrder:
     Card satisfies Ranked
 {
     machine before(&self, other: &Card) -> bool {
@@ -77,6 +77,19 @@ CostOrder:
     }
 }
 ```
+
+A complete conformance is an independently nameable declaration. It is
+package-private unless marked `pub`; it inherits visibility from neither its
+subject nor its trait. `PowerOrder` above may be selected by a direct dependent,
+while `CostOrder` is available only inside its declaring package. Publishing a
+conformance does not publish private realization machines: consumers select the
+closed conformance surface, and its implementation rows remain private.
+
+Cross-package authored selection and every public-interface occurrence naming
+a conformance require `pub`. Merely carrying a value whose dynamic descriptor
+contains private conformance evidence does not select or publish that evidence.
+The receiver may use the already-packaged trait interface but cannot name that
+private conformance for another coercion, bound, or specialization.
 
 Every complete requirement overload in the normalized inherited trait closure
 has one trait-qualified row. The row identity includes the declaring trait,
@@ -169,11 +182,14 @@ A requirement path used without a call signature must resolve to exactly one
 of those rows. This rule applies uniformly to domain establishment routes,
 nominal static-machine binders, and every other signature-free requirement
 reference. A short path that names several overloads rejects; visibility or a
-unique currently selected satisfier never chooses one. `as Name` on a
-`satisfies` declaration names the satisfying conformance and is not an overload
-selector. No general source spelling for signature-free overloaded references
-is currently provided; authors give requirements used in those positions
-distinct names.
+unique currently selected satisfier never chooses one. On an exact machine
+edge, `satisfies Trait::requirement as Name` labels a coherent satisfier set for
+requirement-local and shape-licensed mechanisms; it does not declare a
+standalone whole-trait conformance. In a conformance-selection position, such
+as a quotient `where` clause, `as Name` instead selects an already-declared
+complete conformance. Neither spelling is an overload selector. No general
+source spelling for signature-free overloaded references is currently
+provided; authors give requirements used in those positions distinct names.
 
 Consequently, adding an overload to an existing requirement name is a breaking
 change for every signature-free reference to that name, including references
@@ -261,6 +277,13 @@ whole-trait bound, or licenses `dyn`. Clause order is signature, exact
 `satisfies Trait::requirement`, `terminates [by ...]`, ordinary contracts, then
 the checked body. An irreducible external realization uses `via <Binding>;`
 instead of a body.
+
+An optional `as Name` on those exact edges groups related rows without making
+`Name` independently selectable. A generic algorithm requiring
+`T: CommutativeSemiring`, a `dyn CommutativeSemiring` coercion, or an authored
+whole-conformance argument still requires an explicit name-first conformance
+declaration. Individual algebra-law edges remain sufficient for proof engines
+that deliberately license transformations by normalized law shape.
 
 A target slot declares which tier it accepts. An `ExactRequirement` slot binds
 one exact satisfier and exposes only that requirement's normalized contract; no
@@ -877,8 +900,10 @@ The `satisfies` token consequently has three related grammatical uses. The
 right side of a name-first block declares one complete nominal edge; a machine
 clause realizes one exact requirement without creating that edge; and a static
 evidence binder states the complete conformance shape its argument must have.
-An `as Name` occurrence only references an already-declared conformance; it
-never introduces one.
+On the machine clause, optional `as Name` labels a requirement-local satisfier
+set without introducing a complete conformance. In an authored complete-
+conformance selection, `as Name` references an already-declared name-first
+item. Neither use creates a whole conformance implicitly.
 
 ### Components are a different crossing
 
@@ -1245,8 +1270,10 @@ declared in your package) owns a closed member set and cannot extend another
 package's conformance. Two third parties may declare differently named
 conformances over the same foreign type and trait without an orphan exception
 or global overlap conflict because every use passes one exact name. The exact
-cross-package publication spelling remains unsettled; this coherence property
-does not depend on making every named conformance public.
+cross-package publication spelling is ordinary
+`pub LocalName: ForeignType satisfies MyTrait { ... }`; an unmarked declaration
+remains package-private. This coherence property does not depend on making every
+named conformance public.
 
 The item remains identifier-led and `satisfies` stays a contextual keyword.
 

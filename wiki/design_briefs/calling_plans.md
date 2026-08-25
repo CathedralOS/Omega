@@ -644,7 +644,8 @@ resolve to one exact overload at the binder declaration. Ambiguity rejects.
 This is the same rule used by domain `established by` clauses and other
 signature-free
 requirement paths. There is no callback-local expanded-signature workaround,
-and `as Name` remains the satisfying-conformance name rather than an overload
+and `as Name` remains either the exact-edge satisfier-set label or the complete
+conformance selector dictated by its grammar position, never an overload
 selector. Adding an overload to an existing requirement name is therefore a
 breaking change for all such references and must be reported at the declaring
 trait as well as the affected uses.

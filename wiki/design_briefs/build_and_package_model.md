@@ -1514,6 +1514,15 @@ spelling, the complete signature, and declaration contracts without depending
 on use-site facts. Public contract binaries retain an exact declared overload
 coordinate or explicit builtin meaning rather than only a token. Unsupported
 operator crash contracts or unresolved proof-static selections reject closed.
+The next standalone visibility row is `PublicConformance`. Every package-owned
+`pub Name: Subject satisfies Trait<...>` declaration contributes the exact
+package-qualified conformance identity, normalized static telescope, optional
+subject, exact trait application, complete normalized requirement map, laws,
+and checked evidence interface. Private member machines, proof bodies, source
+text, and physical code identity are not public compatibility material. An
+exact machine requirement-satisfier edge and its optional `as Name` grouping
+label do not produce this row. Private cross-package conformance selection and
+public-interface citation reject; same-package private selection remains legal.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
