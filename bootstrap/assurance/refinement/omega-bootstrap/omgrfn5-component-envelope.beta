@@ -1,8 +1,9 @@
-; Shared bounded OMGRFN5 component framing for independently composed
+; Shared bounded OMGRFN5/OMGRFN6 component framing for independently composed
 ; refinement checkers.
 ;
-; This decoder deliberately treats OMGCOMP and OMGRSW1 as opaque.  It reads
-; enough of the version-5 frame locally to make exact CKIR4/ELF accesses safe,
+; This decoder deliberately treats OMGCOMP and OMGRSW1/OMGRSW2 as opaque.  It reads
+; enough of the exact version-5 or version-6 frame locally to make CKIR4/ELF
+; accesses safe,
 ; then projects those component offsets and claims into the stable private
 ; interface consumed by the CKIR4 artifact and ELF checkers. It performs no
 ; source, resolution, witness, or
@@ -11,7 +12,8 @@
 ; Raw frame bytes: byte[1048576 .. 5546119], maximum 4,497,544 bytes.
 ; Only CKIR and ELF component readers are exposed after a successful read.
 ; There is deliberately no source-body or witness-byte adapter in this
-; responsibility-5 envelope.
+; responsibility-5 envelope.  In particular, the OMGRSW1/OMGRSW2 identity pair
+; is responsibility 3's premise, not an artifact-checker premise.
 ; Existing checker interface (word addresses):
 ;   524288 frame length; 524296 status; 524304 flags
 ;   524328 CKIR offset; 524336 CKIR length
@@ -56,6 +58,7 @@ proc omgrfn5_component_read() {
     state finish {
         word[524288] = n
         word[524296] = 0
+        word[524376] = 0
         to exhausted when (overflow == 1)
         to magic0 when (n >= 40)
         to malformed
@@ -66,9 +69,15 @@ proc omgrfn5_component_read() {
     state magic3 { to magic4 when (omgrfn5_component_byte(3) == 'R')  to malformed }
     state magic4 { to magic5 when (omgrfn5_component_byte(4) == 'F')  to malformed }
     state magic5 { to magic6 when (omgrfn5_component_byte(5) == 'N')  to malformed }
-    state magic6 { to magic7 when (omgrfn5_component_byte(6) == '5')  to malformed }
+    state magic6 {
+        to version5_magic when (omgrfn5_component_byte(6) == '5')
+        to version6_magic when (omgrfn5_component_byte(6) == '6')
+        to malformed
+    }
+    state version5_magic { word[524376] = 5  to magic7 }
+    state version6_magic { word[524376] = 6  to magic7 }
     state magic7 { to version when (omgrfn5_component_byte(7) == 0)  to malformed }
-    state version { to fields when (omgrfn5_component_u32(8) == 5)  to malformed }
+    state version { to fields when (omgrfn5_component_u32(8) == word[524376])  to malformed }
     state fields {
         flags = omgrfn5_component_u32(12)
         omgcomp_length = omgrfn5_component_u32(16)

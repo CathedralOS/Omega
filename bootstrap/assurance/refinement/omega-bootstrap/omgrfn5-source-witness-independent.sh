@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused persisted-Beta OMGRFN5 responsibility-2 resolution gate.
+# Focused persisted-Beta shared OMGRFN5/OMGRFN6 responsibility-2 gate.
 set -eu
 
 START_NS=$(python3 -c 'import time; print(time.time_ns())' 2>/dev/null || echo 0)
@@ -30,13 +30,14 @@ done
 CORE="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4-source-witness-independent.beta"
 ADAPTER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5-source-witness-independent.beta"
 PACKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5_bundle.py"
+PACKER6="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn6_bundle.py"
 PACKER4="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4_bundle.py"
 BUILDER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir3-fixture.py"
 RESOLVER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp"
 SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
 HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-harness.omg"
 API_HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-api-harness.omg"
-for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER4" "$BUILDER" \
+for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER6" "$PACKER4" "$BUILDER" \
   "$RESOLVER" "$SOURCE" "$HARNESS" "$API_HARNESS" "$OMEGA_PATH_BETA/bc.beta"; do
   [ -f "$REQUIRED" ] || {
     echo "OMGRFN5 responsibility 2: missing $REQUIRED" >&2
@@ -45,7 +46,11 @@ for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER4" "$BUILDER" \
 done
 
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+if [ "${OMEGA_KEEP_OMGRFN5_R2_TEMP:-0}" = 1 ]; then
+  echo "OMGRFN5/6 responsibility 2: retained $T" >&2
+else
+  trap 'rm -rf "$T"' EXIT
+fi
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 
@@ -126,6 +131,86 @@ build_pair() { # name owner machine source0 source1
 
 build_pair exact SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$HARNESS"
 build_pair api SourceUnit bootstrap_source_api_probe "$SOURCE" "$API_HARNESS"
+
+# Compact same-module OMGRSW2 carrier. The shared resolver emits its canonical
+# role-3 rows directly. The fallback below can complete the same untrusted
+# fixture when this focused gate is run beside a frozen OMGRSW1-only resolver;
+# either way, the persisted checker independently reconstructs every byte.
+python3 -B - "$T/field-source.omg" "$T/field-harness.omg" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_text("""\
+data Child {}
+data Parent {
+    child: Child;
+    flag: bool;
+    full: u32;
+    trap: u32 in Trapping;
+    byte: u8;
+    bound: u32 [0..=65536];
+    bytes: [u8; 65536] in Trapping;
+}
+
+machine Child::store(&mut self, value: u8) {}
+machine Child::load(&self) -> u8 { 70 }
+machine Parent::noop(&mut self) {}
+""", encoding="ascii")
+Path(sys.argv[2]).write_text("""\
+machine Parent::run(&mut self) -> u8 {
+    self.noop();
+    self.child.store(70);
+    self.child.load()
+}
+""", encoding="ascii")
+PY
+build_pair field Parent run "$T/field-source.omg" "$T/field-harness.omg"
+python3 -B - "$T/field.witness" "$T/field-source.omg" "$T/field-harness.omg" <<'PY'
+from pathlib import Path
+import struct, sys
+p = Path(sys.argv[1]); raw = bytearray(p.read_bytes())
+sources = (Path(sys.argv[2]).read_bytes(), Path(sys.argv[3]).read_bytes())
+head = struct.unpack_from("<8sHHHH14I", raw)
+counts = list(head[6:17])
+strides = (36, 48, 28, 28, 24, 24, 24, 40, 24, 40, 24)
+offsets = []
+at = 72
+for count, stride in zip(counts, strides):
+    offsets.append(at); at += count * stride
+if at != len(raw): raise SystemExit("OMGRFN6 R2 fixture witness extent")
+if head[0] == b"OMGRSW2\0":
+    role3 = [i for i in range(counts[2]) if raw[offsets[2] + i * 28 + 8] == 3]
+    if len(role3) != 3: raise SystemExit("OMGRFN6 R2 resolver role-3 census")
+    raise SystemExit(0)
+if head[0] != b"OMGRSW1\0" or head[1:5] != (1, 0, 0, 72):
+    raise SystemExit("OMGRFN6 R2 fixture base identity")
+bindings = []
+for i in range(counts[2]):
+    row = bytearray(raw[offsets[2] + i * 28:offsets[2] + (i + 1) * 28])
+    bindings.append(row)
+declarations = {}
+for i in range(counts[3]):
+    row = struct.unpack_from("<IBBH5I", raw, offsets[3] + i * 28)
+    name = sources[row[4]][row[6]:row[6] + row[7]]
+    if row[1] == 2: declarations[name] = i
+for name in (b"store", b"load"):
+    needle = b"self.child." + name + b"("
+    start = sources[1].index(needle) + len(b"self.child.")
+    bindings.append(bytearray(struct.pack(
+        "<IIBBH4I", 0, 1, 3, 2, 0, start, len(name), declarations[name], 0xffffffff
+    )))
+bindings.sort(key=lambda row: (
+    struct.unpack_from("<I", row, 4)[0],
+    struct.unpack_from("<I", row, 12)[0], row[8]
+))
+for i, row in enumerate(bindings): struct.pack_into("<I", row, 0, i)
+tail = raw[offsets[2] + counts[2] * 28:]
+raw = raw[:offsets[2]] + b"".join(bindings) + tail
+raw[:8] = b"OMGRSW2\0"
+struct.pack_into("<H", raw, 8, 2)
+struct.pack_into("<I", raw, 16, len(raw))
+struct.pack_into("<I", raw, 28, len(bindings))
+p.write_bytes(raw)
+PY
 
 # Resolve parameter spans back through their owning machine/block and source.
 # This locks in the corrected resolver behavior rather than merely comparing
@@ -218,8 +303,12 @@ printf 'opaque-ELF' > "$T/elf"
 pack() { # output compilation witness
   python3 "$PACKER" "$2" "$3" "$T/ckir" "$T/elf" --result 70 > "$T/$1.rfn"
 }
+pack6() { # output compilation witness
+  python3 "$PACKER6" "$2" "$3" "$T/ckir" "$T/elf" --result 70 > "$T/$1.rfn"
+}
 pack exact "$T/exact.omgc" "$T/exact.witness"
 pack api "$T/api.omgc" "$T/api.witness"
+pack6 field "$T/field.omgc" "$T/field.witness"
 python3 - "$T/api.witness" "$T/api-forged-block-param.witness" <<'PY'
 from pathlib import Path
 import struct
@@ -255,6 +344,7 @@ observe() {
 }
 observe 0 "$T/exact.rfn" "exact source+harness resolution"
 observe 0 "$T/api.rfn" "complete SourceUnit API resolution"
+observe 0 "$T/field.rfn" "OMGRFN6 direct field-receiver resolution"
 observe 251 "$T/api-forged-block-param.rfn" \
   "forged SourceUnit API block-parameter row/count"
 
@@ -337,6 +427,46 @@ observe 251 "$T/cross-reordered.rfn" "reordered valid cross-pair"
 observe 251 "$T/cross-api.rfn" "exact source with SourceUnit API witness"
 observe 251 "$T/api-cross.rfn" "SourceUnit API source with exact witness"
 
+# Schema identities are strict even though one executable shares their code.
+# OMGRSW2 additionally requires at least one independently derived direct
+# field-receiver call rather than serving as a cosmetic header rewrite.
+python3 -B - "$T/api.witness" "$T/api-v2.witness" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = bytearray(Path(sys.argv[1]).read_bytes())
+raw[:8] = b"OMGRSW2\0"; struct.pack_into("<H", raw, 8, 2)
+Path(sys.argv[2]).write_bytes(raw)
+PY
+pack field-as-v5 "$T/field.omgc" "$T/field.witness"
+python3 -B - "$T/exact.omgc" "$T/exact.witness" "$T/ckir" "$T/elf" "$T/exact-as-v6.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+omg, witness, ckir, elf = (Path(name).read_bytes() for name in sys.argv[1:5])
+header = struct.pack("<8s8I", b"OMGRFN6\0", 6, 1, len(omg), len(witness),
+                     len(ckir), len(elf), 70, 70)
+Path(sys.argv[5]).write_bytes(header + omg + witness + ckir + elf)
+PY
+pack6 api-v2-no-field "$T/api.omgc" "$T/api-v2.witness"
+observe 251 "$T/field-as-v5.rfn" "OMGRFN5 rejects OMGRSW2"
+observe 251 "$T/exact-as-v6.rfn" "OMGRFN6 rejects OMGRSW1"
+observe 251 "$T/api-v2-no-field.rfn" "OMGRSW2 requires a field call"
+
+# Unknown and chained/computed receiver spellings fail from source semantics,
+# before a mismatched but otherwise valid OMGRSW2 can supply authority.
+python3 -B - "$T/field-harness.omg" "$T/field-unknown.omg" "$T/field-chained.omg" <<'PY'
+from pathlib import Path
+import sys
+s = Path(sys.argv[1]).read_text(encoding="ascii")
+Path(sys.argv[2]).write_text(s.replace("self.child.load()", "self.absent.load()"), encoding="ascii")
+Path(sys.argv[3]).write_text(s.replace("self.child.load()", "self.child.value.load()"), encoding="ascii")
+PY
+python3 -B "$BUILDER" build "$T/field-unknown.omgc" Parent run "$T/field-source.omg" "$T/field-unknown.omg"
+python3 -B "$BUILDER" build "$T/field-chained.omgc" Parent run "$T/field-source.omg" "$T/field-chained.omg"
+pack6 field-unknown "$T/field-unknown.omgc" "$T/field.witness"
+pack6 field-chained "$T/field-chained.omgc" "$T/field.witness"
+observe 251 "$T/field-unknown.rfn" "unknown direct receiver field"
+observe 251 "$T/field-chained.rfn" "chained field receiver"
+
 make_mutations() { # carrier name
 python3 - "$T/$1.witness" "$T/$1-mutations" <<'PY'
 from pathlib import Path
@@ -391,6 +521,7 @@ PY
 }
 make_mutations exact
 make_mutations api
+make_mutations field
 for CARRIER in exact api; do
   while IFS= read -r NAME; do
     pack "$CARRIER-mutation-$NAME" "$T/$CARRIER.omgc" \
@@ -399,6 +530,11 @@ for CARRIER in exact api; do
       "$CARRIER $NAME mutation"
   done < "$T/$CARRIER-mutations/manifest"
 done
+while IFS= read -r NAME; do
+  pack6 "field-mutation-$NAME" "$T/field.omgc" \
+    "$T/field-mutations/$NAME.witness"
+  observe 251 "$T/field-mutation-$NAME.rfn" "OMGRFN6 field $NAME mutation"
+done < "$T/field-mutations/manifest"
 
 # Missing role-3 resolution is independently rejected from source, and the
 # production resolver agrees without publishing a witness.
@@ -442,6 +578,15 @@ over = bytearray(raw); struct.pack_into("<I", over, 20, 524289); Path(sys.argv[3
 PY
 observe 251 "$T/bad-version.rfn" "malformed V5 version"
 observe 252 "$T/witness-over.rfn" "declared witness exhaustion"
+python3 -B - "$T/field.rfn" "$T/field-bad-version.rfn" "$T/field-witness-over.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = Path(sys.argv[1]).read_bytes()
+bad = bytearray(raw); struct.pack_into("<I", bad, 8, 5); Path(sys.argv[2]).write_bytes(bad)
+over = bytearray(raw); struct.pack_into("<I", over, 20, 524289); Path(sys.argv[3]).write_bytes(over)
+PY
+observe 251 "$T/field-bad-version.rfn" "malformed V6 version"
+observe 252 "$T/field-witness-over.rfn" "V6 declared witness exhaustion"
 
 python3 - "$T/token-over.omg" <<'PY'
 from pathlib import Path
@@ -457,5 +602,5 @@ END_NS=$(python3 -c 'import time; print(time.time_ns())')
 BUILD_MS=$(( (BUILD_NS - START_NS) / 1000000 ))
 RUN_MS=$(( (END_NS - BUILD_NS) / 1000000 ))
 TOTAL_MS=$(( (END_NS - START_NS) / 1000000 ))
-echo "OMGRFN5 responsibility 2: exact and complete-SourceUnit-API source carriers, count-derived OMGRSW1 reconstruction, corrected parameter spans, renamed/reordered/cross-pair controls, mutations, opacity, V4/V5 separation, and 0/251/252 passed"
-echo "OMGRFN5 responsibility 2 resources: ${PROCEDURES}/128 procedures; ${MAX_LOCALS}/32 locals; ${TAPE_BYTES}/262140 checker tape bytes; ${BC1_TAPE}+4/${HOLE_SIZE} self-Beta bytes; 18000 tokens/source; build=${BUILD_MS}ms matrix=${RUN_MS}ms total=${TOTAL_MS}ms"
+echo "OMGRFN5/6 responsibility 2: frozen OMGRSW1 carriers and same-module OMGRSW2 self.field.machine carrier, direct shared/mutable Unit/scalar calls, strict V5/V6 cross-pairs, field/role-3 mutations, unknown/chained rejection, opacity, and 0/251/252 passed native/self"
+echo "OMGRFN5/6 responsibility 2 resources: ${PROCEDURES}/128 procedures; ${MAX_LOCALS}/32 locals; ${TAPE_BYTES}/262140 checker tape bytes; ${BC1_TAPE}+4/${HOLE_SIZE} self-Beta bytes; 18000 tokens/source; build=${BUILD_MS}ms matrix=${RUN_MS}ms total=${TOTAL_MS}ms"

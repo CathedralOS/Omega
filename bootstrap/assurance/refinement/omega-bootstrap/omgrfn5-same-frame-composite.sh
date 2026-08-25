@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Same-exact-frame composition of all five independent OMGRFN5 duties.
+# Same-exact-frame composition of all five independent OMGRFN5/6 duties.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -41,6 +41,7 @@ R5ARTIFACT=$R/ckir4-refinement-artifact.beta
 R5RESULT=$R/ckir4-refinement-result.beta
 R5ELF=$R/ckir4-refinement-elf.beta
 PACKER=$R/omgrfn5_bundle.py
+PACKER6=$R/omgrfn6_bundle.py
 BUILDER=$G/delta-resolved-to-ckir4-fixture.py
 LOW_FRAME=$G/delta-resolved-to-ckir4-frame.py
 IR_REFERENCE=$G/checked_ir_v4_reference.py
@@ -51,7 +52,7 @@ BACKEND=$C/omega-bootstrap-checked-ir-v4-to-elf.alp
 SOURCE=$OMEGA_REPO_ROOT/compiler/psi/source/source.omg
 FIXTURES=$G/fixtures/ckir4-runtime-records
 CHECKERS='r1 r2 r3 r4-lowering r4-source-lowering r4-source-result r5-result r5-elf'
-for REQUIRED in "$ENVELOPE" "$R1" "$R1CORE" "$R2" "$R2CORE" "$R3" "$R4" "$R4BASE" "$R4MODEL" "$R4COMMON" "$R4V3" "$R4OPS" "$R4RESULT" "$R5ARTIFACT" "$R5RESULT" "$R5ELF" "$PACKER" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$RESOLVER" "$LOWERER" "$BACKEND" "$SOURCE" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/authored-declaration-order.omg"; do
+for REQUIRED in "$ENVELOPE" "$R1" "$R1CORE" "$R2" "$R2CORE" "$R3" "$R4" "$R4BASE" "$R4MODEL" "$R4COMMON" "$R4V3" "$R4OPS" "$R4RESULT" "$R5ARTIFACT" "$R5RESULT" "$R5ELF" "$PACKER" "$PACKER6" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$RESOLVER" "$LOWERER" "$BACKEND" "$SOURCE" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/authored-declaration-order.omg" "$FIXTURES/source-unit-field-harness.omg"; do
   [ -f "$REQUIRED" ] || { echo "OMGRFN5 same-frame composite: missing $REQUIRED" >&2; exit 1; }
 done
 
@@ -165,6 +166,22 @@ cp "$R3" "$T/r3.beta"
 # Reproduce the focused R4 compositions, including the physically artifact-free
 # source evaluator. The R4 fragment owns its source/witness adapters locally.
 sed 's/omgrfn2_component/omgrfn5_component/g' "$R4BASE" > "$T/r4-base-all.beta"
+# Compose the shared R4 implementation exactly as its focused gate does: the
+# shared carrier decoder publishes version 5/6 at word[524376], and only this
+# generated copy specializes the frozen witness reader to the owning pair.
+python3 -B - "$T/r4-base-all.beta" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text(encoding="ascii")
+old="    state magic6 { to bad when (l4_wbyte(6) != '1')  to magic7 }"
+new="    state magic6 { to bad when (l4_wbyte(6) - 44 != word[524376])  to magic7 }"
+if s.count(old)!=1: raise SystemExit("composite R4 witness magic relation anchor")
+s=s.replace(old,new)
+old="        to bad when (l4_wbyte(8) != 1)"
+new="        to bad when (l4_wbyte(8) + 4 != word[524376])"
+if s.count(old)!=1: raise SystemExit("composite R4 witness schema relation anchor")
+p.write_text(s.replace(old,new),encoding="ascii")
+PY
 filter_procs "$T/r4-base-all.beta" "$T/r4-base.beta" 'l4_model_declarations,l4_model_types_records_fields,l4_model_machines_blocks,l4_model_prepare'
 python3 -B - "$R4MODEL" "$T/r4-model.beta" <<'PY'
 from pathlib import Path
@@ -208,16 +225,18 @@ from pathlib import Path
 import sys
 Path(sys.argv[1]).write_text('''proc omgrfn5_r4_source_lowering_check() {
     let status=omgrfn5_component_read()
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() to lowering }
-    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) status=v5s_prepare_objects() to done when (status!=0) status=v5_direct_edge_check() to done }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[20500032]=0 to lowering }
+    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) to bad when (word[20500032]+6-word[524376]==0) status=v5s_prepare_objects() to done when (status!=0) status=v5_direct_edge_check() to done }
+    state bad { status=src_reject() to done }
     state done { return status }
 }
 proc main() { return omgrfn5_r4_source_lowering_check() }
 ''',encoding="ascii")
 Path(sys.argv[2]).write_text('''proc omgrfn5_r4_source_result_check() {
     let status=omgrfn5_component_read()
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() to lowering }
-    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) v5s_prepare_objects() status=v4s_source_result_check() to done }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[20500032]=0 to lowering }
+    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) to bad when (word[20500032]+6-word[524376]==0) v5s_prepare_objects() status=v4s_source_result_check() to done }
+    state bad { status=src_reject() to done }
     state done { return status }
 }
 proc main() { return omgrfn5_r4_source_result_check() }
@@ -284,7 +303,32 @@ lean='''proc v5s_prepare_objects() {
     state operation { to next when (src_lower_op(op,0)!=machine) to next when (src_lower_op(op,2)!=13) value=src_lower_op(op,4) size=v4s_type_size(src_lower_op(op,5)) word[43500000+value*8]=cursor cursor=cursor+size to next }
     state next { op=op+1 to operations }
 }'''
-p.write_text(s[:m.start()]+lean+s[end:],encoding="ascii")
+s=s[:m.start()]+lean+s[end:]
+# R1--R3 own fixed transport identities. Retain the bounded table/extent walks
+# and carrier/witness relation bytes in this artifact-free R4 source-result
+# composition while pruning only their duplicate fixed magic chains.
+def rewrite_proc(source,name,edit):
+    m=re.search(rf"(?m)^proc {name}\([^)]*\) \{{",source)
+    if not m: raise SystemExit("composite source-result premise proc "+name)
+    d=1; end=m.end()
+    while d: d+=(source[end]=="{")-(source[end]=="}"); end+=1
+    return source[:m.start()]+edit(source[m.start():end])+source[end:]
+def lean_sources(body):
+    body=body.replace("state size { to bad when (n < 80)  to magic0 }","state size { to bad when (n < 80)  to header }",1)
+    for prefix in ("magic", "bundle_magic"):
+        for i in range(8):
+            body,n=re.subn(rf"(?m)^    state {prefix}{i} \{{[^\n]*\}}\n", "", body, count=1)
+            if n!=1: raise SystemExit("composite source-result premise chain "+prefix+str(i))
+    return body.replace("        to bundle_magic0\n", "        to bundle_header\n", 1)
+def lean_witness(body):
+    body=body.replace("state size { to bad when (n < 72)  to magic0 }","state size { to bad when (n < 72)  to magic6 }",1)
+    for i in range(6):
+        body,n=re.subn(rf"(?m)^    state magic{i} \{{[^\n]*\}}\n", "", body, count=1)
+        if n!=1: raise SystemExit("composite source-result witness premise chain "+str(i))
+    return body
+s=rewrite_proc(s,"l4_decode_sources",lean_sources)
+s=rewrite_proc(s,"l4_decode_witness",lean_witness)
+p.write_text(s,encoding="ascii")
 PY
 prune "$T/r4-source-lowering-all.beta" "$T/r4-source-lowering.beta" main
 prune "$T/r4-source-result-all.beta" "$T/r4-source-result.beta" main
@@ -362,8 +406,8 @@ for SPEC in "resolver:$RESOLVER" "lowerer:$LOWERER" "backend:$BACKEND"; do
 done
 wait_all $PIDS
 
-build_product() { # label owner machine source...
-  BP_LABEL=$1 BP_OWNER=$2 BP_MACHINE=$3; shift 3
+build_product() { # label witness-relation owner machine source...
+  BP_LABEL=$1 BP_RELATION=$2 BP_OWNER=$3 BP_MACHINE=$4; shift 4
   observe "$BP_LABEL-builder" 0 30 /dev/null "$T/$BP_LABEL.builder" yes python3 -B "$BUILDER" build "$T/$BP_LABEL.omgc" "$BP_OWNER" "$BP_MACHINE" "$@"
   observe "$BP_LABEL-resolver" 0 45 "$T/$BP_LABEL.omgc" "$T/$BP_LABEL.witness" no "$T/resolver"
   observe "$BP_LABEL-frame" 0 20 /dev/null "$T/$BP_LABEL.low4" no python3 -B "$LOW_FRAME" pack "$T/$BP_LABEL.omgc" "$T/$BP_LABEL.witness"
@@ -373,11 +417,27 @@ build_product() { # label owner machine source...
   observe "$BP_LABEL-result" 0 30 /dev/null "$T/$BP_LABEL.result" no python3 -B "$IR_REFERENCE" run "$T/$BP_LABEL.ckir4"
   observe "$BP_LABEL-elf" 0 30 /dev/null "$T/$BP_LABEL.elf-check" no python3 -B "$ELF_REFERENCE" check "$T/$BP_LABEL.ckir4" "$T/$BP_LABEL.elf"
   [ "$(tr -d '\n' < "$T/$BP_LABEL.result")" = 70 ] || { echo "OMGRFN5 composite: $BP_LABEL result drift" >&2; exit 1; }
-  observe "$BP_LABEL-pack" 0 20 /dev/null "$T/$BP_LABEL.rfn" no python3 -B "$PACKER" "$T/$BP_LABEL.omgc" "$T/$BP_LABEL.witness" "$T/$BP_LABEL.ckir4" "$T/$BP_LABEL.elf" --result 70
+  BP_PACKER=$PACKER
+  [ "$BP_RELATION" -eq 1 ] || BP_PACKER=$PACKER6
+  python3 - "$T/$BP_LABEL.witness" "$BP_RELATION" <<'PY'
+from pathlib import Path
+import struct,sys
+raw=Path(sys.argv[1]).read_bytes(); relation=int(sys.argv[2])
+if len(raw)<12 or raw[:8]!=b"OMGRSW"+bytes((48+relation,0)):
+    raise SystemExit("composite producer emitted the wrong witness identity")
+if struct.unpack_from("<H",raw,8)[0]!=relation:
+    raise SystemExit("composite producer emitted the wrong witness schema major")
+PY
+  observe "$BP_LABEL-pack" 0 20 /dev/null "$T/$BP_LABEL.rfn" no python3 -B "$BP_PACKER" "$T/$BP_LABEL.omgc" "$T/$BP_LABEL.witness" "$T/$BP_LABEL.ckir4" "$T/$BP_LABEL.elf" --result 70
 }
-build_product exact SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$FIXTURES/source-unit-harness.omg"
-build_product authored RuntimePairProbe run "$FIXTURES/authored-declaration-order.omg"
-build_product source-api SourceUnit bootstrap_source_api_probe "$SOURCE" "$FIXTURES/source-unit-api-harness.omg"
+build_product exact 1 SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$FIXTURES/source-unit-harness.omg"
+build_product authored 1 RuntimePairProbe run "$FIXTURES/authored-declaration-order.omg"
+build_product source-api 1 SourceUnit bootstrap_source_api_probe "$SOURCE" "$FIXTURES/source-unit-api-harness.omg"
+# Exact production SourceUnit plus a two-unit SourceHost harness. SourceUnit is
+# at a nonzero root offset and clear/append/byte_or_nul all use self.source as a
+# direct field receiver, making receiver-base transport observable at result70.
+build_product source-host 2 SourceHost run \
+  "$SOURCE" "$FIXTURES/source-unit-field-harness.omg"
 for COMPONENT in omgc witness ckir4 elf; do
   for CONTROL in authored source-api; do
     cmp -s "$T/exact.$COMPONENT" "$T/$CONTROL.$COMPONENT" && {
@@ -386,10 +446,11 @@ for COMPONENT in omgc witness ckir4 elf; do
     }
   done
 done
-python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/exact.sha256" "$T/source-api.sha256" <<'PY'
+python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/source-host.rfn" \
+  "$T/exact.sha256" "$T/source-api.sha256" "$T/source-host.sha256" <<'PY'
 from pathlib import Path
 import hashlib,sys
-for source,digest in ((sys.argv[1],sys.argv[3]),(sys.argv[2],sys.argv[4])):
+for source,digest in zip(sys.argv[1:4],sys.argv[4:7]):
  raw=Path(source).read_bytes(); Path(digest).write_text(hashlib.sha256(raw).hexdigest()+"\n",encoding="ascii")
 PY
 
@@ -399,6 +460,33 @@ check() { # checker route expected input case
 }
 for NAME in $CHECKERS; do check "$NAME" native 0 "$T/exact.rfn" exact; check "$NAME" self 0 "$T/exact.rfn" exact; done
 for NAME in $CHECKERS; do check "$NAME" native 0 "$T/source-api.rfn" source-api; check "$NAME" self 0 "$T/source-api.rfn" source-api; done
+for NAME in $CHECKERS; do check "$NAME" native 0 "$T/source-host.rfn" source-host-v6; check "$NAME" self 0 "$T/source-host.rfn" source-host-v6; done
+
+# Carrier/witness identity belongs to R2-R4. R1 and both R5 components validate
+# the exact outer envelope but deliberately retain witness identity as opaque.
+# Derive both cross-pairs from already immutable canonical products so no
+# malformed component can accidentally own the rejection.
+python3 - "$T/exact.rfn" "$T/source-host.rfn" \
+  "$T/outer6-witness1.rfn" "$T/outer5-witness2.rfn" <<'PY'
+from pathlib import Path
+import struct,sys
+raw=bytearray(Path(sys.argv[1]).read_bytes())
+raw[6]=ord("6"); struct.pack_into("<I",raw,8,6)
+Path(sys.argv[3]).write_bytes(raw)
+raw=bytearray(Path(sys.argv[2]).read_bytes())
+raw[6]=ord("5"); struct.pack_into("<I",raw,8,5)
+Path(sys.argv[4]).write_bytes(raw)
+PY
+for ROUTE in native self; do
+  for NAME in r1 r5-result r5-elf; do
+    check "$NAME" "$ROUTE" 0 "$T/outer6-witness1.rfn" omgrfn6-omgrsw1-witness-opaque
+    check "$NAME" "$ROUTE" 0 "$T/outer5-witness2.rfn" omgrfn5-omgrsw2-witness-opaque
+  done
+  for NAME in r2 r3 r4-lowering r4-source-lowering r4-source-result; do
+    check "$NAME" "$ROUTE" 251 "$T/outer6-witness1.rfn" omgrfn6-omgrsw1-cross-pair
+    check "$NAME" "$ROUTE" 251 "$T/outer5-witness2.rfn" omgrfn5-omgrsw2-cross-pair
+  done
+done
 
 pack_cross() { # label comp witness ckir elf result
   PC_LABEL=$1
@@ -485,16 +573,18 @@ check r5-elf native 251 "$T/elf-byte.rfn" elf-byte
 for NAME in $CHECKERS; do check "$NAME" native 252 "$T/frame-over.rfn" frame-over; done
 for NAME in $CHECKERS; do check "$NAME" native 251 "$T/version4.rfn" version-separation; done
 
-python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/exact.sha256" "$T/source-api.sha256" <<'PY'
+python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/source-host.rfn" \
+  "$T/exact.sha256" "$T/source-api.sha256" "$T/source-host.sha256" <<'PY'
 from pathlib import Path
 import hashlib,sys
-for label,source,digest in (("exact",sys.argv[1],sys.argv[3]),("source-api",sys.argv[2],sys.argv[4])):
+for label,source,digest in zip(("exact","source-api","source-host-v6"),sys.argv[1:4],sys.argv[4:7]):
  expected=Path(digest).read_text(encoding="ascii").strip(); actual=hashlib.sha256(Path(source).read_bytes()).hexdigest()
- if actual!=expected: raise SystemExit(f"OMGRFN5 composite: immutable {label} carrier changed")
+ if actual!=expected: raise SystemExit(f"OMGRFN5/6 composite: immutable {label} carrier changed")
 PY
 
 for NAME in $CHECKERS; do cat "$T/$NAME.resources"; done > "$T/resources.tsv"
-python3 - "$T/timings.tsv" "$T/resources.tsv" "$T/exact.rfn" "$T/source-api.rfn" "$T/started" <<'PY'
+python3 - "$T/timings.tsv" "$T/resources.tsv" "$T/exact.rfn" "$T/source-api.rfn" \
+  "$T/source-host.rfn" "$T/started" <<'PY'
 from collections import defaultdict
 from pathlib import Path
 import sys,time
@@ -509,8 +599,8 @@ for line in Path(sys.argv[1]).read_text(encoding="ascii").splitlines():
 resources=[]
 for line in Path(sys.argv[2]).read_text(encoding="ascii").splitlines():
  name,procs,locals_,tape=line.split("\t"); resources.append(f"{name}={procs}p/{locals_}l/{tape}b")
-slow=sorted(rows,reverse=True)[:4]; wall=time.time()-float(Path(sys.argv[5]).read_text())
-print("OMGRFN5 same-frame composite timings: "+" ".join(f"{n}=build{builds[n]:.3f}s/run{runs[n]:.3f}s" for n in names)+f" producer={producer:.3f}s command-sum={sum(s for s,_ in rows):.3f}s wall={wall:.3f}s slowest="+",".join(f"{label}:{sec:.3f}s" for sec,label in slow))
-print("OMGRFN5 same-frame composite resources: "+" ".join(resources))
-print(f"OMGRFN5 same-frame composite: all five responsibilities accepted immutable {Path(sys.argv[3]).stat().st_size}-byte exact SourceUnit+harness and {Path(sys.argv[4]).stat().st_size}-byte complete SourceUnit API carriers; API-specific source/witness, witness/CKIR4, CKIR4/ELF, and result cross-pairs; original-carrier physical opacity, local mutations, and resources; native/self positives; and 0/251/252 passed")
+slow=sorted(rows,reverse=True)[:4]; wall=time.time()-float(Path(sys.argv[6]).read_text())
+print("OMGRFN5/6 same-frame composite timings: "+" ".join(f"{n}=build{builds[n]:.3f}s/run{runs[n]:.3f}s" for n in names)+f" producer={producer:.3f}s command-sum={sum(s for s,_ in rows):.3f}s wall={wall:.3f}s slowest="+",".join(f"{label}:{sec:.3f}s" for sec,label in slow))
+print("OMGRFN5/6 same-frame composite resources: "+" ".join(resources))
+print(f"OMGRFN5/6 same-frame composite: all five responsibilities accepted immutable {Path(sys.argv[3]).stat().st_size}-byte exact SourceUnit+harness, {Path(sys.argv[4]).stat().st_size}-byte complete SourceUnit API, and {Path(sys.argv[5]).stat().st_size}-byte exact SourceHost->SourceUnit field-receiver OMGRFN6 carriers across all eight native/self executables; exact V5/SW1 and V6/SW2 boundary controls retain R1/R5 witness opacity; API-specific joins, original-carrier physical opacity, local mutations, and 0/251/252 passed")
 PY

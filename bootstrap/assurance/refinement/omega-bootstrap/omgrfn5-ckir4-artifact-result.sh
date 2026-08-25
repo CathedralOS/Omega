@@ -29,6 +29,7 @@ STRUCTURE=$R/ckir4-refinement-artifact.beta
 RESULT=$R/ckir4-refinement-result.beta
 CASES=$R/omgrfn5_r5_cases.py
 PACKER=$R/omgrfn5_bundle.py
+PACKER6=$R/omgrfn6_bundle.py
 FIXTURE_TOOL=$G/delta-checked-ir-v4-fixture.py
 BUILDER=$G/delta-resolved-to-ckir4-fixture.py
 LOW_FRAME=$G/delta-resolved-to-ckir4-frame.py
@@ -37,7 +38,7 @@ HARNESS=$G/fixtures/ckir4-runtime-records/source-unit-harness.omg
 V4_ENVELOPE=$R/omgrfn4-component-envelope.beta
 V4_STRUCTURE=$R/ckir3-refinement-artifact.beta
 V4_RESULT=$R/ckir3-refinement-result.beta
-for FILE in "$ENVELOPE" "$STRUCTURE" "$RESULT" "$CASES" "$PACKER" "$FIXTURE_TOOL" "$BUILDER" "$LOW_FRAME" "$SOURCE" "$HARNESS" "$V4_ENVELOPE" "$V4_STRUCTURE" "$V4_RESULT"; do
+for FILE in "$ENVELOPE" "$STRUCTURE" "$RESULT" "$CASES" "$PACKER" "$PACKER6" "$FIXTURE_TOOL" "$BUILDER" "$LOW_FRAME" "$SOURCE" "$HARNESS" "$V4_ENVELOPE" "$V4_STRUCTURE" "$V4_RESULT"; do
   [ -f "$FILE" ] || { echo "OMGRFN5 responsibility 5 result: missing $FILE" >&2; exit 1; }
 done
 
@@ -97,6 +98,37 @@ printf opaque-result-elf > "$T/opaque.elf"
 observe 10 - "$T/exact.rfn" 0 exact-pack python3 -B "$PACKER" "$T/exact.omgc" "$T/exact.witness" "$T/exact.ckir4" "$T/opaque.elf" --result 70
 run_both "$T/exact.rfn" 0 exact-source-result70
 
+# R5 dispatches both exact outer carriers but does not consume witness identity;
+# the OMGRFN5/6 <-> OMGRSW1/2 pair is R3's responsibility.
+python3 - "$T/exact.witness" "$T/exact.witness2" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = bytearray(Path(sys.argv[1]).read_bytes())
+raw[6] = ord("2"); struct.pack_into("<I", raw, 8, 2)
+Path(sys.argv[2]).write_bytes(raw)
+PY
+observe 10 - "$T/exact6.rfn" 0 exact6-pack python3 -B "$PACKER6" \
+  "$T/exact.omgc" "$T/exact.witness2" "$T/exact.ckir4" "$T/opaque.elf" --result 70
+python3 - "$T/exact6.rfn" "$T/v6-witness-identity-opaque-to-r5.rfn" \
+  "$T/v6-magic5-version6.rfn" "$T/v6-magic6-version5.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+canonical = Path(sys.argv[1]).read_bytes()
+omgcomp_length = struct.unpack_from("<I", canonical, 16)[0]
+witness_at = 40 + omgcomp_length
+raw = bytearray(canonical); raw[witness_at + 6] = ord("X")
+Path(sys.argv[2]).write_bytes(raw)
+raw = bytearray(canonical); raw[6] = ord("5")
+Path(sys.argv[3]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<I", raw, 8, 5)
+Path(sys.argv[4]).write_bytes(raw)
+PY
+run_both "$T/exact6.rfn" 0 exact-omgrfn6-result70
+run_both "$T/v6-witness-identity-opaque-to-r5.rfn" 0 \
+  omgrfn6-witness-identity-opaque-to-r5-result
+run_both "$T/v6-magic5-version6.rfn" 251 omgrfn5-magic-version6-result
+run_both "$T/v6-magic6-version5.rfn" 251 omgrfn6-magic-version5-result
+
 observe 20 - - 0 fixture-emit python3 -B "$FIXTURE_TOOL" emit "$T/fixtures"
 python3 -B "$CASES" constructor-cases "$T/exact.rfn" "$T/fixtures" "$T/constructor-cases"
 while IFS="$(printf '\t')" read -r NAME EXPECTED; do run_both "$T/constructor-cases/$NAME.rfn" "$EXPECTED" "$NAME"; done < "$T/fixtures/manifest.tsv"
@@ -121,4 +153,4 @@ observe 45 "$T/exact.rfn" "$T/frozen-v4-rejects-v5.out" 251 frozen-v4-rejects-v5
 run_both "$T/wrong-result.rfn" 251 wrong-claimed-result
 
 python3 -B "$CASES" report "$T/timings.tsv"
-echo "OMGRFN5 responsibility 5 result: exact source CKIR4/result70, immutable nested constructor objects, structural Call/Copy, direct-edge/opcode mutations, 64/65 frames, 65536/65537 entries, V4/V5 separation, native/self persisted Beta, and 0/251/252 passed ($PROCEDURES/128 procedures; $MAX_LOCALS/32 locals; $TAPE_BYTES/262140 tape bytes)"
+echo "OMGRFN5/6 responsibility 5 result: exact v5/v6 outer dispatch with witness identity opaque to R5, source CKIR4/result70, immutable nested constructor objects, structural Call/Copy, direct-edge/opcode mutations, 64/65 frames, 65536/65537 entries, V4/V5/V6 separation, native/self persisted Beta, and 0/251/252 passed ($PROCEDURES/128 procedures; $MAX_LOCALS/32 locals; $TAPE_BYTES/262140 tape bytes)"

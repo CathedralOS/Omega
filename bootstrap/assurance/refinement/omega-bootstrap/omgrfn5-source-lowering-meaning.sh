@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Focused persisted-Beta OMGRFN5 responsibility-4 source-lowering/meaning gate.
+# Focused persisted-Beta OMGRFN5/6 responsibility-4 source-lowering/meaning gate.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -33,6 +33,7 @@ V4OPS=$R/omgrfn4-operation-lowering.beta
 V4RESULT=$R/omgrfn4-source-only-result.beta
 R4=$R/omgrfn5-source-lowering-meaning.beta
 PACKER=$R/omgrfn5_bundle.py
+PACKER6=$R/omgrfn6_bundle.py
 BUILDER=$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-fixture.py
 LOW_FRAME=$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-frame.py
 RESOLVER=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp
@@ -40,7 +41,7 @@ LOWERER=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolved-to-ckir4.a
 BACKEND=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-v4-to-elf.alp
 FIXTURES=$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records
 EXACT=$OMEGA_REPO_ROOT/compiler/psi/source/source.omg
-for REQUIRED in "$ENVELOPE" "$BASE" "$MODEL" "$COMMON" "$V3" "$V4OPS" "$V4RESULT" "$R4" "$PACKER" "$BUILDER" "$LOW_FRAME" "$RESOLVER" "$LOWERER" "$BACKEND" "$EXACT" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/source-unit-api-analogue.omg" "$FIXTURES/constant-assignment.omg"; do
+for REQUIRED in "$ENVELOPE" "$BASE" "$MODEL" "$COMMON" "$V3" "$V4OPS" "$V4RESULT" "$R4" "$PACKER" "$PACKER6" "$BUILDER" "$LOW_FRAME" "$RESOLVER" "$LOWERER" "$BACKEND" "$EXACT" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/source-unit-api-analogue.omg" "$FIXTURES/constant-assignment.omg" "$FIXTURES/direct-field-receiver.omg"; do
   [ -f "$REQUIRED" ] || { echo "OMGRFN5 responsibility 4: missing $REQUIRED" >&2; exit 1; }
 done
 
@@ -92,6 +93,22 @@ PY
 }
 
 sed 's/omgrfn2_component/omgrfn5_component/g' "$BASE" > "$T/base-all.beta"
+# The shared carrier decoder records the exact frame version in word[524376].
+# Specialize only this composed copy of the frozen model so the same R4
+# executable admits precisely OMGRFN5/OMGRSW1 or OMGRFN6/OMGRSW2.
+python3 -B - "$T/base-all.beta" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text(encoding="ascii")
+old="    state magic6 { to bad when (l4_wbyte(6) != '1')  to magic7 }"
+new="    state magic6 { to bad when (l4_wbyte(6) - 44 != word[524376])  to magic7 }"
+if s.count(old)!=1: raise SystemExit("witness magic relation anchor")
+s=s.replace(old,new)
+old="        to bad when (l4_wbyte(8) != 1)"
+new="        to bad when (l4_wbyte(8) + 4 != word[524376])"
+if s.count(old)!=1: raise SystemExit("witness schema relation anchor")
+p.write_text(s.replace(old,new),encoding="ascii")
+PY
 filter_procs "$T/base-all.beta" "$T/base.beta" 'l4_model_declarations,l4_model_types_records_fields,l4_model_machines_blocks,l4_model_prepare'
 # R2/R3 own complete witness/table canonicity.  R4 retains the loader's exact
 # projections but consumes that validated premise instead of duplicating every
@@ -138,8 +155,9 @@ filter_procs "$R4" "$T/r4-source.beta" 'v5_ckir_header_check,omgrfn5_r4_lowering
 cat > "$T/source-lowering-main.beta" <<'EOF'
 proc omgrfn5_r4_source_lowering_check() {
     let status=omgrfn5_component_read()
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() to lowering }
-    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) status=v5s_prepare_objects() to done when (status!=0) status=v5_direct_edge_check() to done }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[20500032]=0 to lowering }
+    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) to bad when (word[20500032]+6-word[524376]==0) status=v5s_prepare_objects() to done when (status!=0) status=v5_direct_edge_check() to done }
+    state bad { status=src_reject() to done }
     state done { return status }
 }
 proc main() { return omgrfn5_r4_source_lowering_check() }
@@ -147,8 +165,9 @@ EOF
 cat > "$T/source-result-main.beta" <<'EOF'
 proc omgrfn5_r4_source_result_check() {
     let status=omgrfn5_component_read()
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() to lowering }
-    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) v5s_prepare_objects() status=v4s_source_result_check() to done }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[20500032]=0 to lowering }
+    state lowering { status=src_reconstruct_lowering_check() to done when (status!=0) to bad when (word[20500032]+6-word[524376]==0) v5s_prepare_objects() status=v4s_source_result_check() to done }
+    state bad { status=src_reject() to done }
     state done { return status }
 }
 proc main() { return omgrfn5_r4_source_result_check() }
@@ -214,7 +233,32 @@ lean='''proc v5s_prepare_objects() {
     state operation { to next when (src_lower_op(op,0)!=machine) to next when (src_lower_op(op,2)!=13) value=src_lower_op(op,4) size=v4s_type_size(src_lower_op(op,5)) word[43500000+value*8]=cursor cursor=cursor+size to next }
     state next { op=op+1 to operations }
 }'''
-p.write_text(s[:m.start()]+lean+s[end:],encoding="ascii")
+s=s[:m.start()]+lean+s[end:]
+# R1--R3 own the fixed transport identities.  This physically artifact-free
+# executable retains every bounded table/extent walk and the carrier/witness
+# relation bytes, while omitting duplicate magic-byte state chains.
+def rewrite_proc(source,name,edit):
+    m=re.search(rf"(?m)^proc {name}\([^)]*\) \{{",source)
+    if not m: raise SystemExit("source-result premise proc "+name)
+    d=1; end=m.end()
+    while d: d+=(source[end]=="{")-(source[end]=="}"); end+=1
+    return source[:m.start()]+edit(source[m.start():end])+source[end:]
+def lean_sources(body):
+    body=body.replace("state size { to bad when (n < 80)  to magic0 }","state size { to bad when (n < 80)  to header }",1)
+    for prefix in ("magic", "bundle_magic"):
+        for i in range(8):
+            body,n=re.subn(rf"(?m)^    state {prefix}{i} \{{[^\n]*\}}\n", "", body, count=1)
+            if n!=1: raise SystemExit("source-result premise chain "+prefix+str(i))
+    return body.replace("        to bundle_magic0\n", "        to bundle_header\n", 1)
+def lean_witness(body):
+    body=body.replace("state size { to bad when (n < 72)  to magic0 }","state size { to bad when (n < 72)  to magic6 }",1)
+    for i in range(6):
+        body,n=re.subn(rf"(?m)^    state magic{i} \{{[^\n]*\}}\n", "", body, count=1)
+        if n!=1: raise SystemExit("source-result witness premise chain "+str(i))
+    return body
+s=rewrite_proc(s,"l4_decode_sources",lean_sources)
+s=rewrite_proc(s,"l4_decode_witness",lean_witness)
+p.write_text(s,encoding="ascii")
 PY
 prune "$T/source-lowering-all.beta" "$T/source-lowering.beta" main
 prune "$T/source-result-all.beta" "$T/source-result.beta" main
@@ -300,7 +344,17 @@ build_case() { # name owner machine source...
   mv "$T/$NAME-lowerer.out" "$T/$NAME.ckir"
   observe "$T/backend" "$T/$NAME.ckir" 0 "$NAME-backend"
   mv "$T/$NAME-backend.out" "$T/$NAME.elf"
-  python3 -B "$PACKER" "$T/$NAME.omgc" "$T/$NAME.witness" "$T/$NAME.ckir" "$T/$NAME.elf" --result 70 > "$T/$NAME.rfn"
+  WITNESS_RELATION=$(python3 -B - "$T/$NAME.witness" <<'PY'
+from pathlib import Path
+import sys
+b=Path(sys.argv[1]).read_bytes()
+print(b[6] if len(b)>6 else 0)
+PY
+)
+  CASE_PACKER=$PACKER
+  [ "$WITNESS_RELATION" -eq 50 ] && CASE_PACKER=$PACKER6
+  [ "$WITNESS_RELATION" -eq 49 ] || [ "$WITNESS_RELATION" -eq 50 ] || { echo "OMGRFN5/6 responsibility 4: $NAME unknown witness relation" >&2; exit 1; }
+  python3 -B "$CASE_PACKER" "$T/$NAME.omgc" "$T/$NAME.witness" "$T/$NAME.ckir" "$T/$NAME.elf" --result 70 > "$T/$NAME.rfn"
 }
 
 build_case exact SourceUnit bootstrap_runtime_record_probe "$EXACT" "$FIXTURES/source-unit-harness.omg"
@@ -335,12 +389,94 @@ build_case authored RuntimePairProbe run "$FIXTURES/authored-declaration-order.o
 build_case reordered RuntimePairProbe run "$FIXTURES/declaration-order.omg"
 build_case nested NestedRuntimeProbe run "$FIXTURES/nested-runtime.omg"
 build_case direct DirectCallProbe run "$FIXTURES/direct-call.omg"
-for CASE in exact source_api renamed_api authored reordered nested direct; do
+build_case field_receiver FieldReceiverProbe run "$FIXTURES/direct-field-receiver.omg"
+for CASE in exact source_api renamed_api authored reordered nested direct field_receiver; do
   observe "$T/lowering" "$T/$CASE.rfn" 0 "$CASE-lowering"
   observe "$T/source-lowering" "$T/$CASE.rfn" 0 "$CASE-source-lowering"
   observe "$T/source-result" "$T/$CASE.rfn" 0 "$CASE-source-result"
 done
 cmp "$T/authored.ckir" "$T/reordered.ckir" >/dev/null
+
+# OMGRFN6 preserves byte-identical CKIR4.  Inspect both direct calls: their
+# receiver is the result of FieldPlace(SelfPlace), and the selected field has a
+# nonzero compact-record offset so artifact-free result 70 exercises the base.
+python3 -B - "$T/field_receiver.ckir" <<'PY'
+from pathlib import Path
+import struct,sys
+b=Path(sys.argv[1]).read_bytes(); counts=struct.unpack_from("<14I",b,24); at=80
+sizes=(24,20,16,36,20,32,20); bases=[]
+for count,size in zip(counts[:7],sizes): bases.append(at); at+=count*size
+at+=counts[12]*24+counts[13]*4
+ops=at; operands=ops+counts[7]*40
+rows=[]
+for i in range(counts[7]):
+    row=ops+i*40
+    rows.append((i,b[row+12],struct.unpack_from("<I",b,row+16)[0],struct.unpack_from("<I",b,row+24)[0],struct.unpack_from("<I",b,row+28)[0],struct.unpack_from("<I",b,row+32)[0]))
+places={result:(i,opcode,start,count,imm) for i,opcode,result,start,count,imm in rows if result!=0xffffffff}
+chains=[]
+for i,opcode,result,start,count,target in rows:
+    if opcode!=10 or count<1: continue
+    receiver=struct.unpack_from("<I",b,operands+start*4)[0]; field_row=places.get(receiver)
+    if not field_row or field_row[1]!=3: continue
+    self_place=struct.unpack_from("<I",b,operands+field_row[2]*4)[0]; self_row=places.get(self_place)
+    if not self_row or self_row[1]!=2: raise SystemExit("FieldPlace receiver is not rooted in SelfPlace")
+    field=field_row[4]; offset=struct.unpack_from("<I",b,bases[2]+field*16+12)[0]
+    if offset==0: raise SystemExit("field receiver must exercise a nonzero runtime offset")
+    chains.append((self_row[0],field_row[0],i,self_place,receiver))
+if len(chains)!=2: raise SystemExit(f"expected two SelfPlace->FieldPlace->Call chains, got {len(chains)}")
+PY
+
+# Cross-version pairs are rejected by every R4 view before source meaning.
+python3 -B - "$T/exact.rfn" "$T/field_receiver.rfn" "$T/v6-with-v1.rfn" "$T/v5-with-v2.rfn" <<'PY'
+from pathlib import Path
+import struct,sys
+v5=bytearray(Path(sys.argv[1]).read_bytes()); v5[:8]=b"OMGRFN6\0"; struct.pack_into("<I",v5,8,6); Path(sys.argv[3]).write_bytes(v5)
+v6=bytearray(Path(sys.argv[2]).read_bytes()); v6[:8]=b"OMGRFN5\0"; struct.pack_into("<I",v6,8,5); Path(sys.argv[4]).write_bytes(v6)
+PY
+for CHECK in lowering source-lowering source-result; do
+  observe "$T/$CHECK" "$T/v6-with-v1.rfn" 251 "v6-with-v1-$CHECK"
+  observe "$T/$CHECK" "$T/v5-with-v2.rfn" 251 "v5-with-v2-$CHECK"
+done
+
+# Reject a parenthesized receiver even though spacing keeps every witnessed
+# callee span byte-identical.  This isolates the exact direct-syntax rule.
+python3 -B - "$T/field_receiver.omgc" "$T/field-shape.omgc" <<'PY'
+from pathlib import Path
+import sys
+b=Path(sys.argv[1]).read_bytes(); old=b"    self.cell.read()"; new=b"  (self.cell).read()"
+if len(old)!=len(new) or b.count(old)!=1: raise SystemExit("direct field shape mutation anchor")
+Path(sys.argv[2]).write_bytes(b.replace(old,new))
+PY
+python3 -B "$PACKER6" "$T/field-shape.omgc" "$T/field_receiver.witness" "$T/field_receiver.ckir" "$T/field_receiver.elf" --result 70 > "$T/field-shape.rfn"
+for CHECK in lowering source-lowering source-result; do observe "$T/$CHECK" "$T/field-shape.rfn" 251 "field-shape-$CHECK"; done
+
+# CKIR-only receiver and ordering mutations are visible to the source/artifact
+# join and deliberately opaque to both artifact-free source owners.
+python3 -B - "$T/field_receiver.rfn" "$T/field-wrong-receiver.rfn" "$T/field-wrong-order.rfn" <<'PY'
+from pathlib import Path
+import struct,sys
+b=bytearray(Path(sys.argv[1]).read_bytes()); omg,wit=struct.unpack_from("<2I",b,16); base=40+omg+wit
+counts=struct.unpack_from("<14I",b,base+24); at=base+80
+for count,size in zip(counts[:7],(24,20,16,36,20,32,20)): at+=count*size
+at+=counts[12]*24+counts[13]*4
+ops=at; operands=ops+counts[7]*40; places={}; chain=None
+for i in range(counts[7]):
+    row=ops+i*40; opcode=b[row+12]; result=struct.unpack_from("<I",b,row+16)[0]; start=struct.unpack_from("<I",b,row+24)[0]; count=struct.unpack_from("<I",b,row+28)[0]
+    if result!=0xffffffff: places[result]=(i,opcode,start)
+    if opcode==10 and count:
+        receiver=struct.unpack_from("<I",b,operands+start*4)[0]; field=places.get(receiver)
+        if field and field[1]==3:
+            self_place=struct.unpack_from("<I",b,operands+field[2]*4)[0]; chain=(places[self_place][0],field[0],i,self_place,start); break
+if chain is None: raise SystemExit("missing direct field call mutation anchor")
+self_i,field_i,call_i,self_place,call_start=chain
+wrong=bytearray(b); struct.pack_into("<I",wrong,operands+call_start*4,self_place); Path(sys.argv[2]).write_bytes(wrong)
+order=bytearray(b); a=ops+self_i*40; c=ops+field_i*40; first=bytes(order[a:a+40]); second=bytes(order[c:c+40]); order[a:a+40]=second; order[c:c+40]=first; Path(sys.argv[3]).write_bytes(order)
+PY
+for MUTATION in field-wrong-receiver field-wrong-order; do
+  observe "$T/lowering" "$T/$MUTATION.rfn" 251 "$MUTATION-lowering"
+  observe "$T/source-lowering" "$T/$MUTATION.rfn" 0 "$MUTATION-source-lowering-opacity"
+  observe "$T/source-result" "$T/$MUTATION.rfn" 0 "$MUTATION-source-result-opacity"
+done
 
 # The exact SourceUnit API is sensitive to ordinary call order.  This valid
 # carrier clears after appending and therefore returns zero; lowering accepts
@@ -455,5 +591,5 @@ observe "$T/source-result" "$T/v4.rfn" 251 v4-source-result-separation
 
 END_NS=$(python3 -c 'import time; print(time.time_ns())')
 TOTAL_MS=$(((END_NS-START_NS)/1000000))
-echo "OMGRFN5 responsibility 4: original exact 0/0/0, SourceUnit API 0/0/0, renamed/count-varied API 0/0/0; constant assignment retains CKIR3 CopyAggregateConst without ConstructRecord (lowering/source-lowering 0/0; source-result outside this row); order mutation 0/0/251; same-result API cross-pair 251/0/0; existing negatives passed native/self"
-echo "OMGRFN5 responsibility 4 resources: lowering ${LOWER_PROCS}/128 procs ${LOWER_LOCALS}/32 locals ${lowering_TAPE}/262140 tape; source-lowering ${SOURCE_LOWERING_PROCS}/128 procs ${SOURCE_LOWERING_LOCALS}/32 locals ${source_lowering_TAPE}/262140 tape; source-result ${SOURCE_RESULT_PROCS}/128 procs ${SOURCE_RESULT_LOCALS}/32 locals ${source_result_TAPE}/262140 tape; total=${TOTAL_MS}ms"
+echo "OMGRFN5/6 responsibility 4: v5 exact/API/renamed carriers 0/0/0; v6 direct self.field carrier has two SelfPlace->nonzero FieldPlace->Call chains and result 70 at 0/0/0; v5/v6 cross-version and exact-shape negatives 251/251/251; wrong receiver/order CKIR 251/0/0; existing negatives passed native/self"
+echo "OMGRFN5/6 responsibility 4 resources: lowering ${LOWER_PROCS}/128 procs ${LOWER_LOCALS}/32 locals ${lowering_TAPE}/262140 tape; source-lowering ${SOURCE_LOWERING_PROCS}/128 procs ${SOURCE_LOWERING_LOCALS}/32 locals ${source_lowering_TAPE}/262140 tape; source-result ${SOURCE_RESULT_PROCS}/128 procs ${SOURCE_RESULT_LOCALS}/32 locals ${source_result_TAPE}/262140 tape; total=${TOTAL_MS}ms"

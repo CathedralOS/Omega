@@ -103,6 +103,18 @@ resources, and all native/self 0/251/252 controls remain green. No earlier
 OMGRFN checker is widened or relabeled, and this assurance hardening neither
 adds a CKIR4 source form nor decides final `Ωself` admission.
 
+The direct field-receiver successor is separately specified as
+[`OMGRFN6`](OMGCOMP_REFINEMENT_WITNESS_V6.md). It pairs only with OMGRSW2 and
+retains CKIR4 unchanged. The existing five owners and eight executables are
+shared rather than copied: R1 and R5 validate the exact outer version while
+keeping the witness opaque; R2 reconstructs `self.field.machine(...)`; R3 owns
+the OMGRFN/OMGRSW identity pair; and R4 reconstructs
+`SelfPlace -> FieldPlace -> Call` plus the per-call receiver base in its
+artifact-free evaluator. One immutable 16,817-byte exact `SourceUnit` plus
+`SourceHost` carrier passes every executable native/self with result 70,
+version cross-pairs, phase opacity, mutations, and the inherited resource
+ceilings. OMGRFN5 remains byte-for-byte valid, and no CKIR5 is introduced.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical

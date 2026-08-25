@@ -2,7 +2,7 @@
 
 [`OMGRSW2`](OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
 [`CKIR4`](OMEGA_BOOTSTRAP_CHECKED_IR_V4.md) |
-[`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md)
+[`OMGRFN6`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md)
 
 This contract versions the accepted source/resolution relation without
 inventing CKIR5. The lowerer consumes `OMGLOW5` and emits the unchanged CKIR
@@ -51,6 +51,7 @@ and reject mismatched pairs. The output remains CKIR4 because opcodes 2
 (`SelfPlace`), 3 (`FieldPlace`), and 10 (`Call`) already represent the complete
 artifact behavior.
 
-This producer/meaning relation does not widen OMGRFN5. Lower-rooted closure for
-OMGRSW2 requires a distinct OMGRFN6 carrier and responsibility-local source-to-
-resolution plus receiver-base meaning reconstruction.
+This producer/meaning relation does not widen OMGRFN5. Its distinct OMGRFN6
+lower-rooted carrier closes responsibility-local source-to-resolution,
+receiver-base source meaning, unchanged CKIR4 result, and exact ELF
+reconstruction.

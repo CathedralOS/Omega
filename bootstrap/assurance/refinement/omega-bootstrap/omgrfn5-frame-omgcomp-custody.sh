@@ -27,13 +27,14 @@ command -v python3 >/dev/null 2>&1 || {
 CORE="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4-frame-omgcomp-custody.beta"
 ADAPTER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5-frame-omgcomp-custody.beta"
 PACKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5_bundle.py"
+PACKER6="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn6_bundle.py"
 PACKER4="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4_bundle.py"
 # Frame/source custody needs only the frozen OMGCOMP packer; it deliberately
 # does not depend on an in-progress CKIR4 producer fixture.
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir3-fixture.py"
 SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
 HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-harness.omg"
-for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER4" "$FIXTURE" \
+for REQUIRED in "$CORE" "$ADAPTER" "$PACKER" "$PACKER6" "$PACKER4" "$FIXTURE" \
   "$SOURCE" "$HARNESS" "$OMEGA_PATH_BETA/bc.beta"; do
   [ -f "$REQUIRED" ] || {
     echo "OMGRFN5 responsibility 1: missing $REQUIRED" >&2
@@ -113,6 +114,11 @@ stamp_seed "$T/v4-check.tape" "$SEED" "$T/v4-check" >/dev/null 2>&1
 python3 -B "$FIXTURE" build "$T/exact.omgc" SourceUnit \
   bootstrap_runtime_record_probe "$SOURCE" "$HARNESS"
 printf 'opaque-OMGRSW1' > "$T/witness"
+python3 - "$T/witness6" <<'PY'
+from pathlib import Path
+import struct, sys
+Path(sys.argv[1]).write_bytes(struct.pack("<8sI", b"OMGRSW2\0", 2))
+PY
 printf 'opaque-CKIR4' > "$T/ckir"
 printf 'opaque-ELF' > "$T/elf"
 : > "$T/empty"
@@ -120,6 +126,10 @@ python3 "$PACKER" "$T/exact.omgc" "$T/witness" "$T/ckir" "$T/elf" \
   --result 70 > "$T/entry.rfn"
 python3 "$PACKER" "$T/exact.omgc" "$T/witness" "$T/ckir" "$T/empty" \
   --library > "$T/library.rfn"
+python3 "$PACKER6" "$T/exact.omgc" "$T/witness6" "$T/ckir" "$T/elf" \
+  --result 70 > "$T/entry6.rfn"
+python3 "$PACKER6" "$T/exact.omgc" "$T/witness6" "$T/ckir" "$T/empty" \
+  --library > "$T/library6.rfn"
 python3 "$PACKER4" "$T/exact.omgc" "$T/witness" "$T/ckir" "$T/elf" \
   --result 70 > "$T/version4.rfn"
 
@@ -150,9 +160,33 @@ observe() {
 
 observe 0 "$T/entry.rfn" "exact source entry frame"
 observe 0 "$T/library.rfn" "exact source library frame"
+observe 0 "$T/entry6.rfn" "exact OMGRFN6 source entry frame"
+observe 0 "$T/library6.rfn" "exact OMGRFN6 source library frame"
 observe 251 "$T/version4.rfn" "frozen OMGRFN4 cross-version frame"
 observe_one "$T/v4-check" 251 "$T/entry.rfn" \
   "frozen OMGRFN4 checker rejects OMGRFN5"
+
+# R1 owns the outer carrier identity, but witness identity remains opaque until
+# R3.  Conversely, mixing the outer magic byte and version word is malformed.
+python3 - "$T/entry6.rfn" "$T/v6-witness-identity-opaque.rfn" \
+  "$T/v6-magic5-version6.rfn" "$T/v6-magic6-version5.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+
+canonical = Path(sys.argv[1]).read_bytes()
+omgcomp_length = struct.unpack_from("<I", canonical, 16)[0]
+witness_at = 40 + omgcomp_length
+raw = bytearray(canonical); raw[witness_at + 6] = ord("X")
+Path(sys.argv[2]).write_bytes(raw)
+raw = bytearray(canonical); raw[6] = ord("5")
+Path(sys.argv[3]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<I", raw, 8, 5)
+Path(sys.argv[4]).write_bytes(raw)
+PY
+observe 0 "$T/v6-witness-identity-opaque.rfn" \
+  "OMGRFN6 witness identity opaque to responsibility 1"
+observe 251 "$T/v6-magic5-version6.rfn" "OMGRFN5 magic with version 6"
+observe 251 "$T/v6-magic6-version5.rfn" "OMGRFN6 magic with version 5"
 
 # Independently derive every source-ID to nested-bundle content extent and
 # require the persisted checker to publish the same custody projection.
@@ -306,5 +340,5 @@ SOURCE_BYTES=$((
 OMGCOMP_BYTES=$(wc -c < "$T/exact.omgc" | tr -d ' ')
 FRAME_BYTES=$(wc -c < "$T/component-max.rfn" | tr -d ' ')
 ELAPSED=$(( $(date +%s) - STARTED ))
-echo "OMGRFN5 responsibility 1: exact source+harness OMGCOMP custody, v5 checked frame adds/EOF, cross-version rejection, opaque joins/claims, exact component and whole-frame teeth passed below Delta"
+echo "OMGRFN5/6 responsibility 1: exact source+harness OMGCOMP custody, exact v5/v6 outer dispatch, witness-identity opacity, checked frame adds/EOF, cross-version rejection, opaque joins/claims, exact component and whole-frame teeth passed below Delta"
 echo "  source=${SOURCE_BYTES}B procedures=${PROCEDURES}/128 locals=${MAX_LOCALS}/32 tape=${TAPE_BYTES}/262140B bc-self=${BC1_TAPE}B OMGCOMP=${OMGCOMP_BYTES}B component-frame=${FRAME_BYTES}B elapsed=${ELAPSED}s"

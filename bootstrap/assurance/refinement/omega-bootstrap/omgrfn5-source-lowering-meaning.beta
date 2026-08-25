@@ -1,4 +1,5 @@
-; OMGRFN5 responsibility 4: independent source-body lowering and source meaning.
+; Shared OMGRFN5/OMGRFN6 responsibility 4: independent source-body lowering
+; and source meaning.
 ;
 ; This fragment is composed with the frozen source/witness model.  It reparses
 ; runtime named-record literals from exact source, binds authored names, saves
@@ -12,10 +13,11 @@
 ;   word[20220000 + depth*512 + ordinal*8] field seen
 ;   word[20300000 + value*8] constructor-result provenance
 ;   word[43500000 + value*8] source-evaluator object offset
+;   word[20500032] direct field-receiver call count
 
 ; Responsibility-local component adapters.  The shared R5 envelope exposes
 ; raw framed bytes and validated extents but intentionally does not assign
-; OMGCOMP/OMGRSW1 ownership.
+; OMGCOMP/OMGRSW1/OMGRSW2 ownership.
 proc omgrfn5_component_omgcomp_byte(index) { return byte[1048576+40+index] }
 proc omgrfn5_component_witness_byte(index) { return byte[1048576+40+omgrfn5_component_u32(16)+index] }
 
@@ -300,14 +302,17 @@ proc src_low_postfix() {
     let base_type=0 let base_place=0 let base_lvalue=0 let base_mutable=0 let field=0
     let name_start=0 let name_count=0 let target=0 let depth=0 let parameter=0
     let index_value=0 let index_high=0 let index_tree=0 let i=0
-    state primary { to done when (src_low_primary()!=0) to loop }
+    let primary_token=0 let receiver_shape=8
+    state primary { primary_token=word[524416] to primary_parse }
+    state primary_parse { to done when (src_low_primary()!=0) to loop when (primary_token!=256) to loop when (src_low_g(25)!=3) receiver_shape=0 to loop }
     state loop { to member when (word[524416]==46) to index when (word[524416]==91) return 0 }
     state member { to exhausted when (src_low_g(29)>=8) base_type=src_low_g(20) base_place=src_low_g(28) base_mutable=src_low_g(24) src_next() to member_name }
     state member_name { to bad when (word[524416]!=256) name_start=word[524424] name_count=word[524432] src_next() to call when (word[524416]==40) to member_type }
-    state member_type { to bad when (base_type>=word[10000048]) to bad when (src_type(base_type,0)!=4) field=src_low_find_field(src_type(base_type,3),name_start,name_count) to bad when (field==4294967295) to bad when (base_place==4294967295) src_low_gset(20,src_field(field,3)) src_low_gset(21,src_type(src_field(field,3),7)) src_low_gset(22,src_type(src_field(field,3),8)) src_low_gset(23,1) src_low_gset(24,base_mutable) src_low_gset(25,1) src_low_gset(26,field) src_low_gset(29,src_low_g(29)+1) src_low_gset(30,src_low_g(30)+1) to member_refine }
+    state member_type { to bad when (base_type>=word[10000048]) to bad when (src_type(base_type,0)!=4) field=src_low_find_field(src_type(base_type,3),name_start,name_count) to bad when (field==4294967295) to bad when (base_place==4294967295) src_low_gset(20,src_field(field,3)) src_low_gset(21,src_type(src_field(field,3),7)) src_low_gset(22,src_type(src_field(field,3),8)) src_low_gset(23,1) src_low_gset(24,base_mutable) src_low_gset(25,1) src_low_gset(26,field) src_low_gset(29,src_low_g(29)+1) src_low_gset(30,src_low_g(30)+1) receiver_shape=receiver_shape+1 to member_refine }
     state member_refine { to member_emit when (src_low_g(5)==4294967295) to member_emit when (word[19600000+src_low_g(5)*32]!=1) to member_emit when (word[19600008+src_low_g(5)*32]!=1) to member_emit when (word[19600016+src_low_g(5)*32]!=field) to member_emit when (src_low_g(22)<=word[19600024+src_low_g(5)*32]) src_low_gset(22,word[19600024+src_low_g(5)*32]) to member_emit }
     state member_emit { src_low_gset(50,base_place) src_low_gset(51,0) src_low_gset(52,field) to done when (src_low_emit(3,2,src_type(src_field(field,3),9),1)!=0) to exhausted when (src_low_g(30)>8) to loop }
-    state call { to bad when (base_type>=word[10000048]) to bad when (src_type(base_type,0)!=4) to bad when (base_place==4294967295) to done when (v3_call_binding(src_machine(src_low_g(4),16),name_start,name_count)!=0) target=word[19990000] to bad when (src_type(base_type,3)!=src_machine(target,2)) to bad when (src_machine(target,8)>base_mutable) to call_push }
+    state call { to bad when (receiver_shape>word[524376]-5) word[20500032]=word[20500032]+receiver_shape to call_validate }
+    state call_validate { to bad when (base_type>=word[10000048]) to bad when (src_type(base_type,0)!=4) to bad when (base_place==4294967295) to done when (v3_call_binding(src_machine(src_low_g(4),16),name_start,name_count)!=0) target=word[19990000] to bad when (src_type(base_type,3)!=src_machine(target,2)) to bad when (src_machine(target,8)>base_mutable) to call_push }
     state call_push { depth=src_low_g(60) to exhausted when (depth>=8) word[19900000+depth*8]=target word[19900100+depth*8]=base_place word[19900200+depth*8]=0 src_low_gset(60,depth+1) src_next() to call_args }
     state call_args { depth=src_low_g(60)-1 target=word[19900000+depth*8] i=word[19900200+depth*8] to call_arg when (i<src_machine(target,6)) to call_close }
     state call_arg { to bad when (word[524416]==41) parameter=src_machine(target,5)+i to record_arg when (src_type(src_param(parameter,3),0)==4) to expression_arg }
@@ -325,8 +330,8 @@ proc src_low_postfix() {
     state call_emit { to call_unit when (src_machine(target,7)==4294967295) to call_value }
     state call_unit { to done when (src_low_emit(10,0,4294967295,1+word[19900200+depth*8])!=0) src_low_gset(20,4294967292) to call_edge }
     state call_value { to done when (src_low_emit(10,1,src_type(src_machine(target,7),9),1+word[19900200+depth*8])!=0) src_low_gset(20,src_machine(target,7)) src_low_gset(21,src_type(src_machine(target,7),7)) src_low_gset(22,src_type(src_machine(target,7),8)) to call_edge }
-    state call_edge { word[19750000+(src_low_g(4)*128+target)*8]=1 src_low_gset(23,0) src_low_gset(24,0) src_low_gset(25,0) src_low_gset(26,4294967295) src_low_gset(29,0) src_low_gset(30,src_low_g(30)+1) src_low_gset(60,depth) to exhausted when (src_low_g(30)>8) to loop }
-    state index { to exhausted when (src_low_g(29)>=8) base_type=src_low_g(20) base_place=src_low_g(28) base_lvalue=src_low_g(23) base_mutable=src_low_g(24) to index_type }
+    state call_edge { word[19750000+(src_low_g(4)*128+target)*8]=1 src_low_gset(23,0) src_low_gset(24,0) src_low_gset(25,0) src_low_gset(26,4294967295) src_low_gset(29,0) src_low_gset(30,src_low_g(30)+1) src_low_gset(60,depth) receiver_shape=8 to exhausted when (src_low_g(30)>8) to loop }
+    state index { receiver_shape=8 to exhausted when (src_low_g(29)>=8) base_type=src_low_g(20) base_place=src_low_g(28) base_lvalue=src_low_g(23) base_mutable=src_low_g(24) to index_type }
     state index_type { to bad when (base_type>=word[10000048]) to bad when (src_type(base_type,0)!=5) to done when (src_low_push_expr()!=0) src_next() to index_parse }
     state index_parse { to done when (src_low_expression()!=0) to done when (src_expect_token(93)!=0) index_value=src_low_g(12) to index_ready when (src_low_g(20)==4294967294) to bad when (src_low_g(20)>=word[10000048]) index_value=src_type(src_low_g(20),0) to bad when (index_value<1) to bad when (index_value>2) index_value=src_type(src_low_g(20),9) to index_ready }
     state index_ready { to done when (src_low_materialize(index_value)!=0) index_value=src_low_g(27) index_high=src_low_g(22) index_tree=src_low_g(30) to done when (src_low_pop_left()!=0) to bad when (index_high>=src_type(base_type,5)) src_low_gset(20,src_type(base_type,4)) src_low_gset(21,src_type(src_type(base_type,4),7)) src_low_gset(22,src_type(src_type(base_type,4),8)) src_low_gset(23,base_lvalue) src_low_gset(24,base_mutable) src_low_gset(25,0) src_low_gset(26,4294967295) src_low_gset(29,src_low_g(29)+1) src_low_gset(30,index_tree+1) src_low_gset(50,base_place) src_low_gset(51,index_value) src_low_gset(52,0) to done when (src_low_emit(4,2,src_type(src_type(base_type,4),9),2)!=0) to loop }
@@ -396,8 +401,9 @@ proc v5_direct_edge_check() {
 
 proc omgrfn5_r4_lowering_check() {
     let status=omgrfn5_component_read()
-    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() status=v5_ckir_body_bases() to ckir }
-    state ckir { to done when (status!=0) status=src_reconstruct_lowering_check() to done when (status!=0) status=src_lower_compare_final() to done }
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() word[20500032]=0 status=v5_ckir_body_bases() to ckir }
+    state ckir { to done when (status!=0) status=src_reconstruct_lowering_check() to done when (status!=0) to bad when (word[20500032]+6-word[524376]==0) status=src_lower_compare_final() to done }
+    state bad { status=src_reject() to done }
     state done { return status }
 }
 

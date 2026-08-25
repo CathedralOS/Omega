@@ -29,6 +29,7 @@ STRUCTURE=$R/ckir4-refinement-artifact.beta
 ELF_CHECKER=$R/ckir4-refinement-elf.beta
 CASES=$R/omgrfn5_r5_cases.py
 PACKER=$R/omgrfn5_bundle.py
+PACKER6=$R/omgrfn6_bundle.py
 FIXTURE_TOOL=$G/delta-checked-ir-v4-fixture.py
 BUILDER=$G/delta-resolved-to-ckir4-fixture.py
 LOW_FRAME=$G/delta-resolved-to-ckir4-frame.py
@@ -37,7 +38,7 @@ ELF_REFERENCE=$G/checked_elf_v4_reference.py
 V3_RESOURCES=$G/checked_ir_v3_resources.py
 SOURCE=$OMEGA_REPO_ROOT/compiler/psi/source/source.omg
 HARNESS=$G/fixtures/ckir4-runtime-records/source-unit-harness.omg
-for FILE in "$ENVELOPE" "$STRUCTURE" "$ELF_CHECKER" "$CASES" "$PACKER" "$FIXTURE_TOOL" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$V3_RESOURCES" "$SOURCE" "$HARNESS"; do
+for FILE in "$ENVELOPE" "$STRUCTURE" "$ELF_CHECKER" "$CASES" "$PACKER" "$PACKER6" "$FIXTURE_TOOL" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$V3_RESOURCES" "$SOURCE" "$HARNESS"; do
   [ -f "$FILE" ] || { echo "OMGRFN5 responsibility 5 ELF: missing $FILE" >&2; exit 1; }
 done
 
@@ -93,6 +94,37 @@ observe 30 - - 0 exact-reference python3 -B "$ELF_REFERENCE" check "$T/exact.cki
 observe 10 - "$T/exact.rfn" 0 exact-pack python3 -B "$PACKER" "$T/exact.omgc" "$T/exact.witness" "$T/exact.ckir4" "$T/exact.elf" --result 70
 run_both "$T/exact.rfn" 0 exact-source-elf
 
+# R5 owns the CKIR4/result/ELF claim under either exact outer carrier, while
+# witness schema identity remains opaque here and is paired only by R3.
+python3 - "$T/exact.witness" "$T/exact.witness2" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = bytearray(Path(sys.argv[1]).read_bytes())
+raw[6] = ord("2"); struct.pack_into("<I", raw, 8, 2)
+Path(sys.argv[2]).write_bytes(raw)
+PY
+observe 10 - "$T/exact6.rfn" 0 exact6-pack python3 -B "$PACKER6" \
+  "$T/exact.omgc" "$T/exact.witness2" "$T/exact.ckir4" "$T/exact.elf" --result 70
+python3 - "$T/exact6.rfn" "$T/v6-witness-identity-opaque-to-r5.rfn" \
+  "$T/v6-magic5-version6.rfn" "$T/v6-magic6-version5.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+canonical = Path(sys.argv[1]).read_bytes()
+omgcomp_length = struct.unpack_from("<I", canonical, 16)[0]
+witness_at = 40 + omgcomp_length
+raw = bytearray(canonical); raw[witness_at + 6] = ord("X")
+Path(sys.argv[2]).write_bytes(raw)
+raw = bytearray(canonical); raw[6] = ord("5")
+Path(sys.argv[3]).write_bytes(raw)
+raw = bytearray(canonical); struct.pack_into("<I", raw, 8, 5)
+Path(sys.argv[4]).write_bytes(raw)
+PY
+run_both "$T/exact6.rfn" 0 exact-omgrfn6-source-elf
+run_both "$T/v6-witness-identity-opaque-to-r5.rfn" 0 \
+  omgrfn6-witness-identity-opaque-to-r5-elf
+run_both "$T/v6-magic5-version6.rfn" 251 omgrfn5-magic-version6-elf
+run_both "$T/v6-magic6-version5.rfn" 251 omgrfn6-magic-version5-elf
+
 observe 20 - - 0 fixture-emit python3 -B "$FIXTURE_TOOL" emit "$T/fixtures"
 for NAME in canonical empty; do
   observe 90 "$T/fixtures/$NAME.ckir4" "$T/$NAME.elf" 0 "$NAME-backend" "$T/backend"
@@ -143,4 +175,4 @@ PY
 run_both "$T/version4.rfn" 251 frozen-v4-carrier-rejected
 
 python3 -B "$CASES" report "$T/timings.tsv"
-echo "OMGRFN5 responsibility 5 ELF: exact producer CKIR4, distinct aligned objects, empty/nested templates, selected frame/live stack/text/ELF exact-adjacent resources, valid source-mismatched pairs, CKIR/ELF cross-pair rejection, V4/V5 separation, native/self persisted Beta, and 0/251/252 passed ($PROCEDURES/128 procedures; $MAX_LOCALS/32 locals; $TAPE_BYTES/262140 tape bytes)"
+echo "OMGRFN5/6 responsibility 5 ELF: exact v5/v6 outer dispatch with witness identity opaque to R5, producer CKIR4, distinct aligned objects, empty/nested templates, selected frame/live stack/text/ELF exact-adjacent resources, valid source-mismatched pairs, CKIR/ELF cross-pair rejection, V4/V5/V6 separation, native/self persisted Beta, and 0/251/252 passed ($PROCEDURES/128 procedures; $MAX_LOCALS/32 locals; $TAPE_BYTES/262140 tape bytes)"
