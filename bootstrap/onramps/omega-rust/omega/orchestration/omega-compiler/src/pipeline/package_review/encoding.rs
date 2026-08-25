@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 42;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 43;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 2;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -708,9 +708,61 @@ fn encode_type_parameter(
             encoder.byte(1);
             encode_type_identity(encoder, type_identity)?;
         }
+        PackageReviewTypeParameterKind::Machine(contract) => {
+            encoder.byte(2);
+            encode_machine_parameter_contract(encoder, contract)?;
+        }
     }
     encode_data_properties(encoder, parameter.bounds);
     Ok(())
+}
+
+fn encode_machine_parameter_contract(
+    encoder: &mut Encoder,
+    contract: &PackageReviewMachineParameterContract,
+) -> Result<(), PackageReviewEncodingError> {
+    match contract {
+        PackageReviewMachineParameterContract::Structural(signature) => {
+            encoder.byte(0);
+            encode_machine_parameter_signature(encoder, signature)
+        }
+        PackageReviewMachineParameterContract::Nominal {
+            trait_identity,
+            requirement_identity,
+        } => {
+            encoder.byte(1);
+            encode_nominal(encoder, trait_identity)?;
+            encode_nominal(encoder, requirement_identity)
+        }
+    }
+}
+
+fn encode_machine_parameter_signature(
+    encoder: &mut Encoder,
+    signature: &PackageReviewMachineParameterSignature,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.usize(signature.lifetime_parameter_count)?;
+    encoder.sequence(&signature.type_parameters, encode_type_parameter)?;
+    encoder.sequence(&signature.parameters, |encoder, parameter| {
+        encoder.string(&parameter.name)?;
+        encode_type_identity(encoder, &parameter.type_identity)?;
+        encoder.boolean(parameter.is_const);
+        encoder.boolean(parameter.is_mutable);
+        encoder.boolean(parameter.is_self);
+        Ok(())
+    })?;
+    encode_type_identity(encoder, &signature.return_type)?;
+    encoder.sequence(&signature.contracts, encode_callable_contract)?;
+    encoder.sequence(&signature.published_crash, encode_crash_route)?;
+    encoder.sequence(&signature.service_reach, encode_nominal)?;
+    encoder.boolean(signature.service_reach_is_installation_bound);
+    encoder.sequence(
+        &signature.synchronous_invocations,
+        encode_synchronous_invocation,
+    )?;
+    encoder.boolean(signature.suspends);
+    encoder.boolean(signature.blocks);
+    encode_termination(encoder, &signature.termination)
 }
 
 fn encode_data_properties(

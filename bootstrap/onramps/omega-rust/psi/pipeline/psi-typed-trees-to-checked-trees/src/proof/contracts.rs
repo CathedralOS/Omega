@@ -12,6 +12,72 @@ pub(crate) use inherited::{
 };
 pub(crate) use operators::build_contract_operator_use_facts;
 
+/// Collect the callable signatures that need binder-owned checked evidence.
+///
+/// Top-level machine parameters retain the historical behavior for both
+/// structural and nominal contracts. Nested parameters are different: an
+/// inline structural contract owns another binder contract and therefore
+/// needs its own evidence rows, while a nominal contract merely references a
+/// trait requirement whose evidence is emitted with that trait.
+///
+/// The traversal is iterative and deduplicates arena-backed parameter
+/// identities. Besides avoiding call-stack growth, this makes a malformed
+/// cyclic signature span terminate without repeatedly emitting the same row.
+pub(crate) fn machine_parameter_evidence_signatures<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    parameters: &'program [psi_typed_trees::data::TypeParameter],
+) -> Vec<(
+    SymbolHandle,
+    SymbolHandle,
+    &'program psi_typed_trees::signature::StateSignature,
+)> {
+    let mut signatures = Vec::new();
+    let mut pending = parameters
+        .iter()
+        .rev()
+        .map(|parameter| (parameter, true))
+        .collect::<Vec<_>>();
+    let mut visited = std::collections::HashSet::new();
+
+    while let Some((parameter, is_top_level)) = pending.pop() {
+        if !visited.insert(parameter as *const psi_typed_trees::data::TypeParameter) {
+            continue;
+        }
+        let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+            continue;
+        };
+        match contract {
+            psi_typed_trees::data::MachineParameterContract::Structural(signature) => {
+                let target_state = if is_top_level {
+                    parameter.symbol
+                } else {
+                    signature.symbol
+                };
+                signatures.push((parameter.symbol, target_state, signature));
+                pending.extend(
+                    program
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .rev()
+                        .map(|nested| (nested, false)),
+                );
+            }
+            psi_typed_trees::data::MachineParameterContract::Nominal { .. } if is_top_level => {
+                let signature = program
+                    .machine_parameter_contract_view(contract)
+                    .expect(
+                        "typed machine-parameter contract must retain a valid requirement identity",
+                    )
+                    .signature();
+                signatures.push((parameter.symbol, parameter.symbol, signature));
+            }
+            psi_typed_trees::data::MachineParameterContract::Nominal { .. } => {}
+        }
+    }
+
+    signatures
+}
+
 pub(crate) fn append_machine_contract_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,

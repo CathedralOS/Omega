@@ -484,6 +484,15 @@ concrete type arguments use exact structural type identity, including closed com
 while machine arguments remain exact nominal declarations. Unresolved ownership
 may remain visible to ordinary compiler-local diagnostics, but exact package
 review rejects it during type projection and again at canonical encoding.
+Review v43 and canonical row v3 add static-machine declaration parameters.
+Structural contracts retain the recursively alpha-normalized nested telescope,
+complete value signature, proof/crash contracts, reach, invocation, suspension,
+blocking, and termination envelope. Nominal contracts retain exact public trait
+and requirement identities. Every structural binder, including a nested one,
+must join exact checked contract and crash rows; missing custody, excessive
+depth, or a private nominal requirement rejects. Proposition parameters and
+static-machine/proposition arguments in selected conformance applications remain
+fail-closed.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
@@ -927,7 +936,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v42 bytes cannot be promoted merely because the future artifact reuses
+review-v43 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

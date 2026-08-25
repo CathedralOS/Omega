@@ -1,4 +1,5 @@
 use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
+use psi_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
 #[test]
@@ -62,6 +63,141 @@ fn machine_parameter_contract_survives_resolved_and_typed_trees() {
     assert_eq!(contract.name.as_str(), "Key");
     assert_eq!(typed.state_signature_parameters(contract).len(), 1);
     assert!(contract.return_type.is_valid());
+}
+
+#[test]
+fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
+    let source = r#"
+        machine outer<machine Schema>()
+        where machine Schema<machine Nested>()
+        where machine Nested(value: bool)
+            requires value
+            crashes Abort
+                value;
+        {
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let outer = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "outer")
+        .expect("outer machine");
+    let schema = typed
+        .machine_type_parameters(outer)
+        .first()
+        .expect("Schema parameter");
+    let psi_typed_trees::data::TypeParameterKind::Machine {
+        contract: psi_typed_trees::data::MachineParameterContract::Structural(schema_signature),
+    } = &schema.kind
+    else {
+        panic!("Schema should retain a structural signature")
+    };
+    let nested = typed
+        .state_signature_type_parameters(schema_signature)
+        .first()
+        .expect("Nested parameter");
+    let psi_typed_trees::data::TypeParameterKind::Machine {
+        contract: psi_typed_trees::data::MachineParameterContract::Structural(nested_signature),
+    } = &nested.kind
+    else {
+        panic!("Nested should retain a structural signature")
+    };
+    let nested_owner = nested.symbol;
+    let nested_state = nested_signature.symbol;
+
+    let checked = lower_typed_trees(typed).expect("nested structural evidence should check");
+
+    assert!(checked.facts.proof.contract_facts.iter().any(|(_, fact)| {
+        fact.kind == ContractProofFactKind::Requires
+            && fact.owner
+                == ContractProofFactOwner::StateSignature {
+                    owner_symbol: nested_owner,
+                    state_symbol: nested_state,
+                }
+    }));
+    assert!(
+        checked
+            .facts
+            .contract_plans
+            .crash_capsule(nested_owner, nested_state)
+            .is_some(),
+        "the nested binder should own a capsule keyed by its exact signature state"
+    );
+}
+
+#[test]
+fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion() {
+    let source = r#"
+        trait Handler {
+            machine call(value: bool)
+                requires value
+                crashes Abort
+                    value;
+        }
+
+        machine outer<machine Schema>()
+        where machine Schema<machine Nested>()
+        where machine Nested satisfies Handler::call;
+        {
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let outer = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "outer")
+        .expect("outer machine");
+    let schema = typed
+        .machine_type_parameters(outer)
+        .first()
+        .expect("Schema parameter");
+    let psi_typed_trees::data::TypeParameterKind::Machine {
+        contract: psi_typed_trees::data::MachineParameterContract::Structural(schema_signature),
+    } = &schema.kind
+    else {
+        panic!("Schema should retain a structural signature")
+    };
+    let nested = typed
+        .state_signature_type_parameters(schema_signature)
+        .first()
+        .expect("Nested parameter");
+    assert!(matches!(
+        nested.kind,
+        psi_typed_trees::data::TypeParameterKind::Machine {
+            contract: psi_typed_trees::data::MachineParameterContract::Nominal { .. }
+        }
+    ));
+    let nested_owner = nested.symbol;
+
+    let checked = lower_typed_trees(typed).expect("nested nominal reference should check");
+
+    assert!(!checked.facts.proof.contract_facts.iter().any(|(_, fact)| {
+        matches!(
+            fact.owner,
+            ContractProofFactOwner::StateSignature { owner_symbol, .. }
+                if owner_symbol == nested_owner
+        )
+    }));
+    assert!(
+        checked
+            .facts
+            .contract_plans
+            .crash_capsules
+            .iter()
+            .all(|capsule| capsule.target_machine() != nested_owner),
+        "a nested nominal binder must not duplicate its trait requirement capsule"
+    );
 }
 
 #[test]

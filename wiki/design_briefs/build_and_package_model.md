@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v42 rows are not promoted
+subjects or provenance. The current incomplete review-v43 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1318,17 +1318,24 @@ Exact selected-provider grants remain valid. Exact accepted-machine grants are
 retained only as temporary standalone compatibility; package-aware compilation
 rejects them because admitting one selector is not admitting the complete exact
 accepted-claim inventory.
-The signature includes lifetime arity, alpha-normalized type/const binders,
+The signature includes lifetime arity, alpha-normalized type/const/static-
+machine binders,
 ordered parameter names and modes,
 package-qualified lifetime-sensitive parameter types, and result type. This is
 contract evidence, not merely ABI layout. Binder renames are stable, while a
 changed generic bound, parameter/result type, mode, or borrow relationship
-changes evidence. Until exact canonical rows exist, reviewed callable
-conformance bounds, static machine/proposition parameters, and non-public,
-external, operator, or lifetime-parameterized trait realizations fail closed
-rather than being omitted; binder-free generic requirements, explicit evidence
-binders, and non-generic selected conformances use the same canonical row as
-public traits. Checked
+changes evidence. Review v43 and canonical row v3 retain a structural static-
+machine contract's recursively alpha-normalized telescope, complete value
+signature, proof/crash contracts, reach, invocation, suspension, blocking, and
+termination envelope. A nominal contract retains its exact public trait and
+requirement identities. Checked proof/crash rows are keyed to each structural
+binder, including nested binders; missing custody, excessive nesting, and
+private nominal contracts reject. Proposition parameters and static-machine or
+proposition arguments in selected conformance applications remain fail-closed.
+Other non-public, external, operator, or lifetime-parameterized trait
+realizations likewise remain fail-closed; binder-free generic requirements,
+explicit evidence binders, and non-generic selected conformances use the same
+canonical row as public traits. Checked
 realizations of public, ordinary, lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
 Public callable `requires` and `ensures` retain exact structural rows for the

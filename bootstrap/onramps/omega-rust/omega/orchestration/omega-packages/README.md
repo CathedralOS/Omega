@@ -458,8 +458,13 @@ with supply, generic shape, properties, stable field/variant identities,
 retired identities, relevance, lifetime arity, and exact lifetime-sensitive
 field/payload types. Numbered ordinary data is the wire contract; the retired
 standalone `wire data` form is not a
-second API row. Quotients, data `where` facts, and static machine/proposition
-parameters reject review until exact canonical rows exist. Public traits now
+second API row. Quotients, data `where` facts, and proposition parameters
+reject review until exact canonical rows exist. Review v43 and canonical row
+v3 represent static-machine parameters directly: structural contracts retain
+their complete alpha-normalized nested signature and operational envelope,
+while nominal contracts retain exact public trait and requirement identities.
+Nested structural binders have exact checked proof/crash custody; missing rows,
+excessive depth, and private nominal requirements reject. Public traits now
 retain exact package identity, boundary status, alpha-normalized
 lifetime/type/const binders, package-qualified parent applications with exact
 lifetime-binder arguments, and ordered machine/operator requirement signatures
@@ -512,13 +517,14 @@ separate blocking canonical row with the complete callable envelope and exact
 declaration source. Initial admission or a newly introduced package must
 resolve that trust row; an unchanged accepted baseline does not recur as a
 blanket prompt. Signatures retain lifetime arity,
-alpha-normalized type/const parameters, ordered
+alpha-normalized type/const/static-machine parameters, ordered
 parameter names/modes, package-qualified lifetime-sensitive parameter types,
 and result type. Checked realizations of public, ordinary, lifetime-free traits
 retain exact package-qualified trait/requirement identities, alpha-normalized
-arguments, and aliases. Callable conformance bounds, static machine/proposition
-parameters, and non-public, external, operator, or lifetime-parameterized
-realizations fail closed until complete rows land, except that binder-free
+arguments, and aliases. Callable conformance bounds, static-machine/proposition
+arguments in selected conformance applications, and non-public, external,
+operator, or lifetime-parameterized realizations fail closed until complete
+rows land, except that binder-free
 generic requirements, explicit evidence binders, and non-generic selected
 conformances use the canonical public-trait row. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
@@ -586,7 +592,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v42 projection therefore
+remain separately bound. The current incomplete review-v43 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
