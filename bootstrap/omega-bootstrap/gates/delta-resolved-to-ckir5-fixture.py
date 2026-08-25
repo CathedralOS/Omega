@@ -25,6 +25,10 @@ try:
     import checked_ir_v7_reference as ir7  # noqa: E402
 except ImportError:  # The CKIR7 sibling lands with the focused backend tranche.
     ir7 = None
+try:
+    import checked_ir_v8_reference as ir8  # noqa: E402
+except ImportError:
+    ir8 = None
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
@@ -34,7 +38,8 @@ LOWER_HEADER = struct.Struct("<8sHHHH4I")
 GATE_ERRORS = (
     OSError, ValueError, compilation.CompilationError, bundle.BundleError,
     ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError,
-) + (() if ir7 is None else (ir7.Ckir7Error,))
+) + (() if ir7 is None else (ir7.Ckir7Error,)) \
+    + (() if ir8 is None else (ir8.Ckir8Error,))
 
 
 def require(condition: bool, message: str) -> None:
@@ -62,9 +67,9 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
 def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
                   resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (4, 5, 6, 7, 8), "test lowering version")
-    require((version in (7, 8) and resolution in (1, 2, 3))
-            or (version not in (7, 8) and resolution == 0), "test resolution selector")
+    require(version in (4, 5, 6, 7, 8, 9), "test lowering version")
+    require((version in (7, 8, 9) and resolution in (1, 2, 3))
+            or (version not in (7, 8, 9) and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
     return LOWER_HEADER.pack(
@@ -208,8 +213,9 @@ def inspect_positive(contents: bytes) -> ir5.Module:
 
 
 def run_gate(mode: str = "v5") -> None:
-    include_v6 = mode in ("v6", "v7")
-    include_v7 = mode == "v7"
+    include_v6 = mode in ("v6", "v7", "v8")
+    include_v7 = mode in ("v7", "v8")
+    include_v8 = mode == "v8"
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -221,7 +227,9 @@ def run_gate(mode: str = "v5") -> None:
     delta_manifest = repo / "bootstrap/onramps/delta-rust/Cargo.toml"
     delta = repo / "bootstrap/onramps/delta-rust/target/debug/delta"
     general_path = HERE / "fixtures/ckir5-payload-sums/general.omg"
-    for path in (resolver_source, lowerer_source, lowermachine_source, general_path):
+    equality_general_path = HERE / "fixtures/ckir8-scalar-equality/general.omg"
+    for path in (resolver_source, lowerer_source, lowermachine_source, general_path,
+                 equality_general_path):
         require(path.is_file(), f"missing {path}")
 
     fields, locals_used, procedures = producer_metadata(lowerer_source)
@@ -624,11 +632,207 @@ machine SumProducer::run(&mut self) -> u8 {
                   "depth 8/9 controls passed; "
                   + " ".join(f"{name}={len(value)}B" for name, value in outputs7.items()))
 
+        if include_v8:
+            require(ir8 is not None, "missing CKIR8 independent reference")
+            equality_sw1 = """data SumProducer { word: u32; byte: u8; flag: bool; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.word = 70;
+    self.byte = 70;
+    self.flag = true;
+    transition self.word == 70 && self.byte == 70 && self.flag == true {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            equality_sw2 = """data Cell { word: u32; }
+machine Cell::read(&self) -> u32 { self.word }
+data SumProducer { cell: Cell; word: u32; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.word = self.cell.read();
+    self.word = 70;
+    transition self.word == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            equality_sw3 = equality_general_path.read_text(encoding="ascii")
+
+            def resolve_and_lower_v9(name: str, source: str, witness_major: int) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output8 = lower(name, pack_lowering(
+                    envelope, witness, 9, witness_major
+                ), 0)
+                module8 = ir8.decode(output8)
+                require(ir8.interpret(module8) == 70, f"{name} CKIR8 result")
+                opcodes = [row[3] for row in module8.tables["operations"]]
+                require(opcodes.count(18) == source.count("=="),
+                        f"{name} equality token/operation correspondence")
+                return output8
+
+            outputs8 = {
+                "scalar-equal-sw1": resolve_and_lower_v9(
+                    "scalar-equal-sw1", equality_sw1, 1
+                ),
+                "scalar-equal-sw2": resolve_and_lower_v9(
+                    "scalar-equal-sw2", equality_sw2, 2
+                ),
+                "scalar-equal-sw3": resolve_and_lower_v9(
+                    "scalar-equal-sw3", equality_sw3, 3
+                ),
+            }
+
+            association = """data SumProducer {}
+machine SumProducer::run(&mut self) -> u8 {
+    transition true == false == false { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            association_envelope, association_witness = resolve(
+                "scalar-equal-association", association, 0, 1
+            )
+            association_output = lower(
+                "scalar-equal-association",
+                pack_lowering(association_envelope, association_witness, 9, 1), 0,
+            )
+            association_module = ir8.decode(association_output)
+            association_ops = [
+                row for row in association_module.tables["operations"] if row[3] == 18
+            ]
+            require(len(association_ops) == 2, "scalar equality association operation count")
+            second_left = association_module.tables["operands"][association_ops[1][8]][0]
+            require(second_left == association_ops[0][6],
+                    "scalar equality chain is not left-associated")
+            require(ir8.interpret(association_module) == 70,
+                    "scalar equality association result")
+
+            precedence = """data SumProducer {}
+machine SumProducer::run(&mut self) -> u8 {
+    transition 1 < 2 == true && true || false { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            precedence_envelope, precedence_witness = resolve(
+                "scalar-equal-precedence", precedence, 0, 1
+            )
+            precedence_output = lower(
+                "scalar-equal-precedence",
+                pack_lowering(precedence_envelope, precedence_witness, 9, 1), 0,
+            )
+            precedence_module = ir8.decode(precedence_output)
+            selected = [
+                row[3] for row in precedence_module.tables["operations"]
+                if row[3] in (9, 16, 17, 18)
+            ]
+            require(selected == [9, 18, 16, 17],
+                    f"scalar equality precedence operation order {selected}")
+            require(ir8.interpret(precedence_module) == 70,
+                    "scalar equality precedence result")
+
+            sw1_envelope, sw1_witness = resolve(
+                "scalar-equal-old-frame", equality_sw1, 0, 1
+            )
+            lower("scalar-equal-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 8, 1), 251)
+            inherited_only = equality_sw1.replace(
+                "self.word == 70 && self.byte == 70 && self.flag == true",
+                "!!self.flag && true", 1,
+            )
+            inherited_envelope, inherited_witness = resolve(
+                "scalar-equal-missing", inherited_only, 0, 1
+            )
+            lower("scalar-equal-missing",
+                  pack_lowering(inherited_envelope, inherited_witness, 9, 1), 251)
+            lower("scalar-equal-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 9, 2), 251)
+
+            for count, expected in ((7, 0), (8, 252)):
+                expression = "true" + " == true" * count
+                nested = association.replace("true == false == false", expression, 1)
+                envelope, witness = resolve(f"scalar-equal-depth-{count}", nested, 0, 1)
+                result = lower(f"scalar-equal-depth-{count}",
+                               pack_lowering(envelope, witness, 9, 1), expected)
+                if expected == 0:
+                    require(ir8.interpret(ir8.decode(result)) == 70,
+                            "scalar equality expression-depth-8 result")
+
+            call_operand = """data SumProducer {}
+machine SumProducer::probe(&self) -> u32 { 70 }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.probe() == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            index_operand = """data SumProducer { words: [u32; 1]; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.words[0] == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            mixed_carrier = """data SumProducer { byte: u8; word: u32; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.byte == self.word { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            record_operand = """data Pair [copy] { value: u32; }
+data SumProducer { pair: Pair; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.pair == self.pair { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            sum_operand = """data Base [copy] { case A; case B; }
+data SumProducer { base: Base; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.base == Base::A { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            for name, (source, witness_major) in {
+                "scalar-equal-bool-numeric": (association.replace(
+                    "true == false == false", "true == 1", 1
+                ), 1),
+                "scalar-equal-mixed-carrier": (mixed_carrier, 1),
+                "scalar-equal-record": (record_operand, 1),
+                "scalar-equal-sum": (sum_operand, 3),
+                "scalar-equal-not-equal": (association.replace(
+                    "true == false == false", "true != false", 1
+                ), 1),
+                "scalar-equal-missing-rhs": (association.replace(
+                    "true == false == false", "true ==", 1
+                ), 1),
+                "scalar-equal-call-operand": (call_operand, 1),
+                "scalar-equal-index-operand": (index_operand, 1),
+                "scalar-equal-trapping-operand": (association.replace(
+                    "true == false == false", "1 + 1 == 2", 1
+                ), 1),
+            }.items():
+                envelope, witness = resolve(name, source, 0, witness_major)
+                lower(name, pack_lowering(envelope, witness, 9, witness[8]), 251)
+
+            print("resolved-to-CKIR8: OMGLOW9 independently pairs least OMGRSW1/2/3; "
+                  "pure/nontrapping same-carrier bool/u8/u32 ScalarEqual with ordering/equality/"
+                  "logical precedence and left association, inherited logical/sum/call composition, "
+                  "native/self exact result 70; type/purity/old-new/selector/depth controls passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs8.items()))
+
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6", "gate-v7"):
-        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7")
-    run_gate({"gate": "v5", "gate-v6": "v6", "gate-v7": "v7"}[sys.argv[1]])
+    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6", "gate-v7", "gate-v8"):
+        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8")
+    run_gate({"gate": "v5", "gate-v6": "v6", "gate-v7": "v7", "gate-v8": "v8"}[sys.argv[1]])
 
 
 if __name__ == "__main__":

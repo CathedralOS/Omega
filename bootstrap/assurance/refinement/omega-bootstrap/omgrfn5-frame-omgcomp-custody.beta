@@ -1,11 +1,11 @@
-; OMGRFN5 through OMGRFN9 responsibility 1: exact versioned framing and
+; OMGRFN5 through OMGRFN10 responsibility 1: exact versioned framing and
 ; complete OMGCOMP source custody. This persisted adapter is compiled with the frozen OMGCOMP
 ; custody core in omgrfn4-frame-omgcomp-custody.beta. It reuses only the
 ; structural parsing procedures: it does not call the OMGRFN4 frame reader or
 ; accept an OMGRFN4 conclusion. Resolution witnesses, checked IR, ELF, and
 ; claimed results remain untrusted opaque frame components here.
 ;
-; OMGRFN5 through OMGRFN9 have the same 40-byte layout and ceilings. This
+; OMGRFN5 through OMGRFN10 have the same 40-byte layout and ceilings. This
 ; responsibility dispatches their exact outer identities while deliberately
 ; retaining OMGRSW1/OMGRSW2/OMGRSW3 and every later component as opaque. The
 ; witness version pair is owned by responsibility 3.
@@ -73,6 +73,7 @@ proc omgrfn5_read() {
         to version7_magic when (omgrfn5_byte(6) == '7')
         to version8_magic when (omgrfn5_byte(6) == '8')
         to version9_magic when (omgrfn5_byte(6) == '9')
+        to version10_magic when (omgrfn5_byte(6) == 'A')
         to malformed
     }
     state version5_magic { word[500104] = 5  to magic7 }
@@ -80,6 +81,7 @@ proc omgrfn5_read() {
     state version7_magic { word[500104] = 7  to magic7 }
     state version8_magic { word[500104] = 8  to magic7 }
     state version9_magic { word[500104] = 9  to magic7 }
+    state version10_magic { word[500104] = 10  to magic7 }
     state magic7 { to version when (omgrfn5_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_u32(8) == word[500104])  to malformed }
     state fields {
@@ -187,6 +189,12 @@ proc omgrfn8_layer1_check() {
 proc omgrfn9_layer1_check() {
     let status=omgrfn5_layer1_check()
     state checked { to done when (status!=0) to exact when (word[500104]==9) return 251 }
+    state exact { return 0 }
+    state done { return status }
+}
+proc omgrfn10_layer1_check() {
+    let status=omgrfn5_layer1_check()
+    state checked { to done when (status!=0) to exact when (word[500104]==10) return 251 }
     state exact { return 0 }
     state done { return status }
 }

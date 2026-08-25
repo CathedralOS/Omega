@@ -330,7 +330,7 @@ proc l3_ckir_header() {
     state done { return word[500008] }
 }
 
-; Shared exact V7/V8/V9 frame reader. The responsibility entry point below pins
+; Shared exact V7 through V10 frame reader. The responsibility entry point below pins
 ; the accepted outer version before any proposition is published.
 proc l37_read_frame() {
     let n=0 let overflow=0 let c=read_byte() let cursor=0
@@ -341,11 +341,12 @@ proc l37_read_frame() {
     state magic {
         to bad when (l3_frame_byte(0)!='O') to bad when (l3_frame_byte(1)!='M') to bad when (l3_frame_byte(2)!='G')
         to bad when (l3_frame_byte(3)!='R') to bad when (l3_frame_byte(4)!='F') to bad when (l3_frame_byte(5)!='N')
-        to version7 when (l3_frame_byte(6)=='7') to version8 when (l3_frame_byte(6)=='8') to version9 when (l3_frame_byte(6)=='9') to bad
+        to version7 when (l3_frame_byte(6)=='7') to version8 when (l3_frame_byte(6)=='8') to version9 when (l3_frame_byte(6)=='9') to version10 when (l3_frame_byte(6)=='A') to bad
     }
     state version7 { word[500104]=7 to version }
     state version8 { word[500104]=8 to version }
     state version9 { word[500104]=9 to version }
+    state version10 { word[500104]=10 to version }
     state version {
         to bad when (l3_frame_byte(7)!=0) to bad when (l3_frame_u32(8)!=word[500104])
         word[500016]=l3_frame_u32(12) word[500032]=l3_frame_u32(16) word[500048]=l3_frame_u32(20)
@@ -1203,6 +1204,35 @@ proc l39_validate_logical_binary_intrinsics() {
         to next
     }
     state next { i=i+1 to operations }
+    state complete { to required when (word[500104]==9) return 0 }
+    state required { to bad when (count<1) return 0 }
+    state bad { return l3_reject() }
+}
+
+; CKIR8 opcode 18 is exact same-carrier scalar equality.  R3 owns only the
+; intrinsic row envelope; operand identity, visibility, carrier agreement,
+; authored-token correspondence, meaning, and artifact bytes remain R4/R5.
+proc l310_validate_scalar_equal_intrinsics() {
+    let i=0 let p=0 let type_id=0 let count=0
+    state operations { to operation when (i<word[511064]) to complete }
+    state operation { p=word[511160]+i*40 to equal when (l3_ckir_byte(p+12)==18) to next }
+    state equal {
+        count=count+1
+        to bad when (l3_ckir_byte(p+13)!=1)
+        to bad when (l3_ckir_byte(p+14)!=0)
+        to bad when (l3_ckir_byte(p+15)!=0)
+        to bad when (l3_c_u32(p+16)>=word[511088])
+        type_id=l3_c_u32(p+20)
+        to bad when (type_id>=word[511008])
+        to bad when (l3_type(type_id,0)!=3)
+        to bad when (l3_type(type_id,4)!=0)
+        to bad when (l3_type(type_id,5)!=1)
+        to bad when (l3_c_u32(p+28)!=2)
+        to bad when (l3_c_u32(p+32)!=0)
+        to bad when (l3_c_u32(p+36)!=0)
+        to next
+    }
+    state next { i=i+1 to operations }
     state complete { to bad when (count<1) return 0 }
     state bad { return l3_reject() }
 }
@@ -1404,6 +1434,35 @@ proc omgrfn9_r3_check() {
     state cases { to done when (word[500008]!=0) l38_validate_logical_intrinsics() to unary }
     state unary { to done when (word[500008]!=0) l39_validate_logical_binary_intrinsics() to binary }
     state binary { to done when (word[500008]!=0) l3_validate_root() to root }
+    state root { to done when (word[500008]!=0) l3_compare_types() to types_join }
+    state types_join { to done when (word[500008]!=0) l3_compare_records_fields() to records_join }
+    state records_join { to done when (word[500008]!=0) l37_compare_sums() to sums_join }
+    state sums_join { to done when (word[500008]!=0) l3_compare_machines_parameters() to machines_join }
+    state machines_join { to done when (word[500008]!=0) l3_compare_blocks_parameters() to blocks_join }
+    state blocks_join { to done when (word[500008]!=0) l3_validate_constants() to done }
+    state done { return word[500008] }
+    state bad { return l3_reject() }
+}
+
+proc omgrfn10_r3_check() {
+    l37_read_frame()
+    state frame { to done when (word[500008]!=0) to bad when (word[500104]!=10) l37_witness_header() to witness }
+    state witness { to done when (word[500008]!=0) l37_ckir_header() to ckir }
+    state ckir { to done when (word[500008]!=0) l3_load_declarations() to declarations }
+    state declarations { to done when (word[500008]!=0) l3_load_types() to types }
+    state types { to done when (word[500008]!=0) l3_load_records_fields() to records }
+    state records { to done when (word[500008]!=0) l37_load_sums() to sums }
+    state sums { to done when (word[500008]!=0) l3_load_machines() to machines }
+    state machines { to done when (word[500008]!=0) l3_load_parameters_blocks() to parameters }
+    state parameters { to done when (word[500008]!=0) l3_validate_type_interning() to interning }
+    state interning { to done when (word[500008]!=0) l3_validate_layouts() to layouts }
+    state layouts { to done when (word[500008]!=0) l3_validate_copyability() to copies }
+    state copies { to done when (word[500008]!=0) l3_validate_constructor_nominals() to constructors }
+    state constructors { to done when (word[500008]!=0) l37_validate_case_intrinsics() to cases }
+    state cases { to done when (word[500008]!=0) l38_validate_logical_intrinsics() to unary }
+    state unary { to done when (word[500008]!=0) l39_validate_logical_binary_intrinsics() to binary }
+    state binary { to done when (word[500008]!=0) l310_validate_scalar_equal_intrinsics() to equality }
+    state equality { to done when (word[500008]!=0) l3_validate_root() to root }
     state root { to done when (word[500008]!=0) l3_compare_types() to types_join }
     state types_join { to done when (word[500008]!=0) l3_compare_records_fields() to records_join }
     state records_join { to done when (word[500008]!=0) l37_compare_sums() to sums_join }

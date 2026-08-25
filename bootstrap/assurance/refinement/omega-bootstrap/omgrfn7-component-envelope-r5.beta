@@ -1,7 +1,7 @@
-; Bounded OMGRFN7/8/9 responsibility-5 component framing.
+; Bounded OMGRFN7/8/9/10 responsibility-5 component framing.
 ;
 ; This decoder deliberately treats OMGCOMP and the selected OMGRSW as opaque. It reads
-; enough of the exact version-7/8/9 frame locally to make CKIR5/6/7 and ELF
+; enough of the exact version-7/8/9/10 frame locally to make CKIR5/6/7/8 and ELF
 ; accesses safe,
 ; then projects those component offsets and claims into the stable private
 ; interface consumed by the shared CKIR artifact and ELF checkers. It performs no
@@ -14,7 +14,7 @@
 ; responsibility-5 envelope. In particular, OMGRSW witness identity is
 ; responsibility 3's premise, not an artifact-checker premise. Word 524376
 ; retains the exact outer version so the CKIR checker can enforce 7/5, 8/6,
-; and 9/7
+; 9/7, and 10/8
 ; without inspecting the opaque witness.
 ; Existing checker interface (word addresses):
 ;   524288 frame length; 524296 status; 524304 flags
@@ -75,11 +75,13 @@ proc omgrfn5_component_read() {
         to version7_magic when (omgrfn5_component_byte(6) == '7')
         to version8_magic when (omgrfn5_component_byte(6) == '8')
         to version9_magic when (omgrfn5_component_byte(6) == '9')
+        to version10_magic when (omgrfn5_component_byte(6) == 'A')
         to malformed
     }
     state version7_magic { word[524376] = 7  to magic7 }
     state version8_magic { word[524376] = 8  to magic7 }
     state version9_magic { word[524376] = 9  to magic7 }
+    state version10_magic { word[524376] = 10  to magic7 }
     state magic7 { to version when (omgrfn5_component_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_component_u32(8) == word[524376])  to malformed }
     state fields {

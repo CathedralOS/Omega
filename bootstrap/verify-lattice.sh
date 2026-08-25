@@ -19,6 +19,9 @@
 # reach, not the full prover battery. LATTICE_FULL=1 forces everything.
 # The cache holds only *hashes of inputs of passing runs* — deleting it is
 # always safe and merely makes the next run full.
+# Active successor gates may use checked manifests under lattice-cache-deps/
+# instead of hashing an entire owner directory. Unmigrated gates retain the
+# coarse behavior, and LATTICE_FULL=1 always bypasses both cache forms.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -36,9 +39,12 @@ fi
 cd "$OMEGA_GATE_DIR"
 fail=0
 CACHE="$OMEGA_REPO_ROOT/.lattice-cache"
+CACHE_PROFILE_DIR=${LATTICE_CACHE_PROFILE_DIR:-"$OMEGA_REPO_ROOT/bootstrap/lattice-cache-deps"}
 mkdir -p "$CACHE"
 
-sh "$OMEGA_REPO_ROOT/bootstrap/check-path-hygiene.sh" || exit $?
+if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" != "1" ]; then
+  sh "$OMEGA_REPO_ROOT/bootstrap/check-path-hygiene.sh" || exit $?
+fi
 
 # content hash of the given dirs/files (source + scripts only; build outputs excluded)
 hash_inputs() {
@@ -49,9 +55,102 @@ hash_inputs() {
         \( -name '*.beta' -o -name '*.alpha' -o -name '*.gamma' -o -name '*.alp' \
            -o -name '*.omg' -o -name '*.sh' -o -name '*.py' -o -name '*.rs' \
            -o -name '*.s' -o -name '*.toml' -o -name '*.md5' -o -name '*.elab' \
-           -o -name '*.hex' -o -name '*.json' \) -print 2>/dev/null
+           -o -name '*.hex' -o -name '*.json' -o -name '*.lock' \) -print 2>/dev/null
     done; } | sort | xargs shasum 2>/dev/null | shasum | cut -d' ' -f1
 }
+
+# A precise cache profile is an intentionally conservative union of exact
+# transitive inputs for a related family of expensive gates. Each non-comment
+# row is `script REPOSITORY_PATH` or `input REPOSITORY_PATH`. Directories are
+# permitted when the whole subtree is a real input (for example a Rust crate),
+# and are filtered by hash_inputs exactly like coarse role directories.
+validate_cache_profile() {
+  v_profile=$1
+  [ -f "$v_profile" ] || {
+    echo "lattice cache profile missing: $v_profile" >&2
+    return 1
+  }
+  awk '
+    /^[[:space:]]*(#|$)/ { next }
+    NF != 2 { print FILENAME ":" FNR ": expected KIND PATH" > "/dev/stderr"; bad=1; next }
+    $1 != "script" && $1 != "input" {
+      print FILENAME ":" FNR ": unknown kind " $1 > "/dev/stderr"; bad=1; next
+    }
+    seen[$2]++ {
+      print FILENAME ":" FNR ": duplicate path " $2 > "/dev/stderr"; bad=1
+    }
+    $1 == "script" { scripts++ }
+    END {
+      if (scripts == 0) { print FILENAME ": no script rows" > "/dev/stderr"; bad=1 }
+      exit bad
+    }
+  ' "$v_profile" || return 1
+  while read -r v_kind v_path v_extra; do
+    case "$v_kind" in ''|'#'*) continue ;; esac
+    case "$v_path" in
+      /*|..|../*|*/..|*/../*)
+        echo "$v_profile: unsafe repository path: $v_path" >&2
+        return 1
+        ;;
+    esac
+    [ -z "$v_extra" ] || {
+      echo "$v_profile: path contains whitespace: $v_path $v_extra" >&2
+      return 1
+    }
+    [ -e "$OMEGA_REPO_ROOT/$v_path" ] || {
+      echo "$v_profile: missing input: $v_path" >&2
+      return 1
+    }
+  done < "$v_profile"
+}
+
+validate_cache_profiles() {
+  [ -d "$CACHE_PROFILE_DIR" ] || {
+    echo "lattice cache profile directory missing: $CACHE_PROFILE_DIR" >&2
+    return 1
+  }
+  v_count=0
+  for v_profile in "$CACHE_PROFILE_DIR"/*.deps; do
+    [ -e "$v_profile" ] || {
+      echo "lattice cache profile directory has no .deps files" >&2
+      return 1
+    }
+    validate_cache_profile "$v_profile" || return 1
+    v_count=$((v_count+1))
+  done
+  [ "$v_count" -gt 0 ]
+}
+
+authorize_cache_profile_script() { # profile-file exact-invoked-script
+  a_profile=$1
+  a_script=$2
+  awk -v script="$a_script" '
+    $1 == "script" && $2 == script { found=1 }
+    END { exit !found }
+  ' "$a_profile" || {
+    echo "$a_profile: precise step does not authorize script $a_script" >&2
+    return 1
+  }
+}
+
+hash_cache_profile() { # profile-file
+  h_profile=$1
+  h_entries=$(awk -v root="$OMEGA_REPO_ROOT" \
+    '!/^[[:space:]]*(#|$)/ { print root "/" $2 }' "$h_profile")
+  # Profile integrity rejects whitespace, so intentional field splitting here
+  # produces one repository-relative dependency per positional parameter.
+  # shellcheck disable=SC2086
+  set -- $h_entries
+  h_manifest=$(shasum "$h_profile" | cut -d' ' -f1)
+  h_inputs=$(hash_inputs "$@") || return 1
+  printf '%s:%s' "$h_manifest" "$h_inputs"
+}
+
+validate_cache_profiles || exit $?
+if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" = "profiles" ]; then
+  echo "lattice cache profiles: manifests validated"
+  exit 0
+fi
 
 # The language spine and its shared path plumbing sit under every step. Assurance
 # services are deliberately excluded here: steps that consume the proof kernel
@@ -60,19 +159,11 @@ CORE=$(hash_inputs "$OMEGA_PATH_RUNGS_ROOT" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/paths.sh" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/check-path-hygiene.sh" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/test-paths.sh")
-RAN=0; SKIPPED=0
+RAN=0; SKIPPED=0; PRECISE_CHECKED=0
 
-step() {  # label dir script [extra dep dirs...]
-  s_label="$1"; s_role="$2"; s_script="$3"; shift 3
-  s_dir=$(omega_bootstrap_path "$s_role") || exit $?
-  s_variant=${LATTICE_STEP_VARIANT:-default}
-  if [ "$s_variant" = default ]; then
-    # Preserve existing cache keys and hashes for every unvariant step.
-    s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
-    s_hash="$CORE:$(hash_inputs "$s_role" "$@")"
-  else
-    s_key=$(printf '%s_%s_%s' "$s_role" "$s_script" "$s_variant" | tr '/ .' '___')
-    s_hash="$CORE:$s_variant:$(hash_inputs "$s_role" "$@")"
+run_hashed_step() {
+  if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" = "1" ]; then
+    return
   fi
   if [ "${LATTICE_FULL:-0}" != "1" ] && [ -f "$CACHE/$s_key" ] \
      && [ "$(cat "$CACHE/$s_key")" = "$s_hash" ]; then
@@ -87,6 +178,74 @@ step() {  # label dir script [extra dep dirs...]
   else
     echo "FAILED: $s_label"; fail=1; rm -f "$CACHE/$s_key"
   fi
+}
+
+step() {  # label dir script [extra dep dirs...]
+  s_label="$1"; s_role="$2"; s_script="$3"; shift 3
+  if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" = "1" ]; then
+    return
+  fi
+  s_dir=$(omega_bootstrap_path "$s_role") || exit $?
+  s_variant=${LATTICE_STEP_VARIANT:-default}
+  if [ "$s_variant" = default ]; then
+    # Preserve existing cache keys and hashes for every unvariant step.
+    s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
+    s_hash="$CORE:$(hash_inputs "$s_role" "$@")"
+  else
+    s_key=$(printf '%s_%s_%s' "$s_role" "$s_script" "$s_variant" | tr '/ .' '___')
+    s_hash="$CORE:$s_variant:$(hash_inputs "$s_role" "$@")"
+  fi
+  run_hashed_step
+}
+
+precise_step() { # label dir script cache-profile
+  s_label="$1"; s_role="$2"; s_script="$3"; s_profile_name="$4"
+  s_dir=$(omega_bootstrap_path "$s_role") || exit $?
+  s_script_path="$s_dir/$s_script"
+  case "$s_script_path" in
+    "$OMEGA_REPO_ROOT"/*) s_script_rel=${s_script_path#"$OMEGA_REPO_ROOT/"} ;;
+    *) echo "precise lattice script is outside repository: $s_script_path" >&2; exit 2 ;;
+  esac
+  [ -f "$s_script_path" ] || {
+    echo "precise lattice script missing: $s_script_path" >&2
+    exit 2
+  }
+  s_profile="$CACHE_PROFILE_DIR/$s_profile_name.deps"
+  authorize_cache_profile_script "$s_profile" "$s_script_rel" || exit $?
+  case "$s_profile_name" in
+    omega-bootstrap-ckir4-7)
+      if [ -z "${CACHE_HASH_CKIR4_7+x}" ]; then
+        CACHE_HASH_CKIR4_7=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_CKIR4_7
+      ;;
+    omega-bootstrap-omgrfn7-9)
+      if [ -z "${CACHE_HASH_OMGRFN7_9+x}" ]; then
+        CACHE_HASH_OMGRFN7_9=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_OMGRFN7_9
+      ;;
+    omega-bootstrap-ckir8)
+      if [ -z "${CACHE_HASH_CKIR8+x}" ]; then
+        CACHE_HASH_CKIR8=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_CKIR8
+      ;;
+    omega-bootstrap-omgrfn10)
+      if [ -z "${CACHE_HASH_OMGRFN10+x}" ]; then
+        CACHE_HASH_OMGRFN10=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_OMGRFN10
+      ;;
+    *)
+      s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
+      ;;
+  esac
+  s_variant=${LATTICE_STEP_VARIANT:-default}
+  s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
+  s_hash="$CORE:precise-v1:$s_variant:$s_profile_name:$s_profile_hash"
+  PRECISE_CHECKED=$((PRECISE_CHECKED+1))
+  run_hashed_step
 }
 
 step "alpha — seed (provenance + behavior + reproduction)" alpha       verify.sh
@@ -195,22 +354,26 @@ step "omega-bootstrap OMGRFN4 layer 4 meaning — physically artifact-free sourc
 step "omega-bootstrap OMGRFN4 layer 5a — complete CKIR3/result validation below Delta" omega-bootstrap-refinement omgrfn4-ckir3-artifact-result.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN4 layer 5b — exact CKIR3-to-ELF reconstruction below Delta" omega-bootstrap-refinement omgrfn4-ckir3-refinement-elf.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN4 composite — all five independent responsibilities consume one exact constant-aggregate frame" omega-bootstrap-refinement omgrfn4-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap CKIR4 resolved-source lowerer — runtime records plus versioned direct field receivers" omega-bootstrap-gates delta-resolved-to-ckir4.sh omega-bootstrap-compiler delta-rust psi
-step "omega-bootstrap CKIR4 lowering meaning (RUST-FREE) — constructor/field-receiver/Call 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir4-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma psi
-step "omega-bootstrap CKIR4 independent reference — constructor objects, result, exact ELF, and mutation sweep" omega-bootstrap-gates delta-checked-ir-v4-reference.sh
-step "omega-bootstrap CKIR4 backend — immutable object extents and exact constructor ELF templates" omega-bootstrap-gates delta-checked-ir-v4-backend.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR4 backend meaning (RUST-FREE) — exact constructor ELF/result and 251/252 through Gamma" omega-bootstrap-gates delta-checked-ir-v4-backend-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
-step "omega-bootstrap CKIR5 independent reference — pure sums, constructors, dispatch, payload bindings, and resource teeth" omega-bootstrap-gates delta-checked-ir-v5-reference.sh
-step "omega-bootstrap CKIR5 resolved-source lowerer — OMGLOW6 construction/Copy/Call/dispatch, native/self exact result 70" omega-bootstrap-gates delta-resolved-to-ckir5.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR5 backend — private sum layout, selected payload snapshots, exact ELF, and frozen CKIR4 parity" omega-bootstrap-gates delta-checked-ir-v5-backend.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR6 independent reference — bool-only LogicalNot meaning, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v6-reference.sh
-step "omega-bootstrap CKIR6 resolved-source lowerer — OMGLOW7 with least OMGRSW1/2/3 and native/self result 70" omega-bootstrap-gates delta-resolved-to-ckir6.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR6 lowering meaning (RUST-FREE) — least OMGRSW1 LogicalNot 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir6-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
-step "omega-bootstrap CKIR6 backend — exact LogicalNot load/xor-one/store template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v6-backend.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR7 independent reference — pure Boolean AND/OR truth functions, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v7-reference.sh
-step "omega-bootstrap CKIR7 resolved-source lowerer — OMGLOW8 pure/nontrapping &&/|| with least OMGRSW1/2/3" omega-bootstrap-gates delta-resolved-to-ckir7.sh omega-bootstrap-compiler delta-rust
-step "omega-bootstrap CKIR7 lowering meaning (RUST-FREE) — short-circuit-equivalent pure Boolean 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir7-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
-step "omega-bootstrap CKIR7 backend — exact LogicalAnd/LogicalOr templates and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v7-backend.sh omega-bootstrap-compiler delta-rust
+precise_step "omega-bootstrap CKIR4 resolved-source lowerer — runtime records plus versioned direct field receivers" omega-bootstrap-gates delta-resolved-to-ckir4.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR4 lowering meaning (RUST-FREE) — constructor/field-receiver/Call 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir4-meaning.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR4 independent reference — constructor objects, result, exact ELF, and mutation sweep" omega-bootstrap-gates delta-checked-ir-v4-reference.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR4 backend — immutable object extents and exact constructor ELF templates" omega-bootstrap-gates delta-checked-ir-v4-backend.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR4 backend meaning (RUST-FREE) — exact constructor ELF/result and 251/252 through Gamma" omega-bootstrap-gates delta-checked-ir-v4-backend-meaning.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR5 independent reference — pure sums, constructors, dispatch, payload bindings, and resource teeth" omega-bootstrap-gates delta-checked-ir-v5-reference.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR5 resolved-source lowerer — OMGLOW6 construction/Copy/Call/dispatch, native/self exact result 70" omega-bootstrap-gates delta-resolved-to-ckir5.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR5 backend — private sum layout, selected payload snapshots, exact ELF, and frozen CKIR4 parity" omega-bootstrap-gates delta-checked-ir-v5-backend.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR6 independent reference — bool-only LogicalNot meaning, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v6-reference.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR6 resolved-source lowerer — OMGLOW7 with least OMGRSW1/2/3 and native/self result 70" omega-bootstrap-gates delta-resolved-to-ckir6.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR6 lowering meaning (RUST-FREE) — least OMGRSW1 LogicalNot 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir6-meaning.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR6 backend — exact LogicalNot load/xor-one/store template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v6-backend.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR7 independent reference — pure Boolean AND/OR truth functions, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v7-reference.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR7 resolved-source lowerer — OMGLOW8 pure/nontrapping &&/|| with least OMGRSW1/2/3" omega-bootstrap-gates delta-resolved-to-ckir7.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR7 lowering meaning (RUST-FREE) — short-circuit-equivalent pure Boolean 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir7-meaning.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR7 backend — exact LogicalAnd/LogicalOr templates and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v7-backend.sh omega-bootstrap-ckir4-7
+precise_step "omega-bootstrap CKIR8 independent reference — primitive bool/u8/u32 ScalarEqual meaning, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v8-reference.sh omega-bootstrap-ckir8
+precise_step "omega-bootstrap CKIR8 resolved-source lowerer — OMGLOW9 pure/nontrapping same-carrier equality" omega-bootstrap-gates delta-resolved-to-ckir8.sh omega-bootstrap-ckir8
+precise_step "omega-bootstrap CKIR8 lowering meaning (RUST-FREE) — scalar equality 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir8-meaning.sh omega-bootstrap-ckir8
+precise_step "omega-bootstrap CKIR8 backend — exact CMP/SETE/MOVZX template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v8-backend.sh omega-bootstrap-ckir8
 step "omega-bootstrap OMGRFN5/6/7 layer 1 — exact successor frame, OMGCOMP graph, and source custody" omega-bootstrap-refinement omgrfn5-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 2 — independent runtime-record source resolution below Delta" omega-bootstrap-refinement omgrfn5-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 3 — independent witness-to-CKIR4 declarations, layout, root, and intrinsic envelope" omega-bootstrap-refinement omgrfn5-witness-ckir4-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -218,16 +381,17 @@ step "omega-bootstrap OMGRFN5 layer 4 — constructor source lowering and artifa
 step "omega-bootstrap OMGRFN5 layer 5a — complete CKIR4/result validation below Delta" omega-bootstrap-refinement omgrfn5-ckir4-artifact-result.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 5b — exact CKIR4-to-ELF reconstruction below Delta" omega-bootstrap-refinement omgrfn5-ckir4-refinement-elf.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 composite — all five independent responsibilities consume two exact runtime-record carriers" omega-bootstrap-refinement omgrfn5-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 2 — independent pure-sum source-to-OMGRSW3 reconstruction below Delta" omega-bootstrap-refinement omgrfn7-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 3 — independent OMGRSW3-to-CKIR5 sums, layout, constructors, dispatch arms, and payload identities" omega-bootstrap-refinement omgrfn7-witness-ckir5-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 4a — exact pure-sum source-to-CKIR5 lowering below Delta" omega-bootstrap-refinement omgrfn7-source-ckir5-lowering.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 4b — artifact-free pure-sum source meaning below Delta" omega-bootstrap-refinement omgrfn7-source-lowering-meaning.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 5a — independent complete CKIR5 structure below Delta" omega-bootstrap-refinement omgrfn7-ckir5-structure.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 5b — independent CKIR5 result below Delta" omega-bootstrap-refinement omgrfn7-ckir5-result.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 layer 5c — exact CKIR5-to-ELF reconstruction below Delta" omega-bootstrap-refinement omgrfn7-ckir5-elf.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN7 composite — all five independent responsibilities consume one exact pure-sum frame" omega-bootstrap-refinement omgrfn7-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN8 composite — all five independent responsibilities consume one exact logical-negation frame" omega-bootstrap-refinement omgrfn8-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN9 composite — all five independent responsibilities consume one exact logical-binary frame" omega-bootstrap-refinement omgrfn9-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
+precise_step "omega-bootstrap OMGRFN7 layer 2 — independent pure-sum source-to-OMGRSW3 reconstruction below Delta" omega-bootstrap-refinement omgrfn7-source-witness-independent.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 3 — independent OMGRSW3-to-CKIR5 sums, layout, constructors, dispatch arms, and payload identities" omega-bootstrap-refinement omgrfn7-witness-ckir5-tables.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 4a — exact pure-sum source-to-CKIR5 lowering below Delta" omega-bootstrap-refinement omgrfn7-source-ckir5-lowering.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 4b — artifact-free pure-sum source meaning below Delta" omega-bootstrap-refinement omgrfn7-source-lowering-meaning.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 5a — independent complete CKIR5 structure below Delta" omega-bootstrap-refinement omgrfn7-ckir5-structure.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 5b — independent CKIR5 result below Delta" omega-bootstrap-refinement omgrfn7-ckir5-result.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 layer 5c — exact CKIR5-to-ELF reconstruction below Delta" omega-bootstrap-refinement omgrfn7-ckir5-elf.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN7 composite — all five independent responsibilities consume one exact pure-sum frame" omega-bootstrap-refinement omgrfn7-same-frame-composite.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN8 composite — all five independent responsibilities consume one exact logical-negation frame" omega-bootstrap-refinement omgrfn8-same-frame-composite.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN9 composite — all five independent responsibilities consume one exact logical-binary frame" omega-bootstrap-refinement omgrfn9-same-frame-composite.sh omega-bootstrap-omgrfn7-9
+precise_step "omega-bootstrap OMGRFN10 composite — all five independent responsibilities consume one exact primitive-equality frame" omega-bootstrap-refinement omgrfn10-same-frame-composite.sh omega-bootstrap-omgrfn10
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
@@ -262,6 +426,11 @@ if command -v python3 >/dev/null 2>&1; then
   step "tool — elaborator/de-elaborator round-trip on the corpus" proof-kernel-gates delab-roundtrip.sh gamma
   step "tool — proof-search front line (prover discharges; check.beta validates)" proof-kernel-gates prover-test.sh gamma
   step "tool — prover certificate cross-check (accepted by check.beta AND checker.gamma)" proof-kernel-gates prover-diamond.sh gamma
+fi
+
+if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" = "1" ]; then
+  echo "lattice cache profiles: $PRECISE_CHECKED precise call sites and all manifests validated"
+  exit 0
 fi
 
 echo ""

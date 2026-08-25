@@ -190,7 +190,7 @@ proc r47_next_opcode(opcode,start) {
 proc r49_next_nonlogical_literal(start) {
     let block=0
     state loop { to one when (start<word[950096]) word[951000]=4294967295 return 0 }
-    state one { to next when (r47_ckir_byte(word[950296]+start*40+12)!=1) to found when (word[879088]!=9) block=r47_row_word(12,start,8) to next when (word[956900+block*8]==1) to found }
+    state one { to next when (r47_ckir_byte(word[950296]+start*40+12)!=1) to found when (word[879088]<9) block=r47_row_word(12,start,8) to next when (word[956900+block*8]==1) to found }
     state next { start=start+1 to loop }
     state found { word[951000]=start word[951008]=start+1 return 0 }
 }
@@ -207,7 +207,7 @@ proc r47_literal_join() {
     state blocks { to block_one when (block<word[879040]) r49_next_nonlogical_literal(cursor) to bad when (word[951000]!=4294967295) return 0 }
     state block_one { word[956900+block*8]=0 machine=word[888000+block*96] source=word[884000+machine*128] token=r47_block_token_start(source,block) end=word[888032+block*96] to tokens }
     state tokens { to token_one when (token<word[880000+source*8]) block=block+1 to blocks }
-    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to transition_token when (word[879088]==9) to ordinary_token }
+    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to transition_token when (word[879088]>=9) to ordinary_token }
     state transition_token { to logical_start when (r47_is_transition(source,token)==1) to logical_token when (logical==1) to ordinary_token }
     state logical_start { to logical_yes when (r49_transition_has_logical(source,token)==1) to ordinary_token }
     state logical_yes { logical=1 word[956900+block*8]=1 token=token+1 to tokens }
@@ -366,9 +366,11 @@ proc r47_transition_join() {
 proc r49_transition_has_logical(source,token) {
     let count=word[880000+source*8]
     state next { token=token+1 to loop }
-    state loop { to no when (token>=count) to no when (omgrfn4_r2_tkind(source,token)==123) to yes when (omgrfn4_r2_tkind(source,token)==33) to amp when (omgrfn4_r2_tkind(source,token)==38) to bar when (omgrfn4_r2_tkind(source,token)==124) token=token+1 to loop }
+    state loop { to no when (token>=count) to no when (omgrfn4_r2_tkind(source,token)==123) to yes when (omgrfn4_r2_tkind(source,token)==33) to amp when (omgrfn4_r2_tkind(source,token)==38) to bar when (omgrfn4_r2_tkind(source,token)==124) to equal when (omgrfn4_r2_tkind(source,token)==61) token=token+1 to loop }
     state amp { to yes when (token+1<count) to no }
     state bar { to yes when (token+1<count) to no }
+    state equal { to next_equal when (word[879088]>=10) token=token+1 to loop }
+    state next_equal { to yes when (token<count) to no }
     state yes { return 1 }
     state no { return 0 }
 }
@@ -443,23 +445,47 @@ proc r49_emit_logical_primary(source,start,end) {
     state bang_out { word[956000+word[956800]*8]=15 word[956800]=word[956800]+1 bangs=bangs-1 to bangs_out }
 }
 
+; Rebuild the V10 equality-precedence level. The first equality follows the
+; producer's right/left/op materialization order; chained suffixes are emitted
+; left-associatively as right/op. Single assignment punctuation is ignored.
+proc r410_emit_scalar_equal(source,start,end) {
+    let operator=start let next=0 let right_end=0 let status=0
+    state first { to first_one when (operator+1<end) status=r49_emit_logical_primary(source,start,end) to bad when (status!=0) return 0 }
+    state first_one { to first_pair when (omgrfn4_r2_tkind(source,operator)==61) operator=operator+1 to first }
+    state first_pair { to first_found when (omgrfn4_r2_tkind(source,operator+1)==61) operator=operator+1 to first }
+    state first_found { next=operator+2 to find_next }
+    state find_next { right_end=next to find_one }
+    state find_one { to emit_first when (right_end>=end) to equality_candidate when (omgrfn4_r2_tkind(source,right_end)==61) right_end=right_end+1 to find_one }
+    state equality_candidate { to candidate_pair when (right_end+1<end) right_end=right_end+1 to find_one }
+    state candidate_pair { to emit_first when (omgrfn4_r2_tkind(source,right_end+1)==61) right_end=right_end+1 to find_one }
+    state emit_first { status=r49_emit_logical_primary(source,next,right_end) to bad when (status!=0) status=r49_emit_logical_primary(source,start,operator) to bad when (status!=0) word[956000+word[956800]*8]=18 word[956800]=word[956800]+1 to suffix }
+    state suffix { to suffix_operator when (right_end+1<end) return 0 }
+    state suffix_operator { to bad when (omgrfn4_r2_tkind(source,right_end)!=61) to bad when (omgrfn4_r2_tkind(source,right_end+1)!=61) next=right_end+2 to find_suffix }
+    state find_suffix { right_end=next to find_suffix_one }
+    state find_suffix_one { to emit_suffix when (right_end>=end) to suffix_candidate when (omgrfn4_r2_tkind(source,right_end)==61) right_end=right_end+1 to find_suffix_one }
+    state suffix_candidate { to suffix_pair when (right_end+1<end) right_end=right_end+1 to find_suffix_one }
+    state suffix_pair { to emit_suffix when (omgrfn4_r2_tkind(source,right_end+1)==61) right_end=right_end+1 to find_suffix_one }
+    state emit_suffix { status=r49_emit_logical_primary(source,next,right_end) to bad when (status!=0) word[956000+word[956800]*8]=18 word[956800]=word[956800]+1 to suffix }
+    state bad { return omgrfn4_l2_reject() }
+}
+
 ; The producer materializes the first binary at a precedence level by visiting
 ; its right operand, then its initial left operand, then the operation.  Each
 ; subsequent left-associated suffix visits only its new right operand before
 ; the operation.  Rebuild that exact order without importing producer state.
 proc r49_emit_logical_and(source,start,end) {
     let operator=start let next=0 let right_end=0 let status=0
-    state first { to first_one when (operator<end) status=r49_emit_logical_primary(source,start,end) to bad when (status!=0) return 0 }
+    state first { to first_one when (operator<end) status=r410_emit_scalar_equal(source,start,end) to bad when (status!=0) return 0 }
     state first_one { to first_found when (omgrfn4_r2_tkind(source,operator)==38) operator=operator+1 to first }
     state first_found { to bad when (operator+1>=end) to bad when (omgrfn4_r2_tkind(source,operator+1)!=38) next=operator+2 to find_next }
     state find_next { right_end=next to find_one }
     state find_one { to emit_first when (right_end>=end) to emit_first when (omgrfn4_r2_tkind(source,right_end)==38) right_end=right_end+1 to find_one }
-    state emit_first { status=r49_emit_logical_primary(source,next,right_end) to bad when (status!=0) status=r49_emit_logical_primary(source,start,operator) to bad when (status!=0) word[956000+word[956800]*8]=16 word[956800]=word[956800]+1 to suffix }
+    state emit_first { status=r410_emit_scalar_equal(source,next,right_end) to bad when (status!=0) status=r410_emit_scalar_equal(source,start,operator) to bad when (status!=0) word[956000+word[956800]*8]=16 word[956800]=word[956800]+1 to suffix }
     state suffix { to suffix_operator when (right_end<end) return 0 }
     state suffix_operator { to bad when (right_end+1>=end) to bad when (omgrfn4_r2_tkind(source,right_end+1)!=38) next=right_end+2 to find_suffix }
     state find_suffix { right_end=next to find_suffix_one }
     state find_suffix_one { to emit_suffix when (right_end>=end) to emit_suffix when (omgrfn4_r2_tkind(source,right_end)==38) right_end=right_end+1 to find_suffix_one }
-    state emit_suffix { status=r49_emit_logical_primary(source,next,right_end) to bad when (status!=0) word[956000+word[956800]*8]=16 word[956800]=word[956800]+1 to suffix }
+    state emit_suffix { status=r410_emit_scalar_equal(source,next,right_end) to bad when (status!=0) word[956000+word[956800]*8]=16 word[956800]=word[956800]+1 to suffix }
     state bad { return omgrfn4_l2_reject() }
 }
 
@@ -481,7 +507,7 @@ proc r49_emit_logical_expression(source,start,end) {
 
 proc r49_logical_operation_code(op) {
     let kind=r47_ckir_byte(word[950296]+op*40+12) let type_id=0
-    state choose { to direct when (kind==15) to direct when (kind==16) to direct when (kind==17) to literal when (kind==1) return 0 }
+    state choose { to direct when (kind==15) to direct when (kind==16) to direct when (kind==17) to direct when (kind==18) to literal when (kind==1) return 0 }
     state direct { return kind }
     state literal { type_id=r47_row_word(12,op,20) to no when (type_id>=word[950000]) to no when (r47_ckir_byte(word[950200]+type_id*24+4)!=3) to no when (r47_row_word(12,op,32)>1) return 100+r47_row_word(12,op,32) }
     state no { return 0 }
@@ -500,10 +526,28 @@ proc r49_logical_binary_join() {
     state next { token=token+1 to tokens }
     state compare { to compare_one when (op<word[950096]) to compared }
     state compare_one { to compare_next when (r47_row_word(12,op,8)!=block) code=r49_logical_operation_code(op) to compare_next when (code==0) to empty_expected when (word[956800]==0) to bad when (actual>=word[956800]) to bad when (word[956000+actual*8]!=code) actual=actual+1 to compare_next }
-    state empty_expected { to bad when (code==16) to bad when (code==17) to compare_next }
+    state empty_expected { to bad when (code==16) to bad when (code==17) to bad when (code==18) to compare_next }
     state compare_next { op=op+1 to compare }
     state compared { to bad when (actual!=word[956800]) block=block+1 op=0 actual=0 to blocks }
     state exact { to bad when (total<1) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+; OMGRFN10's independent vertical carrier uses isolated equality transitions.
+; Count exact paired source punctuation and require one distinct opcode-18 row
+; per pair; assignment's single '=' is deliberately excluded.
+proc r410_scalar_equal_join() {
+    let source=0 let token=0 let expected=0 let op=0 let actual=0
+    state sources { to source_one when (source<word[500320]) to operations }
+    state source_one { token=0 to tokens }
+    state tokens { to token_one when (token+1<word[880000+source*8]) source=source+1 to sources }
+    state token_one { to pair when (omgrfn4_r2_tkind(source,token)==61) token=token+1 to tokens }
+    state pair { to found when (omgrfn4_r2_tkind(source,token+1)==61) token=token+1 to tokens }
+    state found { expected=expected+1 token=token+2 to tokens }
+    state operations { to operation when (op<word[950096]) to exact }
+    state operation { to equal when (r47_ckir_byte(word[950296]+op*40+12)==18) op=op+1 to operations }
+    state equal { actual=actual+1 op=op+1 to operations }
+    state exact { to bad when (expected<1) to bad when (actual!=expected) return 0 }
     state bad { return omgrfn4_l2_reject() }
 }
 
@@ -538,6 +582,18 @@ proc omgrfn9_r4_lowering_check() {
     state calls { to done when (status!=0) status=r47_call_join() to transitions }
     state transitions { to done when (status!=0) status=r47_transition_join() to logical }
     state logical { to done when (status!=0) status=r49_logical_binary_join() to done }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc omgrfn10_r4_lowering_check() {
+    let status=r47_prepare_source()
+    state source { to done when (status!=0) to bad when (word[879088]!=10) status=r47_ckir_prepare() to literals }
+    state literals { to done when (status!=0) status=r47_literal_join() to constructors }
+    state constructors { to done when (status!=0) status=r47_constructor_join() to calls }
+    state calls { to done when (status!=0) status=r47_call_join() to transitions }
+    state transitions { to done when (status!=0) status=r47_transition_join() to logical }
+    state logical { to done when (status!=0) status=r410_scalar_equal_join() to done }
     state bad { return omgrfn4_l2_reject() }
     state done { return status }
 }

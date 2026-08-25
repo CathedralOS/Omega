@@ -1,4 +1,4 @@
-; Lower-rooted CKIR5/6/7 decoder, complete relation checker, and constant-image
+; Lower-rooted CKIR5/6/7/8 decoder, complete relation checker, and constant-image
 ; reconstructor. Selected-result evaluation is the independent result suffix.
 ; Concatenate after omgrfn7-component-envelope-r5.beta. This program deliberately
 ; does not import or execute either Delta CKIR producer/backend.
@@ -102,11 +102,13 @@ proc ckir_decode_header() {
         to schema5 when (ckir_schema() == 5)
         to schema6 when (ckir_schema() == 6)
         to schema7 when (ckir_schema() == 7)
+        to schema8 when (ckir_schema() == 8)
         to bad
     }
     state schema5 { to bad when (word[524376] != 7)  to schema_shared }
     state schema6 { to bad when (word[524376] != 8)  to schema_shared }
     state schema7 { to bad when (word[524376] != 9)  to schema_shared }
+    state schema8 { to bad when (word[524376] != 10)  to schema_shared }
     state schema_shared {
         to bad when (ckir_u16(10) != 0)
         to bad when (ckir_u16(12) != 1)
@@ -1069,6 +1071,7 @@ proc ckir_validate_operations() {
     let j = 0
     let logical_not_count = 0
     let logical_binary_count = 0
+    let scalar_equal_count = 0
     state begin { ckir_initialize_value_scopes() ckir_initialize_call_graph() to loop }
     state loop { to one when (i < ckir_count(9))  to finish }
     state one {
@@ -1089,13 +1092,15 @@ proc ckir_validate_operations() {
         to bad when (operand_start != next_operand)
         to bad when (ckir_span_ok(operand_start, operand_count, ckir_count(10)) == 0)
         to bad when (opcode < 1)
-        to bad when (opcode > 17)
+        to bad when (opcode > 18)
         to schema5_opcode when (ckir_schema() == 5)
         to schema6_opcode when (ckir_schema() == 6)
+        to schema7_opcode when (ckir_schema() == 7)
         to opcode_ready
     }
     state schema5_opcode { to bad when (opcode >= 15)  to opcode_ready }
     state schema6_opcode { to bad when (opcode > 15)  to opcode_ready }
+    state schema7_opcode { to bad when (opcode > 17)  to opcode_ready }
     state opcode_ready {
         expected_kind = 1
         to call_kind when (opcode == 10)
@@ -1192,6 +1197,7 @@ proc ckir_validate_operations() {
         to op_logical_not when (opcode == 15)
         to op_logical_binary when (opcode == 16)
         to op_logical_binary when (opcode == 17)
+        to op_scalar_equal when (opcode == 18)
         to op_less
     }
     state immediates_zero {
@@ -1261,6 +1267,18 @@ proc ckir_validate_operations() {
         to bad when (ckir_value_type(b) != result_type)
         to bad when (ckir_type_byte(result_type, 4) != 3)
         logical_binary_count = logical_binary_count + 1
+        to immediates_zero
+    }
+    state op_scalar_equal {
+        to bad when (ckir_value_visible(a, owner, block, i) == 0)
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        base_type = ckir_value_type(a)
+        source_type = ckir_value_type(b)
+        to bad when (base_type != source_type)
+        to bad when (ckir_type_byte(base_type, 4) < 1)
+        to bad when (ckir_type_byte(base_type, 4) > 3)
+        to bad when (ckir_type_byte(result_type, 4) != 3)
+        scalar_equal_count = scalar_equal_count + 1
         to immediates_zero
     }
     state op_store {
@@ -1430,10 +1448,12 @@ proc ckir_validate_operations() {
         to bad when (word[525216] != ckir_count(13))
         to logical_not_required when (ckir_schema() == 6)
         to logical_binary_required when (ckir_schema() == 7)
+        to scalar_equal_required when (ckir_schema() == 8)
         return 0
     }
     state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
     state logical_binary_required { to bad when (logical_binary_count == 0)  return 0 }
+    state scalar_equal_required { to bad when (scalar_equal_count == 0)  return 0 }
     state exhausted { return 252 }
     state bad { return 251 }
 }
