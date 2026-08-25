@@ -115,6 +115,14 @@ artifact-free evaluator. One immutable 16,817-byte exact `SourceUnit` plus
 version cross-pairs, phase opacity, mutations, and the inherited resource
 ceilings. OMGRFN5 remains byte-for-byte valid, and no CKIR5 is introduced.
 
+The next payload-bearing pure-sum successor is specified as
+[`OMGRFN7`](OMGCOMP_REFINEMENT_WITNESS_V7.md). It pairs exact OMGRSW3 with
+CKIR5 while preserving the five responsibility owners and the existing outer
+component ceilings. Its explicit case-arm/payload-argument relation prevents
+inactive-payload reads and keeps layout reconstruction private. The contract is
+fixed; responsibility-local implementations and same-frame evidence remain
+open and are not claimed by this entry.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
