@@ -30,7 +30,7 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
             continue;
         }
 
-        if fact_canonical_place.root == mutated_place.root
+        if canonical_place_roots_match(program, fact_canonical_place.root, mutated_place.root)
             && canonical_place_segments_may_overlap(
                 program,
                 &fact_canonical_place.segments,
@@ -57,7 +57,7 @@ fn domain_membership_matching_dependency<'a>(
         _ => return None,
     };
 
-    if fact_place.root != mutated_place.root {
+    if !canonical_place_roots_match(program, fact_place.root, mutated_place.root) {
         return None;
     }
 
@@ -89,6 +89,15 @@ fn domain_membership_matching_dependency<'a>(
                 &mutated_place.segments,
             )
         })
+}
+
+fn canonical_place_roots_match(
+    program: &psi_typed_trees::TypedTrees,
+    left: psi_facts::PlaceRoot,
+    right: psi_facts::PlaceRoot,
+) -> bool {
+    crate::flow::normalized_event_place_root(program, left)
+        == crate::flow::normalized_event_place_root(program, right)
 }
 
 #[cfg(test)]
