@@ -209,6 +209,7 @@ pub(super) fn emit_unit_body(
                     owner: TerminalCallSiteOwner::Operation(*psi_operation),
                     target: *callee,
                     result: *result,
+                    structural_result: None,
                     arguments: copies
                         .iter()
                         .zip(argument_intervals)
@@ -622,6 +623,7 @@ pub(super) fn emit_unit_body(
                             owner,
                             target: cleanup.cleanup_machine,
                             result: None,
+                            structural_result: None,
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
                             operation_ordinal,

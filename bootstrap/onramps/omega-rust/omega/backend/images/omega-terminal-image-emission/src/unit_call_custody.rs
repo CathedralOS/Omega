@@ -59,8 +59,11 @@ pub(super) fn validate_internal_unit_call_custody(
         Architecture::X86_64 => 8,
         Architecture::Aarch64 => 0,
     };
+    if custody.result.is_some() && custody.structural_result.is_some() {
+        return Err(invalid());
+    }
     if custody.arguments.is_empty() && custody.claim_transfers.is_empty() {
-        if custody.result.is_some() {
+        if custody.result.is_some() || custody.structural_result.is_some() {
             return Err(invalid());
         }
         let owner_valid = match custody.owner {
@@ -138,16 +141,20 @@ pub(super) fn validate_internal_unit_call_custody(
                 .iter()
                 .map(|argument| argument.shape)
                 .collect(),
-            result: custody.result.map(|result| {
+            result: if let Some(result) = custody.result {
                 let bytes = match result {
                     psi_core::ScalarType::Boolean => 1,
                     psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
                 };
-                omega_calling_conventions::ValueShape::integer(
+                Some(omega_calling_conventions::ValueShape::integer(
                     bytes,
                     bytes.next_power_of_two().min(8),
-                )
-            }),
+                ))
+            } else if custody.structural_result.is_some() {
+                custody.arguments.first().map(|argument| argument.shape)
+            } else {
+                None
+            },
         },
     )
     .map_err(|_| invalid())?;

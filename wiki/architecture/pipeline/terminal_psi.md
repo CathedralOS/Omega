@@ -452,6 +452,15 @@ path, type, layout, copy bytes, and claim transfer through installation.
 Nested/dynamic indexes, wider signatures, projected contracts, content-bearing
 partitions, partial returns, and aggregate construction remain fenced.
 
+Projected owned transfers share one multiplicity-independent partial-custody
+frontier. Once a projection moves, its ancestor cannot be called, returned, or
+discarded as a whole; duplicate and ancestor/descendant overlapping moves
+reject. The bounded linear fixed-array case closes only when the complete dense
+sibling set has transferred, while affine records retain their explicit typed
+residual-cleanup route. This verifier rule tracks debt for existing projected
+Unit calls; it does not authorize projected `CallStructural` or reconstruction
+of a value with a hole.
+
 The claim-free partial-cleanup slice accepts one affine transparent record. A
 finite nonempty set of pairwise prefix-disjoint, nonempty all-field paths may
 move through source-ordered one-parameter ordinary Unit calls, provided at
@@ -1633,7 +1642,7 @@ callee returns successfully. Sponsor exhaustion is resumable without replay;
 a callee crash creates no result. Canonical format 27/vocabulary 29 and the
 fixed-fuel call closure retain the same relation. This slice deliberately does
 not admit projections, several claims, local staging, bodyless structural
-results, or native aggregate ABI lowering.
+results, or wider native aggregate ABI lowering.
 
 Omega realizes that exact slice through its target calling policy when the value
 has one direct eight-byte integer fragment. The source and result placements,
@@ -1642,9 +1651,9 @@ attribution survive target assignment, machine emission, object/image
 construction, and canonical installation. Direct register and stack parameter
 homes are retained exactly. The locals are not ABI parameters;
 claim identity and trivial cleanup are zero-runtime semantic metadata rather
-than extra ABI words or cleanup instructions. Wider or
-indirect values, projections, structural calls, and broader control remain
-fenced before partial lowering.
+than extra ABI words or cleanup instructions. Wider or indirect values,
+projections, additional/non-immediate structural calls, and broader control
+remain fenced before partial lowering.
 
 Normal scalar returns carry one exact ordered affine cleanup-action stream; the
 stream is empty when no cleanup is required. Actions distinguish whole-root

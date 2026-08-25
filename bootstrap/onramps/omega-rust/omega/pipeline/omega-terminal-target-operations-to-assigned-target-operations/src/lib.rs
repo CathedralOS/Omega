@@ -25,6 +25,7 @@ use omega_terminal_target_operations::{
 };
 use psi_core::{EdgeId, MachineId, OperationId, ValueId};
 
+mod structural_result;
 mod structural_scalar;
 
 pub fn assign_registers(
@@ -57,6 +58,9 @@ fn assign_function(
     let operation = match &function.operation {
         operation @ TerminalTargetOperation::ReturnStructuralScalarCall { .. } => {
             structural_scalar::assign(function.machine, operation, target)?
+        }
+        operation @ TerminalTargetOperation::ReturnStructuralCall { .. } => {
+            structural_result::assign(function.machine, operation, target)?
         }
         TerminalTargetOperation::ScalarReturnWithCleanup {
             scalar,

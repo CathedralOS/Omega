@@ -37,6 +37,7 @@ use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 mod native_fuel;
 pub use native_fuel::{NativeFuelInstrumentationError, instrument_native_fuel};
 
+mod structural_result;
 mod structural_scalar;
 
 mod cleanup;
@@ -166,6 +167,17 @@ fn emit_function(
             fuel_attribution = emitted.fuel_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
+            unit_stack = Some(emitted.stack);
+            unit_parameter_homes = emitted.parameter_homes;
+            unit_parameters = emitted.parameters;
+            unit_affine_cleanup = emitted.affine_cleanup;
+            emitted.bytes
+        }
+        operation @ TerminalAssignedOperation::ReturnStructuralCall { .. } => {
+            let emitted = structural_result::emit(operation, target, functions)?;
+            internal_calls = emitted.internal_calls;
+            internal_unit_calls = emitted.internal_unit_calls;
+            fuel_attribution = emitted.fuel_attribution;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
             unit_parameters = emitted.parameters;

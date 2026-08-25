@@ -360,8 +360,24 @@ fn lower_machine(
                         claim_transfers,
                     });
                 }
-                OperationKind::CallStructural { .. } => {
-                    return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+                OperationKind::CallStructural {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    returned_claim_transfers,
+                    ..
+                } => {
+                    let Some(result) = operation.result.structural().cloned() else {
+                        return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+                    };
+                    operations.push(TerminalAbstractOperation::CallStructural {
+                        psi_operation: operation.id,
+                        result,
+                        callee,
+                        structural_arguments,
+                        claim_transfers,
+                        returned_claim_transfers,
+                    });
                 }
                 OperationKind::BoundaryCall {
                     boundary,
@@ -1104,6 +1120,112 @@ fn lower_structural_machine(
     let [block] = machine.blocks.as_slice() else {
         return Err(unsupported());
     };
+    if let [operation] = block.operations.as_slice()
+        && let OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } = &operation.kind
+        && let Some(operation_result) = operation.result.structural()
+        && let Terminator::ReturnStructural {
+            edge,
+            source,
+            returned_claims,
+            trivial_affine_discards,
+        } = &block.terminator
+    {
+        let [argument] = structural_arguments.as_slice() else {
+            return Err(unsupported());
+        };
+        let [claim_transfer] = claim_transfers.as_slice() else {
+            return Err(unsupported());
+        };
+        let [returned_transfer] = returned_claim_transfers.as_slice() else {
+            return Err(unsupported());
+        };
+        let [result_claim] = operation_result.claims.as_slice() else {
+            return Err(unsupported());
+        };
+        let operation_place = machine
+            .structural_places
+            .iter()
+            .find(|place| place.id == operation_result.place)
+            .ok_or_else(unsupported)?;
+        if machine.structural_parameters.len() != 1
+            || !discarded.is_empty()
+            || !machine.parameters.is_empty()
+            || parameter.position != 0
+            || parameter.is_self
+            || parameter.multiplicity != StructuralMultiplicity::Linear
+            || result.multiplicity != StructuralMultiplicity::Linear
+            || parameter.structural_type != result.structural_type
+            || parameter.qualifications != result.qualifications
+            || operation_result.structural_type != result.structural_type
+            || operation_result.multiplicity != result.multiplicity
+            || operation_result.qualifications != result.qualifications
+            || argument.place != parameter.place
+            || argument.access != psi_terminal::StructuralAccess::Owned
+            || !argument.path.is_empty()
+            || claim_transfer.argument_index != 0
+            || claim_transfer.claim != entry_claim.claim
+            || returned_transfer.caller_claim != entry_claim.claim
+            || result_claim.claim != entry_claim.claim
+            || !result_claim.path.is_empty()
+            || *source != operation_result.place
+            || returned_claims.as_slice() != [entry_claim.claim]
+            || !trivial_affine_discards.is_empty()
+            || !requirement_obligations.is_empty()
+            || !crash_continuations.is_empty()
+            || block.id != machine.entry
+            || !block.parameters.is_empty()
+            || !machine.published_service_ceiling.is_empty()
+            || !machine.contract.crash_routes.is_empty()
+            || !machine.contract.requires.is_empty()
+            || !machine.contract.ensures.is_empty()
+            || machine.structural_places.len() != 3
+            || !matches!(
+                operation_place.kind,
+                StructuralPlaceKind::OperationResult { producer, structural_type }
+                    if producer == operation.id && structural_type == result.structural_type
+            )
+        {
+            return Err(unsupported());
+        }
+        return Ok(TerminalAbstractFunction {
+            machine: machine.id,
+            attachment: machine.attachment,
+            entry: machine.entry,
+            parameters: Vec::new(),
+            structural_parameters: machine.structural_parameters.clone(),
+            result: TerminalAbstractFunctionResult::Structural(result.clone()),
+            entry_claims: vec![entry_claim.clone()],
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![TerminalAbstractBlockEntry {
+                block: block.id,
+                operation_offset: 0,
+            }],
+            operations: vec![
+                TerminalAbstractOperation::CallStructural {
+                    psi_operation: operation.id,
+                    result: operation_result.clone(),
+                    callee: *callee,
+                    structural_arguments: structural_arguments.clone(),
+                    claim_transfers: claim_transfers.clone(),
+                    returned_claim_transfers: returned_claim_transfers.clone(),
+                },
+                TerminalAbstractOperation::ReturnStructural {
+                    psi_edge: *edge,
+                    source: *source,
+                    returned_claims: returned_claims.clone(),
+                    trivial_affine_locals: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ],
+        });
+    }
     let parameter_place = machine
         .structural_places
         .iter()

@@ -686,7 +686,40 @@ pub fn build_terminal_object_artifact(
                                 .iter()
                                 .any(|call| call.result.is_some()))
                 });
-            if custody.result.is_some() != target_returns_scalar {
+            let target_structural_return = machine_functions
+                .get(&custody.target)
+                .and_then(|target| target.structural_return.as_ref());
+            let structural_result_valid =
+                match (&custody.structural_result, target_structural_return) {
+                    (None, None) => true,
+                    (Some(result), Some(target)) => {
+                        custody.result.is_none()
+                            && result.operation_result.structural_type
+                                == target.result.structural_type
+                            && result.operation_result.multiplicity == target.result.multiplicity
+                            && result.operation_result.qualifications
+                                == target.result.qualifications
+                            && result.function_result.structural_type
+                                == target.result.structural_type
+                            && result.function_result.multiplicity == target.result.multiplicity
+                            && result.function_result.qualifications == target.result.qualifications
+                            && result.returned_claim_transfers.len() == 1
+                            && target.returned_claims.as_slice()
+                                == [result.returned_claim_transfers[0].callee_claim]
+                            && result.operation_result.claims.len() == 1
+                            && result.operation_result.claims[0].claim
+                                == result.returned_claim_transfers[0].caller_claim
+                            && result.returned_claims.as_slice()
+                                == [result.returned_claim_transfers[0].caller_claim]
+                            && result.caller_result_placement == target.result_placement
+                            && result.callee_result_placement == target.result_placement
+                    }
+                    _ => false,
+                };
+            if custody.result.is_some() != target_returns_scalar
+                || !structural_result_valid
+                || (custody.structural_result.is_some() && target_returns_scalar)
+            {
                 return Err(TerminalObjectError::InvalidInternalUnitCallEvidence(
                     function.machine,
                 ));

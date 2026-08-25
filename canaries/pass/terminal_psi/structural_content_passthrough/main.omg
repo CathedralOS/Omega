@@ -32,6 +32,10 @@ machine Main::forward(region: Region in Owned) -> Region in Owned {
     region
 }
 
+machine Main::through_call(region: Region in Owned) -> Region in Owned {
+    Main::forward(region)
+}
+
 machine Main::forward_and_drop(region: Region in Owned, scratch: Scratch) -> Region in Owned {
     region
 }

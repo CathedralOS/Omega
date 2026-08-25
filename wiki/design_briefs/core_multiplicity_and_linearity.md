@@ -129,8 +129,10 @@ an entry axiom. Checked source produces the exact one-state passthrough, with an
 optional finite tail of unqualified, claim-free affine parameters discarded in
 reverse order after result materialization. Native realization covers that
 exact root form and retains claim identity, register/stack parameter homes, and
-cleanup as typed metadata; structural calls, projections, and wider values
-remain later slices.
+cleanup as typed metadata. One final direct `CallStructural` over that same
+single-fragment whole root also reaches native code with exact returned-claim
+custody. Projections, additional/non-immediate structural calls, and wider
+values remain later slices.
 Cancellation and failure paths obey the same conservation law. A `try_*`
 operation that has not completed must therefore return the live linear value
 in its pending/failure case.
@@ -264,8 +266,9 @@ structural signature and caller claim binding independently, so canonical
 decoding and verification can reject producer, type, qualification, path, or
 claim drift. Custody becomes live in the caller only after successful return;
 crash creates no result and fuel suspension cannot replay a transfer. Projected
-or multi-claim calls, bodyless structural results, local staging, and native
-aggregate ABI lowering remain later slices rather than implicit fallbacks.
+or multi-claim calls, bodyless structural results, local staging, and wider
+native aggregate ABI lowering remain later slices rather than implicit
+fallbacks.
 
 Checked facts retain the first per-edge cleanup subset for ordinary named
 transitions: each exact source-state/statement/target row names the whole,

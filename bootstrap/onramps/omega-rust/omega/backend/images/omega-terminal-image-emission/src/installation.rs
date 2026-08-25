@@ -71,7 +71,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 36;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 37;
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
 /// Exact normalized identity of one provider plan selected for this
@@ -642,7 +642,7 @@ where
     Ok(record)
 }
 
-/// Rejoin a decoded format-36 record to the exact replayed metered image.
+/// Rejoin a decoded format-37 record to the exact replayed metered image.
 /// The common semantic rows validate against the retained source artifact;
 /// this second half validates the independent physical coordinate map.
 pub fn validate_terminal_native_fuel_installation_record(
@@ -1216,6 +1216,7 @@ fn validate_record_shape(
                         matches!(call.custody.owner, TerminalCallSiteOwner::Operation(_))
                             && call.custody.operation_ordinal == ordinal
                             && call.custody.result.is_none()
+                            && call.custody.structural_result.is_none()
                             && call.custody.arguments.is_empty()
                             && call.custody.claim_transfers.is_empty()
                             && record.functions.iter().any(|helper| {
@@ -1682,6 +1683,34 @@ fn validate_record_shape(
                                 call.machine == custody.target && call.custody.result.is_some()
                             }))
                 });
+        let target_structural_return = record
+            .structural_returns
+            .iter()
+            .find(|target| target.machine == custody.target)
+            .map(|target| &target.returned);
+        let structural_result_valid = match (&custody.structural_result, target_structural_return) {
+            (None, None) => true,
+            (Some(result), Some(target)) => {
+                custody.result.is_none()
+                    && result.operation_result.structural_type == target.result.structural_type
+                    && result.operation_result.multiplicity == target.result.multiplicity
+                    && result.operation_result.qualifications == target.result.qualifications
+                    && result.function_result.structural_type == target.result.structural_type
+                    && result.function_result.multiplicity == target.result.multiplicity
+                    && result.function_result.qualifications == target.result.qualifications
+                    && result.returned_claim_transfers.len() == 1
+                    && target.returned_claims.as_slice()
+                        == [result.returned_claim_transfers[0].callee_claim]
+                    && result.operation_result.claims.len() == 1
+                    && result.operation_result.claims[0].claim
+                        == result.returned_claim_transfers[0].caller_claim
+                    && result.returned_claims.as_slice()
+                        == [result.returned_claim_transfers[0].caller_claim]
+                    && result.caller_result_placement == target.result_placement
+                    && result.callee_result_placement == target.result_placement
+            }
+            _ => false,
+        };
         let expected_text_offset = function
             .text_offset
             .checked_add(custody.code_offset)
@@ -1698,13 +1727,17 @@ fn validate_record_shape(
                     .iter()
                     .map(|argument| argument.shape)
                     .collect(),
-                result: custody.result.map(|result| {
+                result: if let Some(result) = custody.result {
                     let bytes = match result {
                         psi_core::ScalarType::Boolean => 1,
                         psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
                     };
-                    ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
-                }),
+                    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+                } else if custody.structural_result.is_some() {
+                    custody.arguments.first().map(|argument| argument.shape)
+                } else {
+                    None
+                },
             },
         )
         .map_err(|_| TerminalInstallationError::InvalidInternalUnitCall(installed.machine))?;
@@ -1752,6 +1785,7 @@ fn validate_record_shape(
                 action_ordinal,
             } => {
                 custody.result.is_none()
+                    && custody.structural_result.is_none()
                     && custody.arguments.is_empty()
                     && custody.claim_transfers.is_empty()
                     && affine_cleanup
@@ -1791,6 +1825,8 @@ fn validate_record_shape(
             || end > function.byte_count
             || !function_by_machine.contains_key(&custody.target)
             || custody.result.is_some() != target_returns_scalar
+            || !structural_result_valid
+            || (custody.structural_result.is_some() && target_returns_scalar)
             || !owner_valid
             || plan.parameters.len() != custody.arguments.len()
             || custody.arguments.windows(2).any(|pair| {
