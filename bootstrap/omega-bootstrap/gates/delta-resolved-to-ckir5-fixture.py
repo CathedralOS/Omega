@@ -20,6 +20,7 @@ sys.path.insert(0, str(COMPILER))
 sys.path.insert(0, str(HERE))
 
 import checked_ir_v5_reference as ir5  # noqa: E402
+import checked_ir_v6_reference as ir6  # noqa: E402
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
@@ -50,14 +51,17 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
     return compilation.encode_manifest(manifest, packed)
 
 
-def pack_lowering(comp: bytes, witness: bytes, version: int = 6) -> bytes:
+def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
+                  resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (5, 6), "test lowering version")
+    require(version in (4, 5, 6, 7), "test lowering version")
+    require((version == 7 and resolution in (1, 2, 3))
+            or (version != 7 and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
     return LOWER_HEADER.pack(
         f"OMGLOW{version}".encode("ascii") + b"\0", version, 0, 0,
-        LOWER_HEADER.size, total, len(comp), len(witness), 0,
+        LOWER_HEADER.size, total, len(comp), len(witness), resolution,
     ) + comp + witness
 
 
@@ -195,7 +199,7 @@ def inspect_positive(contents: bytes) -> ir5.Module:
     return module
 
 
-def run_gate() -> None:
+def run_gate(include_v6: bool = False) -> None:
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -247,7 +251,8 @@ def run_gate() -> None:
             (temp / f"{name}.omgc").write_bytes(envelope)
             return envelope
 
-        def resolve(name: str, source: str, expected: int) -> tuple[bytes, bytes]:
+        def resolve(name: str, source: str, expected: int,
+                    witness_major: int = 3) -> tuple[bytes, bytes]:
             envelope = write_source(name, source)
             results = [subprocess.run([str(temp / exe)], input=envelope, stdout=subprocess.PIPE)
                        for exe in ("resolver", "resolver-self")]
@@ -259,7 +264,8 @@ def run_gate() -> None:
             if expected:
                 require(not outputs[0], f"{name} resolver published rejection bytes")
             else:
-                require(outputs[0][:8] == b"OMGRSW3\0", f"{name} did not select OMGRSW3")
+                require(outputs[0][:8] == f"OMGRSW{witness_major}".encode("ascii") + b"\0",
+                        f"{name} did not select OMGRSW{witness_major}")
             return envelope, outputs[0]
 
         def lower(name: str, frame: bytes, expected: int) -> bytes:
@@ -366,16 +372,101 @@ machine SumProducer::run(&mut self) -> u8 { self.cell.read() }
             or name.endswith("-general")
         ))
 
+        if include_v6:
+            bool_sw1 = """data SumProducer { flag: bool; empty: bool; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.flag = true;
+    self.flag = !self.flag;
+    self.empty = !self.flag;
+    transition !!self.empty {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            bool_sw2 = """data Cell { flag: bool; }
+machine Cell::read(&self, value: bool) -> bool { !(value) }
+data SumProducer { cell: Cell; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.cell.read(false) {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            bool_sw3 = general + """
+machine SumProducer::negated(&self) -> bool { !false }
+"""
+
+            def resolve_and_lower_v7(name: str, source: str, witness_major: int) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output6 = lower(name, pack_lowering(
+                    envelope, witness, 7, witness_major
+                ), 0)
+                module6 = ir6.decode(output6)
+                require(ir6.interpret(module6) == 70, f"{name} CKIR6 result")
+                require(sum(row[3] == 15 for row in module6.tables["operations"]) > 0,
+                        f"{name} missing LogicalNot")
+                return output6
+
+            outputs6 = {
+                "logical-not-sw1": resolve_and_lower_v7("logical-not-sw1", bool_sw1, 1),
+                "logical-not-sw2": resolve_and_lower_v7("logical-not-sw2", bool_sw2, 2),
+                "logical-not-sw3": resolve_and_lower_v7("logical-not-sw3", bool_sw3, 3),
+            }
+
+            sw1_envelope, sw1_witness = resolve("logical-not-old-frame", bool_sw1, 0, 1)
+            lower("logical-not-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 4), 251)
+            plain_sw1 = """data SumProducer {}
+machine SumProducer::run(&mut self) -> u8 { 70 }
+"""
+            plain_envelope, plain_witness = resolve("logical-not-missing", plain_sw1, 0, 1)
+            lower("logical-not-missing",
+                  pack_lowering(plain_envelope, plain_witness, 7, 1), 251)
+            lower("logical-not-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 7, 2), 251)
+
+            # Literal depth one plus seven/eight prefixes selects exact total
+            # expression depth 8/9.
+            for count, expected in ((7, 0), (8, 252)):
+                nested = bool_sw1.replace("!!self.empty", "!" * count + "false", 1)
+                envelope, witness = resolve(f"logical-not-depth-{count}", nested, 0, 1)
+                result = lower(f"logical-not-depth-{count}",
+                               pack_lowering(envelope, witness, 7, 1), expected)
+                if expected == 0:
+                    require(ir6.interpret(ir6.decode(result)) == 70,
+                            "logical-not expression-depth-8 result")
+
+            for name, source in {
+                "logical-not-integer": bool_sw1.replace("!self.flag", "!1", 1),
+                "logical-not-dangling": bool_sw1.replace("!self.flag", "!;", 1),
+                "logical-not-bitwise-bool": bool_sw1.replace("!self.flag", "~true", 1),
+            }.items():
+                envelope, witness = resolve(name, source, 0, 1)
+                lower(name, pack_lowering(envelope, witness, 7, witness[8]), 251)
+
+            print("resolved-to-CKIR6: OMGLOW7 independently pairs least OMGRSW1/2/3; "
+                  "bool-only recursive LogicalNot, product field/call/sum composition, "
+                  "native/self exact result 70; old/new cross-pairs and depth 8/9 passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs6.items()))
+
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] != "gate":
-        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate")
-    run_gate()
+    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6"):
+        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6")
+    run_gate(sys.argv[1] == "gate-v6")
 
 
 if __name__ == "__main__":
     try:
         main()
     except (OSError, ValueError, compilation.CompilationError, bundle.BundleError,
-            ir5.Ckir5Error, subprocess.CalledProcessError) as error:
+            ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError) as error:
         raise SystemExit(f"resolved-to-CKIR5: {error}")

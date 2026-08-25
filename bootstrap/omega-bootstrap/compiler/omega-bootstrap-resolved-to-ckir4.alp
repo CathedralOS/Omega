@@ -1,7 +1,7 @@
-// Delta-written shared OMGLOW4/5/6 resolved-source lowerer. This component
+// Delta-written shared OMGLOW4/5/6/7 resolved-source lowerer. This component
 // consumes exact OMGCOMP plus the paired canonical OMGRSW1/2/3, validates only the framing and
 // relations it uses, reparses body spans through witness identities, recomputes
-// copy/layout/zero properties, and emits paired CKIR schema-major 4 or 5 only after
+// copy/layout/zero properties, and emits paired CKIR schema-major 4, 5, or 6 only after
 // complete preflight.  The selected root is projected from OMGRSW1 and typed
 // attached calls consume exact role-3 bindings; this file does no name lookup.
 // It performs no package/name resolution, receipt/digest, ELF, or assurance work.
@@ -62,7 +62,7 @@ data Main {
     bundle_mode: i32; input_n: i32; decoded: i32;
     label_start: i32; label_len: i32; label_segment_start: i32;
     label_segment_len: i32; content_start: i32; content_len: i32;
-    // OMGLOW4/5/6 keep their two components in separate bounded arrays.
+    // OMGLOW4/5/6/7 keep their two components in separate bounded arrays.
     frame_header: [u8; 32];
     witness: [u8; 524288];
     source: [u8; 267280];
@@ -666,14 +666,16 @@ machine Main::read_frame(&mut self) {
     state fixed4() { transition self.frame_header[4] == 79 { true -> fixed5() _ -> bad() } }
     state fixed5() { transition self.frame_header[5] == 87 { true -> fixed6() _ -> bad() } }
     state fixed6() { transition self.frame_header[6] == 52 { true -> relation1() _ -> relation2_check() } }
-    state relation1() { self.resolution_version = 1; transition 0 { _ -> fixed7() } }
+    state relation1() { self.resolution_version = 1; self.ck3[39] = 4; transition 0 { _ -> fixed7() } }
     state relation2_check() { transition self.frame_header[6] == 53 { true -> relation2() _ -> relation3_check() } }
-    state relation2() { self.resolution_version = 2; transition 0 { _ -> fixed7() } }
-    state relation3_check() { transition self.frame_header[6] == 54 { true -> relation3() _ -> bad() } }
-    state relation3() { self.resolution_version = 3; transition 0 { _ -> fixed7() } }
+    state relation2() { self.resolution_version = 2; self.ck3[39] = 4; transition 0 { _ -> fixed7() } }
+    state relation3_check() { transition self.frame_header[6] == 54 { true -> relation3() _ -> relation4_check() } }
+    state relation3() { self.resolution_version = 3; self.ck3[39] = 5; transition 0 { _ -> fixed7() } }
+    state relation4_check() { transition self.frame_header[6] == 55 { true -> relation4() _ -> bad() } }
+    state relation4() { self.resolution_version = 0; self.ck3[39] = 6; transition 0 { _ -> fixed7() } }
     state fixed7() { transition self.frame_header[7] == 0 { true -> version() _ -> bad() } }
     state version() {
-        transition self.frame_header[8] == self.resolution_version + 3 { true -> version1() _ -> bad() }
+        transition self.frame_header[8] + 48 == self.frame_header[6] { true -> version1() _ -> bad() }
     }
     state version1() { transition self.frame_header[9] == 0 { true -> version2() _ -> bad() } }
     state version2() { transition self.frame_header[10] == 0 { true -> version3() _ -> bad() } }
@@ -689,8 +691,12 @@ machine Main::read_frame(&mut self) {
         self.read_header_u32(20); self.comp_n = self.decoded;
         self.read_header_u32(24); self.witness_n = self.decoded;
         self.read_header_u32(28);
-        transition self.status == 0 { true -> reserved() _ -> done() }
+        transition self.status == 0 { true -> relation_selector() _ -> done() }
     }
+    state relation_selector() { transition self.ck3[39] == 6 { true -> selected_relation_low() _ -> reserved() } }
+    state selected_relation_low() { transition self.decoded >= 1 { true -> selected_relation_high() _ -> bad() } }
+    state selected_relation_high() { transition self.decoded <= 3 { true -> selected_relation() _ -> bad() } }
+    state selected_relation() { self.resolution_version = self.decoded; transition 0 { _ -> comp_limit() } }
     state reserved() { transition self.decoded == 0 { true -> comp_limit() _ -> bad() } }
     state comp_limit() { transition self.comp_n <= 267280 { true -> witness_limit() _ -> over() } }
     state witness_limit() { transition self.witness_n <= 524288 { true -> length_room() _ -> over() } }
@@ -2535,6 +2541,56 @@ machine Main::parse_postfix(&mut self) {
     state done() { }
 }
 
+// Prefix logical negation is recursive and binds outside the complete postfix
+// operand.  It is bool-only; bitwise complement remains the distinct `~`
+// source form and is not admitted by this slice.
+machine Main::parse_unary(&mut self) {
+    transition self.tok == 33 { true -> prefix_version() _ -> postfix() }
+    state postfix() { self.parse_postfix(); transition 0 { _ -> done() } }
+    state prefix_version() { transition self.ck3[39] == 6 { true -> prefix_room() _ -> bad() } }
+    state prefix_room() { transition self.expr_stack_used < 8 { true -> prefix() _ -> exhausted() } }
+    state prefix() {
+        self.expr_stack_used = self.expr_stack_used + 1;
+        self.next_token(); self.parse_unary();
+        transition 0 { _ -> prefix_release() }
+    }
+    state prefix_release() {
+        self.expr_stack_used = self.expr_stack_used - 1;
+        transition self.status == 0 { true -> literal_type() _ -> done() }
+    }
+    state literal_type() { transition self.expr_type == 0 - 3 { true -> save() _ -> typed() } }
+    state typed() { transition self.expr_type >= 0 { true -> typed_kind() _ -> bad() } }
+    state typed_kind() { transition self.i32_backing0[363080 + self.expr_type] == 3 { true -> save() _ -> bad() } }
+    state save() {
+        self.left_lo = self.expr_lo; self.left_hi = self.expr_hi;
+        transition self.bundle_mode == 1 { true -> materialize() _ -> result() }
+    }
+    state materialize() {
+        self.materialize_expression(self.ck_bool_type);
+        transition self.status == 0 { true -> emit() _ -> done() }
+    }
+    state emit() {
+        self.record_operand_words = 1; self.record_operand0 = self.expr_value_id;
+        self.record_operand1 = 0; self.record_immediate0 = 0;
+        self.record_operation(15, 1, self.ck_bool_type);
+        transition self.status == 0 { true -> result() _ -> done() }
+    }
+    state result() {
+        self.ck3[38] = self.ck3[38] + 1;
+        self.expr_type = 0 - 3;
+        self.expr_lo = 1 - self.left_hi; self.expr_hi = 1 - self.left_lo;
+        self.expr_lvalue = 0; self.expr_mutable = 0;
+        self.expr_subject_kind = 0; self.expr_subject_id = 0 - 1;
+        self.expr_receiver_shape = 0; self.expr_path_depth = 0;
+        self.guard_fact_valid = 0;
+        self.expr_tree_depth = self.expr_tree_depth + 1;
+        transition self.expr_tree_depth <= 8 { true -> done() _ -> exhausted() }
+    }
+    state exhausted() { self.status = 252; transition 0 { _ -> done() } }
+    state bad() { self.reject(); }
+    state done() { }
+}
+
 machine Main::combine_add(&mut self) {
     transition self.left_type == 0 - 2 { true -> left_literal() _ -> left_typed() }
     state left_literal() { transition self.expr_type == 0 - 2 { true -> choose_literal() _ -> right_numeric() } }
@@ -2583,11 +2639,11 @@ machine Main::combine_add(&mut self) {
 }
 
 machine Main::parse_add(&mut self) {
-    self.parse_postfix();
+    self.parse_unary();
     transition self.status == 0 { true -> loop() _ -> done() }
     state loop() { transition self.tok == 43 { true -> plus() _ -> done() } }
     state plus() { self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
-    state right() { self.next_token(); self.parse_postfix(); transition self.status == 0 { true -> restore() _ -> done() } }
+    state right() { self.next_token(); self.parse_unary(); transition self.status == 0 { true -> restore() _ -> done() } }
     state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); self.combine_add(); transition self.status == 0 { true -> loop() _ -> done() } }
     state done() { }
 }
@@ -4113,7 +4169,7 @@ machine Main::publish_ckir(&mut self) {
         self.final_operand_count = self.operand_count + self.term_operand_count;
         transition self.final_operand_count <= 94208 - self.ck3[41] { true -> pre_length_version() _ -> pre_exhausted() }
     }
-    state pre_length_version() { transition self.resolution_version == 3 { true -> pre_length_compute_v5() _ -> pre_length_compute() } }
+    state pre_length_version() { transition self.ck3[39] >= 5 { true -> pre_length_compute_v5() _ -> pre_length_compute() } }
     state pre_length_compute() {
         self.ck_length = 80 + 24 * self.ck_type_count + 20 * self.data_count
             + 16 * self.field_count + 36 * self.machine_count
@@ -4140,10 +4196,12 @@ machine Main::publish_ckir(&mut self) {
     state pub_magic() {
         write_byte(79); write_byte(77); write_byte(71); write_byte(67);
         write_byte(75); write_byte(73); write_byte(82); write_byte(0);
-        transition self.resolution_version == 3 { true -> pub_magic_v5() _ -> pub_magic_v4() }
+        transition self.ck3[39] == 6 { true -> pub_magic_v6() _ -> pub_magic_v5_check() }
     }
+    state pub_magic_v5_check() { transition self.ck3[39] == 5 { true -> pub_magic_v5() _ -> pub_magic_v4() } }
     state pub_magic_v4() { write_byte(4); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_magic_v5() { write_byte(5); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
+    state pub_magic_v6() { write_byte(6); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_target() {
         write_byte(1); write_byte(0);
         transition self.conformance_entry >= 0 { true -> pub_flags_entry() _ -> pub_flags_library() }
@@ -4161,7 +4219,7 @@ machine Main::publish_ckir(&mut self) {
         write_byte(255); write_byte(255); transition 0 { _ -> pub_header_tail_begin() }
     }
     state pub_header_tail_begin() { self.i = 0; transition 0 { _ -> pub_header_tail() } }
-    state pub_header_tail() { transition self.resolution_version == 3 { true -> pub_header_tail_v5() _ -> pub_header_tail_v4() } }
+    state pub_header_tail() { transition self.ck3[39] >= 5 { true -> pub_header_tail_v5() _ -> pub_header_tail_v4() } }
     state pub_header_tail_v4() { transition self.i < 15 { true -> pub_header_select() _ -> pub_types_begin() } }
     state pub_header_tail_v5() { transition self.i < 20 { true -> pub_header_select_v5() _ -> pub_types_begin() } }
     state pub_header_select() {
@@ -4267,7 +4325,7 @@ machine Main::publish_ckir(&mut self) {
     state pub_field_word3() { write_byte((self.c >> 24) & 255); transition self.saved_tok == 4 { true -> pub_field_next() _ -> pub_field_select() } }
     state pub_field_next() { self.i = self.i + 1; self.saved_tok = 0; transition 0 { _ -> pub_fields() } }
 
-    state pub_after_fields() { transition self.resolution_version == 3 { true -> pub_sums_begin() _ -> pub_machines_begin() } }
+    state pub_after_fields() { transition self.ck3[39] >= 5 { true -> pub_sums_begin() _ -> pub_machines_begin() } }
     state pub_sums_begin() { self.i = 0; self.j = 0; transition 0 { _ -> pub_sums() } }
     state pub_sums() { transition self.i < self.sum_count { true -> pub_sum_select() _ -> pub_cases_begin() } }
     state pub_sum_select() { transition self.j == 0 { true -> pub_sum_id() _ -> pub_sum_nominal_check() } }
@@ -4453,7 +4511,7 @@ machine Main::publish_ckir(&mut self) {
     state pub_terminator_block_check() { transition self.j == 2 { true -> pub_terminator_block() _ -> pub_terminator_head_check() } }
     state pub_terminator_block() { self.c = self.i; self.j = 3; transition 0 { _ -> pub_shared_word0() } }
     state pub_terminator_head_check() { transition self.j == 3 { true -> pub_terminator_head() _ -> pub_terminator_value_check() } }
-    state pub_terminator_head() { write_byte(self.i32_backing2[376848 + self.i]); transition self.resolution_version == 3 { true -> pub_terminator_head_v5() _ -> pub_terminator_head_v4() } }
+    state pub_terminator_head() { write_byte(self.i32_backing2[376848 + self.i]); transition self.ck3[39] >= 5 { true -> pub_terminator_head_v5() _ -> pub_terminator_head_v4() } }
     state pub_terminator_head_v4() { write_byte(0); write_byte(0); write_byte(0); self.j = 4; transition 0 { _ -> pub_terminator_select() } }
     state pub_terminator_head_v5() { write_byte(self.i32_backing0[176712 + 3 * self.i]); write_byte(0); write_byte(0); self.j = 4; transition 0 { _ -> pub_terminator_select() } }
     state pub_terminator_value_check() { transition self.j == 4 { true -> pub_terminator_value() _ -> pub_terminator_target0_check() } }
@@ -4472,7 +4530,7 @@ machine Main::publish_ckir(&mut self) {
     state pub_terminator_arm_start() { self.c = self.i32_backing0[176713 + 3 * self.i]; self.j = 12; transition 0 { _ -> pub_shared_word0() } }
     state pub_terminator_arm_count() { self.c = self.i32_backing0[176714 + 3 * self.i]; self.j = 13; transition 0 { _ -> pub_shared_word0() } }
 
-    state pub_after_terminators() { transition self.resolution_version == 3 { true -> pub_case_arms_begin() _ -> pub_done() } }
+    state pub_after_terminators() { transition self.ck3[39] >= 5 { true -> pub_case_arms_begin() _ -> pub_done() } }
     state pub_case_arms_begin() { self.i = 0; self.j = 0; transition 0 { _ -> pub_case_arms() } }
     state pub_case_arms() { transition self.i < self.ck3[40] { true -> pub_case_arm_select() _ -> pub_case_arm_arguments_begin() } }
     state pub_case_arm_select() { transition self.j == 0 { true -> pub_case_arm_id() _ -> pub_case_arm_owner_check() } }
@@ -4546,7 +4604,7 @@ machine Main::publish_ckir(&mut self) {
     state pub_operation_operand_next() { self.i = self.i + 1; transition 0 { _ -> pub_operation_operands() } }
     state pub_shared_term_operand_check() { transition self.saved_tok_start == 9 { true -> pub_term_operand_after() _ -> pub_terminator_after() } }
     state pub_term_operand_after() { self.j = self.j + 1; transition self.k == 1 { true -> pub_term_arg0() _ -> pub_term_arg1() } }
-    state pub_terminator_after() { transition self.resolution_version == 3 { true -> pub_terminator_after_v5() _ -> pub_terminator_after_v4() } }
+    state pub_terminator_after() { transition self.ck3[39] >= 5 { true -> pub_terminator_after_v5() _ -> pub_terminator_after_v4() } }
     state pub_terminator_after_v4() { transition self.j == 11 { true -> pub_terminator_next() _ -> pub_terminator_select() } }
     state pub_terminator_after_v5() { transition self.j == 11 { true -> pub_terminator_arm_start() _ -> pub_terminator_after_v5_start() } }
     state pub_terminator_after_v5_start() { transition self.j == 12 { true -> pub_terminator_arm_count() _ -> pub_terminator_after_v5_done() } }
@@ -4587,7 +4645,7 @@ machine Main::main(&mut self) {
         self.bundle_mode = 1;
         self.op_count = 0; self.operand_count = 0; self.place_count = 0;
         self.value_count = self.param_count; self.field_receiver_count = 0;
-        self.ck3[40] = 0; self.ck3[41] = 0; self.i = 0;
+        self.ck3[38] = 0; self.ck3[40] = 0; self.ck3[41] = 0; self.i = 0;
         transition 0 { _ -> operation_blocks() }
     }
     state operation_blocks() { transition self.i < self.block_count { true -> operation_block() _ -> bodies() } }
@@ -4601,7 +4659,10 @@ machine Main::main(&mut self) {
         self.i32_backing0[176714 + 3 * self.i] = 0;
         self.i = self.i + 1; transition 0 { _ -> operation_blocks() }
     }
-    state bodies() { self.check_all_bodies(); transition self.status == 0 { true -> constants() _ -> finish() } }
+    state bodies() { self.check_all_bodies(); transition self.status == 0 { true -> feature_relation() _ -> finish() } }
+    state feature_relation() { transition self.ck3[39] == 6 { true -> feature_required() _ -> constants() } }
+    state feature_required() { transition self.ck3[38] > 0 { true -> constants() _ -> rejected() } }
+    state rejected() { self.reject(); transition 0 { _ -> finish() } }
     state constants() { self.canonicalize_constants(); transition self.status == 0 { true -> publication() _ -> finish() } }
     state publication() { self.publish_ckir(); transition 0 { _ -> finish() } }
     state finish() { self.console.exit_process(self.status); }
