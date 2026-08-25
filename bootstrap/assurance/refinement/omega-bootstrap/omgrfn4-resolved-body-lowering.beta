@@ -1,0 +1,275 @@
+; OMGRFN4 responsibility 4: source-derived CKIR3 bodies and constant roots.
+;
+; The focused gate composes this after the V4 component envelope, the frozen
+; source tokenizer/table API with v4_model_prepare, the inherited lowering
+; procedures, and the role-3 call prefix.  Responsibility 3 owns intrinsic
+; table canonicity.  This checker independently parses every admitted source
+; constant, interns it by semantic key into the claimed canonical table,
+; reconstructs exact executable rows, and compares only R4-owned body fields.
+; ELF and claimed result are opaque.  It publishes no bytes.
+;
+; Private source constant model:
+;   word[24000000 + raw*48]: type,height,child-start,count,scalar,CKIR-ID
+;   word[24500000 + child*8]: raw child ID
+;   word[24900000 + depth*128]: record field raw IDs/presence scratch
+;   word[25000000 + CKIR-ID*8]: source-derived membership
+;   word[25100000 + depth*8192]: array direct-child scratch
+
+proc v4_ckir_constant(id,column) {
+    return ckir_u32(word[526000]+id*24+column*4)
+}
+proc v4_ckir_child(id) { return ckir_u32(word[526008]+id*4) }
+proc v4_raw(id,column) { return word[24000000+id*48+column*8] }
+proc v4_raw_set(id,column,value) { word[24000000+id*48+column*8]=value return value }
+proc v4_raw_child(id) { return word[24500000+id*8] }
+proc v4_raw_child_set(id,value) { word[24500000+id*8]=value return value }
+
+proc v4_ckir_header_check() {
+    let n=word[524336] let i=0 let cursor=80 let count=0 let ceiling=0 let size=0
+    state length { to bad when (n<80) to magic0 }
+    state magic0 { to bad when (refinement_ckir_byte(0)!='O') to magic1 }
+    state magic1 { to bad when (refinement_ckir_byte(1)!='M') to magic2 }
+    state magic2 { to bad when (refinement_ckir_byte(2)!='G') to magic3 }
+    state magic3 { to bad when (refinement_ckir_byte(3)!='C') to magic4 }
+    state magic4 { to bad when (refinement_ckir_byte(4)!='K') to magic5 }
+    state magic5 { to bad when (refinement_ckir_byte(5)!='I') to magic6 }
+    state magic6 { to bad when (refinement_ckir_byte(6)!='R') to magic7 }
+    state magic7 { to bad when (refinement_ckir_byte(7)!=0) to fixed }
+    state fixed {
+        to bad when (refinement_ckir_byte(8)!=3) to bad when (refinement_ckir_byte(9)!=0)
+        to bad when (refinement_ckir_byte(10)!=0) to bad when (refinement_ckir_byte(11)!=0)
+        to bad when (refinement_ckir_byte(12)!=1) to bad when (refinement_ckir_byte(13)!=0)
+        to bad when (refinement_ckir_byte(14)>1) to bad when (refinement_ckir_byte(15)!=0)
+        word[525000]=ckir_u32(16) to counts
+    }
+    state counts { to one when (i<14) to exact }
+    state one {
+        to bad when (refinement_ckir_byte(27+i*4)!=0)
+        count=ckir_u32(24+i*4)
+        to constants when (i==12) to children when (i==13)
+        word[525016+i*8]=count
+        to type when (i==0) to record when (i==1) to field when (i==2)
+        to machine when (i==3) to mparam when (i==4) to block when (i==5)
+        to bparam when (i==6) to operation when (i==7) to operand when (i==8)
+        to terminator when (i==9) to value when (i==10) to place
+    }
+    state type { ceiling=8192 size=24 to bounded }
+    state record { ceiling=128 size=20 to bounded }
+    state field { ceiling=8192 size=16 to bounded }
+    state machine { ceiling=128 size=36 to bounded }
+    state mparam { ceiling=896 size=20 to bounded }
+    state block { ceiling=2048 size=32 to bounded }
+    state bparam { ceiling=4096 size=20 to bounded }
+    state operation { ceiling=32768 size=40 to save_later }
+    state operand { ceiling=94208 size=4 to save_later }
+    state terminator { ceiling=2048 size=44 to save_later }
+    state value { ceiling=36864 size=0 to derived }
+    state place { ceiling=32768 size=0 to derived }
+    state constants { word[525200]=count word[526000]=cursor ceiling=8192 size=24 to bounded }
+    state children { word[525208]=count word[526008]=cursor ceiling=16384 size=4 to bounded }
+    state bounded { to exhausted when (count>ceiling) word[525112+i*8]=cursor cursor=cursor+count*size i=i+1 to counts }
+    state save_later { to exhausted when (count>ceiling) word[525240+i*8]=count word[525248+i*8]=size i=i+1 to counts }
+    state derived { to exhausted when (count>ceiling) i=i+1 to counts }
+    state exact {
+        ; Wire order inserts constants/children before operations. Their bases
+        ; are already saved at indices 12/13; now derive inherited body bases.
+        word[525112+7*8]=cursor cursor=cursor+word[525240+7*8]*40
+        word[525112+8*8]=cursor cursor=cursor+word[525240+8*8]*4
+        word[525112+9*8]=cursor cursor=cursor+word[525240+9*8]*44
+        to bad when (ckir_u32(20)!=n) to bad when (cursor!=n)
+        to exhausted when (word[525016+4*8]+word[525016+6*8]>4096) return 0
+    }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+
+proc v4_token_equal_named(named_start,named_count) {
+    state length { to no when (word[524416]!=256) to no when (word[524432]!=named_count) }
+    return src_spans_equal(named_start,word[524424],named_count)
+    state no { return 0 }
+}
+
+proc v4_constant_match(raw) {
+    let candidate=0 let i=0 let source_child=0 let actual_child=0 let found=4294967295
+    state scan { to one when (candidate<word[525200]) to unique }
+    state one {
+        to next when (v4_ckir_constant(candidate,1)!=v4_raw(raw,0))
+        to next when (v4_ckir_constant(candidate,3)!=v4_raw(raw,3))
+        to next when (v4_ckir_constant(candidate,4)!=v4_raw(raw,4)) i=0 to children
+    }
+    state children { to child when (i<v4_raw(raw,3)) to matched }
+    state child {
+        source_child=v4_raw_child(v4_raw(raw,2)+i)
+        actual_child=v4_ckir_child(v4_ckir_constant(candidate,2)+i)
+        to next when (actual_child!=v4_raw(source_child,5)) i=i+1 to children
+    }
+    state matched { to bad when (found!=4294967295) found=candidate to next }
+    state next { candidate=candidate+1 to scan }
+    state unique { to bad when (found==4294967295) v4_raw_set(raw,5,found) word[25000000+found*8]=1 return 0 }
+    state bad { return src_reject() }
+}
+
+proc v4_constant_add(type_id,first,count,scalar) {
+    let raw=word[23900008]
+    state capacity { to exhausted when (raw>=32768) }
+    v4_raw_set(raw,0,type_id) v4_raw_set(raw,1,word[23900024]) v4_raw_set(raw,2,first)
+    v4_raw_set(raw,3,count) v4_raw_set(raw,4,scalar) v4_raw_set(raw,5,4294967295)
+    word[23900008]=raw+1
+    to bad when (v4_constant_match(raw)!=0)
+    word[23900000]=raw return 0
+    state exhausted { return src_exhaust() }
+    state bad { return word[10000000] }
+}
+
+proc v4_record_field(record) {
+    let i=src_record(record,3) let end=i+src_record(record,4)
+    state loop { to one when (i<end) return 4294967295 }
+    state one { to next when (v4_token_equal_named(src_field(i,1),src_field(i,2))==0) return i }
+    state next { i=i+1 to loop }
+}
+
+proc v4_parse_constant(type_id,depth) {
+    let kind=src_type(type_id,0) let record=0 let field=0 let ordinal=0
+    let count=0 let expected=0 let first=word[23900016] let raw_child=0
+    let height=0 let child_height=0 let scalar=0 let scratch=0 let i=0
+    state depth_check { to exhausted when (depth>=8) to scalar_kind when (kind<=3) to record_kind when (kind==4) to array_kind }
+    state scalar_kind {
+        to bool_true when (kind==3) to bool_false when (kind==3)
+        to bad when (word[524416]!=257) scalar=word[524432]
+        to bad when (scalar<src_type(type_id,7)) to bad when (scalar>src_type(type_id,8))
+        src_next() to scalar_add
+    }
+    state bool_true { to bool_one when (src_token_word(37,4)==1) to bool_false }
+    state bool_one { scalar=1 src_next() to scalar_add }
+    state bool_false { to bad when (src_token_word(41,5)==0) scalar=0 src_next() to scalar_add }
+    state scalar_add { word[23900024]=0 return v4_constant_add(type_id,word[23900016],0,scalar) }
+    state record_kind {
+        record=src_type(type_id,3) expected=src_record(record,4)
+        to exhausted when (expected>4)
+        to bad when (v4_token_equal_named(src_record(record,0),src_record(record,1))==0)
+        src_next() to bad when (word[524416]!=123) src_next()
+        scratch=24900000+depth*128 i=0 to record_clear
+    }
+    state record_clear { to record_clear_one when (i<4) to record_fields }
+    state record_clear_one { word[scratch+i*16]=4294967295 word[scratch+i*16+8]=0 i=i+1 to record_clear }
+    state record_fields { to record_done when (word[524416]==125) to bad when (word[524416]!=256) field=v4_record_field(record) to bad when (field==4294967295) ordinal=field-src_record(record,3) to bad when (word[scratch+ordinal*16+8]!=0) word[scratch+ordinal*16+8]=1 src_next() to colon }
+    state colon { to bad when (word[524416]!=58) src_next() to child }
+    state child { to bad when (v4_parse_constant(src_field(field,3),depth+1)!=0) raw_child=word[23900000] word[scratch+ordinal*16]=raw_child child_height=v4_raw(raw_child,1) to keep_height when (child_height+1<=height) height=child_height+1 to separator }
+    state keep_height { to separator }
+    state separator { to comma when (word[524416]==44) to record_fields }
+    state comma { src_next() to record_fields }
+    state record_done { src_next() i=0 first=word[23900016] to record_emit_children }
+    state record_emit_children { to record_emit_one when (i<expected) to record_add }
+    state record_emit_one { to bad when (word[scratch+i*16+8]==0) to exhausted when (word[23900016]>=65536) v4_raw_child_set(word[23900016],word[scratch+i*16]) word[23900016]=word[23900016]+1 i=i+1 to record_emit_children }
+    state record_add { word[23900024]=height return v4_constant_add(type_id,first,expected,0) }
+    state array_kind {
+        expected=src_type(type_id,5) to exhausted when (expected>1024)
+        to bad when (word[524416]!=91) src_next() count=0 scratch=25100000+depth*8192 height=0
+        to array_values
+    }
+    state array_values { to array_done when (word[524416]==93) to bad when (count>=expected) to array_child }
+    state array_child { to bad when (v4_parse_constant(src_type(type_id,4),depth+1)!=0) raw_child=word[23900000] child_height=v4_raw(raw_child,1) to keep_array_height when (child_height+1<=height) height=child_height+1 to array_save }
+    state keep_array_height { to array_save }
+    state array_save { word[scratch+count*8]=raw_child count=count+1 to array_comma when (word[524416]==44) to array_values }
+    state array_comma { src_next() to array_values }
+    state array_done { to bad when (count!=expected) src_next() i=0 first=word[23900016] to array_emit }
+    state array_emit { to array_emit_one when (i<count) word[23900024]=height return v4_constant_add(type_id,first,count,0) }
+    state array_emit_one { to exhausted when (word[23900016]>=65536) v4_raw_child_set(word[23900016],word[scratch+i*8]) word[23900016]=word[23900016]+1 i=i+1 to array_emit }
+    state exhausted { return src_exhaust() }
+    state bad { return src_reject() }
+}
+
+proc v4_constants_complete() {
+    let i=0
+    state nodes { to one when (i<word[525200]) return 0 }
+    state one { to bad when (word[25000000+i*8]!=1) i=i+1 to nodes }
+    state bad { return src_reject() }
+}
+
+; Inclusive comparison keeps the inherited right-before-left materialization.
+proc src_low_expression() {
+    let left_type=0 let right_type=0 let target=0 let opcode=9 let inclusive=0
+    state init { src_low_gset(41,0) to add }
+    state add { to done when (src_low_add()!=0) to compare }
+    state compare { to less when (word[524416]==60) return 0 }
+    state less { to done when (src_low_push_expr()!=0) src_next() to equal when (word[524416]==61) to right }
+    state equal { inclusive=1 opcode=12 src_next() to right }
+    state right { to done when (src_low_add()!=0) right_type=src_low_g(20) to pop }
+    state pop { to done when (src_low_pop_left()!=0) left_type=src_low_g(20) target=left_type to choose }
+    state choose { to left_literal when (left_type==4294967294) to left_typed }
+    state left_literal { target=right_type to both_literal when (right_type==4294967294) to right_numeric }
+    state both_literal { target=4294967295 to emit }
+    state left_typed { to bad when (left_type>=word[10000048]) to bad when (src_type(left_type,0)>2) to right_check }
+    state right_check { to emit when (right_type==4294967294) to typed_right }
+    state typed_right { to bad when (right_type>=word[10000048]) to bad when (src_type(right_type,0)>2) to bad when (src_low_types_same(left_type,right_type)==0) to emit }
+    state right_numeric { to bad when (right_type>=word[10000048]) to bad when (src_type(right_type,0)>2) to emit }
+    state emit { src_low_gset(41,0) to emit_binary when (src_low_g(25)==0) to less_fact when (inclusive==0) to inclusive_fact }
+    state inclusive_fact { src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)) to emit_binary }
+    state less_fact { to emit_binary when (src_low_stack(8,2)==0) src_low_gset(41,1) src_low_gset(42,src_low_g(25)) src_low_gset(43,src_low_g(26)) src_low_gset(44,src_low_stack(8,2)-1) to emit_binary }
+    state emit_binary { to done when (src_low_binary(opcode,target,src_low_g(11),4294967293)!=0) src_low_gset(21,0) src_low_gset(22,1) to done }
+    state bad { src_reject() }
+    state done { return word[10000000] }
+}
+
+; Guardless transitions are exact Jump rows. Authored guards retain Branch.
+proc v4_guardless_transition() {
+    let target=0 let block=0 let count=0 let i=0
+    state open { src_next() to bad when (word[524416]!=256) to wildcard }
+    state wildcard { to bad when (word[524432]!=1) to bad when (refinement_source_byte(word[524424])!='_') src_next() to dash }
+    state dash { to bad when (src_expect_token(45)!=0) to arrow }
+    state arrow { to bad when (src_expect_token(62)!=0) to name }
+    state name { to bad when (word[524416]!=256) target=src_low_find_state(src_low_g(4),word[524424],word[524432]) to bad when (target==4294967295) block=src_state(target,8) src_next() to paren }
+    state paren { to bad when (src_expect_token(40)!=0) to args }
+    state args { to bad when (src_low_parse_arguments(target,6)!=0) count=src_low_g(40) to close }
+    state close { to bad when (word[524416]!=125) src_next() src_low_term_set(src_low_g(6),0,1) src_low_term_set(src_low_g(6),1,4294967295) src_low_term_set(src_low_g(6),2,block) src_low_term_set(src_low_g(6),3,count) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) return 0 }
+    state bad { return src_reject() }
+}
+
+; The inherited branch parser is renamed to v4_guarded_transition by the
+; focused composer. This dispatcher preserves the authored distinction.
+proc src_low_transition() {
+    src_next()
+    state choose { to guardless when (word[524416]==123) return v4_guarded_transition_after_keyword() }
+    state guardless { return v4_guardless_transition() }
+}
+
+proc src_low_body(start,end) {
+    let destination_type=0 let destination_place=0 let rhs_type=0 let source_ref=0
+    let immediate=0 let destination_kind=0 let destination_id=0 let raw=0
+    state init { word[10000128]=end word[524408]=start src_low_gset(9,0) src_low_gset(10,0) src_low_gset(13,0) src_next() to loop }
+    state loop { to finish when (word[524416]==0) to limit }
+    state limit { to exhausted when (src_low_g(10)>=32) to transition when (src_token_word(27,10)==1) to expression }
+    state transition { src_low_gset(10,src_low_g(10)+1) to done when (src_low_transition()!=0) to bad when (word[524416]!=0) to finish }
+    state expression { to done when (src_low_expression()!=0) to assignment when (word[524416]==61) to result }
+    state assignment { destination_type=src_low_g(20) destination_place=src_low_g(28) destination_kind=src_low_g(25) destination_id=src_low_g(26) to bad when (src_low_g(23)==0) to bad when (src_low_g(24)==0) to bad when (destination_place==4294967295) src_next() to aggregate when (src_type(destination_type,0)>=4) to rhs }
+    state aggregate { to aggregate_parse when (word[524416]==91) to aggregate_nominal when (word[524416]==256) to rhs }
+    state aggregate_nominal { to rhs when (src_type(destination_type,0)!=4) to rhs when (v4_token_equal_named(src_record(src_type(destination_type,3),0),src_record(src_type(destination_type,3),1))==0) to aggregate_parse }
+    state aggregate_parse { to done when (v4_parse_constant(destination_type,0)!=0) raw=word[23900000] src_low_gset(50,destination_place) src_low_gset(51,0) src_low_gset(52,v4_raw(raw,5)) to done when (src_low_emit(11,0,4294967295,1)!=0) to assignment_end }
+    state rhs { to done when (src_low_expression()!=0) rhs_type=src_low_g(20) to structural when (src_type(destination_type,0)>=4) to scalar }
+    state scalar { to bad when (src_low_scalar_assignable(destination_type,rhs_type)==0) to done when (src_low_materialize(src_type(destination_type,9))!=0) source_ref=src_low_g(27) to store }
+    state store { src_low_gset(50,destination_place) src_low_gset(51,source_ref) src_low_gset(52,0) to done when (src_low_emit(6,0,4294967295,2)!=0) to assignment_end }
+    state structural { to bad when (src_low_types_same(destination_type,rhs_type)==0) to bad when (src_type_copyable(destination_type)==0) immediate=1 source_ref=src_low_g(27) to structural_place when (src_low_g(28)!=4294967295) to structural_value }
+    state structural_place { immediate=2 source_ref=src_low_g(28) to copy }
+    state structural_value { to bad when (source_ref==4294967295) to copy }
+    state copy { src_low_gset(50,destination_place) src_low_gset(51,source_ref) src_low_gset(52,immediate) to done when (src_low_emit(7,0,4294967295,2)!=0) to assignment_end }
+    state assignment_end { to done when (src_expect_token(59)!=0) src_low_gset(10,src_low_g(10)+1) to loop when (src_low_g(5)==4294967295) to loop when (word[19600000+src_low_g(5)*32]!=1) to loop when (word[19600008+src_low_g(5)*32]!=destination_kind) to loop when (word[19600016+src_low_g(5)*32]!=destination_id) word[19600000+src_low_g(5)*32]=0 to loop }
+    state result { to bad when (src_low_g(8)==4294967295) to bad when (src_low_scalar_assignable(src_low_g(8),src_low_g(20))==0) to done when (src_low_materialize(src_type(src_low_g(8),9))!=0) src_low_term_set(src_low_g(6),0,4) src_low_term_set(src_low_g(6),1,src_low_g(27)) src_low_term_set(src_low_g(6),2,4294967295) src_low_term_set(src_low_g(6),3,0) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) src_low_gset(10,src_low_g(10)+1) to bad when (word[524416]!=0) to finish }
+    state finish { to result_required when (src_low_g(8)!=4294967295) to unit }
+    state result_required { to bad when (src_low_g(13)==0) return 0 }
+    state unit { to done when (src_low_g(13)!=0) src_low_term_set(src_low_g(6),0,3) src_low_term_set(src_low_g(6),1,4294967295) src_low_term_set(src_low_g(6),2,4294967295) src_low_term_set(src_low_g(6),3,0) src_low_term_set(src_low_g(6),4,4294967295) src_low_term_set(src_low_g(6),5,0) src_low_gset(13,1) return 0 }
+    state exhausted { src_exhaust() to done }
+    state bad { src_reject() }
+    state done { return word[10000000] }
+}
+
+proc omgrfn4_r4_lowering_check() {
+    let status=omgrfn4_component_read() let i=0
+    state frame { to done when (status!=0) status=v4_model_prepare() to done when (status!=0) src_init_words() v3_call_begin() status=v4_ckir_header_check() to ckir }
+    state ckir { to done when (status!=0) word[23900008]=0 word[23900016]=0 to clear }
+    state clear { to clear_one when (i<word[525200]) to lower }
+    state clear_one { word[25000000+i*8]=0 i=i+1 to clear }
+    state lower { status=src_reconstruct_lowering_check() to done when (status!=0) status=v3_call_finish() to done when (status!=0) status=v4_constants_complete() to done when (status!=0) status=src_lower_compare_final() to done }
+    state done { return status }
+}
+
+proc main() { return omgrfn4_r4_lowering_check() }
