@@ -817,8 +817,11 @@ class, proposition, assumptions, and reconstructed axioms. Verification consumes
 and retains the same set. A canonical ledger binds it to exact Terminal-Psi and
 source-backed verifier trust-graph identities while leaving certificate route
 as separate provenance. Decoding is not acceptance: the consumer reconstructs
-the set and requires exact equality. This component does not establish ordinary
-package capability/API evidence or authorize a `PackageInstance`.
+the set and requires exact equality. Terminal artifact identity retains the
+ledger fingerprint separately from semantic and proof identities, and the
+replay lowering path performs that comparison before proof checking. This
+component does not establish ordinary package capability/API evidence or
+authorize a `PackageInstance`.
 
 The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked

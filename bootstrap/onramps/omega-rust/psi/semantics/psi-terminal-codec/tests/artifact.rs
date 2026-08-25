@@ -1825,6 +1825,7 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
     .unwrap();
     assert_eq!(first.semantic(), semantic_identity);
     assert_eq!(replacement.semantic(), semantic_identity);
+    assert_eq!(first.obligations(), replacement.obligations());
     assert_ne!(first.proof(), replacement.proof());
     assert_ne!(first.identity(), replacement.identity());
     assert_eq!(first.installation(), replacement.installation());
@@ -1834,6 +1835,7 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
         build_artifact_manifest(&module, &kernel, Some(b"provider=B"), Some(b"source-map=A"))
             .unwrap();
     assert_eq!(first.semantic(), reinstalled.semantic());
+    assert_eq!(first.obligations(), reinstalled.obligations());
     assert_eq!(first.proof(), reinstalled.proof());
     assert_ne!(first.installation(), reinstalled.installation());
     assert_ne!(first.identity(), reinstalled.identity());

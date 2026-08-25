@@ -3,11 +3,13 @@ use psi_terminal_verifier::ProofBundle;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CodecError, ProofBundleFingerprint, ProofCodecError, TerminalPsiIdentity,
-    proof_bundle_fingerprint, terminal_psi_identity,
+    CodecError, ProofBundleFingerprint, ProofCodecError, TerminalObligationLedgerFingerprint,
+    TerminalPsiIdentity, TrustGraphError, build_terminal_obligation_ledger,
+    current_terminal_trust_graph, proof_bundle_fingerprint, terminal_obligation_ledger_fingerprint,
+    terminal_psi_identity,
 };
 
-const MANIFEST_FORMAT_MARKER: u16 = 1;
+const MANIFEST_FORMAT_MARKER: u16 = 2;
 const INSTALLATION_DOMAIN: &[u8] = b"psi-terminal-installation-section\0";
 const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section\0";
 const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest\0";
@@ -57,6 +59,7 @@ impl std::fmt::Display for TerminalArtifactIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalArtifactManifest {
     semantic: TerminalPsiIdentity,
+    obligations: TerminalObligationLedgerFingerprint,
     proof: ProofBundleFingerprint,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
@@ -70,6 +73,10 @@ impl TerminalArtifactManifest {
 
     pub const fn proof(self) -> ProofBundleFingerprint {
         self.proof
+    }
+
+    pub const fn obligations(self) -> TerminalObligationLedgerFingerprint {
+        self.obligations
     }
 
     pub const fn installation(self) -> Option<SectionFingerprint> {
@@ -93,12 +100,18 @@ pub fn build_artifact_manifest(
 ) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
     let semantic =
         terminal_psi_identity(semantic_module).map_err(ArtifactManifestError::Semantic)?;
+    let trust_graph = current_terminal_trust_graph().map_err(ArtifactManifestError::TrustGraph)?;
+    let obligation_ledger = build_terminal_obligation_ledger(semantic_module, &trust_graph)
+        .map_err(ArtifactManifestError::Obligations)?;
+    let obligations = terminal_obligation_ledger_fingerprint(&obligation_ledger)
+        .map_err(ArtifactManifestError::Obligations)?;
     let proof = proof_bundle_fingerprint(proof_bundle).map_err(ArtifactManifestError::Proof)?;
     let installation = installation_record.map(|bytes| hash_section(INSTALLATION_DOMAIN, bytes));
     let debug = debug_maps.map(|bytes| hash_section(DEBUG_DOMAIN, bytes));
-    let identity = artifact_identity(semantic, proof, installation, debug);
+    let identity = artifact_identity(semantic, obligations, proof, installation, debug);
     Ok(TerminalArtifactManifest {
         semantic,
+        obligations,
         proof,
         installation,
         debug,
@@ -131,6 +144,7 @@ fn hash_section(domain: &[u8], bytes: &[u8]) -> SectionFingerprint {
 
 fn artifact_identity(
     semantic: TerminalPsiIdentity,
+    obligations: TerminalObligationLedgerFingerprint,
     proof: ProofBundleFingerprint,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
@@ -139,6 +153,7 @@ fn artifact_identity(
     bytes.extend_from_slice(&MANIFEST_FORMAT_MARKER.to_le_bytes());
     bytes.extend_from_slice(&semantic.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
+    bytes.extend_from_slice(obligations.as_bytes());
     bytes.extend_from_slice(proof.as_bytes());
     encode_optional_fingerprint(&mut bytes, installation);
     encode_optional_fingerprint(&mut bytes, debug);
@@ -174,6 +189,8 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArtifactManifestError {
     Semantic(CodecError),
+    TrustGraph(TrustGraphError),
+    Obligations(CodecError),
     Proof(ProofCodecError),
     ManifestMismatch,
 }

@@ -1339,8 +1339,13 @@ complete.
   The trust graph now hashes a deterministic closure of every Rust verifier
   source file, closing the prior deep-module omission. Tampered questions and
   changed trust/program subjects reject; different valid proof routes retain
-  one semantic ledger. This is a real Terminal replay component, not package
-  sealing. Whole-package source/artifact obligation reconstruction, ordinary
+  one semantic ledger. Terminal artifact-manifest v2 retains that ledger
+  fingerprint as a section identity distinct from semantic and proof identity.
+  The source-independent lowering consumer can now decode persisted semantic,
+  obligation, and proof sections, require exact local obligation reconstruction,
+  then verify and lower; a canonical but substituted ledger rejects before
+  proof checking. This is a real Terminal replay component, not package sealing.
+  Whole-package source/artifact obligation reconstruction, ordinary
   capability/API evidence, transitive open obligations, schema deltas, and
   `PackageInstance` remain deliberately absent.
 

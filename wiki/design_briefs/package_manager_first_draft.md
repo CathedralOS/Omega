@@ -884,7 +884,9 @@ consumes and retains that set. Its canonical bytes bind exact Terminal-Psi and
 source-backed verifier trust-graph identities but exclude proof route, so
 different valid certificates preserve semantic identity. A decoded producer
 ledger is accepted only after exact local reconstruction. This remains a narrow
-Terminal component, not whole-package evidence or lock authority.
+Terminal component. Its artifact manifest retains a separate ledger fingerprint,
+and replay lowering consumes semantic, ledger, and proof sections in that order.
+It is not whole-package evidence or lock authority.
 
 Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity because one closure may contain evidence produced
