@@ -1520,7 +1520,16 @@ spelling, the complete signature, and declaration contracts without depending
 on use-site facts. Public contract binaries retain an exact declared overload
 coordinate or explicit builtin meaning rather than only a token. Unsupported
 operator crash contracts or unresolved proof-static selections reject closed.
-The next standalone visibility row is `PublicConformance`. Every package-owned
+Complete name-first conformances now retain their declaration-owned `pub`
+through syntax, source profiling, resolved/typed/checked trees, and stage
+snapshots. Exact selection gates reject private cross-package use and public-
+interface citation, public headers cannot hide a private carrier or trait, and
+private member machines remain implementation. Lexical conformance-binder
+requirements inherit the enclosing declaration rather than becoming package
+declarations. Explicit row references retain their authored source occurrence
+through exact target normalization and obey ordinary package visibility. The
+next standalone compatibility row is `PublicConformance`.
+Every package-owned
 `pub Name: Subject satisfies Trait<...>` declaration contributes the exact
 package-qualified conformance identity, normalized static telescope, optional
 subject, exact trait application, complete normalized requirement map, laws,

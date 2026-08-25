@@ -9,9 +9,7 @@ use crate::proposition::{PropositionBinderKind, PropositionBody, PropositionDefi
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
-use crate::trait_definition::{
-    Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
-};
+use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraint, TypeReference};
 use crate::wire::{WireMember, WireSchema};
 use psi_arena::HandleSpan;
@@ -192,43 +190,30 @@ pub struct SymbolResolvedRootsSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConformanceSnapshot {
+    pub has_symbol: bool,
     pub name: String,
     pub is_public: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
+    pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_symbol: Option<u32>,
     pub trait_name: String,
-    pub argument_count: usize,
+    pub trait_symbol: u32,
+    pub arguments: Vec<TypeReferenceSnapshot>,
     pub implementation: &'static str,
-    pub row_count: usize,
+    pub rows: Vec<ConformanceRowSnapshot>,
 }
 
-fn conformance_snapshot(
-    program: &SymbolResolvedTrees,
-    conformance: &Conformance,
-) -> ConformanceSnapshot {
-    let (implementation, row_count) = match &conformance.implementation {
-        ConformanceImplementation::AttachedRequirementMachines => {
-            ("attached_requirement_machines", 0)
-        }
-        ConformanceImplementation::Closed { rows } => ("closed", rows.len()),
-    };
-    ConformanceSnapshot {
-        name: program.symbols.display_path(conformance.symbol, "::"),
-        is_public: conformance.is_public,
-        subject: match &conformance.subject {
-            ConformanceSubject::Carrier(name) => Some(name.to_string()),
-            ConformanceSubject::Subjectless => None,
-        },
-        trait_name: conformance.trait_name.to_string(),
-        argument_count: program
-            .tables
-            .declarations
-            .child_type_references
-            .span_or_empty(conformance.arguments)
-            .len(),
-        implementation,
-        row_count,
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConformanceRowSnapshot {
+    pub declaring_trait: u32,
+    pub requirement: u32,
+    pub realization_machine: u32,
+    pub realization_state: u32,
+    pub source: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1329,6 +1314,67 @@ fn trait_definition_snapshot(
             .iter()
             .map(|signature| state_signature_snapshot(program, signature))
             .collect(),
+    }
+}
+
+fn conformance_snapshot(
+    program: &SymbolResolvedTrees,
+    conformance: &crate::trait_definition::Conformance,
+) -> ConformanceSnapshot {
+    let (implementation, rows) = match &conformance.implementation {
+        crate::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+            ("attached_requirement_machines", Vec::new())
+        }
+        crate::trait_definition::ConformanceImplementation::Closed { rows } => (
+            "closed",
+            rows.iter()
+                .map(|row| ConformanceRowSnapshot {
+                    declaring_trait: row.declaring_trait.arena_index(),
+                    requirement: row.requirement.arena_index(),
+                    realization_machine: row.realization_machine.arena_index(),
+                    realization_state: row.realization_state.arena_index(),
+                    source: match row.source {
+                        crate::trait_definition::ConformanceRowSource::Inline => "inline",
+                        crate::trait_definition::ConformanceRowSource::Reference => "reference",
+                        crate::trait_definition::ConformanceRowSource::TraitDefault => {
+                            "trait_default"
+                        }
+                    },
+                })
+                .collect(),
+        ),
+    };
+    ConformanceSnapshot {
+        has_symbol: conformance.symbol.is_valid(),
+        name: conformance.alias.as_ref().map_or_else(
+            || program.symbols.display_path(conformance.symbol, "::"),
+            ToString::to_string,
+        ),
+        is_public: conformance.is_public,
+        lifetime_parameters: conformance
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        type_parameters: program
+            .data_type_parameters(conformance.type_parameters)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
+        subject: conformance.carrier_name().map(ToString::to_string),
+        subject_symbol: conformance
+            .carrier_symbol
+            .is_valid()
+            .then(|| conformance.carrier_symbol.arena_index()),
+        trait_name: conformance.trait_name.to_string(),
+        trait_symbol: conformance.trait_symbol.arena_index(),
+        arguments: program
+            .child_type_references(conformance.arguments)
+            .iter()
+            .map(|argument| type_reference_snapshot(program, argument))
+            .collect(),
+        implementation,
+        rows,
     }
 }
 

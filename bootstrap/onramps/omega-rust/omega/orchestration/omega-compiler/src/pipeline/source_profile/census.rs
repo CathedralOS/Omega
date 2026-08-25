@@ -176,7 +176,7 @@ impl Census {
                 }
             }
             ItemSnapshot::Conformance {
-                is_public: _,
+                is_public,
                 lifetime_parameters,
                 type_parameters,
                 type_name,
@@ -187,6 +187,9 @@ impl Census {
                 body,
             } => {
                 self.bump("item.conformance");
+                if *is_public {
+                    self.bump("item.public");
+                }
                 self.lifetime_parameters(lifetime_parameters);
                 self.type_parameters(type_parameters);
                 if let Some(type_name) = type_name {

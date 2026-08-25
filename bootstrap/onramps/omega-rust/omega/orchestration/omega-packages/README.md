@@ -662,6 +662,16 @@ spelling, complete signature shape, and contracts projected directly from the
 declaration even when unused. Public contract binaries now encode either one
 exact declared overload coordinate or explicit builtin meaning. Unsupported
 operator crash contracts and unresolved proof-static selections reject closed.
+Complete name-first conformances now retain their own ordinary `pub` bit
+through syntax, source profiling, resolved/typed/checked trees, and all stage
+snapshots. Exact authored-selection gates reject private cross-package
+selection and public-interface citation, and a public conformance cannot hide a
+private carrier or trait. Private realization machines remain implementation;
+their visibility is not promoted. Lexical conformance-binder requirements
+inherit the enclosing declaration's visibility and do not become package
+declarations. Explicit conformance-row machine references retain their authored
+span through exact row normalization and obey ordinary package visibility.
+Canonical `PublicConformance` compatibility rows remain pending.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

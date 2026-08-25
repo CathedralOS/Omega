@@ -92,6 +92,10 @@ pub struct ConformanceRow {
     pub realization_machine: SymbolHandle,
     pub realization_state: SymbolHandle,
     pub realization_name: DiagnosticName,
+    /// Exact authored target path for an explicit
+    /// `Trait::requirement = Machine::entry` row. Inline/default rows have no
+    /// independently selected realization declaration.
+    pub authored_realization_source_span: Option<psi_source::SourceSpan>,
     /// Pre-normalization root-machine ordinal for inline/default members.
     /// This prevents same-named overloads from being re-selected by text.
     pub provisional_realization_ordinal: Option<usize>,

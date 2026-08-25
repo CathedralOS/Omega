@@ -7,6 +7,26 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn retains_public_conformance_visibility_and_snapshot_shape() {
+    let source = "pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize conformance");
+    let syntax = parse_syntax_trees(&tokens).expect("parse conformance");
+    let program = lower_syntax_trees(&syntax).expect("resolve conformance");
+    let conformance = program.conformances.iter().next().expect("conformance");
+
+    assert!(conformance.is_public);
+    assert_eq!(
+        conformance.alias.as_ref().map(|name| name.as_str()),
+        Some("PowerOrder")
+    );
+    assert!(conformance.symbol.is_valid());
+    let snapshot = program.snapshot();
+    assert_eq!(snapshot.roots.conformances.len(), 1);
+    assert!(snapshot.roots.conformances[0].is_public);
+    assert_eq!(snapshot.roots.conformances[0].name, "PowerOrder");
+}
+
+#[test]
 fn retains_public_data_trait_and_wire_visibility() {
     let source = r#"
         pub data PublicRecord { value: u32; }

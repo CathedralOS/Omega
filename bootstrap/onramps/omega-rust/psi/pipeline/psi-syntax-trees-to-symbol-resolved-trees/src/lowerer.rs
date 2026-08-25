@@ -328,6 +328,10 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        crate::authored_selections::finalize_conformance_reference_selections(
+            &mut self.symbol_resolved_trees,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::domain_establishment::normalize_domain_establishment_routes(
             &mut self.symbol_resolved_trees,
         )

@@ -108,6 +108,31 @@ fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
 }
 
 #[test]
+fn retains_public_name_first_conformance_visibility() {
+    let tokens =
+        Lexer::new("pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}")
+            .tokenize()
+            .expect("tokenize public conformance");
+    let parsed = parse_syntax_trees(&tokens).expect("parse public conformance");
+    let conformance = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .expect("public name-first conformance");
+
+    assert!(conformance.is_public);
+    assert_eq!(
+        conformance.alias.as_ref().map(|name| name.as_str()),
+        Some("PowerOrder")
+    );
+    let snapshot = parsed.snapshot_json().expect("snapshot public conformance");
+    assert!(snapshot.contains("\"kind\":\"conformance\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+}
+
+#[test]
 fn retains_public_trait_and_numbered_data_visibility() {
     let tokens = Lexer::new("pub trait Shape {} pub data Envelope { #1 value: u32; }")
         .tokenize()

@@ -123,6 +123,25 @@ fn lower_item_with_exposure(
                                     .map(|member| member.as_str())
                                     .collect::<Vec<_>>()
                                     .join("::");
+                                let target_members = syntax_trees
+                                    .items
+                                    .identifier_path_members(*target);
+                                let authored_realization_source_span = target_members
+                                    .first()
+                                    .zip(target_members.last())
+                                    .and_then(|(first, last)| {
+                                        (first.source_span().source_id
+                                            == last.source_span().source_id)
+                                            .then(|| {
+                                                psi_source::SourceSpan::new(
+                                                    first.source_span().source_id,
+                                                    psi_source::Span::new(
+                                                        first.source_span().span.start,
+                                                        last.source_span().span.end,
+                                                    ),
+                                                )
+                                            })
+                                    });
                                 rows.push(
                                     psi_symbol_resolved_trees::trait_definition::ConformanceRow {
                                         declaring_trait: psi_symbols::SymbolHandle::invalid(),
@@ -138,6 +157,7 @@ fn lower_item_with_exposure(
                                             psi_symbol_resolved_trees::name::DiagnosticName::generated(
                                                 realization_name,
                                             ),
+                                        authored_realization_source_span,
                                         provisional_realization_ordinal: None,
                                         source: psi_symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference,
                                     },
@@ -341,6 +361,7 @@ fn lower_closed_machine_row(
             realization_name: psi_symbol_resolved_trees::name::DiagnosticName::generated(
                 realization_name,
             ),
+            authored_realization_source_span: None,
             provisional_realization_ordinal: Some(realization_ordinal),
             source,
         },

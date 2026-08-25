@@ -331,8 +331,11 @@ Declarations are private by default unless marked `pub`. Independently
 nameable data, domains, traits, machines, wire schemas, operators,
 propositions, and constants support that rule. A declared ranking measure is
 private proof machinery for `terminates by`; the parser rejects `pub measure`.
-Complete name-first conformances follow the package-private/explicit-`pub` rule
-stated above; qualification or direct dependency grants no implicit exception.
+Complete name-first conformances follow the same rule: they are private unless
+marked `pub`, independently of their subject and trait. An exact requirement
+edge's optional `as Name` label is not a standalone conformance declaration and
+acquires no package visibility. Qualification and direct dependency never
+grant an implicit exception.
 
 Qualification does not imply visibility inheritance. A declaration such as
 `Extent::Granted`, `[u8]::Utf8`, `Vector::add`, or a type-qualified constant is

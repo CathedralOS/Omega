@@ -824,6 +824,25 @@ complete.
   remain private. Named conformance is the remaining settled declaration-
   visibility implementation slice.
 
+  Milestone 2026-08-25: complete name-first conformances now retain ordinary
+  `pub` independently from their subject and trait through syntax copying,
+  source profiling, resolved and typed trees, checked compilation, and syntax/
+  resolved/typed snapshots. Public conformance headers retain their carrier,
+  trait, static telescope, trait arguments, normalized row map, and exact
+  symbols; public headers reject a private carrier or trait. The shared exact-
+  symbol gate now rejects private cross-package conformance selection and
+  public-interface citation while preserving same-package private use. Calls
+  through lexical conformance and machine binders inherit visibility from the
+  enclosing declaration rather than treating the binder as a package API.
+  An explicit `Trait::requirement = Machine::entry` row now retains its authored
+  target span until closed-map normalization resolves the exact machine, then
+  enters private-implementation selection custody; cross-package references to
+  private realization machines reject even when the conformance is public.
+  Cross-package canaries select an explicit conformance argument and prove that
+  only `pub PowerOrder` crosses the package boundary. The blocking canonical
+  `PublicConformance` row remains the next compatibility slice; no accepted
+  admission is implied by visibility retention alone.
+
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
   a public contract selecting a private proposition/const/operator, a public
