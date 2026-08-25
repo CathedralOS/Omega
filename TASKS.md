@@ -72,13 +72,17 @@ Remaining:
   resulting compiler implements. Prefer a small regular implementation
   footprint, but do not replace useful general facilities with brittle
   monomorphic duplication merely to reduce the feature count. The working
-  authoring bias is to avoid proof-program mathematics and advanced dependent
-  or proof-indexed typing in the compiler's own source. Measure ordinary
-  ownership/multiplicity, records, payload sums, basic generics, and domains
-  rather than preemptively banning them. Treat numeric schema tags, mixed
-  field-plus-case declarations, and aggregate transition payloads as measured
-  simplification candidates; do not conflate numeric tags with ordinary named
-  fields, or force a split representation when it makes the source worse.
+  authoring bias is to avoid proof-program mathematics and dependent or proof-
+  indexed typing, including linear-dependent forms, in the compiler's own
+  source. Retain ordinary ownership/multiplicity, records, payload sums, and
+  other regular compiler facilities when they improve the implementation.
+  Basic generics and concrete domains are expected to be useful and should be
+  measured from real source use rather than preemptively banned; domain
+  polymorphism and advanced generic constraints remain separate cost questions.
+  Treat numeric schema tags, mixed field-plus-case declarations, and aggregate
+  transition payloads as measured simplification candidates; do not conflate
+  numeric tags with ordinary named fields, or force a split representation when
+  it makes the source worse.
   Keep adjacent tools outside the closure unless the compiler executable
   imports them.
 

@@ -378,6 +378,19 @@ closure or by assumed costs in the other.
   disputed Omega source feature, retain it with its measured implementation and
   assurance cost discharged or refactor it out and preserve a negative canary.
   Freeze all transitive build inputs under the same rules.
+- [ ] Resolve the high-leverage profile groups explicitly rather than letting
+  them disappear inside the final census: presumptively exclude proof-program
+  mathematics and dependent/proof-indexed typing (including linear-dependent
+  forms); presumptively retain regular compiler data/control and ordinary
+  ownership; measure basic generics and concrete domains from real use; and
+  compare numeric/schema tags, mixed record-plus-sum declarations, and aggregate
+  transition payloads with simpler source encodings. A refactor wins only when
+  it reduces total bridge/assurance cost without introducing duplication,
+  invalid intermediate states, or compiler-file-shaped rules.
+- [ ] Demonstrate in the hosted acceptance suite that source-profile exclusion
+  is not product-language exclusion: production `omega` accepts representative
+  full-Omega programs using each materially difficult facility omitted from
+  `Ωself`, including the proof/dependent surface if it remains excluded.
 
 Acceptance: every row is retained or excluded; every retained form has general
 parsing, checking, meaning, lowering, resources, and negative-boundary coverage;
@@ -391,6 +404,12 @@ accepts, not which full-Omega features the resulting compiler implements.
 
 #### Delta v1
 
+- [ ] Publish the coherent C-class compiler-host baseline before optimizing for
+  feature count: regular scalar/data/control and module facilities,
+  deterministic bounded storage or allocation with specified exhaustion,
+  explicit failure, and the sealed byte-input/artifact-output/diagnostic/exit
+  boundary needed by both required Delta programs. This is a design floor, not
+  automatic admission of every current D0 or Rust-producer construct.
 - [ ] Classify every retained construct as required by the complete canonical
   Delta-compiler or `omega-bootstrap` closure, or justified by an explicit
   coherence, robustness, safety, or maintainability argument. Remove accidental

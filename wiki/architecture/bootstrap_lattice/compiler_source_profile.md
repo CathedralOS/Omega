@@ -251,6 +251,30 @@ That gives the design loop exactly two feature inventories:
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
 
+The current working baseline is deliberately asymmetric. It is a planning
+baseline, not a premature freeze:
+
+| Contract | Settled floor | Strong working default | Still decided by measured source/bridge cost |
+| --- | --- | --- | --- |
+| Delta v1 | independent, deterministic, specified, C-class compiler host with no undefined behavior or ambient authority | provide regular compiler-building data and control, deterministic storage/allocation with explicit exhaustion, and a sealed byte/artifact/diagnostic/exit boundary | the exact scalar, aggregate, slice, arena, call, module, arithmetic, and representation inventory |
+| `Ωself` | ordinary Omega with exact Omega meaning; the resulting compiler still implements full Omega | keep regular compiler facilities when they avoid duplication—modules, named records, sums, arrays/views, ordinary ownership, calls, basic generics, and concrete domains are not to be banned merely to shrink the profile | retain versus refactor each facility actually used by the completed compiler source, with bridge and assurance cost measured |
+
+Two expensive families begin on opposite sides of that working default. Proof-
+program mathematics, proof contracts used only for internal implementation, and
+dependent or proof-indexed types (including linear-dependent forms) are
+presumptive `Ωself` exclusions. Basic generics and concrete domains are
+presumptive source conveniences when they keep compiler code regular, but they
+are not admitted until an actual checkpoint uses them and the bridge cost is
+known. Numeric/schema field tags, mixed field-plus-case declarations, and
+aggregate transition payloads are explicit simplification candidates. Ordinary
+named fields and ordinary sum data are not implicated by those candidates.
+
+This baseline intentionally favors the most expressive profile that remains
+cheap and regular, not the smallest feature count. Exclusion is useful only
+when it removes material bridge or assurance complexity without replacing it
+with duplicated compiler source, invalid intermediate states, hand-expanded
+variants, or private AST permutations.
+
 Route a question by the subject it changes, not by which compiler happens to
 encounter it:
 
@@ -271,13 +295,16 @@ a third language inventory to avoid coordinating those two responsibilities.
 
 Until measurements overturn them, use these authoring defaults:
 
-- keep proof-program mathematics and dependent or proof-indexed typing out of
-  the production compiler's own source;
+- keep proof-program mathematics and dependent or proof-indexed typing,
+  including linear-dependent forms, out of the production compiler's own
+  source;
 - use ordinary compiler data and control facilities where they materially help
   clarity and robustness—especially named records, payload sums, basic
-  generics, ownership, and explicit arenas—rather than hand-expanding them away;
-- measure domains, numeric schema tags, mixed record/sum declarations, and
-  aggregate transition payloads against simpler encodings; and
+  generics, concrete domains, ownership, and explicit arenas—rather than
+  hand-expanding them away;
+- measure domain polymorphism, advanced generic constraints, numeric schema
+  tags, mixed record/sum declarations, and aggregate transition payloads
+  against simpler encodings; and
 - do not remove a facility from the product source unless the simpler source
   remains regular, maintainable, and cheaper to compile and assure.
 
@@ -358,7 +385,7 @@ establishes the implementation and assurance cost.
 | static provider path arguments | measure from checkpoint 000001 | the checkpoint proves only path-valued static arguments to sealed provider selection; it is not evidence for general generic declarations |
 | basic generic declarations and calls | open; expected useful but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
-| concrete domains and domain arithmetic | measure | compare with explicit compiler contexts and narrow operations |
+| concrete domains and domain arithmetic | open; expected useful but unmeasured | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
 | specialization and reflection | no source-profile ruling yet | neither has a distinct accepted authored source spelling to admit or exclude; add a row when there is a censusable Omega surface |
@@ -469,14 +496,15 @@ benefit and robustness in the production Omega source closure
 implementation + assurance cost in the required Delta compiler/bridge source closures
 ```
 
-Payload sums are likely favorable. Basic generics may be as later compiler
-source arrives, but checkpoint 000001 currently proves only static provider path
-arguments, not general generic declarations. Proof syntax and dependent typing
-are not favorable defaults. This is a total-cost profile, not a contest to remove
-the most features: retaining a cheap general facility is preferable to forcing
-large, brittle, monomorphic compiler source. Profile growth or a product-source
-closure change reopens the profile and must update the rules, compiler, meaning
-route, diagnostics, and negative gates together.
+Payload sums are likely favorable. Basic generics and concrete domains may be
+as later compiler source arrives, but checkpoint 000001 currently proves only
+static provider path arguments, not general generic declarations or authored
+domain use. Proof syntax and dependent typing are not favorable defaults. This
+is a total-cost profile, not a contest to remove the most features: retaining a
+cheap general facility is preferable to forcing large, brittle, monomorphic
+compiler source. Profile growth or a product-source closure change reopens the
+profile and must update the rules, compiler, meaning route, diagnostics, and
+negative gates together.
 
 ## One required hosted production build
 
