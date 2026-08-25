@@ -164,7 +164,17 @@ not choose which claims count as sufficient; only fully verified output ships.
 At the very bottom the meaning stack ends at *a formal model of the chip*; the
 machine stack ends at *the actual chip*. The gap between them — does silicon
 truly obey its own manual — is the one thing software can never close. That is
-the irreducible axiom.
+the irreducible axiom. It is represented as a disclosed deployment admission,
+not hidden inside artifact verification. An artifact seal ends at the formal
+target model and remains reusable; installing or running it on a physical
+platform adds the admission that this silicon realizes that model.
+
+Artifact correctness is never profile-free. The verifier reconstructs the
+exact observable behavior from canonical source and target semantics,
+boundary/component contracts, and consumer deployment policy. The producer
+cannot choose a weaker observation profile. A verdict therefore identifies the
+source and artifact subjects, semantics versions, observation profile, checked
+bridges, and disclosed admissions.
 
 ## Meaning follows a canonical semantic route; compilers are checked realizations
 
@@ -359,11 +369,11 @@ The places this architecture glides over real cost. Build with eyes open.
 1. **A reference interpreter gives operational meaning, not logical meaning.**
    "What the interpreter does" tells you what programs *do* (perfect for checking
    a compiler preserves behavior). It does not give a theory to *prove things
-   about* programs. Connecting the proof kernel's logic to what programs actually
-   do per the reference interpreter is a **soundness theorem**
-   (`kernel-accepted ⟹ true-about-execution`) at the proof/meaning seam. That
-   bridge is the hard core of the proof ambition; the reference interpreter is
-   only half of "meaning."
+   about* programs. Connecting a subject-qualified proof judgment through its
+   checked intended-model/global-theory bridges to what programs actually do
+   per the reference interpreter is a family of **soundness theorems** at the
+   proof/meaning seam. That bridge graph is the hard core of the proof ambition;
+   the reference interpreter is only half of "meaning."
 2. **Cross-implementation agreement is evidence, not authority.** It can catch
    bugs but cannot establish source-to-artifact correctness. Every compiler edge
    still needs the checked refinement shape described above.

@@ -515,7 +515,7 @@ complete.
   diagnostics; emit semantic dependency evidence. Canary the full three-package
   `root -> middle -> leaf` matrix, including carried flow, inferred field/method,
   case construction/membership, operator and conformance selection, explicit
-  versus automatic cleanup once owner question Q2 settles source-callable
+  versus automatic cleanup once owner question Q1 settles source-callable
   `drop`, toolchain declarations, spoofed same-name cleanup,
   and private/public evidence disposition.
 
@@ -679,7 +679,7 @@ complete.
   expression positions whose visibility is settled, and named conformance
   selectors in callable and trait bounds. Visibility-dependent nested positions
   and explicit cleanup classification are not yet total. Explicit cleanup is
-  language-blocked on owner question Q2 because an authored `value.drop()` currently
+  language-blocked on owner question Q1 because an authored `value.drop()` currently
   behaves as an ordinary mutable call and may be followed by automatic cleanup;
   classification alone cannot define that ownership event. The package manager
   stays disabled until those gaps close.

@@ -1928,6 +1928,28 @@ cannot choose what is sufficient. Missing obligations, extra evidence, changed
 propositions, wrong module/obligation identities, and unauthorized admission all
 reject.
 
+Each reconstructed obligation also carries its exact semantic subject. The
+artifact root is refinement from the formal target operational system to the
+canonical source operational system under one verifier-reconstructed
+observation profile. Supporting rows may inhabit an exact intended
+mathematical model or state global consequence over an exact theory, but they
+join the root only through explicit checked bridge rows. Subject/model/theory
+identity, semantics versions, target capsule, observation profile, bridge
+dependencies, and admissions are canonical identity rather than proof-bundle
+annotations.
+
+The producer never supplies the required observation profile. The verifier
+derives it from canonical semantics, boundary/component contracts, and the
+consumer-selected deployment policy. Exact equality is the first sound replay
+gate. A later cross-profile reuse path must carry a checked canonical forgetting
+projection; two profiles may be incomparable. A profile omitting all
+observations therefore cannot trivialize a nonempty reconstructed obligation.
+
+The formal-target-to-silicon claim is outside this reusable artifact record. It
+is a deployment-scoped admission that composes into the final trust report.
+Reports distinguish checked facts, artifact-scoped admissions, and deployment
+admissions and never render their union as an unqualified `verified` result.
+
 Every accepted fact is:
 
 - re-decided by a specified total kernel judgment;

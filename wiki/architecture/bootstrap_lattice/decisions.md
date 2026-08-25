@@ -96,10 +96,27 @@ backdoored output would fail its own refinement check.
 
 ## D4 — The soundness bridge is built empirically via SEAMS now; every proof-kernel capability ships a paired seam.
 
-`kernel-accepted ⟹ true-about-execution` (overview honest-edge #1) is the hard
-core. It is attacked **empirically today** by the soundness *seams* — kernel
-derivation vs operational evaluation (induction, predicates, propositional logic,
-the soundness sweep, the convergence routes).
+Kernel acceptance is authoritative for one exact subject-qualified judgment.
+The terminal artifact claim is canonical operational refinement under a
+verifier-reconstructed observation profile. Intended-model mathematics and
+global theory consequence are supporting subjects only; each reaches that root
+through an explicit identity-bearing checked bridge. `satisfies`, `embed`/`as`,
+and `terminates by` mark common bridge applications but prove nothing by their
+spelling. Subject, model/theory and semantics versions, observation profile,
+target capsule, bridge graph, and admissions enter certificate identity.
+
+The observation profile is reconstructed from canonical semantics and the
+consumer-selected deployment policy. The producer may neither select nor
+weaken it. Exact identity is the first conservative replay gate; reuse across
+profiles eventually requires a checked canonical forgetting projection because
+profiles can be incomparable. Verification reports always name the profile,
+semantics versions, and admissions rather than presenting a profile-free
+`verified` verdict.
+
+Connecting each accepted judgment through those bridges to execution is the
+hard core. It is attacked **empirically today** by the soundness *seams* —
+kernel derivation vs operational evaluation (induction, predicates,
+propositional logic, the soundness sweep, the convergence routes).
 
 **Standing policy:** every new logical capability the proof kernel gains **must** ship with a
 paired seam that cross-checks kernel-provability against operational truth on a
@@ -129,9 +146,10 @@ not grant authority.
 For each compiler edge, the required shape is:
 
 ```text
-source + produced artifact
+source + produced artifact + consumer deployment policy
           ↓ canonical obligation reconstruction
-artifact refines canonical source meaning
+artifact refines canonical source operational meaning
+under verifier-derived observation profile O
           ↓ lower-rooted proof/semantic checking
 accept or reject
 ```
