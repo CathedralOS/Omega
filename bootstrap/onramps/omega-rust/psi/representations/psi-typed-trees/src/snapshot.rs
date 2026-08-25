@@ -331,6 +331,7 @@ pub struct TypedTableSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorDefinitionSnapshot {
+    pub is_public: bool,
     pub is_boundary: bool,
     pub has_symbol: bool,
     pub name: Vec<String>,
@@ -349,6 +350,7 @@ fn operator_snapshot(
     operator: &OperatorDefinition,
 ) -> OperatorDefinitionSnapshot {
     OperatorDefinitionSnapshot {
+        is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         has_symbol: operator.symbol.is_valid(),
         name: program

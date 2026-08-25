@@ -45,6 +45,7 @@ pub(super) fn parse_item<'tokens, 'source>(
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,
+            Item::Operator(operator) => operator.is_public = true,
             Item::Proposition(proposition) => proposition.is_public = true,
             Item::Trait(trait_definition) => trait_definition.is_public = true,
             Item::WireData(wire_data) => wire_data.is_public = true,

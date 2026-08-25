@@ -775,6 +775,90 @@ fn const_visibility_gates_public_and_cross_package_selection() {
 }
 
 #[test]
+fn operator_visibility_gates_public_and_cross_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use leaf::leaf;\nmachine inspect(value: Token) -> bool { value < value }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub data Token [copy] { value: u64; }\noperator < Token::less(left: Token, right: Token) -> bool;\n",
+    );
+
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct operator dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a direct dependency does not publish its private operator");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private operator")
+                && diagnostic.message.contains("Token::less")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool;\n",
+    );
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("an explicitly public operator should be nameable by a direct dependent");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "pub data Token [copy] { value: u64; }\noperator < Token::less(left: Token, right: Token) -> bool;\npub machine inspect(value: Token)\nrequires value < value\n{ }\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only public operator interface should validate structurally");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a public interface may not select its package-private operator");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private operator")
+                && diagnostic.message.contains("Token::less")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "pub data Token [copy] { value: u64; }\noperator < Token::less(left: Token, right: Token) -> bool;\nmachine inspect(value: Token) -> bool { value < value }\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only private operator implementation should validate");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect("private implementation may select its package-private operator");
+}
+
+#[test]
 fn public_callable_bound_requires_the_named_conformance_owner() {
     let tree = TempTree::new();
     let root = tree.package("root");

@@ -12,6 +12,7 @@ pub(crate) fn lower_operator_definition(
     operator: &syntax::item::OperatorDefinition,
 ) -> Result<psi_symbol_resolved_trees::operator::OperatorDefinition, Diagnostic> {
     Ok(psi_symbol_resolved_trees::operator::OperatorDefinition {
+        is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         symbol: Default::default(),
         name: lower_operator_name(lowerer, syntax_trees, operator.name),

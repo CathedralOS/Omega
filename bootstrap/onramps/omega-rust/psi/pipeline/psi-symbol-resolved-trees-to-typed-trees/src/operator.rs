@@ -9,6 +9,7 @@ pub(crate) fn lower_operator_definition(
     operator: &psi_symbol_resolved_trees::operator::OperatorDefinition,
 ) -> Result<psi_typed_trees::operator::OperatorDefinition, Diagnostic> {
     let mut typed_operator = psi_typed_trees::operator::OperatorDefinition {
+        is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         symbol: operator.symbol,
         name: Default::default(),

@@ -267,6 +267,7 @@ impl Default for MeasureDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub is_public: bool,
     pub is_boundary: bool,
     pub name: HandleSpan<Identifier>,
     /// Erased borrow-region parameters declared in the shared `<>` list.

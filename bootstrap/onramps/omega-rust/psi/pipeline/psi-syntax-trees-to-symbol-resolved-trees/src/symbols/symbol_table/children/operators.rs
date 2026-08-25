@@ -1,7 +1,9 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
 
-use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
+use crate::symbols::symbol_table::names::{
+    operator_symbol_name, operator_symbol_seed, symbol_seed,
+};
 
 pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
     builder: &mut SymbolTableBuilder,
@@ -24,7 +26,10 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
             .chain(
                 operator_names
                     .iter()
-                    .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+                    .zip(program.operator_definitions(domain.operators).iter())
+                    .map(|(name, operator)| {
+                        operator_symbol_seed(program, operator, name, has_sources)
+                    }),
             ),
     );
 

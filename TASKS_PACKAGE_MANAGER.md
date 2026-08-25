@@ -736,6 +736,21 @@ complete.
   produces a blocking compatibility conflict and a source-backed
   `public_const` review row.
 
+  Milestone 2026-08-25: ordinary `pub operator` now survives syntax copying,
+  source profiling, resolved and typed lowering, checked trees, and snapshots.
+  Operator visibility is independent of a carrier-qualified path; one shared
+  exact-symbol lookup covers root and domain-homed declarations. Operator
+  symbols retain their own authored source provenance rather than a joined
+  diagnostic path, so package ownership remains recoverable. Proof-static
+  public-contract selections without executable use facts finalize only when
+  exact typed operands select one declaration, then the ordinary visibility
+  gate is repeated after checked finalization. Package admission rejects a
+  private operator selected across package ownership while allowing private
+  implementation use by its owner. The blocking standalone `PublicOperator`
+  review row remains open: it needs an overload-safe coordinate and direct
+  declaration-contract projection, including fixed-token spelling, before
+  unused public operators can be compatibility-complete.
+
   Add cross-package pass/fail canaries for every declaration kind, a
   carrier-qualified domain or operator whose carrier has different visibility,
   a public contract selecting a private proposition/const/operator, a public

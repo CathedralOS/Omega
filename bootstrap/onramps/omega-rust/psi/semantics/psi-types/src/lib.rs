@@ -601,6 +601,7 @@ mod tests {
             .items
             .append_state_parameter_handle(index_parameter);
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            is_public: false,
             is_boundary: false,
             name,
             lifetime_parameters: Vec::new(),
@@ -649,6 +650,7 @@ mod tests {
             });
         let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
         let operator = syntax_trees.items.append_operator(OperatorDefinition {
+            is_public: false,
             is_boundary: false,
             name: operator_name,
             lifetime_parameters: Vec::new(),

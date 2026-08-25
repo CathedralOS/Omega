@@ -278,6 +278,7 @@ fn item_expression_exposure(
         syntax::item::Item::Machine(machine) if machine.is_public || machine.boundary => {
             Exposure::PublicInterface
         }
+        syntax::item::Item::Operator(operator) if operator.is_public => Exposure::PublicInterface,
         syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
         syntax::item::Item::WireData(definition) if definition.is_public => {
             Exposure::PublicInterface

@@ -9,6 +9,7 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub is_public: bool,
     pub is_boundary: bool,
     pub symbol: SymbolHandle,
     pub name: HandleSpan<crate::name::Identifier>,
@@ -28,6 +29,25 @@ pub struct OperatorDefinition {
 pub struct SpelledOperator<'program> {
     pub operator: &'program OperatorDefinition,
     pub domain: Option<&'program DomainDefinition>,
+}
+
+/// Find one exact independently nameable operator declaration, whether it is
+/// rooted directly or stored beneath a domain home. Visibility belongs to the
+/// operator itself; callers must not infer it from the carrier/domain path.
+pub fn declaration_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&OperatorDefinition> {
+    program
+        .operators()
+        .iter()
+        .chain(
+            program
+                .domain_definitions()
+                .iter()
+                .flat_map(|domain| program.domain_operators(domain)),
+        )
+        .find(|operator| operator.symbol == symbol)
 }
 
 /// Resolve an explicitly named operator call from its path and arity facts.

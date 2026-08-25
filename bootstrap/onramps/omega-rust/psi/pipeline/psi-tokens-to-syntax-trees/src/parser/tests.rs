@@ -1719,7 +1719,7 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
 #[test]
 fn parses_fixed_operator_tokens_in_declaration_heads() {
     let source = r#"
-        operator + add(left: i32, right: i32) -> i32;
+        pub operator + add(left: i32, right: i32) -> i32;
         boundary operator [] Slice::index(items: &[u8], index: u64) -> u8;
         boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
         operator named(left: i32, right: i32) -> i32;
@@ -1737,6 +1737,8 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
         .collect::<Vec<_>>();
 
     assert_eq!(operators.len(), 4);
+    assert!(operators[0].is_public);
+    assert!(operators[1..].iter().all(|operator| !operator.is_public));
     assert_eq!(
         operators[0].spelling,
         Some(psi_language_core::OperatorSpelling::Add)

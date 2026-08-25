@@ -757,6 +757,10 @@ fn checked_operator_target(
                 ))
         })
         .or_else(|| {
+            resolve_authored_operator_without_use_fact(program, node)
+                .and_then(|operator| declaration_target(operator.symbol))
+        })
+        .or_else(|| {
             let operand = match node {
                 ExpressionNode::Binary(binary) => binary.left,
                 ExpressionNode::Unary(unary) => unary.operand,
@@ -775,6 +779,71 @@ fn checked_operator_target(
                 ),
             )
         })
+}
+
+/// Declaration contracts and other proof-static expressions are validated
+/// without an executable value origin, so they do not always produce a
+/// `CheckedOperatorUseFact`. Finalize their authored selection only when the
+/// typed operands select one exact declared operator; partial or ambiguous
+/// reconstruction remains unresolved and therefore rejects package custody.
+fn resolve_authored_operator_without_use_fact<'program>(
+    program: &'program TypedTrees,
+    node: &ExpressionNode,
+) -> Option<&'program psi_typed_trees::operator::OperatorDefinition> {
+    use psi_language_core::OperatorSpelling;
+    use psi_typed_trees::expression::BinaryOperator;
+
+    let ExpressionNode::Binary(binary) = node else {
+        return None;
+    };
+    let spelling = match binary.operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => return None,
+    };
+    let operand_types = [
+        authored_operand_type(program, binary.left)?,
+        authored_operand_type(program, binary.right)?,
+    ];
+    let candidates = psi_typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types.map(Some),
+    );
+    let [candidate] = candidates.as_slice() else {
+        return None;
+    };
+    Some(candidate.operator)
+}
+
+fn authored_operand_type(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
+        ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
+        ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Name(path) => program.state_parameters.iter().find_map(|(_, parameter)| {
+            (parameter.symbol == path.symbol).then_some(parameter.type_reference)
+        }),
+        _ => None,
+    }
 }
 
 fn operator_has_no_authored_spelling_candidate(

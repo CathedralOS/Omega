@@ -54,6 +54,7 @@ pub use crate::content_conservation::{
 };
 pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
+pub use crate::declaration_visibility::validate_declaration_visibility;
 
 pub use crate::data::data_requires_establishment;
 use crate::data::validate_data_field_types;
@@ -249,7 +250,7 @@ fn validate_program_internal(
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = psi_facts::build_definition_fact_plan(program);
 
-    declaration_visibility::validate_declaration_visibility(program, &mut diagnostics);
+    declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     validate_proposition_definitions(program, &mut diagnostics);
     proposition_entailment::validate_proposition_entailment(program, &mut diagnostics);
 

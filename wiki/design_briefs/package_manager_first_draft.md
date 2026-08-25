@@ -577,6 +577,14 @@ private data or the compiler cannot yet canonicalize the declaration value,
 publication rejects instead of manufacturing a weak identity. Type or value
 changes therefore become source-backed `public_const` conflicts; private
 const-v0 declarations remain unchanged and unprojected.
+Ordinary `pub operator` visibility now survives checked compilation as
+declaration-owned metadata, independent of a carrier-qualified path. The
+operator symbol keeps its own authored source provenance, and proof-static
+late selections may finalize only from exact typed operands before visibility
+is checked again. Cross-package private selection rejects; same-owner private
+implementation use remains legal. Public-operator compatibility projection is
+the remaining slice: its coordinate must distinguish overloads and its row must
+project unused declaration contracts plus fixed-token spelling directly.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

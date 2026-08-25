@@ -6,7 +6,7 @@ use psi_symbols::SymbolKind;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) fn validate_declaration_visibility(
+pub(crate) fn collect_declaration_visibility_diagnostics(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -37,6 +37,11 @@ pub(crate) fn validate_declaration_visibility(
                     .find(|declaration| declaration.symbol == symbol)
                     .map(|declaration| declaration.is_public),
             ),
+            SymbolKind::Operator => (
+                "operator",
+                psi_typed_trees::operator::declaration_by_symbol(program, symbol)
+                    .map(|declaration| declaration.is_public),
+            ),
             _ => continue,
         };
         let Some(is_public) = is_public else {
@@ -58,6 +63,16 @@ pub(crate) fn validate_declaration_visibility(
                 .with_source_span(selection.source_span()),
             );
         }
+    }
+}
+
+pub fn validate_declaration_visibility(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    collect_declaration_visibility_diagnostics(program, &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
     }
 }
 

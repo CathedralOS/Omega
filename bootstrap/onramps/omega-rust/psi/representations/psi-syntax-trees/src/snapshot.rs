@@ -343,6 +343,7 @@ pub struct CarryPolicySnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OperatorSnapshot {
+    pub is_public: bool,
     pub is_boundary: bool,
     pub name: Vec<IdentifierSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1277,6 +1278,7 @@ fn snapshot_operator(
     operator: &crate::item::OperatorDefinition,
 ) -> OperatorSnapshot {
     OperatorSnapshot {
+        is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(operator.name)),
         lifetime_parameters: operator

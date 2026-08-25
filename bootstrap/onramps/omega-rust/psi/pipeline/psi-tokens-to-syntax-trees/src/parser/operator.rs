@@ -62,6 +62,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
 
     Ok((
         OperatorDefinition {
+            is_public: false,
             is_boundary,
             name,
             lifetime_parameters: generic_parameters.lifetime_parameters,
