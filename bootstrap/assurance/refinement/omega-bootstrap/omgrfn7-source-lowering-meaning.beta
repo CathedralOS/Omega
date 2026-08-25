@@ -1,0 +1,410 @@
+; OMGRFN7 responsibility-4 artifact-free source evaluator.
+;
+; Composed with the frozen OMGRFN4 lexer/OMGCOMP custody and the OMGRFN7
+; declaration parser.  This file does not define a main and has no witness,
+; CKIR, result-claim, or ELF accessor.  It reparses the admitted pure-sum body
+; grammar and evaluates immutable record/sum construction, structural
+; assignment/call transport, and exact CaseDispatch payload bindings.
+;
+; Private state:
+;   word[940000 + depth*32] token cursor
+;   word[940008 + depth*32] expression result value
+;   word[940016 + depth*32] source id
+;   word[950000] next value id
+;   word[951000 + value*128] kind/type/tag/count/components
+;   word[990000 + field*8] current self-field value
+;   word[10000000 + depth*2048] environment rows
+
+proc r47_word_equal(source,token,at,count) {
+    let i=0
+    state shape { to no when (omgrfn4_r2_tkind(source,token)!=256) to no when (omgrfn4_r2_tlen(source,token)!=count) to bytes }
+    state bytes { to one when (i<count) return 1 }
+    state one { to no when (omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token)+i)!=byte[at+i]) i=i+1 to bytes }
+    state no { return 0 }
+}
+
+proc r47_init_words() {
+    ; transition true false
+    byte[939000]='t' byte[939001]='r' byte[939002]='a' byte[939003]='n' byte[939004]='s'
+    byte[939005]='i' byte[939006]='t' byte[939007]='i' byte[939008]='o' byte[939009]='n'
+    byte[939010]='t' byte[939011]='r' byte[939012]='u' byte[939013]='e'
+    byte[939014]='f' byte[939015]='a' byte[939016]='l' byte[939017]='s' byte[939018]='e'
+    word[950000]=0 return 0
+}
+
+; R1 owns the exact outer identity.  This source-only conjunct repeats only the
+; bounded extent read required to make its OMGCOMP byte accesses total; all
+; later carrier components and both result words remain opaque.
+proc r47_read_frame() {
+    let n=0 let c=read_byte() let overflow=0 let cursor=0
+    state read { to one when (c>=0) to header }
+    state one { to over when (n>=4497544) byte[1048576+n]=c n=n+1 c=read_byte() to read }
+    state over { overflow=1 c=read_byte() to read }
+    state header { to exhausted when (overflow==1) to bad when (n<40) to bad when (omgrfn4_l2_frame_byte(6)!='7') to bad when (omgrfn4_l2_frame_u32(8)!=7) word[500016]=omgrfn4_l2_frame_u32(12) word[500032]=omgrfn4_l2_frame_u32(16) word[500048]=omgrfn4_l2_frame_u32(20) word[500064]=omgrfn4_l2_frame_u32(24) word[500080]=omgrfn4_l2_frame_u32(28) to extents }
+    state extents { to bad when (word[500032]<1) to exhausted when (word[500032]>267280) to exhausted when (word[500048]>524288) to exhausted when (word[500064]>2522192) to exhausted when (word[500080]>1183744) cursor=40 word[500024]=cursor to bad when (word[500032]>n-cursor) cursor=cursor+word[500032] word[500040]=cursor to bad when (word[500048]>n-cursor) cursor=cursor+word[500048] word[500056]=cursor to bad when (word[500064]>n-cursor) cursor=cursor+word[500064] word[500072]=cursor to bad when (word[500080]!=n-cursor) word[879088]=7 return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc r47_token_at(source,byte_at) {
+    let i=0
+    state loop { to one when (i<word[880000+source*8]) return 4294967295 }
+    state one { to found when (omgrfn4_r2_tstart(source,i)==byte_at) i=i+1 to loop }
+    state found { return i }
+}
+
+proc r47_cursor(depth) { return word[940000+depth*32] }
+proc r47_source(depth) { return word[940016+depth*32] }
+proc r47_kind(depth) { return omgrfn4_r2_tkind(r47_source(depth),r47_cursor(depth)) }
+proc r47_next(depth) { word[940000+depth*32]=r47_cursor(depth)+1 return r47_cursor(depth) }
+proc r47_result(depth) { return word[940008+depth*32] }
+proc r47_set_result(depth,value) { word[940008+depth*32]=value return value }
+
+proc r47_expect(depth,kind) {
+    state exact { to bad when (r47_cursor(depth)>=word[880000+r47_source(depth)*8]) to bad when (r47_kind(depth)!=kind) r47_next(depth) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc r47_value(id,column) { return word[951000+id*128+column*8] }
+proc r47_value_set(id,column,value) { word[951000+id*128+column*8]=value return value }
+
+proc r47_alloc(kind,type_id) {
+    let id=word[950000]
+    state room { to over when (id>=1024) word[950000]=id+1 r47_value_set(id,0,kind) r47_value_set(id,1,type_id) r47_value_set(id,2,0) r47_value_set(id,3,0) return id }
+    state over { omgrfn4_l2_exhaust() return 4294967295 }
+}
+
+proc r47_scalar(value,is_bool) {
+    let id=r47_alloc(1,4294967295)
+    state save { to done when (word[700000]!=0) r47_value_set(id,2,value) r47_value_set(id,3,is_bool) }
+    state done { return id }
+}
+
+proc r47_compatible(type_id,value) {
+    let kind=r47_value(value,0) let scalar=r47_value(value,2)
+    state structural { to scalar_type when (kind==1) return r47_value(value,1)==type_id }
+    state scalar_type { to bool when (type_id==word[879008]+word[879344]) to u8 when (type_id==word[879008]+word[879344]+2) to u32 when (type_id==word[879008]+word[879344]+1) return 0 }
+    state bool { return r47_value(value,3)==1 }
+    state u8 { to no when (r47_value(value,3)!=0) return scalar<=255 }
+    state u32 { return r47_value(value,3)==0 }
+    state no { return 0 }
+}
+
+proc r47_env_clear(depth) { word[10000000+depth*2048]=0 return 0 }
+
+proc r47_env_add(depth,source,start,count) {
+    let n=word[10000000+depth*2048] let at=0
+    state room { to over when (n>=32) at=10000008+depth*2048+n*40 word[at]=source word[at+8]=start word[at+16]=count word[at+24]=word[950208] word[10000000+depth*2048]=n+1 return 0 }
+    state over { return omgrfn4_l2_exhaust() }
+}
+
+proc r47_env_find(depth,source,token) {
+    let i=0 let at=0
+    state rows { to one when (i<word[10000000+depth*2048]) return 4294967295 }
+    state one { at=10000008+depth*2048+i*40 to next when (word[at]!=source) to next when (word[at+16]!=omgrfn4_r2_tlen(source,token)) word[700056]=word[at+16] to compare }
+    state compare { to found when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[at],word[at+8])==1) }
+    state next { i=i+1 to rows }
+    state found { return word[at+24] }
+}
+
+proc r47_env_copy(destination,source_depth) {
+    let i=0 let n=word[10000000+source_depth*2048] let from=0 let target_at=0
+    state begin { word[10000000+destination*2048]=n to over when (n>32) to rows }
+    state rows { to one when (i<n) return 0 }
+    state one { from=10000008+source_depth*2048+i*40 target_at=10000008+destination*2048+i*40 word[target_at]=word[from] word[target_at+8]=word[from+8] word[target_at+16]=word[from+16] word[target_at+24]=word[from+24] i=i+1 to rows }
+    state over { return omgrfn4_l2_exhaust() }
+}
+
+proc r47_dummy(type_id) {
+    let id=0
+    state scalar { to record when (type_id<word[879008]) to sum when (type_id<word[879008]+word[879344]) to boolean when (type_id==word[879008]+word[879344]) to number }
+    state record { id=r47_alloc(2,type_id) return id }
+    state sum { id=r47_alloc(3,type_id) to done when (word[700000]!=0) r47_value_set(id,2,word[910032+(type_id-word[879008])*64]) return id }
+    state boolean { return r47_scalar(0,1) }
+    state number { return r47_scalar(0,0) }
+    state done { return id }
+}
+
+proc r47_find_field(owner,source,token) {
+    let i=word[881032+owner*64] let end=i+word[881040+owner*64]
+    state fields { to one when (i<end) return 4294967295 }
+    state one { to next when (omgrfn4_r2_tlen(source,token)!=word[882040+i*64]) word[700056]=word[882040+i*64] to found when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[882048+i*64],word[882032+i*64])==1) }
+    state next { i=i+1 to fields }
+    state found { return i }
+}
+
+proc r47_find_case(sum,source,token) {
+    let i=word[910032+sum*64] let end=i+word[910040+sum*64]
+    state cases { to one when (i<end) return 4294967295 }
+    state one { to next when (omgrfn4_r2_tlen(source,token)!=word[920048+i*64]) word[700056]=word[920048+i*64] to found when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[920032+i*64],word[920040+i*64])==1) }
+    state next { i=i+1 to cases }
+    state found { return i }
+}
+
+proc r47_find_machine(owner,source,token) {
+    let i=0 let found=4294967295
+    state machines { to one when (i<word[879024]) return found }
+    state one { to next when (word[884088+i*128]!=owner) to next when (omgrfn4_r2_tlen(source,token)!=omgrfn4_r2_tlen(word[884016+i*128],word[884024+i*128])) word[700056]=omgrfn4_r2_tlen(source,token) to next when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[884016+i*128],omgrfn4_r2_tstart(word[884016+i*128],word[884024+i*128]))==0) to duplicate when (found!=4294967295) found=i to next }
+    state next { i=i+1 to machines }
+    state duplicate { omgrfn4_l2_reject() return 4294967295 }
+}
+
+proc r47_find_state(machine,source,token) {
+    let i=word[884064+machine*128] let end=i+word[884072+machine*128]
+    state blocks { to one when (i<end) return 4294967295 }
+    state one { to next when (word[888040+i*96]==4294967295) to next when (omgrfn4_r2_tlen(source,token)!=word[888048+i*96]) word[700056]=word[888048+i*96] to found when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[884000+machine*128],word[888040+i*96])==1) }
+    state next { i=i+1 to blocks }
+    state found { return i }
+}
+
+proc r47_parse_state(source,machine,ordinal) {
+    let name=0 let block=0
+    state keyword { to bad when (omgrfn4_r2_expect_word(source,2)!=0) name=omgrfn4_r2_cur(source) to name }
+    state name { to bad when (omgrfn4_r2_expect_kind(source,256)!=0) omgrfn5_r2_add_block(machine,ordinal,name,source) block=word[879320] to paren }
+    state paren { to bad when (omgrfn4_r2_expect_kind(source,40)!=0) to amp }
+    state amp { to bad when (omgrfn4_r2_expect_kind(source,38)!=0) to mut }
+    state mut { to bad when (omgrfn4_r2_expect_word(source,4)!=0) to self }
+    state self { to bad when (omgrfn4_r2_expect_word(source,5)!=0) to params }
+    state params { to close when (omgrfn4_r2_tkind(source,omgrfn4_r2_cur(source))==41) to comma }
+    state comma { to bad when (omgrfn4_r2_expect_kind(source,44)!=0) to param }
+    state param { to bad when (omgrfn5_r2_parse_parameter(source,block,word[888064+block*96],2)!=0) word[888064+block*96]=word[888064+block*96]+1 to params }
+    state close { omgrfn4_r2_next(source) to open }
+    state open { to bad when (omgrfn4_r2_expect_kind(source,123)!=0) word[888024+block*96]=omgrfn4_r2_tstart(source,omgrfn4_r2_cur(source)) to done when (omgrfn5_r2_scan_block(source,machine,block,0)!=0) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_parse_record(depth,record) {
+    let source=r47_source(depth) let count=word[881040+record*64] let field=0 let ordinal=0 let child=0 let i=0 let value=0
+    state clear { to clear_one when (i<count) to open }
+    state clear_one { word[10500000+depth*128+i*8]=0 i=i+1 to clear }
+    state open { to bad when (r47_expect(depth,123)!=0) to fields }
+    state fields { to close when (r47_kind(depth)==125) field=r47_find_field(record,source,r47_cursor(depth)) to bad when (field==4294967295) ordinal=field-word[881032+record*64] to bad when (word[10500000+depth*128+ordinal*8]!=0) word[10500000+depth*128+ordinal*8]=1 r47_next(depth) to colon }
+    state colon { to bad when (r47_expect(depth,58)!=0) word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to expression }
+    state expression { to done when (r47_parse_expression(depth+1)!=0) child=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) to bad when (r47_compatible(word[882016+field*64],child)==0) word[10400000+depth*128+ordinal*8]=child to separator }
+    state separator { to comma when (r47_kind(depth)==44) to fields when (r47_kind(depth)==125) to bad }
+    state comma { r47_next(depth) to bad when (r47_kind(depth)==125) to fields }
+    state close { r47_next(depth) i=0 to coverage }
+    state coverage { to missing when (i<count) value=r47_alloc(2,record) to done when (word[700000]!=0) r47_value_set(value,3,count) word[950152]=word[950152]+1 i=0 to copy }
+    state missing { to bad when (word[10500000+depth*128+i*8]==0) i=i+1 to coverage }
+    state copy { to copy_one when (i<count) r47_set_result(depth,value) return 0 }
+    state copy_one { r47_value_set(value,4+i,word[10400000+depth*128+i*8]) i=i+1 to copy }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_parse_case(depth,sum,case) {
+    let source=r47_source(depth) let count=word[920024+case*64] let payload=0 let ordinal=0 let child=0 let i=0 let value=0
+    state clear { to clear_one when (i<count) to empty when (count==0) to open }
+    state clear_one { word[10500000+depth*128+i*8]=0 i=i+1 to clear }
+    state empty { value=r47_alloc(3,word[879008]+sum) to done when (word[700000]!=0) r47_value_set(value,2,case) r47_value_set(value,3,0) word[950080]=1 r47_set_result(depth,value) return 0 }
+    state open { to bad when (r47_expect(depth,123)!=0) to fields }
+    state fields { to close when (r47_kind(depth)==125) payload=word[920016+case*64] ordinal=0 to find }
+    state find { to find_one when (ordinal<count) to bad }
+    state find_one { to found when (omgrfn4_r2_tlen(source,r47_cursor(depth))==word[1200040+payload*64]) ordinal=ordinal+1 payload=payload+1 to find }
+    state found { word[700056]=word[1200040+payload*64] to found_equal when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,r47_cursor(depth)),word[1200024+payload*64],word[1200032+payload*64])==1) ordinal=ordinal+1 payload=payload+1 to find }
+    state found_equal { to bad when (word[10500000+depth*128+ordinal*8]!=0) word[10500000+depth*128+ordinal*8]=1 r47_next(depth) to colon }
+    state colon { to bad when (r47_expect(depth,58)!=0) word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to expression }
+    state expression { to done when (r47_parse_expression(depth+1)!=0) child=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) payload=word[920016+case*64]+ordinal to bad when (r47_compatible(word[1200016+payload*64],child)==0) word[10400000+depth*128+ordinal*8]=child to separator }
+    state separator { to comma when (r47_kind(depth)==44) to fields when (r47_kind(depth)==125) to bad }
+    state comma { r47_next(depth) to bad when (r47_kind(depth)==125) to fields }
+    state close { r47_next(depth) i=0 to coverage }
+    state coverage { to missing when (i<count) value=r47_alloc(3,word[879008]+sum) to done when (word[700000]!=0) r47_value_set(value,2,case) r47_value_set(value,3,count) word[950080+count*8]=1 i=0 to copy }
+    state missing { to bad when (word[10500000+depth*128+i*8]==0) i=i+1 to coverage }
+    state copy { to copy_one when (i<count) r47_set_result(depth,value) return 0 }
+    state copy_one { r47_value_set(value,4+i,word[10400000+depth*128+i*8]) i=i+1 to copy }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_parse_expression(depth) {
+    let source=r47_source(depth) let token=r47_cursor(depth) let value=0 let record=0 let sum=0 let case=0 let field=0 let machine=0
+    let i=0 let child=0
+    state depth_check { to over when (depth>=16) to number when (r47_kind(depth)==257) to word when (r47_kind(depth)==256) to bad }
+    state number { omgrfn4_r2_number(source,token) to done when (word[700000]!=0) value=r47_scalar(word[879000],0) r47_next(depth) r47_set_result(depth,value) to postfix }
+    state word { to true when (r47_word_equal(source,token,939010,4)==1) to false when (r47_word_equal(source,token,939014,5)==1) to self when (omgrfn4_r2_is_word(source,token,5)==1) to nominal }
+    state true { value=r47_scalar(1,1) r47_next(depth) r47_set_result(depth,value) to postfix }
+    state false { value=r47_scalar(0,1) r47_next(depth) r47_set_result(depth,value) to postfix }
+    state self { r47_next(depth) r47_set_result(depth,word[950008]) to postfix }
+    state nominal { r47_next(depth) to qualified when (r47_kind(depth)==58) to transition_name when (word[950064]==2) to record_open when (r47_kind(depth)==123) to transition_name }
+    state transition_name { value=r47_env_find(word[950016],source,token) to bad when (value==4294967295) r47_set_result(depth,value) to postfix }
+    state record_open { omgrfn4_r2_find_record(source,token) record=word[879132] to bad when (record==4294967295) to done when (r47_parse_record(depth,record)!=0) to postfix }
+    state qualified { r47_next(depth) to bad when (r47_expect(depth,58)!=0) omgrfn7_r2_find_sum(source,token) sum=word[879132] to bad when (sum==4294967295) case=r47_find_case(sum,source,r47_cursor(depth)) to bad when (case==4294967295) r47_next(depth) to done when (r47_parse_case(depth,sum,case)!=0) to postfix }
+    state postfix { to member when (r47_kind(depth)==46) return 0 }
+    state member { to bad when (word[950064]==1) r47_next(depth) token=r47_cursor(depth) to bad when (r47_kind(depth)!=256) r47_next(depth) to call when (r47_kind(depth)==40) to field }
+    state field { to bad when (r47_value(r47_result(depth),0)!=4) field=r47_find_field(word[950024],source,token) to bad when (field==4294967295) value=word[990000+field*8] to bad when (value==4294967295) r47_set_result(depth,value) to postfix }
+    state call { to bad when (r47_value(r47_result(depth),0)!=4) machine=r47_find_machine(word[950024],source,token) to bad when (machine==4294967295) r47_next(depth) i=0 to arguments }
+    state arguments { to argument when (i<word[884056+machine*128]) to close }
+    state argument { to bad when (r47_kind(depth)==41) word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to done when (r47_parse_expression(depth+1)!=0) child=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) to bad when (r47_compatible(word[886016+(word[884048+machine*128]+i)*48],child)==0) to structural_arg when (r47_value(child,0)>1) to stage }
+    state structural_arg { word[950160]=word[950160]+1 to stage }
+    state stage { word[10600000+depth*128+i*8]=child i=i+1 to comma when (i<word[884056+machine*128]) to close }
+    state comma { to bad when (r47_expect(depth,44)!=0) to arguments }
+    state close { to bad when (r47_expect(depth,41)!=0) word[950032]=depth word[950040]=machine word[950048]=i to done when (r47_execute_machine(machine,depth+1)!=0) r47_set_result(depth,word[950056]) to postfix }
+    state over { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_arm_bindings(depth,case,subject,selected) {
+    let source=r47_source(depth) let count=word[920024+case*64] let payload=0 let ordinal=0 let i=0 let value=0 let token=0
+    state clear { to clear_one when (i<count) to open }
+    state clear_one { word[10900000+depth*64+i*8]=0 i=i+1 to clear }
+    state open { to empty when (count==0) to bad when (r47_expect(depth,123)!=0) to fields }
+    state empty { return 0 }
+    state fields { to close when (r47_kind(depth)==125) token=r47_cursor(depth) payload=word[920016+case*64] ordinal=0 to find }
+    state find { to find_one when (ordinal<count) to bad }
+    state find_one { to next when (omgrfn4_r2_tlen(source,token)!=word[1200040+payload*64]) word[700056]=word[1200040+payload*64] to found when (omgrfn4_l2_span_equal(source,omgrfn4_r2_tstart(source,token),word[1200024+payload*64],word[1200032+payload*64])==1) }
+    state next { ordinal=ordinal+1 payload=payload+1 to find }
+    state found { to bad when (word[10900000+depth*64+ordinal*8]!=0) word[10900000+depth*64+ordinal*8]=1 value=r47_dummy(word[1200016+payload*64]) to selected_value when (selected==1) to bind }
+    state selected_value { value=r47_value(subject,4+ordinal) word[950168]=word[950168]+1 to bind }
+    state bind { word[950208]=value to done when (r47_env_add(depth+1,source,omgrfn4_r2_tstart(source,token),omgrfn4_r2_tlen(source,token))!=0) r47_next(depth) to comma when (r47_kind(depth)==44) to fields when (r47_kind(depth)==125) to bad }
+    state comma { r47_next(depth) to bad when (r47_kind(depth)==125) to fields }
+    state close { r47_next(depth) i=0 to coverage }
+    state coverage { to one when (i<count) return 0 }
+    state one { to bad when (word[10900000+depth*64+i*8]==0) i=i+1 to coverage }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_arm_arguments(depth,target,selected) {
+    let source=r47_source(depth) let i=0 let count=word[888064+target*96] let value=0 let parameter=0 let save_env=word[950016]
+    state open { to bad when (r47_expect(depth,40)!=0) word[950016]=depth+1 word[950064]=1 to args }
+    state args { to one when (i<count) to close }
+    state one { to bad when (r47_kind(depth)==41) word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to done when (r47_parse_expression(depth+1)!=0) value=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) parameter=word[888056+target*96]+i to bad when (r47_compatible(word[893016+parameter*48],value)==0) to selected_arg when (selected==1) to next }
+    state selected_arg { word[10800000+i*8]=value to next }
+    state next { i=i+1 to comma when (i<count) to close }
+    state comma { to bad when (r47_expect(depth,44)!=0) to args }
+    state close { to bad when (r47_expect(depth,41)!=0) word[950064]=0 word[950016]=save_env to selected_count when (selected==1) return 0 }
+    state selected_count { word[10801000]=count return 0 }
+    state bad { word[950064]=0 word[950016]=save_env return omgrfn4_l2_reject() }
+    state done { word[950064]=0 word[950016]=save_env return word[700000] }
+}
+
+proc r47_transition(machine,depth) {
+    let source=r47_source(depth) let subject=0 let sum=0 let case=0 let selected=0 let target=0 let i=0 let count=0 let subject_at=0
+    state keyword { r47_next(depth) subject_at=r47_cursor(depth) word[950064]=2 word[940000+(depth+1)*32]=subject_at word[940016+(depth+1)*32]=source to done when (r47_parse_expression(depth+1)!=0) word[950064]=0 subject=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) to bad when (r47_value(subject,0)!=3) sum=r47_value(subject,1)-word[879008] count=word[910040+sum*64] i=0 to subject_shape }
+    state subject_shape { to self_subject when (omgrfn4_r2_is_word(source,subject_at,5)==1) word[950184]=1 to clear }
+    state self_subject { word[950176]=1 to clear }
+    state clear { to clear_one when (i<count) to open }
+    state clear_one { word[10700000+depth*512+i*8]=0 i=i+1 to clear }
+    state open { to bad when (r47_expect(depth,123)!=0) to arms }
+    state arms { to close when (r47_kind(depth)==125) omgrfn7_r2_find_sum(source,r47_cursor(depth)) to bad when (word[879132]!=sum) r47_next(depth) to bad when (r47_expect(depth,58)!=0) to bad when (r47_expect(depth,58)!=0) case=r47_find_case(sum,source,r47_cursor(depth)) to bad when (case==4294967295) i=case-word[910032+sum*64] to bad when (word[10700000+depth*512+i*8]!=0) word[10700000+depth*512+i*8]=1 selected=0 to selected_case when (case==r47_value(subject,2)) to pattern }
+    state selected_case { selected=1 word[10801008]=case to nonzero when (i>0) to pattern }
+    state nonzero { word[950192]=word[950192]+1 to pattern }
+    state pattern { r47_next(depth) to done when (r47_env_copy(depth+1,word[950016])!=0) to done when (r47_arm_bindings(depth,case,subject,selected)!=0) to bad when (r47_expect(depth,45)!=0) to bad when (r47_expect(depth,62)!=0) target=r47_find_state(machine,source,r47_cursor(depth)) to bad when (target==4294967295) to selected_target when (selected==1) to target_next }
+    state selected_target { word[10801016]=target to target_next }
+    state target_next { r47_next(depth) to done when (r47_arm_arguments(depth,target,selected)!=0) to arms }
+    state close { r47_next(depth) i=0 to coverage }
+    state coverage { to one when (i<count) to selected_exact }
+    state one { to bad when (word[10700000+depth*512+i*8]==0) i=i+1 to coverage }
+    state selected_exact { to bad when (word[10801008]!=r47_value(subject,2)) to done when (r47_execute_state(machine,word[10801016],depth+1)!=0) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_assignment(machine,depth) {
+    let source=r47_source(depth) let owner=word[884088+machine*128] let field=0 let value=0
+    state self { r47_next(depth) to bad when (r47_expect(depth,46)!=0) field=r47_find_field(owner,source,r47_cursor(depth)) to bad when (field==4294967295) r47_next(depth) to bad when (r47_expect(depth,61)!=0) word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to expression }
+    state expression { to done when (r47_parse_expression(depth+1)!=0) value=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) to bad when (r47_compatible(word[882016+field*64],value)==0) word[990000+field*8]=value to bad when (r47_expect(depth,59)!=0) word[950200]=word[950200]+1 return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_execute_block(machine,block,depth) {
+    let source=word[884000+machine*128] let token=0 let value=0 let end=word[888032+block*96]
+    state begin { to over when (depth>=15) token=r47_token_at(source,word[888024+block*96]) to bad when (token==4294967295) word[940000+depth*32]=token word[940016+depth*32]=source to statements }
+    state statements { to bad when (r47_cursor(depth)>=word[880000+source*8]) to result_missing when (omgrfn4_r2_tstart(source,r47_cursor(depth))>=end) to transition when (r47_word_equal(source,r47_cursor(depth),939000,10)==1) to assignment when (omgrfn4_r2_is_word(source,r47_cursor(depth),5)==1) to expression }
+    state assignment { to expression when (r47_cursor(depth)+3>=word[880000+source*8]) to expression when (omgrfn4_r2_tkind(source,r47_cursor(depth)+1)!=46) to expression when (omgrfn4_r2_tkind(source,r47_cursor(depth)+3)!=61) to done when (r47_assignment(machine,depth)!=0) to statements }
+    state transition { to done when (r47_transition(machine,depth)!=0) word[950056]=word[10801024] return 0 }
+    state expression { word[940000+(depth+1)*32]=r47_cursor(depth) word[940016+(depth+1)*32]=source to done when (r47_parse_expression(depth+1)!=0) value=r47_result(depth+1) word[940000+depth*32]=r47_cursor(depth+1) to bad when (word[884040+machine*128]==4294967295) to bad when (r47_compatible(word[884040+machine*128],value)==0) word[950056]=value return 0 }
+    state result_missing { to unit when (word[884040+machine*128]==4294967295) to bad }
+    state unit { word[950056]=4294967295 return 0 }
+    state over { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_execute_state(machine,block,depth) {
+    let i=0 let start=word[888056+block*96] let count=word[888064+block*96] let source=word[884000+machine*128] let save_env=word[950016]
+    state prepare { r47_env_clear(depth) to parameters }
+    state parameters { to one when (i<count) word[950016]=depth to block_run }
+    state one { word[950208]=word[10800000+i*8] to done when (r47_env_add(depth,source,word[893024+(start+i)*48],word[893032+(start+i)*48])!=0) i=i+1 to parameters }
+    state block_run { to done when (r47_execute_block(machine,block,depth)!=0) word[10801024]=word[950056] word[950016]=save_env return 0 }
+    state done { word[950016]=save_env return word[700000] }
+}
+
+proc r47_execute_machine(machine,depth) {
+    let i=0 let start=word[884048+machine*128] let count=word[884056+machine*128] let source=word[884000+machine*128] let save_env=word[950016] let caller=word[950032]
+    state prepare { r47_env_clear(depth) to parameters }
+    state parameters { to one when (i<count) word[950016]=depth to entry }
+    state one { word[950208]=word[10600000+caller*128+i*8] to done when (r47_env_add(depth,source,word[886024+(start+i)*48],word[886032+(start+i)*48])!=0) i=i+1 to parameters }
+    state entry { to done when (r47_execute_block(machine,word[884064+machine*128],depth)!=0) word[950016]=save_env return 0 }
+    state done { word[950016]=save_env return word[700000] }
+}
+
+proc r47_token_string(source,token,string_id) {
+    let i=0 let count=word[602176+string_id*8] let at=word[601664+string_id*8]
+    state shape { to no when (omgrfn4_r2_tlen(source,token)!=count) to bytes }
+    state bytes { to one when (i<count) return 1 }
+    state one { to no when (omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token)+i)!=omgrfn4_l2_omgcomp_byte(at+i)) i=i+1 to bytes }
+    state no { return 0 }
+}
+
+proc r47_normalize_and_root() {
+    let i=0 let type_id=0 let found=4294967295
+    state fields { to field when (i<word[879016]) i=0 to payloads }
+    state field { type_id=omgrfn5_r2_type_id(word[882016+i*64]) to bad when (type_id==4294967295) word[882016+i*64]=type_id i=i+1 to fields }
+    state payloads { to payload when (i<word[879360]) i=0 to mparams }
+    state payload { type_id=omgrfn5_r2_type_id(word[1200016+i*64]) to bad when (type_id==4294967295) word[1200016+i*64]=type_id i=i+1 to payloads }
+    state mparams { to mparam when (i<word[879032]) i=0 to bparams }
+    state mparam { type_id=omgrfn5_r2_type_id(word[886016+i*48]) to bad when (type_id==4294967295) word[886016+i*48]=type_id i=i+1 to mparams }
+    state bparams { to bparam when (i<word[879048]) i=0 to results }
+    state bparam { type_id=omgrfn5_r2_type_id(word[893016+i*48]) to bad when (type_id==4294967295) word[893016+i*48]=type_id i=i+1 to bparams }
+    state results { to result when (i<word[879024]) i=0 to roots }
+    state result { to result_next when (word[884040+i*128]==4294967295) type_id=omgrfn5_r2_type_id(word[884040+i*128]) to bad when (type_id==4294967295) word[884040+i*128]=type_id to result_next }
+    state result_next { i=i+1 to results }
+    state roots { to root when (i<word[879024]) to bad when (found==4294967295) word[879080]=found return 0 }
+    state root { to root_next when (word[884000+i*128]!=word[500344]) to root_next when (r47_token_string(word[884000+i*128],word[884008+i*128],word[500352])==0) to root_next when (r47_token_string(word[884016+i*128],word[884024+i*128],word[500360])==0) to bad when (found!=4294967295) found=i to root_next }
+    state root_next { i=i+1 to roots }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc r47_prepare_source() {
+    let status=0 let source=0
+    word[700000]=0 word[879008]=0 word[879016]=0 word[879024]=0 word[879032]=0
+    word[879040]=0 word[879048]=0 word[879056]=0 word[879064]=0 word[879072]=0
+    word[879088]=0 word[879336]=0 word[879344]=0 word[879352]=0 word[879360]=0 word[879368]=0
+    word[879200]=0 word[879208]=0
+    status=r47_read_frame()
+    state framed { to done when (status!=0) status=omgrfn4_l2_decode_compilation() to compiled }
+    state compiled { to done when (status!=0) omgrfn4_r2_init_words() r47_init_words() source=0 to tokenize }
+    state tokenize { to tokenize_one when (source<word[500320]) source=0 to parse }
+    state tokenize_one { status=omgrfn4_r2_tokenize(source) to done when (status!=0) source=source+1 to tokenize }
+    state parse { to parse_one when (source<word[500320]) status=r47_normalize_and_root() to resolved }
+    state parse_one { status=omgrfn5_r2_parse_source(source) to done when (status!=0) source=source+1 to parse }
+    state resolved { to done when (status!=0) to bad when (word[879088]!=7) to bad when (word[879344]<1) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r47_prepare_self(machine) {
+    let owner=word[884088+machine*128] let i=word[881032+owner*64] let end=i+word[881040+owner*64] let value=0
+    state object { word[950024]=owner word[950008]=r47_alloc(4,owner) to done when (word[700000]!=0) to fields }
+    state fields { to one when (i<end) return 0 }
+    state one { value=r47_dummy(word[882016+i*64]) to done when (word[700000]!=0) word[990000+i*8]=value i=i+1 to fields }
+    state done { return word[700000] }
+}
+
+proc omgrfn7_r4_source_result_check() {
+    let status=r47_prepare_source() let root=word[879080] let value=0
+    state source { to done when (status!=0) to bad when (root>=word[879024]) status=r47_prepare_self(root) to done when (status!=0) word[950016]=0 word[950032]=0 word[950080]=0 word[950088]=0 word[950096]=0 word[950104]=0 word[950112]=0 word[950152]=0 word[950160]=0 word[950168]=0 word[950176]=0 word[950184]=0 word[950192]=0 word[950200]=0 to execute }
+    state execute { status=r47_execute_machine(root,0) to done when (status!=0) value=word[950056] to bad when (r47_value(value,0)!=1) to bad when (r47_value(value,3)!=0) to bad when (r47_value(value,2)!=70) to evidence }
+    state evidence {
+        to bad when (word[950200]<4) to bad when (word[950080]!=1) to bad when (word[950088]!=1)
+        to bad when (word[950096]!=1) to bad when (word[950104]!=1) to bad when (word[950112]!=1)
+        to bad when (word[950152]<1) to bad when (word[950160]<1) to bad when (word[950168]<2)
+        to bad when (word[950176]!=1) to bad when (word[950184]!=1) to bad when (word[950192]<2) return 0
+    }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}

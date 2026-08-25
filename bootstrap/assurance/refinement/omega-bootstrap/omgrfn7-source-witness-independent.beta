@@ -242,8 +242,22 @@ proc omgrfn5_r2_scan_block(source_id,machine_id,block_id,allow_state) {
     state bad { return omgrfn4_l2_reject() }
 }
 
+proc omgrfn5_r2_parse_state(source_id,machine_id,ordinal) {
+    let name=0 let bid=0 let at=0
+    state keyword { to bad when (omgrfn4_r2_expect_word(source_id,2)!=0) name=omgrfn4_r2_cur(source_id) to name }
+    state name { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) to paren }
+    state paren { to bad when (omgrfn4_r2_expect_kind(source_id,40)!=0) to receiver }
+    state receiver { to bad when (omgrfn5_r2_receiver(source_id)!=0) omgrfn5_r2_add_block(machine_id,ordinal,name,source_id) bid=word[879320] at=888000+bid*96 to params }
+    state params { to close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==41) to comma }
+    state comma { to bad when (omgrfn4_r2_expect_kind(source_id,44)!=0) to param }
+    state param { omgrfn5_r2_parse_parameter(source_id,bid,word[at+64],2) to bad when (word[700000]!=0) word[at+64]=word[at+64]+1 to params }
+    state close { omgrfn4_r2_next(source_id) to open }
+    state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) word[at+24]=omgrfn4_r2_tstart(source_id,omgrfn4_r2_cur(source_id)) omgrfn5_r2_scan_block(source_id,machine_id,bid,0) return word[700000] }
+    state bad { return omgrfn4_l2_reject() }
+}
+
 proc omgrfn5_r2_parse_machine(source_id) {
-    let mid=word[879024] let owner=0 let name=0 let at=0 let bid=0
+    let mid=word[879024] let owner=0 let name=0 let at=0 let ordinal=0 let bid=0
     state cap { to exhausted when (mid>=16) at=884000+mid*128 to keyword }
     state keyword { to bad when (omgrfn4_r2_expect_word(source_id,1)!=0) owner=omgrfn4_r2_cur(source_id) to owner }
     state owner { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) to colon0 }
@@ -268,7 +282,9 @@ proc omgrfn5_r2_parse_machine(source_id) {
     state arrow { to bad when (omgrfn4_r2_expect_kind(source_id,62)!=0) to result }
     state result { to bad when (omgrfn5_r2_parse_type(source_id)!=0) word[at+40]=word[879100] to open }
     state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) word[879328]=word[at+32] omgrfn5_r2_add_block(mid,0,4294967295,source_id) bid=word[879320] word[888024+bid*96]=omgrfn4_r2_tstart(source_id,omgrfn4_r2_cur(source_id)) omgrfn5_r2_scan_block(source_id,mid,bid,1) to body }
-    state body { to bad when (word[700000]!=0) to finish when (word[879300]==0) to bad }
+    state body { to bad when (word[700000]!=0) to finish when (word[879300]==0) ordinal=1 to states }
+    state states { to finish_states when (omgrfn4_r2_is_word(source_id,omgrfn4_r2_cur(source_id),2)==0) omgrfn5_r2_parse_state(source_id,mid,ordinal) to bad when (word[700000]!=0) ordinal=ordinal+1 to states }
+    state finish_states { to bad when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))!=125) omgrfn4_r2_next(source_id) to finish }
     state finish { word[at+72]=word[879040]-word[at+64] return 0 }
     state exhausted { return omgrfn4_l2_exhaust() }
     state bad { return omgrfn4_l2_reject() }
@@ -420,11 +436,16 @@ proc omgrfn5_r2_build_bindings() {
     state payload_record { word[879540]=word[881016+rid*64] to payload_add }
     state payload_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to payload_next }
     state payload_next { i=i+1 to payloads }
-    state parameters { to parameter when (i<word[879032]) i=0 to machines }
+    state parameters { to parameter when (i<word[879032]) i=0 to block_parameters }
     state parameter { at=886000+i*48 rid=word[at+16] to parameter_next when (rid>=word[879008]+word[879344]) mid=word[at] word[879500]=word[884000+mid*128] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[905000+i*16],word[905008+i*16]) word[879532]=omgrfn4_r2_tlen(word[905000+i*16],word[905008+i*16]) to parameter_record when (rid<word[879008]) sid=rid-word[879008] word[879540]=word[910016+sid*64] to parameter_add }
     state parameter_record { word[879540]=word[881016+rid*64] to parameter_add }
     state parameter_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to parameter_next }
     state parameter_next { i=i+1 to parameters }
+    state block_parameters { to block_parameter when (i<word[879048]) i=0 to machines }
+    state block_parameter { at=893000+i*48 rid=word[at+16] to block_parameter_next when (rid>=word[879008]+word[879344]) mid=word[888000+word[at]*96] word[879500]=word[884000+mid*128] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[907048+i*16],word[907056+i*16]) word[879532]=omgrfn4_r2_tlen(word[907048+i*16],word[907056+i*16]) to block_parameter_record when (rid<word[879008]) sid=rid-word[879008] word[879540]=word[910016+sid*64] to block_parameter_add }
+    state block_parameter_record { word[879540]=word[881016+rid*64] to block_parameter_add }
+    state block_parameter_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to block_parameter_next }
+    state block_parameter_next { i=i+1 to block_parameters }
     state machines { to machine when (i<word[879024]) i=0 to calls }
     state machine { at=884000+i*128 rid=word[at+88] word[879500]=word[at] word[879508]=2 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at],word[at+8]) word[879532]=omgrfn4_r2_tlen(word[at],word[at+8]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) i=i+1 to machines }
     state calls { to call when (i<word[879064]) i=0 to sort_outer }

@@ -25,6 +25,12 @@ CaseDispatch checks the unsigned runtime tag before any payload read, selects
 arms in declaration order, stages all selected arguments, and only then commits
 target parameters. Impossible tags branch to the inherited trap.
 
+Text-pass state, block/operation traversal, sum-case traversal, and structural
+payload displacements are independent state. Nested sizing or copy walkers may
+not reuse those cursors: the sizing pass must retain every block offset for the
+later exact pass, and structural payload code must restore the displacement
+selected before entering a recursive walker.
+
 The focused evidence is:
 
 - `../gates/delta-checked-ir-v5-backend-fixture.py`: a handcrafted product-

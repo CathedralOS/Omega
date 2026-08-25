@@ -22,9 +22,10 @@ data Main {
     const_count: i32; const_child_count: i32;
     const_image_size: i32; ro_size: i32; const_root_count: i32;
     const_id: i32; const_height: i32;
-    i: i32; j: i32; k: i32; end: i32; next: i32; pass: i32;
+    i: i32; j: i32; k: i32; end: i32; next: i32; pass: i32; text_pass: i32;
     progress: i32; found: i32; expected: i32; current_machine: i32;
     current_block: i32; current_op: i32; next_value: i32; next_place: i32;
+    sum_cursor: i32; sum_end: i32;
     operation_operand_end: i32; operand_cursor: i32;
     bool_type: i32; owner_type: i32; type_id: i32; type2: i32;
     size: i32; align: i32; offset: i32; pad: i32; copy_ok: i32;
@@ -1442,7 +1443,7 @@ machine Main::emit_case_payload(&mut self, case: i32, destination_base: i32) {
     state field() { self.k = self.case_arena[8192 + case] + self.pass; self.type_id = self.payload_arena[8192 + self.k]; self.offset = self.sum_arena[640 + self.case_arena[0 + case]] + self.payload_arena[12288 + self.k]; transition self.metadata_arena[0 + self.type_id] <= 3 { true -> scalar() _ -> structural_kind() } }
     state scalar() { self.copy_leaf_to(self.type_id, self.offset, destination_base + self.offset); transition 0 { _ -> next() } }
     state structural_kind() { transition self.metadata_arena[0 + self.type_id] == 6 { true -> sum() _ -> structural_adjust() } }
-    state structural_adjust() { self.code_byte(73); self.code_byte(129); self.code_byte(195); self.code_u32(self.offset); self.emit_copy_leaves(self.type_id, destination_base + self.offset); self.code_byte(73); self.code_byte(129); self.code_byte(235); self.code_u32(self.offset); transition 0 { _ -> next() } }
+    state structural_adjust() { self.code_byte(73); self.code_byte(129); self.code_byte(195); self.code_u32(self.offset); self.emit_copy_leaves(self.type_id, destination_base + self.offset); self.offset = self.sum_arena[640 + self.case_arena[0 + case]] + self.payload_arena[12288 + self.k]; self.code_byte(73); self.code_byte(129); self.code_byte(235); self.code_u32(self.offset); transition 0 { _ -> next() } }
     state sum() { self.code_byte(73); self.code_byte(129); self.code_byte(195); self.code_u32(self.offset); self.emit_sum_copy(self.type_id, destination_base + self.offset); self.code_byte(73); self.code_byte(129); self.code_byte(235); self.code_u32(self.offset); transition 0 { _ -> next() } }
     state next() { self.pass = self.pass + 1; transition 0 { _ -> fields() } }
     state done() { }
@@ -1460,10 +1461,10 @@ machine Main::emit_sum_copy(&mut self, type: i32, destination_base: i32) {
     // mov ecx,[r11]; mov edx,ecx; validate unsigned tag before any payload read.
     self.code_byte(65); self.code_byte(139); self.code_byte(11); self.code_byte(137); self.code_byte(202);
     self.code_byte(137); self.code_byte(200); self.code_byte(61); self.code_u32(self.sum_arena[256 + self.owner_type]); self.trap_jcc(131);
-    self.current_block = self.sum_arena[128 + self.owner_type]; self.end = self.current_block + self.sum_arena[256 + self.owner_type];
+    self.sum_cursor = self.sum_arena[128 + self.owner_type]; self.sum_end = self.sum_cursor + self.sum_arena[256 + self.owner_type];
     transition 0 { _ -> cases() }
-    state cases() { transition self.current_block < self.end { true -> compare() _ -> commit_tag() } }
-    state compare() { self.size = self.case_payload_size(self.current_block, destination_base); self.code_byte(129); self.code_byte(249); self.code_u32(self.case_arena[4096 + self.current_block]); self.target = self.code_cursor + 6 + self.size + 5; self.code_byte(15); self.code_byte(133); self.code_rel32(self.target); self.emit_case_payload(self.current_block, destination_base); self.code_byte(185); self.code_u32(self.sum_arena[256 + self.owner_type]); self.current_block = self.current_block + 1; transition 0 { _ -> cases() } }
+    state cases() { transition self.sum_cursor < self.sum_end { true -> compare() _ -> commit_tag() } }
+    state compare() { self.size = self.case_payload_size(self.sum_cursor, destination_base); self.code_byte(129); self.code_byte(249); self.code_u32(self.case_arena[4096 + self.sum_cursor]); self.target = self.code_cursor + 6 + self.size + 5; self.code_byte(15); self.code_byte(133); self.code_rel32(self.target); self.emit_case_payload(self.sum_cursor, destination_base); self.code_byte(185); self.code_u32(self.sum_arena[256 + self.owner_type]); self.sum_cursor = self.sum_cursor + 1; transition 0 { _ -> cases() } }
     state commit_tag() { self.code_byte(65); self.code_byte(137); self.code_byte(146); self.code_u32(destination_base); }
 }
 
@@ -1571,7 +1572,7 @@ machine Main::emit_case_edge(&mut self, arm: i32) {
     state payload_structural() { self.code_byte(73); self.code_byte(129); self.code_byte(195); self.code_u32(self.offset); self.code_byte(76); self.code_byte(141); self.code_byte(149); self.code_signed_u32(0 - self.case_binding_offset[self.k]); transition self.metadata_arena[0 + self.type_id] == 6 { true -> payload_sum() _ -> payload_leaves() } }
     state payload_sum() { self.emit_sum_copy(self.type_id, 0); transition 0 { _ -> payload_restore() } }
     state payload_leaves() { self.emit_copy_leaves(self.type_id, 0); transition 0 { _ -> payload_restore() } }
-    state payload_restore() { self.code_byte(73); self.code_byte(129); self.code_byte(235); self.code_u32(self.offset); self.code_byte(72); self.code_byte(141); self.code_byte(133); self.code_signed_u32(0 - self.case_binding_offset[self.k]); self.code_byte(72); self.code_byte(137); self.code_byte(133); self.code_signed_u32(0 - (self.scratch_base + (self.const_height + 1) * 8)); transition 0 { _ -> stage_next() } }
+    state payload_restore() { self.offset = self.sum_arena[640 + self.case_arena[0 + self.case_arm_arena[4096 + arm]]] + self.payload_arena[12288 + self.value]; self.code_byte(73); self.code_byte(129); self.code_byte(235); self.code_u32(self.offset); self.code_byte(72); self.code_byte(141); self.code_byte(133); self.code_signed_u32(0 - self.case_binding_offset[self.k]); self.code_byte(72); self.code_byte(137); self.code_byte(133); self.code_signed_u32(0 - (self.scratch_base + (self.const_height + 1) * 8)); transition 0 { _ -> stage_next() } }
     state stage_next() { self.const_height = self.const_height + 1; transition 0 { _ -> stage_loop() } }
     state commit_setup() { self.const_height = 0; transition 0 { _ -> commit_loop() } }
     state commit_loop() { transition self.const_height < self.case_arm_arena[16384 + arm] { true -> commit() _ -> jump() } }
@@ -1629,10 +1630,10 @@ machine Main::emit_text(&mut self) {
     self.code_cursor = 0;
     // lea rdi,[rip+BSS]; call root; movzx edi,al; exit_group; ud2
     self.code_byte(72); self.code_byte(141); self.code_byte(61);
-    transition self.pass == 0 { true -> shim_dummy_bss() _ -> shim_bss() }
+    transition self.text_pass == 0 { true -> shim_dummy_bss() _ -> shim_bss() }
     state shim_dummy_bss() { self.code_u32(0); transition 0 { _ -> shim_call() } }
     state shim_bss() { self.code_rel32(self.rx_size + self.ro_size - 4096); transition 0 { _ -> shim_call() } }
-    state shim_call() { self.code_byte(232); transition self.pass == 0 { true -> shim_dummy_call() _ -> shim_root_call() } }
+    state shim_call() { self.code_byte(232); transition self.text_pass == 0 { true -> shim_dummy_call() _ -> shim_root_call() } }
     state shim_dummy_call() { self.code_u32(0); transition 0 { _ -> shim_tail() } }
     state shim_root_call() { self.code_rel32(self.root_offset); transition 0 { _ -> shim_tail() } }
     state shim_tail() { self.code_byte(15); self.code_byte(182); self.code_byte(248); self.code_byte(184); self.code_u32(231); self.code_byte(15); self.code_byte(5); self.code_byte(15); self.code_byte(11); self.trap_offset = self.code_cursor; self.code_byte(15); self.code_byte(11); self.current_machine = 0; transition 0 { _ -> machines() } }
@@ -1640,7 +1641,7 @@ machine Main::emit_text(&mut self) {
     state machine_reachable() { transition self.reachable[self.current_machine] == 1 { true -> machine_blocks() _ -> machine_next() } }
     state machine_blocks() { self.current_block = self.metadata_arena[106496 + 25856 + self.current_machine]; transition 0 { _ -> blocks() } }
     state blocks() { transition self.current_block < self.metadata_arena[106496 + 25856 + self.current_machine] + self.metadata_arena[106496 + 25984 + self.current_machine] { true -> block() _ -> machine_next() } }
-    state block() { transition self.pass == 0 { true -> remember() _ -> emit() } }
+    state block() { transition self.text_pass == 0 { true -> remember() _ -> emit() } }
     state remember() { self.metadata_arena[106496 + 52864 + self.current_block] = self.code_cursor; transition self.current_block == self.metadata_arena[106496 + 26112 + self.entry_id] { true -> remember_root() _ -> emit() } }
     state remember_root() { self.root_offset = self.code_cursor; transition 0 { _ -> emit() } }
     state emit() { self.emit_block(self.current_block); self.current_block = self.current_block + 1; transition self.status == 0 { true -> blocks() _ -> done() } }
@@ -1649,7 +1650,7 @@ machine Main::emit_text(&mut self) {
 }
 
 machine Main::preflight_text(&mut self) {
-    self.emitting = 0; self.pass = 0; self.emit_text();
+    self.emitting = 0; self.pass = 0; self.text_pass = 0; self.emit_text();
     transition self.status == 0 { true -> text_cap() _ -> done() }
     state text_cap() { self.text_size = self.code_cursor; transition self.text_size <= 1048576 { true -> rx_add() _ -> exhausted() } }
     state rx_add() { transition self.text_size <= 2147483647 - 4096 { true -> rx_round() _ -> exhausted() } }
@@ -1658,7 +1659,7 @@ machine Main::preflight_text(&mut self) {
     state bss_zero() { self.size = 4096; transition 0 { _ -> fixups() } }
     state bss_round() { transition self.pad <= 2147483647 - self.bss_size { true -> bss_keep() _ -> exhausted() } }
     state bss_keep() { self.size = self.bss_size + self.pad; transition 0 { _ -> fixups() } }
-    state fixups() { self.bss_size = self.size; self.pass = 1; self.emit_text(); transition self.status == 0 { true -> exact() _ -> done() } }
+    state fixups() { self.bss_size = self.size; self.pass = 1; self.text_pass = 1; self.emit_text(); transition self.status == 0 { true -> exact() _ -> done() } }
     state exact() { transition self.code_cursor == self.text_size { true -> elf_cap() _ -> bad() } }
     state elf_cap() { transition self.rx_size <= 1183744 - self.ro_size { true -> done() _ -> exhausted() } }
     state exhausted() { self.exhaust(); transition 0 { _ -> done() } }
@@ -1696,7 +1697,7 @@ machine Main::publish_elf(&mut self) {
     state rw() { self.output_u32(1); self.output_u32(6); self.output_u64(self.rx_size + self.ro_size); self.output_u64(4194304 + self.rx_size + self.ro_size); self.output_u64(4194304 + self.rx_size + self.ro_size); self.output_u64(0); self.output_u64(self.bss_size); self.output_u64(4096); transition self.const_count > 0 { true -> pad_three() _ -> pad_two() } }
     state pad_two() { self.output_zeroes(3920); transition 0 { _ -> text() } }
     state pad_three() { self.output_zeroes(3864); transition 0 { _ -> text() } }
-    state text() { self.emitting = 1; self.pass = 2; self.emit_text(); self.output_zeroes(self.rx_size - 4096 - self.text_size); transition self.const_count > 0 { true -> constants() _ -> done() } }
+    state text() { self.emitting = 1; self.pass = 2; self.text_pass = 2; self.emit_text(); self.output_zeroes(self.rx_size - 4096 - self.text_size); transition self.const_count > 0 { true -> constants() _ -> done() } }
     state constants() { self.output_constant_image(); transition 0 { _ -> done() } }
     state done() { }
 }
