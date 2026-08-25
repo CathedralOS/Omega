@@ -17,6 +17,8 @@ pub struct DataDefinitionStorage {
     pub supply_mode: psi_language_semantics::DataSupplyMode,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<TypeParameter>,
+    /// Resolved structural origin of a generated concrete generic instance.
+    pub generic_instance: Option<TypeReference>,
     pub properties: DataProperties,
     /// N6 proof-only quotient metadata. The carrier is resolved like an
     /// ordinary type reference; the relation keeps its authored path and its

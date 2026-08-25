@@ -97,6 +97,7 @@ pub(super) fn synthesize_exact_records(
                 supply_mode: DataSupplyMode::BoundaryOpaque,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
+                generic_instance: None,
                 properties: DataProperties::default(),
                 where_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
@@ -289,6 +290,7 @@ fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>) {
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        generic_instance: None,
         properties: DataProperties {
             multiplicity: Multiplicity::Linear,
             carry: None,

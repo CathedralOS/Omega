@@ -19,6 +19,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: psi_arena::HandleSpan::empty(),
+        generic_instance: None,
         properties: crate::item::DataProperties::default(),
         quotient: None,
         where_facts: psi_arena::HandleSpan::empty(),
@@ -54,6 +55,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                 supply: "checked_shape",
                 lifetime_parameters: Vec::new(),
                 type_parameters: Vec::new(),
+                generic_instance: None,
                 properties: super::DataPropertiesSnapshot {
                     multiplicity: "affine",
                     carry: None,
@@ -116,6 +118,7 @@ fn variant_snapshot_retains_payload_only_erased_field() {
         supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: psi_arena::HandleSpan::empty(),
+        generic_instance: None,
         properties: crate::item::DataProperties::default(),
         quotient: None,
         where_facts: psi_arena::HandleSpan::empty(),

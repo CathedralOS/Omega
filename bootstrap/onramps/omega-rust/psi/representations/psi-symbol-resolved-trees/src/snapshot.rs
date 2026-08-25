@@ -286,6 +286,8 @@ pub struct DataDefinitionSnapshot {
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub generic_instance: Option<TypeReferenceSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub quotient: Option<QuotientDefinitionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub retired_identities: Vec<u64>,
@@ -811,6 +813,10 @@ fn data_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        generic_instance: data
+            .generic_instance
+            .as_ref()
+            .map(|origin| type_reference_snapshot(program, origin)),
         quotient: data
             .quotient
             .as_ref()

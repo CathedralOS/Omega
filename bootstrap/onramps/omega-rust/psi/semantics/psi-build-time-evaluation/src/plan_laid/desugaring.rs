@@ -195,6 +195,7 @@ pub fn desugar_plan_laid_value_types(
             supply_mode: psi_language_semantics::DataSupplyMode::CheckedShape,
             lifetime_parameters: schema_info.lifetime_parameters.clone(),
             type_parameters: HandleSpan::default(),
+            generic_instance: None,
             properties: schema_info.properties,
             where_facts: psi_arena::HandleSpan::empty(),
             members: HandleSpan::from_parts(first, count),

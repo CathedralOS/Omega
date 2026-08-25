@@ -246,6 +246,7 @@ impl Census {
                 supply,
                 lifetime_parameters,
                 type_parameters,
+                generic_instance: _,
                 properties,
                 quotient,
                 where_facts,

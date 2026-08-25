@@ -19,6 +19,11 @@ pub(crate) fn lower_data_definition(
             .map(crate::name::lower_name)
             .collect(),
         type_parameters: psi_arena::HandleSpan::empty(),
+        generic_instance: data_definition
+            .generic_instance
+            .as_ref()
+            .map(|origin| lower_type_reference_into_table(lowerer, origin))
+            .transpose()?,
         properties: typed::data::DataProperties {
             carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,

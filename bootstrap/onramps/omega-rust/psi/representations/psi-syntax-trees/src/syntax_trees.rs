@@ -365,6 +365,9 @@ impl SyntaxTrees {
             supply_mode: data.supply_mode,
             lifetime_parameters: data.lifetime_parameters.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
+            generic_instance: data
+                .generic_instance
+                .map(|origin| self.copy_type_reference_handle(other, origin)),
             properties: data.properties,
             quotient: data
                 .quotient
