@@ -42,5 +42,6 @@ Focused evidence is split by responsibility:
   with the independent CKIR6 validator.
 
 This is private bootstrap evidence. It does not define a public Omega ABI,
-admit other unary operators, optimize adjacent negations, or close the separate
-lower-rooted `OMGRFN8` refinement obligation.
+admit other unary operators, or optimize adjacent negations. The separate
+lower-rooted `OMGRFN8` contract composes this artifact relation with exact
+source lowering; backend evidence alone does not imply that closure.

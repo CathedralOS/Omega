@@ -133,7 +133,8 @@ cross-pairs, mutations, and resource teeth. This closes the selected bounded
 payload-sum relation, not general payload-sum coverage or final `Ωself`
 admission.
 
-Bool-only logical negation is the next open successor, `OMGRFN8`. Its exact
+Bool-only logical negation is the closed successor
+[`OMGRFN8`](OMGCOMP_REFINEMENT_WITNESS_V8.md). Its exact
 pair is CKIR6 satisfying the OMGLOW7 source-lowering relation with the least
 canonical OMGRSW1, OMGRSW2, or OMGRSW3 selected by the source; there is no
 OMGRSW4 because `!` creates no resolution identity. R1 retains outer-frame/
@@ -142,9 +143,15 @@ unchanged least resolution relation, R3 joins inherited declarations/root to
 CKIR6 without taking ownership of unary semantics, R4 owns exact recursive
 source lowering plus artifact-free Boolean meaning, and R5 owns complete CKIR6
 structure/result and exact load/XOR-one/store ELF reconstruction. The focused
-producer/reference/backend gates exist, but no OMGRFN8 checker or composite is
-claimed here yet; the logical-negation vertical slice remains open until those
-responsibilities consume one immutable carrier with cross-pairs and resources.
+producer/reference/backend gates are joined by pure R1/R2 and R3–R5 checker
+materializers plus `omgrfn8-same-frame-composite.sh`. The primary carrier
+retains the complete OMGRFN7 payload-sum path and transports the reachable
+`!!false` result through a root field, selected `Packet::One` payload, nested
+`Packet::Four` tail, and exact result 70. Eight responsibility executables are
+compiled once under each Beta compiler generation; least-OMGRSW1/2 controls,
+phase-local mutations, old/new cross-pairs, and exact load/XOR-one/store ELF
+reconstruction pass in the same focused gate. This closes only the selected
+bool-only relation, not general unary syntax or final `Ωself` admission.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

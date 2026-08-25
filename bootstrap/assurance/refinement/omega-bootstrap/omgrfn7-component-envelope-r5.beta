@@ -1,18 +1,20 @@
-; Bounded OMGRFN7 responsibility-5 component framing.
+; Bounded OMGRFN7/8 responsibility-5 component framing.
 ;
-; This decoder deliberately treats OMGCOMP and OMGRSW3 as opaque. It reads
-; enough of the exact version-7 frame locally to make CKIR5/ELF
+; This decoder deliberately treats OMGCOMP and the selected OMGRSW as opaque. It reads
+; enough of the exact version-7/8 frame locally to make CKIR5/6 and ELF
 ; accesses safe,
 ; then projects those component offsets and claims into the stable private
-; interface consumed by the CKIR5 artifact and ELF checkers. It performs no
+; interface consumed by the shared CKIR artifact and ELF checkers. It performs no
 ; source, resolution, witness, or
 ; lowering checks.
 ;
 ; Raw frame bytes: byte[1048576 .. 5546119], maximum 4,497,544 bytes.
 ; Only CKIR and ELF component readers are exposed after a successful read.
 ; There is deliberately no source-body or witness-byte adapter in this
-; responsibility-5 envelope. In particular, OMGRSW3 witness identity is
-; responsibility 3's premise, not an artifact-checker premise.
+; responsibility-5 envelope. In particular, OMGRSW witness identity is
+; responsibility 3's premise, not an artifact-checker premise. Word 524376
+; retains the exact outer version so the CKIR checker can enforce 7/5 and 8/6
+; without inspecting the opaque witness.
 ; Existing checker interface (word addresses):
 ;   524288 frame length; 524296 status; 524304 flags
 ;   524328 CKIR offset; 524336 CKIR length
@@ -70,9 +72,11 @@ proc omgrfn5_component_read() {
     state magic5 { to magic6 when (omgrfn5_component_byte(5) == 'N')  to malformed }
     state magic6 {
         to version7_magic when (omgrfn5_component_byte(6) == '7')
+        to version8_magic when (omgrfn5_component_byte(6) == '8')
         to malformed
     }
     state version7_magic { word[524376] = 7  to magic7 }
+    state version8_magic { word[524376] = 8  to magic7 }
     state magic7 { to version when (omgrfn5_component_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_component_u32(8) == word[524376])  to malformed }
     state fields {
@@ -128,6 +132,6 @@ proc omgrfn5_component_elf_byte(index) {
     return byte[1048576 + word[524344] + index]
 }
 
-; Stable private adapters used by the complete CKIR5/ELF checkers.
+; Stable private adapters used by the complete CKIR5/6 and ELF checkers.
 proc refinement_ckir_byte(index) { return omgrfn5_component_ckir_byte(index) }
 proc refinement_elf_byte(index) { return omgrfn5_component_elf_byte(index) }
