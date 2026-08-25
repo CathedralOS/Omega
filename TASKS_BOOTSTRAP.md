@@ -135,6 +135,23 @@ Likewise, this queue does not decide whether full Omega has those features: the
 language specification already does. Bootstrap work only prices and implements
 the ordinary-Omega forms retained in the compiler's own source profile.
 
+Use this scope test before adding work here:
+
+| Proposed work | Owner |
+| --- | --- |
+| author or refactor production Psi/Omega modules | `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md` |
+| implement a full-Omega user-facing feature in production `omega` | the relevant product/language task, not this queue |
+| census a product checkpoint, maintain `Ωself`, or implement its general bridge acceptance | this queue |
+| specify or implement a facility used by the canonical Delta compiler or bridge source | this queue and the Delta v1 ledger |
+| build an interpreter, viewer, REPL, proof explorer, debugger, or similar adjacent tool | product tooling unless the hosted compiler imports it |
+| optimize the first production compiler executable by rebuilding it with `omega` | optional product work after required bootstrap closure |
+
+In particular, this queue may consume and validate product checkpoints but must
+not edit product Psi/Omega source merely to make a bridge milestone convenient.
+If measured bridge cost motivates a source refactor, record the evidence here
+and route the implementation to `TASKS.md`; the next checkpoint then records
+the result.
+
 The optional product self-rebuild is not part of this queue. Fixed or paged
 backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
 available bridge implementation choices when they reduce total cost. They do
@@ -355,9 +372,10 @@ not be reported as authority for another.
 
 ### 3. Settle both source contracts at the completed required-source join
 
-The join publishes two contracts with distinct scopes and versioning. Freeze them
-together so neither can be justified by a partial source closure or by assumed
-costs in the other.
+The join publishes two contracts with distinct scopes and versioning at the
+same evidence milestone. This is a coordinated publication, not a subset or
+versioning relationship: neither contract may be justified by a partial source
+closure or by assumed costs in the other.
 
 #### `Ωself`
 

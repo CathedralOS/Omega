@@ -251,6 +251,24 @@ That gives the design loop exactly two feature inventories:
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
 
+Route a question by the subject it changes, not by which compiler happens to
+encounter it:
+
+| Question | Governing contract or owner |
+| --- | --- |
+| May the canonical Delta compiler or bridge source use construct X? | Delta v1 |
+| May the production compiler's own Omega source use construct X? | `Ωself` |
+| Must production `omega` accept and implement Omega feature X? | the full Omega specification and product task; not a bootstrap-profile decision |
+| Must `omega-bootstrap` accept arbitrary Omega source using X? | only when X is retained by the general compositional `Ωself` profile |
+| Must an interpreter, viewer, REPL, proof explorer, or debugger be built? | only when the production compiler executable imports it; otherwise ordinary product-tool work |
+| Must the first production compiler executable be well optimized? | no; executable quality belongs to the optional rebuild and later product optimization |
+
+This routing is also an ownership rule. Product-source implementation and any
+refactor used to remove a facility from that source live under the product
+compiler task. Bootstrap work consumes the resulting checkpoint, measures and
+implements the profile, and validates the hosted edge. Neither queue may create
+a third language inventory to avoid coordinating those two responsibilities.
+
 Until measurements overturn them, use these authoring defaults:
 
 - keep proof-program mathematics and dependent or proof-indexed typing out of
@@ -365,68 +383,21 @@ those user-facing features without expressing its own algorithms in them.
 Every row still resolves by the same measured whole-bootstrap cost test; none
 is a ruling merely because it appears in this table.
 
-The current closed cost evidence reaches selected finite calls, constant
-aggregates, runtime named records, same-module direct-field receivers through
-CKIR4, payload-bearing pure sums through CKIR5, bool-only logical negation
-through CKIR6/OMGRFN8, selected pure/nontrapping Boolean `&&`/`||` through
-CKIR7/OMGRFN9, and selected exact `bool`/`u8`/`u32` equality through
-CKIR8/OMGRFN10. These successors have focused OMGLOW7/8/9 production,
-independent source and CKIR meaning, Rust-free meaning, conservative backends,
-mutation/resource teeth, and immutable lower-rooted R1–R5 compositions.
-Each closed selected slice has native/self-built production, representative Rust-free
-meaning, independent result/artifact reconstruction, resource and mutation
-teeth, and responsibility-local lower-rooted composition. This establishes
-bounded implementation and assurance costs; it does not admit those facilities
-to final `Ωself` or claim general checkpoint coverage. Exact schemas, carrier
-sizes, fixtures, and version histories live beside
-[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md),
-the versioned `OMEGA_BOOTSTRAP_CHECKED_IR*` contracts under
-[`bootstrap/omega-bootstrap/compiler/`](../../../bootstrap/omega-bootstrap/compiler/),
-and the versioned `OMGCOMP_REFINEMENT_WITNESS*` contracts under
-[`bootstrap/assurance/refinement/omega-bootstrap/`](../../../bootstrap/assurance/refinement/omega-bootstrap/).
+Current closed cost evidence is summarized here; schemas, fixtures, byte
+contracts, mutation matrices, and version history remain beside their owning
+gates rather than being repeated in this decision document.
 
-Payload sums now have a complete selected compiler path: OMGRSW3 source
-resolution, general OMGLOW6 construction/Copy/Call/dispatch lowering, exact
-CKIR5 publication, independent CKIR5 checking and meaning, and conservative
-CKIR5-to-ELF emission all pass native/self result-70 and adjacent resource
-controls. OMGRFN7 outer custody, independent source→OMGRSW3 reconstruction,
-the witness→CKIR5 declaration/layout/intrinsic join are executable. Exact
-source→CKIR5 lowering, artifact-free source result, CKIR5 structure/result,
-exact ELF reconstruction, and their immutable same-frame composition close the
-remaining OMGRFN7 responsibilities. This replaces the intuition-only estimate
-with a measured bounded cost, but does not retain payload sums in final
-`Ωself` before the complete product-source/profile join.
+| Selected capability evidence | Closed bounded path | Detail owner |
+| --- | --- | --- |
+| finite calls, constant aggregates, runtime named records, and same-module direct-field receivers | source production through CKIR4, Rust-free meaning, conservative artifacts, and lower-rooted reconstruction | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md) and versioned checked-IR contracts under [`bootstrap/omega-bootstrap/compiler/`](../../../bootstrap/omega-bootstrap/compiler/) |
+| payload-bearing pure sums | OMGRSW3, CKIR5, conservative backend, and OMGRFN7 R1–R5 | versioned checked-IR contracts and [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
+| bool-only logical negation | CKIR6 and OMGRFN8 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md) and [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md) |
+| pure, total, nontrapping bool-only `&&` and `||` | CKIR7 and OMGRFN9 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md) and [`OMGCOMP_REFINEMENT_WITNESS_V9.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md) |
+| exact primitive same-carrier `bool`/`u8`/`u32` equality | CKIR8 and OMGRFN10 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) and [`OMGCOMP_REFINEMENT_WITNESS_V10.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md) |
 
-Bool-only logical negation likewise has a complete selected compiler path.
-OMGRFN8 retains the OMGRFN7 payload-sum carrier, adds a reachable adjacent
-`!!false`, and transports that result through a root field and selected nested
-payload to exact result 70. Compact OMGRSW1/2 controls show that `!` creates no
-OMGRSW4; the full OMGRSW3 carrier joins exact source lowering and source meaning
-to complete CKIR6 meaning and exact load/XOR-one/store ELF reconstruction. The
-focused composition gate compiles its responsibility checkers once per Beta
-generation and runs in roughly twenty seconds on the reference host. This is
-measured bounded cost, not a final `Ωself` admission or general unary surface.
-
-Pure, total, nontrapping bool-only `&&` and `||` now have the next complete
-selected path. The source meaning remains ordinary short circuiting; OMGLOW8
-may use eager CKIR7 truth functions only after independently proving that both
-operands terminate without effects or traps. The producer fixes `&&` above
-`||`, left association, one operation per authored token pair, and least
-OMGRSW1/2/3 selection. Independent CKIR7 truth tables, native/self exact
-AND/OR emission, and OMGRFN9 R1–R5 composition close the bounded cost. Calls,
-indexing, Trapping arithmetic, mutation, bitwise operators, and other
-observable skipped work remain rejected in this relation. This is not general
-short-circuit lowering or final `Ωself` admission.
-
-Exact primitive equality now has the next complete selected path. OMGLOW9 keeps
-least OMGRSW1/2/3 selection, fixes ordering-above-equality-above-logical
-precedence and left association, and emits one authored-order ScalarEqual row
-per admitted `==`. CKIR8 independently checks and evaluates same-carrier
-`bool`, `u8`, and `u32` rows and the conservative CMP/SETE/MOVZX backend.
-OMGRFN10 composes R1–R5 over one immutable carrier with reachable equal and
-unequal rows for all three carriers. Structural and sum equality, `!=`, `u64`,
-cross-carrier conversion, effectful/trapping operands, and final `Ωself`
-admission remain separate.
+Every row is implementation-and-assurance cost evidence for a selected slice.
+No row admits a facility to final `Ωself`, claims general checkpoint coverage,
+or widens beyond the boundary stated in its linked contract.
 
 Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md).
