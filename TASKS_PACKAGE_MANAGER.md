@@ -218,6 +218,14 @@ complete.
   stage. This is real resolver evidence, but it does not weaken any remaining
   isolation, cache-custody, resource, SSH-custody, or receipt requirement.
 
+  Completed 2026-08-24: symbolic revisions no longer silently choose a SHA-1
+  cache. A sealed, launch/output/deadline-bounded `ls-remote` preflight asks for
+  only `HEAD` and the requested selector, rejects absent, malformed, or mixed
+  object-ID formats, and initializes the quarantine for SHA-1 or SHA-256. Its
+  answer is setup input only; commit/blob rehashing and reconstructed-tree
+  authentication remain the evidence boundary. Real SHA-256 repositories pass
+  with both exact and symbolic revisions.
+
   Completed 2026-08-24: local traversal now bounds each directory listing by
   the remaining source-entry budget plus only the one or two names that the
   toolchain itself may exclude, before retaining and sorting the listing. Git

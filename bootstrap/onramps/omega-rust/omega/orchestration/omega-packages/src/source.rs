@@ -2285,12 +2285,13 @@ fn create_git_cache_entry(
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
     std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
+    let object_format = discover_git_object_format(executor, &pending.root, url, requested_rev)?;
     let mut init_arguments = vec![
         OsString::from("init"),
         OsString::from("--quiet"),
         OsString::from("--bare"),
     ];
-    if requested_rev.len() == 64 && is_object_id(requested_rev) {
+    if object_format == GitObjectIdAlgorithm::Sha256 {
         init_arguments.push(OsString::from("--object-format=sha256"));
     }
     init_arguments.push(OsString::from("--template"));
@@ -2336,6 +2337,68 @@ fn create_git_cache_entry(
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
+}
+
+fn discover_git_object_format(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    url: &str,
+    requested_rev: &str,
+) -> Result<GitObjectIdAlgorithm, SourceResolveError> {
+    if is_object_id(requested_rev) {
+        return git_object_algorithm(requested_rev);
+    }
+    let output = run_git_bytes_stdout(
+        executor,
+        working_directory,
+        [
+            OsStr::new("ls-remote"),
+            OsStr::new("--symref"),
+            OsStr::new("--"),
+            OsStr::new(url),
+            OsStr::new("HEAD"),
+            OsStr::new(requested_rev),
+        ],
+    )?;
+    parse_git_remote_object_format(&output, working_directory)
+}
+
+fn parse_git_remote_object_format(
+    output: &[u8],
+    working_directory: &Path,
+) -> Result<GitObjectIdAlgorithm, SourceResolveError> {
+    let mut selected = None;
+    for line in output.split(|byte| *byte == b'\n') {
+        if line.is_empty() || line.starts_with(b"ref: ") {
+            continue;
+        }
+        let Some(separator) = line.iter().position(|byte| *byte == b'\t') else {
+            return Err(cache_invalid(
+                working_directory,
+                "Git object-format discovery returned a malformed row",
+            ));
+        };
+        let oid = std::str::from_utf8(&line[..separator]).map_err(|_| {
+            cache_invalid(
+                working_directory,
+                "Git object-format discovery returned a non-ASCII object ID",
+            )
+        })?;
+        let algorithm = git_object_algorithm(oid)?;
+        if selected.is_some_and(|selected| selected != algorithm) {
+            return Err(cache_invalid(
+                working_directory,
+                "Git object-format discovery returned mixed hash algorithms",
+            ));
+        }
+        selected = Some(algorithm);
+    }
+    selected.ok_or_else(|| {
+        cache_invalid(
+            working_directory,
+            "Git object-format discovery returned no selected object ID",
+        )
+    })
 }
 
 fn verify_git_cache_entry(
@@ -5389,6 +5452,64 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_source_discovers_sha256_for_symbolic_revision() {
+        let (repo, commit) = create_git_source_with_format("git-sha256-symbolic", Some("sha256"));
+        let cache = temp_root("git-sha256-symbolic-cache");
+
+        let resolved = resolve_git_source(
+            &GitSourceSpec {
+                url: repo.display().to_string(),
+                rev: Some("HEAD".to_owned()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("discover and resolve symbolic SHA-256 git source");
+
+        assert_eq!(resolved.commit, commit);
+        assert_eq!(resolved.commit.len(), 64);
+        assert_eq!(resolved.tree.len(), 64);
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_remote_object_format_parser_rejects_absent_malformed_and_mixed_ids() {
+        let root = temp_root("git-object-format-parser");
+        let sha1 = "11".repeat(20);
+        let sha256 = "22".repeat(32);
+        assert_eq!(
+            parse_git_remote_object_format(
+                format!("ref: refs/heads/main\tHEAD\n{sha1}\tHEAD\n").as_bytes(),
+                &root,
+            )
+            .expect("parse SHA-1 remote advertisement"),
+            GitObjectIdAlgorithm::Sha1
+        );
+        assert_eq!(
+            parse_git_remote_object_format(
+                format!("ref: refs/heads/main\tHEAD\n{sha256}\tHEAD\n").as_bytes(),
+                &root,
+            )
+            .expect("parse SHA-256 remote advertisement"),
+            GitObjectIdAlgorithm::Sha256
+        );
+        for invalid in [
+            b"ref: refs/heads/main\tHEAD\n".to_vec(),
+            b"not-a-row\n".to_vec(),
+            format!("{sha1}\tHEAD\n{sha256}\trefs/heads/main\n").into_bytes(),
+        ] {
+            assert!(matches!(
+                parse_git_remote_object_format(&invalid, &root),
+                Err(SourceResolveError::GitCacheInvalid { .. })
+                    | Err(SourceResolveError::GitObjectInvalid { .. })
+            ));
+        }
+        assert!(!root.exists());
     }
 
     #[test]

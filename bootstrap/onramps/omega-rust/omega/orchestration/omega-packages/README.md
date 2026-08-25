@@ -151,6 +151,9 @@ checks the commit's root-tree edge, reconstructs the canonical recursive tree
 from authenticated leaves, compares its Merkle root, and preflights every
 materialization destination. This strengthens source custody; it does not turn
 the still-unisolated resolver into an admission boundary.
+Symbolic selectors use a bounded remote advertisement only to choose the
+quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
+reject, and the advertisement never substitutes for parent authentication.
 The Git parent executable is selected from closed absolute concrete platform
 paths, not ambient `PATH`; macOS excludes Apple's dispatcher. Its canonical
 bytes are retained as a diagnostic observation, guarded by stable file identity
