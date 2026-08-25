@@ -1,0 +1,520 @@
+; OMGRFN7 responsibility 2: independent exact source -> OMGRSW3 resolution.
+;
+; This adapter is compiled with the frozen OMGRFN4 responsibility-2 source
+; model.  It reuses only propositionally unchanged OMGCOMP decoding, lexical
+; primitives, span comparison, and bounded scratch conventions.  It does not
+; call the OMGRFN4 frame reader or its fixture-specific resolution conclusion.
+; CKIR, ELF, and claimed result bytes remain opaque after exact framing.
+
+proc omgrfn5_r2_u32(at) { return omgrfn4_l2_frame_u32(at) }
+
+proc omgrfn5_r2_read_frame() {
+    let n=0 let overflow=0 let c=read_byte() let cursor=0
+    state read { to one when (c>=0) to header }
+    state one { to over when (n>=4497544) byte[1048576+n]=c n=n+1 c=read_byte() to read }
+    state over { overflow=1 c=read_byte() to read }
+    state header { to exhausted when (overflow==1) to bad when (n<40) to magic }
+    state magic {
+        to bad when (omgrfn4_l2_frame_byte(0)!='O') to bad when (omgrfn4_l2_frame_byte(1)!='M')
+        to bad when (omgrfn4_l2_frame_byte(2)!='G') to bad when (omgrfn4_l2_frame_byte(3)!='R')
+        to bad when (omgrfn4_l2_frame_byte(4)!='F') to bad when (omgrfn4_l2_frame_byte(5)!='N')
+        to bad when (omgrfn4_l2_frame_byte(7)!=0)
+        to v7 when (omgrfn4_l2_frame_byte(6)=='7') to bad
+    }
+    state v7 { to bad when (omgrfn5_r2_u32(8)!=7) word[879088]=7 to components }
+    state components {
+        word[500016]=omgrfn5_r2_u32(12) word[500032]=omgrfn5_r2_u32(16)
+        word[500048]=omgrfn5_r2_u32(20) word[500064]=omgrfn5_r2_u32(24)
+        word[500080]=omgrfn5_r2_u32(28) word[500088]=omgrfn5_r2_u32(32)
+        word[500096]=omgrfn5_r2_u32(36)
+        to bad when (word[500016]>1) to bad when (word[500032]<1)
+        to bad when (word[500048]<1) to bad when (word[500064]<1)
+        to exhausted when (word[500032]>267280) to exhausted when (word[500048]>524288)
+        to exhausted when (word[500064]>2522192) to exhausted when (word[500080]>1183744)
+        cursor=40 word[500024]=cursor
+        to bad when (word[500032]>n-cursor) cursor=cursor+word[500032] word[500040]=cursor
+        to bad when (word[500048]>n-cursor) cursor=cursor+word[500048] word[500056]=cursor
+        to bad when (word[500064]>n-cursor) cursor=cursor+word[500064] word[500072]=cursor
+        to bad when (word[500080]!=n-cursor) to library when (word[500016]==0) to entry
+    }
+    state library { to bad when (word[500080]!=0) to bad when (word[500088]!=4294967295) to bad when (word[500096]!=4294967295) return 0 }
+    state entry { to bad when (word[500080]<1) to bad when (word[500096]>255) to bad when (word[500096]!=word[500088]%256) return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+; Raw focused type codes.  Canonical OMGRSW1 IDs are assigned only after all
+; nominal records have been reconstructed, matching the resolver's nominal,
+; bool, full-u32, non-array, then array canonicalization order.
+;   100+record: nominal record; 300+sum: nominal sum; 200: bool; 201: u8;
+;   202: full u32. This focused V7 owner rejects the unused inherited type
+;   spellings rather than guessing new source meaning.
+proc omgrfn5_r2_type_id(raw) {
+    state nominal0 { to nominal1 when (raw>=100) to bad }
+    state nominal1 { to nominal when (raw<100+word[879008]) to sum0 }
+    state nominal { return raw-100 }
+    state sum0 { to sum1 when (raw>=300) to bool }
+    state sum1 { to sum when (raw<300+word[879344]) to bool }
+    state sum { return word[879008]+raw-300 }
+    state bool { to x4 when (raw==200) to u8 } state x4 { return word[879008]+word[879344] }
+    state u8 { to x7 when (raw==201) to full } state x7 { return word[879008]+word[879344]+2 }
+    state full { to x5 when (raw==202) to bad } state x5 { return word[879008]+word[879344]+1 }
+    state bad { return 4294967295 }
+}
+
+proc omgrfn7_r2_is_case(source_id,token_id) {
+    state kind { to no when (omgrfn4_r2_tkind(source_id,token_id)!=256) to length }
+    state length { to no when (omgrfn4_r2_tlen(source_id,token_id)!=4) to c0 }
+    state c0 { to no when (omgrfn4_l2_source_byte(source_id,omgrfn4_r2_tstart(source_id,token_id))!='c') to c1 }
+    state c1 { to no when (omgrfn4_l2_source_byte(source_id,omgrfn4_r2_tstart(source_id,token_id)+1)!='a') to c2 }
+    state c2 { to no when (omgrfn4_l2_source_byte(source_id,omgrfn4_r2_tstart(source_id,token_id)+2)!='s') to c3 }
+    state c3 { to no when (omgrfn4_l2_source_byte(source_id,omgrfn4_r2_tstart(source_id,token_id)+3)!='e') return 1 }
+    state no { return 0 }
+}
+
+proc omgrfn7_r2_find_sum(source_id,token_id) {
+    let i=0
+    state loop { to one when (i<word[879344]) word[879132]=4294967295 return 0 }
+    state one { to found when (omgrfn4_r2_token_equal(source_id,token_id,word[910000+i*64],word[910008+i*64])==1) i=i+1 to loop }
+    state found { word[879132]=i return 0 }
+}
+
+proc omgrfn5_r2_parse_type(source_id) {
+    let t=omgrfn4_r2_cur(source_id) let rid=0 let high=0
+    word[879100]=4294967295 word[879108]=0 word[879116]=0 word[879124]=0
+    state room { to bad when (t>=word[880000+source_id*8]) to bad when (omgrfn4_r2_tkind(source_id,t)==91) to scalar }
+    state scalar {
+        to bool when (omgrfn4_r2_is_word(source_id,t,6)==1)
+        to u8 when (omgrfn4_r2_is_word(source_id,t,7)==1)
+        to u32 when (omgrfn4_r2_is_word(source_id,t,8)==1)
+        to nominal
+    }
+    state bool { word[879100]=200 omgrfn4_r2_next(source_id) return 0 }
+    state u8 { word[879100]=201 omgrfn4_r2_next(source_id) return 0 }
+    state nominal {
+        to bad when (omgrfn4_r2_tkind(source_id,t)!=256)
+        omgrfn4_r2_find_record(source_id,t) rid=word[879132]
+        to record when (rid!=4294967295)
+        omgrfn7_r2_find_sum(source_id,t) rid=word[879132]
+        to bad when (rid==4294967295)
+        word[879100]=300+rid word[879108]=source_id word[879116]=t
+        omgrfn4_r2_next(source_id) return 0
+    }
+    state record { word[879100]=100+rid word[879108]=source_id word[879116]=t omgrfn4_r2_next(source_id) return 0 }
+    state u32 { word[879100]=202 omgrfn4_r2_next(source_id) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_parse_data(source_id) {
+    let rid=word[879008] let sid=word[879344] let name=0 let fid=0 let cid=0 let pid=0 let at=0 let flags=0
+    state cap { to v7_cap when (word[879088]==7) to exhausted when (rid>=16) to keyword }
+    state v7_cap { to exhausted when (rid+sid>=128) to keyword }
+    state keyword { to bad when (omgrfn4_r2_expect_word(source_id,0)!=0) name=omgrfn4_r2_cur(source_id) to name }
+    state name { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) to copy_open when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==91) to open }
+    state copy_open { omgrfn4_r2_next(source_id) to bad when (omgrfn4_r2_expect_word(source_id,3)!=0) to copy_close }
+    state copy_close { to bad when (omgrfn4_r2_expect_kind(source_id,93)!=0) flags=1 to open }
+    state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) to sum when (word[879088]==7) to record }
+    state sum { to sum_start when (omgrfn7_r2_is_case(source_id,omgrfn4_r2_cur(source_id))==1) to record }
+    state record { word[881000+rid*64]=source_id word[881008+rid*64]=name word[881032+rid*64]=word[879016] word[881048+rid*64]=flags word[879008]=rid+1 omgrfn4_r2_add_decl(1,source_id,name,rid) word[881016+rid*64]=word[879176] to fields }
+    state fields { to bad when (word[700000]!=0) to close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==125) to field_cap }
+    state field_cap { to exhausted when (word[879016]>=128) fid=word[879016] at=882000+fid*64 word[at]=rid word[at+8]=word[881040+rid*64] name=omgrfn4_r2_cur(source_id) to field_name }
+    state field_name { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) word[at+32]=omgrfn4_r2_tstart(source_id,name) word[at+40]=omgrfn4_r2_tlen(source_id,name) to colon }
+    state colon { to bad when (omgrfn4_r2_expect_kind(source_id,58)!=0) to field_type }
+    state field_type { to bad when (omgrfn5_r2_parse_type(source_id)!=0) word[at+16]=word[879100] word[at+24]=word[879124] word[at+48]=word[879108] word[at+56]=word[879116] to semi }
+    state semi { to bad when (omgrfn4_r2_expect_kind(source_id,59)!=0) word[879016]=fid+1 word[881040+rid*64]=word[881040+rid*64]+1 to fields }
+    state close { omgrfn4_r2_next(source_id) return 0 }
+    state sum_start {
+        to exhausted when (sid>=128)
+        word[910000+sid*64]=source_id word[910008+sid*64]=name
+        word[910032+sid*64]=word[879352] word[910048+sid*64]=flags
+        word[879344]=sid+1 omgrfn4_r2_add_decl(3,source_id,name,sid)
+        word[910016+sid*64]=word[879176] to cases
+    }
+    state cases { to sum_close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==125) to case_keyword }
+    state case_keyword { to bad when (omgrfn7_r2_is_case(source_id,omgrfn4_r2_cur(source_id))==0) omgrfn4_r2_next(source_id) cid=word[879352] to case_cap }
+    state case_cap { to exhausted when (cid>=4096) at=920000+cid*64 name=omgrfn4_r2_cur(source_id) to case_name }
+    state case_name {
+        to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0)
+        word[at]=sid word[at+8]=word[910040+sid*64]
+        word[at+16]=word[879360] word[at+32]=source_id
+        word[at+40]=omgrfn4_r2_tstart(source_id,name) word[at+48]=omgrfn4_r2_tlen(source_id,name)
+        word[879352]=cid+1 word[910040+sid*64]=word[910040+sid*64]+1
+        to payload_open when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==40) to case_semi
+    }
+    state payload_open { omgrfn4_r2_next(source_id) to payload_close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==41) to payload }
+    state payload { pid=word[879360] to payload_cap }
+    state payload_cap { to exhausted when (pid>=4096) at=1200000+pid*64 name=omgrfn4_r2_cur(source_id) to payload_name }
+    state payload_name {
+        to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0)
+        word[at]=cid word[at+8]=word[920024+cid*64]
+        word[at+24]=source_id word[at+32]=omgrfn4_r2_tstart(source_id,name) word[at+40]=omgrfn4_r2_tlen(source_id,name)
+        to payload_colon
+    }
+    state payload_colon { to bad when (omgrfn4_r2_expect_kind(source_id,58)!=0) to payload_type }
+    state payload_type {
+        to bad when (omgrfn5_r2_parse_type(source_id)!=0)
+        word[at+16]=word[879100] word[at+48]=word[879108] word[at+56]=word[879116]
+        word[879360]=pid+1 word[920024+cid*64]=word[920024+cid*64]+1
+        to payload_comma when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==44) to payload_close
+    }
+    state payload_comma { omgrfn4_r2_next(source_id) to payload }
+    state payload_close { to bad when (omgrfn4_r2_expect_kind(source_id,41)!=0) to case_semi }
+    state case_semi {
+        to bad when (omgrfn4_r2_expect_kind(source_id,59)!=0)
+        to payload_over when (word[920024+cid*64]>4)
+        to cases
+    }
+    state payload_over { word[879368]=1 to cases }
+    state sum_close {
+        to bad when (word[910040+sid*64]<1)
+        to cases_over when (word[910040+sid*64]>64)
+        omgrfn4_r2_next(source_id) return 0
+    }
+    state cases_over { word[879368]=1 omgrfn4_r2_next(source_id) return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_add_block(machine_id,ordinal,name_token,source_id) {
+    let id=word[879040] let at=0
+    state cap { to exhausted when (id>=128) at=888000+id*96 to save }
+    state save {
+        word[at]=machine_id word[at+8]=ordinal word[at+16]=word[879328]
+        word[at+40]=4294967295 word[at+48]=0 word[at+56]=word[879048] word[at+64]=0
+        to named when (name_token!=4294967295) word[879040]=id+1 word[879320]=id return 0
+    }
+    state named { word[at+40]=omgrfn4_r2_tstart(source_id,name_token) word[at+48]=omgrfn4_r2_tlen(source_id,name_token) word[879040]=id+1 word[879320]=id return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+}
+
+proc omgrfn5_r2_parse_parameter(source_id,owner,ordinal,kind) {
+    let id=0 let name=omgrfn4_r2_cur(source_id) let at=0 let type_at=0
+    state select { to machine when (kind==1) to block }
+    state machine { id=word[879032] to machine_cap }
+    state machine_cap { to exhausted when (id>=128) at=886000+id*48 to name }
+    state block { id=word[879048] to block_cap }
+    state block_cap { to exhausted when (id>=128) at=893000+id*48 to name }
+    state name { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) word[at]=owner word[at+8]=ordinal word[at+24]=omgrfn4_r2_tstart(source_id,name) word[at+32]=omgrfn4_r2_tlen(source_id,name) to colon }
+    state colon { to bad when (omgrfn4_r2_expect_kind(source_id,58)!=0) to type }
+    state type { to bad when (omgrfn5_r2_parse_type(source_id)!=0) word[at+16]=word[879100] to machine_done when (kind==1) type_at=907048+id*16 word[type_at]=word[879108] word[type_at+8]=word[879116] word[879048]=id+1 return 0 }
+    state machine_done { type_at=905000+id*16 word[type_at]=word[879108] word[type_at+8]=word[879116] word[879032]=id+1 return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_receiver(source_id) {
+    state amp { to bad when (omgrfn4_r2_expect_kind(source_id,38)!=0) to maybe_mut }
+    state maybe_mut { to shared when (omgrfn4_r2_is_word(source_id,omgrfn4_r2_cur(source_id),4)==0) omgrfn4_r2_next(source_id) word[879328]=2 to self }
+    state shared { word[879328]=1 to self }
+    state self { to bad when (omgrfn4_r2_expect_word(source_id,5)!=0) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+; V5 preserves the frozen self.machine scanner. V6 recognizes dotted calls
+; only when their complete receiver is self or one direct named field of self.
+; The field token is retained privately so resolution can derive its nominal
+; owner; OMGRSW2 keeps the unchanged role-3 row shape and spans only the final
+; machine-name token.
+proc omgrfn5_r2_add_call(source_id,name_token,machine_id,field_token) {
+    let id=word[879064] let at=0
+    state cap { to exhausted when (id>=128) at=894000+id*48 to save }
+    state save { word[at]=source_id word[at+8]=omgrfn4_r2_tstart(source_id,name_token) word[at+16]=omgrfn4_r2_tlen(source_id,name_token) word[at+24]=machine_id word[at+32]=4294967295 word[at+40]=field_token word[879064]=id+1 to field when (field_token!=4294967295) return 0 }
+    state field { word[879336]=word[879336]+1 return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+}
+
+proc omgrfn5_r2_scan_block(source_id,machine_id,block_id,allow_state) {
+    let depth=0 let t=0 let count=word[880000+source_id*8]
+    state loop { t=omgrfn4_r2_cur(source_id) to bad when (t>=count) to state_end when (allow_state==1) to close_check }
+    state state_end { to close_check when (depth!=0) to found_state when (omgrfn4_r2_is_word(source_id,t,2)==1) to close_check }
+    state close_check { to call_check when (depth!=0) to close when (omgrfn4_r2_tkind(source_id,t)==125) to call_check }
+    state call_check { to v6 }
+    ; Inspect the callee token. Any dotted call outside the two exact
+    ; receiver grammars fails closed instead of disappearing from resolution.
+    state v6 { to punctuation when (omgrfn4_r2_tkind(source_id,t)!=256) to punctuation when (t+1>=count) to punctuation when (omgrfn4_r2_tkind(source_id,t+1)!=40) to punctuation when (t<2) to punctuation when (omgrfn4_r2_tkind(source_id,t-1)!=46) to direct when (omgrfn4_r2_is_word(source_id,t-2,5)==1) to field_room }
+    state direct { omgrfn5_r2_add_call(source_id,t,machine_id,4294967295) to punctuation }
+    state field_room { to bad when (t<4) to bad when (omgrfn4_r2_tkind(source_id,t-3)!=46) to bad when (omgrfn4_r2_tkind(source_id,t-2)!=256) to bad when (omgrfn4_r2_is_word(source_id,t-4,5)==0) omgrfn5_r2_add_call(source_id,t,machine_id,t-2) to punctuation }
+    state punctuation { to open when (omgrfn4_r2_tkind(source_id,t)==123) to nested_close when (omgrfn4_r2_tkind(source_id,t)==125) omgrfn4_r2_next(source_id) to loop }
+    state open { depth=depth+1 omgrfn4_r2_next(source_id) to loop }
+    state nested_close { depth=depth-1 omgrfn4_r2_next(source_id) to loop }
+    state found_state { word[888032+block_id*96]=omgrfn4_r2_tstart(source_id,t) word[879300]=1 return 0 }
+    state close { word[888032+block_id*96]=omgrfn4_r2_tstart(source_id,t) word[879300]=0 omgrfn4_r2_next(source_id) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_parse_machine(source_id) {
+    let mid=word[879024] let owner=0 let name=0 let at=0 let bid=0
+    state cap { to exhausted when (mid>=16) at=884000+mid*128 to keyword }
+    state keyword { to bad when (omgrfn4_r2_expect_word(source_id,1)!=0) owner=omgrfn4_r2_cur(source_id) to owner }
+    state owner { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) to colon0 }
+    state colon0 { to bad when (omgrfn4_r2_expect_kind(source_id,58)!=0) to colon1 }
+    state colon1 { to bad when (omgrfn4_r2_expect_kind(source_id,58)!=0) name=omgrfn4_r2_cur(source_id) to name }
+    state name {
+        to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0)
+        word[at]=source_id word[at+8]=owner word[at+16]=source_id word[at+24]=name
+        word[at+40]=4294967295 word[at+48]=word[879032] word[at+56]=0 word[at+64]=word[879040]
+        word[879024]=mid+1 omgrfn4_r2_add_decl(2,source_id,name,mid) word[at+80]=word[879176]
+        omgrfn4_r2_find_record(source_id,owner) to owner_record
+    }
+    state owner_record { to bad when (word[879132]==4294967295) word[at+88]=word[879132] to paren }
+    state paren { to bad when (omgrfn4_r2_expect_kind(source_id,40)!=0) to receiver }
+    state receiver { to bad when (omgrfn5_r2_receiver(source_id)!=0) word[at+32]=word[879328] to params }
+    state params { to close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==41) to comma }
+    state comma { to bad when (omgrfn4_r2_expect_kind(source_id,44)!=0) to param }
+    state param { omgrfn5_r2_parse_parameter(source_id,mid,word[at+56],1) to bad when (word[700000]!=0) word[at+56]=word[at+56]+1 to params }
+    state close { omgrfn4_r2_next(source_id) to result_check }
+    state result_check { to open when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==123) to dash }
+    state dash { to bad when (omgrfn4_r2_expect_kind(source_id,45)!=0) to arrow }
+    state arrow { to bad when (omgrfn4_r2_expect_kind(source_id,62)!=0) to result }
+    state result { to bad when (omgrfn5_r2_parse_type(source_id)!=0) word[at+40]=word[879100] to open }
+    state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) word[879328]=word[at+32] omgrfn5_r2_add_block(mid,0,4294967295,source_id) bid=word[879320] word[888024+bid*96]=omgrfn4_r2_tstart(source_id,omgrfn4_r2_cur(source_id)) omgrfn5_r2_scan_block(source_id,mid,bid,1) to body }
+    state body { to bad when (word[700000]!=0) to finish when (word[879300]==0) to bad }
+    state finish { word[at+72]=word[879040]-word[at+64] return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_parse_source(source_id) {
+    let t=0
+    word[879400+source_id*16]=word[879056] word[879184]=0
+    state loop { to done when (omgrfn4_r2_cur(source_id)>=word[880000+source_id*8]) t=omgrfn4_r2_cur(source_id) to public when (omgrfn4_r2_is_word(source_id,t,11)==1) to data when (omgrfn4_r2_is_word(source_id,t,0)==1) to machine when (omgrfn4_r2_is_word(source_id,t,1)==1) to bad }
+    state public { word[879184]=1 omgrfn4_r2_next(source_id) t=omgrfn4_r2_cur(source_id) to data when (omgrfn4_r2_is_word(source_id,t,0)==1) to machine when (omgrfn4_r2_is_word(source_id,t,1)==1) to bad }
+    state data { omgrfn5_r2_parse_data(source_id) to bad when (word[700000]!=0) word[879184]=0 to loop }
+    state machine { omgrfn5_r2_parse_machine(source_id) to bad when (word[700000]!=0) word[879184]=0 to loop }
+    state done { word[879408+source_id*16]=word[879056]-word[879400+source_id*16] return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn7_r2_type_acyclic(type_id) {
+    let data=0 let i=0 let end=0 let j=0 let stop=0
+    state scalar { to record when (type_id<word[879008]) to sum when (type_id<word[879008]+word[879344]) return 1 }
+    state record { data=type_id to seen }
+    state sum { data=type_id to seen }
+    state seen { to cycle when (word[1300000+data*8]==1) to yes when (word[1300000+data*8]==2) word[1300000+data*8]=1 to record_fields when (data<word[879008]) to sum_payloads }
+    state record_fields { i=word[881032+data*64] end=i+word[881040+data*64] to record_loop }
+    state record_loop { to record_one when (i<end) word[1300000+data*8]=2 return 1 }
+    state record_one { to cycle when (omgrfn7_r2_type_acyclic(word[882016+i*64])==0) i=i+1 to record_loop }
+    state sum_payloads { i=word[910032+(data-word[879008])*64] end=i+word[910040+(data-word[879008])*64] to case_loop }
+    state case_loop { to case_one when (i<end) word[1300000+data*8]=2 return 1 }
+    state case_one { j=word[920016+i*64] stop=j+word[920024+i*64] to payload_loop }
+    state payload_loop { to payload_one when (j<stop) i=i+1 to case_loop }
+    state payload_one { to cycle when (omgrfn7_r2_type_acyclic(word[1200016+j*64])==0) j=j+1 to payload_loop }
+    state cycle { return 0 }
+    state yes { return 1 }
+}
+
+proc omgrfn7_r2_type_copyable(type_id) {
+    let i=0 let end=0 let sid=0 let j=0 let stop=0
+    state scalar { to record when (type_id<word[879008]) to sum when (type_id<word[879008]+word[879344]) return 1 }
+    state record { to no when (word[881048+type_id*64]==0) i=word[881032+type_id*64] end=i+word[881040+type_id*64] to record_loop }
+    state record_loop { to record_one when (i<end) return 1 }
+    state record_one { to no when (omgrfn7_r2_type_copyable(word[882016+i*64])==0) i=i+1 to record_loop }
+    state sum { sid=type_id-word[879008] to no when (word[910048+sid*64]==0) i=word[910032+sid*64] end=i+word[910040+sid*64] to case_loop }
+    state case_loop { to case_one when (i<end) return 1 }
+    state case_one { j=word[920016+i*64] stop=j+word[920024+i*64] to payload_loop }
+    state payload_loop { to payload_one when (j<stop) i=i+1 to case_loop }
+    state payload_one { to no when (omgrfn7_r2_type_copyable(word[1200016+j*64])==0) j=j+1 to payload_loop }
+    state no { return 0 }
+}
+
+proc omgrfn7_r2_validate_data_graph() {
+    let i=0
+    state cycles { to cycle_one when (i<word[879008]+word[879344]) i=0 to records }
+    state cycle_one { to bad when (omgrfn7_r2_type_acyclic(i)==0) i=i+1 to cycles }
+    state records { to record when (i<word[879008]) i=0 to sums }
+    state record { to record_next when (word[881048+i*64]==0) to bad when (omgrfn7_r2_type_copyable(i)==0) to record_next }
+    state record_next { i=i+1 to records }
+    state sums { to sum when (i<word[879344]) to resources }
+    state sum { to sum_next when (word[910048+i*64]==0) to bad when (omgrfn7_r2_type_copyable(word[879008]+i)==0) to sum_next }
+    state sum_next { i=i+1 to sums }
+    state resources { to over when (word[879368]!=0) return 0 }
+    state over { return omgrfn4_l2_exhaust() }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_resolve() {
+    let i=0 let j=0 let found=0 let at=0 let id=0 let owner=0 let field=0
+    state exact { i=0 to record_names }
+    state record_names { to record_outer when (i<word[879008]) i=0 to record_sum }
+    state record_outer { j=i+1 to record_inner }
+    state record_inner { to record_compare when (j<word[879008]) i=i+1 to record_names }
+    state record_compare { to bad when (omgrfn4_r2_token_equal(word[881000+i*64],word[881008+i*64],word[881000+j*64],word[881008+j*64])==1) j=j+1 to record_inner }
+    state record_sum { to record_sum_start when (i<word[879008]) i=0 to sum_names }
+    state record_sum_start { j=0 to record_sum_inner }
+    state record_sum_inner { to record_sum_compare when (j<word[879344]) i=i+1 to record_sum }
+    state record_sum_compare { to bad when (omgrfn4_r2_token_equal(word[881000+i*64],word[881008+i*64],word[910000+j*64],word[910008+j*64])==1) j=j+1 to record_sum_inner }
+    state sum_names { to sum_outer when (i<word[879344]) i=0 to case_names }
+    state sum_outer { j=i+1 to sum_inner }
+    state sum_inner { to sum_compare when (j<word[879344]) i=i+1 to sum_names }
+    state sum_compare { to bad when (omgrfn4_r2_token_equal(word[910000+i*64],word[910008+i*64],word[910000+j*64],word[910008+j*64])==1) j=j+1 to sum_inner }
+    state case_names { to case_outer when (i<word[879352]) i=0 to payload_names }
+    state case_outer { j=i+1 to case_inner }
+    state case_inner { to case_compare when (j<word[879352]) i=i+1 to case_names }
+    state case_compare { to case_next when (word[920000+i*64]!=word[920000+j*64]) to case_next when (word[920048+i*64]!=word[920048+j*64]) to case_length }
+    state case_length { word[700056]=word[920048+i*64] to bad when (omgrfn4_l2_span_equal(word[920032+i*64],word[920040+i*64],word[920032+j*64],word[920040+j*64])==1) to case_next }
+    state case_next { j=j+1 to case_inner }
+    state payload_names { to payload_outer when (i<word[879360]) i=0 to machine_names }
+    state payload_outer { j=i+1 to payload_inner }
+    state payload_inner { to payload_compare when (j<word[879360]) i=i+1 to payload_names }
+    state payload_compare { to payload_next when (word[1200000+i*64]!=word[1200000+j*64]) to payload_next when (word[1200040+i*64]!=word[1200040+j*64]) word[700056]=word[1200040+i*64] to bad when (omgrfn4_l2_span_equal(word[1200024+i*64],word[1200032+i*64],word[1200024+j*64],word[1200032+j*64])==1) to payload_next }
+    state payload_next { j=j+1 to payload_inner }
+    state machine_names { to machine_outer when (i<word[879024]) i=0 to fields }
+    state machine_outer { j=i+1 to machine_inner }
+    state machine_inner { to machine_compare when (j<word[879024]) i=i+1 to machine_names }
+    state machine_compare { to machine_next when (word[884088+i*128]!=word[884088+j*128]) to bad when (omgrfn4_r2_machine_name_equal(i,j)==1) }
+    state machine_next { j=j+1 to machine_inner }
+    state fields { to field when (i<word[879016]) i=0 to payload_types }
+    state field { at=882000+i*64 id=omgrfn5_r2_type_id(word[at+16]) to bad when (id==4294967295) word[at+16]=id i=i+1 to fields }
+    state payload_types { to payload_type when (i<word[879360]) i=0 to mparams }
+    state payload_type { at=1200000+i*64 id=omgrfn5_r2_type_id(word[at+16]) to bad when (id==4294967295) word[at+16]=id i=i+1 to payload_types }
+    state mparams { to mparam when (i<word[879032]) i=0 to bparams }
+    state mparam { at=886000+i*48 id=omgrfn5_r2_type_id(word[at+16]) to bad when (id==4294967295) word[at+16]=id i=i+1 to mparams }
+    state bparams { to bparam when (i<word[879048]) i=0 to results }
+    state bparam { at=893000+i*48 id=omgrfn5_r2_type_id(word[at+16]) to bad when (id==4294967295) word[at+16]=id i=i+1 to bparams }
+    state results { to result when (i<word[879024]) i=0 to graph }
+    state result { at=884000+i*128 to result_next when (word[at+40]==4294967295) id=omgrfn5_r2_type_id(word[at+40]) to bad when (id==4294967295) word[at+40]=id to result_next }
+    state result_next { i=i+1 to results }
+    state graph { to calls when (word[879088]<7) to bad when (omgrfn7_r2_validate_data_graph()!=0) i=0 to calls }
+    state calls { to call when (i<word[879064]) found=0 j=0 to root_search }
+    state call { at=894000+i*48 owner=word[884088+word[at+24]*128] to call_ready when (word[at+40]==4294967295) to field_version }
+    state field_version { found=0 j=0 field=4294967295 to field_search }
+    state field_search { to field_candidate when (j<word[879016]) to bad when (found!=1) owner=word[882016+field*64] to bad when (owner>=word[879008]) to call_ready }
+    state field_candidate { to field_next when (word[882000+j*64]!=owner) to field_next when (word[882040+j*64]!=omgrfn4_r2_tlen(word[at],word[at+40])) word[700056]=word[882040+j*64] to field_next when (omgrfn4_l2_span_equal(word[at],omgrfn4_r2_tstart(word[at],word[at+40]),word[881000+owner*64],word[882032+j*64])==0) found=found+1 field=j to field_next }
+    state field_next { j=j+1 to field_search }
+    state call_ready { found=0 j=0 to call_search }
+    state call_search { to candidate when (j<word[879024]) to bad when (found!=1) i=i+1 to calls }
+    state candidate {
+        to call_next when (word[884088+j*128]!=owner)
+        to call_next when (word[600640+word[at]*8]!=word[600640+word[884000+j*128]*8])
+        to candidate_name
+    }
+    state candidate_name {
+        to call_next when (word[at+16]!=omgrfn4_r2_tlen(word[884000+j*128],word[884024+j*128]))
+        word[700056]=word[at+16]
+        to call_next when (omgrfn4_l2_span_equal(word[at],word[at+8],word[884000+j*128],omgrfn4_r2_tstart(word[884000+j*128],word[884024+j*128]))==0)
+        found=found+1 word[at+32]=j to call_next
+    }
+    state call_next { j=j+1 to call_search }
+    state root_search { to root_candidate when (j<word[879024]) to bad when (found!=1) word[879080]=id return 0 }
+    state root_candidate {
+        at=884000+j*128
+        to root_next when (word[at]!=word[500344])
+        to root_next when (omgrfn4_r2_span_string(word[at],omgrfn4_r2_tstart(word[at],word[at+8]),omgrfn4_r2_tlen(word[at],word[at+8]),word[500352])==0)
+        to root_next when (omgrfn4_r2_span_string(word[at],omgrfn4_r2_tstart(word[at],word[at+24]),omgrfn4_r2_tlen(word[at],word[at+24]),word[500360])==0)
+        found=found+1 id=j to root_next
+    }
+    state root_next { j=j+1 to root_search }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_build_bindings() {
+    let i=0 let j=0 let k=0 let v=0 let at=0 let rid=0 let sid=0 let mid=0
+    word[879072]=0
+    state fields { to field when (i<word[879016]) i=0 to payloads }
+    state field { at=882000+i*64 rid=word[at+16] to field_next when (rid>=word[879008]+word[879344]) word[879500]=word[at+48] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at+48],word[at+56]) word[879532]=omgrfn4_r2_tlen(word[at+48],word[at+56]) to field_record when (rid<word[879008]) sid=rid-word[879008] word[879540]=word[910016+sid*64] to field_add }
+    state field_record { word[879540]=word[881016+rid*64] to field_add }
+    state field_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to field_next }
+    state field_next { i=i+1 to fields }
+    state payloads { to payload when (i<word[879360]) i=0 to parameters }
+    state payload { at=1200000+i*64 rid=word[at+16] to payload_next when (rid>=word[879008]+word[879344]) word[879500]=word[at+48] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at+48],word[at+56]) word[879532]=omgrfn4_r2_tlen(word[at+48],word[at+56]) to payload_record when (rid<word[879008]) sid=rid-word[879008] word[879540]=word[910016+sid*64] to payload_add }
+    state payload_record { word[879540]=word[881016+rid*64] to payload_add }
+    state payload_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to payload_next }
+    state payload_next { i=i+1 to payloads }
+    state parameters { to parameter when (i<word[879032]) i=0 to machines }
+    state parameter { at=886000+i*48 rid=word[at+16] to parameter_next when (rid>=word[879008]+word[879344]) mid=word[at] word[879500]=word[884000+mid*128] word[879508]=1 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[905000+i*16],word[905008+i*16]) word[879532]=omgrfn4_r2_tlen(word[905000+i*16],word[905008+i*16]) to parameter_record when (rid<word[879008]) sid=rid-word[879008] word[879540]=word[910016+sid*64] to parameter_add }
+    state parameter_record { word[879540]=word[881016+rid*64] to parameter_add }
+    state parameter_add { omgrfn4_r2_binding_add() to bad when (word[700000]!=0) to parameter_next }
+    state parameter_next { i=i+1 to parameters }
+    state machines { to machine when (i<word[879024]) i=0 to calls }
+    state machine { at=884000+i*128 rid=word[at+88] word[879500]=word[at] word[879508]=2 word[879516]=1 word[879524]=omgrfn4_r2_tstart(word[at],word[at+8]) word[879532]=omgrfn4_r2_tlen(word[at],word[at+8]) word[879540]=word[881016+rid*64] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) i=i+1 to machines }
+    state calls { to call when (i<word[879064]) i=0 to sort_outer }
+    state call { at=894000+i*48 mid=word[at+32] word[879500]=word[at] word[879508]=3 word[879516]=2 word[879524]=word[at+8] word[879532]=word[at+16] word[879540]=word[884080+mid*128] omgrfn4_r2_binding_add() to bad when (word[700000]!=0) i=i+1 to calls }
+    state sort_outer { to sort_start when (i+1<word[879072]) to done }
+    state sort_start { j=0 to sort_inner }
+    state sort_inner { to compare when (j+1<word[879072]-i) i=i+1 to sort_outer }
+    state compare { at=897000+j*56 to swap when (word[at]>word[at+56]) to next when (word[at]<word[at+56]) to swap when (word[at+24]>word[at+80]) to next when (word[at+24]<word[at+80]) to swap when (word[at+8]>word[at+64]) to next }
+    state swap { k=0 to swap_loop }
+    state swap_loop { to swap_one when (k<7) to next }
+    state swap_one { v=word[at+k*8] word[at+k*8]=word[at+56+k*8] word[at+56+k*8]=v k=k+1 to swap_loop }
+    state next { j=j+1 to sort_inner }
+    state done { return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_emit_type(id) {
+    let kind=0 let flags=0 let a=0 let b=0 let lo=0 let hi=0
+    state select { to nominal when (id<word[879008]) to sum when (id<word[879008]+word[879344]) to bool when (id==word[879008]+word[879344]) to full when (id==word[879008]+word[879344]+1) to u8 when (id==word[879008]+word[879344]+2) to bad }
+    state nominal { kind=4 a=id to emit }
+    state sum { kind=6 a=id-word[879008] to emit }
+    state bool { kind=3 hi=1 to emit }
+    state full { kind=2 hi=2147483647 to emit }
+    state u8 { kind=1 hi=255 to emit }
+    state emit { omgrfn4_l2_put_u32(id) omgrfn4_l2_put_byte(kind) omgrfn4_l2_put_byte(flags) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(a) omgrfn4_l2_put_u32(b) omgrfn4_l2_put_u32(lo) omgrfn4_l2_put_u32(hi) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_emit_expected() {
+    let i=0 let at=0 let expected=0
+    word[700048]=0
+    state version { expected=84+2*36+word[879072]*28+word[879056]*28+(word[879008]+word[879344]+3)*24+word[879008]*24+word[879016]*24+word[879344]*24+word[879352]*28+word[879360]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24 to common_header }
+    state common_header {
+    omgrfn4_l2_put_byte('O') omgrfn4_l2_put_byte('M') omgrfn4_l2_put_byte('G') omgrfn4_l2_put_byte('R')
+    omgrfn4_l2_put_byte('S') omgrfn4_l2_put_byte('W') omgrfn4_l2_put_byte('0'+word[879088]-4) omgrfn4_l2_put_byte(0)
+    omgrfn4_l2_put_u16(word[879088]-4) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(0)
+    omgrfn4_l2_put_u16(84)
+        omgrfn4_l2_put_u32(expected) omgrfn4_l2_put_u32(2) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879072])
+        omgrfn4_l2_put_u32(word[879056]) omgrfn4_l2_put_u32(word[879008]+word[879344]+3) omgrfn4_l2_put_u32(word[879008]) omgrfn4_l2_put_u32(word[879016])
+        omgrfn4_l2_put_u32(word[879024]) omgrfn4_l2_put_u32(word[879032]) omgrfn4_l2_put_u32(word[879040]) omgrfn4_l2_put_u32(word[879048])
+        omgrfn4_l2_put_u32(word[879344]) omgrfn4_l2_put_u32(word[879352]) omgrfn4_l2_put_u32(word[879360])
+        omgrfn4_l2_put_u32(word[879080]) omgrfn4_l2_put_u32(0) to units
+    }
+    state units { to unit when (i<2) i=0 to bindings }
+    state unit { omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[600640+i*8]) omgrfn4_l2_put_u32(4294967295) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879400+i*16]) omgrfn4_l2_put_u32(word[879408+i*16]) i=i+1 to units }
+    state bindings { to binding when (i<word[879072]) i=0 to declarations }
+    state binding { at=897000+i*56 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_byte(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(4294967295) i=i+1 to bindings }
+    state declarations { to declaration when (i<word[879056]) i=0 to types }
+    state declaration { at=895000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_byte(word[at]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to declarations }
+    state types { to type when (i<word[879008]+word[879344]+3) i=0 to records }
+    state type { omgrfn5_r2_emit_type(i) i=i+1 to types }
+    state records { to record when (i<word[879008]) i=0 to fields }
+    state record { at=881000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) i=i+1 to records }
+    state fields { to field when (i<word[879016]) i=0 to sums }
+    state field { at=882000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to fields }
+    state sums { to sum when (i<word[879344]) i=0 to cases }
+    state sum { at=910000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[879008]+i) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) i=i+1 to sums }
+    state cases { to case when (i<word[879352]) i=0 to payloads }
+    state case { at=920000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) i=i+1 to cases }
+    state payloads { to payload when (i<word[879360]) i=0 to machines }
+    state payload { at=1200000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to payloads }
+    state machines { to machine when (i<word[879024]) i=0 to mparams }
+    state machine { at=884000+i*128 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+80]) omgrfn4_l2_put_u32(word[at+88]) omgrfn4_l2_put_byte(word[at+32]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) omgrfn4_l2_put_u32(word[at+56]) omgrfn4_l2_put_u32(word[at+64]) omgrfn4_l2_put_u32(word[at+72]) omgrfn4_l2_put_u32(word[at+64]) i=i+1 to machines }
+    state mparams { to mparam when (i<word[879032]) i=0 to blocks }
+    state mparam { at=886000+i*48 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) i=i+1 to mparams }
+    state blocks { to block when (i<word[879040]) i=0 to bparams }
+    state block { at=888000+i*96 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) omgrfn4_l2_put_u32(word[at+56]) omgrfn4_l2_put_u32(word[at+64]) i=i+1 to blocks }
+    state bparams { to bparam when (i<word[879048]) i=0 to length }
+    state bparam { at=893000+i*48 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) i=i+1 to bparams }
+    state length { to bad when (word[700048]!=expected) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn5_r2_check() {
+    let status=0 let source=0
+    word[700000]=0 word[879008]=0 word[879016]=0 word[879024]=0 word[879032]=0
+    word[879040]=0 word[879048]=0 word[879056]=0 word[879064]=0 word[879072]=0
+    word[879088]=0 word[879336]=0 word[879344]=0 word[879352]=0 word[879360]=0 word[879368]=0
+    word[879200]=0 word[879208]=0
+    status=omgrfn5_r2_read_frame()
+    state framed { to done when (status!=0) status=omgrfn4_l2_decode_compilation() to compiled }
+    state compiled { to done when (status!=0) omgrfn4_r2_init_words() source=0 to tokenize }
+    state tokenize { to tokenize_one when (source<2) source=0 to parse }
+    state tokenize_one { status=omgrfn4_r2_tokenize(source) to done when (status!=0) source=source+1 to tokenize }
+    state parse { to parse_one when (source<2) to bad_version when (word[879088]==7) status=omgrfn5_r2_resolve() to resolved }
+    state parse_one { status=omgrfn5_r2_parse_source(source) to done when (status!=0) source=source+1 to parse }
+    state bad_version { to reject when (word[879344]<1) status=omgrfn5_r2_resolve() to resolved }
+    state reject { status=omgrfn4_l2_reject() to done }
+    state resolved { to done when (status!=0) status=omgrfn5_r2_build_bindings() to bound }
+    state bound { to done when (status!=0) status=omgrfn5_r2_emit_expected() to built }
+    state built { to done when (status!=0) status=omgrfn4_l2_compare_expected() to done }
+    state done { return word[700000] }
+}

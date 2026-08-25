@@ -1,0 +1,1290 @@
+; OMGRFN7 responsibility 3: independent OMGRSW3 -> CKIR5 declaration,
+; type/layout/selected-entry-root/table join and intrinsic constant validation.
+;
+; This persisted-Beta checker reads one exact OMGRFN5 or OMGRFN6 frame.  It
+; accepts only the exact OMGRFN5+OMGRSW1 or OMGRFN6+OMGRSW2 identity pair.  The
+; two witness schemas retain the declaration/type/layout rows owned here; field
+; receiver resolution and source-body meaning remain responsibility 2/4 work.
+; It treats
+; OMGCOMP source bytes, operation operands, terminators, the claimed result, and
+; ELF bytes as opaque.  It validates enough framing and every consumed extent
+; locally, validates the complete OMGRSW1 declaration/type/layout/signature
+; carrier, validates the CKIR4 table envelope, and compares only the type,
+; record, field, machine, machine-parameter, block, block-parameter, and root
+; relations owned by responsibility 3.  It also validates constant-node and
+; child-vector intrinsic structure and compatibility with these reconstructed
+; types/layouts. For opcode 13 only, it checks the intrinsic result-kind/type,
+; nominal identity,
+; copyability/arity/immediate envelope against those declarations. It does not
+; read constructor operand IDs or own their declaration-order field binding,
+; visibility, typing, source-body correspondence, execution, image, or ELF.
+; It publishes no bytes.
+;
+; Stable component API for later independently composed layers:
+;   l3_frame_byte(i), l3_witness_byte(i), l3_ckir_byte(i)
+;   word[500024/500032] OMGCOMP offset/length
+;   word[500040/500048] OMGRSW1 offset/length
+;   word[500056/500064] CKIR offset/length
+;   word[500072/500080] ELF offset/length
+;   word[500016] frame flags, word[500008] monotonic status
+; Witness globals at 510000: eleven counts at stride 8, selected at 510088,
+; then eleven row bases at 510096..510176.  CKIR globals at 511000: entry,
+; twelve inherited counts at 511008..511096, constant counts at
+; 511200/511208, inherited encoded row bases at 511104..511176, and constant
+; bases at 511216/511224. These globals are valid only after their header.
+;
+; Raw frame bytes occupy byte[1048576..5546119].  Private decoded tables begin
+; at 6000000 and do not overlap the raw frame.
+
+proc l3_frame_byte(index) { return byte[1048576 + index] }
+proc l3_witness_byte(index) { return l3_frame_byte(word[500040] + index) }
+proc l3_ckir_byte(index) { return l3_frame_byte(word[500056] + index) }
+
+proc l3_reject() {
+    state set { to done when (word[500008] != 0)  word[500008] = 251 }
+    state done { return word[500008] }
+}
+
+proc l3_exhaust() {
+    state set { to done when (word[500008] != 0)  word[500008] = 252 }
+    state done { return word[500008] }
+}
+
+proc l3_frame_u32(at) {
+    return l3_frame_byte(at)
+        + l3_frame_byte(at + 1) * 256
+        + l3_frame_byte(at + 2) * 65536
+        + l3_frame_byte(at + 3) * 16777216
+}
+
+proc l3_read_frame() {
+    let n = 0
+    let overflow = 0
+    let c = read_byte()
+    state loop { to body when (c >= 0)  to finish }
+    state body {
+        to exhausted_byte when (n >= 4497544)
+        byte[1048576 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state exhausted_byte { overflow = 1  c = read_byte()  to loop }
+    state finish {
+        word[500000] = n  word[500008] = 0  word[500104] = 0
+        to over when (overflow == 1)
+        to size when (n >= 40)
+        to bad
+    }
+    state size {
+        to bad when (l3_frame_byte(0) != 'O')
+        to magic1
+    }
+    state magic1 { to bad when (l3_frame_byte(1) != 'M')  to magic2 }
+    state magic2 { to bad when (l3_frame_byte(2) != 'G')  to magic3 }
+    state magic3 { to bad when (l3_frame_byte(3) != 'R')  to magic4 }
+    state magic4 { to bad when (l3_frame_byte(4) != 'F')  to magic5 }
+    state magic5 { to bad when (l3_frame_byte(5) != 'N')  to magic6 }
+    state magic6 {
+        to version5_magic when (l3_frame_byte(6) == '5')
+        to version6_magic when (l3_frame_byte(6) == '6')
+        to bad
+    }
+    state version5_magic { word[500104] = 5  to magic7 }
+    state version6_magic { word[500104] = 6  to magic7 }
+    state magic7 { to bad when (l3_frame_byte(7) != 0)  to version_bytes }
+    state version_bytes {
+        to bad when (l3_frame_byte(8) != word[500104])
+        to bad when (l3_frame_byte(9) != 0)
+        to bad when (l3_frame_byte(10) != 0)
+        to bad when (l3_frame_byte(11) != 0)
+        to flag_bytes
+    }
+    state flag_bytes {
+        to bad when (l3_frame_byte(13) != 0)
+        to bad when (l3_frame_byte(14) != 0)
+        to bad when (l3_frame_byte(15) != 0)
+        word[500016] = l3_frame_byte(12)
+        to bad when (word[500016] > 1)
+        to length_high
+    }
+    state length_high {
+        to bad when (l3_frame_byte(19) >= 128)
+        to bad when (l3_frame_byte(23) >= 128)
+        to bad when (l3_frame_byte(27) >= 128)
+        to bad when (l3_frame_byte(31) >= 128)
+        to lengths
+    }
+    state lengths {
+        word[500032] = l3_frame_u32(16)
+        word[500048] = l3_frame_u32(20)
+        word[500064] = l3_frame_u32(24)
+        word[500080] = l3_frame_u32(28)
+        to bad when (word[500032] < 1)
+        to bad when (word[500048] < 1)
+        to bad when (word[500064] < 1)
+        to comp_limit
+    }
+    state comp_limit { to over when (word[500032] > 267280)  to witness_limit }
+    state witness_limit { to over when (word[500048] > 524288)  to ckir_limit }
+    state ckir_limit { to over when (word[500064] > 2522192)  to elf_limit }
+    state elf_limit { to over when (word[500080] > 1183744)  to offsets }
+    state offsets {
+        word[500024] = 40
+        word[500040] = word[500024] + word[500032]
+        word[500056] = word[500040] + word[500048]
+        word[500072] = word[500056] + word[500064]
+        to exact
+    }
+    state exact {
+        to bad when (n != word[500072] + word[500080])
+        to library when (word[500016] == 0)
+        to entry
+    }
+    state library { to bad when (word[500080] != 0)  return 0 }
+    state entry { to bad when (word[500080] < 1)  return 0 }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+; Both component decoders admit only signed-D0 u32 values and the explicitly
+; permitted NO_ID word.  Header/table extents are established before use.
+proc l3_w_u32(at) {
+    let b3 = l3_witness_byte(at + 3)
+    state signed {
+        to value when (b3 < 128)
+        to absent3 when (b3 == 255)
+        to bad
+    }
+    state absent3 { to absent2 when (l3_witness_byte(at + 2) == 255)  to bad }
+    state absent2 { to absent1 when (l3_witness_byte(at + 1) == 255)  to bad }
+    state absent1 { to absent when (l3_witness_byte(at) == 255)  to bad }
+    state absent { return 0 - 1 }
+    state value {
+        return l3_witness_byte(at) + l3_witness_byte(at + 1) * 256
+            + l3_witness_byte(at + 2) * 65536 + b3 * 16777216
+    }
+    state bad { l3_reject()  return 0 - 1 }
+}
+
+proc l3_c_u32(at) {
+    let b3 = l3_ckir_byte(at + 3)
+    state signed {
+        to value when (b3 < 128)
+        to absent3 when (b3 == 255)
+        to bad
+    }
+    state absent3 { to absent2 when (l3_ckir_byte(at + 2) == 255)  to bad }
+    state absent2 { to absent1 when (l3_ckir_byte(at + 1) == 255)  to bad }
+    state absent1 { to absent when (l3_ckir_byte(at) == 255)  to bad }
+    state absent { return 0 - 1 }
+    state value {
+        return l3_ckir_byte(at) + l3_ckir_byte(at + 1) * 256
+            + l3_ckir_byte(at + 2) * 65536 + b3 * 16777216
+    }
+    state bad { l3_reject()  return 0 - 1 }
+}
+
+proc l3_witness_header() {
+    let p = 0
+    state size { to magic0 when (word[500048] >= 72)  to bad }
+    state magic0 { to magic1 when (l3_witness_byte(0) == 'O')  to bad }
+    state magic1 { to magic2 when (l3_witness_byte(1) == 'M')  to bad }
+    state magic2 { to magic3 when (l3_witness_byte(2) == 'G')  to bad }
+    state magic3 { to magic4 when (l3_witness_byte(3) == 'R')  to bad }
+    state magic4 { to magic5 when (l3_witness_byte(4) == 'S')  to bad }
+    state magic5 { to magic6 when (l3_witness_byte(5) == 'W')  to bad }
+    state magic6 { to version5_magic when (word[500104] == 5)  to version6_magic }
+    state version5_magic { to magic7 when (l3_witness_byte(6) == '1')  to bad }
+    state version6_magic { to magic7 when (l3_witness_byte(6) == '2')  to bad }
+    state magic7 { to fixed when (l3_witness_byte(7) == 0)  to bad }
+    state fixed {
+        to bad when (l3_witness_byte(8) != word[500104] - 4)
+        to bad when (l3_witness_byte(9) != 0)
+        to bad when (l3_witness_byte(10) != 0)
+        to bad when (l3_witness_byte(11) != 0)
+        to bad when (l3_witness_byte(12) != 0)
+        to bad when (l3_witness_byte(13) != 0)
+        to bad when (l3_witness_byte(14) != 72)
+        to bad when (l3_witness_byte(15) != 0)
+        to length
+    }
+    state length { to bad when (l3_w_u32(16) != word[500048])  to counts }
+    state counts {
+        word[510000]=l3_w_u32(20)  word[510008]=l3_w_u32(24)
+        word[510016]=l3_w_u32(28)  word[510024]=l3_w_u32(32)
+        word[510032]=l3_w_u32(36)  word[510040]=l3_w_u32(40)
+        word[510048]=l3_w_u32(44)  word[510056]=l3_w_u32(48)
+        word[510064]=l3_w_u32(52)  word[510072]=l3_w_u32(56)
+        word[510080]=l3_w_u32(60)  word[510088]=l3_w_u32(64)
+        to bad when (l3_w_u32(68) != 0)
+        to done when (word[500008] != 0)
+        to ceilings0
+    }
+    state ceilings0 { to bad when (word[510000] < 0)  to over when (word[510000] > 16)  to ceilings1 }
+    state ceilings1 { to bad when (word[510008] < 0)  to over when (word[510008] > 64)  to ceilings2 }
+    state ceilings2 { to bad when (word[510016] < 0)  to over when (word[510016] > 4096)  to ceilings3 }
+    state ceilings3 { to bad when (word[510024] < 0)  to over when (word[510024] > 256)  to ceilings4 }
+    state ceilings4 { to bad when (word[510032] < 0)  to over when (word[510032] > 2048)  to ceilings5 }
+    state ceilings5 { to bad when (word[510040] < 0)  to over when (word[510040] > 128)  to ceilings6 }
+    state ceilings6 { to bad when (word[510048] < 0)  to over when (word[510048] > 4096)  to ceilings7 }
+    state ceilings7 { to bad when (word[510056] < 0)  to over when (word[510056] > 128)  to ceilings8 }
+    state ceilings8 { to bad when (word[510064] < 0)  to over when (word[510064] > 2048)  to ceilings9 }
+    state ceilings9 { to bad when (word[510072] < 0)  to over when (word[510072] > 2048)  to ceilings10 }
+    state ceilings10 { to bad when (word[510080] < 0)  to over when (word[510080] > 4096)  to relation }
+    state relation { to bad when (word[510024] != word[510040] + word[510056])  to offsets }
+    state offsets {
+        word[510096]=72
+        word[510104]=word[510096]+word[510000]*36
+        word[510112]=word[510104]+word[510008]*48
+        word[510120]=word[510112]+word[510016]*28
+        word[510128]=word[510120]+word[510024]*28
+        word[510136]=word[510128]+word[510032]*24
+        word[510144]=word[510136]+word[510040]*24
+        word[510152]=word[510144]+word[510048]*24
+        word[510160]=word[510152]+word[510056]*40
+        word[510168]=word[510160]+word[510064]*24
+        word[510176]=word[510168]+word[510072]*40
+        p=word[510176]+word[510080]*24
+        to bad when (p != word[500048])
+        return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc l3_ckir_header() {
+    let end = 0
+    state size { to magic0 when (word[500064] >= 80)  to bad }
+    state magic0 { to magic1 when (l3_ckir_byte(0) == 'O')  to bad }
+    state magic1 { to magic2 when (l3_ckir_byte(1) == 'M')  to bad }
+    state magic2 { to magic3 when (l3_ckir_byte(2) == 'G')  to bad }
+    state magic3 { to magic4 when (l3_ckir_byte(3) == 'C')  to bad }
+    state magic4 { to magic5 when (l3_ckir_byte(4) == 'K')  to bad }
+    state magic5 { to magic6 when (l3_ckir_byte(5) == 'I')  to bad }
+    state magic6 { to magic7 when (l3_ckir_byte(6) == 'R')  to bad }
+    state magic7 { to fixed when (l3_ckir_byte(7) == 0)  to bad }
+    state fixed {
+        to bad when (l3_ckir_byte(8) != 4)
+        to bad when (l3_ckir_byte(9) != 0)
+        to bad when (l3_ckir_byte(10) != 0)
+        to bad when (l3_ckir_byte(11) != 0)
+        to bad when (l3_ckir_byte(12) != 1)
+        to bad when (l3_ckir_byte(13) != 0)
+        to bad when (l3_ckir_byte(15) != 0)
+        to bad when (l3_ckir_byte(14) > 1)
+        to words
+    }
+    state words {
+        word[511000]=l3_c_u32(16)
+        to bad when (l3_c_u32(20) != word[500064])
+        word[511008]=l3_c_u32(24)  word[511016]=l3_c_u32(28)
+        word[511024]=l3_c_u32(32)  word[511032]=l3_c_u32(36)
+        word[511040]=l3_c_u32(40)  word[511048]=l3_c_u32(44)
+        word[511056]=l3_c_u32(48)  word[511064]=l3_c_u32(52)
+        word[511072]=l3_c_u32(56)  word[511080]=l3_c_u32(60)
+        word[511088]=l3_c_u32(64)  word[511096]=l3_c_u32(68)
+        word[511200]=l3_c_u32(72)  word[511208]=l3_c_u32(76)
+        to done when (word[500008] != 0)
+        to ceilings0
+    }
+    state ceilings0 { to bad when (word[511008] < 0)  to over when (word[511008] > 8192)  to ceilings1 }
+    state ceilings1 { to bad when (word[511016] < 0)  to over when (word[511016] > 128)  to ceilings2 }
+    state ceilings2 { to bad when (word[511024] < 0)  to over when (word[511024] > 8192)  to ceilings3 }
+    state ceilings3 { to bad when (word[511032] < 0)  to over when (word[511032] > 128)  to ceilings4 }
+    state ceilings4 { to bad when (word[511040] < 0)  to over when (word[511040] > 896)  to ceilings5 }
+    state ceilings5 { to bad when (word[511048] < 0)  to over when (word[511048] > 2048)  to ceilings6 }
+    state ceilings6 { to bad when (word[511056] < 0)  to over when (word[511056] > 4096)  to ceilings7 }
+    state ceilings7 { to bad when (word[511064] < 0)  to over when (word[511064] > 32768)  to ceilings8 }
+    state ceilings8 { to bad when (word[511072] < 0)  to over when (word[511072] > 94208)  to ceilings9 }
+    state ceilings9 { to bad when (word[511080] < 0)  to over when (word[511080] > 2048)  to ceilings10 }
+    state ceilings10 { to bad when (word[511088] < 0)  to over when (word[511088] > 36864)  to ceilings11 }
+    state ceilings11 { to bad when (word[511096] < 0)  to over when (word[511096] > 32768)  to ceilings12 }
+    state ceilings12 { to bad when (word[511200] < 0)  to over when (word[511200] > 8192)  to ceilings13 }
+    state ceilings13 { to bad when (word[511208] < 0)  to over when (word[511208] > 16384)  to relations }
+    state relations {
+        to bad when (word[511080] != word[511048])
+        to over when (word[511040] + word[511056] > 4096)
+        to offsets
+    }
+    state offsets {
+        word[511104]=80
+        word[511112]=word[511104]+word[511008]*24
+        word[511120]=word[511112]+word[511016]*20
+        word[511128]=word[511120]+word[511024]*16
+        word[511136]=word[511128]+word[511032]*36
+        word[511144]=word[511136]+word[511040]*20
+        word[511152]=word[511144]+word[511048]*32
+        word[511216]=word[511152]+word[511056]*20
+        word[511224]=word[511216]+word[511200]*24
+        word[511160]=word[511224]+word[511208]*4
+        word[511168]=word[511160]+word[511064]*40
+        word[511176]=word[511168]+word[511072]*4
+        end=word[511176]+word[511080]*44
+        to bad when (end != word[500064])
+        return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc l37_read_frame() {
+    let n=0 let overflow=0 let c=read_byte() let cursor=0
+    state read { to one when (c>=0) to header }
+    state one { to over when (n>=4497544) byte[1048576+n]=c n=n+1 c=read_byte() to read }
+    state over { overflow=1 c=read_byte() to read }
+    state header { word[500000]=n word[500008]=0 word[500104]=7 to exhausted when (overflow==1) to bad when (n<40) to magic }
+    state magic {
+        to bad when (l3_frame_byte(0)!='O') to bad when (l3_frame_byte(1)!='M') to bad when (l3_frame_byte(2)!='G')
+        to bad when (l3_frame_byte(3)!='R') to bad when (l3_frame_byte(4)!='F') to bad when (l3_frame_byte(5)!='N')
+        to bad when (l3_frame_byte(6)!='7') to bad when (l3_frame_byte(7)!=0) to bad when (l3_frame_u32(8)!=7)
+        word[500016]=l3_frame_u32(12) word[500032]=l3_frame_u32(16) word[500048]=l3_frame_u32(20)
+        word[500064]=l3_frame_u32(24) word[500080]=l3_frame_u32(28)
+        to bad when (word[500016]>1) to bad when (word[500032]<1) to bad when (word[500048]<1) to bad when (word[500064]<1)
+        to exhausted when (word[500032]>267280) to exhausted when (word[500048]>524288) to exhausted when (word[500064]>2522192) to exhausted when (word[500080]>1183744)
+        cursor=40 word[500024]=cursor to bad when (word[500032]>n-cursor) cursor=cursor+word[500032] word[500040]=cursor
+        to bad when (word[500048]>n-cursor) cursor=cursor+word[500048] word[500056]=cursor
+        to bad when (word[500064]>n-cursor) cursor=cursor+word[500064] word[500072]=cursor
+        to bad when (word[500080]!=n-cursor) to library when (word[500016]==0) to entry
+    }
+    state library { to bad when (word[500080]!=0) return 0 }
+    state entry { to bad when (word[500080]<1) return 0 }
+    state exhausted { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l37_witness_header() {
+    let end=0
+    state fixed {
+        to bad when (word[500048]<84) to bad when (l3_witness_byte(0)!='O') to bad when (l3_witness_byte(1)!='M')
+        to bad when (l3_witness_byte(2)!='G') to bad when (l3_witness_byte(3)!='R') to bad when (l3_witness_byte(4)!='S')
+        to bad when (l3_witness_byte(5)!='W') to bad when (l3_witness_byte(6)!='3') to bad when (l3_witness_byte(7)!=0)
+        to bad when (l3_witness_byte(8)!=3) to bad when (l3_witness_byte(9)!=0) to bad when (l3_witness_byte(10)!=0) to bad when (l3_witness_byte(11)!=0)
+        to bad when (l3_witness_byte(12)!=0) to bad when (l3_witness_byte(13)!=0) to bad when (l3_witness_byte(14)!=84) to bad when (l3_witness_byte(15)!=0)
+        to bad when (l3_w_u32(16)!=word[500048]) to counts
+    }
+    state counts {
+        word[510000]=l3_w_u32(20) word[510008]=l3_w_u32(24) word[510016]=l3_w_u32(28) word[510024]=l3_w_u32(32)
+        word[510032]=l3_w_u32(36) word[510040]=l3_w_u32(40) word[510048]=l3_w_u32(44) word[510056]=l3_w_u32(48)
+        word[510064]=l3_w_u32(52) word[510072]=l3_w_u32(56) word[510080]=l3_w_u32(60)
+        word[510184]=l3_w_u32(64) word[510192]=l3_w_u32(68) word[510200]=l3_w_u32(72) word[510088]=l3_w_u32(76)
+        to bad when (l3_w_u32(80)!=0) to bad when (word[510184]<1) to over when (word[510040]+word[510184]>128)
+        to over when (word[510192]>4096) to over when (word[510200]>4096) to over when (word[510048]+word[510200]>8192) to offsets
+    }
+    state offsets {
+        word[510096]=84 word[510104]=word[510096]+word[510000]*36 word[510112]=word[510104]+word[510008]*48
+        word[510120]=word[510112]+word[510016]*28 word[510128]=word[510120]+word[510024]*28
+        word[510136]=word[510128]+word[510032]*24 word[510144]=word[510136]+word[510040]*24
+        word[510208]=word[510144]+word[510048]*24 word[510216]=word[510208]+word[510184]*24
+        word[510224]=word[510216]+word[510192]*28 word[510152]=word[510224]+word[510200]*24
+        word[510160]=word[510152]+word[510056]*40 word[510168]=word[510160]+word[510064]*24
+        word[510176]=word[510168]+word[510072]*40 end=word[510176]+word[510080]*24
+        to bad when (end!=word[500048]) return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l37_ckir_header() {
+    let end=0
+    state fixed {
+        to bad when (word[500064]<100) to bad when (l3_ckir_byte(0)!='O') to bad when (l3_ckir_byte(1)!='M') to bad when (l3_ckir_byte(2)!='G')
+        to bad when (l3_ckir_byte(3)!='C') to bad when (l3_ckir_byte(4)!='K') to bad when (l3_ckir_byte(5)!='I') to bad when (l3_ckir_byte(6)!='R') to bad when (l3_ckir_byte(7)!=0)
+        to bad when (l3_ckir_byte(8)!=5) to bad when (l3_ckir_byte(9)!=0) to bad when (l3_ckir_byte(10)!=0) to bad when (l3_ckir_byte(11)!=0)
+        to bad when (l3_ckir_byte(12)!=1) to bad when (l3_ckir_byte(13)!=0) to bad when (l3_ckir_byte(14)>1) to bad when (l3_ckir_byte(15)!=0) to words
+    }
+    state words {
+        word[511000]=l3_c_u32(16) to bad when (l3_c_u32(20)!=word[500064])
+        word[511008]=l3_c_u32(24) word[511016]=l3_c_u32(28) word[511024]=l3_c_u32(32)
+        word[511232]=l3_c_u32(36) word[511240]=l3_c_u32(40) word[511248]=l3_c_u32(44)
+        word[511032]=l3_c_u32(48) word[511040]=l3_c_u32(52) word[511048]=l3_c_u32(56) word[511056]=l3_c_u32(60)
+        word[511200]=l3_c_u32(64) word[511208]=l3_c_u32(68) word[511064]=l3_c_u32(72) word[511072]=l3_c_u32(76)
+        word[511080]=l3_c_u32(80) word[511256]=l3_c_u32(84) word[511264]=l3_c_u32(88) word[511088]=l3_c_u32(92) word[511096]=l3_c_u32(96)
+        to over when (word[511016]+word[511232]>128) to over when (word[511240]>4096) to over when (word[511248]>4096)
+        to over when (word[511024]+word[511248]>8192) to over when (word[511256]>4096) to offsets
+    }
+    state offsets {
+        word[511104]=100 word[511112]=word[511104]+word[511008]*24 word[511120]=word[511112]+word[511016]*20
+        word[511300]=word[511120]+word[511024]*16 word[511308]=word[511300]+word[511232]*20 word[511316]=word[511308]+word[511240]*20
+        word[511128]=word[511316]+word[511248]*16 word[511136]=word[511128]+word[511032]*36
+        word[511144]=word[511136]+word[511040]*20 word[511152]=word[511144]+word[511048]*32
+        word[511216]=word[511152]+word[511056]*20 word[511224]=word[511216]+word[511200]*24
+        word[511160]=word[511224]+word[511208]*4 word[511168]=word[511160]+word[511064]*40
+        word[511176]=word[511168]+word[511072]*4 word[511324]=word[511176]+word[511080]*52
+        word[511332]=word[511324]+word[511256]*24 end=word[511332]+word[511264]*12
+        to bad when (end!=word[500064]) return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+; Decoded private columns.  Accessors use large disjoint byte addresses and
+; word stride, keeping every later relation independent of wire offsets.
+proc l3_type(id, column) { return word[6000000 + column * 16384 + id * 8] }
+proc l3_type_set(id, column, value) { word[6000000 + column * 16384 + id * 8]=value  return value }
+proc l3_record(id, column) { return word[6200000 + column * 1024 + id * 8] }
+proc l3_record_set(id, column, value) { word[6200000 + column * 1024 + id * 8]=value  return value }
+proc l3_field(id, column) { return word[6300000 + column * 32768 + id * 8] }
+proc l3_field_set(id, column, value) { word[6300000 + column * 32768 + id * 8]=value  return value }
+proc l37_sum(id,column) { return word[7500000+column*32768+id*8] }
+proc l37_sum_set(id,column,value) { word[7500000+column*32768+id*8]=value return value }
+proc l37_case(id,column) { return word[7700000+column*32768+id*8] }
+proc l37_case_set(id,column,value) { word[7700000+column*32768+id*8]=value return value }
+proc l37_payload(id,column) { return word[7900000+column*32768+id*8] }
+proc l37_payload_set(id,column,value) { word[7900000+column*32768+id*8]=value return value }
+proc l3_machine(id, column) { return word[6500000 + column * 1024 + id * 8] }
+proc l3_machine_set(id, column, value) { word[6500000 + column * 1024 + id * 8]=value  return value }
+proc l3_mparam(id, column) { return word[6600000 + column * 16384 + id * 8] }
+proc l3_mparam_set(id, column, value) { word[6600000 + column * 16384 + id * 8]=value  return value }
+proc l3_block(id, column) { return word[6800000 + column * 16384 + id * 8] }
+proc l3_block_set(id, column, value) { word[6800000 + column * 16384 + id * 8]=value  return value }
+proc l3_bparam(id, column) { return word[7000000 + column * 32768 + id * 8] }
+proc l3_bparam_set(id, column, value) { word[7000000 + column * 32768 + id * 8]=value  return value }
+
+proc l37_load_sums() {
+    let i=0 let p=0 let next_case=0 let next_payload=0 let owner=0
+    state sums { to sum when (i<word[510184]) i=0 owner=0 to cases }
+    state sum { p=word[510208]+i*24 to bad when (l3_w_u32(p)!=i) l37_sum_set(i,0,l3_w_u32(p+4)) to bad when (word[7200000+l37_sum(i,0)*8]!=3) to bad when (l3_w_u32(p+8)!=word[510040]+i) l37_sum_set(i,1,l3_w_u32(p+12)) l37_sum_set(i,2,l3_w_u32(p+16)) l37_sum_set(i,3,l3_witness_byte(p+20)) to bad when (l37_sum(i,1)!=next_case) to bad when (l37_sum(i,2)<1) to over when (l37_sum(i,2)>64) to bad when (l37_sum(i,2)>word[510192]-next_case) to bad when (l37_sum(i,3)>1) to bad when (l3_witness_byte(p+21)!=0) to bad when (l3_witness_byte(p+22)!=0) to bad when (l3_witness_byte(p+23)!=0) next_case=next_case+l37_sum(i,2) i=i+1 to sums }
+    state cases { to case_owner when (i<word[510192]) to payload_begin }
+    state case_owner { to case when (i<l37_sum(owner,1)+l37_sum(owner,2)) owner=owner+1 to bad when (owner>=word[510184]) to case_owner }
+    state case { p=word[510216]+i*28 to bad when (l3_w_u32(p)!=i) l37_case_set(i,0,l3_w_u32(p+4)) to bad when (l37_case(i,0)!=owner) l37_case_set(i,1,l3_w_u32(p+8)) to bad when (l37_case(i,1)!=i-l37_sum(owner,1)) l37_case_set(i,2,l3_w_u32(p+12)) l37_case_set(i,3,l3_w_u32(p+16)) to bad when (l37_case(i,2)!=next_payload) to bad when (l37_case(i,3)<0) to over when (l37_case(i,3)>4) to bad when (l37_case(i,3)>word[510200]-next_payload) to bad when (l3_w_u32(p+20)<0) to bad when (l3_w_u32(p+24)<1) next_payload=next_payload+l37_case(i,3) i=i+1 to cases }
+    state payload_begin { to bad when (next_case!=word[510192]) to bad when (next_payload!=word[510200]) i=0 owner=0 to payloads }
+    state payloads { to payload_owner when (i<word[510200]) return 0 }
+    state payload_owner { to payload when (i<l37_case(owner,2)+l37_case(owner,3)) owner=owner+1 to bad when (owner>=word[510192]) to payload_owner }
+    state payload { p=word[510224]+i*24 to bad when (l3_w_u32(p)!=i) l37_payload_set(i,0,l3_w_u32(p+4)) to bad when (l37_payload(i,0)!=owner) l37_payload_set(i,1,l3_w_u32(p+8)) to bad when (l37_payload(i,1)!=i-l37_case(owner,2)) l37_payload_set(i,2,l3_w_u32(p+12)) to bad when (l37_payload(i,2)<0) to bad when (l37_payload(i,2)>=word[510032]) to bad when (l3_w_u32(p+16)<0) to bad when (l3_w_u32(p+20)<1) i=i+1 to payloads }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l37_compare_sums() {
+    let i=0 let p=0
+    state sums { to sum when (i<word[510184]) i=0 to cases }
+    state sum { p=word[511300]+i*20 to bad when (l3_c_u32(p)!=i) to bad when (l3_c_u32(p+4)!=word[510040]+i) to bad when (l3_c_u32(p+8)!=l37_sum(i,1)) to bad when (l3_c_u32(p+12)!=l37_sum(i,2)) to bad when (l3_ckir_byte(p+16)!=l37_sum(i,3)) to bad when (l3_ckir_byte(p+17)!=0) to bad when (l3_ckir_byte(p+18)!=0) to bad when (l3_ckir_byte(p+19)!=0) i=i+1 to sums }
+    state cases { to case when (i<word[510192]) i=0 to payloads }
+    state case { p=word[511308]+i*20 to bad when (l3_c_u32(p)!=i) to bad when (l3_c_u32(p+4)!=l37_case(i,0)) to bad when (l3_c_u32(p+8)!=l37_case(i,1)) to bad when (l3_c_u32(p+12)!=l37_case(i,2)) to bad when (l3_c_u32(p+16)!=l37_case(i,3)) i=i+1 to cases }
+    state payloads { to payload when (i<word[510200]) return 0 }
+    state payload { p=word[511316]+i*16 to bad when (l3_c_u32(p)!=i) to bad when (l3_c_u32(p+4)!=l37_payload(i,0)) to bad when (l3_c_u32(p+8)!=l37_payload(i,1)) to bad when (l3_c_u32(p+12)!=l37_payload(i,2)) i=i+1 to payloads }
+    state bad { return l3_reject() }
+}
+
+proc l3_load_declarations() {
+    let i=0  let records=0  let machines=0 let sums=0 let p=0
+    state loop { to row when (i < word[510024])  to counts }
+    state row {
+        p=word[510120]+i*28
+        to bad when (l3_w_u32(p) != i)
+        word[7200000+i*8]=l3_witness_byte(p+4)
+        to bad when (word[7200000+i*8] < 1)
+        to bad when (word[7200000+i*8] > 3)
+        to bad when (l3_witness_byte(p+5) > 1)
+        to bad when (l3_witness_byte(p+6) != 0)
+        to bad when (l3_witness_byte(p+7) != 0)
+        to bad when (l3_w_u32(p+8) < 0)
+        to bad when (l3_w_u32(p+12) < 0)
+        to bad when (l3_w_u32(p+16) < 0)
+        to bad when (l3_w_u32(p+20) < 1)
+        to record when (word[7200000+i*8] == 1)
+        to machine when (word[7200000+i*8] == 2)
+        to sum
+    }
+    state record { to bad when (l3_w_u32(word[510120]+i*28+24) != records)  records=records+1  to next }
+    state machine { to bad when (l3_w_u32(word[510120]+i*28+24) != machines)  machines=machines+1  to next }
+    state sum { to bad when (l3_w_u32(word[510120]+i*28+24) != sums) sums=sums+1 to next }
+    state next { i=i+1  to loop }
+    state counts {
+        to bad when (records != word[510040])
+        to bad when (machines != word[510056])
+        to bad when (sums != word[510184])
+        return 0
+    }
+    state bad { return l3_reject() }
+}
+
+proc l3_type_unique(id) {
+    let j=0
+    state loop { to one when (j < id)  return 1 }
+    state one { to next when (l3_type(j,0) != l3_type(id,0))  to flags }
+    state flags { to next when (l3_type(j,1) != l3_type(id,1))  to p0 }
+    state p0 { to next when (l3_type(j,2) != l3_type(id,2))  to p1 }
+    state p1 { to next when (l3_type(j,3) != l3_type(id,3))  to low }
+    state low { to next when (l3_type(j,4) != l3_type(id,4))  to high }
+    state high { to duplicate when (l3_type(j,5) == l3_type(id,5))  to next }
+    state next { j=j+1  to loop }
+    state duplicate { return 0 }
+}
+
+proc l3_load_types() {
+    let i=0  let p=0
+    state minimum { to bad when (word[510032] < word[510040]+word[510184]+2)  to loop }
+    state loop { to row when (i < word[510032])  to canonical_bool }
+    state row {
+        p=word[510128]+i*24
+        to bad when (l3_w_u32(p) != i)
+        l3_type_set(i,0,l3_witness_byte(p+4))
+        l3_type_set(i,1,l3_witness_byte(p+5))
+        to bad when (l3_witness_byte(p+6) != 0)
+        to bad when (l3_witness_byte(p+7) != 0)
+        l3_type_set(i,2,l3_w_u32(p+8))  l3_type_set(i,3,l3_w_u32(p+12))
+        l3_type_set(i,4,l3_w_u32(p+16)) l3_type_set(i,5,l3_w_u32(p+20))
+        to done when (word[500008] != 0)
+        to scalar when (l3_type(i,0) == 1)
+        to scalar when (l3_type(i,0) == 2)
+        to bool when (l3_type(i,0) == 3)
+        to nominal when (l3_type(i,0) == 4)
+        to array when (l3_type(i,0) == 5)
+        to sum when (l3_type(i,0) == 6)
+        to bad
+    }
+    state scalar {
+        to bad when (l3_type(i,1) > 1)
+        to bad when (l3_type(i,2) != 0)
+        to bad when (l3_type(i,3) != 0)
+        to bad when (l3_type(i,4) < 0)
+        to bad when (l3_type(i,4) > l3_type(i,5))
+        to u8_bound when (l3_type(i,0) == 1)
+        to unique
+    }
+    state u8_bound { to bad when (l3_type(i,5) > 255)  to unique }
+    state bool {
+        to bad when (l3_type(i,1) != 0)
+        to bad when (l3_type(i,2) != 0)
+        to bad when (l3_type(i,3) != 0)
+        to bad when (l3_type(i,4) != 0)
+        to bad when (l3_type(i,5) != 1)
+        to unique
+    }
+    state nominal {
+        to bad when (l3_type(i,1) != 0)
+        to bad when (l3_type(i,2) < 0)
+        to bad when (l3_type(i,2) >= word[510040])
+        to bad when (l3_type(i,3) != 0)
+        to bad when (l3_type(i,4) != 0)
+        to bad when (l3_type(i,5) != 0)
+        to bad when (i >= word[510040])
+        to bad when (l3_type(i,2) != i)
+        to unique
+    }
+    state sum {
+        to bad when (l3_type(i,1)!=0) to bad when (l3_type(i,2)<0) to bad when (l3_type(i,2)>=word[510184])
+        to bad when (l3_type(i,3)!=0) to bad when (l3_type(i,4)!=0) to bad when (l3_type(i,5)!=0)
+        to bad when (i!=word[510040]+l3_type(i,2)) to unique
+    }
+    state array {
+        to bad when (l3_type(i,1) > 1)
+        to bad when (l3_type(i,2) < 0)
+        to bad when (l3_type(i,2) >= i)
+        to bad when (l3_type(i,3) < 0)
+        to over when (l3_type(i,3) > 65536)
+        to bad when (l3_type(i,4) != 0)
+        to bad when (l3_type(i,5) != 0)
+        to unique
+    }
+    state unique { to bad when (l3_type_unique(i) == 0)  i=i+1  to loop }
+    state canonical_bool {
+        i=word[510040]+word[510184]
+        to bad when (l3_type(i,0) != 3)
+        i=i+1
+        to bad when (l3_type(i,0) != 2)
+        to bad when (l3_type(i,1) != 0)
+        to bad when (l3_type(i,4) != 0)
+        to bad when (l3_type(i,5) != 2147483647)
+        return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc l3_load_records_fields() {
+    let i=0  let next_field=0  let owner=0  let value=0  let p=0
+    state records { to record when (i < word[510040])  to fields_begin }
+    state record {
+        p=word[510136]+i*24
+        to bad when (l3_w_u32(p) != i)
+        l3_record_set(i,0,l3_w_u32(p+4))
+        to bad when (l3_record(i,0) < 0)
+        to bad when (l3_record(i,0) >= word[510024])
+        to bad when (word[7200000+l3_record(i,0)*8] != 1)
+        to bad when (l3_w_u32(word[510120]+l3_record(i,0)*28+24) != i)
+        l3_record_set(i,1,l3_w_u32(p+8))
+        to bad when (l3_record(i,1) != i)
+        l3_record_set(i,2,l3_w_u32(p+12))  l3_record_set(i,3,l3_w_u32(p+16))
+        to bad when (l3_record(i,2) != next_field)
+        to bad when (l3_record(i,3) < 0)
+        to over when (l3_record(i,3) > 64)
+        to bad when (l3_record(i,3) > word[510048]-next_field)
+        l3_record_set(i,4,l3_witness_byte(p+20))
+        to bad when (l3_record(i,4) > 1)
+        to bad when (l3_witness_byte(p+21) != 0)
+        to bad when (l3_witness_byte(p+22) != 0)
+        to bad when (l3_witness_byte(p+23) != 0)
+        next_field=next_field+l3_record(i,3)  i=i+1  to records
+    }
+    state fields_begin { to bad when (next_field != word[510048])  i=0  owner=0  to fields }
+    state fields { to owner_seek when (i < word[510048])  return 0 }
+    state owner_seek { to field when (i < l3_record(owner,2)+l3_record(owner,3))  owner=owner+1  to bad when (owner >= word[510040])  to owner_seek }
+    state field {
+        p=word[510144]+i*24
+        value=l3_w_u32(p)
+        to bad when (value != i)
+        l3_field_set(i,0,l3_w_u32(p+4))  to bad when (l3_field(i,0) != owner)
+        l3_field_set(i,1,l3_w_u32(p+8))  to bad when (l3_field(i,1) != i-l3_record(owner,2))
+        l3_field_set(i,2,l3_w_u32(p+12))
+        to bad when (l3_field(i,2) < 0)
+        to bad when (l3_field(i,2) >= word[510032])
+        to bad when (l3_w_u32(p+16) < 0)
+        to bad when (l3_w_u32(p+20) < 1)
+        i=i+1  to fields
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l3_load_machines() {
+    let i=0  let next_param=0  let next_block=0  let p=0
+    state loop { to row when (i < word[510056])  to partitions }
+    state row {
+        p=word[510152]+i*40
+        to bad when (l3_w_u32(p) != i)
+        l3_machine_set(i,0,l3_w_u32(p+4))
+        to bad when (l3_machine(i,0) < 0)
+        to bad when (l3_machine(i,0) >= word[510024])
+        to bad when (word[7200000+l3_machine(i,0)*8] != 2)
+        to bad when (l3_w_u32(word[510120]+l3_machine(i,0)*28+24) != i)
+        l3_machine_set(i,1,l3_w_u32(p+8))
+        to bad when (l3_machine(i,1) < 0)
+        to bad when (l3_machine(i,1) >= word[510040])
+        l3_machine_set(i,2,l3_witness_byte(p+12))
+        to bad when (l3_machine(i,2) < 1)
+        to bad when (l3_machine(i,2) > 2)
+        to bad when (l3_witness_byte(p+13) != 0)
+        to bad when (l3_witness_byte(p+14) != 0)
+        to bad when (l3_witness_byte(p+15) != 0)
+        l3_machine_set(i,3,l3_w_u32(p+16))
+        to result when (l3_machine(i,3) >= 0)
+        to spans
+    }
+    state result { to bad when (l3_machine(i,3) >= word[510032])  to bad when (l3_type(l3_machine(i,3),0) > 3)  to spans }
+    state spans {
+        p=word[510152]+i*40
+        l3_machine_set(i,4,l3_w_u32(p+20))  l3_machine_set(i,5,l3_w_u32(p+24))
+        l3_machine_set(i,6,l3_w_u32(p+28))  l3_machine_set(i,7,l3_w_u32(p+32))
+        l3_machine_set(i,8,l3_w_u32(p+36))
+        to bad when (l3_machine(i,4) != next_param)
+        to bad when (l3_machine(i,5) < 0)
+        to bad when (l3_machine(i,5) > 7)
+        to bad when (l3_machine(i,5) > word[510064]-next_param)
+        to bad when (l3_machine(i,6) != next_block)
+        to bad when (l3_machine(i,7) < 1)
+        to over when (l3_machine(i,7) > 128)
+        to bad when (l3_machine(i,7) > word[510072]-next_block)
+        to bad when (l3_machine(i,8) != next_block)
+        next_param=next_param+l3_machine(i,5)
+        next_block=next_block+l3_machine(i,7)
+        i=i+1  to loop
+    }
+    state partitions {
+        to bad when (next_param != word[510064])
+        to bad when (next_block != word[510072])
+        return 0
+    }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l3_load_parameters_blocks() {
+    let i=0  let owner=0  let next_param=0  let p=0
+    state mparams { to mowner when (i < word[510064])  i=0  owner=0  to blocks }
+    state mowner { to mparam when (i < l3_machine(owner,4)+l3_machine(owner,5))  owner=owner+1  to bad when (owner >= word[510056])  to mowner }
+    state mparam {
+        p=word[510160]+i*24
+        to bad when (l3_w_u32(p) != i)
+        l3_mparam_set(i,0,l3_w_u32(p+4))  to bad when (l3_mparam(i,0) != owner)
+        l3_mparam_set(i,1,l3_w_u32(p+8))  to bad when (l3_mparam(i,1) != i-l3_machine(owner,4))
+        l3_mparam_set(i,2,l3_w_u32(p+12))
+        to bad when (l3_mparam(i,2) < 0)
+        to bad when (l3_mparam(i,2) >= word[510032])
+        to bad when (l3_w_u32(p+16) < 0)
+        to bad when (l3_w_u32(p+20) < 1)
+        i=i+1  to mparams
+    }
+    state blocks { to bowner when (i < word[510072])  i=0  owner=0  to bparams }
+    state bowner { to block when (i < l3_machine(owner,6)+l3_machine(owner,7))  owner=owner+1  to bad when (owner >= word[510056])  to bowner }
+    state block {
+        p=word[510168]+i*40
+        to bad when (l3_w_u32(p) != i)
+        l3_block_set(i,0,l3_w_u32(p+4))  to bad when (l3_block(i,0) != owner)
+        l3_block_set(i,1,l3_w_u32(p+8))  to bad when (l3_block(i,1) != i-l3_machine(owner,6))
+        l3_block_set(i,2,l3_witness_byte(p+12))
+        to bad when (l3_block(i,2) < 1)
+        to bad when (l3_block(i,2) > l3_machine(owner,2))
+        to bad when (l3_witness_byte(p+13) != 0)
+        to bad when (l3_witness_byte(p+14) != 0)
+        to bad when (l3_witness_byte(p+15) != 0)
+        to bad when (l3_w_u32(p+16) < 0)
+        to bad when (l3_w_u32(p+20) < l3_w_u32(p+16))
+        l3_block_set(i,3,l3_w_u32(p+24))  l3_block_set(i,4,l3_w_u32(p+28))
+        l3_block_set(i,5,l3_w_u32(p+32))  l3_block_set(i,6,l3_w_u32(p+36))
+        to bad when (l3_block(i,5) != next_param)
+        to bad when (l3_block(i,6) < 0)
+        to bad when (l3_block(i,6) > 7)
+        to bad when (l3_block(i,6) > word[510080]-next_param)
+        to entry when (l3_block(i,1) == 0)
+        to named
+    }
+    state entry {
+        to bad when (l3_block(i,2) != l3_machine(owner,2))
+        to bad when (l3_block(i,3) != 0-1)
+        to bad when (l3_block(i,4) != 0)
+        to bad when (l3_block(i,6) != 0)
+        to block_next
+    }
+    state named { to bad when (l3_block(i,3) < 0)  to bad when (l3_block(i,4) < 1)  to block_next }
+    state block_next { next_param=next_param+l3_block(i,6)  i=i+1  to blocks }
+    state bparams { to bad when (next_param != word[510080])  to bparam when (i < word[510080])  return 0 }
+    state bparam {
+        p=word[510176]+i*24
+        to bad when (l3_w_u32(p) != i)
+        l3_bparam_set(i,0,l3_w_u32(p+4))
+        to bad when (l3_bparam(i,0) < 0)
+        to bad when (l3_bparam(i,0) >= word[510072])
+        to bad when (l3_block(l3_bparam(i,0),1) == 0)
+        to bad when (i < l3_block(l3_bparam(i,0),5))
+        to bad when (i >= l3_block(l3_bparam(i,0),5)+l3_block(l3_bparam(i,0),6))
+        l3_bparam_set(i,1,l3_w_u32(p+8))
+        to bad when (l3_bparam(i,1) != i-l3_block(l3_bparam(i,0),5))
+        l3_bparam_set(i,2,l3_w_u32(p+12))
+        to bad when (l3_bparam(i,2) < 0)
+        to bad when (l3_bparam(i,2) >= word[510032])
+        to bad when (l3_w_u32(p+16) < 0)
+        to bad when (l3_w_u32(p+20) < 1)
+        i=i+1  to bparams
+    }
+    state bad { return l3_reject() }
+}
+
+proc l3_compare_types() {
+    let i=0  let p=0
+    state loop { to row when (i < word[510032])  return 0 }
+    state row {
+        p=word[511104]+i*24
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_ckir_byte(p+4) != l3_type(i,0))
+        to bad when (l3_ckir_byte(p+5) != l3_type(i,1))
+        to bad when (l3_ckir_byte(p+6) != 0)
+        to bad when (l3_ckir_byte(p+7) != 0)
+        to bad when (l3_c_u32(p+8) != l3_type(i,2))
+        to bad when (l3_c_u32(p+12) != l3_type(i,3))
+        to bad when (l3_c_u32(p+16) != l3_type(i,4))
+        to bad when (l3_c_u32(p+20) != l3_type(i,5))
+        i=i+1  to loop
+    }
+    state bad { return l3_reject() }
+}
+
+proc l3_compare_records_fields() {
+    let i=0  let p=0
+    state records { to record when (i < word[510040])  i=0  to fields }
+    state record {
+        p=word[511112]+i*20
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_record(i,1))
+        to bad when (l3_c_u32(p+8) != l3_record(i,2))
+        to bad when (l3_c_u32(p+12) != l3_record(i,3))
+        to bad when (l3_ckir_byte(p+16) != l3_record(i,4))
+        to bad when (l3_ckir_byte(p+17) != 0)
+        to bad when (l3_ckir_byte(p+18) != 0)
+        to bad when (l3_ckir_byte(p+19) != 0)
+        i=i+1  to records
+    }
+    state fields { to field when (i < word[510048])  return 0 }
+    state field {
+        p=word[511120]+i*16
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_field(i,0))
+        to bad when (l3_c_u32(p+8) != l3_field(i,1))
+        to bad when (l3_c_u32(p+12) != l3_field(i,2))
+        i=i+1  to fields
+    }
+    state bad { return l3_reject() }
+}
+
+proc l3_compare_machines_parameters() {
+    let i=0  let p=0
+    state machines { to machine when (i < word[510056])  i=0  to mparams }
+    state machine {
+        p=word[511128]+i*36
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_machine(i,1))
+        to bad when (l3_ckir_byte(p+8) != l3_machine(i,2))
+        to bad when (l3_ckir_byte(p+9) != 0)
+        to bad when (l3_ckir_byte(p+10) != 0)
+        to bad when (l3_ckir_byte(p+11) != 0)
+        to bad when (l3_c_u32(p+12) != l3_machine(i,3))
+        to bad when (l3_c_u32(p+16) != l3_machine(i,4))
+        to bad when (l3_c_u32(p+20) != l3_machine(i,5))
+        to bad when (l3_c_u32(p+24) != l3_machine(i,6))
+        to bad when (l3_c_u32(p+28) != l3_machine(i,7))
+        to bad when (l3_c_u32(p+32) != l3_machine(i,8))
+        i=i+1  to machines
+    }
+    state mparams { to mparam when (i < word[510064])  return 0 }
+    state mparam {
+        p=word[511136]+i*20
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_mparam(i,0))
+        to bad when (l3_c_u32(p+8) != l3_mparam(i,1))
+        to bad when (l3_c_u32(p+12) != l3_mparam(i,2))
+        to bad when (l3_c_u32(p+16) != i)
+        i=i+1  to mparams
+    }
+    state bad { return l3_reject() }
+}
+
+proc l3_compare_blocks_parameters() {
+    let i=0  let p=0
+    state blocks { to block when (i < word[510072])  i=0  to bparams }
+    state block {
+        p=word[511144]+i*32
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_block(i,0))
+        to bad when (l3_ckir_byte(p+8) != l3_block(i,2))
+        to bad when (l3_ckir_byte(p+9) != 0)
+        to bad when (l3_ckir_byte(p+10) != 0)
+        to bad when (l3_ckir_byte(p+11) != 0)
+        to bad when (l3_c_u32(p+12) != l3_block(i,5))
+        to bad when (l3_c_u32(p+16) != l3_block(i,6))
+        ; p+20 operation span and p+28 terminator belong to layer 4.
+        i=i+1  to blocks
+    }
+    state bparams { to bparam when (i < word[510080])  return 0 }
+    state bparam {
+        p=word[511152]+i*20
+        to bad when (l3_c_u32(p) != i)
+        to bad when (l3_c_u32(p+4) != l3_bparam(i,0))
+        to bad when (l3_c_u32(p+8) != l3_bparam(i,1))
+        to bad when (l3_c_u32(p+12) != l3_bparam(i,2))
+        to bad when (l3_c_u32(p+16) != word[510064]+i)
+        i=i+1  to bparams
+    }
+    state bad { return l3_reject() }
+}
+
+; Reconstruct the canonical interning schedule from authored type-reference
+; table order.  Parsing allocates nested array elements before their outer row;
+; non-arrays are interned over the complete encounter stream first, followed by
+; arrays whose elements are already interned.
+proc l3_mark_nonarray_tree(type_id) {
+    state array { to scalar when (l3_type(type_id,0) != 5)  l3_mark_nonarray_tree(l3_type(type_id,2))  return word[500008] }
+    state scalar { to done when (word[7300000+type_id*8] == 1)  to expected }
+    state expected { to bad when (type_id != word[500200])  word[7300000+type_id*8]=1  word[500200]=word[500200]+1  return 0 }
+    state bad { return l3_reject() }
+    state done { return 0 }
+}
+
+proc l3_mark_array_tree(type_id) {
+    state kind { to done when (l3_type(type_id,0) != 5)  to element }
+    state element { l3_mark_array_tree(l3_type(type_id,2))  to done when (word[500008] != 0)  to seen }
+    state seen { to done when (word[7300000+type_id*8] == 1)  to ready }
+    state ready { to pending when (word[7300000+l3_type(type_id,2)*8] == 0)  to expected }
+    state expected { to bad when (type_id != word[500200])  word[7300000+type_id*8]=1  word[500200]=word[500200]+1  word[500216]=1  return 0 }
+    state pending { word[500208]=word[500208]+1  return 0 }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc l3_visit_references(mode) {
+    let i=0
+    state fields { to field when (i < word[510048])  i=0  to payloads }
+    state field { to nonarray_field when (mode == 0)  l3_mark_array_tree(l3_field(i,2))  to field_next }
+    state nonarray_field { l3_mark_nonarray_tree(l3_field(i,2))  to field_next }
+    state field_next { to done when (word[500008] != 0)  i=i+1  to fields }
+    state payloads { to payload when (i<word[510200]) i=0 to mparams }
+    state payload { to nonarray_payload when (mode==0) l3_mark_array_tree(l37_payload(i,2)) to payload_next }
+    state nonarray_payload { l3_mark_nonarray_tree(l37_payload(i,2)) to payload_next }
+    state payload_next { to done when (word[500008]!=0) i=i+1 to payloads }
+    state mparams { to mparam when (i < word[510064])  i=0  to results }
+    state mparam { to nonarray_mparam when (mode == 0)  l3_mark_array_tree(l3_mparam(i,2))  to mparam_next }
+    state nonarray_mparam { l3_mark_nonarray_tree(l3_mparam(i,2))  to mparam_next }
+    state mparam_next { to done when (word[500008] != 0)  i=i+1  to mparams }
+    state results { to result when (i < word[510056])  i=0  to bparams }
+    state result { to result_next when (l3_machine(i,3) < 0)  to nonarray_result when (mode == 0)  l3_mark_array_tree(l3_machine(i,3))  to result_next }
+    state nonarray_result { l3_mark_nonarray_tree(l3_machine(i,3))  to result_next }
+    state result_next { to done when (word[500008] != 0)  i=i+1  to results }
+    state bparams { to bparam when (i < word[510080])  return 0 }
+    state bparam { to nonarray_bparam when (mode == 0)  l3_mark_array_tree(l3_bparam(i,2))  to bparam_next }
+    state nonarray_bparam { l3_mark_nonarray_tree(l3_bparam(i,2))  to bparam_next }
+    state bparam_next { to done when (word[500008] != 0)  i=i+1  to bparams }
+    state done { return word[500008] }
+}
+
+proc l3_validate_type_interning() {
+    let i=0
+    state seed { word[500200]=word[510040]+word[510184]+2  to seed_loop }
+    state seed_loop { to seed_one when (i < word[500200])  to nonarrays }
+    state seed_one { word[7300000+i*8]=1  i=i+1  to seed_loop }
+    state nonarrays { l3_visit_references(0)  to done when (word[500008] != 0)  to arrays }
+    state arrays { word[500208]=0  word[500216]=0  l3_visit_references(1)  to done when (word[500008] != 0)  to pass }
+    state pass { to complete when (word[500208] == 0)  to bad when (word[500216] == 0)  to arrays }
+    state complete { to bad when (word[500200] != word[510032])  return 0 }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc l3_layout_type(type_id) {
+    let count=0  let size=0  let align=1
+    state kind1 { to byte_scalar when (l3_type(type_id,0) == 1)  to kind2 }
+    state kind2 { to u32_scalar when (l3_type(type_id,0) == 2)  to kind3 }
+    state kind3 { to byte_scalar when (l3_type(type_id,0) == 3)  to kind4 }
+    state kind4 { to nominal when (l3_type(type_id,0) == 4) to array when (l3_type(type_id,0)==5) to sum }
+    state byte_scalar { word[500224]=1  word[500232]=1  return 0 }
+    state u32_scalar { word[500224]=4  word[500232]=4  return 0 }
+    state nominal { l3_layout_record(l3_type(type_id,2))  return word[500008] }
+    state sum { l37_layout_sum(l3_type(type_id,2)) return word[500008] }
+    state array {
+        count=l3_type(type_id,3)
+        l3_layout_type(l3_type(type_id,2))
+        to done when (word[500008] != 0)
+        size=word[500224]  align=word[500232]
+        size=size+((align-size%align)%align)
+        to zero when (count == 0)
+        to over when (size > 131072/count)
+        word[500224]=size*count  word[500232]=align
+        return 0
+    }
+    state zero { word[500224]=0  word[500232]=align  return 0 }
+    state over { return l3_exhaust() }
+    state done { return word[500008] }
+}
+
+proc l37_layout_sum(sum_id) {
+    let i=0 let end=0 let j=0 let stop=0 let size=0 let align=1 let csize=0 let calign=1 let field_align=1 let padding=0
+    state ready { to cached when (l37_sum(sum_id,4)==2) to cycle when (l37_sum(sum_id,4)==1) l37_sum_set(sum_id,4,1) i=l37_sum(sum_id,1) end=i+l37_sum(sum_id,2) to cases }
+    state cases { to case when (i<end) to finish }
+    state case { j=l37_case(i,2) stop=j+l37_case(i,3) csize=0 calign=1 to fields }
+    state fields { to field when (j<stop) to case_done }
+    state field { l3_layout_type(l37_payload(j,2)) to done when (word[500008]!=0) field_align=word[500232] to max_align }
+    state max_align { to pad when (field_align<=calign) calign=field_align to pad }
+    state pad { padding=(field_align-csize%field_align)%field_align to over when (csize>131072-padding) csize=csize+padding l37_payload_set(j,3,csize) to place }
+    state place { to over when (word[500224]>131072-csize) csize=csize+word[500224] j=j+1 to fields }
+    state case_done { padding=(calign-csize%calign)%calign to over when (csize>131072-padding) csize=csize+padding to size_max }
+    state size_max { to align_max when (csize<=size) size=csize to align_max }
+    state align_max { to next when (calign<=align) align=calign to next }
+    state next { i=i+1 to cases }
+    state finish { padding=(align-4%align)%align l37_sum_set(sum_id,7,4+padding) to over when (size>131072-l37_sum(sum_id,7)) size=size+l37_sum(sum_id,7) to final_pad }
+    state final_pad { to align4 when (align<4) to rounded }
+    state align4 { align=4 to rounded }
+    state rounded { padding=(align-size%align)%align to over when (size>131072-padding) size=size+padding l37_sum_set(sum_id,4,2) l37_sum_set(sum_id,5,size) l37_sum_set(sum_id,6,align) to cached }
+    state cached { word[500224]=l37_sum(sum_id,5) word[500232]=l37_sum(sum_id,6) return 0 }
+    state cycle { return l3_reject() }
+    state over { return l3_exhaust() }
+    state done { return word[500008] }
+}
+
+proc l3_layout_record(record_id) {
+    let i=0  let end=0  let size=0  let align=1  let field_align=1  let padding=0
+    state ready { to cached when (l3_record(record_id,5) == 2)  to cycle when (l3_record(record_id,5) == 1)  l3_record_set(record_id,5,1)  i=l3_record(record_id,2)  end=i+l3_record(record_id,3)  to fields }
+    state fields { to field when (i < end)  to finish_padding }
+    state field { l3_layout_type(l3_field(i,2))  to done when (word[500008] != 0)  field_align=word[500232]  to maximum }
+    state maximum { to padding_state when (field_align <= align)  align=field_align  to padding_state }
+    state padding_state { padding=(field_align-size%field_align)%field_align  to over when (size > 131072-padding)  size=size+padding  l3_field_set(i,3,size)  to place }
+    state place { to over when (word[500224] > 131072-size)  size=size+word[500224]  i=i+1  to fields }
+    state finish_padding { padding=(align-size%align)%align  to over when (size > 131072-padding)  size=size+padding  l3_record_set(record_id,5,2)  l3_record_set(record_id,6,size)  l3_record_set(record_id,7,align)  to cached }
+    state cached { word[500224]=l3_record(record_id,6)  word[500232]=l3_record(record_id,7)  return 0 }
+    state cycle { return l3_reject() }
+    state over { return l3_exhaust() }
+    state done { return word[500008] }
+}
+
+proc l3_validate_layouts() {
+    let i=0
+    state loop { to one when (i < word[510040]) i=0 to sums }
+    state one { l3_layout_record(i)  to done when (word[500008] != 0)  i=i+1  to loop }
+    state sums { to sum when (i<word[510184]) return 0 }
+    state sum { l37_layout_sum(i) to done when (word[500008]!=0) i=i+1 to sums }
+    state done { return word[500008] }
+}
+
+proc l3_type_copyable(type_id) {
+    state nominal { to array when (l3_type(type_id,0) != 4)  return l3_record(l3_type(type_id,2),4) }
+    state array { to sum when (l3_type(type_id,0) != 5)  return l3_type_copyable(l3_type(type_id,2)) }
+    state sum { to yes when (l3_type(type_id,0)!=6) return l37_sum(l3_type(type_id,2),3) }
+    state yes { return 1 }
+}
+
+proc l3_validate_copyability() {
+    let i=0 let j=0 let end=0 let k=0 let stop=0
+    state records { to marked when (i < word[510040])  i=0  to sums }
+    state marked { to next when (l3_record(i,4) == 0)  j=l3_record(i,2)  end=j+l3_record(i,3)  to fields }
+    state fields { to field when (j < end)  to next }
+    state field { to bad when (l3_type_copyable(l3_field(j,2)) == 0)  j=j+1  to fields }
+    state next { i=i+1  to records }
+    state sums { to sum_marked when (i<word[510184]) i=0 to mparams }
+    state sum_marked { to sum_next when (l37_sum(i,3)==0) j=l37_sum(i,1) end=j+l37_sum(i,2) to sum_cases }
+    state sum_cases { to sum_case when (j<end) to sum_next }
+    state sum_case { k=l37_case(j,2) stop=k+l37_case(j,3) to sum_fields }
+    state sum_fields { to sum_field when (k<stop) j=j+1 to sum_cases }
+    state sum_field { to bad when (l3_type_copyable(l37_payload(k,2))==0) k=k+1 to sum_fields }
+    state sum_next { i=i+1 to sums }
+    state mparams { to mparam when (i < word[510064])  i=0  to bparams }
+    state mparam { to mparam_next when (l3_type(l3_mparam(i,2),0) <= 3)  to bad when (l3_type_copyable(l3_mparam(i,2)) == 0)  to mparam_next }
+    state mparam_next { i=i+1  to mparams }
+    state bparams { to bparam when (i < word[510080])  return 0 }
+    state bparam { to bparam_next when (l3_type(l3_bparam(i,2),0) <= 3)  to bad when (l3_type_copyable(l3_bparam(i,2)) == 0)  to bparam_next }
+    state bparam_next { i=i+1  to bparams }
+    state bad { return l3_reject() }
+}
+
+proc l3_validate_root() {
+    let selected=0-1
+    state counts {
+        to bad when (word[511008] != word[510032])
+        to bad when (word[511016] != word[510040])
+        to bad when (word[511024] != word[510048])
+        to bad when (word[511232] != word[510184])
+        to bad when (word[511240] != word[510192])
+        to bad when (word[511248] != word[510200])
+        to bad when (word[511032] != word[510056])
+        to bad when (word[511040] != word[510064])
+        to bad when (word[511048] != word[510072])
+        to bad when (word[511056] != word[510080])
+        to flag
+    }
+    state flag { to library when (word[500016] == 0)  to entry }
+    state library {
+        to bad when (word[510088] != 0-1)
+        to bad when (l3_ckir_byte(14) != 0)
+        to bad when (word[511000] != 0-1)
+        return 0
+    }
+    state entry {
+        selected=word[510088]
+        to bad when (selected < 0)
+        to bad when (selected >= word[510056])
+        to bad when (l3_ckir_byte(14) != 1)
+        to bad when (word[511000] != selected)
+        to bad when (l3_machine(selected,5) != 0)
+        to bad when (l3_machine(selected,3) < 0)
+        to bad when (l3_type(l3_machine(selected,3),0) > 3)
+        to bad when (l3_block(l3_machine(selected,8),6) != 0)
+        return 0
+    }
+    state bad { return l3_reject() }
+}
+
+; CKIR4 responsibility 3 reads only the intrinsic declaration premises of an
+; encoded opcode-13 row.  In particular, it does not read the operand vector,
+; reconstruct result IDs or visibility, or claim declaration-order field
+; binding.  Complete semantic arity is checked before selecting the narrower
+; four-field resource boundary, so a malformed five-field envelope is 251 and
+; a valid five-field envelope is 252.
+proc l3_validate_constructor_nominals() {
+    let i=0  let p=0  let type_id=0  let record_id=0  let field_count=0
+    state loop { to row when (i < word[511064])  return 0 }
+    state row {
+        p=word[511160]+i*40
+        to next when (l3_ckir_byte(p+12) != 13)
+        to bad when (l3_ckir_byte(p+13) != 1)
+        to bad when (l3_ckir_byte(p+14) != 0)
+        to bad when (l3_ckir_byte(p+15) != 0)
+        type_id=l3_c_u32(p+20)
+        to bad when (type_id < 0)
+        to bad when (type_id >= word[511008])
+        to bad when (l3_type(type_id,0) != 4)
+        record_id=l3_type(type_id,2)
+        to bad when (record_id < 0)
+        to bad when (record_id >= word[510040])
+        to bad when (l3_record(record_id,4) != 1)
+        to bad when (l3_type_copyable(type_id) == 0)
+        field_count=l3_record(record_id,3)
+        to bad when (l3_c_u32(p+28) != field_count)
+        to bad when (l3_c_u32(p+32) != 0)
+        to bad when (l3_c_u32(p+36) != 0)
+        to over when (field_count > 4)
+        to next
+    }
+    state next { i=i+1  to loop }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l37_validate_case_intrinsics() {
+    let i=0 let p=0 let type_id=0 let sum_id=0 let case_id=0 let next_arm=0 let next_arg=0 let arm_count=0 let j=0 let arm=0 let target=0 let kind=0 let ref=0 let k=0 let q=0
+    state operations { to operation when (i<word[511064]) i=0 to terminators }
+    state operation { p=word[511160]+i*40 to operation_next when (l3_ckir_byte(p+12)!=14) to bad when (l3_ckir_byte(p+13)!=1) to bad when (l3_ckir_byte(p+14)!=0) to bad when (l3_ckir_byte(p+15)!=0) type_id=l3_c_u32(p+20) to bad when (type_id<0) to bad when (type_id>=word[511008]) to bad when (l3_type(type_id,0)!=6) sum_id=l3_type(type_id,2) case_id=l3_c_u32(p+32) to bad when (case_id<l37_sum(sum_id,1)) to bad when (case_id>=l37_sum(sum_id,1)+l37_sum(sum_id,2)) to bad when (l3_c_u32(p+28)!=l37_case(case_id,3)) to bad when (l3_c_u32(p+36)!=0) to over when (l37_case(case_id,3)>4) to operation_next }
+    state operation_next { i=i+1 to operations }
+    state terminators { to terminator when (i<word[511080]) to complete }
+    state terminator { p=word[511176]+i*52 to bad when (l3_c_u32(p)!=i) to dispatch when (l3_ckir_byte(p+12)==5) to inherited }
+    state inherited { to bad when (l3_c_u32(p+44)!=next_arm) to bad when (l3_c_u32(p+48)!=0) i=i+1 to terminators }
+    state dispatch { to bad when (l3_ckir_byte(p+13)<1) to bad when (l3_ckir_byte(p+13)>2) to bad when (l3_ckir_byte(p+14)!=0) to bad when (l3_ckir_byte(p+15)!=0) to bad when (l3_c_u32(p+20)!=0-1) to bad when (l3_c_u32(p+32)!=0-1) to bad when (l3_c_u32(p+24)!=word[511072]) to bad when (l3_c_u32(p+28)!=0) to bad when (l3_c_u32(p+36)!=word[511072]) to bad when (l3_c_u32(p+40)!=0) to bad when (l3_c_u32(p+44)!=next_arm) case_id=l3_c_u32(p+16) to subject_value when (l3_ckir_byte(p+13)==1) to subject_place }
+    state subject_value { to bad when (case_id<0) to bad when (case_id>=word[511088]) to arms_ready }
+    state subject_place { to bad when (case_id<0) to bad when (case_id>=word[511096]) to arms_ready }
+    state arms_ready { arm_count=l3_c_u32(p+48) to bad when (arm_count<1) to over when (arm_count>64) j=0 to arms }
+    state arms { to arm_row when (j<arm_count) next_arm=next_arm+arm_count i=i+1 to terminators }
+    state arm_row { arm=next_arm+j p=word[511324]+arm*24 to bad when (l3_c_u32(p)!=arm) to bad when (l3_c_u32(p+4)!=i) case_id=l3_c_u32(p+8) to bad when (case_id<0) to bad when (case_id>=word[510192]) to arm_first when (j==0) to arm_owner }
+    state arm_first { sum_id=l37_case(case_id,0) to bad when (l3_c_u32(word[511176]+i*52+48)!=l37_sum(sum_id,2)) to arm_owner }
+    state arm_owner { to bad when (l37_case(case_id,0)!=sum_id) to bad when (case_id!=l37_sum(sum_id,1)+j) to bad when (l37_case(case_id,1)!=j) target=l3_c_u32(p+12) to bad when (target<0) to bad when (target>=word[510072]) to bad when (l3_block(target,0)!=l3_c_u32(word[511176]+i*52+4)) to bad when (l3_block(target,1)==0) to bad when (l3_c_u32(p+16)!=next_arg) to bad when (l3_c_u32(p+20)!=l3_block(target,6)) to args }
+    state args { k=0 to arg_loop }
+    state arg_loop { to arg when (k<l3_c_u32(p+20)) next_arg=next_arg+l3_c_u32(p+20) j=j+1 to arms }
+    state arg { q=word[511332]+(next_arg+k)*12 to bad when (l3_c_u32(q)!=next_arg+k) kind=l3_ckir_byte(q+4) to bad when (l3_ckir_byte(q+5)!=0) to bad when (l3_ckir_byte(q+6)!=0) to bad when (l3_ckir_byte(q+7)!=0) ref=l3_c_u32(q+8) to ordinary when (kind==1) to payload when (kind==2) to bad }
+    state ordinary { to bad when (ref<0) to bad when (ref>=word[511088]) k=k+1 to arg_loop }
+    state payload { to bad when (ref<l37_case(case_id,2)) to bad when (ref>=l37_case(case_id,2)+l37_case(case_id,3)) k=k+1 to arg_loop }
+    state complete { to bad when (next_arm!=word[511256]) to bad when (next_arg!=word[511264]) return 0 }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+; Responsibility-3 intrinsic constant-table ownership. Roots, reachability
+; from opcode 11, and source-body correspondence belong to later independent
+; responsibilities.
+proc l3_constant(id, column) { return l3_c_u32(word[511216] + id*24 + column*4) }
+proc l3_constant_child(id) { return l3_c_u32(word[511224] + id*4) }
+proc l3_constant_height(id) { return word[7400000 + id*8] }
+proc l3_constant_height_set(id, value) { word[7400000 + id*8]=value  return value }
+
+proc l3_constant_shape(id) {
+    let type_id=l3_constant(id,1)
+    let first=l3_constant(id,2)
+    let count=l3_constant(id,3)
+    let scalar=l3_constant(id,4)
+    let kind=0  let i=0  let child=0  let expected=0
+    state type {
+        to bad when (type_id < 0)
+        to bad when (type_id >= word[511008])
+        kind=l3_type(type_id,0)
+        to scalar_kind when (kind <= 3)
+        to record when (kind == 4)
+        to array when (kind == 5)
+        to bad
+    }
+    state scalar_kind {
+        to bad when (count != 0)
+        to bad when (scalar < l3_type(type_id,4))
+        to bad when (scalar > l3_type(type_id,5))
+        l3_constant_height_set(id,0)
+        return 0
+    }
+    state record {
+        to bad when (scalar != 0)
+        expected=l3_record(l3_type(type_id,2),3)
+        to over when (expected > 4)
+        to bad when (count != expected)
+        i=0
+        to record_children
+    }
+    state record_children { to record_child when (i < count)  to height }
+    state record_child {
+        child=l3_constant_child(first+i)
+        to bad when (child < 0)
+        to bad when (child >= id)
+        expected=l3_field(l3_record(l3_type(type_id,2),2)+i,2)
+        to bad when (l3_constant(child,1) != expected)
+        i=i+1
+        to record_children
+    }
+    state array {
+        to bad when (scalar != 0)
+        expected=l3_type(type_id,3)
+        to over when (expected > 1024)
+        to bad when (count != expected)
+        i=0
+        to array_children
+    }
+    state array_children { to array_child when (i < count)  to height }
+    state array_child {
+        child=l3_constant_child(first+i)
+        to bad when (child < 0)
+        to bad when (child >= id)
+        to bad when (l3_constant(child,1) != l3_type(type_id,2))
+        i=i+1
+        to array_children
+    }
+    state height { i=0  expected=0  to height_loop }
+    state height_loop { to height_child when (i < count)  l3_constant_height_set(id,expected)  return 0 }
+    state height_child {
+        child=l3_constant_child(first+i)
+        to height_next when (l3_constant_height(child)+1 <= expected)
+        expected=l3_constant_height(child)+1
+        to height_next
+    }
+    state height_next { i=i+1  to height_loop }
+    state over { return l3_exhaust() }
+    state bad { return l3_reject() }
+}
+
+proc l3_constant_key_less(left, right) {
+    let lh=l3_constant_height(left)  let rh=l3_constant_height(right)
+    let lt=l3_constant(left,1)  let rt=l3_constant(right,1)
+    let lc=0  let rc=0  let i=0  let lv=0  let rv=0
+    state height { to yes when (lh < rh)  to no when (lh > rh)  to type }
+    state type { to yes when (lt < rt)  to no when (lt > rt)  to scalar when (l3_type(lt,0) <= 3)  to count }
+    state scalar { to yes when (l3_constant(left,4) < l3_constant(right,4))  to no }
+    state count {
+        lc=l3_constant(left,3)  rc=l3_constant(right,3)
+        to yes when (lc < rc)
+        to no when (lc > rc)
+        to children
+    }
+    state children { to child when (i < lc)  to no }
+    state child {
+        lv=l3_constant_child(l3_constant(left,2)+i)
+        rv=l3_constant_child(l3_constant(right,2)+i)
+        to yes when (lv < rv)
+        to no when (lv > rv)
+        i=i+1
+        to children
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc l3_validate_constants() {
+    let i=0  let next_child=0  let count=0
+    state nodes { to node when (i < word[511200])  to complete }
+    state node {
+        to bad when (l3_constant(i,0) != i)
+        to bad when (l3_constant(i,2) != next_child)
+        count=l3_constant(i,3)
+        to bad when (count < 0)
+        to bad when (count > word[511208]-next_child)
+        to bad when (l3_constant(i,5) != 0)
+        l3_constant_shape(i)
+        to done when (word[500008] != 0)
+        to order when (i > 0)
+        to next
+    }
+    state order { to bad when (l3_constant_key_less(i-1,i) == 0)  to next }
+    state next { next_child=next_child+count  i=i+1  to nodes }
+    state complete { to bad when (next_child != word[511208])  return 0 }
+    state bad { return l3_reject() }
+    state done { return word[500008] }
+}
+
+proc omgrfn7_r3_check() {
+    l37_read_frame()
+    state frame { to done when (word[500008] != 0) l37_witness_header()  to witness }
+    state witness { to done when (word[500008] != 0) l37_ckir_header()  to ckir }
+    state ckir { to done when (word[500008] != 0) l3_load_declarations()  to declarations }
+    state declarations { to done when (word[500008] != 0) l3_load_types()  to types }
+    state types { to done when (word[500008] != 0) l3_load_records_fields()  to records }
+    state records { to done when (word[500008] != 0) l37_load_sums() to sums }
+    state sums { to done when (word[500008]!=0) l3_load_machines() to machines }
+    state machines { to done when (word[500008] != 0) l3_load_parameters_blocks()  to parameters }
+    state parameters { to done when (word[500008] != 0) l3_validate_type_interning()  to interning }
+    state interning { to done when (word[500008] != 0) l3_validate_layouts()  to layouts }
+    state layouts { to done when (word[500008] != 0) l3_validate_copyability()  to copies }
+    state copies { to done when (word[500008] != 0) l3_validate_constructor_nominals()  to constructors }
+    state constructors { to done when (word[500008] != 0) l37_validate_case_intrinsics() to cases }
+    state cases { to done when (word[500008]!=0) l3_validate_root() to root }
+    state root { to done when (word[500008] != 0)  l3_compare_types()  to types_join }
+    state types_join { to done when (word[500008] != 0)  l3_compare_records_fields()  to records_join }
+    state records_join { to done when (word[500008]!=0) l37_compare_sums() to sums_join }
+    state sums_join { to done when (word[500008] != 0)  l3_compare_machines_parameters()  to machines_join }
+    state machines_join { to done when (word[500008] != 0)  l3_compare_blocks_parameters()  to blocks_join }
+    state blocks_join { to done when (word[500008] != 0)  l3_validate_constants()  to done }
+    state done { return word[500008] }
+}
+
+proc main() { return omgrfn7_r3_check() }
