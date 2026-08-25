@@ -348,9 +348,9 @@ join.
   private cross-module access.
 
   - [x] Freeze `OMGLOW4`/CKIR4 while retaining exact `OMGCOMP` and `OMGRSW1`.
-  - [ ] Produce and conservatively lower runtime record values through native
+  - [x] Produce and conservatively lower runtime record values through native
     and Delta-self-built bridge paths with exact byte identity.
-  - [ ] Compose the exact `compiler/psi/source/source.omg` unit with a same-
+  - [x] Compose the exact `compiler/psi/source/source.omg` unit with a same-
     logical-module harness that passes a runtime `SourceId` through
     `SourceUnit::clear` and observes the copied `id.value`.
   - [ ] Carry authored-field reordering, nested records, 0/251/252 resource and
@@ -358,6 +358,17 @@ join.
     reconstruction without recognizing `SourceId` or the checkpoint filename.
   - [ ] Close the distinct `OMGRFN5` lower-rooted responsibilities and one
     unchanged-frame composition gate before reporting the slice complete.
+    - [x] Reconstruct frame structure and exact `OMGCOMP` source custody.
+    - [x] Reconstruct exact source-to-`OMGRSW1` resolution, including inherited
+      role-3 bindings and authored parameter-name spans.
+    - [x] Reconstruct the `OMGRSW1`-to-CKIR4 declaration, layout, type, root,
+      intrinsic-constant, and opcode-13 nominal-envelope join.
+    - [ ] Reconstruct source-body lowering and physically artifact-free source
+      meaning, including runtime constructor canonicalization and Call/Copy.
+    - [ ] Reconstruct complete CKIR4/result meaning, constructor object/frame
+      extents, and every exact ELF byte.
+    - [ ] Compose every responsibility over one immutable canonical `OMGRFN5`
+      carrier with phase-local mutations and valid-but-mismatched cross-pairs.
 
   Acceptance: construction admits only pure, non-trapping literal, parameter,
   named-field-load, structural-parameter, and nested-constructor fields; maps
