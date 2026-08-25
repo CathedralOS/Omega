@@ -578,6 +578,7 @@ proc l3_load_parameters_blocks() {
         to named
     }
     state entry {
+        to bad when (l3_block(i,2) != l3_machine(owner,2))
         to bad when (l3_block(i,3) != 0-1)
         to bad when (l3_block(i,4) != 0)
         to bad when (l3_block(i,6) != 0)

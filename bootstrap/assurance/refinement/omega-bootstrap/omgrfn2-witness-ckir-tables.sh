@@ -225,6 +225,10 @@ put("bad-record-join", pack(cp, witness=changed(cp[3], wo["records"] + 20, 0)))
 put("bad-field-owner", pack(cp, witness=word(cp[3], wo["fields"] + 4, 1)))
 put("bad-machine-owner", pack(cp, witness=word(cp[3], wo["machines"] + 8, wc["records"])))
 put("bad-block-owner", pack(cp, witness=word(cp[3], wo["blocks"] + 4, wc["machines"])))
+entry_access = 1 if cp[3][wo["blocks"] + 12] != 1 else 2
+w = changed(cp[3], wo["blocks"] + 12, entry_access)
+c = changed(cp[4], co["blocks"] + 8, entry_access)
+put("bad-entry-block-access", pack(cp, witness=w, ckir=c))
 put("bad-selected-root", pack(cp, witness=word(cp[3], 64, 0xffffffff)))
 put("bad-ckir-type-join", pack(cp, ckir=changed(cp[4], co["types"] + 4, 1)))
 
@@ -296,7 +300,7 @@ for CASE in opaque-block-operation-span opaque-operation-row opaque-claimed-resu
   run_expect "$T/check" "$T/cases/$CASE" 0 "$T/$CASE.out" "$CASE boundary control"
 done
 for CASE in bad-type-row bad-record-join bad-field-owner bad-machine-owner \
-  bad-block-owner bad-selected-root bad-ckir-type-join \
+  bad-block-owner bad-entry-block-access bad-selected-root bad-ckir-type-join \
   noncanonical-type-interning-order \
   bad-machine-parameter-owner bad-block-parameter-owner \
   noncopyable-structural-parameter recursive-by-value-layout \
