@@ -162,17 +162,19 @@ def write_checked(output: Path, name: str, source: str) -> str:
 
 
 def materialize(output: Path, outer: int = 8) -> None:
-    if outer not in (8, 9, 10, 11, 12):
+    if outer not in (8, 9, 10, 11, 12, 13):
         raise ValueError(f"unsupported OMGRFN outer version: {outer}")
     output.mkdir(parents=True, exist_ok=True)
 
     core = one_source_core(read("omgrfn4-source-witness-independent.beta"))
     declarations = read("omgrfn7-source-witness-independent.beta")
 
-    r3 = replace_exact(
-        read("omgrfn7-witness-ckir5-tables.beta"),
-        "proc main() { return omgrfn7_r3_check() }",
-        f"proc main() {{ return omgrfn{outer}_r3_check() }}",
+    r3 = prune(
+        replace_exact(
+            read("omgrfn7-witness-ckir5-tables.beta"),
+            "proc main() { return omgrfn7_r3_check() }",
+            f"proc main() {{ return omgrfn{outer}_r3_check() }}",
+        )
     )
     r4_lowering = prune(
         core + "\n" + declarations + "\n" + read("omgrfn7-source-ckir5-lowering.beta")
@@ -227,7 +229,7 @@ proc main(){let s=omgrfn5_component_read() state a { to z when(s!=0) s=ckir_deco
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
-    parser.add_argument("--outer", type=int, choices=(8, 9, 10, 11, 12), default=8)
+    parser.add_argument("--outer", type=int, choices=(8, 9, 10, 11, 12, 13), default=8)
     args = parser.parse_args()
     materialize(args.output, args.outer)
 

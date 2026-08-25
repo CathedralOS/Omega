@@ -1,0 +1,29 @@
+data ByteChoice [copy] {
+    case Value(value: u8);
+    case Empty;
+}
+
+data SumProducer {
+    cursor: u32 in Trapping;
+    choice: ByteChoice;
+}
+
+machine SumProducer::run(&mut self) -> u8 {
+    self.cursor = 69;
+    self.choice = ByteChoice::Value { value: 7 };
+    transition self.choice {
+        ByteChoice::Value { value } -> advance(value, self.cursor + 1, 9)
+        ByteChoice::Empty -> failed()
+    }
+
+    state advance(&mut self, prefix: u8, next: u32 in Trapping, suffix: u8) {
+        self.cursor = next;
+        transition self.cursor == 70 && prefix == 7 && suffix == 9 {
+            true -> passed()
+            false -> failed()
+        }
+    }
+
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}

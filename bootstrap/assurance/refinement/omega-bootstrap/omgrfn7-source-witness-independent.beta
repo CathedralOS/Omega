@@ -1,4 +1,4 @@
-; Shared OMGRFN7 through OMGRFN12 responsibility 2 source-resolution model.
+; Shared OMGRFN7 through OMGRFN13 responsibility 2 source-resolution model.
 ;
 ; OMGRFN7 retains its exact pure-sum -> OMGRSW3 proposition. OMGRFN8 accepts
 ; the least OMGRSW1/2/3 identity selected by the exact source: sums select 3,
@@ -30,7 +30,8 @@ proc omgrfn5_r2_read_frame() {
         to v9 when (omgrfn4_l2_frame_byte(6)=='9')
         to v10 when (omgrfn4_l2_frame_byte(6)=='A')
         to v11 when (omgrfn4_l2_frame_byte(6)=='B')
-        to v12 when (omgrfn4_l2_frame_byte(6)=='C') to bad
+        to v12 when (omgrfn4_l2_frame_byte(6)=='C')
+        to v13 when (omgrfn4_l2_frame_byte(6)=='D') to bad
     }
     state v7 { to bad when (omgrfn5_r2_u32(8)!=7) word[879088]=7 to components }
     state v8 { to bad when (omgrfn5_r2_u32(8)!=8) word[879088]=8 to components }
@@ -38,6 +39,7 @@ proc omgrfn5_r2_read_frame() {
     state v10 { to bad when (omgrfn5_r2_u32(8)!=10) word[879088]=10 to components }
     state v11 { to bad when (omgrfn5_r2_u32(8)!=11) word[879088]=11 to components }
     state v12 { to bad when (omgrfn5_r2_u32(8)!=12) word[879088]=12 to components }
+    state v13 { to bad when (omgrfn5_r2_u32(8)!=13) word[879088]=13 to components }
     state components {
         word[500016]=omgrfn5_r2_u32(12) word[500032]=omgrfn5_r2_u32(16)
         word[500048]=omgrfn5_r2_u32(20) word[500064]=omgrfn5_r2_u32(24)
@@ -537,7 +539,7 @@ proc omgrfn8_r2_emit_expected_legacy() {
 proc omgrfn7_r2_emit_expected_v3() {
     let i=0 let at=0 let expected=0
     word[700048]=0
-    state version { word[879456]=0 to v12 when (word[879088]==12) to sized }
+    state version { word[879456]=0 to v12 when (word[879088]>=12) to sized }
     state v12 { word[879456]=1 to sized }
     state sized { expected=84+word[500320]*36+word[879072]*28+word[879056]*28+(word[879008]+word[879344]+3+word[879456])*24+word[879008]*24+word[879016]*24+word[879344]*24+word[879352]*28+word[879360]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24 to common_header }
     state common_header {
@@ -660,6 +662,20 @@ proc omgrfn12_r2_count_integer_widen() {
     state next { token=token+1 to tokens }
 }
 
+; OMGRFN13 owns the exact authored binary-plus punctuation at R2. The selected
+; subset requires a numeric literal immediately to the right; operand carrier,
+; visibility, and CKIR correspondence are independently reconstructed by R4.
+proc omgrfn13_r2_count_trapping_add() {
+    let source=0 let token=0
+    word[879472]=0
+    state sources { to source_one when (source<word[500320]) return 0 }
+    state source_one { token=0 to tokens }
+    state tokens { to token_one when (token+1<word[880000+source*8]) source=source+1 to sources }
+    state token_one { to plus when (omgrfn4_r2_tkind(source,token)==43) token=token+1 to tokens }
+    state plus { to next when (omgrfn4_r2_tkind(source,token+1)!=257) word[879472]=word[879472]+1 token=token+2 to tokens }
+    state next { token=token+1 to tokens }
+}
+
 proc omgrfn8_r2_select_resolution() {
     state sums { to v3 when (word[879344]>0) to fields }
     state fields { to v2 when (word[879336]>0) word[879376]=1 return 0 }
@@ -672,14 +688,14 @@ proc omgrfn5_r2_check() {
     word[700000]=0 word[879008]=0 word[879016]=0 word[879024]=0 word[879032]=0
     word[879040]=0 word[879048]=0 word[879056]=0 word[879064]=0 word[879072]=0
     word[879088]=0 word[879336]=0 word[879344]=0 word[879352]=0 word[879360]=0 word[879368]=0
-    word[879376]=0 word[879384]=0 word[879392]=0 word[879432]=0 word[879440]=0 word[879448]=0 word[879456]=0 word[879464]=0
+    word[879376]=0 word[879384]=0 word[879392]=0 word[879432]=0 word[879440]=0 word[879448]=0 word[879456]=0 word[879464]=0 word[879472]=0
     word[879200]=0 word[879208]=0
     status=omgrfn5_r2_read_frame()
     state framed { to done when (status!=0) status=omgrfn4_l2_decode_compilation() to compiled }
     state compiled { to done when (status!=0) omgrfn4_r2_init_words() source=0 to tokenize }
-    state tokenize { to tokenize_one when (source<word[500320]) source=0 omgrfn8_r2_count_logical_not() omgrfn9_r2_count_logical_binary() omgrfn10_r2_count_scalar_equal() omgrfn11_r2_count_ordered() omgrfn12_r2_count_integer_widen() to parse }
+    state tokenize { to tokenize_one when (source<word[500320]) source=0 omgrfn8_r2_count_logical_not() omgrfn9_r2_count_logical_binary() omgrfn10_r2_count_scalar_equal() omgrfn11_r2_count_ordered() omgrfn12_r2_count_integer_widen() omgrfn13_r2_count_trapping_add() to parse }
     state tokenize_one { status=omgrfn4_r2_tokenize(source) to done when (status!=0) source=source+1 to tokenize }
-    state parse { to parse_one when (source<word[500320]) to v7 when (word[879088]==7) to v8 when (word[879088]==8) to v9 when (word[879088]==9) to v10 when (word[879088]==10) to v11 when (word[879088]==11) to v12 }
+    state parse { to parse_one when (source<word[500320]) to v7 when (word[879088]==7) to v8 when (word[879088]==8) to v9 when (word[879088]==9) to v10 when (word[879088]==10) to v11 when (word[879088]==11) to v12 when (word[879088]==12) to v13 }
     state parse_one { status=omgrfn5_r2_parse_source(source) to done when (status!=0) source=source+1 to parse }
     state v7 { to reject when (word[879344]<1) word[879376]=3 status=omgrfn5_r2_resolve() to resolved }
     state v8 { to reject when (word[879384]<1) omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
@@ -687,6 +703,7 @@ proc omgrfn5_r2_check() {
     state v10 { to reject when (word[879432]<1) omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
     state v11 { to reject when (word[879440]+word[879448]<1) omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
     state v12 { to reject when (word[879464]<1) word[879456]=1 omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
+    state v13 { to reject when (word[879472]!=4) omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
     state reject { status=omgrfn4_l2_reject() to done }
     state resolved { to done when (status!=0) status=omgrfn5_r2_build_bindings() to bound }
     state bound { to done when (status!=0) to v3_emit when (word[879376]==3) status=omgrfn8_r2_emit_expected_legacy() to built }
@@ -723,6 +740,12 @@ proc omgrfn11_r2_check() {
 proc omgrfn12_r2_check() {
     let status=omgrfn5_r2_check()
     state checked { to done when (status!=0) to exact when (word[879088]==12) return 251 }
+    state exact { return 0 }
+    state done { return status }
+}
+proc omgrfn13_r2_check() {
+    let status=omgrfn5_r2_check()
+    state checked { to done when (status!=0) to exact when (word[879088]==13) return 251 }
     state exact { return 0 }
     state done { return status }
 }

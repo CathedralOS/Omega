@@ -108,13 +108,16 @@ def decode(contents: bytes, *, expected_major: int = 5,
            allow_logical_binary: bool = False,
            allow_scalar_equal: bool = False,
            allow_greater: bool = False,
-           allow_integer_widen: bool = False) -> Module:
-    require(expected_major in (5, 6, 7, 8, 9, 10), "internal CKIR schema selection")
+           allow_integer_widen: bool = False,
+           require_trapping_add: bool = False) -> Module:
+    require(expected_major in (5, 6, 7, 8, 9, 10, 11),
+            "internal CKIR schema selection")
     require(allow_logical_not == (expected_major >= 6)
             and allow_logical_binary == (expected_major >= 7)
             and allow_scalar_equal == (expected_major >= 8)
             and allow_greater == (expected_major >= 9)
-            and allow_integer_widen == (expected_major == 10),
+            and allow_integer_widen == (expected_major >= 10)
+            and require_trapping_add == (expected_major == 11),
             "internal CKIR feature selection")
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
@@ -447,6 +450,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     scalar_equal_count = 0
     greater_count = 0
     integer_widen_count = 0
+    trapping_add_count = 0
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
          result_type, operand_start, operand_count, imm0, imm1) = operation
@@ -543,6 +547,11 @@ def decode(contents: bytes, *, expected_major: int = 5,
             if opcode == 8:
                 require(types[result_type][1] == types[value_types[op_values[0]]][1],
                         "add result")
+                if (expected_major == 11
+                        and types[result_type][1:] == (2, 1, 0, 0, 0, 0, 0x7FFF_FFFF)
+                        and value_types[op_values[0]] == result_type
+                        and value_types[op_values[1]] == result_type):
+                    trapping_add_count += 1
             else:
                 require(types[result_type][1] == 3, "comparison result")
         elif opcode == 15:
@@ -676,6 +685,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(greater_count > 0, "CKIR9 requires Greater or GreaterEqual")
     elif expected_major == 10:
         require(integer_widen_count > 0, "CKIR10 requires IntegerWiden")
+    elif expected_major == 11:
+        require(trapping_add_count > 0, "CKIR11 requires canonical u32 Trapping Add")
 
     next_arm = next_arm_arg = 0
     for term in terminators:

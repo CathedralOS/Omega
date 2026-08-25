@@ -312,6 +312,18 @@ incomplete in what Omega programs it accepts, but exact in the meaning of every
 program it does accept. The production compiler it builds accepts full Omega
 and preserves the full specified artifact meaning.
 
+The working profile is intentionally permissive toward ordinary compiler
+facilities. Once real product source uses modules, named records, sums,
+arrays/views, ordinary ownership, calls, basic generics, or concrete domains,
+the default is to retain the general Omega form. Removing one must demonstrate
+a cheaper concrete source refactor that preserves regularity, reuse, safety,
+and valid-state modeling. Proof-program mathematics and dependent or
+proof-indexed facilities begin with the opposite presumption because the
+compiler can implement them for users without using them to implement itself.
+Numeric/schema tags, mixed record-plus-sum declarations, domain polymorphism,
+advanced generic constraints, and aggregate transition payloads remain measured
+simplification candidates rather than blanket exclusions.
+
 There is one required hosted production build. `omega-bootstrap` may be slow
 and may lower the production compiler conservatively. It must compile the
 `Ωself` source that implements the production optimizer and advanced lowering,

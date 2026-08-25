@@ -105,6 +105,7 @@ proc ckir_decode_header() {
         to schema8 when (ckir_schema() == 8)
         to schema9 when (ckir_schema() == 9)
         to schema10 when (ckir_schema() == 10)
+        to schema11 when (ckir_schema() == 11)
         to bad
     }
     state schema5 { to bad when (word[524376] != 7)  to schema_shared }
@@ -113,6 +114,7 @@ proc ckir_decode_header() {
     state schema8 { to bad when (word[524376] != 10)  to schema_shared }
     state schema9 { to bad when (word[524376] != 11)  to schema_shared }
     state schema10 { to bad when (word[524376] != 12)  to schema_shared }
+    state schema11 { to bad when (word[524376] != 13)  to schema_shared }
     state schema_shared {
         to bad when (ckir_u16(10) != 0)
         to bad when (ckir_u16(12) != 1)
@@ -1079,6 +1081,7 @@ proc ckir_validate_operations() {
     let greater_count = 0
     let greater_equal_count = 0
     let integer_widen_count = 0
+    let trapping_add_count = 0
     state begin { ckir_initialize_value_scopes() ckir_initialize_call_graph() to loop }
     state loop { to one when (i < ckir_count(9))  to finish }
     state one {
@@ -1377,6 +1380,19 @@ proc ckir_validate_operations() {
         to bad when (ckir_carrier_same(ckir_value_type(a), result_type) == 0)
         to bad when (ckir_type_byte(result_type, 4) < 1)
         to bad when (ckir_type_byte(result_type, 4) > 2)
+        to trapping_add when (ckir_schema() == 11)
+        to immediates_zero
+    }
+    state trapping_add {
+        to immediates_zero when (ckir_type_byte(result_type,4) != 2)
+        to immediates_zero when (ckir_type_byte(result_type,5) != 1)
+        to immediates_zero when (ckir_type_word(result_type,8) != 0)
+        to immediates_zero when (ckir_type_word(result_type,12) != 0)
+        to immediates_zero when (ckir_type_word(result_type,16) != 0)
+        to immediates_zero when (ckir_type_word(result_type,20) != 2147483647)
+        to bad when (ckir_value_type(a) != result_type)
+        to bad when (ckir_value_type(b) != result_type)
+        trapping_add_count=trapping_add_count+1
         to immediates_zero
     }
     state op_less {
@@ -1496,6 +1512,7 @@ proc ckir_validate_operations() {
         to scalar_equal_required when (ckir_schema() == 8)
         to ordered_required when (ckir_schema() == 9)
         to integer_widen_required when (ckir_schema() == 10)
+        to trapping_add_required when (ckir_schema() == 11)
         return 0
     }
     state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
@@ -1503,6 +1520,7 @@ proc ckir_validate_operations() {
     state scalar_equal_required { to bad when (scalar_equal_count == 0)  return 0 }
     state ordered_required { to bad when (greater_count == 0) to bad when (greater_equal_count == 0) return 0 }
     state integer_widen_required { to bad when (integer_widen_count == 0) return 0 }
+    state trapping_add_required { to bad when (trapping_add_count != 4) return 0 }
     state exhausted { return 252 }
     state bad { return 251 }
 }

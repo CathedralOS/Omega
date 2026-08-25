@@ -42,6 +42,16 @@ Only two source contracts remain open:
 | Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of the canonical Delta compiler and `omega-bootstrap`, plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
 
+Use this working direction until complete-source measurements overturn it:
+
+| Surface | Default | Deliberate pressure points |
+| --- | --- | --- |
+| Delta v1 | a coherent C-class compiler host with regular data/control, modules, deterministic bounded storage or allocation, explicit exhaustion/failure, and sealed byte/artifact/diagnostic/exit I/O | exact arithmetic, aggregate, call, arena, representation, and module inventory still follows the two complete Delta source closures plus robustness arguments |
+| `Ωself` | retain ordinary compiler-building Omega facilities once real source uses them | presumptively omit proof-program mathematics and dependent/proof-indexed forms; measure advanced generics/domains, numeric schema tags, mixed record-plus-sum declarations, and aggregate transition payloads |
+
+For ordinary `Ωself` facilities, a concrete cheaper source refactor is
+required to justify exclusion. Feature-count reduction by itself is not a win.
+
 `omega-bootstrap` is written in Delta and need only accept `Ωself`. The
 production source is written in `Ωself` but must define a compiler that accepts
 full Omega and contains the production optimizer and advanced lowering. A
@@ -252,6 +262,10 @@ independent tasks that can be permanently checked off:
   retain, refactor from product source and preserve a negative canary, or leave
   unresolved with the exact missing evidence. Absence from a partial checkpoint
   is not a final exclusion.
+- Apply the standing asymmetry: provisionally retain ordinary compiler-building
+  facilities after demonstrated use, and require a concrete source refactor
+  before proposing exclusion. Keep proof/dependent facilities presumptively
+  excluded unless the compiler source itself demonstrates a need.
 - Publish and provisionally enforce compositional syntax, static semantics,
   resources, ABI/layout, and lowering rules. File identities, exact statement
   counts, and enumerated AST permutations are not profile rules.
@@ -297,8 +311,8 @@ beside the linked contracts:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-| checked lowering and composition | closed through CKIR10 for explicit exact `u8 as u32 in Trapping`; OMGLOWB selects least OMGRSW1/2/3, emits one `IntegerWiden` per admitted pure leaf, preserves the payload, and retains all earlier selected forms | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V10_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10_BACKEND.md) |
-| lower-rooted artifact reconstruction | closed through OMGRFN12 for that widening: independent R1–R5 owners consume one immutable result-70 frame, reconstruct source/CKIR meaning, and pin exact unsigned widening in the conservative ELF | [`omega-bootstrap refinement status`](bootstrap/assurance/refinement/omega-bootstrap/README.md), [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
+| checked lowering and composition | closed through CKIR11 for selected canonical `u32 in Trapping` leaf-plus-literal addition in assignment, guard, call, and transition arguments; OMGLOWC retains least OMGRSW1/2/3, inherited widening, runtime overflow, and conservative carry/range traps | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V11_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11_BACKEND.md) |
+| lower-rooted artifact reconstruction | closed through OMGRFN13: independent R1–R5 owners consume one immutable result-70 frame, reconstruct four authored additions plus inherited CKIR10 widening, and pin exact Add/carry/range/store bytes in the conservative ELF | [`omega-bootstrap refinement status`](bootstrap/assurance/refinement/omega-bootstrap/README.md), [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -319,15 +333,32 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts are language-blocked |
-| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact `u8 as u32 in Trapping` is already closed; observable call-argument order is language-blocked; closed finite calls do not imply broader receivers, recursion, or packages |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is unblocked, while authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
 | generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
 
-- [ ] Close every unblocked checkpoint-000001 lane above through general
-  parsing, resolution, checking, diagnostics, conservative lowering, and
-  artifact reconstruction. Preserve existing versioned-call ownership; a
-  transport change alone does not widen accepted source.
+- [ ] Close the compiler-data/view lane through general parsing, resolution,
+  checking, diagnostics, conservative lowering, and artifact reconstruction.
+  The next bounded cost slice is the program-static shared-byte-view window
+  already used by `console_write_bytes`: exact literal bytes, immutable
+  `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
+  subslicing. It must not claim general indexing, mutable slices, allocation,
+  UTF-8 meaning, or resolution of the authored `u32`/`u64` mismatch.
+- [ ] Close the remaining unblocked compiler-control/scalar forms one general
+  vertical relation at a time. Preserve the CKIR11 rule that a call may contain
+  at most one potentially trapping argument while every sibling is
+  pure/total/nontrapping; do not describe the still-unruled observable-order
+  combinations as generally supported.
+- [ ] Close the unblocked source-graph/provider forms without waiting on private
+  cross-module visibility. Start from the exact sealed static provider and
+  `Console::exit_process` path used by the hosted entrypoint; this is product
+  binding support, not admission of general boundary traits to Delta.
+- [ ] Close generated-source custody and resource behavior by binding ordinary
+  generated Omega source, its generator and external inputs, rounded ceilings,
+  exhaustion, and no-partial-publication behavior. Reuse already-closed
+  constant-aggregate/Unicode artifact evidence rather than creating a second
+  generated-data lowering path.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
@@ -381,12 +412,13 @@ closure or by assumed costs in the other.
 - [ ] Resolve the high-leverage profile groups explicitly rather than letting
   them disappear inside the final census: presumptively exclude proof-program
   mathematics and dependent/proof-indexed typing (including linear-dependent
-  forms); presumptively retain regular compiler data/control and ordinary
-  ownership; measure basic generics and concrete domains from real use; and
-  compare numeric/schema tags, mixed record-plus-sum declarations, and aggregate
-  transition payloads with simpler source encodings. A refactor wins only when
-  it reduces total bridge/assurance cost without introducing duplication,
-  invalid intermediate states, or compiler-file-shaped rules.
+  forms); presumptively retain regular compiler data/control, ordinary
+  ownership, basic generics, and concrete domains when used; and compare
+  advanced generics/domains, numeric/schema tags, mixed record-plus-sum
+  declarations, and aggregate transition payloads with simpler source
+  encodings. A refactor wins only when it reduces total bridge/assurance cost
+  without introducing duplication, invalid intermediate states, or
+  compiler-file-shaped rules.
 - [ ] Demonstrate in the hosted acceptance suite that source-profile exclusion
   is not product-language exclusion: production `omega` accepts representative
   full-Omega programs using each materially difficult facility omitted from

@@ -10,7 +10,8 @@ case "$MODE" in
   v8) SCHEMA_LABEL=CKIR8; FRAME_COMMAND=pack-v9 ;;
   v9) SCHEMA_LABEL=CKIR9; FRAME_COMMAND=pack-v10 ;;
   v10) SCHEMA_LABEL=CKIR10; FRAME_COMMAND=pack-v11 ;;
-  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8|v9|v10]" >&2; exit 2 ;;
+  v11) SCHEMA_LABEL=CKIR11; FRAME_COMMAND=pack-v12 ;;
+  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8|v9|v10|v11]" >&2; exit 2 ;;
 esac
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -52,8 +53,10 @@ elif [ "$MODE" = v8 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v8_reference.py"
 elif [ "$MODE" = v9 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v9_reference.py"
-else
+elif [ "$MODE" = v10 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v10_reference.py"
+else
+  REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v11_reference.py"
 fi
 RUNNER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-ckir4-meaning-runner.py"
 DECODER="$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/decode-gamma-output.py"
@@ -247,7 +250,7 @@ machine OrderedGreaterMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
-else
+elif [ "$MODE" = v10 ]; then
 python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
 from pathlib import Path
 import sys
@@ -286,6 +289,41 @@ machine IntegerWidenMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
+else
+python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
+from pathlib import Path
+import sys
+
+canonical = '''data TrappingAddMeaning { cursor: u32 in Trapping; }
+machine TrappingAddMeaning::run(&mut self) -> u8 {
+    self.cursor = 69;
+    self.cursor = self.cursor + 1;
+    transition self.cursor == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+semantic = '''data TrappingAddMeaning { cursor: u8; }
+machine TrappingAddMeaning::run(&mut self) -> u8 {
+    self.cursor = 69;
+    self.cursor = self.cursor + 1;
+    70
+}
+'''
+resource = '''data TrappingAddMeaning { cursor: u32 in Trapping; }
+machine TrappingAddMeaning::run(&mut self) -> u8 {
+    self.cursor = self.cursor + 1;
+    transition !!!!!!!!false {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
+    Path(path).write_text(source, encoding="ascii")
+PY
 fi
 
 prepare() { # label owner machine source...
@@ -293,7 +331,7 @@ prepare() { # label owner machine source...
   shift 3
   python3 -B "$FIXTURE" build "$T/$LABEL.omgc" "$OWNER" "$MACHINE" "$@"
   "$T/resolver.native" < "$T/$LABEL.omgc" > "$T/$LABEL.omgrsw"
-  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ] || [ "$MODE" = v9 ] || [ "$MODE" = v10 ]; then
+  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ] || [ "$MODE" = v9 ] || [ "$MODE" = v10 ] || [ "$MODE" = v11 ]; then
     python3 - "$T/$LABEL.omgrsw" <<'PY'
 from pathlib import Path
 import struct, sys
@@ -325,10 +363,14 @@ elif [ "$MODE" = v9 ]; then
 prepare canonical OrderedGreaterMeaning run "$T/canonical.omg"
 prepare semantic-251 OrderedGreaterMeaning run "$T/semantic.omg"
 prepare resource-252 OrderedGreaterMeaning run "$T/resource.omg"
-else
+elif [ "$MODE" = v10 ]; then
 prepare canonical IntegerWidenMeaning run "$T/canonical.omg"
 prepare semantic-251 IntegerWidenMeaning run "$T/semantic.omg"
 prepare resource-252 IntegerWidenMeaning run "$T/resource.omg"
+else
+prepare canonical TrappingAddMeaning run "$T/canonical.omg"
+prepare semantic-251 TrappingAddMeaning run "$T/semantic.omg"
+prepare resource-252 TrappingAddMeaning run "$T/resource.omg"
 fi
 : > "$T/empty.expected"
 
@@ -418,9 +460,12 @@ elif sys.argv[3] == "v9":
     summary = ("pure same-carrier Greater/GreaterEqual result 70 with authored order and "
                "ordering/equality/logical precedence; effectful operand=251 and "
                "expression-depth-9=252")
-else:
+elif sys.argv[3] == "v10":
     summary = ("pure exact-u8 IntegerWiden preserves 0/70/255 into canonical u32 Trapping "
                "with result 70; effectful operand=251 and expression-depth-9=252")
+else:
+    summary = ("canonical u32-in-Trapping leaf-plus-literal Add produces result 70; "
+               "nonselected carrier=251 and expression-depth-9=252")
 print(f"resolved-to-{sys.argv[4]} meaning: {summary}; exact publication through "
       "canonical Gamma; " + " ".join(rows)
       + f" {sys.argv[4]}={Path(sys.argv[2]).stat().st_size}B")
