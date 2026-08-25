@@ -151,11 +151,18 @@ language, generation, or architectural role; new documentation and work use
   [`compiler/omega-bootstrap-checked-ir-v2-to-elf.alp`](compiler/omega-bootstrap-checked-ir-v2-to-elf.alp)
   close focused native and Delta-self-built production, validation,
   conservative ELF emission, exact result, and independent byte reconstruction
-  for the same-module cross-source call fixture. The focused
+  for the same-module cross-source call fixture. The focused native/self-built
   [`gates/delta-resolved-to-ckir2.sh`](gates/delta-resolved-to-ckir2.sh) and
-  [`gates/delta-checked-ir-v2-backend.sh`](gates/delta-checked-ir-v2-backend.sh)
-  do not yet supply the required Rust-free meaning or lower-rooted `OMGRFN3`
-  refinement; the versioned-call task remains open until those seams compose.
+  [`gates/delta-checked-ir-v2-backend.sh`](gates/delta-checked-ir-v2-backend.sh),
+  Rust-free
+  [`gates/delta-resolved-to-ckir2-meaning.sh`](gates/delta-resolved-to-ckir2-meaning.sh)
+  and
+  [`gates/delta-checked-ir-v2-backend-meaning.sh`](gates/delta-checked-ir-v2-backend-meaning.sh),
+  and complete
+  [`gates/delta-role3-ckir2-composite.sh`](gates/delta-role3-ckir2-composite.sh)
+  close the producer/meaning side. Lower-rooted `OMGRFN3` refinement remains
+  open; the versioned-call task closes only when those independent
+  responsibilities compose.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

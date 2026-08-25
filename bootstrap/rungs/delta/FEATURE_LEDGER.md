@@ -55,7 +55,7 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 
 | Candidate | Current evidence | Simpler form to test first | Status |
 | --- | --- | --- | --- |
-| machines, states, transitions, loops, and calls | `lowermachine` self-host and O0/O1 bridge slices | remove recursion or other forms not used by the complete bridge | demonstrated, not frozen |
+| machines, states, transitions, loops, and calls | `lowermachine` self-host, historical O0/O1 canaries, and the CKIR2 exact-root tranche demonstrate typed finite acyclic attached-machine calls across sources in one logical module | keep the finite static-call form; add recursion, general member receivers, or broader module/package calls only when the complete bridge requires them | finite static calls demonstrated; broader forms and final disposition unresolved |
 | integer arithmetic | D0 and the Rust producer accept several overflow policies and disagree at some edges | use Exact throughout; add only a narrow modular operation if artifact encoding requires it | unresolved |
 | records, fixed arrays, slices, and payload sums | the checkpoint-000001 frontend probe and selected one-/two-package checked-IR paths establish records, arrays, nominal identity, conservative lowering, and lower-rooted reconstruction for bounded source tranches; payload sums and language slices remain later needs | compare with product-source refactors; use separate explicit tags only when general sum support does not pay for itself | bounded records/arrays demonstrated; general coverage and final disposition unresolved |
 | runtime-sized reservation from fixed backing and integer-offset arenas | storage canaries and current compiler tables demonstrate fixed partitioning, checked exhaustion, and bulk reset without a general heap | keep fixed arrays or library arenas while sufficient; add deterministic bump/paged reservation only when the complete bridge needs it | fixed partitioning demonstrated; runtime reservation unpresumed |
@@ -69,7 +69,11 @@ Evidence owners for the longer rows are
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md),
 [`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md),
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
-and the [lower-rooted refinement contract](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md).
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md),
+and the lower-rooted refinement contracts
+[`OMGRFN2`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
+and
+[`OMGRFN3`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md).
 
 ## Freeze gate
 
