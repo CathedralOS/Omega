@@ -59,6 +59,7 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 | --- | --- | --- | --- |
 | machines, states, transitions, loops, and calls | `lowermachine` self-host, historical O0/O1 canaries, and the CKIR2 exact-root tranche demonstrate typed finite acyclic attached-machine calls across sources in one logical module; producer, Rust-free meaning, lower-rooted reconstruction, and one-frame composition are closed | keep the finite static-call form; add recursion, general member receivers, or broader module/package calls only when a required Delta source needs them | finite static calls demonstrated; broader forms and final disposition unresolved |
 | integer arithmetic | D0 and the Rust producer accept several overflow policies and disagree at some edges | use Exact throughout; add only a narrow modular operation if artifact encoding requires it | unresolved |
+| implementation of Omega exact integer widening and policy qualification | the Delta-written OMGLOWB/CKIR10 path implements the 22 checkpoint `u8 as u32 in Trapping` uses without requiring a new resolver schema or a general Delta domain system; independent meaning, conservative emission, and OMGRFN12 R1–R5 are closed | keep Delta implementation arithmetic Exact and encode only the bridge's checked source/IR rule unless one of the two required Delta source closures demonstrates a need for Delta-level cast or policy syntax | selected product-source path demonstrated; no Delta cast/domain feature inferred |
 | bool-only prefix logical negation | the selected OMGLOW7/CKIR6 relation closes least-OMGRSW1/2/3 production, lower-rung meaning, conservative emission, and all OMGRFN8 R1–R5 joins over one immutable payload-sum carrier | retain ordinary Omega spelling and exact Boolean meaning; do not add integer truthiness, bitwise complement, or user-defined unary dispatch | selected compiler path demonstrated; broader expression coverage and final disposition unresolved |
 | pure, total, nontrapping bool-only `&&` and `||` | checkpoint 000001 contains 38 conjunctions and 6 disjunctions over primitive predicate leaves; OMGLOW8/CKIR7 closes exact precedence/association, least-OMGRSW1/2/3 production, Rust-free meaning, truth tables, conservative emission, and OMGRFN9 R1–R5 over one immutable payload-sum carrier | retain ordinary short-circuit source meaning; the private eager truth-function lowering is equivalent only after independently proving both operands terminating, pure, and nontrapping; reject calls, indexing, Trapping arithmetic, mutation, bitwise spelling, and observable skipped work in this selected relation | selected compiler path demonstrated; effectful/general short-circuit lowering and final disposition unresolved |
 | pure, total, nontrapping primitive scalar `==` | checkpoint 000001 contains 60 same-carrier `u32` and one same-carrier `u8` authored equality; OMGLOW9/CKIR8 closes exact `bool`/`u8`/`u32` carrier equality, precedence and authored order, least-OMGRSW1/2/3 production, Rust-free meaning, conservative emission, and OMGRFN10 R1–R5 with reachable equal/unequal rows | retain the ordinary compiler-owned primitive route; keep records, sums, `!=`, `u64`, cross-carrier conversion, calls, indexing, trapping arithmetic, and user-defined dispatch outside this selected relation | selected compiler path demonstrated; structural/general equality and final disposition unresolved |
@@ -72,35 +73,16 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 | contracts, refinements, and proof-oriented syntax | experimental producer corpus | runtime/static checks plus externally checked emitted certificates | not presumed |
 | mixed field-plus-case data and other producer experiments | Rust-producer acceptance or planned slices | separate records and sums | not presumed |
 
-Evidence owners for the longer rows are
-[`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md),
-[`OMEGA_BOOTSTRAP_COMPILATION.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md),
-[`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md),
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V9.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md),
-and the lower-rooted refinement contracts
-[`OMGRFN2`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
-and
-[`OMGRFN3`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md).
-The focused successors use the distinct
-[`OMGRFN4`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md),
-[`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md),
-[`OMGRFN6`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md),
-[`OMGRFN7`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md),
-[`OMGRFN8`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md),
-[`OMGRFN9`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md),
-[`OMGRFN10`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md),
-and
-[`OMGRFN11`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V11.md)
-contracts. Their selected implementations and same-frame compositions are
-closed without deciding general Delta coverage or final disposition.
+Evidence for these rows stays with the bridge contracts rather than being
+duplicated here. Start at the
+[`omega-bootstrap` status](../../omega-bootstrap/README.md), the base
+[`checked-IR contract`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
+the current [`CKIR10`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md)
+successor, and the
+[`OMGRFN12`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md)
+lower-rooted contract. Git and those versioned contract directories retain the
+earlier milestones; this ledger records only the current design evidence and
+open Delta-v1 disposition.
 
 ## Freeze gate
 

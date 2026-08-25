@@ -104,6 +104,7 @@ proc ckir_decode_header() {
         to schema7 when (ckir_schema() == 7)
         to schema8 when (ckir_schema() == 8)
         to schema9 when (ckir_schema() == 9)
+        to schema10 when (ckir_schema() == 10)
         to bad
     }
     state schema5 { to bad when (word[524376] != 7)  to schema_shared }
@@ -111,6 +112,7 @@ proc ckir_decode_header() {
     state schema7 { to bad when (word[524376] != 9)  to schema_shared }
     state schema8 { to bad when (word[524376] != 10)  to schema_shared }
     state schema9 { to bad when (word[524376] != 11)  to schema_shared }
+    state schema10 { to bad when (word[524376] != 12)  to schema_shared }
     state schema_shared {
         to bad when (ckir_u16(10) != 0)
         to bad when (ckir_u16(12) != 1)
@@ -1076,6 +1078,7 @@ proc ckir_validate_operations() {
     let scalar_equal_count = 0
     let greater_count = 0
     let greater_equal_count = 0
+    let integer_widen_count = 0
     state begin { ckir_initialize_value_scopes() ckir_initialize_call_graph() to loop }
     state loop { to one when (i < ckir_count(9))  to finish }
     state one {
@@ -1096,17 +1099,19 @@ proc ckir_validate_operations() {
         to bad when (operand_start != next_operand)
         to bad when (ckir_span_ok(operand_start, operand_count, ckir_count(10)) == 0)
         to bad when (opcode < 1)
-        to bad when (opcode > 20)
+        to bad when (opcode > 21)
         to schema5_opcode when (ckir_schema() == 5)
         to schema6_opcode when (ckir_schema() == 6)
         to schema7_opcode when (ckir_schema() == 7)
         to schema8_opcode when (ckir_schema() == 8)
+        to schema9_opcode when (ckir_schema() == 9)
         to opcode_ready
     }
     state schema5_opcode { to bad when (opcode >= 15)  to opcode_ready }
     state schema6_opcode { to bad when (opcode > 15)  to opcode_ready }
     state schema7_opcode { to bad when (opcode > 17)  to opcode_ready }
     state schema8_opcode { to bad when (opcode > 18)  to opcode_ready }
+    state schema9_opcode { to bad when (opcode > 20)  to opcode_ready }
     state opcode_ready {
         expected_kind = 1
         to call_kind when (opcode == 10)
@@ -1165,6 +1170,7 @@ proc ckir_validate_operations() {
         to arity_call when (opcode == 10)
         to arity1 when (opcode == 11)
         to arity1 when (opcode == 15)
+        to arity1 when (opcode == 21)
         to arity0 when (opcode == 1)
         to arity0 when (opcode == 2)
         to arity1 when (opcode == 3)
@@ -1206,6 +1212,7 @@ proc ckir_validate_operations() {
         to op_scalar_equal when (opcode == 18)
         to op_ordered when (opcode == 19)
         to op_ordered when (opcode == 20)
+        to op_integer_widen when (opcode == 21)
         to op_less
     }
     state immediates_zero {
@@ -1302,6 +1309,23 @@ proc ckir_validate_operations() {
         greater_equal_count=greater_equal_count+1 to immediates_zero
     }
     state greater_seen { greater_count=greater_count+1 to immediates_zero }
+    state op_integer_widen {
+        to bad when (ckir_value_visible(a, owner, block, i) == 0)
+        source_type=ckir_value_type(a)
+        to bad when (ckir_type_byte(source_type,4)!=1)
+        to bad when (ckir_type_byte(source_type,5)!=0)
+        to bad when (ckir_type_word(source_type,8)!=0)
+        to bad when (ckir_type_word(source_type,12)!=0)
+        to bad when (ckir_type_word(source_type,16)!=0)
+        to bad when (ckir_type_word(source_type,20)!=255)
+        to bad when (ckir_type_byte(result_type,4)!=2)
+        to bad when (ckir_type_byte(result_type,5)!=1)
+        to bad when (ckir_type_word(result_type,8)!=0)
+        to bad when (ckir_type_word(result_type,12)!=0)
+        to bad when (ckir_type_word(result_type,16)!=0)
+        to bad when (ckir_type_word(result_type,20)!=2147483647)
+        integer_widen_count=integer_widen_count+1 to immediates_zero
+    }
     state op_store {
         to bad when (ckir_place_visible(a, block, i) == 0)
         to bad when (ckir_value_visible(b, owner, block, i) == 0)
@@ -1471,12 +1495,14 @@ proc ckir_validate_operations() {
         to logical_binary_required when (ckir_schema() == 7)
         to scalar_equal_required when (ckir_schema() == 8)
         to ordered_required when (ckir_schema() == 9)
+        to integer_widen_required when (ckir_schema() == 10)
         return 0
     }
     state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
     state logical_binary_required { to bad when (logical_binary_count == 0)  return 0 }
     state scalar_equal_required { to bad when (scalar_equal_count == 0)  return 0 }
     state ordered_required { to bad when (greater_count == 0) to bad when (greater_equal_count == 0) return 0 }
+    state integer_widen_required { to bad when (integer_widen_count == 0) return 0 }
     state exhausted { return 252 }
     state bad { return 251 }
 }

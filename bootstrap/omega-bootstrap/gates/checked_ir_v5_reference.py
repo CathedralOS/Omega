@@ -107,12 +107,14 @@ def decode(contents: bytes, *, expected_major: int = 5,
            allow_logical_not: bool = False,
            allow_logical_binary: bool = False,
            allow_scalar_equal: bool = False,
-           allow_greater: bool = False) -> Module:
-    require(expected_major in (5, 6, 7, 8, 9), "internal CKIR schema selection")
+           allow_greater: bool = False,
+           allow_integer_widen: bool = False) -> Module:
+    require(expected_major in (5, 6, 7, 8, 9, 10), "internal CKIR schema selection")
     require(allow_logical_not == (expected_major >= 6)
             and allow_logical_binary == (expected_major >= 7)
             and allow_scalar_equal == (expected_major >= 8)
-            and allow_greater == (expected_major == 9),
+            and allow_greater == (expected_major >= 9)
+            and allow_integer_widen == (expected_major == 10),
             "internal CKIR feature selection")
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
@@ -444,6 +446,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     logical_binary_count = 0
     scalar_equal_count = 0
     greater_count = 0
+    integer_widen_count = 0
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
          result_type, operand_start, operand_count, imm0, imm1) = operation
@@ -455,7 +458,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         op_values = operands[operand_start:operand_start + operand_count]
         require(len(op_values) == operand_count, "operation operand extent")
         next_operand += operand_count
-        opcode_limit = 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
+        opcode_limit = 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
         require(opcode in range(1, opcode_limit), "opcode")
         if opcode == 10:
             require(imm0 < len(machines), "call target")
@@ -483,6 +486,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         expected_operands = (1 + machines[imm0][7] if opcode == 10 else {
             1: 0, 2: 0, 3: 1, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2,
             11: 1, 12: 2, 15: 1, 16: 2, 17: 2, 18: 2, 19: 2, 20: 2,
+            21: 1,
         }.get(opcode))
         if opcode not in (13, 14):
             require(operand_count == expected_operands, "operation arity")
@@ -582,6 +586,17 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(result_type < len(types) and types[result_type][1] == 3,
                     "ordered greater result type")
             greater_count += 1
+        elif opcode == 21:
+            require(imm0 == imm1 == 0
+                    and visible_value(op_values[0], owner, block, op_id),
+                    "IntegerWiden operand")
+            source_type = value_types[op_values[0]]
+            require(types[source_type] == (source_type, 1, 0, 0, 0, 0, 0, 255),
+                    "IntegerWiden exact-u8 source")
+            require(types[result_type] ==
+                    (result_type, 2, 1, 0, 0, 0, 0, 0x7FFF_FFFF),
+                    "IntegerWiden canonical u32 Trapping result")
+            integer_widen_count += 1
         elif opcode == 10:
             callee = machines[imm0]
             require(imm1 == 0 and visible_place(op_values[0], block, op_id), "call receiver")
@@ -659,6 +674,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(scalar_equal_count > 0, "CKIR8 requires ScalarEqual")
     elif expected_major == 9:
         require(greater_count > 0, "CKIR9 requires Greater or GreaterEqual")
+    elif expected_major == 10:
+        require(integer_widen_count > 0, "CKIR10 requires IntegerWiden")
 
     next_arm = next_arm_arg = 0
     for term in terminators:
@@ -933,6 +950,8 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                         result_type,
                         int(left > right if opcode == 19 else left >= right),
                     )
+                elif opcode == 21:
+                    values[result_id] = (result_type, int(values[args[0]][1]))
                 elif opcode == 10:
                     _, callee_receiver = places[args[0]]
                     result = run_machine(op[10], callee_receiver,

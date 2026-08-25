@@ -33,6 +33,10 @@ try:
     import checked_ir_v9_reference as ir9  # noqa: E402
 except ImportError:
     ir9 = None
+try:
+    import checked_ir_v10_reference as ir10  # noqa: E402
+except ImportError:
+    ir10 = None
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
@@ -44,7 +48,8 @@ GATE_ERRORS = (
     ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError,
 ) + (() if ir7 is None else (ir7.Ckir7Error,)) \
     + (() if ir8 is None else (ir8.Ckir8Error,)) \
-    + (() if ir9 is None else (ir9.Ckir9Error,))
+    + (() if ir9 is None else (ir9.Ckir9Error,)) \
+    + (() if ir10 is None else (ir10.Ckir10Error,))
 
 
 def require(condition: bool, message: str) -> None:
@@ -72,12 +77,13 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
 def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
                   resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (4, 5, 6, 7, 8, 9, 10), "test lowering version")
-    require((version in (7, 8, 9, 10) and resolution in (1, 2, 3))
-            or (version not in (7, 8, 9, 10) and resolution == 0), "test resolution selector")
+    require(version in (4, 5, 6, 7, 8, 9, 10, 11), "test lowering version")
+    require((version in (7, 8, 9, 10, 11) and resolution in (1, 2, 3))
+            or (version not in (7, 8, 9, 10, 11) and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
-    magic = b"OMGLOWA\0" if version == 10 else f"OMGLOW{version}".encode("ascii") + b"\0"
+    magic = (b"OMGLOWB\0" if version == 11 else b"OMGLOWA\0" if version == 10
+             else f"OMGLOW{version}".encode("ascii") + b"\0")
     return LOWER_HEADER.pack(
         magic, version, 0, 0,
         LOWER_HEADER.size, total, len(comp), len(witness), resolution,
@@ -219,10 +225,11 @@ def inspect_positive(contents: bytes) -> ir5.Module:
 
 
 def run_gate(mode: str = "v5") -> None:
-    include_v6 = mode in ("v6", "v7", "v8", "v9")
-    include_v7 = mode in ("v7", "v8", "v9")
-    include_v8 = mode in ("v8", "v9")
-    include_v9 = mode == "v9"
+    include_v6 = mode in ("v6", "v7", "v8", "v9", "v10")
+    include_v7 = mode in ("v7", "v8", "v9", "v10")
+    include_v8 = mode in ("v8", "v9", "v10")
+    include_v9 = mode in ("v9", "v10")
+    include_v10 = mode == "v10"
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -236,8 +243,9 @@ def run_gate(mode: str = "v5") -> None:
     general_path = HERE / "fixtures/ckir5-payload-sums/general.omg"
     equality_general_path = HERE / "fixtures/ckir8-scalar-equality/general.omg"
     greater_general_path = HERE / "fixtures/ckir9-ordered-comparison/general.omg"
+    widen_general_path = HERE / "fixtures/ckir10-integer-widen/general.omg"
     for path in (resolver_source, lowerer_source, lowermachine_source, general_path,
-                 equality_general_path, greater_general_path):
+                 equality_general_path, greater_general_path, widen_general_path):
         require(path.is_file(), f"missing {path}")
 
     fields, locals_used, procedures = producer_metadata(lowerer_source)
@@ -1042,16 +1050,163 @@ machine SumProducer::run(&mut self) -> u8 {
                   "exact result 70; type/purity/old-new/selector/depth controls passed; "
                   + " ".join(f"{name}={len(value)}B" for name, value in outputs9.items()))
 
+        if include_v10:
+            require(ir10 is not None, "missing CKIR10 independent reference")
+            widen_sw1 = """data SumProducer { byte: u8; wide: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.byte = 0;
+    self.wide = self.byte as u32 in Trapping;
+    self.byte = 70;
+    self.wide = (self.byte) as u32 in Trapping;
+    self.byte = 255;
+    self.wide = self.byte as u32 in Trapping;
+    transition self.wide == 255 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            widen_sw2 = """data Cell {}
+machine Cell::keep(&self, value: u32 in Trapping) -> u32 in Trapping { value }
+data SumProducer { cell: Cell; byte: u8; wide: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.byte = 70;
+    self.wide = self.cell.keep((self.byte) as u32 in Trapping);
+    transition self.wide == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            widen_sw3 = widen_general_path.read_text(encoding="ascii")
+
+            def resolve_and_lower_v11(name: str, source: str,
+                                      witness_major: int) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output10 = lower(name, pack_lowering(
+                    envelope, witness, 11, witness_major
+                ), 0)
+                module10 = ir10.decode(output10)
+                require(ir10.interpret(module10) == 70, f"{name} CKIR10 result")
+                authored = source.count(" as u32 in Trapping")
+                actual = sum(row[3] == 21 for row in module10.tables["operations"])
+                require(actual == authored,
+                        f"{name} IntegerWiden token/operation correspondence {actual}/{authored}")
+                return output10
+
+            outputs10 = {
+                "integer-widen-sw1": resolve_and_lower_v11(
+                    "integer-widen-sw1", widen_sw1, 1
+                ),
+                "integer-widen-sw2": resolve_and_lower_v11(
+                    "integer-widen-sw2", widen_sw2, 2
+                ),
+                "integer-widen-sw3": resolve_and_lower_v11(
+                    "integer-widen-sw3", widen_sw3, 3
+                ),
+            }
+
+            sw1_envelope, sw1_witness = resolve(
+                "integer-widen-old-frame", widen_sw1, 0, 1
+            )
+            lower("integer-widen-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 10, 1), 251)
+            inherited_only = widen_sw1.replace(
+                "self.wide = self.byte as u32 in Trapping;",
+                "self.wide = 0;", 1,
+            ).replace(
+                "self.wide = (self.byte) as u32 in Trapping;",
+                "self.wide = 70;", 1,
+            ).replace(
+                "self.wide = self.byte as u32 in Trapping;",
+                "self.wide = 255;", 1,
+            )
+            inherited_envelope, inherited_witness = resolve(
+                "integer-widen-missing", inherited_only, 0, 1
+            )
+            lower("integer-widen-missing",
+                  pack_lowering(inherited_envelope, inherited_witness, 11, 1), 251)
+            lower("integer-widen-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 11, 2), 251)
+
+            depth_base = """data SumProducer { byte: u8; wide: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.wide = self.byte as u32 in Trapping;
+    transition DEPTH_EXPRESSION { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            for prefix_count, expected in ((7, 0), (8, 252)):
+                expression = "!" * prefix_count + "false"
+                nested = depth_base.replace("DEPTH_EXPRESSION", expression, 1)
+                envelope, witness = resolve(
+                    f"integer-widen-depth-{prefix_count}", nested, 0, 1
+                )
+                output = lower(
+                    f"integer-widen-depth-{prefix_count}",
+                    pack_lowering(envelope, witness, 11, 1), expected,
+                )
+                if expected == 0:
+                    require(ir10.interpret(ir10.decode(output)) == 70,
+                            "IntegerWiden expression-depth-8 result")
+
+            negatives = {
+                "integer-widen-narrowing": (widen_sw1.replace(
+                    "as u32 in Trapping", "as u8 in Trapping", 1), 1),
+                "integer-widen-bare": (widen_sw1.replace(
+                    "as u32 in Trapping", "as u32", 1), 1),
+                "integer-widen-source-u32": (widen_sw1.replace(
+                    "self.byte as u32 in Trapping", "self.wide as u32 in Trapping", 1), 1),
+                "integer-widen-source-bool": (widen_sw1.replace(
+                    "self.byte as u32 in Trapping", "true as u32 in Trapping", 1), 1),
+                "integer-widen-target-u64": (widen_sw1.replace(
+                    "as u32 in Trapping", "as u64 in Trapping", 1), 1),
+                "integer-widen-target-i32": (widen_sw1.replace(
+                    "as u32 in Trapping", "as i32 in Trapping", 1), 1),
+                "integer-widen-wrapping": (widen_sw1.replace(
+                    "as u32 in Trapping", "as u32 in Wrapping", 1), 1),
+                "integer-widen-saturating": (widen_sw1.replace(
+                    "as u32 in Trapping", "as u32 in Saturating", 1), 1),
+                "integer-widen-call-operand": (widen_sw2.replace(
+                    "(self.byte) as u32 in Trapping", "self.cell.keep(0) as u32 in Trapping", 1), 2),
+                "integer-widen-arithmetic-operand": (widen_sw1.replace(
+                    "self.byte as u32 in Trapping", "(self.byte + 1) as u32 in Trapping", 1), 1),
+                "integer-widen-index-operand": ("""data SumProducer { bytes: [u8; 1]; wide: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.wide = self.bytes[0] as u32 in Trapping;
+    70
+}
+""", 1),
+                "integer-widen-structural-operand": ("""data Pair [copy] { byte: u8; }
+data SumProducer { pair: Pair; wide: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.wide = self.pair as u32 in Trapping;
+    70
+}
+""", 1),
+            }
+            for name, (source, witness_major) in negatives.items():
+                envelope, witness = resolve(name, source, 0, witness_major)
+                lower(name, pack_lowering(envelope, witness, 11, witness[8]), 251)
+
+            print("resolved-to-CKIR10: OMGLOWB independently pairs least OMGRSW1/2/3; "
+                  "pure/total/nontrapping exact-u8 leaf `as u32 in Trapping` in parenthesized, "
+                  "assignment, and single-argument call contexts; 0/70/255 payload preservation, "
+                  "native/self exact result 70; old/new, selector, source/target/policy/purity/depth "
+                  "controls passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs10.items()))
+
 
 def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in (
-            "gate", "gate-v6", "gate-v7", "gate-v8", "gate-v9"):
+            "gate", "gate-v6", "gate-v7", "gate-v8", "gate-v9", "gate-v10"):
         raise ValueError(
-            "usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8|gate-v9"
+            "usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8|gate-v9|gate-v10"
         )
     run_gate({
         "gate": "v5", "gate-v6": "v6", "gate-v7": "v7",
-        "gate-v8": "v8", "gate-v9": "v9",
+        "gate-v8": "v8", "gate-v9": "v9", "gate-v10": "v10",
     }[sys.argv[1]])
 
 
