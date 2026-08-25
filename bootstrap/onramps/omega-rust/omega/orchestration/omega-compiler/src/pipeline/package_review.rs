@@ -635,6 +635,15 @@ pub enum PackageReviewContractExpression {
         semantic_domain_arguments: Vec<PackageReviewTypeIdentity>,
         form: PackageReviewCastForm,
     },
+    /// One checked, denotational call edge in a public proposition. The
+    /// package source-consumption commitment separately pins the selected
+    /// callable's implementation; this row does not pretend that a callable
+    /// signature identifies its body.
+    Call {
+        receiver: Option<Box<PackageReviewContractExpression>>,
+        target: PackageReviewNominalIdentity,
+        arguments: Vec<PackageReviewContractExpression>,
+    },
     Binary {
         operator: PackageReviewContractBinaryOperator,
         left: Box<PackageReviewContractExpression>,
@@ -5069,6 +5078,45 @@ fn project_contract_expression_with_substitutions(
             operator: project_contract_unary_operator(unary.operator),
             operand: Box::new(child(unary.operand)?),
         }),
+        ExpressionNode::Call(call) => {
+            require_exact_checked_contract_call_selection(compilation, context, expression, call)?;
+            if !call.machine_arguments.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` uses a contract call with static arguments not yet represented by package review",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            if call.quotient_operation.is_some() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` uses a quotient contract call not yet represented by package review",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            if !call.evidence_arguments.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` uses a contract call with evidence arguments not yet represented by package review",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            // Call-site suspend/block acknowledgement is diagnostic audit
+            // metadata, explicitly outside contract identity. Fact-position
+            // calls have already been checked as total and pure.
+            Ok(PackageReviewContractExpression::Call {
+                receiver: call
+                    .receiver
+                    .is_valid()
+                    .then(|| child(call.receiver))
+                    .transpose()?
+                    .map(Box::new),
+                target: nominal_identity(compilation, call.target_symbol)?,
+                arguments: compilation
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| child(*argument))
+                    .collect::<Result<Vec<_>, _>>()?,
+            })
+        }
         ExpressionNode::Name(path) => project_contract_name_expression(
             compilation,
             context,
@@ -5187,6 +5235,62 @@ fn project_contract_expression_with_substitutions(
         }
         _ => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` uses a contract expression form not yet represented by package review",
+            context.subject_kind, context.subject_name
+        ))]),
+    }
+}
+
+fn require_exact_checked_contract_call_selection(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call has {} exact checked call-selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    match selection.target() {
+        AuthoredDeclarationSelectionTarget::Resolved(target)
+            if target.selected_symbol() == call.target_symbol =>
+        {
+            Ok(())
+        }
+        AuthoredDeclarationSelectionTarget::Resolved(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract call target disagrees with its exact checked call-selection row",
+            context.subject_kind, context.subject_name
+        ))]),
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` uses a compiler-intrinsic contract call not yet represented by package review",
+            context.subject_kind, context.subject_name
+        ))]),
+        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` retains an unresolved contract call selection",
             context.subject_kind, context.subject_name
         ))]),
     }

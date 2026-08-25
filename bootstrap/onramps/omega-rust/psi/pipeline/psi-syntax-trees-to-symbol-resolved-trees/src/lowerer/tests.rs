@@ -1498,6 +1498,38 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
 }
 
 #[test]
+fn distinguishes_boundary_contract_expressions_from_boundary_adapter_bodies() {
+    let source = r#"
+        machine helper() -> bool { true }
+        boundary machine api() -> bool
+        requires helper()
+        {
+            helper()
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize boundary expression exposure");
+    let syntax = parse_syntax_trees(&tokens).expect("parse boundary expression exposure");
+    let program = lower_syntax_trees(&syntax).expect("resolve boundary expression exposure");
+    let call_exposures = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+        })
+        .map(|selection| selection.exposure())
+        .collect::<Vec<_>>();
+
+    assert!(call_exposures.contains(
+        &psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    ));
+    assert!(call_exposures.contains(
+        &psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    ));
+}
+
+#[test]
 fn captures_expression_static_type_and_machine_arguments() {
     let source = r#"
         data Card { }

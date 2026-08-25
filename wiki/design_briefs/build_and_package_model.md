@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v34 rows are not promoted
+subjects or provenance. The current incomplete review-v35 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1300,8 +1300,13 @@ lane binds that template to the source proposition application's concrete
 arguments. Matching checked evidence-term, interface, and projection facts are
 required. Direct parameter-rooted member paths retain their receiver ordinal
 and exact package-qualified case/field chain after a unique checked semantic-
-place join. Computed members, proposition-argument members without that join,
-and unsupported call and aggregate expression forms fail closed. Contract
+place join. Simple total, pure calls retain their optional receiver, exact
+checked package-qualified entry target, and ordinary arguments after a unique
+public-interface declaration-selection join. Their helper bodies remain pinned
+by the separate whole-source commitment rather than being confused with
+signature identity. Static/generic, quotient, evidence-lane, and compiler-
+intrinsic calls, computed members, proposition-argument members without their
+checked join, and aggregate expression forms fail closed. Contract
 casts retain their structural operand, alpha-normalized target, arithmetic
 policy, package-qualified semantic domain and arguments, and value/recast form.
 Diagnostic spellings are absent, and private package domains reject when a

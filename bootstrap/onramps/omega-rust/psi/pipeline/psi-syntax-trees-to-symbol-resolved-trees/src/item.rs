@@ -236,7 +236,13 @@ fn item_expression_exposure(
     match item {
         syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
         syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
-        syntax::item::Item::Machine(machine) if machine.is_public => Exposure::PublicInterface,
+        // A boundary machine is an exported callable surface even when it is
+        // not separately spelled `pub`. Its signature and contracts are
+        // package interface; lower_machine_into overrides executable state
+        // bodies back to private implementation exposure.
+        syntax::item::Item::Machine(machine) if machine.is_public || machine.boundary => {
+            Exposure::PublicInterface
+        }
         syntax::item::Item::Trait(definition) if definition.is_public => Exposure::PublicInterface,
         syntax::item::Item::WireData(definition) if definition.is_public => {
             Exposure::PublicInterface
