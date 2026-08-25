@@ -112,8 +112,11 @@ permissions normalize to the canonical snapshot policy. Local package capture
 excludes only repository metadata and the compiler-reserved root `build/`
 output directory; it does not trust package-authored ignore files. Nested
 `build` directories remain ordinary source, and a symlink into excluded output
-rejects. Resolver-owned materializations are checked under an exact-tree policy,
-so immutable Git snapshots still preserve every selected tree entry.
+rejects. Each directory listing is bounded before it is retained and sorted by
+the remaining source-entry allowance plus only the toolchain-reserved names
+that may be excluded at that level. Resolver-owned materializations are checked
+under an exact-tree policy, so immutable Git snapshots still preserve every
+selected tree entry.
 
 Transport erasure now retains the original file, byte, and depth limits beside
 each package snapshot. Review orchestration checks canonical read-only modes
@@ -172,10 +175,10 @@ without filesystem/network confinement or CPU, memory, process-count, and
 transfer ceilings. A deliberately hostile same-user process can race
 cooperative locks and validation, including the local before/after observation.
 Cache origin/config checks remain mediated by Git and do not independently
-establish cache-directory ownership. Local traversal applies the total source
-entry ceiling as entries are retained, but currently collects one complete
-directory listing before that check. Windows Git paths still need explicit
-rejection of drive-prefixed and NTFS-special spellings.
+establish cache-directory ownership. Git path and symlink preflight rejects
+Windows drive/alternate-stream colons, forbidden characters and controls,
+trailing dots/spaces, and reserved device names independently of the host path
+parser.
 The fixed helper path still permits Git to invoke required transport helpers;
 those descendants are not yet bound to retained executable identities. SSH is
 forced through an absolute client with user configuration disabled,
