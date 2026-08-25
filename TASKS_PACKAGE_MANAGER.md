@@ -1496,8 +1496,17 @@ complete.
   bytes, reconstructs
   logical descriptor lifetimes, rejects the first extra, reordered, changed, or
   missing event, and requires exact result and complete-record equality. Summary
-  v19 binds whether this replay succeeded. The build remains `Volatile`: other
-  operations, durable record custody, output mutation replay, staged-tree
+  v19 binds whether this replay succeeded. Milestone 2026-08-25: compiler
+  replay-record v1 now canonically retains every lane of that verified chain,
+  requires the exact observation and operation schemas, and rejects
+  operation-inapplicable rows, inconsistent source authorization, descriptor
+  lineage, transfer counts, observed regions, and mutable-carrier state. Review-
+  baseline capsule v2 preserves those opaque bytes across restart under an
+  aggregate capsule budget and binds their commitment to the parent build-
+  observation commitment. Compiler recovery remains explicitly review-only;
+  the checksum and parent association detect inconsistent custody but prove
+  neither authenticity nor review. The build remains `Volatile`: replay from
+  the reopened record, other operations, output mutation replay, staged-tree
   reproduction, and a complete replay verdict remain open.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
@@ -1735,15 +1744,21 @@ complete.
   Progress 2026-08-24: a bounded binary `ReviewOnlyBaselineCapsule` now
   checkpoints the exact `PackageKey` source graph, immutable resolutions,
   target and observed compiler commitment, source/build-observation and whole-
-  review commitments, and every complete canonical comparison row with its
-  retained explanatory source sidecar. The compiler strictly recovers row
+  review commitments, every complete canonical comparison row with its
+  retained explanatory source sidecar, and the opaque canonical record for a
+  successfully verified bounded source-read replay when present. The compiler
+  strictly recovers row
   framing, risk, identity, target, and canonical source-coordinate shape;
   package code never decodes row semantics. Recovered rows have a distinct
   review-only type and cannot masquerade as newly compiler-issued evidence.
   Decode revalidates graph closure, graph/review bijection,
   singleton rows, ordering, checksums, canonical re-encoding, and independent
-  resource ceilings. Its checksum detects corruption, not authenticity or
-  serious review; project authority can replace it. A recovered capsule
+  resource ceilings. Replay-record recovery additionally requires exact
+  semantic schema and operation-specific lane consistency; a domain-separated
+  association binds it to the parent build-observation commitment, and capture
+  accounts all replay bytes against one aggregate capsule budget. Its checksum
+  and association detect corruption or inconsistent custody, not authenticity
+  or serious review; project authority can replace them. A recovered capsule
   produces the same conflicts, triage,
   and source-review packets as live baseline state, including when all old
   source is unavailable. This closes the review-restart mechanism, not accepted

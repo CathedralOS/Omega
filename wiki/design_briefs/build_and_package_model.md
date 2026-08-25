@@ -762,9 +762,14 @@ flags-zero `open` -> `read` -> `close` chain. It reruns the build without any
 filesystem provider, supplies recorded results and read bytes, reconstructs
 logical descriptors, and requires exact event order, inputs, outputs,
 exhaustion, and final result. The summary binds this successful partial replay.
-It does not change the observation class: broad operation replay, durable
-record custody, output-tree reproduction, and a complete replay verdict remain
-absent.
+Compiler replay-record v1 canonically retains every lane of the verified chain
+and strictly recovers only the current semantic schemas and exact source-read
+shape. Review-baseline capsule v2 keeps those opaque bytes across restart,
+binds their commitment to the parent build observation, and accounts them under
+one aggregate capsule ceiling. The checksum and association are custody checks,
+not authenticity or admission. This does not change the observation class:
+replay from reopened custody, broad operation replay, output-tree reproduction,
+and a complete replay verdict remain absent.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1649,14 +1654,19 @@ is unavailable, the complete closure undergoes fresh admission.
 The normalized comparison baseline is restart-stable independently of source
 custody. The current implementation captures a bounded review-only binary
 capsule containing the complete exact-key graph, immutable source selections,
-comparison commitments, and canonical comparison rows with explanatory source
-sidecars. A fresh process can decode that capsule and obtain identical
+comparison commitments, canonical comparison rows with explanatory source
+sidecars, and any compiler-verified bounded source-read replay record. A fresh
+process can decode that capsule and obtain identical
 row conflicts, fingerprints, triage, and source-review behavior; absent old
 source still selects standalone candidate review. Row framing and sidecars are
 decoded by the compiler, while package orchestration does not interpret row
-payloads. Recovered rows use a distinct review-only type and cannot impersonate
-newly compiler-issued evidence. The capsule checksum is corruption detection,
-not authenticity or evidence of serious review, and the type has no route to
+payloads. Replay recovery similarly checks exact semantic versions and all
+operation-specific lanes without giving package code a decoder, while a parent
+association and aggregate byte budget prevent accidental mix-and-match and
+unbounded pre-rejection retention. Recovered rows and replay records use
+distinct review-only types and cannot impersonate newly compiler-issued
+evidence. The capsule checksum and association are corruption/consistency
+detection, not authenticity or evidence of serious review, and the type has no route to
 accepted lock state or `PackageInstance`. Promotion
 requires independent source-and-artifact obligation reconstruction, certificate
 checking, transitive open-obligation disclosure, and local admission decisions;

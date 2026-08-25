@@ -515,9 +515,13 @@ filesystem provider, uses inert rooted coordinates, supplies the recorded
 scalar/logical results and mutable read bytes, reconstructs descriptor
 lifetimes, and rejects the first extra, reordered, changed, or missing event.
 Exact result and complete-record equality are required. The summary binds
-successful partial replay, but the build remains `Volatile` until all
-operations, durable record custody, staged output reproduction, and the
-complete replay verdict are implemented.
+successful partial replay. Compiler replay-record v1 now retains the complete
+three-event record in canonical binary form, rejects stale semantic schemas and
+operation-inapplicable or internally inconsistent lanes, and survives restart
+inside review-baseline capsule v2. The record is opaque, bounded, and review-
+only; custody does not authorize replay or establish a receipt. The build
+remains `Volatile` until reopened-record execution, all operations, staged
+output reproduction, and the complete replay verdict are implemented.
 
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities

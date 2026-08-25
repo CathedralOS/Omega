@@ -17,9 +17,12 @@ use crate::{
     WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use omega_compiler::{
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
+    BuildFilesystemReplayRecordLimits, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRecoveryLimits, ReviewOnlyBuildFilesystemReplayRecord,
+    capture_verified_build_filesystem_replay_record,
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
+    recover_review_only_build_filesystem_replay_record,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -27,7 +30,8 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE\0";
 const CHECKSUM_DOMAIN: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE-CAPSULE\0";
-const VERSION: u16 = 1;
+const REPLAY_PARENT_BINDING_DOMAIN: &[u8] = b"OMEGA-PACKAGE-REVIEW-REPLAY-PARENT-BINDING\0";
+const VERSION: u16 = 2;
 const REVIEW_ONLY_ARTIFACT_CLASS: u8 = 0;
 const CHECKSUM_BYTES: usize = 32;
 
@@ -130,6 +134,8 @@ pub struct ReviewOnlyBaselinePackage {
     compiler_executable_commitment: ReviewOnlyCompilerExecutableCommitment,
     source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment: Option<[u8; 32]>,
+    open_read_close_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
+    replay_record_parent_binding: Option<[u8; 32]>,
     whole_review_commitment: [u8; 32],
     canonical_rows: Vec<ReviewOnlyCanonicalRow>,
 }
@@ -157,6 +163,12 @@ impl ReviewOnlyBaselinePackage {
 
     pub const fn build_observation_commitment(&self) -> Option<[u8; 32]> {
         self.build_observation_commitment
+    }
+
+    pub const fn open_read_close_replay_record(
+        &self,
+    ) -> Option<&ReviewOnlyBuildFilesystemReplayRecord> {
+        self.open_read_close_replay_record.as_ref()
     }
 
     pub const fn whole_review_commitment(&self) -> [u8; 32] {
@@ -230,6 +242,7 @@ impl ReviewOnlyBaselineCapsule {
             .try_reserve_exact(reviews.reviews().len())
             .map_err(|_| ReviewOnlyBaselineError::new("baseline package allocation failed"))?;
         let row_limits = row_limits(limits);
+        let mut replay_record_bytes = 0usize;
         for review in validated.into_reviews_by_key() {
             let mut rows = Vec::new();
             rows.try_reserve_exact(review.canonical_rows().len())
@@ -252,15 +265,65 @@ impl ReviewOnlyBaselineCapsule {
                 }
                 rows.push(ReviewOnlyCanonicalRow::from_recovered(&decoded, encoded));
             }
+            let build_observation_commitment = review
+                .build_observation_summary()
+                .map(build_observation_commitment);
+            let remaining_replay_bytes = limits
+                .maximum_capsule_bytes
+                .checked_sub(replay_record_bytes)
+                .ok_or_else(|| {
+                    ReviewOnlyBaselineError::new(
+                        "review baseline replay records exceed their aggregate ceiling",
+                    )
+                })?;
+            let open_read_close_replay_record = review
+                .build_observation_summary()
+                .map(|summary| {
+                    capture_verified_build_filesystem_replay_record(
+                        summary,
+                        BuildFilesystemReplayRecordLimits::new(remaining_replay_bytes, 4_096),
+                    )
+                    .map_err(|_| {
+                        ReviewOnlyBaselineError::new(
+                            "compiler replay record cannot enter review baseline",
+                        )
+                    })
+                })
+                .transpose()?
+                .flatten();
+            if let Some(record) = &open_read_close_replay_record {
+                replay_record_bytes = replay_record_bytes
+                    .checked_add(record.canonical_bytes().len())
+                    .filter(|bytes| *bytes <= limits.maximum_capsule_bytes)
+                    .ok_or_else(|| {
+                        ReviewOnlyBaselineError::new(
+                            "review baseline replay records exceed their aggregate ceiling",
+                        )
+                    })?;
+            }
+            let replay_record_parent_binding = match (
+                build_observation_commitment,
+                open_read_close_replay_record.as_ref(),
+            ) {
+                (Some(parent), Some(record)) => {
+                    Some(replay_parent_binding(parent, record.commitment()))
+                }
+                (None, None) | (Some(_), None) => None,
+                (None, Some(_)) => {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "filesystem replay record has no parent build observation",
+                    ));
+                }
+            };
             packages.push(ReviewOnlyBaselinePackage {
                 key: review.key().clone(),
                 resolution: review.resolution().clone(),
                 target: review.projection().target().target_name().to_owned(),
                 compiler_executable_commitment: review.compiler_executable_commitment().into(),
                 source_consumption_commitment: review.source_consumption_commitment().into(),
-                build_observation_commitment: review
-                    .build_observation_summary()
-                    .map(build_observation_commitment),
+                build_observation_commitment,
+                open_read_close_replay_record,
+                replay_record_parent_binding,
                 whole_review_commitment: whole_review_commitment(review.canonical_review_bytes()),
                 canonical_rows: rows,
             });
@@ -347,6 +410,27 @@ impl ReviewOnlyBaselineCapsule {
                     ));
                 }
             };
+            let open_read_close_replay_record = decode_replay_record_option(&mut record, limits)?;
+            let replay_record_parent_binding = match (
+                build_observation_commitment,
+                open_read_close_replay_record.as_ref(),
+            ) {
+                (Some(parent), Some(replay)) => {
+                    let recovered = record.array_32()?;
+                    if recovered != replay_parent_binding(parent, replay.commitment()) {
+                        return Err(ReviewOnlyBaselineError::new(
+                            "filesystem replay record parent binding mismatch",
+                        ));
+                    }
+                    Some(recovered)
+                }
+                (None, None) | (Some(_), None) => None,
+                (None, Some(_)) => {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "filesystem replay record has no parent build observation",
+                    ));
+                }
+            };
             let dependency_count = record.usize()?;
             total_dependencies = total_dependencies.saturating_add(dependency_count);
             if total_dependencies > limits.maximum_dependencies {
@@ -419,6 +503,8 @@ impl ReviewOnlyBaselineCapsule {
                     compiler_executable_commitment: compiler,
                     source_consumption_commitment,
                     build_observation_commitment,
+                    open_read_close_replay_record,
+                    replay_record_parent_binding,
                     whole_review_commitment,
                     canonical_rows: rows,
                 },
@@ -531,6 +617,13 @@ impl ReviewOnlyBaselineCapsule {
                     record.fixed(&commitment);
                 }
             }
+            encode_replay_record_option(
+                &mut record,
+                package.open_read_close_replay_record.as_ref(),
+            )?;
+            if let Some(binding) = package.replay_record_parent_binding {
+                record.fixed(&binding);
+            }
             record.usize(node.dependencies().len())?;
             for dependency in node.dependencies() {
                 ensure_bounded_string(
@@ -586,6 +679,7 @@ impl ReviewOnlyBaselineCapsule {
         let mut dependencies = 0usize;
         let mut rows = 0usize;
         let mut row_recovery_bytes = 0usize;
+        let mut replay_record_bytes = 0usize;
         for package in &self.packages {
             let node = self.graph.package(&package.key).ok_or_else(|| {
                 ReviewOnlyBaselineError::new("review baseline graph/review mismatch")
@@ -624,12 +718,58 @@ impl ReviewOnlyBaselineCapsule {
                         )
                     })?;
             }
+            if package.open_read_close_replay_record.is_some()
+                && package.build_observation_commitment.is_none()
+            {
+                return Err(ReviewOnlyBaselineError::new(
+                    "filesystem replay record has no parent build observation",
+                ));
+            }
+            if let Some(replay) = &package.open_read_close_replay_record {
+                replay_record_bytes = replay_record_bytes
+                    .checked_add(replay.canonical_bytes().len())
+                    .ok_or_else(|| {
+                        ReviewOnlyBaselineError::new("review baseline replay byte count overflowed")
+                    })?;
+                let recovered = recover_review_only_build_filesystem_replay_record(
+                    replay.canonical_bytes(),
+                    replay_record_limits(limits),
+                )
+                .map_err(|_| {
+                    ReviewOnlyBaselineError::new("invalid compiler filesystem replay record")
+                })?;
+                if recovered.commitment() != replay.commitment() {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "filesystem replay record commitment mismatch",
+                    ));
+                }
+            }
+            let expected_binding = match (
+                package.build_observation_commitment,
+                package.open_read_close_replay_record.as_ref(),
+            ) {
+                (Some(parent), Some(replay)) => {
+                    Some(replay_parent_binding(parent, replay.commitment()))
+                }
+                (None, None) | (Some(_), None) => None,
+                (None, Some(_)) => {
+                    return Err(ReviewOnlyBaselineError::new(
+                        "filesystem replay record has no parent build observation",
+                    ));
+                }
+            };
+            if package.replay_record_parent_binding != expected_binding {
+                return Err(ReviewOnlyBaselineError::new(
+                    "filesystem replay record parent binding mismatch",
+                ));
+            }
             validate_rows(&package.canonical_rows)?;
         }
         if self.graph.packages().len() != self.packages.len()
             || dependencies > limits.maximum_dependencies
             || rows > limits.maximum_rows
             || row_recovery_bytes > limits.maximum_row_recovery_bytes
+            || replay_record_bytes > limits.maximum_capsule_bytes
             || graph_depth(&self.graph) > limits.maximum_graph_depth
         {
             return Err(ReviewOnlyBaselineError::new(
@@ -781,6 +921,50 @@ fn row_limits(limits: ReviewOnlyBaselineLimits) -> PackageReviewCanonicalRowReco
         8 * 1024 * 1024,
         16,
     )
+}
+
+fn replay_record_limits(limits: ReviewOnlyBaselineLimits) -> BuildFilesystemReplayRecordLimits {
+    BuildFilesystemReplayRecordLimits::new(limits.maximum_capsule_bytes, 4_096)
+}
+
+fn replay_parent_binding(parent: [u8; 32], replay: [u8; 32]) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(REPLAY_PARENT_BINDING_DOMAIN);
+    digest.update(parent);
+    digest.update(replay);
+    digest.finalize().into()
+}
+
+fn encode_replay_record_option(
+    encoder: &mut Encoder,
+    replay: Option<&ReviewOnlyBuildFilesystemReplayRecord>,
+) -> Result<(), ReviewOnlyBaselineError> {
+    match replay {
+        None => encoder.byte(0),
+        Some(replay) => {
+            encoder.byte(1);
+            encoder.bytes(replay.canonical_bytes())?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_replay_record_option(
+    decoder: &mut Decoder<'_>,
+    limits: ReviewOnlyBaselineLimits,
+) -> Result<Option<ReviewOnlyBuildFilesystemReplayRecord>, ReviewOnlyBaselineError> {
+    match decoder.byte()? {
+        0 => Ok(None),
+        1 => recover_review_only_build_filesystem_replay_record(
+            decoder.bytes(limits.maximum_capsule_bytes)?,
+            replay_record_limits(limits),
+        )
+        .map(Some)
+        .map_err(|_| ReviewOnlyBaselineError::new("invalid compiler filesystem replay record")),
+        _ => Err(ReviewOnlyBaselineError::new(
+            "invalid filesystem-replay-record option tag",
+        )),
+    }
 }
 
 fn capsule_checksum(prefix: &[u8]) -> [u8; 32] {
@@ -1267,5 +1451,91 @@ impl<'a> Decoder<'a> {
                 "review baseline capsule has trailing bytes",
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod replay_record_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
+
+    #[test]
+    fn replay_record_option_framing_round_trips_compiler_bytes() {
+        let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-baseline-replay-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).expect("create replay framing fixture");
+        std::fs::write(
+            project.join("build.omg"),
+            r#"use omega::language::std::filesystem_host;
+
+target windows_x64 { }
+
+data ReplayProbe {
+    filesystem: FilesystemHost;
+    descriptor: i32;
+    count: i64;
+    closed: i32;
+    bytes: [u8; 64];
+}
+
+machine ReplayProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{
+    let source: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(source, 0);
+    self.count = self.filesystem.read(self.descriptor, &mut self.bytes, 23);
+    self.closed = self.filesystem.close(self.descriptor);
+}
+"#,
+        )
+        .expect("write replay framing build");
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write replay framing source");
+        let compilation =
+            omega_compiler::compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+                .expect("compile replay framing fixture");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("filesystem build publishes observations");
+        let limits = ReviewOnlyBaselineLimits::default();
+        let replay =
+            capture_verified_build_filesystem_replay_record(summary, replay_record_limits(limits))
+                .expect("capture replay record")
+                .expect("verified replay record");
+
+        let mut encoder = Encoder::bounded(limits.maximum_capsule_bytes);
+        encode_replay_record_option(&mut encoder, Some(&replay)).expect("frame replay option");
+        let framed = encoder.finish().expect("finish replay option");
+        let mut decoder = Decoder::new(&framed);
+        let recovered = decode_replay_record_option(&mut decoder, limits)
+            .expect("recover framed replay option")
+            .expect("recovered replay option is present");
+        decoder.finish().expect("replay option consumes its frame");
+        assert_eq!(recovered, replay);
+
+        let parent = [7; 32];
+        assert_eq!(
+            replay_parent_binding(parent, recovered.commitment()),
+            replay_parent_binding(parent, replay.commitment())
+        );
+        assert_ne!(
+            replay_parent_binding(parent, recovered.commitment()),
+            replay_parent_binding([8; 32], recovered.commitment())
+        );
+
+        assert_eq!(
+            decode_replay_record_option(&mut Decoder::new(&[0]), limits)
+                .expect("absent replay option")
+                .as_ref(),
+            None
+        );
+        assert!(decode_replay_record_option(&mut Decoder::new(&[2]), limits).is_err());
+        let _ = std::fs::remove_dir_all(project);
     }
 }
