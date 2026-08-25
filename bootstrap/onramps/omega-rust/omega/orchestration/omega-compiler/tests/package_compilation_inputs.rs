@@ -64,8 +64,8 @@ fn reconciled_bindings_ignore_build_dependency_discovery() {
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), admitted),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "admitted", admitted),
         ],
         vec![PackageDependencyBinding::new(
             identity(1),
@@ -104,7 +104,7 @@ machine build(builder: &mut Build) {
 
     let inputs = PackageCompilationInputs::new(
         identity(1),
-        vec![PackageSourceBinding::new(identity(1), root.clone())],
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
         Vec::new(),
     )
     .expect("root-only package graph should validate");
@@ -137,9 +137,9 @@ fn aliases_are_requester_local_and_dependency_imports_are_package_local() {
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), middle),
-            PackageSourceBinding::new(identity(3), leaf),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
         ],
         vec![
             PackageDependencyBinding::new(identity(1), "shared", identity(2)),
@@ -177,8 +177,8 @@ machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), dependency),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
         ],
         vec![PackageDependencyBinding::new(
             identity(1),
@@ -217,8 +217,8 @@ fn dependency_build_files_cannot_join_the_program() {
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), dependency),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
         ],
         vec![PackageDependencyBinding::new(
             identity(1),
@@ -255,8 +255,8 @@ fn dependency_import_symlink_escape_rejects() {
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), dependency),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
         ],
         vec![PackageDependencyBinding::new(
             identity(1),
@@ -294,7 +294,7 @@ fn root_build_companion_symlink_escape_rejects_before_loading() {
 
     let inputs = PackageCompilationInputs::new(
         identity(1),
-        vec![PackageSourceBinding::new(identity(1), root.clone())],
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
         Vec::new(),
     )
     .expect("root package input should validate");
@@ -352,8 +352,8 @@ machine build(builder: &mut Build) {
     let inputs = PackageCompilationInputs::new(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), root.clone()),
-            PackageSourceBinding::new(identity(2), admitted),
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "admitted", admitted),
         ],
         vec![PackageDependencyBinding::new(
             identity(1),

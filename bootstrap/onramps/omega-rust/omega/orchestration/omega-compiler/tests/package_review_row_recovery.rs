@@ -62,6 +62,7 @@ target macos_arm64 { }
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),
+            "review-fixture",
             package.0.clone(),
         )],
         Vec::new(),

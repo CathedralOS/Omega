@@ -35,6 +35,7 @@ pub fn package_compilation_inputs_for(
         .map(|custody| {
             PackageSourceBinding::new(
                 custody.key().identity(),
+                custody.key().name().as_str(),
                 custody.snapshot_root().to_path_buf(),
             )
         })
@@ -155,6 +156,14 @@ mod tests {
 
         assert_eq!(inputs.root(), root_key.identity());
         assert_eq!(inputs.packages().count(), 2);
+        assert_eq!(
+            inputs.package_name(root_key.identity()),
+            Some("application")
+        );
+        assert_eq!(
+            inputs.package_name(dependency_key.identity()),
+            Some("arithmetic-kernels")
+        );
         assert_eq!(
             inputs.package_root(dependency_key.identity()),
             Some(
