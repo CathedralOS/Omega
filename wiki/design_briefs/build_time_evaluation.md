@@ -394,7 +394,7 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v8 carries operation-attempt schema v9, retaining in call-start order
+schema v9 carries operation-attempt schema v9, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -473,6 +473,21 @@ entries in the same account. Provider mutations reserve account state before
 touching the OS and commit only after success; a ceiling refusal is reported as
 resource exhaustion. Per-package and path-summed accounting are intentionally
 rejected designs.
+
+After successful sponsored package evaluation releases the provider and all
+descriptors, Omega captures a versioned commitment to the complete fresh Output
+tree before orchestration removes the disposable session. The canonical tree
+sorts portable Output-relative UTF-8 slash paths and binds empty directories,
+canonical directory/ordinary/executable/symlink modes, file lengths and content
+digests, and validated self-contained relative symlink spelling. Ambient host
+metadata, absolute roots, inode identity, and hard-link topology are omitted.
+The physical walk is cross-checked against a quiescent sponsor namespace,
+including kinds, extents, and object groups; mismatch, unknown kinds, external
+symlinks, or bounded-resource excess reject. A successful empty tree has an
+explicit commitment. Package observation identity retains the tree digest,
+entry count, and unique byte count after cleanup, but not its content. This is
+not replay evidence or a generated-output handoff and does not claim protection
+from a hostile same-user process racing the private session.
 
 The usage record carries a schema identity independently from evaluator-step
 identity: adding telemetry does not change what one step means. It records

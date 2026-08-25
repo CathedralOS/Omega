@@ -14,8 +14,10 @@ use omega_compiler::{
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
     BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, CompileOptions, PackageCompilationInputs, PackageSourceBinding, compile,
-    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
+    BuildObservationClass, CompileOptions, FilesystemSponsor, PackageCompilationInputs,
+    PackageSourceBinding, compile, compile_to_checked,
+    compile_to_checked_with_packages_in_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_dir,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -121,7 +123,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 8);
+    assert_eq!(checked_observations.schema_version(), 9);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -133,6 +135,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
         9
+    );
+    assert!(
+        checked_observations.staged_output_tree().is_none(),
+        "caller-owned unsponsored build roots do not claim package-review custody"
     );
     let attempts: Vec<_> = checked_observations
         .filesystem_operation_attempts()
@@ -365,6 +371,53 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
+
+    let sponsored_session = project.join("sponsored-review");
+    std::fs::create_dir(&sponsored_session).expect("create sponsored review session");
+    let sponsored_session =
+        std::fs::canonicalize(sponsored_session).expect("canonicalize sponsored review session");
+    let sponsor = FilesystemSponsor::new(&sponsored_session).expect("create staging sponsor");
+    let sponsored_build = sponsored_session.join("package-output");
+    let sponsored_stage = sponsored_build.join("stage");
+    for directory in [&sponsored_build, &sponsored_stage] {
+        let bound = sponsor
+            .bind_path(directory)
+            .expect("bind sponsored directory");
+        let prepared = sponsor
+            .prepare_create_directory(&bound)
+            .expect("prepare sponsored directory");
+        std::fs::create_dir(directory).expect("create sponsored directory");
+        prepared.commit().expect("commit sponsored directory");
+    }
+    let original_build_source =
+        std::fs::read_to_string(project.join("build.omg")).expect("read original build source");
+    let sponsored_build_source = original_build_source.replace(
+        &stage.display().to_string().replace('\\', "/"),
+        &sponsored_stage.display().to_string().replace('\\', "/"),
+    );
+    std::fs::write(project.join("build.omg"), sponsored_build_source)
+        .expect("write sponsored build source");
+    let package = PackageKeyIdentity::from_digest([91; 32]).expect("nonzero package identity");
+    let package_inputs = PackageCompilationInputs::new(
+        package,
+        vec![PackageSourceBinding::new(package, project.clone())],
+        Vec::new(),
+    )
+    .expect("single-package compiler input");
+    let sponsored = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.join("main.omg"),
+        &sponsored_build,
+        Some(profile.target_name()),
+        package_inputs,
+        sponsor,
+    )
+    .expect("sponsored package build must retain staged-output custody");
+    let sponsored_tree = sponsored
+        .build_observation_summary()
+        .and_then(|summary| summary.staged_output_tree())
+        .expect("sponsored filesystem build commits its complete staged tree");
+    assert_eq!(sponsored_tree.entry_count(), 2);
+    assert_eq!(sponsored_tree.file_bytes(), 16);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -895,6 +948,7 @@ reaches Console
     assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
     assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
     assert!(observations.filesystem_operation_attempts().is_empty());
+    assert!(observations.staged_output_tree().is_none());
     assert!(!unavailable_build_root.exists());
 
     let _ = std::fs::remove_dir_all(&project);

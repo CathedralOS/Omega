@@ -39,6 +39,8 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 
+use super::build_staged_output::{BuildStagedOutputTreeCommitment, capture, empty};
+
 const BUILD_MACHINE: &str = "build";
 const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
     match BuildMachineFilesystemGrantRootIdentity::new(1) {
@@ -152,6 +154,20 @@ impl BuildMachineFilesystemScope {
             self.build_dir.display()
         ))]
     }
+
+    fn staged_output_tree(
+        &self,
+        filesystem_reachable: bool,
+    ) -> Result<Option<BuildStagedOutputTreeCommitment>, Vec<Diagnostic>> {
+        let Some(sponsor) = &self.sponsor else {
+            return Ok(None);
+        };
+        if filesystem_reachable {
+            capture(&self.build_dir, sponsor).map(Some)
+        } else {
+            Ok(Some(empty()))
+        }
+    }
 }
 
 /// The image facts the pipeline consumes, extracted from the augmented
@@ -192,7 +208,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 8;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 9;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -633,6 +649,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
+    staged_output_tree: Option<BuildStagedOutputTreeCommitment>,
 }
 
 impl BuildObservationSummary {
@@ -652,10 +669,14 @@ impl BuildObservationSummary {
         self.filesystem_operation_schema_version
     }
 
+    pub const fn staged_output_tree(&self) -> Option<BuildStagedOutputTreeCommitment> {
+        self.staged_output_tree
+    }
+
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: complete scalar/byte arguments,
-    /// mutable output regions, and content custody are absent.
+    /// intentionally not a replay transcript: some path-like operands,
+    /// returned-path normalization, and content custody are absent.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1783,6 +1804,7 @@ pub(crate) fn compute_build_config(
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
+    let staged_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
     Ok(ComputedBuildConfig {
         config,
         evaluation_usage: Some(BuildEvaluationUsage {
@@ -1797,6 +1819,7 @@ pub(crate) fn compute_build_config(
             realized: realized_observation,
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
+            staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
     })

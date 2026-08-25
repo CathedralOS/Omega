@@ -574,7 +574,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v8 carries operation-attempt schema v9: an ordered
+Observation schema v9 carries operation-attempt schema v9: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -643,8 +643,20 @@ entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
 This summary is compiler-issued execution evidence kept outside canonical
 capability/API comparison bytes. It is not a receipt and does not claim either
-replay verdict. A `Receipted` row still requires a canonical operation
-transcript, retained input bytes, staged-output commitment, and replay checker.
+replay verdict. Sponsored package review does retain a versioned commitment to
+the complete fresh Output tree after successful evaluator/provider teardown
+and before deleting the disposable session. The canonical tree binds sorted
+Output-relative portable UTF-8 paths, empty directories, canonical file modes,
+file lengths and content digests, and exact validated self-contained relative
+symlink spellings. It excludes host roots, timestamps, ownership, ACLs, ambient
+permissions, inode identity, and hard-link topology. Capture requires a
+quiescent sponsor and cross-checks namespace kinds, extents, and object groups;
+unknown kinds, external symlinks, custody disagreement, and bounded-resource
+excess reject. An empty successful tree is committed explicitly. The package
+observation commitment binds its digest and counts, but does not retain the
+tree. A `Receipted` row still requires a canonical operation transcript,
+retained input and staged-output bytes, and a replay checker. This custody rung
+does not exclude a hostile same-user process racing the review session.
 
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires

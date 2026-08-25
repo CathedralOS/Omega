@@ -430,7 +430,7 @@ tagged 50-operation set exhaustively handled by both providers; aliases and
 platform alternatives remain distinct transcript identities. Rooted evidence
 must account for potentially absolute `read_link` output and necessarily
 absolute `canonicalize`/`final_path_name_by_handle` output. These observations
-stay separate from capability/API comparison bytes. Observation schema v8
+stay separate from capability/API comparison bytes. Observation schema v9
 carries operation-attempt schema v9, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
@@ -471,9 +471,20 @@ remain cleanup-contained. Package commitments hash immutable and mutable rows
 without rendering them. Path-like bytes not represented by rooted evidence,
 retained returned-path bytes, preparation-failure operand prefixes, and
 complete content remain absent, so
-this makes no receipt, replayability, or source-rebuildability claim. Canonical
-operation transcripts, recorded inputs, staged-output commitments, and replay
-checking remain required before any `Receipted` verdict.
+this makes no receipt, replayability, or source-rebuildability claim. Sponsored
+package review separately commits its complete fresh Output tree after
+successful evaluator/provider teardown and before cleanup-gated publication.
+Sorted canonical entries bind Output-relative portable UTF-8 paths, empty
+directories, canonical file-kind/mode, file length and content digest, and
+validated self-contained relative symlink spelling. Host roots, ambient
+metadata, inode identity, and hard-link topology are excluded. The compiler
+cross-checks sponsor namespace kinds, extents, hard-link groups, and quiescence;
+review rejects mismatch, unknown kinds, external symlinks, or ceiling excess. A
+successful empty build has an explicit empty-tree commitment. Package
+observation identity binds the tree digest and counts, but the bytes are not
+retained. Canonical operation transcripts, recorded inputs, retained staged
+content, output handoff, and replay checking remain required before any
+`Receipted` verdict. This rung does not claim hostile same-user race exclusion.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

@@ -257,7 +257,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v8 carries operation-attempt schema v9, retaining exact
+Observation schema v9 carries operation-attempt schema v9, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -328,6 +328,23 @@ intentionally rejected designs.
 Compiler-issued package review carries this summary
 outside canonical capability/API comparison bytes. It is not a receipt and
 makes no replayability or source-rebuildability claim.
+After a successful sponsored package build has released its filesystem
+provider and descriptors, the compiler also commits the complete fresh Output
+tree before orchestration deletes the disposable review session. A successful
+empty tree has its own commitment. Canonical entries use sorted Output-relative
+UTF-8 slash paths, explicit directory/file/executable/symlink modes, file length
+and content digest, and exact validated relative symlink spelling. Empty
+directories participate; timestamps, ownership, ACLs, ambient permission bits,
+host roots, inode numbers, and hard-link topology do not. Sponsor namespace
+groups and extents are cross-checked, hard-linked content is counted once, and
+unknown kinds, external symlinks, non-portable paths, open descriptors, prepared
+transactions, custody mismatches, or ceiling excess reject review. The initial
+ceilings are 4,096 entries, 256 MiB unique file content, and 16 MiB aggregate
+path/target bytes. Ordinary caller-owned build roots are not claimed as package
+output trees. The package observation commitment binds the tree digest and
+counts, so a change recommends review through the existing build-observation
+triage lane. Content is not retained and no replay or generated-output handoff
+is claimed; hostile same-user racing remains outside this custody rung.
 Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection
