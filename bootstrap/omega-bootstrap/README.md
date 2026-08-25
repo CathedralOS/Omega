@@ -175,10 +175,18 @@ language, generation, or architectural role; new documentation and work use
   [`gates/delta-resolved-to-ckir3.sh`](gates/delta-resolved-to-ckir3.sh)
   closes native/Delta-self-built producer identity over the exact Unicode unit,
   renamed and cyclic positives, semantic negatives, and literal-resource
-  boundaries. The independent
+  boundaries. Its focused Rust-free
+  [`gates/delta-resolved-to-ckir3-meaning.sh`](gates/delta-resolved-to-ckir3-meaning.sh)
+  elaborates the same general lowerer once through persisted Beta and requires
+  exact native/Gamma agreement for a compact typed constant DAG, aggregate
+  copy, `<=`, result 70, semantic 251, and resource 252. The independent
   [`gates/delta-checked-ir-v3-backend.sh`](gates/delta-checked-ir-v3-backend.sh)
   validates the constant graph, derives layout and a private read-only image,
-  and emits native/self-identical two- or three-segment ELF bytes. The focused
+  and emits native/self-identical two- or three-segment ELF bytes. Its Rust-free
+  [`gates/delta-checked-ir-v3-backend-meaning.sh`](gates/delta-checked-ir-v3-backend-meaning.sh)
+  independently evaluates the representative CKIR3 to result 70, reconstructs
+  its exact 12,288-byte three-segment ELF, and requires Gamma to reproduce that
+  publication plus isolated 251/252 empty-output controls. The focused
   [`gates/delta-ckir3-composite.sh`](gates/delta-ckir3-composite.sh) runs every
   native/self producer/backend pairing over exact source frames, derives
   results 70 and 71 through the independent
@@ -190,9 +198,19 @@ language, generation, or architectural role; new documentation and work use
   evaluated CKIR result. The distinct
   [`OMGRFN4`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md)
   carrier, exact 4,497,544-byte simultaneous ceiling, and five-responsibility
-  ownership split are frozen without widening earlier frames. Rust-free Gamma
-  meaning and the five lower-rooted CKIR3 implementations/composition remain
-  separate open seams.
+  ownership split are frozen without widening earlier frames. The five lower-
+  rooted CKIR3 implementations/composition remain a separate open seam.
+
+  The meaning gates deliberately reuse one elaboration and do not duplicate
+  the native/self fixture or mutation matrices. On the measured Darwin-arm64
+  host, the producer observations took 68.82s/18.05s/12.12s for 0/251/252 and
+  the backend's exact 12,288-byte publication took 142.52s, while backend
+  rejection controls remained subsecond. A full cyclic producer observation
+  took 157.75s and did not yield the required pair-shaped Gamma observation;
+  it is not claimed here. Cyclic interval and artifact behavior remain covered
+  by the native/self and mixed composite gates. Directly elaborating the cyclic
+  Omega fixture is not used to paper over that gap: `omega2gamma` currently
+  refuses its structured selected-owner array field-access path.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact
