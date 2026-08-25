@@ -1,0 +1,609 @@
+; OMGRFN2 layer 2: independent source -> OMGRSW1 reconstruction.
+; This is a separate persisted-Beta executable from layer 1.  It locally
+; decodes enough OMGRFN2/OMGCOMP structure to make every source/name access
+; safe; the layer-1 executable supplies the distinct complete-structural
+; custody conjunct.  Layer 2 does not read CKIR or ELF and does not reproduce
+; the Delta resolver's parser or publication state machine.
+;
+; The first public two-unit artifact is checked through a deliberately small,
+; separately designed formulation:
+;   1. tokenize each resolver-owned source into immutable token/event arrays;
+;   2. classify the dependency record and root record/machine in independent
+;      passes;
+;   3. join the authored use path through requester-local OMGCOMP aliases,
+;      source modules, declaration visibility, and the selected root; and
+;   4. serialize the uniquely expected OMGRSW1 and compare every byte.
+;
+; Stable helpers for later layers (valid after a successful decode/check):
+;   omgrfn2_l2_witness_byte(index)
+;   omgrfn2_l2_witness_u32(index)
+;   omgrfn2_l2_witness_table_start(table_id)
+;   omgrfn2_l2_witness_count(table_id)
+;   omgrfn2_l2_source_byte(source_id, index)
+;
+; Layer-2 globals occupy 700000..999999, below OMGRFN2 raw bytes at 1048576.
+
+proc omgrfn2_l2_frame_byte(index) { return byte[1048576 + index] }
+proc omgrfn2_l2_omgcomp_byte(index) { return omgrfn2_l2_frame_byte(word[500024] + index) }
+proc omgrfn2_l2_source_content_start(source_id) { return word[607040 + source_id * 8] }
+proc omgrfn2_l2_source_content_length(source_id) { return word[607168 + source_id * 8] }
+
+proc omgrfn2_l2_reject() {
+    state set { to done when (word[700000] != 0)  word[700000] = 251 }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_exhaust() {
+    word[700000] = 252
+    return 252
+}
+
+proc omgrfn2_l2_frame_u32(at) {
+    return omgrfn2_l2_frame_byte(at) + omgrfn2_l2_frame_byte(at+1)*256
+        + omgrfn2_l2_frame_byte(at+2)*65536 + omgrfn2_l2_frame_byte(at+3)*16777216
+}
+
+proc omgrfn2_l2_read_frame() {
+    let n = 0 let overflow = 0 let c = read_byte()
+    state read { to one when (c >= 0)  to header }
+    state one { to over when (n >= 4104320)  byte[1048576+n] = c  n = n + 1  c = read_byte()  to read }
+    state over { overflow = 1  c = read_byte()  to read }
+    state header { to exhausted when (overflow == 1)  to bad when (n < 40)  to magic }
+    state magic {
+        to bad when (omgrfn2_l2_frame_byte(0)!='O') to bad when (omgrfn2_l2_frame_byte(1)!='M')
+        to bad when (omgrfn2_l2_frame_byte(2)!='G') to bad when (omgrfn2_l2_frame_byte(3)!='R')
+        to bad when (omgrfn2_l2_frame_byte(4)!='F') to bad when (omgrfn2_l2_frame_byte(5)!='N')
+        to bad when (omgrfn2_l2_frame_byte(6)!='2') to bad when (omgrfn2_l2_frame_byte(7)!=0)
+        to bad when (omgrfn2_l2_frame_u32(8)!=2)
+        word[500016]=omgrfn2_l2_frame_u32(12) word[500024]=40 word[500032]=omgrfn2_l2_frame_u32(16)
+        word[500040]=40+word[500032] word[500048]=omgrfn2_l2_frame_u32(20)
+        word[500056]=word[500040]+word[500048] word[500064]=omgrfn2_l2_frame_u32(24)
+        word[500072]=word[500056]+word[500064] word[500080]=omgrfn2_l2_frame_u32(28)
+        word[500088]=omgrfn2_l2_frame_u32(32) word[500096]=omgrfn2_l2_frame_u32(36)
+        to bad when (word[500016]>1) to bad when (word[500032]<1) to bad when (word[500048]<1) to bad when (word[500064]<1)
+        to exhausted when (word[500032]>267280) to exhausted when (word[500048]>524288)
+        to exhausted when (word[500064]>2260040) to exhausted when (word[500080]>1052672)
+        to bad when (n != word[500072]+word[500080])
+        to library when (word[500016]==0) to entry
+    }
+    state library { to bad when (word[500080]!=0) to bad when (word[500088]!=4294967295) to bad when (word[500096]!=4294967295) return 0 }
+    state entry { to bad when (word[500080]<1) to bad when (word[500096]>255) to bad when (word[500096] != word[500088]%256) return 0 }
+    state exhausted { return omgrfn2_l2_exhaust() }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_comp_u32(at) {
+    return omgrfn2_l2_omgcomp_byte(at) + omgrfn2_l2_omgcomp_byte(at+1)*256
+        + omgrfn2_l2_omgcomp_byte(at+2)*65536 + omgrfn2_l2_omgcomp_byte(at+3)*16777216
+}
+
+proc omgrfn2_l2_decode_compilation() {
+    let n=word[500032] let at=0 let i=0 let owner=0 let bundle=0 let module=0
+    let label_length=0 let content_length=0
+    state size { to bad when (n<64) to header }
+    state header {
+        word[500280]=omgrfn2_l2_comp_u32(16) word[500288]=omgrfn2_l2_comp_u32(20) word[500296]=omgrfn2_l2_comp_u32(24)
+        word[500304]=omgrfn2_l2_comp_u32(28) word[500312]=omgrfn2_l2_comp_u32(32) word[500320]=omgrfn2_l2_comp_u32(36) word[500328]=omgrfn2_l2_comp_u32(40)
+        word[500336]=omgrfn2_l2_comp_u32(44) word[500344]=omgrfn2_l2_comp_u32(48) word[500352]=omgrfn2_l2_comp_u32(52) word[500360]=omgrfn2_l2_comp_u32(56)
+        to bad when (word[500312]!=2) to bad when (word[500320]!=2)
+        to bad when (word[500328]<1) to exhausted when (word[500328]>4)
+        to exhausted when (word[500304]>64) to exhausted when (word[500288]>263312)
+        to bad when (word[500280]!=n)
+        word[500368]=64 word[500376]=160 word[500384]=200 word[500392]=200+word[500328]*16 word[500400]=word[500392]+word[500296]
+        to bad when (word[500400]>n) to bad when (word[500288]!=n-word[500400])
+        to bad when (word[500336]>=2) to bad when (word[500344]>=2)
+        to bad when (word[500352]>=word[500304]) to bad when (word[500360]>=word[500304])
+        i=0 to sources
+    }
+    state sources { to source_row when (i<2) i=0 to aliases }
+    state source_row { at=160+i*20 owner=omgrfn2_l2_comp_u32(at+4) bundle=omgrfn2_l2_comp_u32(at+8) module=omgrfn2_l2_comp_u32(at+12) to bad when (owner>=2) to bad when (bundle>=2) to bad when (module>=word[500304]) word[600384+i*8]=owner word[600512+i*8]=bundle word[600640+i*8]=module i=i+1 to sources }
+    state aliases { to alias_row when (i<word[500328]) i=0 at=word[500392] to strings }
+    state alias_row { bundle=200+i*16 word[600896+i*8]=omgrfn2_l2_comp_u32(bundle) word[601152+i*8]=omgrfn2_l2_comp_u32(bundle+4) word[601408+i*8]=omgrfn2_l2_comp_u32(bundle+8) to bad when (word[600896+i*8]>=2) to bad when (word[601152+i*8]>=word[500304]) to bad when (word[601408+i*8]>=2) i=i+1 to aliases }
+    state strings { to string_row when (i<word[500304]) to bad when (at!=word[500400]) i=0 at=word[500400] to bundle_magic }
+    state string_row { to bad when (at>word[500400]-4) content_length=omgrfn2_l2_comp_u32(at) to bad when (content_length>word[500400]-at-4) word[601664+i*8]=at+4 word[602176+i*8]=content_length at=at+4+content_length i=i+1 to strings }
+    state bundle_magic { to bad when (word[500288]<16) to bad when (omgrfn2_l2_comp_u32(at+12)!=2) at=at+16 i=0 to bundle_rows }
+    state bundle_rows { to bundle_row when (i<2) to bad when (at!=n) i=0 to source_extents }
+    state bundle_row { to bad when (at>n-8) label_length=omgrfn2_l2_comp_u32(at) content_length=omgrfn2_l2_comp_u32(at+4) to exhausted when (label_length>64) to exhausted when (content_length>131072) to bad when (label_length<1) to bad when (label_length>n-at-8) to bad when (content_length>n-at-8-label_length) word[607296+i*8]=at+8+label_length word[607424+i*8]=content_length at=at+8+label_length+content_length i=i+1 to bundle_rows }
+    state source_extents { to source_extent when (i<2) return 0 }
+    state source_extent { bundle=word[600512+i*8] word[607040+i*8]=word[607296+bundle*8] word[607168+i*8]=word[607424+bundle*8] i=i+1 to source_extents }
+    state exhausted { return omgrfn2_l2_exhaust() }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_witness_byte(index) {
+    return omgrfn2_l2_frame_byte(word[500040] + index)
+}
+
+proc omgrfn2_l2_witness_u32(index) {
+    return omgrfn2_l2_witness_byte(index)
+        + omgrfn2_l2_witness_byte(index + 1) * 256
+        + omgrfn2_l2_witness_byte(index + 2) * 65536
+        + omgrfn2_l2_witness_byte(index + 3) * 16777216
+}
+
+proc omgrfn2_l2_witness_table_start(table_id) {
+    return word[700128 + table_id * 8]
+}
+
+proc omgrfn2_l2_witness_count(table_id) {
+    return word[700256 + table_id * 8]
+}
+
+proc omgrfn2_l2_source_byte(source_id, index) {
+    return omgrfn2_l2_omgcomp_byte(omgrfn2_l2_source_content_start(source_id) + index)
+}
+
+proc omgrfn2_l2_decode_witness() {
+    let n = word[500048]
+    state size { to bad when (n != 652)  to constants }
+    state constants {
+        word[700256]=2 word[700264]=1 word[700272]=2 word[700280]=3 word[700288]=5 word[700296]=2
+        word[700304]=3 word[700312]=1 word[700320]=0 word[700328]=1 word[700336]=0
+        word[700128]=72 word[700136]=144 word[700144]=192 word[700152]=248
+        word[700160]=332 word[700168]=452 word[700176]=500 word[700184]=572
+        word[700192]=612 word[700200]=612 word[700208]=652
+        word[700016]=0
+        return 0
+    }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+; Token arrays use a source-local capacity of 256.  Kinds are 256 for an
+; identifier, 257 for a decimal integer, ASCII for punctuation, and zero EOF.
+proc omgrfn2_l2_token_slot(source_id, token_id) { return source_id * 256 + token_id }
+proc omgrfn2_l2_token_start(source_id, token_id) { return word[720000 + omgrfn2_l2_token_slot(source_id, token_id) * 8] }
+proc omgrfn2_l2_token_length(source_id, token_id) { return word[760000 + omgrfn2_l2_token_slot(source_id, token_id) * 8] }
+proc omgrfn2_l2_token_kind(source_id, token_id) { return word[800000 + omgrfn2_l2_token_slot(source_id, token_id) * 8] }
+proc omgrfn2_l2_fact(source_id, field) { return word[840000 + source_id * 512 + field * 8] }
+proc omgrfn2_l2_fact_set(source_id, field, value) { word[840000 + source_id * 512 + field * 8] = value  return value }
+
+proc omgrfn2_l2_ident_start(c) {
+    state underscore { to yes when (c == '_')  to upper0 }
+    state upper0 { to upper1 when (c >= 'A')  to lower0 }
+    state upper1 { to yes when (c <= 'Z')  to lower0 }
+    state lower0 { to lower1 when (c >= 'a')  return 0 }
+    state lower1 { to yes when (c <= 'z')  return 0 }
+    state yes { return 1 }
+}
+
+proc omgrfn2_l2_ident_continue(c) {
+    state ident { to yes when (omgrfn2_l2_ident_start(c) == 1)  to digit0 }
+    state digit0 { to digit1 when (c >= '0')  return 0 }
+    state digit1 { to yes when (c <= '9')  return 0 }
+    state yes { return 1 }
+}
+
+proc omgrfn2_l2_tokenize_source(source_id) {
+    let p = 0
+    let n = omgrfn2_l2_source_content_length(source_id)
+    let count = 0
+    let start = 0
+    let c = 0
+    let depth = 0
+    state skip { to classify when (p < n)  to finish }
+    state classify {
+        c = omgrfn2_l2_source_byte(source_id, p)
+        to whitespace when (c == ' ')
+        to whitespace when (c == 9)
+        to whitespace when (c == 10)
+        to whitespace when (c == 13)
+        to slash when (c == '/')
+        to capacity
+    }
+    state whitespace { p = p + 1  to skip }
+    state slash {
+        to capacity when (p + 1 >= n)
+        to line_begin when (omgrfn2_l2_source_byte(source_id, p + 1) == '/')
+        to block_begin when (omgrfn2_l2_source_byte(source_id, p + 1) == '*')
+        to capacity
+    }
+    state line_begin { p = p + 2  to line }
+    state line { to finish when (p >= n)  to line_byte }
+    state line_byte { to whitespace when (omgrfn2_l2_source_byte(source_id, p) == 10)  p = p + 1  to line }
+    state block_begin { depth = 1  p = p + 2  to block }
+    state block { to bad when (p >= n)  to block_slash }
+    state block_slash { to block_star when (omgrfn2_l2_source_byte(source_id, p) != '/')  to block_open_room }
+    state block_open_room { to block_advance when (p + 1 >= n)  to block_open }
+    state block_open { to block_advance when (omgrfn2_l2_source_byte(source_id, p + 1) != '*')  depth = depth + 1  p = p + 2  to block }
+    state block_star { to block_advance when (omgrfn2_l2_source_byte(source_id, p) != '*')  to block_close_room }
+    state block_close_room { to block_advance when (p + 1 >= n)  to block_close }
+    state block_close { to block_advance when (omgrfn2_l2_source_byte(source_id, p + 1) != '/')  depth = depth - 1  p = p + 2  to skip when (depth == 0)  to block }
+    state block_advance { p = p + 1  to block }
+    state capacity { to exhausted when (count >= 256)  start = p  to ident when (omgrfn2_l2_ident_start(c) == 1)  to number0 }
+    state ident { p = p + 1  to ident_loop }
+    state ident_loop { to save_ident when (p >= n)  c = omgrfn2_l2_source_byte(source_id, p)  to save_ident when (omgrfn2_l2_ident_continue(c) == 0)  to exhausted when (p - start >= 64)  p = p + 1  to ident_loop }
+    state save_ident { word[720000 + omgrfn2_l2_token_slot(source_id,count) * 8] = start  word[760000 + omgrfn2_l2_token_slot(source_id,count) * 8] = p - start  word[800000 + omgrfn2_l2_token_slot(source_id,count) * 8] = 256  count = count + 1  to skip }
+    state number0 { to punctuation when (c < '0')  to punctuation when (c > '9')  p = p + 1  to number }
+    state number { to save_number when (p >= n)  c = omgrfn2_l2_source_byte(source_id,p)  to save_number when (c < '0')  to save_number when (c > '9')  p = p + 1  to number }
+    state save_number { word[720000 + omgrfn2_l2_token_slot(source_id,count) * 8] = start  word[760000 + omgrfn2_l2_token_slot(source_id,count) * 8] = p - start  word[800000 + omgrfn2_l2_token_slot(source_id,count) * 8] = 257  count = count + 1  to skip }
+    state punctuation { to bad when (c >= 128)  to bad when (c == 34)  word[720000 + omgrfn2_l2_token_slot(source_id,count) * 8] = p  word[760000 + omgrfn2_l2_token_slot(source_id,count) * 8] = 1  word[800000 + omgrfn2_l2_token_slot(source_id,count) * 8] = c  count = count + 1  p = p + 1  to skip }
+    state finish { word[710000 + source_id * 8] = count  word[710128 + source_id * 8] = 0  return 0 }
+    state exhausted { return omgrfn2_l2_exhaust() }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+; Keyword bytes are gate-independent checker constants, not copied fixture
+; rows.  Codes: 0 module, 1 use, 2 pub, 3 data, 4 copy, 5 machine,
+; 6 mut, 7 self, 8 u8.
+proc omgrfn2_l2_init_words() {
+    ; moduleusedatapubcopymachinemutselfu8
+    byte[704000]=109 byte[704001]=111 byte[704002]=100 byte[704003]=117 byte[704004]=108 byte[704005]=101
+    byte[704006]=117 byte[704007]=115 byte[704008]=101
+    byte[704009]=112 byte[704010]=117 byte[704011]=98
+    byte[704012]=100 byte[704013]=97 byte[704014]=116 byte[704015]=97
+    byte[704016]=99 byte[704017]=111 byte[704018]=112 byte[704019]=121
+    byte[704020]=109 byte[704021]=97 byte[704022]=99 byte[704023]=104 byte[704024]=105 byte[704025]=110 byte[704026]=101
+    byte[704027]=109 byte[704028]=117 byte[704029]=116
+    byte[704030]=115 byte[704031]=101 byte[704032]=108 byte[704033]=102
+    byte[704034]=117 byte[704035]=56
+    return 0
+}
+
+proc omgrfn2_l2_word_start(code) {
+    state c0 { to x0 when (code == 0)  to c1 } state x0 { return 0 }
+    state c1 { to x1 when (code == 1)  to c2 } state x1 { return 6 }
+    state c2 { to x2 when (code == 2)  to c3 } state x2 { return 9 }
+    state c3 { to x3 when (code == 3)  to c4 } state x3 { return 12 }
+    state c4 { to x4 when (code == 4)  to c5 } state x4 { return 16 }
+    state c5 { to x5 when (code == 5)  to c6 } state x5 { return 20 }
+    state c6 { to x6 when (code == 6)  to c7 } state x6 { return 27 }
+    state c7 { to x7 when (code == 7)  return 34 } state x7 { return 30 }
+}
+
+proc omgrfn2_l2_word_length(code) {
+    state c0 { to x0 when (code == 0)  to c1 } state x0 { return 6 }
+    state c1 { to x1 when (code == 1)  to c2 } state x1 { return 3 }
+    state c2 { to x2 when (code == 2)  to c3 } state x2 { return 3 }
+    state c3 { to x3 when (code == 3)  to c4 } state x3 { return 4 }
+    state c4 { to x4 when (code == 4)  to c5 } state x4 { return 4 }
+    state c5 { to x5 when (code == 5)  to c6 } state x5 { return 7 }
+    state c6 { to x6 when (code == 6)  to c7 } state x6 { return 3 }
+    state c7 { to x7 when (code == 7)  return 2 } state x7 { return 4 }
+}
+
+proc omgrfn2_l2_token_is_word(source_id, token_id, code) {
+    let i = 0
+    let n = omgrfn2_l2_word_length(code)
+    let at = omgrfn2_l2_word_start(code)
+    state kind { to no when (omgrfn2_l2_token_kind(source_id,token_id) != 256)  to length }
+    state length { to no when (omgrfn2_l2_token_length(source_id,token_id) != n)  to loop }
+    state loop { to one when (i < n)  return 1 }
+    state one { to no when (omgrfn2_l2_source_byte(source_id,omgrfn2_l2_token_start(source_id,token_id)+i) != byte[704000+at+i])  i = i + 1  to loop }
+    state no { return 0 }
+}
+
+proc omgrfn2_l2_current(source_id) { return word[710128 + source_id * 8] }
+proc omgrfn2_l2_advance(source_id) { word[710128 + source_id * 8] = word[710128 + source_id * 8] + 1  return word[710128 + source_id * 8] }
+
+proc omgrfn2_l2_expect_kind(source_id, kind) {
+    let token = omgrfn2_l2_current(source_id)
+    state room { to bad when (token >= word[710000 + source_id * 8])  to check }
+    state check { to bad when (omgrfn2_l2_token_kind(source_id,token) != kind)  omgrfn2_l2_advance(source_id)  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_expect_word(source_id, code) {
+    let token = omgrfn2_l2_current(source_id)
+    state room { to bad when (token >= word[710000 + source_id * 8])  to check }
+    state check { to bad when (omgrfn2_l2_token_is_word(source_id,token,code) == 0)  omgrfn2_l2_advance(source_id)  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_source_span_equal(left_source, left_start, right_source, right_start) {
+    let i = 0
+    state loop { to one when (i < word[700056])  return 1 }
+    state one { to no when (omgrfn2_l2_source_byte(left_source,left_start+i) != omgrfn2_l2_source_byte(right_source,right_start+i))  i = i + 1  to loop }
+    state no { return 0 }
+}
+
+proc omgrfn2_l2_source_string_equal(source_id, start, count, string_id) {
+    let i = 0
+    state length { to no when (word[602176 + string_id * 8] != count)  to loop }
+    state loop { to one when (i < count)  return 1 }
+    state one { to no when (omgrfn2_l2_source_byte(source_id,start+i) != omgrfn2_l2_omgcomp_byte(word[601664+string_id*8]+i))  i = i + 1  to loop }
+    state no { return 0 }
+}
+
+proc omgrfn2_l2_parse_module(source_id) {
+    let token = 0
+    state keyword { to done when (omgrfn2_l2_expect_word(source_id,0) != 0)  token = omgrfn2_l2_current(source_id)  to ident }
+    state ident { to bad when (omgrfn2_l2_expect_kind(source_id,256) != 0)  omgrfn2_l2_fact_set(source_id,0,omgrfn2_l2_token_start(source_id,token))  omgrfn2_l2_fact_set(source_id,1,omgrfn2_l2_token_length(source_id,token))  to semicolon }
+    state semicolon { to done when (omgrfn2_l2_expect_kind(source_id,59) != 0)  to manifest }
+    state manifest { to bad when (omgrfn2_l2_source_string_equal(source_id,omgrfn2_l2_fact(source_id,0),omgrfn2_l2_fact(source_id,1),word[600640+source_id*8]) == 0)  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_parse_use(source_id) {
+    let t0 = 0 let t1 = 0 let t2 = 0
+    state keyword { to done when (omgrfn2_l2_expect_word(source_id,1) != 0)  t0 = omgrfn2_l2_current(source_id)  to first }
+    state first { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to colon0 }
+    state colon0 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  to colon1 }
+    state colon1 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  t1 = omgrfn2_l2_current(source_id)  to second }
+    state second { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to colon2 }
+    state colon2 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  to colon3 }
+    state colon3 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  t2 = omgrfn2_l2_current(source_id)  to third }
+    state third { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to semicolon }
+    state semicolon { to done when (omgrfn2_l2_expect_kind(source_id,59) != 0)  to save }
+    state save {
+        omgrfn2_l2_fact_set(source_id,20,omgrfn2_l2_token_start(source_id,t0))
+        omgrfn2_l2_fact_set(source_id,21,omgrfn2_l2_token_start(source_id,t2)+omgrfn2_l2_token_length(source_id,t2)-omgrfn2_l2_token_start(source_id,t0))
+        omgrfn2_l2_fact_set(source_id,22,omgrfn2_l2_token_start(source_id,t0))  omgrfn2_l2_fact_set(source_id,23,omgrfn2_l2_token_length(source_id,t0))
+        omgrfn2_l2_fact_set(source_id,24,omgrfn2_l2_token_start(source_id,t1))  omgrfn2_l2_fact_set(source_id,25,omgrfn2_l2_token_length(source_id,t1))
+        omgrfn2_l2_fact_set(source_id,26,omgrfn2_l2_token_start(source_id,t2))  omgrfn2_l2_fact_set(source_id,27,omgrfn2_l2_token_length(source_id,t2))
+        return 0
+    }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_parse_field(source_id, slot) {
+    let name = omgrfn2_l2_current(source_id)
+    let type = 0
+    state name_kind { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to colon }
+    state colon { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  type = omgrfn2_l2_current(source_id)  to type_kind }
+    state type_kind { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to semicolon }
+    state semicolon { to done when (omgrfn2_l2_expect_kind(source_id,59) != 0)  to save }
+    state save {
+        omgrfn2_l2_fact_set(source_id,slot,omgrfn2_l2_token_start(source_id,name))
+        omgrfn2_l2_fact_set(source_id,slot+1,omgrfn2_l2_token_length(source_id,name))
+        omgrfn2_l2_fact_set(source_id,slot+2,omgrfn2_l2_token_start(source_id,type))
+        omgrfn2_l2_fact_set(source_id,slot+3,omgrfn2_l2_token_length(source_id,type))
+        return 0
+    }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_parse_data(source_id, is_public) {
+    let name = 0
+    state keyword { to done when (omgrfn2_l2_expect_word(source_id,3) != 0)  name = omgrfn2_l2_current(source_id)  to name_kind }
+    state name_kind { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  omgrfn2_l2_fact_set(source_id,4,omgrfn2_l2_token_start(source_id,name))  omgrfn2_l2_fact_set(source_id,5,omgrfn2_l2_token_length(source_id,name))  omgrfn2_l2_fact_set(source_id,6,is_public)  to copy_or_open }
+    state copy_or_open { to open when (omgrfn2_l2_token_kind(source_id,omgrfn2_l2_current(source_id)) == 123)  to copy_open }
+    state copy_open { to done when (omgrfn2_l2_expect_kind(source_id,91) != 0)  to copy_word }
+    state copy_word { to done when (omgrfn2_l2_expect_word(source_id,4) != 0)  to copy_close }
+    state copy_close { to done when (omgrfn2_l2_expect_kind(source_id,93) != 0)  omgrfn2_l2_fact_set(source_id,7,1)  to open }
+    state open { to done when (omgrfn2_l2_expect_kind(source_id,123) != 0)  to first }
+    state first { to done when (omgrfn2_l2_parse_field(source_id,8) != 0)  to second_or_close }
+    state second_or_close { to close when (omgrfn2_l2_token_kind(source_id,omgrfn2_l2_current(source_id)) == 125)  to second }
+    state second { to done when (omgrfn2_l2_parse_field(source_id,12) != 0)  omgrfn2_l2_fact_set(source_id,16,2)  to close }
+    state close { to done when (omgrfn2_l2_expect_kind(source_id,125) != 0)  to one_field }
+    state one_field { to complete when (omgrfn2_l2_fact(source_id,16) == 2)  omgrfn2_l2_fact_set(source_id,16,1)  to complete }
+    state complete { return 0 }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_parse_machine(source_id) {
+    let owner = 0 let name = 0 let body_start = 0 let depth = 1 let token = 0
+    state keyword { to done when (omgrfn2_l2_expect_word(source_id,5) != 0)  owner = omgrfn2_l2_current(source_id)  to owner_kind }
+    state owner_kind { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to colon0 }
+    state colon0 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  to colon1 }
+    state colon1 { to done when (omgrfn2_l2_expect_kind(source_id,58) != 0)  name = omgrfn2_l2_current(source_id)  to name_kind }
+    state name_kind { to done when (omgrfn2_l2_expect_kind(source_id,256) != 0)  to paren }
+    state paren { to done when (omgrfn2_l2_expect_kind(source_id,40) != 0)  to amp }
+    state amp { to done when (omgrfn2_l2_expect_kind(source_id,38) != 0)  to mut }
+    state mut { to done when (omgrfn2_l2_expect_word(source_id,6) != 0)  to self }
+    state self { to done when (omgrfn2_l2_expect_word(source_id,7) != 0)  to close_paren }
+    state close_paren { to done when (omgrfn2_l2_expect_kind(source_id,41) != 0)  to dash }
+    state dash { to done when (omgrfn2_l2_expect_kind(source_id,45) != 0)  to arrow }
+    state arrow { to done when (omgrfn2_l2_expect_kind(source_id,62) != 0)  to result }
+    state result { to done when (omgrfn2_l2_expect_word(source_id,8) != 0)  to open }
+    state open { to done when (omgrfn2_l2_expect_kind(source_id,123) != 0)  token = omgrfn2_l2_current(source_id)  to body_nonempty }
+    state body_nonempty { to bad when (token >= word[710000+source_id*8])  body_start = omgrfn2_l2_token_start(source_id,token)  to body }
+    state body { token = omgrfn2_l2_current(source_id)  to bad when (token >= word[710000+source_id*8])  to nested when (omgrfn2_l2_token_kind(source_id,token) == 123)  to close when (omgrfn2_l2_token_kind(source_id,token) == 125)  omgrfn2_l2_advance(source_id)  to body }
+    state nested { depth = depth + 1  omgrfn2_l2_advance(source_id)  to body }
+    state close { depth = depth - 1  to complete when (depth == 0)  omgrfn2_l2_advance(source_id)  to body }
+    state complete {
+        omgrfn2_l2_fact_set(source_id,28,omgrfn2_l2_token_start(source_id,owner))  omgrfn2_l2_fact_set(source_id,29,omgrfn2_l2_token_length(source_id,owner))
+        omgrfn2_l2_fact_set(source_id,30,omgrfn2_l2_token_start(source_id,name))  omgrfn2_l2_fact_set(source_id,31,omgrfn2_l2_token_length(source_id,name))
+        omgrfn2_l2_fact_set(source_id,32,body_start)  omgrfn2_l2_fact_set(source_id,33,omgrfn2_l2_token_start(source_id,token))
+        omgrfn2_l2_advance(source_id)
+        return 0
+    }
+    state bad { return omgrfn2_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_parse_source(source_id) {
+    let token = 0
+    state module { to done when (omgrfn2_l2_parse_module(source_id) != 0)  token = omgrfn2_l2_current(source_id)  to pub_check }
+    state pub_check { to root_use when (omgrfn2_l2_token_is_word(source_id,token,1) == 1)  to public when (omgrfn2_l2_token_is_word(source_id,token,2) == 1)  to root_data }
+    state public { omgrfn2_l2_advance(source_id)  omgrfn2_l2_fact_set(source_id,2,1)  to dependency_data }
+    state dependency_data { to done when (omgrfn2_l2_parse_data(source_id,1) != 0)  to dependency_shape }
+    state dependency_shape { to bad when (omgrfn2_l2_fact(source_id,7) != 1)  to bad when (omgrfn2_l2_fact(source_id,16) != 2)  to dependency_types }
+    state dependency_types {
+        ; Field type spans are checked directly because their parse tokens are
+        ; no longer the current cursor.  Both must be the exact builtin `u8`.
+        to bad when (omgrfn2_l2_fact(source_id,11) != 2)
+        to bad when (omgrfn2_l2_source_byte(source_id,omgrfn2_l2_fact(source_id,10)) != 'u')
+        to bad when (omgrfn2_l2_source_byte(source_id,omgrfn2_l2_fact(source_id,10)+1) != '8')
+        to bad when (omgrfn2_l2_fact(source_id,15) != 2)
+        to bad when (omgrfn2_l2_source_byte(source_id,omgrfn2_l2_fact(source_id,14)) != 'u')
+        to bad when (omgrfn2_l2_source_byte(source_id,omgrfn2_l2_fact(source_id,14)+1) != '8')
+        to bad when (omgrfn2_l2_identical_source_tokens(source_id,8,source_id,12) == 1)
+        omgrfn2_l2_fact_set(source_id,3,1)
+        to eof
+    }
+    state root_use { to done when (omgrfn2_l2_parse_use(source_id) != 0)  to root_data }
+    state root_data { to done when (omgrfn2_l2_parse_data(source_id,0) != 0)  to root_shape }
+    state root_shape { to bad when (omgrfn2_l2_fact(source_id,7) != 0)  to bad when (omgrfn2_l2_fact(source_id,16) != 1)  to machine }
+    state machine { to done when (omgrfn2_l2_parse_machine(source_id) != 0)  omgrfn2_l2_fact_set(source_id,3,2)  to eof }
+    state eof { to bad when (omgrfn2_l2_current(source_id) != word[710000+source_id*8])  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc omgrfn2_l2_identical_source_tokens(a_source,a_field,b_source,b_field) {
+    state length { to no when (omgrfn2_l2_fact(a_source,a_field+1) != omgrfn2_l2_fact(b_source,b_field+1))  word[700056]=omgrfn2_l2_fact(a_source,a_field+1)  return omgrfn2_l2_source_span_equal(a_source,omgrfn2_l2_fact(a_source,a_field),b_source,omgrfn2_l2_fact(b_source,b_field)) }
+    state no { return 0 }
+}
+
+proc omgrfn2_l2_resolve_join() {
+    let dep = word[700024] let root = word[700032] let alias = 0 let matches = 0 let i = 0
+    let root_package = word[600384 + root * 8]
+    let dep_package = word[600384 + dep * 8]
+    state package_distinct { to bad when (root_package == dep_package)  to use_present }
+    state use_present { to bad when (omgrfn2_l2_fact(root,21) == 0)  to alias_loop }
+    state alias_loop { to alias_row when (i < word[500328])  to alias_exact }
+    state alias_row { to alias_next when (word[600896+i*8] != root_package)  to alias_name }
+    state alias_name { to alias_next when (omgrfn2_l2_source_string_equal(root,omgrfn2_l2_fact(root,22),omgrfn2_l2_fact(root,23),word[601152+i*8]) == 0)  matches = matches + 1  alias = i  to alias_next }
+    state alias_next { i = i + 1  to alias_loop }
+    state alias_exact { to bad when (matches != 1)  i=0  to module_ambiguity }
+    state module_ambiguity { to module_candidate when (i<2)  to alias_target }
+    state module_candidate { to module_next when (word[600384+i*8] != root_package)  to bad when (omgrfn2_l2_source_string_equal(root,omgrfn2_l2_fact(root,22),omgrfn2_l2_fact(root,23),word[600640+i*8]) == 1)  to module_next }
+    state module_next { i=i+1  to module_ambiguity }
+    state alias_target { to bad when (word[601408+alias*8] != dep_package)  word[700040] = alias  to module_target }
+    state module_target { to bad when (omgrfn2_l2_source_string_equal(root,omgrfn2_l2_fact(root,24),omgrfn2_l2_fact(root,25),word[600640+dep*8]) == 0)  to declaration_target }
+    state declaration_target { to bad when (omgrfn2_l2_identical_source_tokens(root,26,dep,4) == 0)  to local_collision }
+    state local_collision { to bad when (omgrfn2_l2_identical_source_tokens(root,26,root,4) == 1)  to field_binding }
+    state field_binding { to bad when (omgrfn2_l2_identical_source_tokens(root,10,root,26) == 0)  to owner_binding }
+    state owner_binding { to bad when (omgrfn2_l2_identical_source_tokens(root,28,root,4) == 0)  to root_package_check }
+    state root_package_check { to bad when (word[500336] != root_package)  to root_source_check }
+    state root_source_check { to bad when (word[500344] != root)  to root_owner_check }
+    state root_owner_check { to bad when (omgrfn2_l2_source_string_equal(root,omgrfn2_l2_fact(root,4),omgrfn2_l2_fact(root,5),word[500352]) == 0)  to root_machine_check }
+    state root_machine_check { to bad when (omgrfn2_l2_source_string_equal(root,omgrfn2_l2_fact(root,30),omgrfn2_l2_fact(root,31),word[500360]) == 0)  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_assign_ids() {
+    let source = 0 let declaration = 0 let record = 0 let field = 0
+    state loop { to one when (source < 2)  return 0 }
+    state one {
+        omgrfn2_l2_fact_set(source,40,declaration)
+        omgrfn2_l2_fact_set(source,41,record)
+        omgrfn2_l2_fact_set(source,42,field)
+        declaration = declaration + 1
+        record = record + 1
+        field = field + omgrfn2_l2_fact(source,16)
+        to root_machine when (omgrfn2_l2_fact(source,3) == 2)
+        source = source + 1
+        to loop
+    }
+    state root_machine { omgrfn2_l2_fact_set(source,43,declaration)  declaration = declaration + 1  source = source + 1  to loop }
+}
+
+proc omgrfn2_l2_put_byte(value) { byte[900000 + word[700048]] = value  word[700048] = word[700048] + 1  return value }
+proc omgrfn2_l2_put_u16(value) { omgrfn2_l2_put_byte(value % 256) omgrfn2_l2_put_byte((value / 256) % 256) return value }
+proc omgrfn2_l2_put_u32(value) { omgrfn2_l2_put_byte(value % 256) omgrfn2_l2_put_byte((value / 256) % 256) omgrfn2_l2_put_byte((value / 65536) % 256) omgrfn2_l2_put_byte((value / 16777216) % 256) return value }
+
+proc omgrfn2_l2_emit_header() {
+    omgrfn2_l2_put_byte('O') omgrfn2_l2_put_byte('M') omgrfn2_l2_put_byte('G') omgrfn2_l2_put_byte('R')
+    omgrfn2_l2_put_byte('S') omgrfn2_l2_put_byte('W') omgrfn2_l2_put_byte('1') omgrfn2_l2_put_byte(0)
+    omgrfn2_l2_put_u16(1) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u16(72)
+    omgrfn2_l2_put_u32(652)
+    omgrfn2_l2_put_u32(2) omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(2)
+    omgrfn2_l2_put_u32(3) omgrfn2_l2_put_u32(5) omgrfn2_l2_put_u32(2)
+    omgrfn2_l2_put_u32(3) omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(0)
+    omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(0)
+    omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0)
+    return 0
+}
+
+proc omgrfn2_l2_emit_units() {
+    let source = 0 let kind = 0 let import_at = 0
+    state loop { to row when (source < 2)  return 0 }
+    state row { kind = omgrfn2_l2_fact(source,3)  omgrfn2_l2_put_u32(source)  omgrfn2_l2_put_u32(word[600384+source*8])  omgrfn2_l2_put_u32(word[600640+source*8])  omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,0))  omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,1))  to dep when (kind == 1)  to root }
+    state dep { omgrfn2_l2_put_u32(import_at) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,40)) omgrfn2_l2_put_u32(1) source = source + 1 to loop }
+    state root { omgrfn2_l2_put_u32(import_at) omgrfn2_l2_put_u32(1) import_at = import_at + 1 omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,40)) omgrfn2_l2_put_u32(2) source = source + 1 to loop }
+}
+
+proc omgrfn2_l2_emit_import() {
+    let dep = word[700024] let root = word[700032]
+    omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(root) omgrfn2_l2_put_u32(0)
+    omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,20)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,21))
+    omgrfn2_l2_put_byte(1) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_u16(0)
+    omgrfn2_l2_put_u32(word[700040]) omgrfn2_l2_put_u32(word[600384+dep*8]) omgrfn2_l2_put_u32(word[600640+dep*8]) omgrfn2_l2_put_u32(omgrfn2_l2_fact(dep,40))
+    omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,26)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,27))
+    return 0
+}
+
+proc omgrfn2_l2_emit_bindings() {
+    let dep = word[700024] let root = word[700032]
+    omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(root) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_u16(0)
+    omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,10)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,11)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(dep,40)) omgrfn2_l2_put_u32(0)
+    omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(root) omgrfn2_l2_put_byte(2) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_u16(0)
+    omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,28)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,29)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,40)) omgrfn2_l2_put_u32(4294967295)
+    return 0
+}
+
+proc omgrfn2_l2_emit_declarations() {
+    let source = 0 let did = 0
+    state loop { to data_row when (source < 2)  return 0 }
+    state data_row { did = omgrfn2_l2_fact(source,40)  omgrfn2_l2_put_u32(did) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_byte(omgrfn2_l2_fact(source,6)) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(source) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,4)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,5)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,41)) to machine_row when (omgrfn2_l2_fact(source,3) == 2) source = source + 1 to loop }
+    state machine_row { omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,43)) omgrfn2_l2_put_byte(2) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(source) omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,30)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,31)) omgrfn2_l2_put_u32(0) source = source + 1 to loop }
+}
+
+proc omgrfn2_l2_emit_types() {
+    let id = 0
+    state nominal { to nominal_row when (id < 2)  to bool }
+    state nominal_row { omgrfn2_l2_put_u32(id) omgrfn2_l2_put_byte(4) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(id) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) id = id + 1 to nominal }
+    state bool { omgrfn2_l2_put_u32(2) omgrfn2_l2_put_byte(3) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(1) to u32 }
+    state u32 { omgrfn2_l2_put_u32(3) omgrfn2_l2_put_byte(2) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(2147483647) to u8 }
+    state u8 { omgrfn2_l2_put_u32(4) omgrfn2_l2_put_byte(1) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(255) return 0 }
+}
+
+proc omgrfn2_l2_emit_records_fields() {
+    let rid = 0 let source = 0 let dep = word[700024]
+    state records { to find_record when (rid < 2)  rid = 0  to fields }
+    state find_record { source = 0  to find_record_loop }
+    state find_record_loop { to record_row when (omgrfn2_l2_fact(source,41) == rid)  source = source + 1  to find_record_loop }
+    state record_row { omgrfn2_l2_put_u32(rid) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,40)) omgrfn2_l2_put_u32(rid) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,42)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,16)) omgrfn2_l2_put_byte(omgrfn2_l2_fact(source,7)) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_byte(0) rid = rid + 1 to records }
+    state fields { to find_field_owner when (rid < 2)  return 0 }
+    state find_field_owner { source = 0  to find_field_loop }
+    state find_field_loop { to field0 when (omgrfn2_l2_fact(source,41) == rid)  source = source + 1  to find_field_loop }
+    state field0 { omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,42)) omgrfn2_l2_put_u32(rid) omgrfn2_l2_put_u32(0) to dep_type0 when (source == dep) to root_type0 }
+    state dep_type0 { omgrfn2_l2_put_u32(4) to field0_name }
+    state root_type0 { omgrfn2_l2_put_u32(omgrfn2_l2_fact(dep,41)) to field0_name }
+    state field0_name { omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,8)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,9)) to field1 when (omgrfn2_l2_fact(source,16) == 2) rid = rid + 1 to fields }
+    state field1 { omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,42)+1) omgrfn2_l2_put_u32(rid) omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(4) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,12)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(source,13)) rid = rid + 1 to fields }
+}
+
+proc omgrfn2_l2_emit_machine_block() {
+    let root = word[700032]
+    omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,43)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,41))
+    omgrfn2_l2_put_byte(2) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0)
+    omgrfn2_l2_put_u32(4) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(1) omgrfn2_l2_put_u32(0)
+    ; Empty machine-parameter table, followed directly by one block row.
+    omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0)
+    omgrfn2_l2_put_byte(2) omgrfn2_l2_put_byte(0) omgrfn2_l2_put_u16(0)
+    omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,32)) omgrfn2_l2_put_u32(omgrfn2_l2_fact(root,33))
+    omgrfn2_l2_put_u32(4294967295) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0) omgrfn2_l2_put_u32(0)
+    return 0
+}
+
+proc omgrfn2_l2_build_expected() {
+    word[700048] = 0
+    omgrfn2_l2_emit_header()
+    omgrfn2_l2_emit_units()
+    omgrfn2_l2_emit_import()
+    omgrfn2_l2_emit_bindings()
+    omgrfn2_l2_emit_declarations()
+    omgrfn2_l2_emit_types()
+    omgrfn2_l2_emit_records_fields()
+    omgrfn2_l2_emit_machine_block()
+    state length { to bad when (word[700048] != 652)  return 0 }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_compare_expected() {
+    let i = 0
+    state length { to bad when (word[500048] != word[700048])  to loop }
+    state loop { to one when (i < word[700048])  return 0 }
+    state one { to bad when (omgrfn2_l2_witness_byte(i) != byte[900000+i])  i = i + 1  to loop }
+    state bad { return omgrfn2_l2_reject() }
+}
+
+proc omgrfn2_l2_check() {
+    let status = 0 let source = 0 let dep_count = 0 let root_count = 0
+    word[700000] = 0
+    status = omgrfn2_l2_read_frame()
+    state framed { to done when (status != 0)  status = omgrfn2_l2_decode_compilation()  to done when (status != 0)  status = omgrfn2_l2_decode_witness()  to done when (status != 0)  to fixture_shape }
+    state fixture_shape { to bad when (word[500320] != 2)  to bad when (word[500312] != 2)  omgrfn2_l2_init_words()  to tokenize }
+    state tokenize { to tokenize_one when (source < 2)  source = 0  to classify }
+    state tokenize_one { status = omgrfn2_l2_tokenize_source(source)  to done when (status != 0)  status = omgrfn2_l2_parse_source(source)  to done when (status != 0)  source = source + 1  to tokenize }
+    state classify { to classify_one when (source < 2)  to exact_roles }
+    state classify_one { to dep when (omgrfn2_l2_fact(source,3) == 1)  to root when (omgrfn2_l2_fact(source,3) == 2)  to bad }
+    state dep { dep_count = dep_count + 1  word[700024] = source  source = source + 1  to classify }
+    state root { root_count = root_count + 1  word[700032] = source  source = source + 1  to classify }
+    state exact_roles { to bad when (dep_count != 1)  to bad when (root_count != 1)  status = omgrfn2_l2_resolve_join()  to done when (status != 0)  omgrfn2_l2_assign_ids()  omgrfn2_l2_build_expected()  to done when (word[700000] != 0)  omgrfn2_l2_compare_expected()  to done }
+    state bad { status = omgrfn2_l2_reject()  to done }
+    state done { return word[700000] }
+}
