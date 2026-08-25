@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 53;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 54;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 13;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -91,6 +91,7 @@ fn encode_with_limits(
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_propositions, encode_proposition_shape)?;
     encoder.sequence(&review.public_consts, encode_const_shape)?;
+    encoder.sequence(&review.public_operators, encode_operator_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.semantic_dependencies, encode_semantic_dependency)?;
@@ -120,6 +121,7 @@ fn encode_rows_with_limits(
         .saturating_add(review.public_domains.len())
         .saturating_add(review.public_propositions.len())
         .saturating_add(review.public_consts.len())
+        .saturating_add(review.public_operators.len())
         .saturating_add(review.public_data.len())
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.semantic_dependencies.len())
@@ -220,6 +222,22 @@ fn encode_rows_with_limits(
                 row_source(&review.row_sources.public_consts, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_const_shape(encoder, shape),
+            )?,
+        )?;
+    }
+    for (index, shape) in review.public_operators.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicOperator,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_operators, index)?,
+                |encoder| encode_operator_coordinate(encoder, &shape.coordinate),
+                |encoder| encode_operator_shape(encoder, shape),
             )?,
         )?;
     }
@@ -459,6 +477,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::SemanticDependency => 10,
         PackageReviewCanonicalRowKind::PublicProposition => 11,
         PackageReviewCanonicalRowKind::PublicConst => 12,
+        PackageReviewCanonicalRowKind::PublicOperator => 13,
     }
 }
 
@@ -1247,6 +1266,57 @@ fn encode_const_shape(
     encoder.string(&shape.canonical_value_encoding)
 }
 
+fn encode_operator_coordinate(
+    encoder: &mut Encoder,
+    coordinate: &PackageReviewOperatorCoordinate,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &coordinate.identity)?;
+    encoder.string(&coordinate.parameter_dispatch)?;
+    encoder.string(&coordinate.result_dispatch)
+}
+
+fn encode_operator_shape(
+    encoder: &mut Encoder,
+    shape: &PackageReviewOperatorShape,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_operator_coordinate(encoder, &shape.coordinate)?;
+    encoder.boolean(shape.is_boundary);
+    encoder.option(shape.spelling.as_ref(), |encoder, spelling| {
+        encoder.byte(operator_spelling_tag(*spelling));
+        Ok(())
+    })?;
+    encoder.usize(shape.lifetime_parameter_count)?;
+    encoder.sequence(&shape.type_parameters, encode_type_parameter)?;
+    encoder.sequence(&shape.parameters, |encoder, parameter| {
+        encoder.string(&parameter.name)?;
+        encode_type_identity(encoder, &parameter.type_identity)?;
+        encoder.boolean(parameter.is_const);
+        encoder.boolean(parameter.is_mutable);
+        encoder.boolean(parameter.is_self);
+        Ok(())
+    })?;
+    encode_type_identity(encoder, &shape.return_type)?;
+    encoder.sequence(&shape.contracts, encode_callable_contract)
+}
+
+const fn operator_spelling_tag(spelling: psi_language_core::OperatorSpelling) -> u8 {
+    match spelling {
+        psi_language_core::OperatorSpelling::Add => 0,
+        psi_language_core::OperatorSpelling::Subtract => 1,
+        psi_language_core::OperatorSpelling::Multiply => 2,
+        psi_language_core::OperatorSpelling::Divide => 3,
+        psi_language_core::OperatorSpelling::Modulo => 4,
+        psi_language_core::OperatorSpelling::Equal => 5,
+        psi_language_core::OperatorSpelling::NotEqual => 6,
+        psi_language_core::OperatorSpelling::Less => 7,
+        psi_language_core::OperatorSpelling::LessEqual => 8,
+        psi_language_core::OperatorSpelling::Greater => 9,
+        psi_language_core::OperatorSpelling::GreaterEqual => 10,
+        psi_language_core::OperatorSpelling::Index => 11,
+        psi_language_core::OperatorSpelling::Range => 12,
+    }
+}
+
 fn encode_proposition_binder(
     encoder: &mut Encoder,
     binder: &PackageReviewPropositionBinder,
@@ -1365,11 +1435,19 @@ fn encode_contract_expression(
             encoder.sequence(arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
+            meaning,
             operator,
             left,
             right,
         } => {
             encoder.byte(6);
+            match meaning {
+                PackageReviewContractOperatorMeaning::Builtin => encoder.byte(0),
+                PackageReviewContractOperatorMeaning::Declared(coordinate) => {
+                    encoder.byte(1);
+                    encode_operator_coordinate(encoder, coordinate)?;
+                }
+            }
             encoder.byte(match operator {
                 PackageReviewContractBinaryOperator::Add => 0,
                 PackageReviewContractBinaryOperator::And => 1,
@@ -2107,6 +2185,7 @@ mod tests {
             public_domains: Vec::new(),
             public_propositions: Vec::new(),
             public_consts: Vec::new(),
+            public_operators: Vec::new(),
             public_data: Vec::new(),
             representation_tcb: Vec::new(),
             semantic_dependencies: Vec::new(),
@@ -2119,6 +2198,7 @@ mod tests {
                 public_domains: Vec::new(),
                 public_propositions: Vec::new(),
                 public_consts: Vec::new(),
+                public_operators: Vec::new(),
                 public_data: Vec::new(),
                 representation_tcb: Vec::new(),
                 semantic_dependencies: Vec::new(),

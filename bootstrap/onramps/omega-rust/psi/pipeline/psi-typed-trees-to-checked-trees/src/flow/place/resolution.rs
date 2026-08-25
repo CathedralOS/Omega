@@ -198,6 +198,27 @@ pub(crate) fn symbol_type_symbol(
         }
     }
 
+    // Operator contracts are declaration-owned proof expressions rather than
+    // executable state bodies. Their parameters nevertheless have ordinary
+    // typed member-place semantics and must resolve through their exact
+    // operator declaration.
+    for operator in program.operators().iter().chain(
+        program
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| program.domain_operators(domain)),
+    ) {
+        for parameter in program.operator_parameters(operator) {
+            if parameter.symbol == symbol {
+                return Some(
+                    program
+                        .type_reference_table
+                        .type_symbol(parameter.type_reference),
+                );
+            }
+        }
+    }
+
     for data in program.data_definitions() {
         for member in program.data_members(data) {
             match member {

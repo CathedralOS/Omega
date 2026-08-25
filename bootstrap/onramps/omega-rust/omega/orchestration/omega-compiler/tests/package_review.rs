@@ -4,8 +4,8 @@ use omega_compiler::{
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCastForm, PackageReviewCheckedServiceReach,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractStaticArgument,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
+    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewMachineParameterContract, PackageReviewNominalOwner,
@@ -1051,8 +1051,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 53);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 13);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 54);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 14);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1351,6 +1351,7 @@ machine build(builder: &mut Build) { }
     assert_eq!(contract.kind(), PackageReviewContractKind::Ensures);
     assert_eq!(contract.binding(), None);
     let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        meaning,
         operator,
         left,
         right,
@@ -1358,6 +1359,7 @@ machine build(builder: &mut Build) { }
     else {
         panic!("exact equality expression")
     };
+    assert_eq!(meaning, &PackageReviewContractOperatorMeaning::Builtin);
     assert_eq!(*operator, PackageReviewContractBinaryOperator::Equal);
     assert_eq!(**left, PackageReviewContractExpression::Result);
     assert_eq!(
@@ -1762,6 +1764,89 @@ machine build(builder: &mut Build) { }
         changed_type.canonical_review_bytes().unwrap(),
         "changing a public const declared type must change package compatibility",
     );
+}
+
+#[test]
+fn review_projects_unused_public_operator_overloads_and_exact_contract_meaning() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Token [copy] { value: u64; }
+pub operator < Token::less(left: Token, right: Token) -> bool;
+pub operator Token::ordered(left: Token, right: Token) -> bool
+ensures result == (left < right);
+operator Token::hidden(value: Token) -> bool;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("unused public operators should check");
+    let review = project_checked_package_review(&checked)
+        .expect("unused public operators should project directly from declarations");
+    assert_eq!(review.public_operators().len(), 2);
+    let less = review
+        .public_operators()
+        .iter()
+        .find(|operator| operator.coordinate().identity().path() == "Token::less")
+        .expect("fixed-token overload row");
+    assert_eq!(
+        less.spelling(),
+        Some(psi_language_core::OperatorSpelling::Less)
+    );
+    assert_eq!(less.parameters().len(), 2);
+    assert!(less.coordinate().result_dispatch().is_empty());
+
+    let ordered = review
+        .public_operators()
+        .iter()
+        .find(|operator| operator.coordinate().identity().path() == "Token::ordered")
+        .expect("named operator row");
+    let [contract] = ordered.contracts() else {
+        panic!("one exact public operator contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        meaning: PackageReviewContractOperatorMeaning::Builtin,
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("outer equality uses one compiler-owned builtin meaning")
+    };
+    let PackageReviewContractExpression::Binary {
+        meaning: PackageReviewContractOperatorMeaning::Declared(selected),
+        operator: PackageReviewContractBinaryOperator::Less,
+        ..
+    } = right.as_ref()
+    else {
+        panic!("inner comparison retains one exact declared overload")
+    };
+    assert_eq!(selected, less.coordinate());
+
+    let rows = review.canonical_rows().expect("public operator rows");
+    let operator_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicOperator)
+        .collect::<Vec<_>>();
+    assert_eq!(operator_rows.len(), 2);
+    assert!(operator_rows.iter().all(|row| {
+        row.risk() == PackageReviewCanonicalRowRisk::Blocking
+            && row.source().authored_locations().is_some()
+    }));
 }
 
 #[test]
@@ -5278,6 +5363,7 @@ machine build(builder: &mut Build) { }
     );
     let [
         PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            meaning,
             operator,
             left,
             right,
@@ -5286,6 +5372,7 @@ machine build(builder: &mut Build) { }
     else {
         panic!("one binary domain predicate fact")
     };
+    assert_eq!(meaning, &PackageReviewContractOperatorMeaning::Builtin);
     assert_eq!(*operator, PackageReviewContractBinaryOperator::Equal);
     let PackageReviewContractExpression::Member {
         receiver,

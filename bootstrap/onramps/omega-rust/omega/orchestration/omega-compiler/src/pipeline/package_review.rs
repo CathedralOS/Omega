@@ -810,6 +810,38 @@ pub enum PackageReviewContractCallTarget {
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
 }
 
+/// Stable identity of one ordinary operator overload. The nominal path names
+/// the declaration family; the compiler's canonical parameter and
+/// result-dispatch identities distinguish overloads by the same rules used by
+/// checked selection. Source names, arena handles, and return refinements that
+/// do not participate in dispatch are not coordinates.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewOperatorCoordinate {
+    identity: PackageReviewNominalIdentity,
+    parameter_dispatch: String,
+    result_dispatch: String,
+}
+
+impl PackageReviewOperatorCoordinate {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub fn parameter_dispatch(&self) -> &str {
+        &self.parameter_dispatch
+    }
+
+    pub fn result_dispatch(&self) -> &str {
+        &self.result_dispatch
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractOperatorMeaning {
+    Builtin,
+    Declared(PackageReviewOperatorCoordinate),
+}
+
 impl PackageReviewContractCallTarget {
     pub const fn nominal(&self) -> Option<&PackageReviewNominalIdentity> {
         match self {
@@ -860,6 +892,7 @@ pub enum PackageReviewContractExpression {
         arguments: Vec<PackageReviewContractExpression>,
     },
     Binary {
+        meaning: PackageReviewContractOperatorMeaning,
         operator: PackageReviewContractBinaryOperator,
         left: Box<PackageReviewContractExpression>,
         right: Box<PackageReviewContractExpression>,
@@ -1053,6 +1086,52 @@ pub struct PackageReviewConstShape {
     identity: PackageReviewNominalIdentity,
     declared_type: PackageReviewTypeIdentity,
     canonical_value_encoding: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewOperatorShape {
+    coordinate: PackageReviewOperatorCoordinate,
+    is_boundary: bool,
+    spelling: Option<psi_language_core::OperatorSpelling>,
+    lifetime_parameter_count: usize,
+    type_parameters: Vec<PackageReviewTypeParameter>,
+    parameters: Vec<PackageReviewCallableParameter>,
+    return_type: PackageReviewTypeIdentity,
+    contracts: Vec<PackageReviewCallableContract>,
+}
+
+impl PackageReviewOperatorShape {
+    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
+        &self.coordinate
+    }
+
+    pub const fn is_boundary(&self) -> bool {
+        self.is_boundary
+    }
+
+    pub const fn spelling(&self) -> Option<psi_language_core::OperatorSpelling> {
+        self.spelling
+    }
+
+    pub const fn lifetime_parameter_count(&self) -> usize {
+        self.lifetime_parameter_count
+    }
+
+    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
+        &self.type_parameters
+    }
+
+    pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
+        &self.parameters
+    }
+
+    pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
+        &self.return_type
+    }
+
+    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
+        &self.contracts
+    }
 }
 
 impl PackageReviewConstShape {
@@ -1908,6 +1987,7 @@ pub struct CheckedPackageReviewProjection {
     public_domains: Vec<PackageReviewDomainShape>,
     public_propositions: Vec<PackageReviewPropositionShape>,
     public_consts: Vec<PackageReviewConstShape>,
+    public_operators: Vec<PackageReviewOperatorShape>,
     public_data: Vec<PackageReviewDataShape>,
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     semantic_dependencies: Vec<PackageReviewSemanticDependency>,
@@ -1926,6 +2006,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.public_domains == other.public_domains
             && self.public_propositions == other.public_propositions
             && self.public_consts == other.public_consts
+            && self.public_operators == other.public_operators
             && self.public_data == other.public_data
             && self.representation_tcb == other.representation_tcb
             && self.semantic_dependencies == other.semantic_dependencies
@@ -1944,6 +2025,7 @@ struct PackageReviewCanonicalRowSources {
     public_domains: Vec<PackageReviewCanonicalRowSource>,
     public_propositions: Vec<PackageReviewCanonicalRowSource>,
     public_consts: Vec<PackageReviewCanonicalRowSource>,
+    public_operators: Vec<PackageReviewCanonicalRowSource>,
     public_data: Vec<PackageReviewCanonicalRowSource>,
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
@@ -2009,6 +2091,7 @@ pub enum PackageReviewCanonicalRowKind {
     SemanticDependency,
     PublicProposition,
     PublicConst,
+    PublicOperator,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2192,6 +2275,10 @@ impl CheckedPackageReviewProjection {
         &self.public_consts
     }
 
+    pub fn public_operators(&self) -> &[PackageReviewOperatorShape] {
+        &self.public_operators
+    }
+
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
         &self.public_data
     }
@@ -2280,6 +2367,7 @@ pub fn project_checked_package_review(
     let public_domains = project_public_domains(compilation, package)?;
     let public_propositions = project_public_propositions(compilation, package)?;
     let public_consts = project_public_consts(compilation, package)?;
+    let public_operators = project_public_operators(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
@@ -2460,6 +2548,11 @@ pub fn project_checked_package_review(
         public_consts,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (public_operators, public_operator_sources) = finalize_projected_rows(
+        compilation,
+        public_operators,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
     let (public_data, public_data_sources) = finalize_projected_rows(
         compilation,
         public_data,
@@ -2486,6 +2579,7 @@ pub fn project_checked_package_review(
         public_domains: public_domain_sources,
         public_propositions: public_proposition_sources,
         public_consts: public_const_sources,
+        public_operators: public_operator_sources,
         public_data: public_data_sources,
         representation_tcb: representation_tcb_sources,
         semantic_dependencies: semantic_dependency_sources,
@@ -2503,6 +2597,7 @@ pub fn project_checked_package_review(
         public_domains,
         public_propositions,
         public_consts,
+        public_operators,
         public_data,
         representation_tcb,
         semantic_dependencies,
@@ -2970,6 +3065,7 @@ fn validate_canonical_row_source_limits(
         .chain(&sources.public_domains)
         .chain(&sources.public_propositions)
         .chain(&sources.public_consts)
+        .chain(&sources.public_operators)
         .chain(&sources.public_data)
         .chain(&sources.representation_tcb)
         .chain(&sources.semantic_dependencies)
@@ -3623,6 +3719,119 @@ fn project_public_consts(
     Ok(rows)
 }
 
+fn project_operator_coordinate(
+    compilation: &CheckedCompilation,
+    declaration: &psi_typed_trees::operator::OperatorDefinition,
+) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
+    let identity = nominal_identity(compilation, declaration.symbol)?;
+    let overload = compilation.normalized_operator_overload_identity(declaration);
+    Ok(PackageReviewOperatorCoordinate {
+        identity,
+        parameter_dispatch: overload.parameters().to_owned(),
+        // Only explicitly named boundary requirements participate in
+        // expected-result dispatch. Fixed tokens and ordinary named operators
+        // remain operand-directed; their complete return type stays in the
+        // row value so a change is one changed declaration, not remove/add.
+        result_dispatch: if declaration.is_boundary && declaration.spelling.is_none() {
+            overload.result_dispatch().identity()
+        } else {
+            String::new()
+        },
+    })
+}
+
+fn project_public_operators(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
+    let mut rows = Vec::new();
+    let operators = compilation.operators().iter().chain(
+        compilation
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| compilation.domain_operators(domain)),
+    );
+    for declaration in operators.filter(|declaration| declaration.is_public) {
+        let coordinate = project_operator_coordinate(compilation, declaration)?;
+        if !reviewed_package_owns(&coordinate.identity, package)? {
+            continue;
+        }
+        let declaration_path = coordinate.identity.path.as_str();
+        let declaration_type_parameters = compilation.operator_type_parameters(declaration);
+        let (binders, type_parameters) = project_type_parameters(
+            compilation,
+            declaration_type_parameters,
+            "operator",
+            declaration_path,
+            &declaration.lifetime_parameters,
+        )?;
+        let parameters = compilation
+            .operator_parameters(declaration)
+            .iter()
+            .map(|parameter| {
+                Ok(PackageReviewCallableParameter {
+                    name: parameter.name.as_str().to_owned(),
+                    type_identity: review_signature_type_identity_with_binders(
+                        compilation,
+                        parameter.type_reference,
+                        &binders,
+                        &declaration.lifetime_parameters,
+                    )?,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                    is_self: parameter.is_self,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let context = ContractProjectionContext {
+            subject_kind: "public operator",
+            subject_name: declaration_path,
+            owner: psi_checked_trees::ContractProofFactOwner::Unknown,
+            point: psi_facts::ProgramPoint::Definition {
+                symbol: declaration.symbol,
+            },
+            parameters: compilation.operator_parameters(declaration),
+            domain_symbol: None,
+            lifetime_binders: &declaration.lifetime_parameters,
+        };
+        let contracts = project_contracts(
+            compilation,
+            compilation.operator_contracts(declaration),
+            &context,
+            &binders,
+            ContractProjectionPolicy::PublicOperator,
+        )?;
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewOperatorShape {
+                coordinate,
+                is_boundary: declaration.is_boundary,
+                spelling: declaration.spelling,
+                lifetime_parameter_count: declaration.lifetime_parameters.len(),
+                type_parameters,
+                parameters,
+                return_type: review_signature_type_identity_with_binders(
+                    compilation,
+                    declaration.return_type,
+                    &binders,
+                    &declaration.lifetime_parameters,
+                )?,
+                contracts,
+            },
+            declaration: declaration.symbol,
+        });
+    }
+    rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));
+    if rows
+        .windows(2)
+        .any(|pair| pair[0].row.coordinate == pair[1].row.coordinate)
+    {
+        return Err(vec![Diagnostic::error(
+            "public operator review produced a duplicate overload coordinate",
+        )]);
+    }
+    Ok(rows)
+}
+
 fn project_public_domains(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
@@ -3643,13 +3852,6 @@ fn project_public_domains(
                 identity.path
             ))]);
         }
-        if !compilation.domain_operators(definition).is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses operators not yet represented by package review",
-                identity.path
-            ))]);
-        }
-
         let parameters = compilation.domain_type_parameters(definition);
         let (binders, type_parameters) =
             project_type_parameters(compilation, parameters, "domain", &identity.path, &[])?;
@@ -5405,6 +5607,7 @@ struct ContractProjectionContext<'a> {
 enum ContractProjectionPolicy {
     Callable,
     PublicTraitRequirement,
+    PublicOperator,
 }
 
 fn project_callable_contracts(
@@ -5479,6 +5682,14 @@ fn project_contracts(
                 ))]);
             }
             SignatureContractKind::Boundary => PackageReviewContractKind::Boundary,
+            SignatureContractKind::Crashes { .. }
+                if policy == ContractProjectionPolicy::PublicOperator =>
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` uses a crashes contract not yet represented by public-operator review",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
             SignatureContractKind::Crashes { .. } => continue,
         };
         if contract.facts.is_empty() {
@@ -5497,7 +5708,9 @@ fn project_contracts(
                     .expect("proof fact handle index overflow"),
                 contract.facts.start().generation(),
             );
-            let checked_fact = checked_contract_fact(compilation, context, fact_handle, kind)?;
+            let checked_fact = (policy != ContractProjectionPolicy::PublicOperator)
+                .then(|| checked_contract_fact(compilation, context, fact_handle, kind))
+                .transpose()?;
             let fact = match compilation.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => {
                     PackageReviewContractFact::Expression(project_contract_expression(
@@ -5553,13 +5766,22 @@ fn project_contracts(
                     0,
                 )?,
             };
-            let evidence_lane_position = validate_checked_contract_evidence(
-                compilation,
-                context,
-                contract.binding.as_ref(),
-                checked_fact,
-                &fact,
-            )?;
+            let evidence_lane_position = match checked_fact {
+                Some(checked_fact) => validate_checked_contract_evidence(
+                    compilation,
+                    context,
+                    contract.binding.as_ref(),
+                    checked_fact,
+                    &fact,
+                )?,
+                None if contract.binding.is_none() => None,
+                None => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` binds operator-contract evidence not yet represented by public-operator review",
+                        context.subject_kind, context.subject_name
+                    ))]);
+                }
+            };
             projected.push(PackageReviewCallableContract {
                 kind,
                 binding: match kind {
@@ -6483,6 +6705,7 @@ fn project_contract_expression_with_substitutions(
             value.text().to_owned(),
         )),
         ExpressionNode::Binary(binary) => Ok(PackageReviewContractExpression::Binary {
+            meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
             operator: project_contract_binary_operator(binary.operator),
             left: Box::new(child(binary.left)?),
             right: Box::new(child(binary.right)?),
@@ -6677,6 +6900,68 @@ fn project_contract_expression_with_substitutions(
         }
         _ => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` uses a contract expression form not yet represented by package review",
+            context.subject_kind, context.subject_name
+        ))]),
+    }
+}
+
+fn exact_checked_contract_operator_meaning(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator has {} exact checked selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    match selection.target() {
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        ) => Ok(PackageReviewContractOperatorMeaning::Builtin),
+        AuthoredDeclarationSelectionTarget::Resolved(target) => {
+            let symbol = target.selected_symbol();
+            let declaration = psi_typed_trees::operator::declaration_by_symbol(compilation, symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contract selected an operator without one retained declaration",
+                        context.subject_kind, context.subject_name
+                    ))]
+                })?;
+            Ok(PackageReviewContractOperatorMeaning::Declared(
+                project_operator_coordinate(compilation, declaration)?,
+            ))
+        }
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator selected a non-operator intrinsic",
+            context.subject_kind, context.subject_name
+        ))]),
+        AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract operator remains late-bound after checked lowering",
             context.subject_kind, context.subject_name
         ))]),
     }

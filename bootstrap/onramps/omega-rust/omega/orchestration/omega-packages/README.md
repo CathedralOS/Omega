@@ -592,9 +592,14 @@ its visibility independently of any carrier-qualified path. Exact authored
 source provenance keeps package ownership recoverable, and late proof-static
 operator selections finalize only from exact typed operands before the
 visibility gate is repeated. Cross-package private selection rejects while an
-owner's private implementation use remains legal. A standalone public-operator
-review row is still incomplete: overload-safe declaration coordinates and
-direct unused-contract projection must land before review encoding advances.
+owner's private implementation use remains legal. Review v54 and canonical row
+v14 add the blocking standalone `PublicOperator` row. Its key combines exact
+package-qualified declaration identity with the compiler's canonical operand
+and result-dispatch identities; its value retains boundary status, fixed
+spelling, complete signature shape, and contracts projected directly from the
+declaration even when unused. Public contract binaries now encode either one
+exact declared overload coordinate or explicit builtin meaning. Unsupported
+operator crash contracts and unresolved proof-static selections reject closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

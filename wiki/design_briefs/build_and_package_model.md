@@ -1424,9 +1424,14 @@ domain qualification. Exact authored source provenance supplies package
 ownership, while proof-static late operator selections finalize only when
 exact typed operands choose one declaration; checked lowering then repeats the
 ordinary visibility gate. Private cross-package selection rejects and
-same-owner implementation use remains legal. The public-operator review shape
-is not yet encoded: overload-safe coordinates, fixed spelling, and direct
-unused declaration-contract projection remain required.
+same-owner implementation use remains legal. Review v54 / canonical row v14
+add one blocking standalone public-operator shape. The row key uses exact
+package-qualified declaration identity plus the compiler's canonical operand
+and result-dispatch identities; the value retains boundary status, fixed
+spelling, the complete signature, and declaration contracts without depending
+on use-site facts. Public contract binaries retain an exact declared overload
+coordinate or explicit builtin meaning rather than only a token. Unsupported
+operator crash contracts or unresolved proof-static selections reject closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
