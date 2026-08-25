@@ -3606,11 +3606,11 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
     assert_eq!(specializations[1].const_arguments, ["2"]);
     assert_eq!(
         specializations[0].const_argument_identities,
-        ["named(name(1))"]
+        ["named(integer-const(1))"]
     );
     assert_eq!(
         specializations[1].const_argument_identities,
-        ["named(name(2))"]
+        ["named(integer-const(2))"]
     );
     assert_ne!(
         specializations[0].fingerprint,

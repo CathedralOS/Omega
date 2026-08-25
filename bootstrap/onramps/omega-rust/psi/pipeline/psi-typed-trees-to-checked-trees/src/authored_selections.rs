@@ -326,10 +326,10 @@ fn checked_call_intrinsic(
     } else if receiver.is_valid() {
         exact_build_output_receiver(program, receiver, target)
             .then_some(Intrinsic::BuildIncludedSourceHandoff)
-    } else if psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
-        .is_some()
+    } else if let Some(predicate) =
+        psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
-        Some(Intrinsic::ByteSequencePredicate)
+        Some(Intrinsic::ByteSequencePredicate(predicate))
     } else if target == "select_provider" {
         Some(Intrinsic::BuildProviderSelection)
     } else if target.starts_with("accept_boundary#") {

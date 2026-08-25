@@ -296,7 +296,9 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
             .any(|selection| matches!(
                 selection.target(),
                 AuthoredDeclarationSelectionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate
+                    AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                        psi_language_semantics::byte_predicates::ByteSequencePredicate::NoNul,
+                    )
                 )
             ))
     );
@@ -330,7 +332,9 @@ fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
     assert!(!selections.iter().any(|selection| {
         selection.target()
             == AuthoredDeclarationSelectionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate,
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                    psi_language_semantics::byte_predicates::ByteSequencePredicate::NoNul,
+                ),
             )
     }));
     assert!(selections.all_finalized());

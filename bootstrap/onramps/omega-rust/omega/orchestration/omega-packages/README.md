@@ -562,6 +562,14 @@ normalized proposition declaration and structural application; rendered labels
 are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
 selected law. This compiler result still does not become standalone package
 proof until it is carried by the total recheckable package evidence artifact.
+Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
+predicate calls in public contract facts. The checked authored-selection row
+now retains the exact closed predicate instead of one undifferentiated
+intrinsic tag; projection cross-checks that identity against an unresolved,
+receiver-free call before encoding it. Changing the predicate changes
+canonical evidence, while a package declaration with the same spelling remains
+an ordinary package-qualified callable. Other compiler intrinsics remain
+fail-closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -625,7 +633,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-34 length-framed binary comparison encoding over this review
+a version-51 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
@@ -656,7 +664,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v50 projection therefore
+remain separately bound. The current incomplete review-v51 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

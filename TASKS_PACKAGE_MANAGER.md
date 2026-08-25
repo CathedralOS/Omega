@@ -912,6 +912,14 @@ complete.
   cannot discharge the selected law. This compiler result still does not become
   standalone package proof until it is carried by the total recheckable package
   evidence artifact below.
+  Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
+  predicate calls in public contract facts. The checked authored-selection row
+  now retains the exact closed predicate instead of one undifferentiated
+  intrinsic tag; projection cross-checks that identity against an unresolved,
+  receiver-free call before encoding it. Changing the predicate changes
+  canonical evidence, while a package declaration with the same spelling
+  remains an ordinary package-qualified callable. Other compiler intrinsics
+  remain fail-closed.
   In particular, true nested machine static applications such as
   `consumer<family<Selected>>()` now reject during compiler validation, before
   checked lowering. Treating the argument as the uninstantiated `family`
@@ -949,8 +957,8 @@ complete.
   call row does not confuse signature identity with implementation identity.
   Symbolic const declarations or expressions, proposition/evidence static
   arguments, quotient calls, true nested machine/conformance applications,
-  compiler-intrinsic calls, semantic roles, and domain operators still reject
-  until their exact canonical rows are settled.
+  other compiler-intrinsic calls, semantic roles, and domain operators still
+  reject until their exact canonical rows are settled.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including
@@ -1480,7 +1488,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v50
+  create a placeholder `PackageInstance` or bless current incomplete review v51
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

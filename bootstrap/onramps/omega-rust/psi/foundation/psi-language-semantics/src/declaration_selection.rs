@@ -87,7 +87,10 @@ pub enum AuthoredDeclarationSelectionTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuiltinOperator,
-    ByteSequencePredicate,
+    /// One exact compiler-owned byte-sequence predicate. Retaining the
+    /// particular predicate prevents later evidence consumers from having to
+    /// reconstruct semantic identity from the call's diagnostic spelling.
+    ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     BuildProviderSelection,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,

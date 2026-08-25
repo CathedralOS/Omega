@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v50 rows are not promoted
+subjects or provenance. The current incomplete review-v51 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1391,6 +1391,14 @@ normalized proposition declaration and structural application; rendered labels
 are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
 selected law. This compiler result still does not become standalone package
 proof until it is carried by the total recheckable package evidence artifact.
+Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
+predicate calls in public contract facts. The checked authored-selection row
+now retains the exact closed predicate instead of one undifferentiated
+intrinsic tag; projection cross-checks that identity against an unresolved,
+receiver-free call before encoding it. Changing the predicate changes
+canonical evidence, while a package declaration with the same spelling remains
+an ordinary package-qualified callable. Other compiler intrinsics remain
+fail-closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -1434,7 +1442,7 @@ public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
 signature identity. Symbolic const declarations or expressions,
 proposition/evidence static arguments, quotient calls, true nested
-machine/conformance applications, compiler-intrinsic
+machine/conformance applications, other compiler-intrinsic
 calls, computed members, proposition-argument members without their checked
 join, and aggregate expression forms fail closed.
 Contract

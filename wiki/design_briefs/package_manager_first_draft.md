@@ -553,6 +553,14 @@ normalized proposition declaration and structural application; rendered labels
 are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
 selected law. This compiler result still does not become standalone package
 proof until it is carried by the total recheckable package evidence artifact.
+Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
+predicate calls in public contract facts. The checked authored-selection row
+now retains the exact closed predicate instead of one undifferentiated
+intrinsic tag; projection cross-checks that identity against an unresolved,
+receiver-free call before encoding it. Changing the predicate changes
+canonical evidence, while a package declaration with the same spelling remains
+an ordinary package-qualified callable. Other compiler intrinsics remain
+fail-closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -569,9 +577,9 @@ qualified entry target, and ordinary arguments after joining one public-
 interface declaration-selection row. The whole-source commitment separately
 pins the helper body; a callable signature is not body identity. Symbolic const
 declarations or expressions, proposition/evidence static arguments, quotient
-calls, true nested machine/conformance applications, compiler-intrinsic calls,
-semantic roles, and domain operators
-reject until exact rows are settled; none is inferred from the domain name.
+calls, true nested machine/conformance applications, other compiler-intrinsic
+calls, semantic roles, and domain operators reject until exact rows are
+settled; none is inferred from the domain name.
 Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
 package-qualified trait/requirement identities; alternative routes normalize
@@ -1008,7 +1016,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v50 bytes cannot be promoted merely because the future artifact reuses
+review-v51 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in
