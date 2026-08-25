@@ -720,21 +720,24 @@ identity, a reproducible-build receipt, or proof of the executable image already
 loaded by the operating system. Those stronger source/toolchain joins remain
 part of sealing `PackageInstance`.
 
-Ratified 2026-08-24: the implementation should read each row from the earliest
-coherent checked compiler state that contains it. Different rows may come from
-different internal representations; the final projection must be total, but no
-single intermediate representation must contain every row. This may couple the
-checker to compiler-private representations: the checker is part of the
-compiler and moves with them. That coupling does not make an internal
-representation a package format or public compatibility surface. The
-representations remain Psi-owned semantic state; using one "earlier" than
-Terminal Psi does not create a separate semantic owner or bypass the Psi
-pipeline.
+Ratified 2026-08-24: the implementation should read each fact from the earliest
+coherent compiler-owned representation in which its semantics are established.
+Exact structural identity may come from private pre-Psi typed or resolved
+state, while checked acceptance, effects, proofs, and realization come from the
+stage that establishes them. The projector joins those facts only after
+successful checking. Different rows may therefore come from different internal
+representations; the final projection must be total, but no single intermediate
+representation must contain every row. This may couple the checker to unstable
+compiler-private representations: the checker is part of the compiler and
+moves with them. That coupling does not make an internal representation a
+package format or public compatibility surface. Unchecked syntax, diagnostics,
+and convenient-but-unsettled shapes remain inadmissible as evidence.
 
 This projection is not another public IR stage and does not warrant a nominal
-Chi stage merely for format stability. It has no execution semantics or
-transformation pipeline of its own. A future shared stage is warranted only if
-independent consumers or transformations establish an actual semantic boundary.
+Chi stage merely for collection or format stability. It has no execution
+semantics or transformation pipeline of its own. A future shared stage is
+warranted only if independent consumers, shared invariants, or transformations
+establish an actual semantic boundary.
 Conversely, discovery may place more rows in an existing coherent
 representation such as `Exact` when that simplifies the compiler without
 erasing meaning.

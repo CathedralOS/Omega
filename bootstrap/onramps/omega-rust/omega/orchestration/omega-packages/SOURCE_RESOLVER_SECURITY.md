@@ -192,7 +192,13 @@ with one byte-exact SHA-1 or SHA-256 bare-repository file. Before every use the
 parent reads and compares those bytes itself; added settings, includes, remotes,
 or spelling drift reject without asking Git to report its own configuration.
 Git and local cache custody also receive a separately bounded 65,536-node
-parent traversal before and after use. On Unix each cache entry and lock must be
+parent traversal before and after use. That traversal sums regular-file and
+symlink logical lengths. Git entries reject above
+`min(3 * source-byte-limit + 64 MiB, 1 GiB)`; local publications reject above
+`min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
+ceilings for resident cache state, not during-write disk quotas or transferred-
+byte measurements: an unconfined helper may still exhaust storage before the
+parent can reject its output. On Unix each cache entry and lock must be
 owned by the resolver's effective user and not group- or other-writable;
 canonical ancestry must be root/resolver-owned and cannot be replaceable
 through a non-sticky writable directory; unsupported filesystem kinds reject.
@@ -209,7 +215,7 @@ forced through an absolute client with user configuration disabled,
 consults the user's default known-host and key files, so host and credential
 custody remain ambient and unsuitable for strict admission. Those conditions
 keep the resolver diagnostic-only until native helper confinement, hostile-
-process custody, remaining resource ceilings, and opaque-receipt work land.
+process custody, during-write resource ceilings, and opaque-receipt work land.
 
 Parent-owned selected-object-graph authentication supplies real evidence for a
 later strict receipt but does not itself make the resolver admissible. Native

@@ -235,22 +235,24 @@ already loaded by the operating system. Complete compiler/toolchain source and
 rebuild provenance remain admission work.
 
 Ratified 2026-08-24: implementation should consume the earliest coherent
-checked compiler state that already contains each required fact. Different
-evidence rows may therefore come from different internal representations;
-totality belongs to the final projection, not to one frozen source stage.
-Because the projection ships with the compiler, depending on compiler-internal
-representations is ordinary internal coupling, not a promise that those
-representations are stable public APIs. These representations remain part of
-the Psi-owned semantic pipeline: "earlier" means earlier than Terminal Psi,
-not a new owner or a pre-Psi semantic path. The projection and its tests move
-with those representations.
+compiler-owned representation in which each required fact is semantically
+settled. Exact structural identity may come from private pre-Psi typed or
+resolved state, while checked acceptance, effects, proofs, and realization come
+from the stage that establishes them. The projector joins those facts only
+after successful checking. Different evidence rows may therefore come from
+different internal representations; totality belongs to the final projection,
+not to one frozen source stage. Because the projection ships with the compiler,
+depending on compiler-internal representations is ordinary internal coupling,
+not a promise that those representations are stable public APIs. Unchecked
+syntax, diagnostic renderings, and convenient-but-unsettled shapes are not
+admission evidence. The projection and its tests move with the representations.
 
-There is no nominal Chi stage merely to stabilize this report. A distinct IR is
-justified later only if multiple independent consumers need the same semantic
-stage or it acquires its own transformations, invariants, and verification
-rules. Implementation discovery may also collapse rows into an existing
-coherent representation, including `Exact`, when that removes machinery
-without losing semantic distinctions.
+There is no nominal Chi stage merely to collect or stabilize this report. A
+distinct IR is justified later only if multiple independent consumers need the
+same semantic boundary or it acquires its own transformations, invariants, and
+verification rules. Implementation discovery may also collapse rows into an
+existing coherent representation, including `Exact`, when that removes
+machinery without losing semantic distinctions.
 
 Conflict explanation follows the same ownership rule. The compiler attaches
 canonical package-relative UTF-8 paths and exact byte spans to its canonical
