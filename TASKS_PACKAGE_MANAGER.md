@@ -837,6 +837,13 @@ complete.
   Review v44 and canonical row v4 extend this representation to contract-call
   static-machine arguments. Each retains either the exact caller machine-binder
   ordinal or the exact concrete machine entry identity.
+  Review v45 and canonical row v5 rejoin each contract call to exactly one
+  selected callee static telescope and preserve every supported argument's
+  category: direct concrete type identity, parser-canonical integer const
+  literal, caller machine-binder ordinal, or exact concrete machine entry
+  identity. Nested static applications, forwarded or symbolic type/const
+  binders, proposition/evidence static arguments, quotient calls, compiler
+  intrinsics, and malformed or ambiguous joins remain fail-closed.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
@@ -862,9 +869,10 @@ complete.
   arguments after joining exactly one public-interface declaration-selection
   row. The separate source-consumption commitment pins the helper body; the
   call row does not confuse signature identity with implementation identity.
-  Contract-call type, const, and evidence arguments, quotient calls, nested
-  static applications, compiler-intrinsic calls, semantic roles, and domain
-  operators still reject until their exact canonical rows are settled.
+  Forwarded or symbolic type/const binders, proposition/evidence static
+  arguments, quotient calls, nested static applications, compiler-intrinsic
+  calls, semantic roles, and domain operators still reject until their exact
+  canonical rows are settled.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including
@@ -1394,7 +1402,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v44
+  create a placeholder `PackageInstance` or bless current incomplete review v45
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

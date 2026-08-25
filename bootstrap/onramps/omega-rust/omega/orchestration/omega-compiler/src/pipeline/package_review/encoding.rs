@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 44;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 45;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 4;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1250,16 +1250,13 @@ fn encode_contract_expression(
         PackageReviewContractExpression::Call {
             receiver,
             target,
-            static_machine_arguments,
+            static_arguments,
             arguments,
         } => {
             encoder.byte(11);
             encoder.option(receiver.as_deref(), encode_contract_expression)?;
             encode_nominal(encoder, target)?;
-            encoder.sequence(
-                static_machine_arguments,
-                encode_contract_static_machine_argument,
-            )?;
+            encoder.sequence(static_arguments, encode_contract_static_argument)?;
             encoder.sequence(arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
@@ -1303,17 +1300,25 @@ fn encode_contract_expression(
     Ok(())
 }
 
-fn encode_contract_static_machine_argument(
+fn encode_contract_static_argument(
     encoder: &mut Encoder,
-    argument: &PackageReviewContractStaticMachineArgument,
+    argument: &PackageReviewContractStaticArgument,
 ) -> Result<(), PackageReviewEncodingError> {
     match argument {
-        PackageReviewContractStaticMachineArgument::GenericBinder(position) => {
+        PackageReviewContractStaticArgument::Type(identity) => {
             encoder.byte(0);
+            encode_type_identity(encoder, identity)?;
+        }
+        PackageReviewContractStaticArgument::ConstInteger(value) => {
+            encoder.byte(1);
+            encoder.string(value)?;
+        }
+        PackageReviewContractStaticArgument::GenericMachineBinder(position) => {
+            encoder.byte(2);
             encoder.u32(*position);
         }
-        PackageReviewContractStaticMachineArgument::ConcreteMachine(identity) => {
-            encoder.byte(1);
+        PackageReviewContractStaticArgument::ConcreteMachine(identity) => {
+            encoder.byte(3);
             encode_nominal(encoder, identity)?;
         }
     }
