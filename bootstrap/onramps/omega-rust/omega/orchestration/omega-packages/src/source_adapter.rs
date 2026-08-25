@@ -10,7 +10,7 @@ use crate::package_source::{
     ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
 };
-use crate::source::{GitSourceSpec, LocalSourceLimits};
+use crate::source::{GitSourceRequest, GitSourceRequestError, LocalSourceLimits};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -68,6 +68,7 @@ pub enum ResolveDependencySourceError {
         package: PackageKey,
     },
     MissingExternalSourceContext,
+    InvalidGitRequest(GitSourceRequestError),
     Source(ResolvePackageSourceError),
 }
 
@@ -97,6 +98,7 @@ impl fmt::Display for ResolveDependencySourceError {
             Self::MissingExternalSourceContext => formatter.write_str(
                 "an external-local dependency requires an explicit consuming source context",
             ),
+            Self::InvalidGitRequest(error) => error.fmt(formatter),
             Self::Source(error) => error.fmt(formatter),
         }
     }
@@ -107,6 +109,12 @@ impl std::error::Error for ResolveDependencySourceError {}
 impl From<ResolvePackageSourceError> for ResolveDependencySourceError {
     fn from(error: ResolvePackageSourceError) -> Self {
         Self::Source(error)
+    }
+}
+
+impl From<GitSourceRequestError> for ResolveDependencySourceError {
+    fn from(error: GitSourceRequestError) -> Self {
+        Self::InvalidGitRequest(error)
     }
 }
 
@@ -287,10 +295,7 @@ fn resolve_registered_package_closure(
                 ..
             } => {
                 let resolved = resolve_git_package_source(
-                    &GitSourceSpec {
-                        url: repository.clone(),
-                        rev: Some(revision.clone()),
-                    },
+                    &GitSourceRequest::new(repository.clone(), Some(revision.clone()))?,
                     git_cache,
                     source_limits,
                 )?;

@@ -3,7 +3,8 @@ use crate::resolver::{
     resolve_source_cache_record,
 };
 use crate::source::{
-    GitSourceSpec, LocalSourceLimits, SourceResolveError, resolve_git_source, resolve_local_source,
+    GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
+    resolve_git_source, resolve_local_source,
 };
 use std::path::{Path, PathBuf};
 
@@ -28,7 +29,7 @@ impl SourceAdapter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSourceRequest {
     LocalPath(PathBuf),
-    Git { url: String, rev: Option<String> },
+    Git(GitSourceRequest),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +38,7 @@ pub enum PackageSourceRequestParseError {
     EmptySourceLocator,
     LocalSourceCannotUseRevision { locator: String, rev: String },
     UnsupportedFileUrl { locator: String },
+    InvalidGitRequest(GitSourceRequestError),
 }
 
 impl PackageSourceRequest {
@@ -46,20 +48,18 @@ impl PackageSourceRequest {
         rev: Option<String>,
     ) -> Result<Self, PackageSourceRequestParseError> {
         let locator = locator.into();
-        let locator = locator.trim();
-        if locator.is_empty() {
+        if locator.trim().is_empty() {
             return Err(PackageSourceRequestParseError::EmptySourceLocator);
         }
         match adapter {
             SourceAdapter::Local => {
-                let path = file_url_path(locator)?.unwrap_or_else(|| PathBuf::from(locator));
-                reject_local_rev(locator, &rev)?;
+                let path = file_url_path(&locator)?.unwrap_or_else(|| PathBuf::from(&locator));
+                reject_local_rev(&locator, &rev)?;
                 Ok(Self::LocalPath(path))
             }
-            SourceAdapter::Git => Ok(Self::Git {
-                url: locator.to_owned(),
-                rev,
-            }),
+            SourceAdapter::Git => GitSourceRequest::new(locator, rev)
+                .map(Self::Git)
+                .map_err(PackageSourceRequestParseError::InvalidGitRequest),
         }
     }
 }
@@ -172,18 +172,11 @@ pub fn audit_package_source(
                 byte_count: resolved.byte_count,
             })
         }
-        PackageSourceRequest::Git { url, rev } => {
-            let resolved = resolve_git_source(
-                &GitSourceSpec {
-                    url: url.clone(),
-                    rev: rev.clone(),
-                },
-                cache_dir,
-                limits,
-            )?;
+        PackageSourceRequest::Git(request) => {
+            let resolved = resolve_git_source(&request, cache_dir, limits)?;
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
-                locator: url,
+                locator: request.locator_identity().to_owned(),
                 requested_rev: Some(resolved.requested_rev),
                 resolved_commit: Some(resolved.commit),
                 resolved_tree: Some(resolved.tree),
@@ -242,7 +235,7 @@ pub fn write_source_cache_record_locator(
 fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
     match request {
         PackageSourceRequest::LocalPath(path) => SourceCacheRequest::LocalPath(path),
-        PackageSourceRequest::Git { url, rev } => SourceCacheRequest::Git { url, rev },
+        PackageSourceRequest::Git(request) => SourceCacheRequest::Git(request),
     }
 }
 
@@ -266,6 +259,61 @@ mod tests {
         assert!(matches!(
             PackageSourceRequest::parse(SourceAdapter::Local, "file://relative", None),
             Err(PackageSourceRequestParseError::UnsupportedFileUrl { .. })
+        ));
+    }
+
+    #[test]
+    fn git_source_routes_share_validated_sanitized_requests() {
+        let request = PackageSourceRequest::parse(
+            SourceAdapter::Git,
+            "git@github.com:CathedralOS/Arithmetic-Kernels.git",
+            Some("refs/heads/main".to_owned()),
+        )
+        .expect("valid Git request");
+        let PackageSourceRequest::Git(request) = request else {
+            panic!("Git adapter returned a local request");
+        };
+        assert_eq!(
+            request.locator_identity(),
+            "https://github.com/cathedralos/arithmetic-kernels.git"
+        );
+        assert_eq!(request.requested_revision(), "refs/heads/main");
+
+        for locator in [
+            "http://github.com/CathedralOS/tool.git",
+            "https://token@github.com/CathedralOS/tool.git",
+            "file:///tmp/tool.git",
+            " /tmp/tool.git ",
+        ] {
+            assert!(matches!(
+                PackageSourceRequest::parse(SourceAdapter::Git, locator, None),
+                Err(PackageSourceRequestParseError::InvalidGitRequest(_))
+            ));
+        }
+
+        assert!(matches!(
+            audit_package_source_locator(
+                SourceAdapter::Git,
+                "http://github.com/CathedralOS/tool.git",
+                None,
+                ".",
+                LocalSourceLimits::default(),
+            ),
+            Err(PackageSourceAuditCommandError::Parse(
+                PackageSourceRequestParseError::InvalidGitRequest(_)
+            ))
+        ));
+        assert!(matches!(
+            resolve_source_cache_record_locator(
+                SourceAdapter::Git,
+                "https://token@github.com/CathedralOS/tool.git",
+                None,
+                ".",
+                LocalSourceLimits::default(),
+            ),
+            Err(SourceCachePolicyCommandError::Parse(
+                PackageSourceRequestParseError::InvalidGitRequest(_)
+            ))
         ));
     }
 }

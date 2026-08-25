@@ -106,9 +106,9 @@ pub use review_evidence::{
     ReviewOnlySourceConsumptionCommitment,
 };
 pub use source::{
-    GitExecutableIdentity, GitSourceSpec, LocalSourceLimits, ResolvedGitSource,
-    ResolvedLocalSnapshot, ResolvedLocalSource, SourceResolveError, resolve_git_source,
-    resolve_local_source, resolve_local_source_snapshot,
+    GitExecutableIdentity, GitSourceRequest, GitSourceRequestError, LocalSourceLimits,
+    ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource, SourceResolveError,
+    resolve_git_source, resolve_local_source, resolve_local_source_snapshot,
 };
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,

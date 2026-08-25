@@ -10,8 +10,8 @@ use crate::identity::{
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use crate::source::{
-    GitSourceSpec, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, SourceResolveError,
-    resolve_git_source, resolve_local_source_snapshot,
+    GitSourceRequest, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
+    SourceResolveError, resolve_git_source, resolve_local_source_snapshot,
 };
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -167,14 +167,13 @@ impl From<IdentityError> for ResolvePackageSourceError {
 /// canonical request lineage and the package declaration in the immutable
 /// snapshot.
 pub fn resolve_git_package_source(
-    spec: &GitSourceSpec,
+    request: &GitSourceRequest,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    // Reject unsupported, secret-bearing, or ambiguous identity spellings
-    // before granting the resolver transport authority.
-    let lineage = SourceLineage::git(&spec.url)?;
-    let source = resolve_git_source(spec, cache_dir, limits)?;
+    let limits = limits.compiler_bounded();
+    let lineage = request.lineage().clone();
+    let source = resolve_git_source(request, cache_dir, limits)?;
     bind_git_package_source(lineage, source, limits)
 }
 
@@ -187,6 +186,7 @@ pub fn resolve_external_local_package_source(
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
     let source = resolve_local_source_snapshot(source_root, cache_dir, limits)?;
     let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
         &source.canonical_live_root,
@@ -222,6 +222,7 @@ pub fn resolve_workspace_member_package_source(
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
     let requested_workspace_root = live_workspace_root.as_ref();
     let declared_member_root = requested_workspace_root.join(member_path.as_str());
@@ -680,8 +681,8 @@ mod tests {
     fn git_binding_normalizes_known_transport_without_using_repository_name() {
         let snapshot = temp_root("git-binding");
         write_package(&snapshot, "declared-package");
-        let source = |url: &str| ResolvedGitSource {
-            url: url.to_owned(),
+        let source = |locator_identity: &str| ResolvedGitSource {
+            locator_identity: locator_identity.to_owned(),
             requested_rev: "main".to_owned(),
             commit: "11".repeat(20),
             tree: "22".repeat(20),
@@ -796,38 +797,25 @@ machine build(builder: &mut Build) {{
 
         let cache = temp_root("git-reconciliation-cache");
         let source_limits = LocalSourceLimits::default();
-        let file_url = format!("file://{}", repository.display());
-        let lineage = SourceLineage::git(canonical_repository).expect("canonical Git lineage");
-        let first = bind_git_package_source(
-            lineage.clone(),
-            resolve_git_source(
-                &GitSourceSpec {
-                    url: file_url.clone(),
-                    rev: Some(first_revision.clone()),
-                },
-                cache.join("first"),
-                source_limits,
-            )
-            .expect("resolve first immutable Git custody"),
-            source_limits,
+        let first_request = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            Some(first_revision.clone()),
+            canonical_repository,
         )
-        .expect("bind first declared package custody")
-        .into_custody();
-        let second = bind_git_package_source(
-            lineage,
-            resolve_git_source(
-                &GitSourceSpec {
-                    url: file_url,
-                    rev: Some(second_revision.clone()),
-                },
-                cache.join("second"),
-                source_limits,
-            )
-            .expect("resolve second immutable Git custody"),
-            source_limits,
+        .expect("validate first local Git fixture request");
+        let first = resolve_git_package_source(&first_request, cache.join("first"), source_limits)
+            .expect("bind first declared package custody")
+            .into_custody();
+        let second_request = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            Some(second_revision.clone()),
+            canonical_repository,
         )
-        .expect("bind second declared package custody")
-        .into_custody();
+        .expect("validate second local Git fixture request");
+        let second =
+            resolve_git_package_source(&second_request, cache.join("second"), source_limits)
+                .expect("bind second declared package custody")
+                .into_custody();
         assert_eq!(first.key(), second.key());
         assert_ne!(first.resolution(), second.resolution());
         assert_ne!(first.snapshot_root(), second.snapshot_root());
