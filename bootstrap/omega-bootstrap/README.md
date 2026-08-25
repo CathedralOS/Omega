@@ -257,10 +257,12 @@ language, generation, or architectural role; new documentation and work use
   immutable, address-backed copyable record of at most four fields. The exact
   product target is `compiler/psi/source/source.omg` plus a same-logical-module
   harness, so implementation does not depend on the unresolved private
-  cross-module rule. Native and Delta-self-built producers and backends now
-  agree byte-for-byte on that target and general controls; independent CKIR4
-  result/object/ELF reconstruction is also executable. `OMGRFN5` frame/source
-  custody, resolution, and intrinsic-table responsibilities are closed.
+  cross-module rule. Native and Delta-self-built producers now agree
+  byte-for-byte on that target and general controls; the corresponding
+  backends agree on representative nested constructor/Call/Copy inputs, and
+  independent CKIR4 result/object/ELF reconstruction is executable. `OMGRFN5`
+  frame/source custody, resolution, and intrinsic-table responsibilities are
+  closed.
   Rust-free meaning, complete source-body and CKIR/ELF lower-rooted duties, the
   adjacent resource matrix, and one unchanged-frame composition gate remain
   open; the tranche is not yet reported complete.
