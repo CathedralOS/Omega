@@ -48,6 +48,11 @@ Only two source contracts remain open:
 | Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of the canonical Delta compiler and `omega-bootstrap`, plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
 
+There are three source closures but only these two surface contracts: the
+canonical Delta compiler and `omega-bootstrap` are both Delta-v1 programs; the
+production compiler is ordinary Omega constrained by `Ωself`. Do not derive a
+third inventory from the fact that the three programs have different jobs.
+
 Use this working direction until complete-source measurements overturn it:
 
 | Surface | Default | Deliberate pressure points |
@@ -123,7 +128,7 @@ Current state, without extrapolating from bounded canaries:
 | --- | --- | --- |
 | Delta language | executable corpus, native compiler path, self-host evidence, and a growing Delta→Gamma meaning route | a frozen v1 specification justified by both complete required Delta source closures, plus complete lower-rung coverage |
 | canonical Delta compiler | a Delta-written self-hosting compiler and bounded lower-rung executions | publication of the exact final compiler artifact from its complete source through Gamma, joined to refinement |
-| `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→ELF→refinement slices through CKIR11/OMGRFN13 | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
+| `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→artifact→refinement slices, indexed by the bridge-local versioned contracts | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
 | production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
 | hosted production build | bounded bridge canaries only | the first validated build of full production `omega`; no optional self-rebuild is required to close bootstrap |
 
@@ -330,9 +335,9 @@ beside the linked contracts:
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
-| source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-| checked lowering and composition | closed through CKIR11 for selected canonical `u32 in Trapping` leaf-plus-literal addition in assignment, guard, call, and transition arguments; OMGLOWC retains least OMGRSW1/2/3, inherited widening, runtime overflow, and conservative carry/range traps | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V11_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11_BACKEND.md) |
-| lower-rooted artifact reconstruction | closed through OMGRFN13: independent R1–R5 owners consume one immutable result-70 frame, reconstruct four authored additions plus inherited CKIR10 widening, and pin exact Add/carry/range/store bytes in the conservative ELF | [`omega-bootstrap refinement status`](bootstrap/assurance/refinement/omega-bootstrap/README.md), [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
+| source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
+| checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
+| lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
