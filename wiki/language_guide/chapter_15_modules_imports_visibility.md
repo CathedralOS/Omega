@@ -249,6 +249,13 @@ compiler-internal ledger finalized from the stages that own those facts, not a
 new language-visible IR stage. An unresolved or unjoinable authored occurrence
 rejects rather than disappearing from the gate.
 
+A Unit-producing or explicitly discarded call statement follows exactly the
+same rule as a value-producing call expression. Its target token selects the
+callee declaration, each explicit static conformance argument selects its own
+declaration, and a uniquely inferred generic conformance is attributed to the
+call token. Compiler-owned build markers and lowered assembly operations retain
+closed intrinsic meanings instead of fictional package owners.
+
 Only authored selection rows are checked against the direct dependency set.
 Carried nominal identity, compiler-planned layout and move/copy behavior, and
 automatic cleanup produce semantic dependency evidence but never manufacture

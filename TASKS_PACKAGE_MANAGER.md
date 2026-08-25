@@ -600,14 +600,27 @@ complete.
   inferred `GoodMarker` selection when leaf is only transitive and accepts it
   after root admits leaf directly.
 
+  Milestone 2026-08-25: source-authored statement calls now enter the same
+  ledger before symbol-resolved statement trees are rebuilt into tables. Exact
+  targets settle immediately; unresolved targets retain a checked-call
+  obligation which finalization joins to the exact checked flow call. Explicit
+  static conformance arguments on statement calls retain their own source spans,
+  and inferred generic conformances attach to the statement's call-target span.
+  Compiler-owned build markers and lowered inline-assembly operations finalize
+  to closed intrinsic variants rather than pretending to have package symbols
+  or being silently skipped. Root-middle-leaf canaries reject both a
+  transitive-only void statement call and a conformance inferred by one, then
+  accept each after direct admission.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
-  explicit static conformance arguments, inferred generic-call conformances,
-  and checked trait-operator conformances. Public expression positions,
-  statement-call occurrence custody, named conformance selectors in callable
-  bounds, and explicit cleanup forms are not yet total. The package manager
-  stays disabled until those gaps close.
+  explicit static conformance arguments, expression and statement calls,
+  inferred generic-call conformances, and checked trait-operator conformances.
+  Public expression positions, non-conformance static argument categories,
+  named conformance selectors in callable bounds, and explicit cleanup
+  classification are not yet total. The package manager stays disabled until
+  those gaps close.
   Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.

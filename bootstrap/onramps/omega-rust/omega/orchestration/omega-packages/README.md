@@ -547,6 +547,13 @@ identity and attached to the authored call token. Explicit and inferred
 selections remain separate rows, and each selected declaration's owner must be
 self or a direct dependency before package code is admitted.
 
+Source-authored Unit/discarding statement calls use the same ledger. Resolution
+retains exact targets and explicit static conformances before statement-table
+rebuilding; checked flow finalizes late targets and inferred conformances.
+Compiler-owned build markers and lowered assembly operations have closed
+intrinsic identities, while every ordinary statement target remains subject to
+the direct-dependency gate.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

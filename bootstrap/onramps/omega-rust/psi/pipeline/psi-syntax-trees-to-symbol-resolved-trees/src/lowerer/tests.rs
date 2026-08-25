@@ -1372,7 +1372,6 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
     let syntax = parse_syntax_trees(&tokens).expect("parse authored selections");
     let program = lower_syntax_trees(&syntax).expect("resolve authored selections");
     let selections = program.authored_declaration_selections();
-
     assert!(selections.iter().any(|selection| {
         selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
             && matches!(
@@ -1387,6 +1386,83 @@ fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
                 == psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::LateBound(
                     psi_symbol_resolved_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator,
                 )
+    }));
+}
+
+#[test]
+fn captures_statement_calls_and_their_explicit_conformance_arguments() {
+    let source = r#"
+        trait Marker { }
+        data Good { }
+        GoodMarker: Good satisfies Marker;
+
+        machine effect() { }
+        machine consume<Element, Evidence: Element satisfies Marker>(value: Element) { }
+        machine caller(value: Good) {
+            effect();
+            consume<Good, GoodMarker>(value);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize statement selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse statement selections");
+    let program = lower_syntax_trees(&syntax).expect("resolve statement selections");
+    let selected = program
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "GoodMarker")
+        })
+        .expect("GoodMarker conformance")
+        .symbol;
+    let selections = program.authored_declaration_selections();
+    let statement_calls = program
+        .machines
+        .iter()
+        .flat_map(|machine| program.machine_state_handles(machine.states))
+        .flat_map(|state| {
+            program
+                .tables
+                .bodies
+                .statements
+                .statements(program.machine_state(*state).statement_nodes)
+        })
+        .filter_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(statement_calls.len(), 2, "calls={statement_calls:#?}");
+    assert!(
+        statement_calls.iter().all(|call| {
+            call.target.is_source_backed()
+                && call.operational_acknowledgement.origin
+                    == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+        }),
+        "calls={statement_calls:#?}"
+    );
+
+    assert!(
+        selections.iter().any(|selection| {
+            selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Call
+                && matches!(
+                    selection.target(),
+                    psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+                )
+        }),
+        "selections={selections:#?}"
+    );
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Conformance
+            && matches!(
+                selection.target(),
+                psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if target.selected_symbol() == selected
+            )
     }));
 }
 

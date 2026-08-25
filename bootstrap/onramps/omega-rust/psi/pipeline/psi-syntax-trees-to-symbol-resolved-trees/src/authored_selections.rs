@@ -66,7 +66,99 @@ pub(crate) fn finalize_authored_expression_selections(
         }
     }
 
+    for candidate in statement_candidates(program) {
+        match candidate.target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection(
+                    candidate.source_span,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    candidate.kind,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection(
+                    candidate.source_span,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    candidate.kind,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?;
+    }
+
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StatementCandidate {
+    source_span: SourceSpan,
+    kind: Kind,
+    target: CandidateTarget,
+}
+
+fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<StatementCandidate> {
+    let mut candidates = Vec::new();
+    for machine in program.machines.iter() {
+        for state_handle in program.machine_state_handles(machine.states) {
+            let state = program.machine_state(*state_handle);
+            for statement in program
+                .tables
+                .declarations
+                .state_statements
+                .span_or_empty(state.statements)
+            {
+                let psi_symbol_resolved_trees::statement::Statement::Call(call) = statement else {
+                    continue;
+                };
+                if call.operational_acknowledgement.origin
+                    == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+                {
+                    candidates.push(StatementCandidate {
+                        source_span: call.target.source_span(),
+                        kind: Kind::Call,
+                        target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
+                    });
+                }
+                collect_statement_static_conformance_candidates(
+                    program,
+                    &call.machine_arguments,
+                    call.target.source_span(),
+                    &mut candidates,
+                );
+            }
+        }
+    }
+    candidates
+        .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
+    candidates
+}
+
+fn collect_statement_static_conformance_candidates(
+    program: &SymbolResolvedTrees,
+    arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
+    fallback_span: SourceSpan,
+    candidates: &mut Vec<StatementCandidate>,
+) {
+    for argument in arguments {
+        if argument.symbol.is_valid()
+            && program.symbols.get(argument.symbol).kind == psi_symbols::SymbolKind::Conformance
+            && argument.path.iter().any(|member| member.is_source_backed())
+        {
+            candidates.push(StatementCandidate {
+                source_span: path_span(&argument.path, fallback_span),
+                kind: Kind::Conformance,
+                target: CandidateTarget::Resolved(argument.symbol),
+            });
+        }
+        if let Some(application) = &argument.application {
+            collect_statement_static_conformance_candidates(
+                program,
+                &application.arguments,
+                fallback_span,
+                candidates,
+            );
+        }
+    }
 }
 
 fn expression_candidates(
