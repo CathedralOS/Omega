@@ -64,11 +64,11 @@ machine build(builder: &mut Build) {
     .expect("write provider package declaration");
     fs::write(
         root.join("provider.omg"),
-        r#"boundary trait Pair {
+        r#"pub boundary trait Pair {
     machine first();
 }
 
-data Provider {
+pub data Provider {
 }
 
 machine Provider::first()
