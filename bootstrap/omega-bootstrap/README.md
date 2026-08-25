@@ -228,10 +228,12 @@ language, generation, or architectural role; new documentation and work use
   evaluated CKIR result. The distinct
   [`OMGRFN4`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md)
   carrier, exact 4,497,544-byte simultaneous ceiling, and five-responsibility
-  ownership split are frozen without widening earlier frames. Its first two
-  persisted-Beta checkers now close exact frame/source custody and independent
-  source-to-`OMGRSW1` resolution for the selected Unicode family; the other
-  three responsibilities and their composition remain a separate open seam.
+  ownership split are frozen without widening earlier frames. Its first three
+  persisted-Beta checkers now close exact frame/source custody, independent
+  source-to-`OMGRSW1` resolution, and the witness-to-CKIR3 declaration/layout/
+  selected-entry/intrinsic-DAG join for the selected Unicode family. Source
+  lowering/meaning, CKIR/result/artifact reconstruction, and their same-frame
+  composition remain a separate open seam.
 
   The meaning gates deliberately reuse one elaboration and do not duplicate
   the native/self fixture or mutation matrices. On the measured Darwin-arm64
