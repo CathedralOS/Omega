@@ -110,7 +110,13 @@ def assemble(text):
         out.append(op)
         for kd, tok in zip(kinds, it[2]):
             if kd == 'r':
-                out.append(int(tok[1:]) & 0xFF)        # rN
+                if (len(tok) < 2 or tok[0] != 'r' or
+                        not tok[1:].isascii() or not tok[1:].isdigit()):
+                    raise SyntaxError(f'asm_ref: malformed register {tok!r}')
+                value = int(tok[1:])
+                if value > 255:
+                    raise SyntaxError(f'asm_ref: register out of range {tok!r}')
+                out.append(value)
             else:
                 v = labels[tok] if tok in labels else int(tok)
                 out += (v & MASK).to_bytes(8, 'little')

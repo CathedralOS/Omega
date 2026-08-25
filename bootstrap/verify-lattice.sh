@@ -94,6 +94,7 @@ step "alpha — reference VM agrees with the host realization" alpha diamond-py.
 step "alpha — VM FUZZ: seed vs reference over random arithmetic tapes (signedness/wraparound/traps)" alpha vm-fuzz.sh
 step "alpha — assembler self-hosts"                   alpha-assembler selfhost.sh
 step "alpha — REFERENCE: asm_ref.py agrees with the lattice assembler over the corpus" alpha-assembler asm-diamond.sh beta proof-kernel
+step "alpha — whole-token registers and r+digit labels agree with the reference" alpha-assembler register-label-regression.sh alpha beta
 step "alpha — disposable Rust assembler producer agrees with the lattice assembler" alpha-assembler-rust test.sh alpha-assembler
 step "bc    — Alpha-written cold-start compiler surface" beta cold-start/test.sh alpha alpha-assembler
 step "bc    — Alpha-rooted full source, artifact fixed point, corpus" beta cold-start/full-source.sh alpha alpha-assembler
