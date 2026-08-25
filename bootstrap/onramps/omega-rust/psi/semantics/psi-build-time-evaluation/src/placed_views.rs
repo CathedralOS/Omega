@@ -23,6 +23,7 @@
 //! linear.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use psi_access_plans::PlacementPlanId;
 use psi_diagnostics::Diagnostic;
@@ -76,6 +77,13 @@ type Discovery = (
 pub fn desugar_placed_views(
     syntax: &mut SyntaxTrees,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
+    desugar_placed_views_with_optional_sources(syntax, None)
+}
+
+pub(crate) fn desugar_placed_views_with_optional_sources(
+    syntax: &mut SyntaxTrees,
+    sources: Option<Arc<psi_source::SourceMap>>,
+) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
     let (applications, rewrites, schemas) = discover_applications(syntax)?;
     if applications.is_empty() {
         // The generic boundary templates exist only as compiler input for
@@ -91,7 +99,7 @@ pub fn desugar_placed_views(
     synthesize_probe_records(&mut probe, &applications, &rewrites, &schemas);
     let mut probe = psi_generic_instances::normalize_pre_resolution(probe)?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)?;
+    let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
     let mut typed =
         psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .map_err(|diagnostic| vec![diagnostic])?;

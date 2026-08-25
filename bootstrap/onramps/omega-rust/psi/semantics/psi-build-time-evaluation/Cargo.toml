@@ -19,6 +19,8 @@ psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../foundation/psi-layout-plans" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
+psi-source = { path = "../../foundation/psi-source" }
+psi-symbol-resolved-trees = { path = "../../representations/psi-symbol-resolved-trees" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees = { path = "../../representations/psi-syntax-trees" }
@@ -27,5 +29,6 @@ psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../pipeline/psi-typed-trees-to-checked-trees" }
 
 [dev-dependencies]
+psi-core = { path = "../../foundation/psi-core" }
 psi-source-files-to-tokens = { path = "../../pipeline/psi-source-files-to-tokens" }
 psi-tokens-to-syntax-trees = { path = "../../pipeline/psi-tokens-to-syntax-trees" }

@@ -254,7 +254,10 @@ fn compile_to_checked_inner(
         package_inputs,
         &mut timings,
     )?;
-    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution(syntax.syntax_trees)?;
+    let evaluated = psi_build_time_evaluation::evaluate_pre_resolution_with_sources(
+        syntax.syntax_trees,
+        syntax.sources.clone(),
+    )?;
     syntax.syntax_trees = evaluated.syntax_trees;
     let placed_view_records = evaluated.placed_view_records;
     let plan_laid_records = evaluated.plan_laid_records;
