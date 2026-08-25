@@ -516,6 +516,13 @@ exact concrete machine entry identities. Nested static applications, forwarded
 or symbolic type/const binders, proposition/evidence static arguments, quotient
 calls, compiler intrinsics, malformed or ambiguous joins, semantic roles, and
 operators remain fail-closed until exact rows land.
+Review v46 and canonical row v6 add bounded recursive generic data-type static
+arguments in contract calls. Each application base rejoins exactly one checked
+data declaration, whose telescope is recursively classified; changing a nested
+type changes canonical evidence. This rung admits zero-lifetime generic data
+applications only. Lifetime-bearing applications, generic machine/conformance
+applications, unresolved forwarded type/const binders, proposition/evidence
+static arguments, quotient calls, and compiler intrinsics remain fail-closed.
 Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
@@ -600,7 +607,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v45 projection therefore
+remain separately bound. The current incomplete review-v46 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

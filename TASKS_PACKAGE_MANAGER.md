@@ -844,6 +844,14 @@ complete.
   identity. Nested static applications, forwarded or symbolic type/const
   binders, proposition/evidence static arguments, quotient calls, compiler
   intrinsics, and malformed or ambiguous joins remain fail-closed.
+  Review v46 and canonical row v6 add bounded recursive generic data-type
+  static arguments in contract calls. Each application base rejoins exactly one
+  checked data declaration, whose telescope is recursively classified; a
+  changed nested type therefore changes canonical evidence. This rung admits
+  zero-lifetime generic data applications only. Lifetime-bearing applications,
+  generic machine/conformance applications, unresolved forwarded type/const
+  binders, proposition/evidence static arguments, quotient calls, and compiler
+  intrinsics remain fail-closed.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
@@ -1402,7 +1410,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v45
+  create a placeholder `PackageInstance` or bless current incomplete review v46
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is
