@@ -1276,7 +1276,7 @@ fn proposition_parameter_signatures_receive_distinct_symbols() {
 #[test]
 fn proposition_declarations_resolve_as_a_distinct_proof_category() {
     let source = r#"
-        proposition related(left: i32, right: i32);
+        pub proposition related(left: i32, right: i32);
         proposition witnessed<machine Generator>(value: i32) evidence i32;
         proposition reflexive(value: i32) = related(value, value);
     "#;
@@ -1287,6 +1287,14 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
     let program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
 
     assert_eq!(program.propositions.len(), 3);
+    assert!(program.propositions[0].is_public);
+    assert!(!program.propositions[1].is_public);
+    assert!(
+        program
+            .snapshot_json()
+            .expect("resolved proposition snapshot")
+            .contains("\"is_public\":true")
+    );
     assert_eq!(program.machines.len(), 0);
     assert!(
         program

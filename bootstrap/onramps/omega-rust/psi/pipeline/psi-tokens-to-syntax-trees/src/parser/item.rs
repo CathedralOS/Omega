@@ -35,8 +35,8 @@ pub(super) fn parse_item<'tokens, 'source>(
         // Data retains this bit because public structural declarations publish
         // their source shape. Numbered data
         // retains it on both its schema and wire-derived plain-data roots.
-        // Domains retain it because a public transparent alias may not publish
-        // a private constituent; machines retain it because public checked
+        // Domains and propositions retain it because a public transparent
+        // alias may not publish a private constituent; machines retain it because public checked
         // bodies publish strict authority and operational ceilings. Traits
         // retain it as source-level API metadata independent of trait identity.
         let (mut item, rest) = parse_item(syntax_trees, input)?;
@@ -44,6 +44,7 @@ pub(super) fn parse_item<'tokens, 'source>(
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
             Item::Machine(machine) => machine.is_public = true,
+            Item::Proposition(proposition) => proposition.is_public = true,
             Item::Trait(trait_definition) => trait_definition.is_public = true,
             Item::WireData(wire_data) => wire_data.is_public = true,
             _ => {

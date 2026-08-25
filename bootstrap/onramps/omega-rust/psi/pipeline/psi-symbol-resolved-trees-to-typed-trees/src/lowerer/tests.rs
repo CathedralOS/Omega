@@ -851,7 +851,7 @@ fn generic_proposition_applications_remain_proof_facts_when_typed() {
 #[test]
 fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
     let source = r#"
-        proposition related(left: i32, right: i32);
+        pub proposition related(left: i32, right: i32);
 
         machine preserve(left: i32, right: i32)
         requires related(left, right)
@@ -866,6 +866,13 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
     let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
 
     assert_eq!(typed.propositions().len(), 1);
+    assert!(typed.propositions()[0].is_public);
+    assert!(
+        typed
+            .snapshot_json()
+            .expect("typed proposition snapshot")
+            .contains("\"is_public\":true")
+    );
     assert!(matches!(
         typed.propositions()[0].body,
         psi_typed_trees::proposition::PropositionBody::Primitive

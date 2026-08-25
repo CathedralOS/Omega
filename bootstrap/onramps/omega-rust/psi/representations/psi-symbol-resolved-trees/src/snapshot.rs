@@ -556,6 +556,7 @@ pub struct StateParameterSnapshot {
 pub struct PropositionSnapshot {
     pub has_symbol: bool,
     pub name: String,
+    pub is_public: bool,
     pub binders: Vec<PropositionBinderSnapshot>,
     pub parameters: Vec<StateParameterSnapshot>,
     pub body: PropositionBodySnapshot,
@@ -889,6 +890,7 @@ fn proposition_snapshot(
     PropositionSnapshot {
         has_symbol: proposition.symbol.is_valid(),
         name: proposition.name.to_string(),
+        is_public: proposition.is_public,
         binders: program
             .tables
             .declarations

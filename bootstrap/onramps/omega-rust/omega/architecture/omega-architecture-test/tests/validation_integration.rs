@@ -1245,7 +1245,7 @@ fn checked_machine_may_forward_required_proposition() {
 fn checked_machine_may_cite_accepted_proposition_axiom() {
     let typed = typed_program_from_source(
         r#"
-        proposition reflexive(value: i32);
+        pub proposition reflexive(value: i32);
 
         boundary machine accepted_reflexivity(value: i32)
         ensures reflexive(value);

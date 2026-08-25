@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v51 rows are not promoted
+subjects or provenance. The current incomplete review-v52 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1399,6 +1399,13 @@ receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable. Other compiler intrinsics remain
 fail-closed.
+Review v52 and canonical row v12 add blocking standalone public-proposition
+shape. Every package-owned `pub proposition` is retained whether used or not;
+primitive publication records only vocabulary, while witness and transparent
+forms retain their structural interface or normalized expansion. This source
+API row does not mint a primitive fact, and a transparent alias remains absent
+from normalized proposition identity while still participating in source
+compatibility.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

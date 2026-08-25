@@ -1016,6 +1016,39 @@ pub enum PackageReviewPropositionEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewPublicPropositionBody {
+    Primitive,
+    Witness(PackageReviewEvidenceInterface),
+    Transparent(PackageReviewContractFact),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewPropositionShape {
+    identity: PackageReviewNominalIdentity,
+    binders: Vec<PackageReviewPropositionBinder>,
+    parameter_types: Vec<PackageReviewTypeIdentity>,
+    body: PackageReviewPublicPropositionBody,
+}
+
+impl PackageReviewPropositionShape {
+    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
+        &self.identity
+    }
+
+    pub fn binders(&self) -> &[PackageReviewPropositionBinder] {
+        &self.binders
+    }
+
+    pub fn parameter_types(&self) -> &[PackageReviewTypeIdentity] {
+        &self.parameter_types
+    }
+
+    pub const fn body(&self) -> &PackageReviewPublicPropositionBody {
+        &self.body
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionApplication {
     declaration: PackageReviewNominalIdentity,
     binders: Vec<PackageReviewPropositionBinder>,
@@ -1852,6 +1885,7 @@ pub struct CheckedPackageReviewProjection {
     target: omega_target::TargetProfile,
     public_traits: Vec<PackageReviewTraitShape>,
     public_domains: Vec<PackageReviewDomainShape>,
+    public_propositions: Vec<PackageReviewPropositionShape>,
     public_data: Vec<PackageReviewDataShape>,
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     semantic_dependencies: Vec<PackageReviewSemanticDependency>,
@@ -1868,6 +1902,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.target == other.target
             && self.public_traits == other.public_traits
             && self.public_domains == other.public_domains
+            && self.public_propositions == other.public_propositions
             && self.public_data == other.public_data
             && self.representation_tcb == other.representation_tcb
             && self.semantic_dependencies == other.semantic_dependencies
@@ -1884,6 +1919,7 @@ impl Eq for CheckedPackageReviewProjection {}
 struct PackageReviewCanonicalRowSources {
     public_traits: Vec<PackageReviewCanonicalRowSource>,
     public_domains: Vec<PackageReviewCanonicalRowSource>,
+    public_propositions: Vec<PackageReviewCanonicalRowSource>,
     public_data: Vec<PackageReviewCanonicalRowSource>,
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
@@ -1947,6 +1983,7 @@ pub enum PackageReviewCanonicalRowKind {
     /// but absent from its exact inferred transitive reach.
     DangerousAuthoritySlack,
     SemanticDependency,
+    PublicProposition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2122,6 +2159,10 @@ impl CheckedPackageReviewProjection {
         &self.public_domains
     }
 
+    pub fn public_propositions(&self) -> &[PackageReviewPropositionShape] {
+        &self.public_propositions
+    }
+
     pub fn public_data(&self) -> &[PackageReviewDataShape] {
         &self.public_data
     }
@@ -2208,6 +2249,7 @@ pub fn project_checked_package_review(
     let build_machine = compilation.selected_build_machine_symbol();
     let public_traits = project_public_traits(compilation, package)?;
     let public_domains = project_public_domains(compilation, package)?;
+    let public_propositions = project_public_propositions(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
@@ -2378,6 +2420,11 @@ pub fn project_checked_package_review(
         public_domains,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (public_propositions, public_proposition_sources) = finalize_projected_rows(
+        compilation,
+        public_propositions,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
     let (public_data, public_data_sources) = finalize_projected_rows(
         compilation,
         public_data,
@@ -2402,6 +2449,7 @@ pub fn project_checked_package_review(
     let row_sources = PackageReviewCanonicalRowSources {
         public_traits: public_trait_sources,
         public_domains: public_domain_sources,
+        public_propositions: public_proposition_sources,
         public_data: public_data_sources,
         representation_tcb: representation_tcb_sources,
         semantic_dependencies: semantic_dependency_sources,
@@ -2417,6 +2465,7 @@ pub fn project_checked_package_review(
         target,
         public_traits,
         public_domains,
+        public_propositions,
         public_data,
         representation_tcb,
         semantic_dependencies,
@@ -2882,6 +2931,7 @@ fn validate_canonical_row_source_limits(
         .public_traits
         .iter()
         .chain(&sources.public_domains)
+        .chain(&sources.public_propositions)
         .chain(&sources.public_data)
         .chain(&sources.representation_tcb)
         .chain(&sources.semantic_dependencies)
@@ -3374,6 +3424,128 @@ fn project_trait_requirement(
         blocks: requirement.blocks,
         termination,
     })
+}
+
+fn project_public_propositions(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<ProjectedReviewRow<PackageReviewPropositionShape>>, Vec<Diagnostic>> {
+    use psi_typed_trees::proposition::{PropositionBody, PropositionFormula};
+
+    let mut rows = Vec::new();
+    for declaration in compilation
+        .propositions()
+        .iter()
+        .filter(|declaration| declaration.is_public)
+    {
+        let identity = nominal_identity(compilation, declaration.symbol)?;
+        if !reviewed_package_owns(&identity, package)? {
+            continue;
+        }
+        let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
+        let body = match &declaration.body {
+            PropositionBody::Primitive | PropositionBody::Witness { .. } => {
+                let matching = compilation
+                    .facts
+                    .proof
+                    .proposition_vocabulary
+                    .declarations
+                    .iter()
+                    .filter(|checked| checked.symbol == declaration.symbol)
+                    .collect::<Vec<_>>();
+                let [checked] = matching.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public proposition `{}` has {} checked declaration rows; expected one",
+                        identity.path,
+                        matching.len()
+                    ))]);
+                };
+                if !checked.is_public {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public proposition `{}` lost visibility during checked lowering",
+                        identity.path
+                    ))]);
+                }
+                match declaration.body {
+                    PropositionBody::Primitive => PackageReviewPublicPropositionBody::Primitive,
+                    PropositionBody::Witness { evidence } => {
+                        let declaration_binders = compilation.proposition_binders(declaration);
+                        let binder_symbols = declaration_binders
+                            .iter()
+                            .enumerate()
+                            .map(|(position, binder)| {
+                                (binder.symbol, format!("proposition-binder:{position}"))
+                            })
+                            .collect::<Vec<_>>();
+                        PackageReviewPublicPropositionBody::Witness(project_evidence_interface(
+                            compilation,
+                            evidence,
+                            &binder_symbols,
+                        )?)
+                    }
+                    PropositionBody::Transparent { .. } => unreachable!(),
+                }
+            }
+            PropositionBody::Transparent { proposition } => {
+                let parameters = compilation.proposition_parameters(declaration);
+                let declaration_binders = compilation.proposition_binders(declaration);
+                let binder_symbols = declaration_binders
+                    .iter()
+                    .enumerate()
+                    .map(|(position, binder)| {
+                        (binder.symbol, format!("proposition-binder:{position}"))
+                    })
+                    .collect::<Vec<_>>();
+                let context = ContractProjectionContext {
+                    subject_kind: "public proposition",
+                    subject_name: &identity.path,
+                    owner: psi_checked_trees::ContractProofFactOwner::Unknown,
+                    point: psi_facts::ProgramPoint::Definition {
+                        symbol: declaration.symbol,
+                    },
+                    parameters,
+                    domain_symbol: None,
+                    lifetime_binders: &[],
+                };
+                let mut visiting = vec![declaration.symbol];
+                let expansion = match proposition {
+                    PropositionFormula::Application(application) => project_contract_proposition(
+                        compilation,
+                        &context,
+                        &binder_symbols,
+                        application,
+                        None,
+                        &[],
+                        &[],
+                        &mut visiting,
+                        0,
+                    )?,
+                    PropositionFormula::BooleanExpression(expression) => {
+                        PackageReviewContractFact::Expression(project_contract_expression(
+                            compilation,
+                            &context,
+                            &binder_symbols,
+                            *expression,
+                            None,
+                            0,
+                        )?)
+                    }
+                };
+                PackageReviewPublicPropositionBody::Transparent(expansion)
+            }
+        };
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewPropositionShape {
+                identity,
+                binders,
+                parameter_types,
+                body,
+            },
+            declaration: declaration.symbol,
+        });
+    }
+    rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
+    Ok(rows)
 }
 
 fn project_public_domains(
@@ -5931,7 +6103,43 @@ fn project_proposition_endpoint(
     binder_arguments: Vec<PackageReviewPropositionBinderArgument>,
     arguments: Vec<PackageReviewContractExpression>,
 ) -> Result<PackageReviewPropositionApplication, Vec<Diagnostic>> {
-    use psi_typed_trees::proposition::{PropositionBinderKind, PropositionBody};
+    use psi_typed_trees::proposition::PropositionBody;
+
+    let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
+    let binder_symbols = compilation
+        .proposition_binders(declaration)
+        .iter()
+        .enumerate()
+        .map(|(position, binder)| (binder.symbol, format!("proposition-binder:{position}")))
+        .collect::<Vec<_>>();
+    let evidence = match declaration.body {
+        PropositionBody::Primitive => PackageReviewPropositionEvidence::FactOnly,
+        PropositionBody::Witness { evidence } => PackageReviewPropositionEvidence::Witness(
+            project_evidence_interface(compilation, evidence, &binder_symbols)?,
+        ),
+        PropositionBody::Transparent { .. } => unreachable!("transparent endpoint was expanded"),
+    };
+    Ok(PackageReviewPropositionApplication {
+        declaration: nominal_identity(compilation, declaration.symbol)?,
+        binders,
+        parameter_types,
+        binder_arguments,
+        arguments,
+        evidence,
+    })
+}
+
+fn project_proposition_signature(
+    compilation: &CheckedCompilation,
+    declaration: &psi_typed_trees::proposition::PropositionDefinition,
+) -> Result<
+    (
+        Vec<PackageReviewPropositionBinder>,
+        Vec<PackageReviewTypeIdentity>,
+    ),
+    Vec<Diagnostic>,
+> {
+    use psi_typed_trees::proposition::PropositionBinderKind;
 
     let declaration_binders = compilation.proposition_binders(declaration);
     let binder_symbols = declaration_binders
@@ -5971,21 +6179,7 @@ fn project_proposition_endpoint(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let evidence = match declaration.body {
-        PropositionBody::Primitive => PackageReviewPropositionEvidence::FactOnly,
-        PropositionBody::Witness { evidence } => PackageReviewPropositionEvidence::Witness(
-            project_evidence_interface(compilation, evidence, &binder_symbols)?,
-        ),
-        PropositionBody::Transparent { .. } => unreachable!("transparent endpoint was expanded"),
-    };
-    Ok(PackageReviewPropositionApplication {
-        declaration: nominal_identity(compilation, declaration.symbol)?,
-        binders,
-        parameter_types,
-        binder_arguments,
-        arguments,
-        evidence,
-    })
+    Ok((binders, parameter_types))
 }
 
 fn project_evidence_interface(

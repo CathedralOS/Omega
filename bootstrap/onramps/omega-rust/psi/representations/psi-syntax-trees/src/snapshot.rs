@@ -148,6 +148,7 @@ pub enum ItemSnapshot {
     },
     Proposition {
         name: IdentifierSnapshot,
+        is_public: bool,
         type_parameters: Vec<TypeParameterSnapshot>,
         parameters: Vec<StateParameterSnapshot>,
         body: PropositionBodySnapshot,
@@ -1040,6 +1041,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Proposition(value) => ItemSnapshot::Proposition {
             name: snapshot_identifier(&value.name),
+            is_public: value.is_public,
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)

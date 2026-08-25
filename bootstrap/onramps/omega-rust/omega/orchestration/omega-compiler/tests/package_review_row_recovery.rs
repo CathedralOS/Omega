@@ -49,7 +49,10 @@ fn fixture_rows() -> Option<(
 )> {
     let target_name = host_target_name()?;
     let package = TempPackage::new();
-    package.write("main.omg", "pub data Token { value: i64; }\n");
+    package.write(
+        "main.omg",
+        "pub data Token { value: i64; }\npub proposition ready();\n",
+    );
     package.write(
         "build.omg",
         r#"target windows_x64 { }
@@ -90,6 +93,11 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
     assert!(
         rows.iter()
             .any(|row| { !row.source().compiler_derivations().is_empty() })
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition),
+        "the new public proposition row kind must survive canonical recovery"
     );
 
     for row in rows {

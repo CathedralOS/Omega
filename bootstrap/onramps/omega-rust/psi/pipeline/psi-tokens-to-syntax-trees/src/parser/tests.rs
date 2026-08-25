@@ -195,7 +195,7 @@ fn parses_relevance_on_numbered_wire_fields() {
 #[test]
 fn parses_primitive_witness_and_transparent_proposition_declarations() {
     let source = r#"
-        proposition related(left: i32, right: i32);
+        pub proposition related(left: i32, right: i32);
 
         proposition converges_together<machine Left, machine Right>(
             left: Stream<Left>,
@@ -217,6 +217,8 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         .collect::<Vec<_>>();
 
     assert_eq!(propositions.len(), 3);
+    assert!(propositions[0].is_public);
+    assert!(!propositions[1].is_public);
     assert!(matches!(
         propositions[0].body,
         psi_syntax_trees::item::PropositionBody::Primitive
@@ -249,6 +251,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         .snapshot_json()
         .expect("proposition syntax should snapshot");
     assert!(snapshot.contains("\"kind\":\"proposition\""));
+    assert!(snapshot.contains("\"is_public\":true"));
     assert!(snapshot.contains("\"kind\":\"witness\""));
     assert!(snapshot.contains("\"kind\":\"transparent\""));
 }

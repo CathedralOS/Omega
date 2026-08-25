@@ -12,6 +12,7 @@ use psi_symbols::SymbolHandle;
 pub struct PropositionDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub is_public: bool,
     pub binders: HandleSpan<PropositionBinder>,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
     pub body: PropositionBody,

@@ -561,6 +561,13 @@ receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable. Other compiler intrinsics remain
 fail-closed.
+Review v52 and canonical row v12 add one blocking standalone row for every
+package-owned `pub proposition`, including an unused bodyless declaration.
+The row retains alpha-normalized binders, parameter types, witness interface,
+or normalized transparent expansion. A primitive row publishes vocabulary and
+does not create a checked fact or admission. Transparent aliases remain source
+compatibility surface even though proposition applications normalize through
+their expansion.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -1016,7 +1023,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v51 bytes cannot be promoted merely because the future artifact reuses
+review-v52 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

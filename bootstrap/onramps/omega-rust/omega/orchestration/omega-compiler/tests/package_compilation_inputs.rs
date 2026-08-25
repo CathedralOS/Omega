@@ -564,6 +564,106 @@ requires value in u64::Trusted
 }
 
 #[test]
+fn proposition_visibility_gates_public_and_cross_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use leaf::leaf;\npub machine inspect()\nrequires leaf_ready()\n{ }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "proposition leaf_ready();\n");
+
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct proposition dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a direct dependency does not publish its private proposition");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private proposition")
+                && diagnostic.message.contains("leaf_ready")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(leaf.join("leaf.omg"), "pub proposition leaf_ready();\n");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("an explicitly public proposition should be nameable by a direct dependent");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "proposition local_ready();\npub machine inspect()\nrequires local_ready()\n{ }\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a public interface may not expose its package-private proposition");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private proposition")
+                && diagnostic.message.contains("local_ready")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "proposition local_ready();\nmachine inspect()\nrequires local_ready()\n{ }\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only private implementation graph should validate");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect("private implementation may select its package-private proposition");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "proposition local_ready();\npub proposition exposed() = local_ready();\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only transparent proposition graph should validate");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a public transparent proposition may not hide a private endpoint");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private proposition")
+                && diagnostic.message.contains("local_ready")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn public_callable_bound_requires_the_named_conformance_owner() {
     let tree = TempTree::new();
     let root = tree.package("root");

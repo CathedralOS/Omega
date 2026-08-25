@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn checked_proposition_declarations_retain_public_visibility_without_minting_facts() {
+    let source = r#"
+        pub proposition visible();
+        proposition hidden();
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("proposition visibility should survive checked lowering");
+    let declarations = &checked.facts.proof.proposition_vocabulary.declarations;
+    assert_eq!(declarations.len(), 2);
+    assert!(
+        declarations
+            .iter()
+            .any(|declaration| declaration.name == "visible" && declaration.is_public)
+    );
+    assert!(
+        declarations
+            .iter()
+            .any(|declaration| declaration.name == "hidden" && !declaration.is_public)
+    );
+    assert!(
+        checked
+            .facts
+            .proof
+            .proposition_vocabulary
+            .applications
+            .is_empty()
+    );
+}
+
+#[test]
 fn proposition_type_arguments_instantiate_value_parameter_types() {
     let source = r#"
         proposition typed<T>(value: T);

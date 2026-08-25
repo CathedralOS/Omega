@@ -166,6 +166,7 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropositionDefinition {
     pub name: Identifier,
+    pub is_public: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub body: PropositionBody,
