@@ -10,10 +10,17 @@ profile-limited bridge compiler and one production compiler. Written as build
 actions rather than artifact shorthand:
 
 ```text
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap (accepts Ωself)
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap (accepts Ωself)
 Ωself source ──[omega-bootstrap]──▶ omega (implements full Ω)
 Ωself source ──[optional omega]───▶ omega (same compiler, optimized binary)
 ```
+
+The first line is the actual `Gamma → Delta` construction, not merely a
+semantic side check. The canonical lower-rung route executes the Delta-written
+compiler and publishes its native artifact. A later Delta self-rebuild is useful
+reproducibility evidence, but the required path does not depend on the Rust
+Delta producer.
 
 `omega-bootstrap` is written in Delta and accepts only the compositional
 Psi/Omega source surface required by the production source closure. It is

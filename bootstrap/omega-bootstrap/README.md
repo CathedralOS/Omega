@@ -7,16 +7,22 @@ Omega-written product compiler or general product Psi/Omega work.
 
 ```text
 Alpha → Beta → Gamma → Delta
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
+
+Here `delta compiler` means the exact Delta-written compiler artifact published
+through the canonical lower-rung execution route. Its self-built and Rust-built
+forms are useful controls, but the completed required path does not depend on
+the Rust on-ramp.
 
 These names denote different things:
 
 | Name | Kind | Obligation |
 | --- | --- | --- |
-| Delta v1 | independent compiler-host language | compile the complete Delta source closure of `omega-bootstrap` |
+| Delta v1 | independent compiler-host language | admit the complete canonical Delta-compiler and `omega-bootstrap` source closures under one contract |
 | `omega-bootstrap` | compiler artifact written in Delta | accept exactly the ordinary-Omega profile `Ωself` with exact semantics |
 | `Ωself` | compositional source profile, not a language rung | contain the complete Omega source closure of production `omega` |
 | production `omega` | full product compiler | accept full Omega and contain the optimizer and advanced lowering |

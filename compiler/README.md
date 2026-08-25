@@ -5,7 +5,8 @@ languages, then through one deliberately profile-limited hosted edge:
 
 ```text
 Alpha → Beta → Gamma → Delta
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```

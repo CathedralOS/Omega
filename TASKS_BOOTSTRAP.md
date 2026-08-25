@@ -23,7 +23,8 @@ existing decision procedure cannot settle it.
 
 ```text
 Alpha → Beta → Gamma → Delta
-Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
+Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
@@ -38,7 +39,7 @@ Only two source contracts remain open:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
-| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of `omega-bootstrap` plus explicit coherence, robustness, safety, and maintainability arguments |
+| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of the canonical Delta compiler and `omega-bootstrap`, plus explicit coherence, robustness, safety, and maintainability arguments |
 | `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
 
 `omega-bootstrap` is written in Delta and need only accept `Ωself`. The
@@ -51,7 +52,7 @@ Those two source choices discharge three artifact obligations:
 
 | Artifact | Must accept | Must contain or produce |
 | --- | --- | --- |
-| lattice-built Delta compiler | Delta v1 | a correct `omega-bootstrap` executable from the exact Delta bridge closure |
+| lower-rung-published Delta compiler | Delta v1 | a correct `omega-bootstrap` executable from the exact Delta bridge closure |
 | `omega-bootstrap` | frozen `Ωself` | a semantically exact, possibly conservative production-compiler executable |
 | production `omega` | full Omega | the full optimizer, advanced lowering, and specified artifact behavior |
 
@@ -105,7 +106,7 @@ Two lanes co-evolve until their join:
 | Lane | Owner | Bootstrap responsibility |
 | --- | --- | --- |
 | production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
-| bridge and language closure | this file | implement general profile rules in Delta; maintain the Delta ledger; publish both frozen contracts at the completed product-source/bridge join |
+| Delta compiler, bridge, and language closure | this file | close both required Delta source manifests; implement general profile rules in the bridge; maintain the Delta ledger; publish both frozen contracts at the completed source/bridge join |
 
 The immediate executable order is:
 
@@ -131,13 +132,15 @@ The required execution order is:
 
 1. consume product checkpoints while growing the general bridge;
 2. settle and freeze both source contracts at the completed
-   product-source/bridge join;
-3. build and validate `omega-bootstrap` through the lattice; and
+   Delta-compiler/bridge/product-source join;
+3. publish the Delta compiler through Gamma, then build and validate
+   `omega-bootstrap` through that artifact; and
 4. perform the one required hosted production build.
 
 Step 2 publishes two separately versioned contracts from one evidence join:
 `Ωself` from the complete production source plus measured bridge cost, and
-Delta v1 from the complete bridge source plus its compiler-host arguments.
+Delta v1 from the complete required Delta source (compiler plus bridge) and its
+compiler-host arguments.
 Neither is an upstream language rung for the other, and there is no third
 bootstrap source inventory or circular build dependency.
 
@@ -223,24 +226,27 @@ At every bridge milestone:
 
 ### 1. Consume product checkpoints and enforce provisional `Ωself`
 
-- [ ] For every coherent product-source checkpoint published by
+The following are rolling acceptance obligations for each checkpoint, not five
+independent tasks that can be permanently checked off:
+
+- For every coherent product-source checkpoint published by
   `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
   deterministic closure and derive or update the distinct compositional
   candidate feature/resource profile. Checkpoint 000001 already supplies the
   first closure and normalized-syntax/resource profile; later compiler phases
   publish later checkpoints from their product owner.
-- [ ] Measure every used feature's source benefit against the cost of its
+- Measure every used feature's source benefit against the cost of its
   general Delta-written bridge implementation. Record one provisional outcome:
   retain, refactor from product source and preserve a negative canary, or leave
   unresolved with the exact missing evidence. Absence from a partial checkpoint
   is not a final exclusion.
-- [ ] Publish and provisionally enforce compositional syntax, static semantics,
+- Publish and provisionally enforce compositional syntax, static semantics,
   resources, ABI/layout, and lowering rules. File identities, exact statement
   counts, and enumerated AST permutations are not profile rules.
-- [ ] Update the single working feature-disposition table in
+- Update the single working feature-disposition table in
   [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md)
   as evidence lands; do not copy that inventory into this task list.
-- [ ] Gate the complete checkpoint manifest plus one phase-appropriate negative
+- Gate the complete checkpoint manifest plus one phase-appropriate negative
   canary for every excluded capability. Separately run the full-Omega product
   suites so an omission from compiler source is never confused with an
   omission from the compiler it implements.
@@ -292,38 +298,37 @@ language coverage or admission to final `Ωself`. Continue with capabilities
 actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
-- [x] Implement boolean logical negation, the next smallest observed
-  checkpoint-000001 capability, as one complete vertical slice. The admitted
-  form is bool-only `!`: false becomes true and true becomes false; integer
-  truthiness and bitwise complement are excluded. Carry production and
-  independent checking, native/self execution, Rust-free meaning,
-  lower-rooted reconstruction, mutation/resource teeth, and immutable
-  composition together while preserving every frozen earlier byte format.
-  Keep the resolution-format version distinct from the private checked-IR
-  schema version, and reuse existing scratch/capacity where the current
-  lowerer is already at a carrier ceiling. This measures another provisional
-  `Ωself` candidate; it is not final profile admission.
-  Focused OMGLOW7→CKIR6 production, independent CKIR6 meaning, conservative
-  native/self backend identity, version cross-pairs, source/IR/artifact
-  mutations, and inherited resource controls are gated. Resolution remains
-  least-version OMGRSW1/2/3; there is no OMGRSW4. OMGRFN8 now closes R1–R5 over
-  one immutable result-70 payload-sum carrier whose selected result depends on
-  reachable `false → true → false`; the materialized checker suite compiles
-  once per Beta generation and its full composition gate completes in about
-  twenty seconds on the reference host.
-- [ ] Continue through the remaining general capabilities used by checkpoint
-  000001, then later provisional checkpoints, until the bridge generally parses,
-  resolves, checks, diagnoses, and conservatively lowers every program admitted
-  by candidate `Ωself`. The closed versioned-call tranches own their admitted
-  call forms; transport work alone does not imply a source widening.
+Checkpoint 000001 leaves the following implementation lanes. These are work
+clusters, not final retain/exclude decisions and not an order mandate; take an
+unblocked capability as one complete vertical milestone rather than widening
+all members of a row at once. The single disposition inventory and exact
+evidence stay in
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+
+| Open implementation lane | Checkpoint forms to carry generally | Known boundary |
+| --- | --- | --- |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; `u32` cursor versus `u64` slice count is language-blocked |
+| compiler control and scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic/casts, and the observed ranking clause | observable call-argument order is language-blocked; closed finite calls do not imply broader receivers, recursion, or packages |
+| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
+| generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
+
+- [ ] Close every unblocked checkpoint-000001 lane above through general
+  parsing, resolution, checking, diagnostics, conservative lowering, and
+  artifact reconstruction. Preserve existing versioned-call ownership; a
+  transport change alone does not widen accepted source.
+- [ ] Consume each later provisional product checkpoint and add only its newly
+  observed, directionally clear capability lanes under the same rules. A later
+  source need may reopen a provisional exclusion; it does not create another
+  bootstrap language or numbered compiler generation.
 - [ ] Carry each admitted capability's compositional rules, negative boundary,
   resource teeth, Rust-free meaning, and direct artifact path in the same
   milestone. A bounded frontend-only cost probe is evidence, not bridge
   admission.
-- [ ] Publish the complete deterministic Delta source closure of
-  `omega-bootstrap`, including every transitive source and build input. Prove
-  it valid under the provisional Delta ledger; final validity belongs to the
-  Delta-v1 freeze.
+- [ ] Publish separate complete deterministic Delta source manifests for the
+  canonical Delta compiler and `omega-bootstrap`, including every transitive
+  source and build input. Prove both valid under the provisional Delta ledger;
+  final validity belongs to the Delta-v1 freeze. They share one Delta language
+  contract rather than defining compiler-specific dialects.
 - [ ] Once the package/security owner publishes the canonical bounded
   projection from recheckable package evidence and accepted lock state to one
   accepted source closure, independently reconstruct it and join the
@@ -347,9 +352,9 @@ resolution, checking/lowering, and artifact-refinement seams when their byte
 contracts are fixed. Acceptance joins all of them; progress in one seam must
 not be reported as authority for another.
 
-### 3. Settle both source contracts at the completed bridge join
+### 3. Settle both source contracts at the completed required-source join
 
-The join emits two artifacts with distinct scopes and versioning. Freeze them
+The join publishes two contracts with distinct scopes and versioning. Freeze them
 together so neither can be justified by a partial source closure or by assumed
 costs in the other.
 
@@ -373,10 +378,10 @@ accepts, not which full-Omega features the resulting compiler implements.
 
 #### Delta v1
 
-- [ ] Classify every retained construct as required by the complete bridge
-  closure or justified by an explicit coherence, robustness, safety, or
-  maintainability argument. Remove accidental D0, corpus, and Rust-producer
-  behavior.
+- [ ] Classify every retained construct as required by the complete canonical
+  Delta-compiler or `omega-bootstrap` closure, or justified by an explicit
+  coherence, robustness, safety, or maintainability argument. Remove accidental
+  D0, corpus, and Rust-producer behavior.
 - [ ] Publish versioned normative grammar, static and dynamic semantics,
   representation/ABI, source-bundle, resource, and sealed-host-interface
   contracts under `bootstrap/rungs/delta/`.
@@ -386,24 +391,33 @@ accepts, not which full-Omega features the resulting compiler implements.
   observations, phase-isolated negatives, exhaustion teeth, cross-target
   layout/arithmetic edges, and native/self-host/lower-rung differentials.
   Differential agreement is bug-finding evidence, not artifact authority.
-- [ ] Prove the complete deterministic `omega-bootstrap` source closure valid
-  under the frozen contract.
+- [ ] Prove the complete deterministic Delta compiler and `omega-bootstrap`
+  source closures valid under the same frozen contract.
 
 Acceptance: Delta v1 is a coherent, robust, independently specified
-compiler-host language sufficient for the complete bridge—not a whitelist of
-that bridge's current tokens. Within its published resource bounds, the
-lattice-built Delta compiler accepts every conforming Delta-v1 program and
-rejects every nonconforming one according to the specified phase and failure
-behavior. Later widening is an explicit versioned language change.
+compiler-host language sufficient for both required Delta programs—not a
+whitelist of either program's current tokens. Within its published resource
+bounds, the lattice-built Delta compiler accepts every conforming Delta-v1
+program and rejects every nonconforming one according to the specified phase
+and failure behavior. Later widening is an explicit versioned language change.
 
-Joint acceptance: both publications bind the same completed bridge/product
-join while remaining independent contracts. `Ωself` does not define Delta,
-Delta does not define `Ωself`, and neither source manifest substitutes for
-general language/profile rules.
+Joint acceptance: both publications bind the same completed
+Delta-compiler/bridge/product join while remaining independent contracts.
+`Ωself` does not define Delta, Delta does not define `Ωself`, and none of the
+three exact source manifests substitutes for general language/profile rules.
 
-### 4. Validate Delta → `omega-bootstrap`
+### 4. Publish Delta through Gamma, then validate Delta → `omega-bootstrap`
 
-- [ ] Build the exact bridge artifact through the canonical lattice path and
+- [ ] Execute the exact frozen Delta-written compiler through the canonical
+  Beta-written Delta→Gamma elaborator and Gamma's Beta-written interpreter on
+  its exact source to publish the native Delta compiler artifact. Join the
+  compiler source, elaborated program, Gamma execution, produced artifact,
+  canonical Delta meaning, resource/exhaustion behavior, and independently
+  reconstructed source-to-artifact refinement. A Rust-built or Delta-self-built
+  compiler may remain a differential and reproducibility control; neither is
+  the required publisher.
+- [ ] Use that exact lower-rung-published compiler to build the bridge artifact
+  through the canonical lattice path and
   join its Delta source closure, produced artifact, canonical meaning, and
   independently reconstructed lower-rooted source-to-artifact refinement in one
   gate. Exercise profile-wide compositional positives, excluded-feature
@@ -412,9 +426,11 @@ general language/profile rules.
   agreement may remain differential evidence but cannot substitute for the
   join.
 
-Acceptance: the exact lattice-built bridge is bound to its exact source and
-meaning, needs no Rust producer or ambient assembler/linker in the required
-path, and correctly accepts and rejects the frozen `Ωself` profile.
+Acceptance: the exact Delta compiler and exact bridge are each bound to their
+exact source and meaning; the first compiler artifact is reproducibly published
+through the lower-rung semantic route; the bridge needs no Rust producer or
+ambient assembler/linker in the required path; and it correctly accepts and
+rejects the frozen `Ωself` profile.
 
 ### 5. Perform the sole required hosted production build
 

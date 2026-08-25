@@ -8,8 +8,9 @@ The names D0, O0, and O1 below are legacy canary profiles. They preserve exact
 vertical-slice behavior while the real bridge grows, but they are not language
 generations, build rungs, or candidate names for the final source profile.
 Delta v1 and `Ωself` are the only two source-surface inventories being selected:
-Delta v1 is the literal bridge implementation language, while `Ωself` is the
-ordinary-Omega profile used by the production compiler source.
+Delta v1 is the literal language of both the canonical Delta compiler and the
+bridge implementation, while `Ωself` is the ordinary-Omega profile used by the
+production compiler source.
 
 The retained canary/profile records are:
 
@@ -38,9 +39,10 @@ current Rust product implementation.
 Likewise, D0 is discovery evidence rather than a normative ancestor of Delta
 v1. Every listed D0 facility—including arithmetic domains, payload sums,
 recursion, fixed-backing conventions, and `boundary trait` syntax—must be
-re-justified by the complete bridge source or an explicit compiler-host
-coherence/robustness argument. Delta v1 is frozen only after that complete
-source closure is available and accidental producer behavior has been pruned.
+re-justified by the complete canonical-compiler or bridge source, or an explicit
+compiler-host coherence/robustness argument. Delta v1 is frozen only after both
+required source closures are available and accidental producer behavior has
+been pruned.
 
 O1 generalizes the O0 body to a bounded sequence of zero or more literal
 `write_line` statements followed by exactly one literal `exit_process`. One
