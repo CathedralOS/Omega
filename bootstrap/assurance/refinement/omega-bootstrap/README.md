@@ -89,12 +89,16 @@ ceilings and 4,497,544-byte simultaneous maximum while assigning runtime
 constructor field binding/canonicalization, artifact-free snapshot meaning,
 constructor-object frame extents, structural Call/Copy transport, and exact
 opcode-13 ELF reconstruction to independent responsibilities. The contract is
-frozen. Persisted-Beta responsibilities 1–3 now close frame/source custody,
-source-to-`OMGRSW1` resolution, and the resolution-to-CKIR4 declaration,
-layout, type, root, intrinsic-constant, and opcode-13 nominal-envelope join.
-The complete source-lowering/source-only-meaning responsibility, complete
-CKIR4/result/ELF responsibility, and unchanged-frame composite remain open. No
-earlier OMGRFN checker is widened or relabeled.
+frozen. Eight bounded persisted-Beta executables now close all five
+responsibilities: frame/source custody; source-to-`OMGRSW1` resolution; the
+resolution-to-CKIR4 declaration, layout, type, root, intrinsic-constant, and
+opcode-13 nominal-envelope join; exact source-body lowering; physically
+artifact-free source lowering and source-result meaning; complete CKIR4/result
+validation; and exact ELF reconstruction. The same-frame composite feeds every
+executable one unchanged 16,274-byte exact carrier while isolating component
+ownership, mutations, valid-but-mismatched joins, and 0/251/252 boundaries. No
+earlier OMGRFN checker is widened or relabeled, and this selected closure does
+not decide final `Ωself` admission.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
