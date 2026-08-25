@@ -182,7 +182,11 @@ language, generation, or architectural role; new documentation and work use
   closes native/Delta-self-built producer identity over the exact Unicode unit,
   renamed and cyclic positives, adversarial arm-local/ordinal/predecessor-join/
   declaration-order interval controls, 20 phase-isolated status-251 source
-  negatives, an adjacent oversized-layout 252, and literal-resource boundaries. Those
+  negatives, an adjacent oversized-layout 252, literal-resource boundaries,
+  and genuine source-unit `131,072/131,073` plus aggregate-source
+  `262,144/262,145` boundaries. The lowerer now independently accumulates those
+  source extents while validating OMGCOMP; both adjacent overages return 252
+  without CKIR publication through native and self-built paths. Those
   negatives include a carrier-compatibility regression that previously let
   mixed typed `u8 <= u32` publish invalid CKIR3; both producer routes now reject
   before publication. Its focused Rust-free

@@ -336,7 +336,7 @@ data Main {
     frame_total: i32; comp_n: i32; witness_n: i32; total_length: i32;
     x: i32; y: i32; table_pos: i32; table_end: i32;
     package_count: i32; source_count: i32; alias_count: i32; string_count: i32;
-    bundle_length: i32; string_table_length: i32;
+    bundle_length: i32; string_table_length: i32; aggregate_source_bytes: i32;
     root_package: i32; root_source: i32; root_owner_string: i32; root_machine_string: i32;
     package_table: i32; source_table: i32; alias_table: i32; string_table: i32; bundle_start: i32;
 
@@ -809,14 +809,17 @@ machine Main::decode_envelope(&mut self) {
     state bv3() { transition self.source[self.bundle_start+11]==0 { true -> bundle_count_read() _ -> bad() } }
     state bundle_count_read() { self.read_source_u32(self.bundle_start+12); transition self.status==0 { true -> bundle_count_valid() _ -> done() } }
     state bundle_count_valid() { transition self.decoded==self.source_count { true -> bundle_entries() _ -> bad() } }
-    state bundle_entries() { self.i=0; self.pos=self.bundle_start+16; transition 0 { _ -> bundle_loop() } }
+    state bundle_entries() { self.i=0; self.pos=self.bundle_start+16; self.aggregate_source_bytes=0; transition 0 { _ -> bundle_loop() } }
     state bundle_loop() { transition self.i<self.source_count { true -> bundle_lengths() _ -> bundle_end() } }
     state bundle_lengths() {
         self.read_source_u32(self.pos); self.x=self.decoded; self.read_source_u32(self.pos+4); self.y=self.decoded;
         transition self.status==0 { true -> bundle_room0() _ -> done() }
     }
     state bundle_room0() { transition self.x<=self.total_length-self.pos-8 { true -> bundle_room1() _ -> bad() } }
-    state bundle_room1() { transition self.y<=self.total_length-self.pos-8-self.x { true -> bundle_save() _ -> bad() } }
+    state bundle_room1() { transition self.y<=self.total_length-self.pos-8-self.x { true -> bundle_unit_limit() _ -> bad() } }
+    state bundle_unit_limit() { transition self.y<=131072 { true -> bundle_aggregate_limit() _ -> over() } }
+    state bundle_aggregate_limit() { transition self.y<=262144-self.aggregate_source_bytes { true -> bundle_aggregate_add() _ -> over() } }
+    state bundle_aggregate_add() { self.aggregate_source_bytes=self.aggregate_source_bytes+self.y; transition 0 { _ -> bundle_save() } }
     state bundle_save() { self.i32_backing2[436544 + self.i]=self.pos+8+self.x; self.i32_backing2[436560 + self.i]=self.y; self.pos=self.pos+8+self.x+self.y; self.i=self.i+1; transition 0 { _ -> bundle_loop() } }
     state bundle_end() { transition self.pos==self.total_length { true -> map_sources() _ -> bad() } }
     state map_sources() { self.i=0; transition 0 { _ -> map_loop() } }
