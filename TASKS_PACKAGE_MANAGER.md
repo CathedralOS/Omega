@@ -433,6 +433,34 @@ complete.
   keying remains a sound conservative gate until those exact edges land; no
   inferred type silently widens source nameability.
 
+  Ratified design decision 2026-08-24: capture a package-agnostic authored-
+  selection ledger during resolution, while exact source spans and public/
+  private syntactic position still exist, then finalize it after successful
+  checked lowering. Static paths and ordinary members may settle at resolution;
+  receiver-dispatched calls, result overloads, operators, and inferred
+  conformances join from the checked facts that settle them. Every occurrence
+  must finalize exactly or reject. This is a compiler-internal sidecar assembled
+  from existing semantic stages, not nominal Chi.
+
+  The gate applies only to authored selections. Build a separate exact semantic-
+  dependency set for carried nominal identity, layout/move/copy behavior, and
+  automatic cleanup, promoting private disposition to public when any public
+  surface exposes the dependency. These rows affect artifact/rebuild and public
+  compatibility identity without granting source authority. No selected package
+  or build-time code may execute before authored selections finalize and pass;
+  reorder or split the current evaluation path where necessary.
+
+  Implementation slices: retain exact symbols for every selected path segment,
+  struct-literal type/case/fields, and case membership; capture explicit type,
+  member, call, conformance, and cleanup occurrences with exposure; join dynamic
+  calls, overloads, operators, inferred conformances, and automatic cleanup
+  after checking; carry canonical package names through compiler handoff for
+  diagnostics; emit semantic dependency evidence. Canary the full three-package
+  `root -> middle -> leaf` matrix, including carried flow, inferred field/method,
+  case construction/membership, operator and conformance selection, explicit
+  versus automatic cleanup, toolchain declarations, spoofed same-name cleanup,
+  and private/public evidence disposition.
+
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.
 

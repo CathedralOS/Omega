@@ -143,6 +143,21 @@ dependencies, distinguishing private artifact/rebuild edges from dependencies
 that enter public compatibility identity; whole-package keying is a sound
 conservative implementation until then.
 
+The compiler captures a package-agnostic ledger of authored selection
+occurrences during resolution, while exact source spans and public/private
+position remain available, and finalizes it after successful checking. The
+final join supplies late-bound method, overload, operator, and conformance
+identities from the semantic stage that settles each one. This internal sidecar
+is deliberately not nominal Chi. Every authored occurrence must finalize to a
+known declaration or reject, and selected package or build-time code cannot run
+before the direct-dependency gate accepts the finalized ledger.
+
+Carried nominal types, automatic cleanup, and compiler-derived layout and
+move/copy behavior are collected separately as exact semantic dependencies.
+They enter private artifact identity or public compatibility identity according
+to where they occur, but do not participate in the authored direct-dependency
+gate and do not make the owning package source-nameable.
+
 ## Dependency planning before build execution
 
 Dependency-source projection must be hermetic even though later build staging
