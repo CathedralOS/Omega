@@ -68,12 +68,14 @@ ceiling follows directly from the already-published CKIR3 component maxima.
 The contract keeps frame/source custody, resolution, intrinsic constant-table
 structure, source-derived roots and meaning, and complete CKIR/result/artifact
 reconstruction as five independent responsibilities over one exact carrier.
-The first persisted-Beta responsibility now closes exact version-4 framing and
-complete `OMGCOMP` structure/source custody while keeping `OMGRSW1`, CKIR3,
-ELF, and result claims opaque. Resolution, intrinsic tables, source lowering
-and meaning, CKIR/result/artifact reconstruction, and the same-frame
-composition gate remain open. No earlier OMGRFN checker is widened to provide
-CKIR3 evidence.
+The first persisted-Beta responsibility closes exact version-4 framing and
+complete `OMGCOMP` structure/source custody while keeping later components
+opaque. The second independently reconstructs the complete `OMGRSW1` for the
+selected two-source Unicode constant-aggregate family, including every role-3
+binding, while keeping CKIR3, ELF, and result claims opaque. Intrinsic tables,
+source lowering and meaning, CKIR/result/artifact reconstruction, and the
+same-frame composition gate remain open. No earlier OMGRFN checker is widened
+to provide CKIR3 evidence.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
