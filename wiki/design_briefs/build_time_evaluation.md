@@ -380,6 +380,29 @@ not enter `BuildConfig`, terminal semantics, or artifact identity. Once build
 machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
+Package build filesystem authority enters through the one `Build` activation,
+which exposes an immutable source-root capability and a fresh writable
+staging-root capability. `Path` remains the ordinary NUL-free byte domain; its
+bytes alone confer no authority. A checked resolver joins one exact root
+occurrence to canonical relative bytes before provider access. No compiler-host
+absolute path, process working directory, or virtual-prefix test participates
+in authorization.
+
+The resolved value, not an erased qualification over bare path bytes, carries
+the operational root identity. Resolution rejects absolute input, traversal,
+ambiguous root membership, and symlink escape. Authorized path-returning
+operations preserve the same root or reject. `read_link` returns inert stored
+bytes; following them requires another checked resolution, so an outside target
+may be inspected but not traversed. `/source/...` and `/output/...` are reserved
+canonical evidence renderings and never package-facing authority spellings.
+
+Writing under Output and publishing generated input are distinct. A successful
+evaluation first closes its observations and output-tree custody; only an
+explicit `Build` handoff may then introduce selected staged content into
+compilation. Failure discards the staging occurrence. Root capabilities,
+root-bound paths, and open handles are activation-scoped and never enter the
+durable build value or runtime package data.
+
 Host observation is retained separately from this meter. The granted evaluator
 reports whether the filesystem host family was actually invoked; the compiler
 joins that fact to the exact statically reachable toolchain service. The
@@ -391,9 +414,10 @@ canonical toolchain filesystem requirement symbol before the provider is
 entered; a package-authored lookalike remains an ordinary unsupported call even
 under granted execution. The selected canonical signature then maps to a
 closed, explicitly tagged operation identity exhaustively handled by both
-filesystem providers. ABI aliases remain distinct. Future rooted transcripts
-must account for conditionally absolute `read_link` results and unconditionally
-absolute `canonicalize` and `final_path_name_by_handle` results. Observation
+filesystem providers. ABI aliases remain distinct. Rooted transcripts retain
+`canonicalize` and `final_path_name_by_handle` only when they reconstruct one
+lossless result under the same root. `read_link` payload is retained as inert
+data and acquires no rooted authority without checked resolution. Observation
 schema v10 carries operation-attempt schema v9, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
@@ -415,7 +439,7 @@ descriptors retain rooted write authority across duplicate and borrowed views,
 and deny content, extent, metadata, ownership, or host-lock mutation before
 sponsor or host access when opened under source-read authority alone.
 `open_at`/`unlink_at` accept only one nonempty portable relative component, and
-real-provider path outputs use lossless native bytes or reject.
+real-provider path outputs reconstruct lossless root-relative values or reject.
 Successful descriptor/find/native-handle results retain only their logical
 identity in observation evidence; provider token integers do not survive.
 Non-handle results and failed handle-result sentinels remain exact scalar
