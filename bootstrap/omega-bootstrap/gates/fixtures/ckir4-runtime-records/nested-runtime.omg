@@ -1,0 +1,26 @@
+data RuntimeInner [copy] {
+    value: u8;
+}
+
+data RuntimeOuter [copy] {
+    inner: RuntimeInner;
+    tag: u8;
+}
+
+data NestedRuntimeProbe {
+    outer: RuntimeOuter;
+    scalar: u8;
+}
+
+machine NestedRuntimeProbe::install(&mut self, value: RuntimeOuter) {
+    self.outer = value;
+}
+
+machine NestedRuntimeProbe::run(&mut self) -> u8 {
+    self.scalar = 70;
+    self.install(RuntimeOuter {
+        tag: 11,
+        inner: RuntimeInner { value: self.scalar }
+    });
+    self.outer.inner.value
+}

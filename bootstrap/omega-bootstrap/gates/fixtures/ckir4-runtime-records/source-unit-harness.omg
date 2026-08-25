@@ -1,0 +1,9 @@
+// Same logical module and owner as exact compiler/psi/source/source.omg.
+machine SourceUnit::bootstrap_runtime_record_probe(&mut self) -> u32 {
+    transition { _ -> run(70) }
+
+    state run(&mut self, runtime_scalar: u32 [0..=65536]) {
+        self.clear(SourceId { value: runtime_scalar });
+        self.id.value
+    }
+}
