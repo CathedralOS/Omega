@@ -22,7 +22,8 @@ pub use admission::{
 pub use build_machines::{
     BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor, PreparedBuildMachineProgram,
+    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
+    BuildMachineFilesystemSponsor, PreparedBuildMachineProgram,
     evaluate_build_machine_arguments_measured,
 };
 pub use const_domain_facts::{

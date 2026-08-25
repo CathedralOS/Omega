@@ -17,6 +17,7 @@ pub use pipeline::{
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
+    BuildFilesystemMetadataObservation, BuildFilesystemMetadataObservationKind,
     BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
     BuildFilesystemMutableI64Operand, BuildFilesystemMutableI64OperandResolution,
     BuildFilesystemObservedByteRegion, BuildFilesystemObservedByteRegionKind,

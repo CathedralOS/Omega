@@ -768,8 +768,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v17
-carries operation-attempt schema v17, retaining each completed operation's exact
+Observation schema v18
+carries operation-attempt schema v18, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -837,9 +837,18 @@ commitments bind its kind and coordinates plus the referenced mutable
 post-state. `read_dir` similarly designates exact `DirectoryRecords`, while
 `find_first` and entry-producing `find_next` designate complete 320-byte
 `FindEntry` records. Directory EOF and no-entry find returns retain empty rows;
-failed enumeration retains none. Canonical metadata semantics and replay
-execution remain absent, so this makes no receipt, replayability, or
-source-rebuildability claim. Sponsored
+failed enumeration retains none. Successful path, descriptor, and no-follow
+metadata operations retain one target-neutral canonical row containing all 14
+`StatRecord` fields. The compiler extracts and validates the selected target's
+already-checked `StatLayout<StatRecord>` from its earliest coherent private
+typed/layout state, then gives only that closed descriptor to the Psi evaluator.
+The evaluator zeroes and serializes the complete authored ABI carrier (whose
+API minimum is 144 bytes) through the descriptor and checks it against the
+semantic row; package commitment binds both representations. Filesystem-reaching
+builds load and check the standard
+layout policy before execution. This does not publish an internal IR contract
+or justify nominal Chi. Replay execution remains absent, so this makes no
+receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.
 Sorted canonical entries bind Output-relative portable UTF-8 paths, empty

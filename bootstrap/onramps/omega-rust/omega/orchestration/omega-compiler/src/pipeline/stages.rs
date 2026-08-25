@@ -214,7 +214,21 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         timings,
     )?;
 
-    inject_build_prelude(&mut source_storage, timings)?;
+    let build_requires_filesystem_layout = inject_build_prelude(&mut source_storage, timings)?;
+    if build_requires_filesystem_layout {
+        imports.seed(
+            crate::pipeline::frontend::bundled_omega_root().join("language/std/filesystem.omg"),
+        );
+        load_pending_imports(
+            &mut source_storage,
+            &mut imports,
+            root_path,
+            target_name,
+            package_inputs,
+            &mut depend_aliases,
+            timings,
+        )?;
+    }
 
     if native {
         substitute_native_gui_provider(
@@ -420,7 +434,7 @@ pub data Package {
 fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     timings: &mut CompileTimings,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<bool, Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut has_build_data = false;
     let mut has_package_declaration = false;
@@ -459,7 +473,7 @@ fn inject_build_prelude(
     }
     let inject_build_vocabulary = has_build_machine && !has_build_data;
     if !inject_build_vocabulary && !has_package_declaration {
-        return Ok(());
+        return Ok(build_reaches_filesystem);
     }
 
     let build_prelude = if build_reaches_filesystem {
@@ -487,7 +501,7 @@ fn inject_build_prelude(
         parse_sources(lexed, &mut source_storage.syntax_trees)
     })?;
     extend_source_storage(source_storage, parsed)?;
-    Ok(())
+    Ok(build_reaches_filesystem)
 }
 
 /// The darwin boundary-provider substitution (tasks #57/#60). The samples call the

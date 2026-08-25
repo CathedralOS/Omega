@@ -155,9 +155,291 @@ pub struct EvaluationUsage {
 /// exact path-like byte operands, each successfully resolved mutable carrier
 /// and logical-handle input even when later preparation fails, and a typed
 /// returned or evaluator-halted outcome. Exact path results and successful file
-/// and directory observation regions are designated, but canonical metadata
-/// observations and replay execution are not complete yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 17;
+/// and directory observation regions plus canonical metadata values are
+/// designated, but replay execution is not complete yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 18;
+
+/// One semantic field in the canonical metadata value returned by the
+/// filesystem host seam. This is target-neutral vocabulary; the selected
+/// checked layout supplies only its physical offset and stored width.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FilesystemMetadataField {
+    Device,
+    Mode,
+    LinkCount,
+    Inode,
+    User,
+    Group,
+    ReferencedDevice,
+    AccessTime,
+    ModificationTime,
+    ChangeTime,
+    BirthTime,
+    Size,
+    Blocks512,
+    PreferredBlockSize,
+}
+
+impl FilesystemMetadataField {
+    pub const ALL: [Self; 14] = [
+        Self::Device,
+        Self::Mode,
+        Self::LinkCount,
+        Self::Inode,
+        Self::User,
+        Self::Group,
+        Self::ReferencedDevice,
+        Self::AccessTime,
+        Self::ModificationTime,
+        Self::ChangeTime,
+        Self::BirthTime,
+        Self::Size,
+        Self::Blocks512,
+        Self::PreferredBlockSize,
+    ];
+
+    pub const fn semantic_width_bits(self) -> u16 {
+        match self {
+            Self::Mode | Self::User | Self::Group => 32,
+            Self::Device
+            | Self::LinkCount
+            | Self::Inode
+            | Self::ReferencedDevice
+            | Self::AccessTime
+            | Self::ModificationTime
+            | Self::ChangeTime
+            | Self::BirthTime
+            | Self::Size
+            | Self::Blocks512
+            | Self::PreferredBlockSize => 64,
+        }
+    }
+
+    pub const fn is_signed(self) -> bool {
+        matches!(
+            self,
+            Self::AccessTime
+                | Self::ModificationTime
+                | Self::ChangeTime
+                | Self::BirthTime
+                | Self::Size
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemMetadataFieldLayout {
+    field: FilesystemMetadataField,
+    offset: usize,
+    stored_width_bits: u16,
+}
+
+impl FilesystemMetadataFieldLayout {
+    pub const fn new(
+        field: FilesystemMetadataField,
+        offset: usize,
+        stored_width_bits: u16,
+    ) -> Self {
+        Self {
+            field,
+            offset,
+            stored_width_bits,
+        }
+    }
+
+    pub const fn field(self) -> FilesystemMetadataField {
+        self.field
+    }
+
+    pub const fn offset(self) -> usize {
+        self.offset
+    }
+
+    pub const fn stored_width_bits(self) -> u16 {
+        self.stored_width_bits
+    }
+}
+
+/// Checked physical carrier geometry for one selected target's `StatRecord`.
+///
+/// Omega orchestration derives this from the already-evaluated programmable
+/// layout and supplies it to Psi. Package strings and raw target IR never enter
+/// the interpreter. Construction rejects missing, duplicate, overlapping,
+/// over-wide, and out-of-record fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemMetadataLayout {
+    record_size: usize,
+    fields: Vec<FilesystemMetadataFieldLayout>,
+}
+
+impl FilesystemMetadataLayout {
+    pub fn new(
+        record_size: usize,
+        mut fields: Vec<FilesystemMetadataFieldLayout>,
+    ) -> Result<Self, String> {
+        if record_size == 0 {
+            return Err("filesystem metadata layout has an empty record".to_owned());
+        }
+        fields.sort_unstable_by_key(|field| field.field);
+        if fields.len() != FilesystemMetadataField::ALL.len()
+            || fields
+                .iter()
+                .map(|field| field.field)
+                .ne(FilesystemMetadataField::ALL)
+        {
+            return Err(
+                "filesystem metadata layout must contain each canonical field exactly once"
+                    .to_owned(),
+            );
+        }
+        for field in &fields {
+            if !matches!(field.stored_width_bits, 16 | 32 | 64)
+                || field.stored_width_bits > field.field.semantic_width_bits()
+            {
+                return Err(format!(
+                    "filesystem metadata field {:?} has invalid stored width {}",
+                    field.field, field.stored_width_bits
+                ));
+            }
+            let width = usize::from(field.stored_width_bits / 8);
+            let end = field.offset.checked_add(width).ok_or_else(|| {
+                format!(
+                    "filesystem metadata field {:?} extent overflows",
+                    field.field
+                )
+            })?;
+            if end > record_size {
+                return Err(format!(
+                    "filesystem metadata field {:?} ends at {end}, beyond record size {record_size}",
+                    field.field
+                ));
+            }
+        }
+        for (index, left) in fields.iter().enumerate() {
+            let left_end = left.offset + usize::from(left.stored_width_bits / 8);
+            for right in fields.iter().skip(index + 1) {
+                let right_end = right.offset + usize::from(right.stored_width_bits / 8);
+                if left.offset < right_end && right.offset < left_end {
+                    return Err(format!(
+                        "filesystem metadata fields {:?} and {:?} overlap",
+                        left.field, right.field
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            record_size,
+            fields,
+        })
+    }
+
+    pub const fn record_size(&self) -> usize {
+        self.record_size
+    }
+
+    pub fn field_layout(&self, field: FilesystemMetadataField) -> FilesystemMetadataFieldLayout {
+        *self
+            .fields
+            .iter()
+            .find(|layout| layout.field == field)
+            .expect("validated metadata layout contains every field")
+    }
+
+    fn host() -> Self {
+        let fields = if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            vec![
+                (FilesystemMetadataField::Device, 0, 64),
+                (FilesystemMetadataField::Mode, 24, 32),
+                (FilesystemMetadataField::LinkCount, 16, 64),
+                (FilesystemMetadataField::Inode, 8, 64),
+                (FilesystemMetadataField::User, 28, 32),
+                (FilesystemMetadataField::Group, 32, 32),
+                (FilesystemMetadataField::ReferencedDevice, 40, 64),
+                (FilesystemMetadataField::AccessTime, 72, 64),
+                (FilesystemMetadataField::ModificationTime, 88, 64),
+                (FilesystemMetadataField::ChangeTime, 104, 64),
+                (FilesystemMetadataField::BirthTime, 120, 64),
+                (FilesystemMetadataField::Size, 48, 64),
+                (FilesystemMetadataField::Blocks512, 64, 64),
+                (FilesystemMetadataField::PreferredBlockSize, 56, 64),
+            ]
+        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            vec![
+                (FilesystemMetadataField::Device, 0, 64),
+                (FilesystemMetadataField::Mode, 16, 32),
+                (FilesystemMetadataField::LinkCount, 20, 32),
+                (FilesystemMetadataField::Inode, 8, 64),
+                (FilesystemMetadataField::User, 24, 32),
+                (FilesystemMetadataField::Group, 28, 32),
+                (FilesystemMetadataField::ReferencedDevice, 32, 64),
+                (FilesystemMetadataField::AccessTime, 72, 64),
+                (FilesystemMetadataField::ModificationTime, 88, 64),
+                (FilesystemMetadataField::ChangeTime, 104, 64),
+                (FilesystemMetadataField::BirthTime, 120, 64),
+                (FilesystemMetadataField::Size, 48, 64),
+                (FilesystemMetadataField::Blocks512, 64, 64),
+                (FilesystemMetadataField::PreferredBlockSize, 56, 32),
+            ]
+        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            vec![
+                (FilesystemMetadataField::Device, 0, 32),
+                (FilesystemMetadataField::Mode, 4, 16),
+                (FilesystemMetadataField::LinkCount, 6, 16),
+                (FilesystemMetadataField::Inode, 8, 64),
+                (FilesystemMetadataField::User, 16, 32),
+                (FilesystemMetadataField::Group, 20, 32),
+                (FilesystemMetadataField::ReferencedDevice, 24, 32),
+                (FilesystemMetadataField::AccessTime, 32, 64),
+                (FilesystemMetadataField::ModificationTime, 48, 64),
+                (FilesystemMetadataField::ChangeTime, 64, 64),
+                (FilesystemMetadataField::BirthTime, 80, 64),
+                (FilesystemMetadataField::Size, 96, 64),
+                (FilesystemMetadataField::Blocks512, 104, 64),
+                (FilesystemMetadataField::PreferredBlockSize, 112, 32),
+            ]
+        } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+            vec![
+                (FilesystemMetadataField::Device, 0, 32),
+                (FilesystemMetadataField::Mode, 6, 16),
+                (FilesystemMetadataField::LinkCount, 8, 16),
+                (FilesystemMetadataField::Inode, 64, 64),
+                (FilesystemMetadataField::User, 72, 32),
+                (FilesystemMetadataField::Group, 76, 32),
+                (FilesystemMetadataField::ReferencedDevice, 16, 32),
+                (FilesystemMetadataField::AccessTime, 32, 64),
+                (FilesystemMetadataField::ModificationTime, 40, 64),
+                (FilesystemMetadataField::ChangeTime, 80, 64),
+                (FilesystemMetadataField::BirthTime, 48, 64),
+                (FilesystemMetadataField::Size, 24, 64),
+                (FilesystemMetadataField::Blocks512, 88, 64),
+                (FilesystemMetadataField::PreferredBlockSize, 96, 32),
+            ]
+        } else {
+            panic!("unsupported host filesystem metadata layout")
+        };
+        let record_size = if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            128
+        } else {
+            144
+        };
+        Self::new(
+            record_size,
+            fields
+                .into_iter()
+                .map(|(field, offset, width)| {
+                    FilesystemMetadataFieldLayout::new(field, offset, width)
+                })
+                .collect(),
+        )
+        .expect("host metadata layout is canonical")
+    }
+}
+
+impl Default for FilesystemMetadataLayout {
+    fn default() -> Self {
+        Self::host()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -364,6 +646,146 @@ pub struct FilesystemObservedByteRegion {
     kind: FilesystemObservedByteRegionKind,
     offset: usize,
     length: usize,
+}
+
+/// Semantic source of one successfully returned metadata record. The kind is
+/// independent of the target carrier used to return the same fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemMetadataObservationKind {
+    FollowedPath,
+    OpenDescriptor,
+    UnfollowedFinalPath,
+}
+
+/// Canonical target-neutral metadata observed by one successful filesystem
+/// operation. File-kind predicates are deliberately absent: they are derived
+/// from the retained mode bits and must not become disagreeing duplicate facts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemMetadataObservation {
+    output_operand_ordinal: u8,
+    kind: FilesystemMetadataObservationKind,
+    device: u64,
+    mode: u32,
+    link_count: u64,
+    inode: u64,
+    user: u32,
+    group: u32,
+    referenced_device: u64,
+    access_time: i64,
+    modification_time: i64,
+    change_time: i64,
+    birth_time: i64,
+    size: i64,
+    blocks_512: u64,
+    preferred_block_size: u64,
+}
+
+impl FilesystemMetadataObservation {
+    pub(crate) const fn new(
+        output_operand_ordinal: u8,
+        kind: FilesystemMetadataObservationKind,
+        mode: u32,
+        size: i64,
+        modification_time: i64,
+    ) -> Self {
+        Self {
+            output_operand_ordinal,
+            kind,
+            device: 16_777_220,
+            mode,
+            link_count: 1,
+            inode: 1_000_000,
+            user: 501,
+            group: 20,
+            referenced_device: 0,
+            access_time: 1_000_000_100,
+            modification_time,
+            change_time: 1_000_000_050,
+            birth_time: 999_999_900,
+            size,
+            blocks_512: 8,
+            preferred_block_size: 4096,
+        }
+    }
+
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+    pub const fn kind(self) -> FilesystemMetadataObservationKind {
+        self.kind
+    }
+    pub const fn device(self) -> u64 {
+        self.device
+    }
+    pub const fn mode(self) -> u32 {
+        self.mode
+    }
+    pub const fn link_count(self) -> u64 {
+        self.link_count
+    }
+    pub const fn inode(self) -> u64 {
+        self.inode
+    }
+    pub const fn user(self) -> u32 {
+        self.user
+    }
+    pub const fn group(self) -> u32 {
+        self.group
+    }
+    pub const fn referenced_device(self) -> u64 {
+        self.referenced_device
+    }
+    pub const fn access_time(self) -> i64 {
+        self.access_time
+    }
+    pub const fn modification_time(self) -> i64 {
+        self.modification_time
+    }
+    pub const fn change_time(self) -> i64 {
+        self.change_time
+    }
+    pub const fn birth_time(self) -> i64 {
+        self.birth_time
+    }
+    pub const fn size(self) -> i64 {
+        self.size
+    }
+    pub const fn blocks_512(self) -> u64 {
+        self.blocks_512
+    }
+    pub const fn preferred_block_size(self) -> u64 {
+        self.preferred_block_size
+    }
+
+    pub(crate) const fn unsigned_field(self, field: FilesystemMetadataField) -> Option<u64> {
+        match field {
+            FilesystemMetadataField::Device => Some(self.device),
+            FilesystemMetadataField::Mode => Some(self.mode as u64),
+            FilesystemMetadataField::LinkCount => Some(self.link_count),
+            FilesystemMetadataField::Inode => Some(self.inode),
+            FilesystemMetadataField::User => Some(self.user as u64),
+            FilesystemMetadataField::Group => Some(self.group as u64),
+            FilesystemMetadataField::ReferencedDevice => Some(self.referenced_device),
+            FilesystemMetadataField::Blocks512 => Some(self.blocks_512),
+            FilesystemMetadataField::PreferredBlockSize => Some(self.preferred_block_size),
+            FilesystemMetadataField::AccessTime
+            | FilesystemMetadataField::ModificationTime
+            | FilesystemMetadataField::ChangeTime
+            | FilesystemMetadataField::BirthTime
+            | FilesystemMetadataField::Size => None,
+        }
+    }
+
+    pub(crate) const fn signed_field(self, field: FilesystemMetadataField) -> Option<i64> {
+        match field {
+            FilesystemMetadataField::AccessTime => Some(self.access_time),
+            FilesystemMetadataField::ModificationTime => Some(self.modification_time),
+            FilesystemMetadataField::ChangeTime => Some(self.change_time),
+            FilesystemMetadataField::BirthTime => Some(self.birth_time),
+            FilesystemMetadataField::Size => Some(self.size),
+            _ => None,
+        }
+    }
 }
 
 impl FilesystemObservedByteRegion {
@@ -657,8 +1079,8 @@ impl FilesystemGrantRefusal {
 /// Failed handle-result sentinels remain scalar results. Mutable carriers
 /// retain both their successfully resolved preparation prefix and complete
 /// provider-visible pre/post snapshots. Path results and successful file and
-/// directory observations have semantic rows; canonical metadata observations
-/// and replay execution remain incomplete, so this stays below receipt strength.
+/// directory and metadata observations have semantic rows. Replay execution
+/// remains incomplete, so this stays below receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
@@ -670,6 +1092,7 @@ pub struct FilesystemOperationAttempt {
     rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
     returned_paths: Vec<FilesystemReturnedPath>,
     observed_byte_regions: Vec<FilesystemObservedByteRegion>,
+    metadata_observations: Vec<FilesystemMetadataObservation>,
     mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
@@ -693,6 +1116,7 @@ impl FilesystemOperationAttempt {
             rooted_path_operand_resolutions: Vec::new(),
             returned_paths: Vec::new(),
             observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
             mutable_byte_operand_resolutions: Vec::new(),
             mutable_i64_operand_resolutions: Vec::new(),
             mutable_byte_operands: Vec::new(),
@@ -755,6 +1179,10 @@ impl FilesystemOperationAttempt {
 
     pub fn observed_byte_regions(&self) -> &[FilesystemObservedByteRegion] {
         &self.observed_byte_regions
+    }
+
+    pub fn metadata_observations(&self) -> &[FilesystemMetadataObservation] {
+        &self.metadata_observations
     }
 
     pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {
@@ -1172,10 +1600,13 @@ pub struct FsGrants {
 }
 
 /// Options for [`interpret_entry_with_options`]. `Default` selects the hermetic
-/// virtual filesystem.
+/// virtual filesystem and the compiler host's checked standard metadata
+/// carrier. Cross-target and package-build callers supply the selected checked
+/// metadata layout explicitly.
 #[derive(Clone, Debug, Default)]
 pub struct InterpretOptions {
     pub filesystem: FilesystemAccess,
+    pub filesystem_metadata_layout: FilesystemMetadataLayout,
 }
 
 /// [`interpret_entry`] with explicit [`InterpretOptions`].

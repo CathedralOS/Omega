@@ -93,6 +93,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         vec![argument],
         BuildMachineExecutionMode::Granted {
             filesystem: BuildMachineFilesystemAccess::Virtual,
+            filesystem_metadata_layout: Default::default(),
         },
     )
     .expect_err("a grant cannot turn a package-authored lookalike into a host operation");
@@ -113,6 +114,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         }],
         BuildMachineExecutionMode::Granted {
             filesystem: BuildMachineFilesystemAccess::Virtual,
+            filesystem_metadata_layout: Default::default(),
         },
     )
     .expect_err("statement dispatch must reject the same package-authored lookalike");

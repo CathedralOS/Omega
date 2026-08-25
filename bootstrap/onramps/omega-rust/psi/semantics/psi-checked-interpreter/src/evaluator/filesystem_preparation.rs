@@ -127,22 +127,6 @@ impl PreparedByteOutput {
         }
         Ok(())
     }
-
-    pub(super) fn write_at(&self, offset: usize, bytes: &[u8]) -> EvalResult<()> {
-        let end = offset.checked_add(bytes.len()).ok_or_else(|| {
-            Halt::Trap("filesystem output byte range overflows host usize".to_owned())
-        })?;
-        self.require_capacity(end)?;
-        match self {
-            Self::Text { text, .. } => text.borrow_mut()[offset..end].copy_from_slice(bytes),
-            Self::Array(cells) => {
-                for (slot, byte) in cells[offset..end].iter().zip(bytes) {
-                    *slot.borrow_mut() = Value::Int(i64::from(*byte));
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 fn prepared_byte(cell: &Cell) -> EvalResult<u8> {

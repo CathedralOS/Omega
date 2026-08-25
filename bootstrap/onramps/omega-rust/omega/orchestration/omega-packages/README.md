@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v17 carries operation-attempt schema v17, retaining exact
+Observation schema v18 carries operation-attempt schema v18, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -356,8 +356,17 @@ commitments bind their kind, coordinates, and referenced mutable post-state.
 `read_dir` similarly designates exact `DirectoryRecords`; `find_first` and
 entry-producing `find_next` designate their complete 320-byte `FindEntry`
 record. Directory EOF and no-entry find returns retain empty rows, while failed
-enumeration emits none. Canonical metadata semantics and replay execution remain
-absent, so this is an incomplete trace rather than a transcript or receipt.
+enumeration emits none. Successful path, descriptor, and no-follow metadata
+operations retain one target-neutral canonical row containing all 14
+`StatRecord` fields. Omega extracts and validates the selected target's checked
+`StatLayout<StatRecord>` from private typed/layout state and gives only that
+closed descriptor to the Psi evaluator. The evaluator zeroes and fills the
+complete authored ABI carrier (whose API minimum is 144 bytes) through the
+descriptor and cross-checks it against the semantic row. Package commitments
+bind both representations. This creates
+neither a public internal-IR contract nor nominal Chi. Replay execution remains
+absent, so this is still an incomplete trace rather than a transcript or
+receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

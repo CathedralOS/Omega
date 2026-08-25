@@ -34,8 +34,9 @@ use super::{
     host_open_flags, synthetic_handle_fd,
 };
 use crate::{
-    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemObservedByteRegionKind,
-    FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
+    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemMetadataObservationKind,
+    FilesystemObservedByteRegionKind, FilesystemReturnedPathCompleteness,
+    FilesystemReturnedPathKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -973,12 +974,17 @@ impl<'program> super::Evaluator<'program> {
                     0
                 }
             }
-            PreparedFilesystemCall::ReadMetadata { path, buffer } => {
-                self.real_read_metadata(path, &buffer, false)?
-            }
-            PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => {
-                self.real_read_metadata(path, &buffer, true)?
-            }
+            PreparedFilesystemCall::ReadMetadata { path, buffer } => self.real_read_metadata(
+                path,
+                &buffer,
+                FilesystemMetadataObservationKind::FollowedPath,
+            )?,
+            PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer } => self
+                .real_read_metadata(
+                    path,
+                    &buffer,
+                    FilesystemMetadataObservationKind::UnfollowedFinalPath,
+                )?,
             PreparedFilesystemCall::ReadFileMetadata { fd, buffer } => {
                 let looked_up = match self.real_fs_mut().files.get(&fd) {
                     Some(entry) => entry.file.metadata().map_err(|error| io_errno(&error)),
@@ -986,7 +992,11 @@ impl<'program> super::Evaluator<'program> {
                 };
                 match looked_up {
                     Ok(metadata) => {
-                        self.write_real_fs_stat(&buffer, &metadata)?;
+                        self.write_real_fs_stat(
+                            &buffer,
+                            FilesystemMetadataObservationKind::OpenDescriptor,
+                            &metadata,
+                        )?;
                         0
                     }
                     Err(errno) => {
@@ -1916,8 +1926,9 @@ impl<'program> super::Evaluator<'program> {
         &mut self,
         path: Vec<u8>,
         buffer: &PreparedByteOutput,
-        no_follow: bool,
+        kind: FilesystemMetadataObservationKind,
     ) -> EvalResult<i64> {
+        let no_follow = kind == FilesystemMetadataObservationKind::UnfollowedFinalPath;
         let authorized = if no_follow {
             self.authorized_path_no_follow(&path, false, 0)
         } else {
@@ -1933,7 +1944,7 @@ impl<'program> super::Evaluator<'program> {
         };
         match looked_up {
             Ok(metadata) => {
-                self.write_real_fs_stat(buffer, &metadata)?;
+                self.write_real_fs_stat(buffer, kind, &metadata)?;
                 Ok(0)
             }
             Err(error) => {
@@ -2157,14 +2168,15 @@ impl<'program> super::Evaluator<'program> {
         }
     }
 
-    /// Fill the caller's stat buffer at the HOST offsets from real
-    /// `std::fs::Metadata` -- mode + size + mtime ride the shared
-    /// `write_fs_stat` layout writer, so real and virtual mode lay out the
-    /// same three fields at the same offsets (the wrapper's `decode_metadata`
-    /// reads only those in rung 1's consumers).
+    /// Normalize the currently implemented real metadata semantics, then let
+    /// the shared selected-target writer produce both carrier bytes and the
+    /// canonical observation row. Native-field parity beyond mode, size, and
+    /// mtime remains separate work; modeled fields are explicit rather than
+    /// accidental host-layout residue.
     fn write_real_fs_stat(
-        &self,
+        &mut self,
         output: &PreparedByteOutput,
+        kind: FilesystemMetadataObservationKind,
         metadata: &std::fs::Metadata,
     ) -> EvalResult<()> {
         #[cfg(unix)]
@@ -2192,7 +2204,7 @@ impl<'program> super::Evaluator<'program> {
             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|duration| duration.as_secs() as i64)
             .unwrap_or(0);
-        self.write_fs_stat(output, mode, size, mtime_secs)
+        self.write_fs_stat(output, kind, u32::from(mode), size, mtime_secs)
     }
 }
 

@@ -31,9 +31,12 @@
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineProgram,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildTimeValue,
+    PreparedBuildMachineProgram,
 };
-use psi_checked_interpreter::FilesystemSponsorEntry;
+use psi_checked_interpreter::{
+    FilesystemMetadataField, FilesystemMetadataFieldLayout, FilesystemSponsorEntry,
+};
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
@@ -210,7 +213,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 17;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 18;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -464,6 +467,84 @@ impl BuildFilesystemObservedByteRegion {
 
     pub const fn length(self) -> u64 {
         self.length
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemMetadataObservationKind {
+    FollowedPath,
+    OpenDescriptor,
+    UnfollowedFinalPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMetadataObservation {
+    output_operand_ordinal: u8,
+    kind: BuildFilesystemMetadataObservationKind,
+    device: u64,
+    mode: u32,
+    link_count: u64,
+    inode: u64,
+    user: u32,
+    group: u32,
+    referenced_device: u64,
+    access_time: i64,
+    modification_time: i64,
+    change_time: i64,
+    birth_time: i64,
+    size: i64,
+    blocks_512: u64,
+    preferred_block_size: u64,
+}
+
+impl BuildFilesystemMetadataObservation {
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+    pub const fn kind(self) -> BuildFilesystemMetadataObservationKind {
+        self.kind
+    }
+    pub const fn device(self) -> u64 {
+        self.device
+    }
+    pub const fn mode(self) -> u32 {
+        self.mode
+    }
+    pub const fn link_count(self) -> u64 {
+        self.link_count
+    }
+    pub const fn inode(self) -> u64 {
+        self.inode
+    }
+    pub const fn user(self) -> u32 {
+        self.user
+    }
+    pub const fn group(self) -> u32 {
+        self.group
+    }
+    pub const fn referenced_device(self) -> u64 {
+        self.referenced_device
+    }
+    pub const fn access_time(self) -> i64 {
+        self.access_time
+    }
+    pub const fn modification_time(self) -> i64 {
+        self.modification_time
+    }
+    pub const fn change_time(self) -> i64 {
+        self.change_time
+    }
+    pub const fn birth_time(self) -> i64 {
+        self.birth_time
+    }
+    pub const fn size(self) -> i64 {
+        self.size
+    }
+    pub const fn blocks_512(self) -> u64 {
+        self.blocks_512
+    }
+    pub const fn preferred_block_size(self) -> u64 {
+        self.preferred_block_size
     }
 }
 
@@ -737,6 +818,7 @@ pub struct BuildFilesystemOperationAttempt {
     rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
     returned_paths: Vec<BuildFilesystemReturnedPath>,
     observed_byte_regions: Vec<BuildFilesystemObservedByteRegion>,
+    metadata_observations: Vec<BuildFilesystemMetadataObservation>,
     mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
@@ -787,6 +869,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn observed_byte_regions(&self) -> &[BuildFilesystemObservedByteRegion] {
         &self.observed_byte_regions
+    }
+
+    pub fn metadata_observations(&self) -> &[BuildFilesystemMetadataObservation] {
+        &self.metadata_observations
     }
 
     pub fn observed_bytes(&self, region: &BuildFilesystemObservedByteRegion) -> Option<&[u8]> {
@@ -872,9 +958,9 @@ impl BuildObservationSummary {
 
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: exact path results and file/
-    /// directory observation regions are present, while canonical metadata
-    /// observations and replay execution remain incomplete.
+    /// intentionally not a replay transcript: exact path results, file and
+    /// directory regions, and canonical metadata observations are present,
+    /// while replay execution remains incomplete.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1658,6 +1744,149 @@ fn has_exact_toolchain_build_root_facets(typed: &TypedTrees) -> bool {
     })
 }
 
+fn canonical_metadata_field(name: &str) -> Option<FilesystemMetadataField> {
+    match name {
+        "dev" => Some(FilesystemMetadataField::Device),
+        "mode" => Some(FilesystemMetadataField::Mode),
+        "nlink" => Some(FilesystemMetadataField::LinkCount),
+        "ino" => Some(FilesystemMetadataField::Inode),
+        "uid" => Some(FilesystemMetadataField::User),
+        "gid" => Some(FilesystemMetadataField::Group),
+        "rdev" => Some(FilesystemMetadataField::ReferencedDevice),
+        "atime" => Some(FilesystemMetadataField::AccessTime),
+        "mtime" => Some(FilesystemMetadataField::ModificationTime),
+        "ctime" => Some(FilesystemMetadataField::ChangeTime),
+        "btime" => Some(FilesystemMetadataField::BirthTime),
+        "size" => Some(FilesystemMetadataField::Size),
+        "blocks" => Some(FilesystemMetadataField::Blocks512),
+        "blksize" => Some(FilesystemMetadataField::PreferredBlockSize),
+        _ => None,
+    }
+}
+
+fn exact_toolchain_filesystem_declaration(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    expected_name: &str,
+) -> bool {
+    typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+        .is_some_and(|definition| {
+            definition.name.as_str() == expected_name
+                && typed
+                    .symbols
+                    .symbol_source_span(symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == psi_source::SourceOrigin::Toolchain
+                            && file.path.strip_prefix(&file.package_root).ok()
+                                == Some(Path::new("filesystem.omg"))
+                    })
+        })
+}
+
+/// Extract the selected target's already-evaluated `StatLayout<StatRecord>`
+/// geometry. Target-scoped machine filtering and programmable-layout checking
+/// have both completed before this point; the evaluator receives only this
+/// closed physical descriptor, never target names or Omega IR.
+fn selected_filesystem_metadata_layout(
+    typed: &TypedTrees,
+) -> Result<BuildMachineFilesystemMetadataLayout, Vec<Diagnostic>> {
+    let matching = typed
+        .plan_laid_layouts
+        .iter()
+        .filter(|layout| {
+            exact_toolchain_filesystem_declaration(typed, layout.schema_symbol, "StatRecord")
+                && exact_toolchain_filesystem_declaration(typed, layout.policy_symbol, "StatLayout")
+        })
+        .collect::<Vec<_>>();
+    let [layout] = matching.as_slice() else {
+        let available = typed
+            .plan_laid_layouts
+            .iter()
+            .map(|layout| layout.data_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(vec![Diagnostic::error(format!(
+            "selected target produced {} exact checked StatLayout<StatRecord> rows; expected one (available checked layouts: {available})",
+            matching.len(),
+        ))]);
+    };
+    let Some(record_size) = layout.validated_layout.size else {
+        return Err(vec![Diagnostic::error(
+            "selected target metadata layout is not fixed-size",
+        )]);
+    };
+    let record_size = usize::try_from(record_size).map_err(|_| {
+        vec![Diagnostic::error(
+            "selected target metadata record size cannot be represented on this compiler host",
+        )]
+    })?;
+    if record_size != layout.size {
+        return Err(vec![Diagnostic::error(
+            "selected target metadata layout size disagrees with its checked plan-laid carrier",
+        )]);
+    }
+
+    let mut fields = Vec::with_capacity(FilesystemMetadataField::ALL.len());
+    for entry in &layout.validated_layout.entries {
+        let Some(field) = canonical_metadata_field(entry.field.as_str()) else {
+            return Err(vec![Diagnostic::error(format!(
+                "selected target metadata layout contains unknown field `{}`",
+                entry.field
+            ))]);
+        };
+        let (offset, stored_width_bits) = match entry.placement {
+            psi_layout_plans::LayoutPlacementReport::At { offset } => {
+                (offset, u64::from(field.semantic_width_bits()))
+            }
+            psi_layout_plans::LayoutPlacementReport::IntegerAt {
+                offset,
+                stored_width,
+                interpretation,
+            } => {
+                let expected = if field.is_signed() {
+                    psi_layout_plans::IntegerInterpretation::Signed
+                } else {
+                    psi_layout_plans::IntegerInterpretation::Unsigned
+                };
+                if interpretation != expected {
+                    return Err(vec![Diagnostic::error(format!(
+                        "selected target metadata field `{}` has the wrong stored-integer interpretation",
+                        entry.field
+                    ))]);
+                }
+                (offset, stored_width)
+            }
+            psi_layout_plans::LayoutPlacementReport::Bits { .. } => {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected target metadata field `{}` uses unsupported fragmented placement",
+                    entry.field
+                ))]);
+            }
+        };
+        fields.push(FilesystemMetadataFieldLayout::new(
+            field,
+            usize::try_from(offset).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "selected target metadata field `{}` offset cannot be represented on this compiler host",
+                    entry.field
+                ))]
+            })?,
+            u16::try_from(stored_width_bits).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "selected target metadata field `{}` width exceeds the checked interpreter vocabulary",
+                    entry.field
+                ))]
+            })?,
+        ));
+    }
+    BuildMachineFilesystemMetadataLayout::new(record_size, fields)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
+}
+
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(
@@ -1838,13 +2067,21 @@ pub(crate) fn compute_build_config(
     let execution_mode = if transitive.is_empty() {
         BuildMachineExecutionMode::Pure
     } else {
+        let filesystem_metadata_layout = if filesystem_reachable {
+            selected_filesystem_metadata_layout(typed)?
+        } else {
+            BuildMachineFilesystemMetadataLayout::default()
+        };
         let filesystem = if filesystem_reachable {
             filesystem_scope.ensure_write_roots()?;
             filesystem_scope.filesystem_access()
         } else {
             BuildMachineFilesystemAccess::Virtual
         };
-        BuildMachineExecutionMode::Granted { filesystem }
+        BuildMachineExecutionMode::Granted {
+            filesystem,
+            filesystem_metadata_layout,
+        }
     };
     let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
         &prepared,
@@ -2075,6 +2312,38 @@ pub(crate) fn compute_build_config(
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let metadata_observations = attempt
+                .metadata_observations()
+                .iter()
+                .map(|observation| BuildFilesystemMetadataObservation {
+                    output_operand_ordinal: observation.output_operand_ordinal(),
+                    kind: match observation.kind() {
+                        psi_checked_interpreter::FilesystemMetadataObservationKind::FollowedPath => {
+                            BuildFilesystemMetadataObservationKind::FollowedPath
+                        }
+                        psi_checked_interpreter::FilesystemMetadataObservationKind::OpenDescriptor => {
+                            BuildFilesystemMetadataObservationKind::OpenDescriptor
+                        }
+                        psi_checked_interpreter::FilesystemMetadataObservationKind::UnfollowedFinalPath => {
+                            BuildFilesystemMetadataObservationKind::UnfollowedFinalPath
+                        }
+                    },
+                    device: observation.device(),
+                    mode: observation.mode(),
+                    link_count: observation.link_count(),
+                    inode: observation.inode(),
+                    user: observation.user(),
+                    group: observation.group(),
+                    referenced_device: observation.referenced_device(),
+                    access_time: observation.access_time(),
+                    modification_time: observation.modification_time(),
+                    change_time: observation.change_time(),
+                    birth_time: observation.birth_time(),
+                    size: observation.size(),
+                    blocks_512: observation.blocks_512(),
+                    preferred_block_size: observation.preferred_block_size(),
+                })
+                .collect();
             let mutable_byte_operand_resolutions = attempt
                 .mutable_byte_operand_resolutions()
                 .iter()
@@ -2149,6 +2418,7 @@ pub(crate) fn compute_build_config(
                 rooted_path_operand_resolutions,
                 returned_paths,
                 observed_byte_regions,
+                metadata_observations,
                 mutable_byte_operand_resolutions,
                 mutable_i64_operand_resolutions,
                 mutable_byte_operands,

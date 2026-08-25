@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
-    FilesystemByteOperand, FilesystemMutableByteOperandResolution,
+    FilesystemByteOperand, FilesystemMetadataField, FilesystemMetadataObservation,
+    FilesystemMetadataObservationKind, FilesystemMutableByteOperandResolution,
     FilesystemMutableI64OperandResolution, FilesystemObservedByteRegion,
     FilesystemObservedByteRegionKind, FilesystemPathLikeOperand, FilesystemReturnedPath,
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
@@ -119,6 +120,15 @@ impl<'program> Evaluator<'program> {
                 }
                 if let Err(halt) =
                     self.validate_observed_byte_regions(attempt_index, operation, result)
+                {
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                            FilesystemEvaluationHaltKind::Trap,
+                        ));
+                    return Err(halt);
+                }
+                if let Err(halt) =
+                    self.validate_metadata_observations(attempt_index, operation, result)
                 {
                     self.filesystem_operation_attempts[attempt_index].outcome =
                         Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
@@ -487,6 +497,89 @@ impl<'program> Evaluator<'program> {
             return Err(Halt::Trap(format!(
                 "canonical filesystem operation `{operation}` retained an out-of-bounds observed-byte region"
             )));
+        }
+        Ok(())
+    }
+
+    fn validate_metadata_observations(
+        &self,
+        attempt_index: usize,
+        operation: FilesystemHostOperation,
+        result: i64,
+    ) -> EvalResult<()> {
+        let expected_kind = match (operation, result) {
+            (FilesystemHostOperation::ReadMetadata, 0) => {
+                Some(FilesystemMetadataObservationKind::FollowedPath)
+            }
+            (FilesystemHostOperation::ReadFileMetadata, 0) => {
+                Some(FilesystemMetadataObservationKind::OpenDescriptor)
+            }
+            (FilesystemHostOperation::ReadSymlinkMetadata, 0) => {
+                Some(FilesystemMetadataObservationKind::UnfollowedFinalPath)
+            }
+            _ => None,
+        };
+        let attempt = &self.filesystem_operation_attempts[attempt_index];
+        let Some(expected_kind) = expected_kind else {
+            if attempt.metadata_observations.is_empty() {
+                return Ok(());
+            }
+            return trap(format!(
+                "canonical filesystem operation `{operation}` retained an unexpected metadata observation"
+            ));
+        };
+        let [observation] = &attempt.metadata_observations[..] else {
+            return trap(format!(
+                "successful canonical filesystem operation `{operation}` did not retain exactly one metadata observation"
+            ));
+        };
+        if observation.kind() != expected_kind || observation.output_operand_ordinal() != 1 {
+            return trap(format!(
+                "canonical filesystem operation `{operation}` retained an inconsistent metadata observation"
+            ));
+        }
+        let Some(output) = attempt
+            .mutable_byte_operands
+            .iter()
+            .find(|output| output.operand_ordinal == observation.output_operand_ordinal())
+        else {
+            return trap(format!(
+                "canonical filesystem operation `{operation}` retained metadata without its output carrier"
+            ));
+        };
+        if output.post_bytes.len() < self.filesystem_metadata_layout.record_size() {
+            return trap(format!(
+                "canonical filesystem operation `{operation}` retained a truncated metadata carrier"
+            ));
+        }
+        for field in FilesystemMetadataField::ALL {
+            let placement = self.filesystem_metadata_layout.field_layout(field);
+            let width = usize::from(placement.stored_width_bits() / 8);
+            let bytes = &output.post_bytes[placement.offset()..placement.offset() + width];
+            if let Some(expected) = observation.unsigned_field(field) {
+                let mut encoded = [0u8; 8];
+                encoded[..width].copy_from_slice(bytes);
+                if u64::from_le_bytes(encoded) != expected {
+                    return trap(format!(
+                        "canonical filesystem operation `{operation}` metadata field {field:?} disagrees with its selected-target carrier"
+                    ));
+                }
+            } else {
+                let expected = observation
+                    .signed_field(field)
+                    .expect("metadata field is either signed or unsigned");
+                let actual = match width {
+                    2 => i64::from(i16::from_le_bytes([bytes[0], bytes[1]])),
+                    4 => i64::from(i32::from_le_bytes(bytes.try_into().expect("four bytes"))),
+                    8 => i64::from_le_bytes(bytes.try_into().expect("eight bytes")),
+                    _ => unreachable!("validated metadata width"),
+                };
+                if actual != expected {
+                    return trap(format!(
+                        "canonical filesystem operation `{operation}` metadata field {field:?} disagrees with its selected-target carrier"
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -1530,7 +1623,13 @@ impl<'program> Evaluator<'program> {
                             .get(&path)
                             .copied()
                             .unwrap_or(VIRTUAL_MTIME_SECS);
-                        self.write_fs_stat(&buffer, mode, size, mtime)?;
+                        self.write_fs_stat(
+                            &buffer,
+                            FilesystemMetadataObservationKind::FollowedPath,
+                            u32::from(mode),
+                            size,
+                            mtime,
+                        )?;
                         0
                     }
                     None => {
@@ -1573,7 +1672,13 @@ impl<'program> Evaluator<'program> {
                 });
                 match meta {
                     Some((mode, size, mtime)) => {
-                        self.write_fs_stat(&buffer, mode, size, mtime)?;
+                        self.write_fs_stat(
+                            &buffer,
+                            FilesystemMetadataObservationKind::OpenDescriptor,
+                            u32::from(mode),
+                            size,
+                            mtime,
+                        )?;
                         0
                     }
                     None => {
@@ -1607,7 +1712,13 @@ impl<'program> Evaluator<'program> {
                 };
                 match meta {
                     Some((mode, size)) => {
-                        self.write_fs_stat(&buffer, mode, size, VIRTUAL_MTIME_SECS)?;
+                        self.write_fs_stat(
+                            &buffer,
+                            FilesystemMetadataObservationKind::UnfollowedFinalPath,
+                            u32::from(mode),
+                            size,
+                            VIRTUAL_MTIME_SECS,
+                        )?;
                         0
                     }
                     None => {
@@ -1716,38 +1827,74 @@ impl<'program> Evaluator<'program> {
         pack_dirent_records(&entries)
     }
 
-    /// Fill a caller stat buffer (`&mut [u8]` of at least 144 bytes) the way the
-    /// darwin kernel writes `struct stat`: `st_mode` (u16) at byte offset 4 and
-    /// `st_size` (i64) at byte offset 96, both little-endian. The Omega layer
-    /// reads those fields back with byte-assembly. Other fields are left zero.
+    /// Fill a caller stat buffer from one target-neutral semantic metadata row
+    /// using the exact selected target layout supplied by orchestration. The
+    /// complete API carrier is zeroed first, including Linux-arm64's 16-byte
+    /// tail beyond its 128-byte record, so prior mutable state cannot leak into
+    /// either Omega decoding or package evidence.
     pub(super) fn write_fs_stat(
-        &self,
+        &mut self,
         output: &PreparedByteOutput,
-        mode: u16,
+        kind: FilesystemMetadataObservationKind,
+        mode: u32,
         size: i64,
         mtime_secs: i64,
     ) -> EvalResult<()> {
-        // Lay the fields out at the HOST target's stat offsets (mirrors the
-        // selected StatLayout policy the wrapper projects).
-        use host_stat_offsets as off;
-        output.write_at(off::MODE, &mode.to_le_bytes())?;
-        // The hermetic model does not track hard-link inode groups.
-        output.write_at(off::NLINK, &1u16.to_le_bytes())?;
-        output.write_at(off::INO, &VIRTUAL_INO.to_le_bytes())?;
-        output.write_at(off::ATIME, &VIRTUAL_ATIME_SECS.to_le_bytes())?;
-        output.write_at(off::MTIME, &mtime_secs.to_le_bytes())?;
-        output.write_at(off::CTIME, &VIRTUAL_CTIME_SECS.to_le_bytes())?;
-        output.write_at(off::BTIME, &VIRTUAL_BIRTHTIME_SECS.to_le_bytes())?;
-        output.write_at(off::SIZE, &size.to_le_bytes())?;
-        output.write_at(off::BLOCKS, &VIRTUAL_BLOCKS.to_le_bytes())?;
-        // These two modeled public values are retained as u64 constants, but
-        // their host stat carrier fields are four bytes. Writing all eight
-        // would overlap mode/nlink on Darwin and adjacent synthetic fields on
-        // Windows.
-        output.write_at(off::DEV, &(VIRTUAL_DEV as u32).to_le_bytes())?;
-        output.write_at(off::UID, &VIRTUAL_UID.to_le_bytes())?;
-        output.write_at(off::GID, &VIRTUAL_GID.to_le_bytes())?;
-        output.write_at(off::BLKSIZE, &(VIRTUAL_BLKSIZE as u32).to_le_bytes())?;
+        let observation = FilesystemMetadataObservation::new(1, kind, mode, size, mtime_secs);
+        let capacity = output.capacity();
+        if self.filesystem_metadata_layout.record_size() > capacity {
+            return trap(format!(
+                "selected filesystem metadata record requires {} bytes but the prepared carrier holds {capacity}",
+                self.filesystem_metadata_layout.record_size()
+            ));
+        }
+        let mut carrier = vec![0u8; capacity];
+        for field in FilesystemMetadataField::ALL {
+            let placement = self.filesystem_metadata_layout.field_layout(field);
+            let width = usize::from(placement.stored_width_bits() / 8);
+            let bytes = if let Some(value) = observation.unsigned_field(field) {
+                let maximum = match placement.stored_width_bits() {
+                    16 => u64::from(u16::MAX),
+                    32 => u64::from(u32::MAX),
+                    64 => u64::MAX,
+                    _ => unreachable!("validated metadata stored width"),
+                };
+                if value > maximum {
+                    return trap(format!(
+                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
+                        placement.stored_width_bits()
+                    ));
+                }
+                value.to_le_bytes()
+            } else {
+                let value = observation
+                    .signed_field(field)
+                    .expect("metadata field is either signed or unsigned");
+                let fits = match placement.stored_width_bits() {
+                    16 => i16::try_from(value).is_ok(),
+                    32 => i32::try_from(value).is_ok(),
+                    64 => true,
+                    _ => unreachable!("validated metadata stored width"),
+                };
+                if !fits {
+                    return trap(format!(
+                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
+                        placement.stored_width_bits()
+                    ));
+                }
+                value.to_le_bytes()
+            };
+            let start = placement.offset();
+            carrier[start..start + width].copy_from_slice(&bytes[..width]);
+        }
+        output.write(&carrier)?;
+        let attempt_index = *self
+            .filesystem_operation_attempt_stack
+            .last()
+            .expect("metadata observation requires an active filesystem attempt");
+        self.filesystem_operation_attempts[attempt_index]
+            .metadata_observations
+            .push(observation);
         Ok(())
     }
 
