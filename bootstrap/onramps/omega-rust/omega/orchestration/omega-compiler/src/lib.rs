@@ -57,6 +57,7 @@ pub use pipeline::{
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,

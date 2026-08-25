@@ -1049,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 48);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 8);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 49);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 9);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -3351,6 +3351,129 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
         changed_argument.canonical_review_bytes().unwrap(),
         "changing a conformance trait argument must change review identity"
     );
+}
+
+#[test]
+fn review_projects_alpha_normalized_trait_proposition_parameter_signatures() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |carrier: &str, relation: &str, left: &str, right: &str, right_type: &str| {
+        format!(
+            r#"pub trait RelationShape<{carrier}, proposition {relation}>
+where proposition {relation}({left}: {carrier}, {right}: {right_type});
+{{}}
+"#,
+        )
+    };
+    original.write(
+        "main.omg",
+        &source("Carrier", "Relation", "left", "right", "Carrier"),
+    );
+    renamed.write(
+        "main.omg",
+        &source("Value", "Equivalent", "first", "second", "Value"),
+    );
+    changed.write(
+        "main.omg",
+        &source("Carrier", "Relation", "left", "right", "u64"),
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    for package in [&original, &renamed, &changed] {
+        package.write("build.omg", build);
+    }
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("public proposition-parameter trait should check");
+        project_checked_package_review(&checked)
+            .expect("proposition-parameter signatures have canonical review rows")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let changed = project(&changed);
+    let shape = original
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "RelationShape")
+        .expect("RelationShape trait");
+    let [_, relation] = shape.type_parameters() else {
+        panic!("carrier and proposition parameters")
+    };
+    let PackageReviewTypeParameterKind::Proposition(signature) = relation.kind() else {
+        panic!("proposition parameter signature")
+    };
+    let [left, right] = signature.parameters() else {
+        panic!("two proposition value parameters")
+    };
+    assert!(
+        left.type_identity()
+            .canonical()
+            .contains("type-parameter:0")
+    );
+    assert!(
+        right
+            .type_identity()
+            .canonical()
+            .contains("type-parameter:0")
+    );
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming trait, proposition, and proposition-value binders must preserve review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "changing a proposition parameter value type must change review identity",
+    );
+}
+
+#[test]
+fn review_rejects_uncertified_proposition_parameter_modes() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait RelationShape<Carrier, proposition Relation>
+where proposition Relation(const value: Carrier);
+{}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("non-default proposition parameter mode currently reaches checked IR");
+    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("non-default value-parameter mode not yet certified")
+    }));
 }
 
 #[test]

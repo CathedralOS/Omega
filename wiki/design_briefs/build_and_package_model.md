@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v48 rows are not promoted
+subjects or provenance. The current incomplete review-v49 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1365,6 +1365,16 @@ carrier types on machines and traits. Symbolic const declarations or
 expressions, proposition/evidence static arguments, true nested
 machine/conformance applications, quotient calls, and compiler intrinsics
 remain fail-closed.
+Review v49 and canonical row v9 admit public-trait proposition-family
+parameters with their mandatory declaration-site value signature. Each retains
+the ordered, package-qualified and alpha-normalized value-parameter types.
+Trait, proposition, and value-parameter binder renames are stable, while
+changing a signature type changes canonical evidence. Non-default
+`const`/`mut`/`self` value-parameter modes remain fail-closed because current
+proposition-family compatibility checking does not certify those modes.
+Proposition-valued or evidence contract-call static arguments remain
+fail-closed, as do symbolic const declarations or expressions, true nested
+machine/conformance applications, quotients, and compiler intrinsics.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` remain fail-closed: checked monomorphization has
 no closed application identity and currently omits recursive arguments and

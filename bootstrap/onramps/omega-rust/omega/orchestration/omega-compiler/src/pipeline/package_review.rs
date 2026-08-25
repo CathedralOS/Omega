@@ -44,6 +44,29 @@ pub enum PackageReviewTypeParameterKind {
     Type,
     Const(PackageReviewTypeIdentity),
     Machine(PackageReviewMachineParameterContract),
+    Proposition(PackageReviewPropositionParameterSignature),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewPropositionParameterSignature {
+    parameters: Vec<PackageReviewPropositionParameterValue>,
+}
+
+impl PackageReviewPropositionParameterSignature {
+    pub fn parameters(&self) -> &[PackageReviewPropositionParameterValue] {
+        &self.parameters
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewPropositionParameterValue {
+    type_identity: PackageReviewTypeIdentity,
+}
+
+impl PackageReviewPropositionParameterValue {
+    pub const fn type_identity(&self) -> &PackageReviewTypeIdentity {
+        &self.type_identity
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3863,10 +3886,35 @@ fn project_type_parameters_after(
                     depth + 1,
                 )?)
             }
-            psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
-                return Err(vec![Diagnostic::error(format!(
-                    "public {declaration_kind} `{declaration_path}` uses a proposition parameter not yet represented by package review",
-                ))]);
+            psi_typed_trees::data::TypeParameterKind::Proposition { contract } => {
+                let mut projected_parameters = Vec::new();
+                for value_parameter in compilation
+                    .typed
+                    .state_parameters
+                    .span_or_empty(contract.parameters)
+                {
+                    if value_parameter.is_const
+                        || value_parameter.is_mutable
+                        || value_parameter.is_self
+                    {
+                        return Err(vec![Diagnostic::error(format!(
+                            "public {declaration_kind} `{declaration_path}` proposition parameter uses a non-default value-parameter mode not yet certified by package review",
+                        ))]);
+                    }
+                    projected_parameters.push(PackageReviewPropositionParameterValue {
+                        type_identity: review_signature_type_identity_with_binders(
+                            compilation,
+                            value_parameter.type_reference,
+                            &binders,
+                            lifetime_binders,
+                        )?,
+                    });
+                }
+                PackageReviewTypeParameterKind::Proposition(
+                    PackageReviewPropositionParameterSignature {
+                        parameters: projected_parameters,
+                    },
+                )
             }
         };
         projected.push(PackageReviewTypeParameter {
