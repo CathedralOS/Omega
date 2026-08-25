@@ -1,6 +1,7 @@
 use crate::{
-    data, domain, expression, measure, operator, proposition, signature, snapshot, state,
-    statement, tables, types, wire,
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionHandle,
+    AuthoredDeclarationSelections, data, domain, expression, measure, operator, proposition,
+    signature, snapshot, state, statement, tables, types, wire,
 };
 use psi_arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use psi_diagnostics::PhaseSnapshot;
@@ -68,6 +69,7 @@ pub struct SymbolResolvedTableStorage {
     pub declarations: SymbolResolvedDeclarationStorage,
     pub bodies: SymbolResolvedBodyStorage,
     pub types: SymbolResolvedTypeStorage,
+    authored_declaration_selections: AuthoredDeclarationSelections,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -128,6 +130,19 @@ impl SymbolResolvedTrees {
 
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {
         self.tables.declarations.data_members.span_or_empty(span)
+    }
+
+    pub fn record_authored_declaration_selection(
+        &mut self,
+        selection: AuthoredDeclarationSelection,
+    ) -> AuthoredDeclarationSelectionHandle {
+        self.tables
+            .authored_declaration_selections
+            .record(selection)
+    }
+
+    pub fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
+        &self.tables.authored_declaration_selections
     }
 
     pub fn data_payload_fields(&self, span: HandleSpan<data::DataField>) -> &[data::DataField] {
@@ -427,11 +442,14 @@ impl DerefMut for SymbolResolvedTrees {
 #[cfg(test)]
 mod tests {
     use crate::{
-        SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        invariant, machine, name::DiagnosticName, operator, trait_definition,
+        AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
+        AuthoredDeclarationSelectionKind, SymbolResolvedRoots, SymbolResolvedTableStorage,
+        SymbolResolvedTrees, data, domain, invariant, machine, name::DiagnosticName, operator,
+        trait_definition,
     };
     use psi_arena::{HandleSpan, OrderedRootArena};
-    use psi_symbols::SymbolTable;
+    use psi_source::{SourceId, SourceSpan, Span};
+    use psi_symbols::{SymbolHandle, SymbolTable};
 
     #[test]
     fn symbol_resolved_roots_constructor_keeps_top_level_roots_explicit() {
@@ -470,6 +488,32 @@ mod tests {
         assert_eq!(trees.roots, roots);
         assert_eq!(trees.tables, tables);
         assert_eq!(trees.symbols, symbols);
+        assert!(trees.authored_declaration_selections().is_empty());
+    }
+
+    #[test]
+    fn symbol_resolved_trees_owns_authored_declaration_selections() {
+        let mut trees = SymbolResolvedTrees::default();
+        let selection = AuthoredDeclarationSelection::resolved(
+            SourceSpan::new(SourceId(4), Span::new(8, 13)),
+            AuthoredDeclarationSelectionExposure::PublicInterface,
+            AuthoredDeclarationSelectionKind::TypeReference,
+            SymbolHandle::from_arena_index(9),
+        )
+        .expect("valid selected symbol");
+
+        let handle = trees.record_authored_declaration_selection(selection);
+        let copied_trees = trees.clone();
+        trees.rebuild_tables();
+
+        assert_eq!(
+            trees.authored_declaration_selections().get(handle),
+            Some(&selection)
+        );
+        assert_eq!(
+            copied_trees.authored_declaration_selections(),
+            trees.authored_declaration_selections()
+        );
     }
 
     #[test]
