@@ -1249,7 +1249,7 @@ fn retains_exact_expression_selection_symbols() {
         }
         machine path() -> u32 { Token::Issued::code }
         machine record() -> Token { Token { value: 1 } }
-        machine issue() -> Token { Token::Issued { code: 2 } }
+        machine issue() -> Token { Token::Issued { value: 1, code: 2 } }
         machine is_issued(token: Token) -> bool { token in Token::Issued }
     "#;
     let tokens = Lexer::new(source)

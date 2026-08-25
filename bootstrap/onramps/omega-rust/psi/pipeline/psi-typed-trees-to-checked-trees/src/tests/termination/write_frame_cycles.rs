@@ -444,6 +444,7 @@ fn write_frame_substitutes_stable_local_exclusive_alias_origins() {
 fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
     let source = r#"
     data Cell { value: u64; }
+    data BorrowCell<'source> { value: &'source mut u64; }
     data Main {
         value: u64;
         other: u64;

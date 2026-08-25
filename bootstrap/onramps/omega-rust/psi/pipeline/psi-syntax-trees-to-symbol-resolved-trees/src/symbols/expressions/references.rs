@@ -315,15 +315,27 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
             SymbolHandle::invalid()
         }
     });
-    let field_owner = case_symbol.unwrap_or(type_symbol);
     let field_symbols = expression_table
         .struct_fields(literal.fields)
         .iter()
         .map(|field| {
-            if field_owner.is_valid() {
+            let case_field = case_symbol
+                .filter(|case_symbol| case_symbol.is_valid())
+                .map(|case_symbol| {
+                    child_symbol_by_kinds(
+                        symbols,
+                        case_symbol,
+                        &[SymbolKind::Field],
+                        field.name.as_str(),
+                    )
+                })
+                .unwrap_or_else(SymbolHandle::invalid);
+            if case_field.is_valid() {
+                case_field
+            } else if type_symbol.is_valid() {
                 child_symbol_by_kinds(
                     symbols,
-                    field_owner,
+                    type_symbol,
                     &[SymbolKind::Field],
                     field.name.as_str(),
                 )
