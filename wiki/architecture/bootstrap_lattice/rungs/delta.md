@@ -26,14 +26,22 @@ conservatively lowered; those are artifact properties, not language features.
 Delta v1 is designed around the complete canonical Delta-compiler and
 `omega-bootstrap` source closures plus explicit coherence, safety, robustness,
 and maintainability arguments. D0, the sample corpus, and the Rust producer may
-reveal useful facilities but cannot admit them. Exact arithmetic, ordinary fixed
-backing, explicit tags, and a sealed byte-I/O host surface are simpler candidates
-to measure first. Broader arithmetic domains, allocation machinery, payload
-sums, or general boundary traits enter v1 only when they reduce total required-
-source and assurance cost or make the compiler-host language materially safer,
-more coherent, or less brittle; their omission is not a goal in itself. Delta
-is therefore neither a token census of the required programs nor a disguised
-subset of Omega.
+reveal useful facilities but cannot admit them. The design floor is a regular
+C-class compiler host: scalar and aggregate data, structured control, modules,
+deterministic bounded storage or allocation with explicit exhaustion, and a
+sealed byte/artifact/diagnostic/exit boundary. Records, payload sums, arrays,
+slices, and arena-style storage are ordinary candidates for meeting that floor;
+forcing tag-plus-payload records or hand-expanded buffers is not intrinsically
+simpler.
+
+The exact arithmetic, representation, call, allocation, and module forms still
+resolve from whole-bootstrap cost and lower-rung meaning. Fixed, bump, or paged
+backing may implement deterministic allocation without copying Omega's
+production allocator model. Broader arithmetic domains and general boundary
+traits enter v1 only when they reduce total required-source and assurance cost
+or make the language materially safer, more coherent, or less brittle. Omission
+is not a goal in itself. Delta is therefore neither a token census of the
+required programs nor a disguised subset of Omega.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 product-compiler source profile `Ωself` and rejects the rest. That bridge
