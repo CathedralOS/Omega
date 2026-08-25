@@ -574,6 +574,13 @@ resolved declaration with the same spelling wins and retains its package owner.
 Visibility inheritance for nested declaration families remains governed by the
 owner visibility decision.
 
+Generic conformance bounds retain only their authored declaration selections:
+the subject and evidence binder are lexical, an ordinary right-hand trait is a
+trait selection, and `Subject satisfies Carrier::Evidence` selects both the
+carrier and the named conformance. Machine and trait bounds inherit their
+enclosing declaration's exposure. This direct-authority custody is independent
+of the still-open rule for publishing declaration families.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

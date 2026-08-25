@@ -260,6 +260,12 @@ value parameter or local is a lexical place and does not become a package row.
 Nested declaration families inherit public exposure only after their source
 visibility rule says so.
 
+Generic conformance bounds apply the same distinction. Their subject and
+evidence binder are lexical; the right-hand trait, or both declarations in a
+qualified `Carrier::Evidence` bound, are authored selections. Bounds on public
+machines and traits are public-interface selections, while bounds on private
+declarations remain private implementation.
+
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the
 callee declaration, each explicit static conformance argument selects its own

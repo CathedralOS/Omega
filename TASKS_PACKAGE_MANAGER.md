@@ -642,15 +642,25 @@ complete.
   contract's transitive-only domain selection and accepts it with exact public
   exposure after direct admission.
 
+  Milestone 2026-08-25: generic conformance bounds on machines and traits now
+  retain the exact declarations authored on their right-hand side. In
+  `Element satisfies Ranked`, `Ranked` is a trait selection; in
+  `Element satisfies Card::PowerOrder`, `Card` is the selected carrier and
+  `PowerOrder` is the selected package-scoped conformance. The subject and
+  evidence binder remain lexical. Rows inherit the enclosing declaration's
+  exposure. A root-middle-leaf canary rejects a public callable's named
+  transitive-only conformance bound and accepts it after direct admission.
+  This custody does not preempt Q1's separate declaration-publication rule.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
   explicit static conformance arguments, expression and statement calls,
   all source-backed static declaration arguments, inferred generic-call
   conformances, checked trait-operator conformances, and declaration-owned
-  expression positions whose visibility is settled. Visibility-dependent
-  nested positions, named conformance selectors in callable bounds, and
-  explicit cleanup classification are not yet total. Explicit cleanup is
+  expression positions whose visibility is settled, and named conformance
+  selectors in callable and trait bounds. Visibility-dependent nested positions
+  and explicit cleanup classification are not yet total. Explicit cleanup is
   language-blocked on owner question Q3 because an authored `value.drop()` currently
   behaves as an ordinary mutable call and may be followed by automatic cleanup;
   classification alone cannot define that ownership event. The package manager

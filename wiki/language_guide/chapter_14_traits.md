@@ -204,6 +204,14 @@ Overlapping blanket and specialized conformances may coexist because neither
 competes to be chosen. Naming and passing one conformance selects its coherent
 set of requirements and every law relating those requirements.
 
+For package authority, the subject parameter and evidence binder in a generic
+bound are lexical names. The right-hand `Ranked` in
+`Order: Element satisfies Ranked` selects the exact trait declaration. A
+qualified bound such as `Element satisfies Card::PowerOrder` selects both the
+`Card` carrier and the package-scoped `PowerOrder` conformance. Those authored
+selections require their owners as direct dependencies; merely receiving a
+value with a foreign inferred type does not grant this authority.
+
 The package declaring a conformance owns its closed membership. Another package
 may declare a separately named conformance over the same type and trait, but it
 cannot add, replace, or duplicate rows in an existing one. Named third-party

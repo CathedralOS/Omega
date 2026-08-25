@@ -502,6 +502,91 @@ requires value in u64::Trusted
 }
 
 #[test]
+fn public_callable_bound_requires_the_named_conformance_owner() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub machine root_accept<Element>(value: &Element)
+where Element satisfies Good::Primary
+{
+}
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_effect() { }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait Marker { }
+pub data Good { }
+Primary: Good satisfies Marker;
+"#,
+    );
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("public callable may not select transitive-only conformance evidence");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && (diagnostic.message.contains("Good") || diagnostic.message.contains("Primary"))
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct leaf admission should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the public callable bound");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.kind()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+            && selection.exposure()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && matches!(
+                selection.target(),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if checked.symbols.display_path(target.selected_symbol(), "::").contains("Primary")
+            )
+    }));
+}
+
+#[test]
 fn inferred_conformance_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");

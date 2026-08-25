@@ -71,6 +71,10 @@ Must own:
   retain their domain path through a pre-assignment sidecar and become exact
   domain-selection rows after symbols exist. Lexical parameters and locals are
   excluded from declaration custody; later selected path segments remain.
+- Retaining callable and trait conformance-bound authority after symbol
+  assignment. Bound subjects and evidence binders are lexical; the right-hand
+  trait, or the carrier plus named conformance in a qualified bound, receives
+  exact declaration custody with the enclosing declaration's exposure.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 - Preflighting signature-free requirement paths after symbol assignment and
