@@ -40,6 +40,8 @@ pub enum ConformanceSubject {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Conformance {
     pub symbol: SymbolHandle,
+    /// Source visibility retained independently from subject, trait, and rows.
+    pub is_public: bool,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub subject: ConformanceSubject,

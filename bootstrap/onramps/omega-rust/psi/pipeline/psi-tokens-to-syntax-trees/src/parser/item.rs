@@ -41,6 +41,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         // retain it as source-level API metadata independent of trait identity.
         let (mut item, rest) = parse_item(syntax_trees, input)?;
         match &mut item {
+            Item::Conformance(conformance) => conformance.is_public = true,
             Item::Const(constant) => constant.is_public = true,
             Item::Data(data) => data.is_public = true,
             Item::Domain(domain) => domain.is_public = true,
@@ -357,6 +358,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         };
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
+                is_public: false,
                 lifetime_parameters: generic_parameters.lifetime_parameters,
                 type_parameters: generic_parameters.type_parameters,
                 subject,

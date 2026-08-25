@@ -405,3 +405,25 @@ fn successful_checking_canonicalizes_local_selections_across_specializations() {
         checked.authored_declaration_selections()
     );
 }
+
+#[test]
+fn public_conformance_rejects_private_header_declarations() {
+    let source = r#"
+        trait Shape {}
+        data Circle {}
+        pub CircleShape: Circle satisfies Shape;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("private header must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(rendered.contains("public conformance `CircleShape` exposes private data `Circle`"));
+    assert!(rendered.contains("public conformance `CircleShape` exposes private trait `Shape`"));
+}

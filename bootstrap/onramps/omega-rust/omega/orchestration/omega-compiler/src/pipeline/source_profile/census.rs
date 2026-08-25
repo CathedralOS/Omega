@@ -176,6 +176,7 @@ impl Census {
                 }
             }
             ItemSnapshot::Conformance {
+                is_public: _,
                 lifetime_parameters,
                 type_parameters,
                 type_name,

@@ -305,6 +305,29 @@ fn retains_typed_name_owned_conformance_telescope() {
 }
 
 #[test]
+fn retains_typed_named_conformance_visibility_and_snapshot_identity() {
+    let source = r#"
+        trait Shape {}
+        data Circle {}
+        pub PublicCircle: Circle satisfies Shape;
+        PrivateCircle: Circle satisfies Shape;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let conformances = typed.conformances();
+
+    assert_eq!(conformances.len(), 2);
+    assert!(conformances[0].is_public);
+    assert!(!conformances[1].is_public);
+    let snapshot = typed.snapshot_json().expect("typed conformance snapshot");
+    assert!(snapshot.contains("\"name\":\"PublicCircle\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+    assert!(snapshot.contains("\"trait_name\":\"Shape\""));
+}
+
+#[test]
 fn retains_typed_explicit_conformance_binder_identity() {
     let source = r#"
         trait Ranked {}

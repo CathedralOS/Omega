@@ -142,23 +142,28 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for conformance in &symbol_resolved_trees.conformances {
+        let conformance_exposure = declaration_exposure(conformance.is_public);
         let source_type_parameters = conformance.type_parameters;
-        let mut arguments = psi_arena::HandleSpan::empty();
-        for argument in symbol_resolved_trees
-            .tables
-            .declarations
-            .child_type_references
-            .span_or_empty(conformance.arguments)
-        {
-            let argument =
-                crate::type_reference::lower_type_reference_into_table(&mut lowerer, argument)?;
-            lowerer
-                .typed_trees
-                .type_reference_table
-                .push_type_reference_handle(&mut arguments, argument);
-        }
+        let arguments = lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
+            let mut arguments = psi_arena::HandleSpan::empty();
+            for argument in symbol_resolved_trees
+                .tables
+                .declarations
+                .child_type_references
+                .span_or_empty(conformance.arguments)
+            {
+                let argument =
+                    crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+                lowerer
+                    .typed_trees
+                    .type_reference_table
+                    .push_type_reference_handle(&mut arguments, argument);
+            }
+            Ok(arguments)
+        })?;
         let mut conformance = psi_typed_trees::trait_definition::Conformance {
             symbol: conformance.symbol,
+            is_public: conformance.is_public,
             lifetime_parameters: conformance
                 .lifetime_parameters
                 .iter()
@@ -207,12 +212,15 @@ pub fn lower_symbol_resolved_trees(
                 }
             },
         };
-        for parameter in symbol_resolved_trees.data_type_parameters(source_type_parameters) {
-            let parameter = crate::data::lower_type_parameter(&mut lowerer, parameter)?;
-            lowerer
-                .typed_trees
-                .push_conformance_type_parameter(&mut conformance, parameter);
-        }
+        lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
+            for parameter in symbol_resolved_trees.data_type_parameters(source_type_parameters) {
+                let parameter = crate::data::lower_type_parameter(lowerer, parameter)?;
+                lowerer
+                    .typed_trees
+                    .push_conformance_type_parameter(&mut conformance, parameter);
+            }
+            Ok(())
+        })?;
         // Inline/default realization machines close over the conformance
         // name's telescope. Publish that telescope as the machine template's
         // own generic surface as well, so ordinary specialization can clone

@@ -608,6 +608,30 @@ fn lowers_closed_conformance_rows_to_exact_machine_states() {
 }
 
 #[test]
+fn retains_named_conformance_visibility_and_snapshot_identity() {
+    let source = r#"
+        trait Shape {}
+        data Circle {}
+        pub PublicCircle: Circle satisfies Shape;
+        PrivateCircle: Circle satisfies Shape;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let conformances = program.conformances.iter().collect::<Vec<_>>();
+
+    assert_eq!(conformances.len(), 2);
+    assert!(conformances[0].is_public);
+    assert!(!conformances[1].is_public);
+    let snapshot = program
+        .snapshot_json()
+        .expect("resolved conformance snapshot");
+    assert!(snapshot.contains("\"name\":\"PublicCircle\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+    assert!(snapshot.contains("\"trait_name\":\"Shape\""));
+}
+
+#[test]
 fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
     let source = r#"
         trait Evidence {
