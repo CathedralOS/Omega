@@ -1388,7 +1388,11 @@ fn build_runtime_float_semantics_twins_agree() {
         "directed arithmetic and directed FMA",
         "fused versus separately rounded multiply-add",
     ];
-    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5237_e947_1054_c901;
+    // Provider-plan identity now retains exact package provenance for every
+    // schema, requirement owner, provider type, and origin. Builtin float
+    // providers carry the explicit unbound identity; the companion stability
+    // invariant lives with the float plan suite.
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xc8d6_5187_ebc2_db51;
 
     let canary = pass_canary("float/build_runtime_semantics_twins");
     let main_path = canary.join("main.omg");
