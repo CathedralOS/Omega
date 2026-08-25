@@ -1,1 +1,1 @@
-has no local state `select_provider#Pick#Provider`
+has no local state `select_provider`
