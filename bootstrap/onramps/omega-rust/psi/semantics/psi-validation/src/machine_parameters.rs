@@ -280,6 +280,13 @@ fn validate_call_selection(
             .map(|member| member.as_str())
             .collect::<Vec<_>>()
             .join("::");
+        if selected.application.is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "static machine argument `{rendered}` for `{}` is a nested machine application; recursive specialization identity is not yet supported",
+                parameter.name
+            )));
+            continue;
+        }
         // A recursive generic body may forward its own authored machine
         // parameter (`map<F>(tail)`). This is not a concrete selection yet,
         // but it is already governed by exactly this requirement; the

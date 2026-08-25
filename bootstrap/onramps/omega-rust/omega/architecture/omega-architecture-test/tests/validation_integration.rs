@@ -4474,6 +4474,40 @@ fn higher_order_machine_parameter_refines_and_forwards_distinct_schema() {
 }
 
 #[test]
+fn nested_machine_argument_rejects_before_uninstantiated_shape_can_be_used() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary machine sample(value: u64) -> u64;
+
+        machine inspect<machine Operation>() -> u64
+        where machine Operation<machine Inner>(value: u64) -> u64
+        where machine Inner(value: u64) -> u64;
+        {
+            0
+        }
+
+        machine identity<machine Selected>(value: u64) -> u64
+        where machine Selected(value: u64) -> u64;
+        {
+            value
+        }
+
+        machine use() -> u64 {
+            inspect<identity<sample>>()
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an applied machine family must not validate as its generic base declaration");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("nested machine application; recursive specialization identity")
+    }));
+}
+
+#[test]
 fn generic_body_call_rejects_argument_outside_machine_parameter_contract() {
     let typed = typed_program_from_source(
         r#"

@@ -550,13 +550,15 @@ are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
 selected law. This compiler result still does not become standalone package
 proof until it is carried by the total recheckable package evidence artifact.
 In particular, true nested machine static applications such as
-`consumer<family<Selected>>()` remain fail-closed: checked monomorphization has
-no closed application identity and currently omits recursive arguments and
-lifetimes from conflict equality, specialization keys and fingerprints, and
-retained specialization evidence. Admission requires exact declaration-
-telescope validation plus recursive lifetime and static-argument identity
-throughout those compiler paths. This is distinct from already coherent bare
-generic-machine selection and call-target use such as `Schema<Selected>(...)`.
+`consumer<family<Selected>>()` now reject during compiler validation, before
+checked lowering. Treating the argument as the uninstantiated `family`
+declaration checked the wrong callable shape; monomorphization also has no
+closed recursive application identity in conflict equality, specialization
+keys/fingerprints, or retained specialization evidence. Supporting this form
+requires recursive specialization plus exact declaration-telescope, lifetime,
+and static-argument identity throughout those paths. This is distinct from
+already coherent bare generic-machine selection and call-target use such as
+`Schema<Selected>(...)`.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
