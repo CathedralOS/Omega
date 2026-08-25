@@ -54,3 +54,27 @@ Tempting but wrong alternatives are to treat every declaration lacking a
 visibility bit as public, infer visibility from whether another package happens
 to select it, use reachability as a substitute for source visibility, or let
 the package projector guess public exposure from display names after checking.
+
+## Q2 — What semantic subject does artifact proof establish?
+
+The proof kernel checks a finite derivation of `P` from explicit premises, and
+the artifact verifier reconstructs the exact obligation from canonical source
+and artifact subjects. The remaining soundness bridge must state what it means
+for that accepted proposition to be true.
+
+Choose and relate the semantic subjects used by authoritative verification:
+
+- global consequence over every model satisfying a declarative Omega theory;
+- consequence in an initial or otherwise intended model; or
+- a judgment in one pinned canonical operational transition system.
+
+Different obligation classes may use different subjects only if their join is
+explicit and proved. Do not infer that a global completeness theorem applies to
+an initial-model or canonical-execution claim, and do not add no-junk,
+fixpoint, or model-selection axioms merely to recover that theorem.
+
+This decision gates the bounded matching-logic investigation in
+[`wiki/design_briefs/matching_logic_proof_research.md`](wiki/design_briefs/matching_logic_proof_research.md).
+The investigation may produce an untrusted proof producer, an independent
+semantic diamond, or a proof-import lane; it does not replace the current
+kernel by default.

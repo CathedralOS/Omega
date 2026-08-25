@@ -7869,6 +7869,14 @@ specifications:
 
 ## Deferred until a real customer
 
+- matching logic as a proof/semantics interchange: after Q2 fixes the semantic
+  subject, encode one fixpoint-free Terminal Psi obligation, reconstruct its
+  theory and goal independently from canonical artifact subjects, and compare
+  total trusted bridge size, certificate size, checking cost, constructive
+  assumptions, and positive/negative results against the current route; then
+  attempt one explicit structural-induction correspondence and one external
+  arithmetic-proof import before considering any boot-lattice role; see
+  `wiki/design_briefs/matching_logic_proof_research.md`;
 - fault-tolerant component restart: define closed-custody component closure,
   explicit owner-death protocols for shared resources, external device reset or
   transaction obligations, and target-supplied isolation evidence together;

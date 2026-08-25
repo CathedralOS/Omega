@@ -145,3 +145,9 @@ assurance across the self-host edge.
 - Artifact-specific semantics remain in the canonical ledger definition, not in
   generic kernel rules.
 - Production optimization remains entirely outside the kernel.
+
+The theoretical
+[matching-logic research lane](../../design_briefs/matching_logic_proof_research.md)
+does not alter this boundary. It first asks which semantic subject the accepted
+judgment denotes, then evaluates matching logic as a producer, independent
+diamond, or import format before any kernel role is considered.
