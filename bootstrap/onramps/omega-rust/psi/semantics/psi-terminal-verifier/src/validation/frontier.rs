@@ -16,10 +16,12 @@ struct StructuralOwnershipFrontier {
     // enforce by-value affine/linear use even when no linear claim row exists.
     claims: BTreeMap<ClaimId, LiveClaim>,
     owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
-    /// Exact field paths already transferred from an otherwise-live affine
-    /// root. The root remains present until its complementary residual action
-    /// proves complete exhaustion at `ReturnUnitPartialAffine`.
-    moved_field_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
+    /// Exact projected paths already transferred from an otherwise-live owned
+    /// root. This is independent of the root's multiplicity: no whole-root use
+    /// is legal while a hole remains. Affine roots close through explicit
+    /// residual cleanup; the bounded linear-array slice closes only after its
+    /// complete dense sibling set has moved.
+    partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
 }
 
 pub(super) fn validate_structural_frontier(
@@ -69,7 +71,7 @@ pub(super) fn validate_structural_frontier(
                     .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
-        moved_field_paths: BTreeMap::new(),
+        partial_custody_paths: BTreeMap::new(),
     };
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
@@ -138,7 +140,7 @@ pub(super) fn validate_structural_frontier(
             .any(|candidate| candidate.owned_places != frontier.owned_places)
             || frontiers
                 .iter()
-                .any(|candidate| candidate.moved_field_paths != frontier.moved_field_paths)
+                .any(|candidate| candidate.partial_custody_paths != frontier.partial_custody_paths)
         {
             return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block_id));
         }
@@ -149,7 +151,7 @@ pub(super) fn validate_structural_frontier(
         for operation in &block.operations {
             if let OperationKind::BooleanStructuralField { source, .. } = operation.kind
                 && (!frontier.owned_places.contains_key(&source)
-                    || frontier.moved_field_paths.contains_key(&source))
+                    || frontier.partial_custody_paths.contains_key(&source))
             {
                 return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                     operation: operation.id,
@@ -165,36 +167,6 @@ pub(super) fn validate_structural_frontier(
                     return Err(ModuleError::TrivialAffineLocalAlreadyLive {
                         operation: operation.id,
                         place: destination,
-                    });
-                }
-            }
-            let claims = match &operation.kind {
-                OperationKind::CallUnit {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    claim_transfers, ..
-                }
-                | OperationKind::CallStructural {
-                    claim_transfers, ..
-                } => claim_transfers
-                    .iter()
-                    .map(|transfer| transfer.claim)
-                    .collect::<Vec<_>>(),
-                OperationKind::BoundaryCall {
-                    completion_receipts,
-                    ..
-                } => completion_receipts
-                    .iter()
-                    .map(|settlement| settlement.claim)
-                    .collect::<Vec<_>>(),
-                _ => Vec::new(),
-            };
-            for claim in claims {
-                if frontier.claims.remove(&claim).is_none() {
-                    return Err(ModuleError::ClaimNotLiveAtOperation {
-                        operation: operation.id,
-                        claim,
                     });
                 }
             }
@@ -244,6 +216,46 @@ pub(super) fn validate_structural_frontier(
                 }
                 _ => Vec::new(),
             };
+            for place in &consumed_places {
+                if frontier.partial_custody_paths.contains_key(place) {
+                    return Err(
+                        ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+                            operation: operation.id,
+                            place: *place,
+                        },
+                    );
+                }
+            }
+            let claims = match &operation.kind {
+                OperationKind::CallUnit {
+                    claim_transfers, ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    claim_transfers, ..
+                }
+                | OperationKind::CallStructural {
+                    claim_transfers, ..
+                } => claim_transfers
+                    .iter()
+                    .map(|transfer| transfer.claim)
+                    .collect::<Vec<_>>(),
+                OperationKind::BoundaryCall {
+                    completion_receipts,
+                    ..
+                } => completion_receipts
+                    .iter()
+                    .map(|settlement| settlement.claim)
+                    .collect::<Vec<_>>(),
+                _ => Vec::new(),
+            };
+            for claim in claims {
+                if frontier.claims.remove(&claim).is_none() {
+                    return Err(ModuleError::ClaimNotLiveAtOperation {
+                        operation: operation.id,
+                        claim,
+                    });
+                }
+            }
             for place in consumed_places {
                 if frontier.owned_places.remove(&place).is_none() {
                     return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
@@ -271,41 +283,36 @@ pub(super) fn validate_structural_frontier(
                 } => structural_arguments.as_slice(),
                 _ => &[],
             };
-            for argument in projected_arguments
-                .iter()
-                .filter(|argument| !argument.path.is_empty())
-            {
-                if is_nonempty_field_path(&argument.path)
-                    && matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. })
-                {
-                    let moved = frontier
-                        .moved_field_paths
-                        .entry(argument.place)
-                        .or_default();
-                    if !frontier.owned_places.contains_key(&argument.place)
-                        || moved.iter().any(|existing| {
-                            existing.starts_with(&argument.path)
-                                || argument.path.starts_with(existing)
-                        })
-                        || !moved.insert(argument.path.clone())
-                    {
-                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                            operation: operation.id,
-                            place: argument.place,
-                        });
-                    }
-                    continue;
-                }
-                if !frontier
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(argument.place))
-                    && frontier.owned_places.remove(&argument.place).is_none()
-                {
+            for argument in projected_arguments.iter().filter(|argument| {
+                !argument.path.is_empty() && argument.access == StructuralAccess::Owned
+            }) {
+                if !frontier.owned_places.contains_key(&argument.place) {
                     return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                         operation: operation.id,
                         place: argument.place,
                     });
+                }
+                let moved = frontier
+                    .partial_custody_paths
+                    .entry(argument.place)
+                    .or_default();
+                if moved.iter().any(|existing| {
+                    existing.starts_with(&argument.path) || argument.path.starts_with(existing)
+                }) || !moved.insert(argument.path.clone())
+                {
+                    return Err(ModuleError::OverlappingProjectedStructuralMove {
+                        operation: operation.id,
+                        place: argument.place,
+                    });
+                }
+                if projected_linear_root_is_fully_consumed(
+                    module,
+                    machine,
+                    &frontier,
+                    argument.place,
+                ) {
+                    frontier.owned_places.remove(&argument.place);
+                    frontier.partial_custody_paths.remove(&argument.place);
                 }
             }
             if let OperationResult::Structural(result) = &operation.result {
@@ -390,6 +397,13 @@ pub(super) fn validate_structural_frontier(
                 trivial_affine_discards,
                 ..
             } => {
+                if let Some(place) = frontier.partial_custody_paths.keys().next() {
+                    return Err(ModuleError::PartialStructuralCustodyAtUnitReturn {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *place,
+                    });
+                }
                 let expected_affine_discards = expected_trivial_affine_discards(machine, &frontier);
                 if *trivial_affine_discards != expected_affine_discards {
                     return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
@@ -430,7 +444,7 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
-                let Some(moved) = frontier.moved_field_paths.remove(&root_place) else {
+                let Some(moved) = frontier.partial_custody_paths.remove(&root_place) else {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
@@ -468,7 +482,7 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
-                if !frontier.moved_field_paths.is_empty() {
+                if !frontier.partial_custody_paths.is_empty() {
                     return Err(ModuleError::InvalidPartialAffineCleanup {
                         machine: machine.id,
                         block: block.id,
@@ -501,7 +515,7 @@ pub(super) fn validate_structural_frontier(
                         });
                     }
                 }
-                if !frontier.moved_field_paths.is_empty()
+                if !frontier.partial_custody_paths.is_empty()
                     || !frontier.claims.is_empty()
                     || !frontier.owned_places.is_empty()
                 {
@@ -540,6 +554,13 @@ pub(super) fn validate_structural_frontier(
                 trivial_affine_discards,
                 ..
             } => {
+                if frontier.partial_custody_paths.contains_key(source) {
+                    return Err(ModuleError::StructuralReturnSourcePartiallyMoved {
+                        machine: machine.id,
+                        block: block.id,
+                        place: *source,
+                    });
+                }
                 let result = machine
                     .result
                     .structural()
@@ -638,6 +659,49 @@ pub(super) fn validate_structural_frontier(
     Ok(())
 }
 
+fn projected_linear_root_is_fully_consumed(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    frontier: &StructuralOwnershipFrontier,
+    place: PlaceId,
+) -> bool {
+    let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    else {
+        return false;
+    };
+    if parameter.multiplicity != StructuralMultiplicity::Linear
+        || frontier
+            .claims
+            .values()
+            .any(|claim| claim.input == Some(place))
+    {
+        return false;
+    }
+    let Some(StructuralTypeShape::FixedArray { length, .. }) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .map(|declaration| &declaration.shape)
+    else {
+        return false;
+    };
+    let Some(length) = usize::try_from(*length).ok() else {
+        return false;
+    };
+    let Some(moved) = frontier.partial_custody_paths.get(&place) else {
+        return false;
+    };
+    moved.len() == length
+        && (0..length).all(|index| {
+            moved.contains(&vec![StructuralPathSegment::FixedIndex(
+                u64::try_from(index).expect("a usize index fits u64"),
+            )])
+        })
+}
+
 fn validate_scalar_cleanup_actions(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -690,7 +754,7 @@ fn validate_scalar_cleanup_actions(
         {
             return Err(mismatch());
         }
-        if let Some(moved) = frontier.moved_field_paths.remove(&parameter.place) {
+        if let Some(moved) = frontier.partial_custody_paths.remove(&parameter.place) {
             let Some(residuals) =
                 partial_affine_residuals(module, parameter.structural_type, &moved)
             else {
@@ -729,7 +793,7 @@ fn validate_scalar_cleanup_actions(
 
     if actions.next().is_some()
         || !frontier.owned_places.is_empty()
-        || !frontier.moved_field_paths.is_empty()
+        || !frontier.partial_custody_paths.is_empty()
     {
         return Err(mismatch());
     }
