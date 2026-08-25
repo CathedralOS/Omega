@@ -16,7 +16,9 @@ use crate::symbols::symbol_table::children::{
     insert_operator_symbol_children, insert_proposition_symbol_children,
     insert_trait_symbol_children,
 };
-use crate::symbols::symbol_table::names::{operator_symbol_name, symbol_seed};
+use crate::symbols::symbol_table::names::{
+    operator_symbol_name, operator_symbol_seed, symbol_seed,
+};
 
 pub(super) fn build_symbol_table(
     program: &SymbolResolvedTrees,
@@ -69,7 +71,10 @@ pub(super) fn build_symbol_table(
                 .chain(
                     root_operator_names
                         .iter()
-                        .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+                        .zip(program.operators.iter())
+                        .map(|(name, operator)| {
+                            operator_symbol_seed(program, operator, name, has_sources)
+                        }),
                 )
                 .chain(program.traits.iter().map(|trait_definition| {
                     symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)

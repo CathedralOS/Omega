@@ -6,6 +6,7 @@ use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperatorDefinition {
+    pub is_public: bool,
     pub is_boundary: bool,
     pub symbol: SymbolHandle,
     pub name: HandleSpan<DiagnosticName>,

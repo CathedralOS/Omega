@@ -1414,6 +1414,14 @@ nor runtime storage identity substitutes for that semantic subject. A public
 const whose type exposes private data, or whose value lacks supported canonical
 identity, rejects closed. Declared-type or value changes become source-backed
 `public_const` conflicts; private const-v0 declarations remain unprojected.
+Ordinary `pub operator` visibility is now retained independently of carrier or
+domain qualification. Exact authored source provenance supplies package
+ownership, while proof-static late operator selections finalize only when
+exact typed operands choose one declaration; checked lowering then repeats the
+ordinary visibility gate. Private cross-package selection rejects and
+same-owner implementation use remains legal. The public-operator review shape
+is not yet encoded: overload-safe coordinates, fixed spelling, and direct
+unused declaration-contract projection remain required.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

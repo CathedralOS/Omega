@@ -699,6 +699,7 @@ impl Census {
 
     fn operator(&mut self, operator: &OperatorSnapshot) {
         let OperatorSnapshot {
+            is_public,
             is_boundary,
             name,
             lifetime_parameters,
@@ -709,6 +710,9 @@ impl Census {
             spelling,
             token_count: _,
         } = operator;
+        if *is_public {
+            self.bump("item.public");
+        }
         if *is_boundary {
             self.bump("operator.boundary");
         }

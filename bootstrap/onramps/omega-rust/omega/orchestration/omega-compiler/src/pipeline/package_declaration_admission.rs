@@ -140,6 +140,35 @@ pub(super) fn validate_authored_declaration_selections(
             }
         }
 
+        if program.symbols.get(selected).kind == SymbolKind::Operator {
+            let Some(declaration) =
+                psi_typed_trees::operator::declaration_by_symbol(program, selected)
+            else {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "selected operator `{}` has no retained declaration visibility",
+                        program.symbols.display_path(selected, "::")
+                    ))
+                    .with_source_span(source_span),
+                );
+                continue;
+            };
+            if !declaration.is_public {
+                let owner = program.symbols.symbol_package_identity(selected);
+                if owner != Some(requester) {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "package {} selects private operator `{}`",
+                            packages.package_label(requester),
+                            program.symbols.display_path(selected, "::"),
+                        ))
+                        .with_source_span(source_span),
+                    );
+                    continue;
+                }
+            }
+        }
+
         if let Some(owner) = program.symbols.symbol_package_identity(selected) {
             if !packages.allows_declaration_selection(requester, owner) {
                 diagnostics.push(

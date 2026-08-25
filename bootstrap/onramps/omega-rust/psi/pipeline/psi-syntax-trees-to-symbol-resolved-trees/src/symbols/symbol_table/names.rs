@@ -32,3 +32,28 @@ pub(super) fn operator_symbol_name(
         .collect::<Vec<_>>()
         .join("::")
 }
+
+pub(super) fn operator_symbol_seed<'name>(
+    program: &SymbolResolvedTrees,
+    operator: &psi_symbol_resolved_trees::operator::OperatorDefinition,
+    canonical_name: &'name str,
+    has_sources: bool,
+) -> SymbolSeed<'name> {
+    let source_name = program.operator_path_members(operator.name).last();
+    if has_sources && source_name.is_some_and(|name| name.is_source_backed()) {
+        (
+            SymbolKind::Operator,
+            SymbolNameRef::OwnedSource {
+                value: canonical_name,
+                source_span: source_name
+                    .expect("source-backed operator path member")
+                    .source_span(),
+            },
+        )
+    } else {
+        (
+            SymbolKind::Operator,
+            SymbolNameRef::Borrowed(canonical_name),
+        )
+    }
+}

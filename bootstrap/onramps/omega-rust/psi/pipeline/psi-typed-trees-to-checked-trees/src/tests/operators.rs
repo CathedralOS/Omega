@@ -1721,6 +1721,7 @@ fn named_type(program: &mut psi_typed_trees::TypedTrees, name: &str) -> TypeRefe
 
 fn operator_with_spelling(symbol: SymbolHandle, spelling: OperatorSpelling) -> OperatorDefinition {
     OperatorDefinition {
+        is_public: false,
         is_boundary: false,
         symbol,
         name: HandleSpan::empty(),

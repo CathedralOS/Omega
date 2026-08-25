@@ -587,6 +587,14 @@ whose declared type exposes private data, or whose value cannot yet be given
 that exact semantic identity, reject rather than weakening the row. A type or
 value change consequently enters source-backed conflict review as
 `public_const`; private const-v0 declarations remain outside this API surface.
+Ordinary `pub operator` visibility now survives checked compilation and owns
+its visibility independently of any carrier-qualified path. Exact authored
+source provenance keeps package ownership recoverable, and late proof-static
+operator selections finalize only from exact typed operands before the
+visibility gate is repeated. Cross-package private selection rejects while an
+owner's private implementation use remains legal. A standalone public-operator
+review row is still incomplete: overload-safe declaration coordinates and
+direct unused-contract projection must land before review encoding advances.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

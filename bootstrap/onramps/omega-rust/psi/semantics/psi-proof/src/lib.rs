@@ -665,6 +665,7 @@ mod tests {
             .type_references
             .insert_named(Identifier::generated("T"));
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
+            is_public: false,
             is_boundary: false,
             name: operator_name,
             lifetime_parameters: Vec::new(),

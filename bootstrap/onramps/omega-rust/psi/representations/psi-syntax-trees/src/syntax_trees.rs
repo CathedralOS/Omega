@@ -411,6 +411,7 @@ impl SyntaxTrees {
         operator: &OperatorDefinition,
     ) -> OperatorDefinition {
         OperatorDefinition {
+            is_public: operator.is_public,
             is_boundary: operator.is_boundary,
             name: self.copy_item_identifier_span(other, operator.name),
             lifetime_parameters: operator.lifetime_parameters.clone(),

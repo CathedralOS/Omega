@@ -126,7 +126,10 @@ pub fn lower_symbol_resolved_trees(
     }
 
     for operator in &symbol_resolved_trees.operators {
-        let operator = lower_operator_definition(&mut lowerer, operator)?;
+        let operator = lowerer
+            .with_type_reference_exposure(declaration_exposure(operator.is_public), |lowerer| {
+                lower_operator_definition(lowerer, operator)
+            })?;
         lowerer.typed_trees.push_operator(operator);
     }
 

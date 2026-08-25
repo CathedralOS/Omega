@@ -58,6 +58,47 @@ fn retains_exact_nominal_type_selections_with_declaration_exposure() {
 }
 
 #[test]
+fn retains_public_operator_visibility_and_signature_exposure() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        pub data Token [copy] { value: u64; }
+        pub operator < Token::less(left: Token, right: Token) -> bool;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let token = resolved
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Token")
+        .expect("Token data")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let [operator] = typed.operators() else {
+        panic!("one root operator")
+    };
+    assert!(operator.is_public);
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| {
+                selection.kind() == Kind::TypeReference
+                    && matches!(
+                        selection.target(),
+                        Target::Resolved(target) if target.selected_symbol() == token
+                    )
+            })
+            .all(|selection| selection.exposure() == Exposure::PublicInterface)
+    );
+    assert!(typed.snapshot().roots.operators[0].is_public);
+}
+
+#[test]
 fn retains_public_data_trait_and_wire_visibility_in_typed_trees() {
     let tokens = Lexer::new(
         "pub data PublicRecord { value: u32; } pub data Packet { #1 value: u32; } pub trait PublicTrait {}",

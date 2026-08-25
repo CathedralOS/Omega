@@ -168,7 +168,14 @@ pub(crate) fn lower_domain_definition(
     }
 
     for operator in lowerer.source_trees.operator_definitions(domain.operators) {
-        let operator = lower_operator_definition(lowerer, operator)?;
+        let operator = lowerer.with_type_reference_exposure(
+            if operator.is_public {
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            } else {
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            },
+            |lowerer| lower_operator_definition(lowerer, operator),
+        )?;
         lowerer
             .typed_trees
             .push_domain_operator(&mut typed_domain, operator);

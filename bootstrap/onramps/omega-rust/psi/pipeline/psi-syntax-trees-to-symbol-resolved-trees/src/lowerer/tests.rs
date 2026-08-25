@@ -2329,7 +2329,7 @@ fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
 #[test]
 fn preserves_operator_declarations() {
     let source = r#"
-    operator Slice::index<T>(items: &[T], index: usize) -> T
+    pub operator Slice::index<T>(items: &[T], index: usize) -> T
     requires
         index < items.len;
     "#;
@@ -2342,6 +2342,7 @@ fn preserves_operator_declarations() {
 
     assert_eq!(program.operators.len(), 1);
     let operator = &program.operators[0];
+    assert!(operator.is_public);
     assert_eq!(
         program
             .operator_path_members(operator.name)
