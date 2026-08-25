@@ -547,6 +547,33 @@ and materializes the native code address only inside the binding lowering. The
 source program continues to name a machine and a requirement rather than
 constructing an address-shaped callback value.
 
+For a nested native destination, the independently evaluated layout declares
+the stable typed slot before the registrar can supply it:
+
+```omega
+WndClassWindowProcedureSlot:
+    WndClassLayout satisfies
+        PrivateCallbackSlot<WindowProcedure::call>;
+
+machine WndClassLayout::plan(schema: Schema) -> Plan
+    satisfies Layout::plan
+{
+    ...
+    Plan::place_private<WndClassWindowProcedureSlot>(
+        plan,
+        window_procedure_offset
+    )
+}
+```
+
+The plan operation explicitly names the conformance; the compiler never scans
+for conformances attached to `WndClassLayout`. The conformance is inert until
+cited, so ordinary third-party named-conformance rules need no owner or orphan
+exception. Its subject and static requirement argument form the exact typed
+pair needed for wrong-layout and wrong-requirement rejection. The layout owns
+the physical offset. That offset is target-dependent geometry, never slot
+identity and never an outbound calling-plan coordinate.
+
 The registration operation binds its static machine parameter to the exact
 callback requirement with the nominal `where machine` form:
 
@@ -593,7 +620,7 @@ CallbackMaterialization {
     destination: NativePlace::Field(
         RegisterClassNativeParameters::class,
         WndClassLayout,
-        [WndClassLayout::window_procedure],
+        [WndClassWindowProcedureSlot],
     ),
 }
 ```

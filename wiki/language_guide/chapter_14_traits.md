@@ -217,6 +217,14 @@ ambient conformance lookup. They resolve from their operand types and declared
 domains, from one exact conformance already selected by a proof-static binder,
 from evidence already encoded in those types, or from a sealed language route.
 
+Build-time policy data may likewise cite one exact named conformance
+explicitly. For example, a native layout plan may select
+`WndClassWindowProcedureSlot`, where that name is evidence that
+`WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>`. The
+declaration alone changes no plan; the explicit plan citation creates the
+typed private demand. This remains ordinary named-evidence selection rather
+than enumeration of conformances attached to the layout type.
+
 A trait may declare free-machine requirements:
 
 ```omega

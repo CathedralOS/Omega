@@ -1491,6 +1491,29 @@ code/component lease. Its occurrence provenance retains the selected machine,
 but a public caller may reason from the narrower actual envelope only when the
 API explicitly forwards that guarantee.
 
+For a nested callback, the native layout independently declares and places the
+private demand:
+
+```omega
+WndClassWindowProcedureSlot:
+    WndClassLayout satisfies
+        PrivateCallbackSlot<WindowProcedure::call>;
+
+// Inside WndClassLayout::plan; conceptual closed-vocabulary constructor.
+Plan::place_private<WndClassWindowProcedureSlot>(
+    plan,
+    window_procedure_offset
+)
+```
+
+The plan explicitly selects the named conformance. No conformance population
+is searched, and the declaration alone changes no layout. Its subject fixes
+the exact layout and its static argument fixes the exact signature-free
+callback requirement. Layout evaluation resolves both declarations into
+opaque normalized identities. The layout policy may author or compute the
+target-dependent offset, but the calling plan neither repeats that offset nor
+uses it as slot identity.
+
 The registrar's evaluated outbound `CallPlan` separately maps the nominal
 `Procedure` binder slot to one declared private native place. A direct callback
 argument names a native parameter; a nested callback names a field through its

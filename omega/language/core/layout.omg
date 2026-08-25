@@ -118,7 +118,12 @@ data FieldEntry {
 // the schema field and may repeat only for `Bits` fragments. Positions past
 // `entry_count` are meaningless. The compiler checks field coverage, exact
 // source tiling for fragments, destination bounds/overlap, and fixed-plan
-// size/alignment before anything trusts the plan.
+// size/alignment before anything trusts the plan. The settled native-layout
+// extension adds a bounded private-materialization catalog whose entries cite
+// exact named `PrivateCallbackSlot<Requirement>` conformance applications.
+// That source ABI and its `Plan::place_private` constructor remain engineering
+// work; neither raw slot identities nor callback addresses enter this record
+// in the interim.
 data Plan {
     entries: [FieldEntry; 64];
     entry_count: u64;

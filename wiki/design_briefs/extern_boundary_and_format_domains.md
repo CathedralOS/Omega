@@ -443,12 +443,26 @@ a general function-pointer value.
 
 A projected native callback field is a typed private-materialization demand in
 the normalized layout plan, not a field of the source-visible specification.
-Layout validation records its nominal slot identity and expected callback
-requirement; complete outbound-plan validation requires every such demand to be
-supplied exactly once by a compatible callback-materialization row. Missing,
-duplicate, overlapping, shape-incompatible, or unresolved demands reject.
-Source cannot read, write, serialize, or address the field, and neither binder
-order nor layout byte offsets are placement rules.
+The target package declares its stable identity as an explicitly named
+`Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and the
+layout policy must cite that exact conformance in its private placement entry.
+The declaration alone is inert: layout evaluation never enumerates visible
+conformances, and ordinary third-party evidence cannot inject a demand into an
+existing plan. The subject supplies exact layout identity while the static
+argument supplies one signature-free callback-requirement path; overload
+ambiguity rejects.
+
+Layout validation records the conformance-owned slot identity, exact callback
+requirement, and target-closed placement independently. Complete outbound-plan
+validation requires every such demand to be supplied exactly once by a
+compatible callback-materialization row. Missing, duplicate, wrong-layout,
+wrong-requirement, overlapping, shape-incompatible, or unresolved demands
+reject. Source cannot read, write, serialize, or address the field. The
+authoritative layout may author or compute its physical offset, but neither
+binder order nor a repeated byte offset is a calling-plan placement rule.
+Changing only the selected callback changes per-use/thunk identity; changing
+the evaluated offset changes target-realization and artifact identity while
+the target-neutral requirement declaration remains stable.
 
 Callback placement does not own native-argument storage lifetime. Direct
 arguments, call-scoped staging, retained pointees, snapshots, and stable roots
