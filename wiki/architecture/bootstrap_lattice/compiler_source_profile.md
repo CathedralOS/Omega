@@ -357,24 +357,38 @@ attached-machine calls, including calls across source files in one logical
 module. Native, Delta-self-built, and Rust-free meaning routes compose to the
 same checked IR, conservative ELF, and result. Independent `OMGRFN3` framing,
 source→witness, witness→CKIR2 tables, CKIR/result, and CKIR2→ELF reconstruction
-are closed; resolved body/call lowering, an artifact-free source result, and
-final five-way composition remain open. Neither the implemented slice nor its
-eventual refinement completion decides that calls, records, arrays, or attached
-machines belong to final `Ωself`; it supplies the implementation and assurance
-cost needed by that later decision.
+now compose with resolved body/call lowering and a physically artifact-free
+source result over one exact role-3 frame. Neither this completed versioned slice
+decides that calls, records, arrays, or attached machines belong to final
+`Ωself`; it supplies the implementation and assurance cost needed by that later
+decision.
 
-The next checkpoint-000001 tranche begins with the private
+The private
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-transport. It canonically maps the exact source bundle onto opaque package
-commitments, requester-local aliases, resolver-owned logical module placement,
-optional agreeing authored module claims, and one exact
-root. The format deliberately does not turn labels into identity, interpret
-`build.omg`, or grant resolver authority: compilation must join it to an
+transport now closes structural multi-unit custody. It canonically maps the
+exact source bundle onto opaque package commitments, requester-local aliases,
+resolver-owned logical module placement, optional agreeing authored module
+claims, and one exact root. The format deliberately does not turn labels into
+identity, interpret `build.omg`, or grant resolver authority: compilation must
+join it to an
 independently accepted lock/closure commitment and independently reconstruct
 module declarations, direct reach, visibility, name resolution, semantic order,
 checked IR, and the artifact. This is general multi-unit custody needed by the
 current product checkpoint, not a new Delta feature inventory or an `Ωself`
 decision.
+
+The next selected checkpoint-000001 semantic/artifact tranche is recursively
+constant scalar, record, and fixed-array construction from the exact standalone
+`compiler/psi/generated/unicode_tables.omg` unit, together with scalar `<=` and
+a same-module behavioral harness. The general capability is a typed semantic
+constant graph or pool, aggregate copy, and nested indexing—not recognition of
+the generated filename, its exact literal count, or its two table lengths. A
+versioned successor to the frozen CKIR2 handoff must let the backend derive
+layout and materialize private read-only data without exploding the source into
+thousands of place/store operations or accepting producer-selected layout
+bytes. This slice directly prices generated ordinary-Omega data and the
+measured Stage-08 expansion hotspot; it does not decide the final disposition
+of records, arrays, generated source, or any later checkpoint feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

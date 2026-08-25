@@ -115,16 +115,14 @@ Two lanes co-evolve until their join:
 
 The immediate executable order is:
 
-1. finish and compose the one remaining `OMGRFN3` body/call/source-result
-   responsibility for the already-implemented CKIR2 slice;
-2. continue general checkpoint-000001 capabilities, one compositional vertical
+1. continue general checkpoint-000001 capabilities, one compositional vertical
    slice at a time;
-3. consume later product-source checkpoints as they are published; and
-4. perform the profile/language freezes and hosted builds only after both
+2. consume later product-source checkpoints as they are published; and
+3. perform the profile/language freezes and hosted builds only after both
    complete source closures exist.
 
 The accepted-lock authority join may land whenever its external contract is
-published. It does not reorder or block the first three items.
+published. It does not reorder or block these items.
 
 Product Psi/Omega implementation and any chosen source refactor stay in
 `TASKS.md`. This queue must not turn possible `Ωself` exclusions into separate
@@ -156,8 +154,9 @@ explicit failure. Maintain that evidence only in
 The visibility rule for private access between distinct logical modules in one
 package is unspecified. Until it is ruled, the bridge rejects that case. Public
 cross-package access and same-module private access remain unblocked, including
-the current two-package nominal-data artifact. No other item below is presently
-design-blocked merely because it is large or difficult.
+the current two-package nominal-data artifact. The selected constant-aggregate
+slice is deliberately same-module and does not depend on this ruling. No other
+item below is presently design-blocked merely because it is large or difficult.
 
 The compilation-authority join is separately waiting on the package/security
 owner, not on a bootstrap language ruling. There is not yet a canonical accepted
@@ -242,28 +241,41 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
 | producer composition | CKIR1 remains closed; focused CKIR2 native, self-built, mixed, and Rust-free producer/backend composition yields exact CKIR, ELF, and result | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 `OMGRFN3` layers 1–3 and the layer-5 CKIR/result and ELF responsibilities are closed, leaving only body/call/source-result reconstruction and final composition | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
+| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md) |
 | compilation authority | externally gated: canonical accepted-lock projection plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
 makes Terminal Psi part of the bridge. Terminal-Psi vocabulary and production
 compiler implementation remain product work in `TASKS.md`.
 
-The next actionable bridge work is to finish lower-rooted refinement for the
-already implemented versioned call/root slice, followed by the remaining
-capabilities actually used by published product checkpoints. Do not idle on the
-separately blocked compilation-authority join.
+The next actionable bridge work is the remaining capabilities actually used by
+published product checkpoints. The CKIR2 exact-root/typed finite-call slice now
+has producer, Rust-free meaning, responsibility-local refinement, and
+same-exact-frame composition in focused gates. That versioned slice is
+cost evidence, not admission of recursion or a final `Ωself` ruling. Do not idle
+on the separately blocked compilation-authority join.
 
-- [ ] Complete the independent `OMGRFN3` source-to-artifact refinement for the
-  implemented CKIR2 exact-root and typed finite-call tranche. Layers 1–3 already
-  close frame/source custody, source→witness resolution, and witness→CKIR2
-  tables; layer 5 already closes CKIR/result validation and CKIR2→ELF. Finish
-  layer 4's body/call lowering and physically artifact-free source result, run
-  all five responsibilities over the same exact frame, and add them to the
-  lattice gate. Preserve responsibility-local negatives for bindings, call
-  order, cycles, resources, source/artifact cross-pairs, ABI staging, reachable
-  closure, and exact bytes. This is a versioned bridge slice, not admission of
-  recursion or a final `Ωself` ruling.
+- [ ] Close the next checkpoint-000001 vertical slice: recursively constant
+  scalar/record/fixed-array values, copying a completed aggregate into mutable
+  storage, nested aggregate indexing, and scalar `<=`. Exercise the exact
+  standalone `compiler/psi/generated/unicode_tables.omg` source with a
+  same-module result harness, but specify and test a general source family
+  rather than that filename, its 1,497 record literals, or its two exact table
+  sizes. Version the frozen `OMGLOW2`/CKIR2 handoff instead of reinterpreting
+  it. Prefer a typed semantic constant graph or pool plus aggregate copy whose
+  layout is derived by the backend; do not expand the tables into thousands of
+  source-shaped store operations or accept producer-selected layout bytes.
+
+  Acceptance: the exact Unicode source and harness produce result 70; renamed,
+  reordered, smaller, and nested positives preserve ordinary Omega meaning;
+  field/type/arity/nonconstant/copy/layout/`<=` negatives reject 251; adjacent
+  source, pool, graph, checked-IR, image, frame, and runtime limits reject 252
+  before publication, including the provisional 1,024/1,025 array-literal and
+  four/five record-field boundaries; native, Delta-self-built, and Rust-free
+  meaning routes agree on bytes and 0/251/252 observations; and a new versioned
+  lower-rooted refinement composes source custody, source meaning, constant
+  tables, checked IR/result, and conservative artifact reconstruction without
+  turning them into one verifier.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted
