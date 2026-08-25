@@ -300,11 +300,16 @@ language, generation, or architectural role; new documentation and work use
   case construction plus exhaustive selected-edge payload binding without
   reading inactive payloads or claiming a public Omega ABI. OMGRSW3 production
   now passes its focused native/self, least-version, mutation, and resource
-  gate. An independent CKIR5 checker/meaning fixture validates the complete
-  schema and result-70 relation, and OMGRFN7 R1 validates exact outer framing
-  and source custody while keeping successor components opaque. OMGLOW6 body
-  lowering, the CKIR5 backend, and OMGRFN7 R2–R5 remain open, so this is not yet
-  a closed sum tranche.
+  gate. The general OMGLOW6 producer now publishes ConstructCase, structural
+  Copy/Call, value/place CaseDispatch, and complete selected-payload bindings;
+  the independent CKIR5 checker interprets its exact result as 70. The
+  versioned conservative backend derives the private sum layout and emits
+  native/self-identical ELF while preserving frozen CKIR4 bytes. OMGRFN7 R1
+  validates exact outer/source custody, R2 independently reconstructs
+  source→OMGRSW3, and R3 checks witness→CKIR5 declarations, private layout,
+  construction, dispatch arms, and selected-payload identities. R4/R5 and
+  same-frame composition remain open, so this is not yet a closed lower-rooted
+  sum tranche.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

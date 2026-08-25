@@ -595,7 +595,7 @@ fi
 # a time inside explicit byte backing. It must never accept a prefix after
 # exhausting that backing.
 set +e
-dd if=/dev/zero bs=262145 count=1 2>/dev/null | "$T/lmx" > /dev/null 2>&1
+dd if=/dev/zero bs=524289 count=1 2>/dev/null | "$T/lmx" > /dev/null 2>&1
 source_overflow=$?
 set -e
 if [ "$source_overflow" = 2 ]; then

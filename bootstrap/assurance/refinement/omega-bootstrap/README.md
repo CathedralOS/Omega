@@ -120,8 +120,13 @@ The next payload-bearing pure-sum successor is specified as
 CKIR5 while preserving the five responsibility owners and the existing outer
 component ceilings. Its explicit case-arm/payload-argument relation prevents
 inactive-payload reads and keeps layout reconstruction private. The contract is
-fixed; responsibility-local implementations and same-frame evidence remain
-open and are not claimed by this entry.
+fixed. Responsibility 1 closes exact outer framing and source custody while
+keeping successor components opaque; responsibility 2 independently
+reconstructs the pure-sum OMGRSW3 ownership, nominal-prefix, copy, and
+direct-field relations; responsibility 3 independently joins OMGRSW3 to CKIR5
+declarations, private layout, opcode-14 envelopes, exhaustive case arms, and
+selected payload references. Responsibilities 4/5 and immutable same-frame
+composition remain open.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact

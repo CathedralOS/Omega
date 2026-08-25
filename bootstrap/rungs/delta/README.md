@@ -41,7 +41,10 @@ system.
   aggregate overflow, or over-wide signature exits with the established
   storage/array exhaustion status `3` before publishing output; exact-bound
   gates also resolve and call names beyond the former 64-row parameter
-  partition through both native and self-built compilers.
+  partition through both native and self-built compilers. Its explicit byte
+  arena currently reserves 512 KiB so the growing general bridge compiler fits
+  without making source compaction part of the language contract; the adjacent
+  512-KiB-plus-one input still fails closed before compilation or output.
 - [`build/`](build/) contains the checked-in bootstrap compiler artifacts.
 - [`../../onramps/delta-rust/`](../../onramps/delta-rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.

@@ -49,7 +49,7 @@ data Main {
     fns_base: i32; fne_base: i32;
     sns_base: i32; sne_base: i32; smi_base: i32; ssi_base: i32; dig_base: i32;
     typed_backing: [i32; 19992];
-    byte_backing: [u8; 262144];
+    byte_backing: [u8; 524288];
 }
 
 machine Main::reserve_typed(&mut self, count: i32, align: i32) {
@@ -66,8 +66,8 @@ machine Main::reserve_byte(&mut self, count: i32, align: i32) {
     self.alloc_ok = 0;
     transition count < 0 { true -> fail() false -> align_check() }
     state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
-    state pad() { self.alloc_pad = (align - (self.byte_cursor % align)) % align; transition self.alloc_pad <= 262144 - self.byte_cursor { true -> count_check() false -> fail() } }
-    state count_check() { transition count <= 262144 - (self.byte_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state pad() { self.alloc_pad = (align - (self.byte_cursor % align)) % align; transition self.alloc_pad <= 524288 - self.byte_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 524288 - (self.byte_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
     state commit() { self.alloc_base = self.byte_cursor + self.alloc_pad; self.byte_cursor = self.alloc_base + count; self.alloc_ok = 1; }
     state fail() { self.storage_ok = 0; }
 }
