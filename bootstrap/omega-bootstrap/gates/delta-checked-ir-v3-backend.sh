@@ -109,9 +109,17 @@ python3 -B "$ELF_REFERENCE" check "$T/image-boundary.ckir3" "$T/image-boundary.b
 run_expect "$T/backend.native" "$T/canonical.ckir3" 0 "$T/canonical.repeat.elf" "canonical repeat"
 cmp "$T/canonical.backend.native.elf" "$T/canonical.repeat.elf"
 
-for CASE in schema-major constant-scalar-type constant-order-duplicate \
-  constant-forward-child constant-unreachable copy-root-type copy-immediate-one \
-  less-equal-result-type; do
+MALFORMED_CASES='schema-major
+constant-count-extent constant-child-count-extent
+constant-dense-id constant-empty-span constant-span-start constant-span-count
+constant-reserved constant-scalar-range constant-structural-scalar
+constant-scalar-type constant-structural-type constant-order-inversion
+constant-order-duplicate constant-forward-child constant-unreachable
+copy-opcode copy-flags copy-destination-operand copy-operand-count
+copy-result-kind copy-result-id copy-result-type copy-root-id copy-root-type
+copy-immediate-one less-equal-immediate less-equal-result-kind
+less-equal-result-id less-equal-result-type'
+for CASE in $MALFORMED_CASES; do
   run_expect "$T/backend.native" "$T/cases/$CASE.ckir3" 251 "$T/$CASE.native.out" "$CASE native"
   run_expect "$T/backend.self" "$T/cases/$CASE.ckir3" 251 "$T/$CASE.self.out" "$CASE self"
   if python3 -B "$IR_REFERENCE" validate "$T/cases/$CASE.ckir3" \
@@ -141,6 +149,7 @@ print(
     f"{sys.argv[4]} procedures; self asm {sys.argv[5]} bytes; "
     f"build {built-started:.2f}s, controls {finished-built:.2f}s, "
     f"total {finished-started:.2f}s; nested constant/<=, conditional R segment, "
-    "canonical DAG/image boundary, 251/252, native/self controls passed"
+    "canonical DAG/image boundary, 30 isolated 251 mutations, separate 252 "
+    "resources, native/self/reference controls passed"
 )
 PY

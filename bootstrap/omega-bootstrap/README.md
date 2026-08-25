@@ -42,6 +42,12 @@ language, generation, or architectural role; new documentation and work use
   written in Beta. Gamma's canonical interpreter runs the result.
 - [`gates/omega-meaning.sh`](gates/omega-meaning.sh) exercises supported Omega
   samples through that route.
+- [`gates/omega2gamma-termination.sh`](gates/omega2gamma-termination.sh) requires
+  every supported or explicitly refused source to terminate under a hard
+  alarm. It includes the structured-array terminal path that previously
+  published an unsupported marker and then scanned past its block forever.
+  Dead translator procedures are removed rather than consuming the fixed
+  lattice artifact merely to preserve unused implementation permutations.
 - [`gates/kernel-diamond.sh`](gates/kernel-diamond.sh) compares the supported kernel subset across current native
   and meaning implementations. It is a regression/coverage gate.
 - [`gates/lowermachine-meaning.sh`](gates/lowermachine-meaning.sh) pins the
@@ -182,13 +188,17 @@ language, generation, or architectural role; new documentation and work use
   copy, `<=`, result 70, semantic 251, and resource 252. The independent
   [`gates/delta-checked-ir-v3-backend.sh`](gates/delta-checked-ir-v3-backend.sh)
   validates the constant graph, derives layout and a private read-only image,
-  and emits native/self-identical two- or three-segment ELF bytes. Its Rust-free
+  rejects 30 isolated CKIR3-specific malformed mutations through native,
+  self-built, and independent-reference routes, preserves resource overages as
+  a separate 252 matrix, and emits native/self-identical two- or three-segment
+  ELF bytes. Its Rust-free
   [`gates/delta-checked-ir-v3-backend-meaning.sh`](gates/delta-checked-ir-v3-backend-meaning.sh)
   independently evaluates the representative CKIR3 to result 70, reconstructs
   its exact 12,288-byte three-segment ELF, and requires Gamma to reproduce that
   publication plus isolated 251/252 empty-output controls. The focused
   [`gates/delta-ckir3-composite.sh`](gates/delta-ckir3-composite.sh) runs every
-  native/self producer/backend pairing over exact source frames, derives
+  native/self producer/backend pairing over exact source frames, including the
+  renamed/declaration-reordered/authored-field-reordered/nested positive, derives
   results 70 and 71 through the independent
   [`checked_ir_v3_reference.py`](gates/checked_ir_v3_reference.py), reconstructs
   every ELF byte through

@@ -280,8 +280,19 @@ on the separately blocked compilation-authority join.
     inability to execute a Linux ELF as semantic evidence.
   - [x] Add the Rust-free Gamma meaning route for representative success,
     semantic rejection 251, and resource rejection 252.
-  - [ ] Complete responsibility-local mutations and adjacent source, constant
-    graph, checked-IR, image, frame, and runtime limits.
+  - [x] Complete isolated CKIR3 header/count, constant identity/span/payload/
+    ordering, opcode-11/opcode-12 shape, operand, immediate, root, and result
+    mutation teeth through native, self-built, and independent-reference
+    rejection; retain the exact emitted-ELF byte sweep separately.
+  - [x] Carry the renamed/declaration-reordered/authored-field-reordered/nested
+    positive through independent result evaluation plus every native/self/mixed
+    backend pairing and exact ELF reconstruction.
+  - [ ] Complete the remaining phase-isolated source negatives and adversarial
+    interval-custody controls without copying that matrix into meaning or
+    backend gates.
+  - [ ] Complete adjacent source, constant-graph, checked-IR, image, frame,
+    text, ELF, and evaluator limits with genuine canonical maxima or greatest-
+    realizable boundaries rather than header-only proxy overages.
   - [x] Freeze the distinct `OMGRFN4` lower-rooted carrier, its derived
     4,497,544-byte simultaneous ceiling, and the five-responsibility ownership
     boundary without widening `OMGRFN1`–`OMGRFN3`.

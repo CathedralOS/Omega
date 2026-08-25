@@ -137,12 +137,14 @@ PY
 prepare guardless-70 GuardlessProbe run "$FIXTURES/guardless-transition.omg"
 prepare guardless-71 GuardlessProbe run "$T/guardless-71.omg"
 prepare cyclic CustodyCycle run "$FIXTURES/cyclic-range-custody.omg"
+prepare renamed AggregateProbe run "$FIXTURES/renamed-reordered-nested.omg"
 prepare unicode UnicodeTables bootstrap_constant_aggregate_probe \
   "$UNICODE" "$FIXTURES/unicode-harness.omg"
 
 compose guardless-70 70
 compose guardless-71 71
 compose cyclic 70
+compose renamed 70
 compose unicode 70
 
 [ "$(wc -c < "$T/cyclic.native.ckir3" | tr -d ' ')" -eq 2564 ]
@@ -216,7 +218,8 @@ import sys
 started, built, finished = map(float, sys.argv[1:])
 print(
     "CKIR3 composite: exact native/self/mixed CKIR3 and ELF, independent "
-    "results 70/71, complete ELF reconstruction, valid cross-pairs, and "
+    "results 70/71 including renamed/reordered nesting, complete ELF "
+    "reconstruction, valid cross-pairs, and "
     f"representative 251/252 seams passed; build {built-started:.2f}s, "
     f"compose {finished-built:.2f}s, total {finished-started:.2f}s"
 )
