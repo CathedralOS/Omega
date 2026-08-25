@@ -4,6 +4,7 @@ mod contracts;
 mod float_meaning;
 mod obligations;
 
+pub(crate) use contracts::machine_parameter_evidence_signatures;
 use contracts::{
     append_inherited_trait_contract_facts, append_machine_contract_facts,
     append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
@@ -52,18 +53,39 @@ pub(crate) fn build_proof_facts_with_operators(
             );
         }
         append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
-        for parameter in program.machine_type_parameters(machine) {
-            let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
-            else {
-                continue;
-            };
-            let contract = program
-                .machine_parameter_contract_view(contract)
-                .expect("typed machine-parameter contract must retain a valid requirement identity")
-                .signature();
+        for (owner_symbol, _, contract) in
+            machine_parameter_evidence_signatures(program, program.machine_type_parameters(machine))
+        {
             append_state_signature_contract_facts(
                 program,
-                parameter.symbol,
+                owner_symbol,
+                std::slice::from_ref(contract),
+                &mut contract_facts,
+                &mut evidence_terms,
+            );
+        }
+    }
+    for definition in program.data_definitions() {
+        for (owner_symbol, _, contract) in
+            machine_parameter_evidence_signatures(program, program.data_type_parameters(definition))
+        {
+            append_state_signature_contract_facts(
+                program,
+                owner_symbol,
+                std::slice::from_ref(contract),
+                &mut contract_facts,
+                &mut evidence_terms,
+            );
+        }
+    }
+    for definition in program.domain_definitions() {
+        for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
+            program,
+            program.domain_type_parameters(definition),
+        ) {
+            append_state_signature_contract_facts(
+                program,
+                owner_symbol,
                 std::slice::from_ref(contract),
                 &mut contract_facts,
                 &mut evidence_terms,
@@ -71,6 +93,32 @@ pub(crate) fn build_proof_facts_with_operators(
         }
     }
     for trait_definition in program.traits() {
+        for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
+            program,
+            program.trait_type_parameters(trait_definition),
+        ) {
+            append_state_signature_contract_facts(
+                program,
+                owner_symbol,
+                std::slice::from_ref(contract),
+                &mut contract_facts,
+                &mut evidence_terms,
+            );
+        }
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
+                program,
+                program.state_signature_type_parameters(requirement),
+            ) {
+                append_state_signature_contract_facts(
+                    program,
+                    owner_symbol,
+                    std::slice::from_ref(contract),
+                    &mut contract_facts,
+                    &mut evidence_terms,
+                );
+            }
+        }
         append_state_signature_contract_facts(
             program,
             trait_definition.symbol,

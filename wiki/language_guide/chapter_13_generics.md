@@ -305,6 +305,14 @@ Rules:
   callback requirement, selects a named static satisfying machine, and emits
   its thunk/relocation privately without producing a general runtime machine
   value.
+- When a public package surface contains a static machine parameter, package
+  review retains the authored contract rather than only the `machine` kind.
+  Structural contracts include the complete recursively alpha-normalized
+  signature and operational envelope; nominal contracts include the exact
+  public trait and requirement identities. Renaming machine binders is not an
+  API change, while changing any nested contract shape or authority is. A
+  private nominal requirement or missing checked contract evidence rejects
+  package review.
 - Accepted generic axioms are granted once at the normalized template
   statement, including its machine-parameter contract. Each instantiation
   records that template receipt and the selected machine-contract identities

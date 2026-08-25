@@ -7,12 +7,13 @@ use omega_compiler::{
     PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind, PackageSourceBinding,
+    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
+    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
     compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
@@ -1048,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 42);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 2);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 43);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 3);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2494,7 +2495,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_projects_exact_public_callable_conformances_and_rejects_unrepresented_forms() {
+fn review_projects_exact_public_callable_conformances_and_static_machine_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -2557,7 +2558,10 @@ pub machine handle() satisfies Hidden::handle { }
     generic.write(
         "main.omg",
         r#"pub machine register<machine Selected>()
-where machine Selected();
+where machine Selected(value: bool) -> bool
+requires value
+crashes Abort
+    value;
 { }
 "#,
     );
@@ -2568,15 +2572,26 @@ where machine Selected();
         package_inputs(&generic.0),
     )
     .expect("public static-machine fixture should check");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("conformance bounds not yet represented")
-            || diagnostic
-                .message
-                .contains("static machine or proposition parameter not yet represented")
-    }));
+    let review = project_checked_package_review(&checked)
+        .expect("public static-machine contract should project exactly");
+    let register = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("register"))
+        .expect("public register row");
+    let [parameter] = register.type_parameters() else {
+        panic!("one static-machine parameter")
+    };
+    let PackageReviewTypeParameterKind::Machine(PackageReviewMachineParameterContract::Structural(
+        signature,
+    )) = parameter.kind()
+    else {
+        panic!("register must retain its structural static-machine contract")
+    };
+    assert!(signature.type_parameters().is_empty());
+    assert_eq!(signature.parameters().len(), 1);
+    assert_eq!(signature.contracts().len(), 1);
+    assert_eq!(signature.published_crash().len(), 1);
 }
 
 #[test]
@@ -2712,6 +2727,224 @@ pub machine identity<Element, Other, Evidence: Element satisfies Ranked<u64>>(va
         changed_argument.canonical_review_bytes().unwrap(),
         "changing a conformance trait argument must change review identity"
     );
+}
+
+#[test]
+fn review_static_machine_contracts_are_recursive_alpha_stable_and_shape_sensitive() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    original.write(
+        "main.omg",
+        r#"pub machine register<machine Schema>()
+where machine Schema<machine Inner>(value: u64) -> u64
+where machine Inner(value: u64) -> u64;
+{ }
+"#,
+    );
+    renamed.write(
+        "main.omg",
+        r#"pub machine register<machine Operation>()
+where machine Operation<machine Callback>(value: u64) -> u64
+where machine Callback(value: u64) -> u64;
+{ }
+"#,
+    );
+    changed.write(
+        "main.omg",
+        r#"pub machine register<machine Operation>()
+where machine Operation<machine Callback>(value: u64) -> u64
+where machine Callback(value: i64) -> u64;
+{ }
+"#,
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    original.write("build.omg", build);
+    renamed.write("build.omg", build);
+    changed.write("build.omg", build);
+
+    let review = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("higher-order static-machine fixture should check");
+        project_checked_package_review(&checked)
+            .expect("higher-order static-machine contract should project")
+    };
+    let original = review(&original);
+    let register = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("register"))
+        .expect("register callable row");
+    let [schema] = register.type_parameters() else {
+        panic!("one outer static-machine parameter")
+    };
+    let PackageReviewTypeParameterKind::Machine(PackageReviewMachineParameterContract::Structural(
+        signature,
+    )) = schema.kind()
+    else {
+        panic!("outer structural contract")
+    };
+    let [inner] = signature.type_parameters() else {
+        panic!("one nested static-machine parameter")
+    };
+    assert!(matches!(
+        inner.kind(),
+        PackageReviewTypeParameterKind::Machine(PackageReviewMachineParameterContract::Structural(
+            _
+        ))
+    ));
+
+    assert_eq!(
+        original
+            .canonical_review_bytes()
+            .expect("original static-machine encoding"),
+        review(&renamed)
+            .canonical_review_bytes()
+            .expect("renamed static-machine encoding"),
+        "renaming nested static-machine binders must not alter canonical review evidence",
+    );
+    assert_ne!(
+        original
+            .canonical_review_bytes()
+            .expect("original static-machine encoding"),
+        review(&changed)
+            .canonical_review_bytes()
+            .expect("changed static-machine encoding"),
+        "changing a nested static-machine contract must alter canonical review evidence",
+    );
+}
+
+#[test]
+fn review_static_machine_nominal_contracts_require_exact_public_requirements() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Handler {
+    machine call(value: i32) -> i32;
+}
+pub machine register<machine Selected>()
+where machine Selected satisfies Handler::call;
+{ }
+"#,
+    );
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    package.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("nominal static-machine fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public nominal static-machine contract should project");
+    let register = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("register"))
+        .expect("register callable row");
+    let [selected] = register.type_parameters() else {
+        panic!("one nominal static-machine parameter")
+    };
+    let PackageReviewTypeParameterKind::Machine(contract) = selected.kind() else {
+        panic!("nominal static-machine parameter")
+    };
+    let Some((trait_identity, requirement_identity)) = contract.nominal() else {
+        panic!("exact nominal requirement contract")
+    };
+    assert_eq!(trait_identity.path(), "Handler");
+    assert!(requirement_identity.path().contains("Handler::call"));
+
+    let hidden = TempPackage::new();
+    hidden.write(
+        "main.omg",
+        r#"trait Hidden {
+    machine call(value: i32) -> i32;
+}
+pub machine register<machine Selected>()
+where machine Selected satisfies Hidden::call;
+{ }
+"#,
+    );
+    hidden.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &hidden.0.join("main.omg"),
+        Some(target),
+        package_inputs(&hidden.0),
+    )
+    .expect("private nominal static-machine fixture should check before package review");
+    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("exposes non-public trait `Hidden` through a static-machine contract")
+    }));
+}
+
+#[test]
+fn review_static_machine_contracts_cover_public_proof_data() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Stream<machine Sample>
+where machine Sample(index: u64) -> u64;
+{
+    case Empty;
+    case More(tail: Stream<Sample>);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public proof-data static-machine fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("public proof-data static-machine contract should project");
+    let [stream] = review.public_data() else {
+        panic!("one public proof-data row")
+    };
+    let [sample] = stream.type_parameters() else {
+        panic!("one proof-data static-machine parameter")
+    };
+    assert!(matches!(
+        sample.kind(),
+        PackageReviewTypeParameterKind::Machine(PackageReviewMachineParameterContract::Structural(
+            _
+        ))
+    ));
 }
 
 #[test]

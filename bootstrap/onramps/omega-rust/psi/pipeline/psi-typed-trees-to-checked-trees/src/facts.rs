@@ -828,23 +828,40 @@ fn build_crash_contract_capsules(
 ) -> Vec<psi_checked_trees::CrashContractCapsule> {
     let mut signatures = Vec::new();
     for machine in program.machines() {
-        for parameter in program.machine_type_parameters(machine) {
-            let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
-            else {
-                continue;
-            };
-            let signature = program
-                .machine_parameter_contract_view(contract)
-                .expect("typed machine-parameter contract must retain a valid requirement identity")
-                .signature();
+        for (owner_symbol, target_state, signature) in
+            crate::proof::machine_parameter_evidence_signatures(
+                program,
+                program.machine_type_parameters(machine),
+            )
+        {
             // The binder symbol is the callable target inside the generic
             // body. A nominal requirement symbol remains authority metadata;
             // it is never a second alias for the parameter call target.
-            signatures.push((parameter.symbol, parameter.symbol, signature));
+            signatures.push((owner_symbol, target_state, signature));
         }
     }
+    for definition in program.data_definitions() {
+        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+            program,
+            program.data_type_parameters(definition),
+        ));
+    }
+    for definition in program.domain_definitions() {
+        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+            program,
+            program.domain_type_parameters(definition),
+        ));
+    }
     for definition in program.traits() {
+        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+            program,
+            program.trait_type_parameters(definition),
+        ));
         for signature in program.trait_machine_signatures(definition) {
+            signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+                program,
+                program.state_signature_type_parameters(signature),
+            ));
             signatures.push((definition.symbol, signature.symbol, signature));
         }
     }

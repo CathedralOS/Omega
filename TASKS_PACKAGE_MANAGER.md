@@ -825,8 +825,15 @@ complete.
   the review projection: supply mode, lifetime arity, alpha-normalized type and
   const parameters, copy/carry properties, zero gating, retired identities,
   fields, variants, payloads, relevance, and package-qualified type identities.
-  Quotients, data `where` facts, and static machine/proposition parameters fail
-  review until exact canonical rows exist; none are silently omitted.
+  Quotients, data `where` facts, and proposition parameters fail review until
+  exact canonical rows exist; none are silently omitted. Review v43 and
+  canonical row v3 represent static-machine parameters directly. Structural
+  contracts retain their complete alpha-normalized nested telescope, value
+  signature, proof/crash contracts, reach, invocation, suspension, blocking,
+  and termination envelope. Nominal contracts retain the exact public trait
+  and requirement identities. Nested structural binders receive exact checked
+  contract and crash custody; malformed depth, missing checked rows, and
+  non-public nominal requirements reject.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
@@ -978,9 +985,9 @@ complete.
   alias. Binder-free generic requirements, explicit conformance evidence
   binders, and non-generic selected conformances on reviewed callables use the
   same canonical row as public traits. Selected conformances with their own
-  generic telescope, static machine/proposition parameters, and non-public,
-  external, operator, or lifetime-parameterized realizations reject until their
-  complete rows exist
+  generic telescope, static-machine/proposition arguments in selected
+  conformance applications, and non-public, external, operator, or lifetime-
+  parameterized realizations reject until their complete rows exist
   rather than disappearing from review.
   Public callable `requires` and `ensures` retain exact structural rows for the
   closed boolean/integer expression subset over
@@ -1384,7 +1391,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v42
+  create a placeholder `PackageInstance` or bless current incomplete review v43
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is
