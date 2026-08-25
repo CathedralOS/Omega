@@ -92,6 +92,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
     BuildRootBinding,
+    BuildIncludedSourceHandoff,
     InlineAssemblyOperation,
 }
 

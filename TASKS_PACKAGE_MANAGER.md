@@ -661,9 +661,14 @@ complete.
   promote to public interface. A root-middle-leaf package canary permits root
   to carry a leaf-owned type solely through middle while retaining leaf's exact
   owner in root's private dependency evidence. This is a checked fact carrier,
-  not nominal Chi. Joining these compiler-private symbols to canonical package
-  evidence and proving total coverage for every remaining semantic form are
-  still package-admission work.
+  not nominal Chi. The compiler package-review projection now qualifies both
+  the reviewed consumer and carried declaration by exact package ownership,
+  emits blocking canonical rows for nominal identity, layout, ownership
+  behavior, automatic cleanup, and the selected cleanup machine, and retains
+  exact source anchors for both sides. Exposure is row value rather than row
+  identity, so private-to-public promotion is one explicit changed row. A
+  three-package canary proves the root review names leaf ownership exactly
+  without granting root authored authority over leaf.
 
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
@@ -678,10 +683,10 @@ complete.
   behaves as an ordinary mutable call and may be followed by automatic cleanup;
   classification alone cannot define that ownership event. The package manager
   stays disabled until those gaps close.
-  The first exact carried-semantic-dependency carrier has landed, but its
-  canonical package/artifact projection and remaining coverage audit are not
-  complete. Visibility for independently selectable roots that currently
-  reject `pub` remains owner question Q1.
+  The first exact carried-semantic-dependency carrier and its versioned
+  canonical review projection have landed. Total coverage and accepted
+  artifact/lock admission are not complete. Visibility for independently
+  selectable roots that currently reject `pub` remains owner question Q1.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.

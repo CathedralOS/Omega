@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 33;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 34;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 1;
 
@@ -91,6 +91,7 @@ fn encode_with_limits(
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
+    encoder.sequence(&review.semantic_dependencies, encode_semantic_dependency)?;
     encoder.sequence(&review.callables, encode_callable)?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(
@@ -117,6 +118,7 @@ fn encode_rows_with_limits(
         .saturating_add(review.public_domains.len())
         .saturating_add(review.public_data.len())
         .saturating_add(review.representation_tcb.len())
+        .saturating_add(review.semantic_dependencies.len())
         .saturating_add(review.callables.len())
         .saturating_add(
             review
@@ -214,6 +216,22 @@ fn encode_rows_with_limits(
                 row_source(&review.row_sources.representation_tcb, index)?,
                 |encoder| encode_nominal(encoder, &row.declaration),
                 |encoder| encode_representation_tcb(encoder, row),
+            )?,
+        )?;
+    }
+    for (index, dependency) in review.semantic_dependencies.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::SemanticDependency,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.semantic_dependencies, index)?,
+                |encoder| encode_semantic_dependency_key(encoder, dependency),
+                |encoder| encode_semantic_dependency(encoder, dependency),
             )?,
         )?;
     }
@@ -402,6 +420,39 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
         PackageReviewCanonicalRowKind::AcceptedClaim => 8,
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
+        PackageReviewCanonicalRowKind::SemanticDependency => 10,
+    }
+}
+
+fn encode_semantic_dependency_key(
+    encoder: &mut Encoder,
+    dependency: &PackageReviewSemanticDependency,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &dependency.consumer)?;
+    encode_nominal(encoder, &dependency.dependency)?;
+    encoder.byte(semantic_dependency_kind_tag(dependency.kind));
+    Ok(())
+}
+
+fn encode_semantic_dependency(
+    encoder: &mut Encoder,
+    dependency: &PackageReviewSemanticDependency,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_semantic_dependency_key(encoder, dependency)?;
+    encoder.byte(match dependency.exposure {
+        PackageReviewSemanticDependencyExposure::PrivateImplementation => 0,
+        PackageReviewSemanticDependencyExposure::PublicInterface => 1,
+    });
+    Ok(())
+}
+
+const fn semantic_dependency_kind_tag(kind: PackageReviewSemanticDependencyKind) -> u8 {
+    match kind {
+        PackageReviewSemanticDependencyKind::NominalIdentity => 0,
+        PackageReviewSemanticDependencyKind::Layout => 1,
+        PackageReviewSemanticDependencyKind::OwnershipBehavior => 2,
+        PackageReviewSemanticDependencyKind::AutomaticCleanup => 3,
+        PackageReviewSemanticDependencyKind::AutomaticCleanupMachine => 4,
     }
 }
 
@@ -1806,6 +1857,7 @@ mod tests {
             public_domains: Vec::new(),
             public_data: Vec::new(),
             representation_tcb: Vec::new(),
+            semantic_dependencies: Vec::new(),
             callables: Vec::new(),
             dangerous_authorities: Vec::new(),
             dangerous_authority_slack: Vec::new(),
@@ -1815,6 +1867,7 @@ mod tests {
                 public_domains: Vec::new(),
                 public_data: Vec::new(),
                 representation_tcb: Vec::new(),
+                semantic_dependencies: Vec::new(),
                 callables: Vec::new(),
                 dangerous_authorities: Vec::new(),
                 dangerous_authority_slack: Vec::new(),

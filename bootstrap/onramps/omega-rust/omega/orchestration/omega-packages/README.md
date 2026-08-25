@@ -36,8 +36,10 @@ real package fixture demonstrates an irreducible external contract.
   stabilize compiler internals.
 - Checked flow now owns the first package-neutral carried-semantic-dependency
   sidecar. It retains exact nominal, layout, ownership, and automatic-cleanup
-  declaration symbols with private/public disposition; package orchestration
-  must still project those private symbols into canonical package evidence.
+  declaration symbols with private/public disposition. The compiler review
+  projection qualifies those symbols by exact package ownership and emits
+  blocking canonical semantic-dependency rows; checked-tree handles never
+  escape into review artifacts or lock-shaped data.
 - Proposition/named-evidence projection joins structural typed applications to
   checked acceptance and witness disposition. Diagnostic renderings are never
   package identity; missing structural coordinates are retained in their
@@ -505,7 +507,7 @@ directories.
 The legacy machine-contract fingerprint no longer enters package-review bytes,
 so private state shape is not public contract identity. Complete proof and
 unsupported-clause rows still gate sealed admission. The compiler now provides
-a version-33 length-framed binary comparison encoding over this review
+a version-34 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
 not become an admission path until the legacy name-keyed lock APIs are replaced
@@ -546,9 +548,12 @@ The concrete carried-type slice follows that rule. Checked flow joins machine
 heads, exact checked call targets, ownership places, and compiler-selected
 cleanup into one package-neutral sidecar after checking succeeds. The sidecar
 uses exact declaration handles internally and promotes any public-interface
-occurrence; those handles are not lock data. Canonical package ownership,
-versioned row encoding, and a total-form audit belong to the later admission
-projection.
+occurrence; those handles are not lock data. The package-review projector now
+maps each reviewed-package consumer and dependency to package-qualified nominal
+identity, emits nominal/layout/ownership/automatic-cleanup rows with
+private/public disposition, and anchors each row to both declarations. These
+rows are versioned comparison evidence, not an accepted-lock payload. A total
+coverage audit and accepted admission/lock issuance remain open.
 
 Authored conformance authority follows the same compiler-owned join. Explicit
 static conformance arguments are retained at resolution; checked trait

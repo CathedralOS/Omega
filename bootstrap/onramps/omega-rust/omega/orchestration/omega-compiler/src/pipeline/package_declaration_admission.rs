@@ -3,6 +3,7 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use psi_source::SourceOrigin;
+use psi_symbols::SymbolKind;
 
 pub(super) fn validate_authored_declaration_selections_before_build(
     typed: &psi_typed_trees::TypedTrees,
@@ -65,6 +66,17 @@ pub(super) fn validate_authored_declaration_selections(
             }
             AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
         };
+
+        // Primitive types and compiler builtin functions have exact semantic
+        // identity but intentionally have no package or authored toolchain
+        // source owner. They cannot be spoofed by a package declaration: the
+        // resolved symbol kind, not spelling, selects this lane.
+        if matches!(
+            program.symbols.get(selected).kind,
+            SymbolKind::BuiltinType | SymbolKind::BuiltinFunction
+        ) {
+            continue;
+        }
 
         if let Some(owner) = program.symbols.symbol_package_identity(selected) {
             if !packages.allows_declaration_selection(requester, owner) {

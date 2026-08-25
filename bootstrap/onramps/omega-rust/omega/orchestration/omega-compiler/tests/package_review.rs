@@ -10,6 +10,7 @@ use omega_compiler::{
     PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind, PackageSourceBinding,
     compile_to_checked_with_packages, project_checked_package_review,
@@ -273,6 +274,107 @@ target macos_arm64 { }
                 .any(|window| window == declaration_name.as_bytes()),
             "the canonical row key and retained source must name the same exact declaration"
         );
+    }
+}
+
+#[test]
+fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let root = TempPackage::new();
+    let middle = TempPackage::new();
+    let leaf = TempPackage::new();
+    root.write(
+        "main.omg",
+        "use middle::middle;\nmachine relay() { consume(make()); }\n",
+    );
+    root.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    middle.write(
+        "middle.omg",
+        r#"use leaf::leaf;
+pub machine make() -> Token { Token { value: 7u64 } }
+pub machine consume(value: Token) {}
+"#,
+    );
+    leaf.write("leaf.omg", "pub data Token { value: u64; }\n");
+
+    let root_identity = package_identity();
+    let middle_identity =
+        PackageKeyIdentity::from_digest([42; 32]).expect("middle package identity");
+    let leaf_identity = PackageKeyIdentity::from_digest([43; 32]).expect("leaf package identity");
+    let inputs = PackageCompilationInputs::new(
+        root_identity,
+        vec![
+            PackageSourceBinding::new(root_identity, "root", root.0.clone()),
+            PackageSourceBinding::new(middle_identity, "middle", middle.0.clone()),
+            PackageSourceBinding::new(leaf_identity, "leaf", leaf.0.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(root_identity, "middle", middle_identity),
+            PackageDependencyBinding::new(middle_identity, "leaf", leaf_identity),
+        ],
+    )
+    .expect("transitive package graph should validate");
+    let checked = compile_to_checked_with_packages(&root.0.join("main.omg"), Some(target), inputs)
+        .expect("carried transitive type should check without direct leaf authority");
+    let review = project_checked_package_review(&checked).expect("semantic dependency review");
+
+    for kind in [
+        PackageReviewSemanticDependencyKind::NominalIdentity,
+        PackageReviewSemanticDependencyKind::Layout,
+        PackageReviewSemanticDependencyKind::OwnershipBehavior,
+    ] {
+        let dependency = review
+            .semantic_dependencies()
+            .iter()
+            .find(|dependency| {
+                dependency.consumer().path() == "relay"
+                    && dependency.dependency().path() == "Token"
+                    && dependency.dependency().owner()
+                        == PackageReviewNominalOwner::Package(leaf_identity)
+                    && dependency.exposure()
+                        == PackageReviewSemanticDependencyExposure::PrivateImplementation
+                    && dependency.kind() == kind
+            })
+            .unwrap_or_else(|| panic!("missing leaf-owned {kind:?} row"));
+        assert_eq!(
+            dependency.consumer().owner(),
+            PackageReviewNominalOwner::Package(root_identity)
+        );
+    }
+
+    let canonical = review
+        .canonical_rows()
+        .expect("canonical semantic dependency rows");
+    let rows = canonical
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::SemanticDependency)
+        .collect::<Vec<_>>();
+    assert!(rows.len() >= 3);
+    for row in rows {
+        assert_eq!(row.risk(), PackageReviewCanonicalRowRisk::Blocking);
+        let locations = row
+            .source()
+            .authored_locations()
+            .expect("semantic dependency row source");
+        assert!(locations.iter().any(|location| {
+            location.role() == PackageReviewSourceLocationRole::SemanticDependencyConsumer
+                && location.owner() == PackageReviewSourceLocationOwner::Package(root_identity)
+                && location.relative_path() == "main.omg"
+        }));
+        assert!(locations.iter().any(|location| {
+            location.role() == PackageReviewSourceLocationRole::SemanticDependencyDeclaration
+                && location.owner() == PackageReviewSourceLocationOwner::Package(leaf_identity)
+                && location.relative_path() == "leaf.omg"
+        }));
     }
 }
 
@@ -946,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 33);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 34);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")

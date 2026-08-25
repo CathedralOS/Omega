@@ -498,7 +498,10 @@ const fn canonical_risk(kind: PackageReviewCanonicalRowKind) -> PackageReviewCan
         | PackageReviewCanonicalRowKind::PublicData
         | PackageReviewCanonicalRowKind::Callable
         | PackageReviewCanonicalRowKind::DangerousAuthority
-        | PackageReviewCanonicalRowKind::AcceptedClaim => PackageReviewCanonicalRowRisk::Blocking,
+        | PackageReviewCanonicalRowKind::AcceptedClaim
+        | PackageReviewCanonicalRowKind::SemanticDependency => {
+            PackageReviewCanonicalRowRisk::Blocking
+        }
     }
 }
 
@@ -516,6 +519,7 @@ fn decode_kind(
         7 => Ok(PackageReviewCanonicalRowKind::SelectedProviderSet),
         8 => Ok(PackageReviewCanonicalRowKind::AcceptedClaim),
         9 => Ok(PackageReviewCanonicalRowKind::DangerousAuthoritySlack),
+        10 => Ok(PackageReviewCanonicalRowKind::SemanticDependency),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical package-review row contains an unknown kind tag",
         )),
@@ -545,6 +549,8 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::ProviderSchemaDeclaration => 5,
         PackageReviewSourceLocationRole::ProviderTypeDeclaration => 6,
         PackageReviewSourceLocationRole::ProviderRealization => 7,
+        PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
+        PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
     }
 }
 
@@ -560,6 +566,8 @@ fn decode_source_location_role(
         5 => Ok(PackageReviewSourceLocationRole::ProviderSchemaDeclaration),
         6 => Ok(PackageReviewSourceLocationRole::ProviderTypeDeclaration),
         7 => Ok(PackageReviewSourceLocationRole::ProviderRealization),
+        8 => Ok(PackageReviewSourceLocationRole::SemanticDependencyConsumer),
+        9 => Ok(PackageReviewSourceLocationRole::SemanticDependencyDeclaration),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown role tag",
         )),

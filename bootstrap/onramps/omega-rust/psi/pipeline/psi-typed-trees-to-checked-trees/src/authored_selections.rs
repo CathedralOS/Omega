@@ -78,9 +78,10 @@ pub(crate) fn finalize_checked_authored_selections(
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
                 ) => checked_call_intrinsic(
+                    program,
                     call.target.as_str(),
                     call.target_symbol,
-                    call.receiver.is_valid(),
+                    call.receiver,
                 )
                 .map_or_else(
                     || {
@@ -100,7 +101,8 @@ pub(crate) fn finalize_checked_authored_selections(
                     program,
                     member.receiver,
                     member,
-                )),
+                ))
+                .or_else(|| contextual_domain_member_target(program, expression, member)),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
@@ -265,10 +267,9 @@ fn collect_checked_statement_selections(
                     })
                     .map(|selection| selection.occurrence_id())
                     .collect::<Vec<_>>();
-                let resolution_target =
-                    checked_call_intrinsic(call.target.as_str(), call.target_symbol, false)
-                        .map(CheckedResolutionTarget::Intrinsic)
-                        .or_else(|| declaration_target(target));
+                let resolution_target = checked_statement_call_intrinsic(program, state, call)
+                    .map(CheckedResolutionTarget::Intrinsic)
+                    .or_else(|| declaration_target(target));
                 if let Some(target) = resolution_target {
                     for occurrence in pending {
                         push_consistent_resolution(
@@ -287,10 +288,32 @@ fn collect_checked_statement_selections(
     Ok(())
 }
 
+fn checked_statement_call_intrinsic(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    if exact_statement_build_output_receiver(program, state, call) {
+        return Some(Intrinsic::BuildIncludedSourceHandoff);
+    }
+    checked_call_intrinsic(
+        program,
+        call.target.as_str(),
+        call.target_symbol,
+        psi_typed_trees::expression::ExpressionHandle::invalid(),
+    )
+}
+
 fn checked_call_intrinsic(
+    program: &TypedTrees,
     target: &str,
     target_symbol: SymbolHandle,
-    has_receiver: bool,
+    receiver: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
     use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
@@ -298,8 +321,11 @@ fn checked_call_intrinsic(
     // same spelling. Receiver calls likewise cannot select these free-call
     // intrinsics. This keeps intrinsic recognition from becoming a
     // source-text fallback for an ordinary package declaration.
-    if target_symbol.is_valid() || has_receiver {
+    if target_symbol.is_valid() {
         None
+    } else if receiver.is_valid() {
+        exact_build_output_receiver(program, receiver, target)
+            .then_some(Intrinsic::BuildIncludedSourceHandoff)
     } else if psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
         .is_some()
     {
@@ -317,6 +343,66 @@ fn checked_call_intrinsic(
     } else {
         None
     }
+}
+
+fn exact_build_output_receiver(
+    program: &TypedTrees,
+    receiver: psi_typed_trees::expression::ExpressionHandle,
+    target: &str,
+) -> bool {
+    if target != "include_source" {
+        return false;
+    }
+    crate::flow::expression_type_symbol(program, receiver)
+        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildOutput"))
+}
+
+fn exact_statement_build_output_receiver(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> bool {
+    if call.target.as_str() != "include_source" {
+        return false;
+    }
+    let [root, members @ ..] = program.statement_table.name_path_members(call.receiver) else {
+        return false;
+    };
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == root.as_str())
+    else {
+        return false;
+    };
+    let mut type_symbol = program
+        .type_reference_table
+        .type_symbol(parameter.type_reference);
+    if !exact_toolchain_data(program, type_symbol, "Build") {
+        return false;
+    }
+    for member in members {
+        let Some(selected) = crate::flow::resolve_member_symbol_from_type_symbol(
+            program,
+            type_symbol,
+            member.as_str(),
+        ) else {
+            return false;
+        };
+        let Some(selected_type) = crate::flow::symbol_type_symbol(program, selected) else {
+            return false;
+        };
+        type_symbol = selected_type;
+    }
+    exact_toolchain_data(program, type_symbol, "BuildOutput")
+}
+
+fn exact_toolchain_data(program: &TypedTrees, type_symbol: SymbolHandle, name: &str) -> bool {
+    program.symbols.symbol_source_origin(type_symbol) == Some(psi_source::SourceOrigin::Toolchain)
+        && program
+            .data_definitions()
+            .iter()
+            .any(|data| data.symbol == type_symbol && data.name.as_str() == name)
 }
 
 fn checked_operator_conformance_targets(
@@ -676,12 +762,206 @@ fn checked_operator_target(
                 ExpressionNode::Unary(unary) => unary.operand,
                 _ => return None,
             };
-            expression_is_intrinsic_primitive_without_origin(program, operand).then_some(
+            (expression_is_intrinsic_primitive_without_origin(program, operand)
+                || expression_is_contextual_domain_primitive(program, expression, operand))
+            .then_some(CheckedResolutionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            ))
+        })
+        .or_else(|| {
+            operator_has_no_authored_spelling_candidate(program, node).then_some(
                 CheckedResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ),
             )
         })
+}
+
+fn operator_has_no_authored_spelling_candidate(
+    program: &TypedTrees,
+    node: &ExpressionNode,
+) -> bool {
+    let ExpressionNode::Binary(binary) = node else {
+        // Unary operators have no authored declaration dispatch surface.
+        return matches!(node, ExpressionNode::Unary(_));
+    };
+    use psi_language_core::OperatorSpelling;
+    use psi_typed_trees::expression::BinaryOperator;
+    let spelling = match binary.operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => return true,
+    };
+    psi_typed_trees::operator::resolve_spelling(program, spelling, None).is_empty()
+}
+
+fn contextual_domain_member_target(
+    program: &TypedTrees,
+    containing_expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    let target_type = contextual_domain_target_type(program, containing_expression)?;
+    contextual_self_member_symbol(program, member, target_type).and_then(declaration_target)
+}
+
+fn expression_is_contextual_domain_primitive(
+    program: &TypedTrees,
+    containing_expression: psi_typed_trees::expression::ExpressionHandle,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(target_type) = contextual_domain_target_type(program, containing_expression) else {
+        return false;
+    };
+    contextual_expression_type_reference(program, expression, target_type)
+        .and_then(|type_reference| program.primitive_type_reference(type_reference))
+        .is_some()
+}
+
+fn contextual_expression_type_reference(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    domain_target_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) if contextual_self_path(program, path) => {
+            Some(domain_target_type)
+        }
+        ExpressionNode::Member(member) => {
+            contextual_self_member_symbol(program, member, domain_target_type)
+                .and_then(|symbol| type_reference_for_symbol(program, symbol))
+        }
+        ExpressionNode::Borrow(inner) => {
+            contextual_expression_type_reference(program, inner.target, domain_target_type)
+        }
+        _ => None,
+    }
+}
+
+fn contextual_self_member_symbol(
+    program: &TypedTrees,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+    domain_target_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
+        return None;
+    };
+    if !contextual_self_path(program, path) {
+        return None;
+    }
+    crate::flow::resolve_member_symbol_from_type_symbol(
+        program,
+        program.type_reference_table.type_symbol(domain_target_type),
+        member.member.as_str(),
+    )
+}
+
+fn contextual_self_path(
+    program: &TypedTrees,
+    path: &psi_typed_trees::expression::TableNamePath,
+) -> bool {
+    let members = program.expression_table.name_path_members(path.members);
+    !path.symbol.is_valid() && members.len() == 1 && members[0].as_str() == "self"
+}
+
+fn contextual_domain_target_type(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    for domain in program.domain_definitions() {
+        for fact in program.proof_facts(domain) {
+            let root = match fact {
+                psi_typed_trees::domain::ProofFact::Expression(root) => *root,
+                psi_typed_trees::domain::ProofFact::Membership(membership) => membership.value,
+                psi_typed_trees::domain::ProofFact::Proposition(_) => continue,
+            };
+            if expression_contains(program, root, expression, &mut Vec::new()) {
+                return Some(domain.target_type);
+            }
+        }
+    }
+    None
+}
+
+fn expression_contains(
+    program: &TypedTrees,
+    root: psi_typed_trees::expression::ExpressionHandle,
+    target: psi_typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    if !root.is_valid() || visited.contains(&root) {
+        return false;
+    }
+    if root == target {
+        return true;
+    }
+    visited.push(root);
+    match program.expression_table.expression(root) {
+        ExpressionNode::Atomic(atomic) => {
+            expression_contains(program, atomic.value, target, visited)
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .any(|child| expression_contains(program, *child, target, visited)),
+        ExpressionNode::Binary(binary) => {
+            expression_contains(program, binary.left, target, visited)
+                || expression_contains(program, binary.right, target, visited)
+        }
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid()
+                && expression_contains(program, call.receiver, target, visited))
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|child| expression_contains(program, *child, target, visited))
+        }
+        ExpressionNode::Cast(cast) => expression_contains(program, cast.value, target, visited),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains(program, indexed.collection, target, visited)
+                || expression_contains(program, indexed.index, target, visited)
+        }
+        ExpressionNode::Member(member) => {
+            expression_contains(program, member.receiver, target, visited)
+        }
+        ExpressionNode::Borrow(inner) => {
+            expression_contains(program, inner.target, target, visited)
+        }
+        ExpressionNode::Range(range) => {
+            expression_contains(program, range.start, target, visited)
+                || expression_contains(program, range.end, target, visited)
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| expression_contains(program, field.value, target, visited)),
+        ExpressionNode::Unary(unary) => {
+            expression_contains(program, unary.operand, target, visited)
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
+    }
 }
 
 fn expression_is_intrinsic_primitive_without_origin(
@@ -782,6 +1062,28 @@ fn type_reference_for_symbol(
             {
                 return Some(type_reference);
             }
+        }
+    }
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            if let Some(type_reference) = program
+                .state_signature_parameters(signature)
+                .iter()
+                .find_map(|parameter| {
+                    (parameter.symbol == symbol).then_some(parameter.type_reference)
+                })
+            {
+                return Some(type_reference);
+            }
+        }
+    }
+    for proposition in program.propositions() {
+        if let Some(type_reference) = program
+            .proposition_parameters(proposition)
+            .iter()
+            .find_map(|parameter| (parameter.symbol == symbol).then_some(parameter.type_reference))
+        {
+            return Some(type_reference);
         }
     }
     None
