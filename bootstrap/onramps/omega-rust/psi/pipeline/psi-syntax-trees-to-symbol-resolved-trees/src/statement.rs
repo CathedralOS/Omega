@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_into_table;
+use crate::expression::lower_private_expression_into_table;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use psi_arena::HandleSpan;
@@ -1569,7 +1569,7 @@ fn lower_statement_expression(
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<psi_symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_into_table(lowerer, syntax_trees, expression)
+    lower_private_expression_into_table(lowerer, syntax_trees, expression)
 }
 
 fn lower_statement_expressions(
@@ -1590,7 +1590,7 @@ fn lower_statement_expressions(
         .iter()
         .enumerate()
     {
-        let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
+        let expression = lower_private_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowerer
             .symbol_resolved_trees
             .tables

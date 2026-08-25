@@ -5,6 +5,15 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
+use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use psi_symbol_resolved_trees::expression::ExpressionHandle;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingAuthoredExpression {
+    pub(crate) expression: ExpressionHandle,
+    pub(crate) exposure: AuthoredDeclarationSelectionExposure,
+}
+
 pub fn lower_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
@@ -41,6 +50,12 @@ pub(crate) struct Lowerer {
     pub(crate) pending_machine_service_reaches:
         Vec<Vec<psi_symbol_resolved_trees::name::DiagnosticName>>,
     pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
+    /// Authored expressions whose exact declaration selections are collected
+    /// after symbol assignment. Expressions absent from this list are either
+    /// compiler-generated or belong to a source surface whose public/private
+    /// disposition has not yet been classified by its owning declaration.
+    pub(crate) pending_authored_expressions: Vec<PendingAuthoredExpression>,
+    pub(crate) current_authored_expression_exposure: Option<AuthoredDeclarationSelectionExposure>,
     sources: Option<Arc<SourceMap>>,
     /// Per-lowering counter that mints unique names for synthetic `let`
     /// temporaries hoisted out of operand-position indexed reads (see
@@ -146,6 +161,8 @@ impl Lowerer {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             pending_machine_service_reaches: Vec::new(),
             pending_signature_service_reaches: Vec::new(),
+            pending_authored_expressions: Vec::new(),
+            current_authored_expression_exposure: None,
             sources,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
@@ -194,6 +211,11 @@ impl Lowerer {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::authored_selections::finalize_authored_expression_selections(
+            &mut self.symbol_resolved_trees,
+            &self.pending_authored_expressions,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         let compatibility =
             crate::signature_free_requirements::validate_signature_free_requirement_compatibility(
                 &self.symbol_resolved_trees,
