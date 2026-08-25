@@ -283,9 +283,10 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
 are connected nodes in the architecture, not additional rungs in this table.
-Language growth stops at Delta. Everything after Delta in the required build is
-a compiler artifact or a hosted compilation edge, not an increasingly capable
-bootstrap language.
+Selection of small bootstrap-language rungs stops at Delta; the capability
+progression still reaches full Omega. Between Delta and Omega, the required
+build contains compiler artifacts and hosted compilation edges rather than a
+hidden Epsilon/Omega0 language.
 
 The build continues through a bridge compiler and the production compiler:
 
