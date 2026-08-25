@@ -115,6 +115,7 @@ pub(crate) fn lower_machine_into(
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         attached_data,
+        attached_data_symbol: SymbolHandle::invalid(),
         is_public: machine.is_public,
         supply_mode,
         body_is_present: !machine.bodyless,

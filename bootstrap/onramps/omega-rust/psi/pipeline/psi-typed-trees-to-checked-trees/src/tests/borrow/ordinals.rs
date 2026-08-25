@@ -34,6 +34,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         symbol: machine_symbol,
         name: Identifier::generated("Game"),
         attached_data: None,
+        attached_data_symbol: psi_symbols::SymbolHandle::invalid(),
         is_public: false,
         supply_mode: Default::default(),
         termination_plan: Default::default(),
