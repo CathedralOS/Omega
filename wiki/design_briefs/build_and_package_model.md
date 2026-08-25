@@ -1074,6 +1074,15 @@ fails closed unless the complete compiler-derived candidate set is confined to
 admitted owners; an implementation whose current order cannot establish that
 must reorder or split the work rather than weaken the gate.
 
+The initial exact carrier is a checked-flow sidecar assembled only after
+checking succeeds. It derives machine-head and exact checked call-result types,
+joins ownership-place types, promotes public-interface exposure, and retains an
+automatic cleanup machine only when its exact attached nominal declaration
+matches. A same-spelled cleanup attached elsewhere cannot satisfy that edge.
+This sidecar is package-neutral and compiler-private; the admission projector
+must still qualify its declarations by package and emit versioned canonical
+rows. It is not a lock schema or a reason for nominal Chi.
+
 Earlier effect-free compiler evaluation uses that split directly. Const-
 generic calls, fixed-array const calls, const-domain facts, laid/placed layout
 policies, wire policies, and calling policies retain exact invocation custody

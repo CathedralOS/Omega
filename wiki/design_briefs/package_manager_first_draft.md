@@ -177,6 +177,16 @@ They enter private artifact identity or public compatibility identity according
 to where they occur, but do not participate in the authored direct-dependency
 gate and do not make the owning package source-nameable.
 
+The first implementation carrier lives in checked flow. It joins machine-head
+types, exact checked call-result targets, and ownership places after successful
+checking, retaining nominal identity, layout, ownership behavior, automatic
+cleanup, and the exact attached cleanup-machine declaration. Public occurrences
+promote an otherwise private row. A root-middle-leaf canary confirms that this
+evidence does not turn transitive carried identity into authored source
+authority. The carrier remains package-neutral compiler state; canonical owner
+qualification and evidence encoding occur in the package projection, not by
+persisting checked-tree handles or introducing Chi.
+
 ## Dependency planning before build execution
 
 Dependency-source projection must be hermetic even though later build staging

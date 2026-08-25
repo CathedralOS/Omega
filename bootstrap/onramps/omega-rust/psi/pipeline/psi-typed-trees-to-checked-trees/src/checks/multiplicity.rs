@@ -238,17 +238,25 @@ fn data_name_with_nominal_drop<'program>(
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == name)?;
-    program
-        .machines()
-        .iter()
-        .any(|machine| {
-            machine.name.as_str().ends_with("::drop")
-                && machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|attached| attached == &definition.name)
-        })
+    nominal_drop_machine_symbol(program, definition.symbol)
+        .is_some()
         .then_some(definition.name.as_str())
+}
+
+/// The one reserved cleanup machine attached to an exact nominal declaration.
+/// Presentation names never choose the carrier: the retained attachment symbol
+/// must agree first, preventing an unrelated same-named machine from becoming
+/// automatic cleanup authority.
+pub(crate) fn nominal_drop_machine_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    data_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let mut matches = program.machines().iter().filter(|machine| {
+        machine.attached_data_symbol == data_symbol
+            && machine.name.as_str().rsplit("::").next() == Some("drop")
+    });
+    let selected = matches.next()?;
+    matches.next().is_none().then_some(selected.symbol)
 }
 
 fn move_event_is_production_target(

@@ -53,7 +53,7 @@ Current roots:
 - `representations/psi-effects`: target-neutral operational ceilings, service
   reach, synchronous invocation summaries, and capability-flow facts;
 - `representations/psi-checked-trees`: checked proof, borrow, flow, reach,
-  value-origin, and admissibility evidence;
+  value-origin, carried semantic-dependency, and admissibility evidence;
 - `representations/psi-terminal`: the self-contained terminal semantic module,
   closed operation vocabulary, contracts, claims, and proof-facing identities;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;

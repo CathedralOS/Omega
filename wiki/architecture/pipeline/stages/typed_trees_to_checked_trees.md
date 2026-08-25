@@ -40,6 +40,7 @@ call/exit evidence that made each state operation admissible.
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
 | Reach | Direct/transitive reach and direct synchronous invocation facts are available. |
 | Boundary edges | First-class checked-flow events for calls into states supplied by boundary trait signatures. |
+| Semantic dependencies | Exact package-neutral declaration dependencies for carried nominal identity, layout, ownership behavior, and compiler-selected cleanup, with private/public disposition. |
 
 ## Ownership Rules
 
@@ -105,6 +106,11 @@ Must own:
   source target span, and inferred generic conformances attach there. Closed
   compiler-owned build markers and lowered assembly operations finalize as
   typed intrinsic selections rather than invalid declaration symbols.
+- Exact carried-semantic-dependency custody assembled after successful checking
+  from machine heads, checked call targets, ownership places, and automatic
+  cleanup. Cleanup machine selection joins the exact attached nominal symbol;
+  presentation spelling is never enough. These compiler-private handles feed a
+  later package projection and are not a persisted evidence format.
 
 Must not own:
 
@@ -136,6 +142,10 @@ Current ownership is:
   `CallSiteTraversal`, the explicit state for locating a statement/expression/
   transition call ordinal; expression and statement traversal modules should
   consume that context instead of threading raw coordinates through recursion.
+- `flow/carried_semantic_dependencies.rs` owns the checked package-neutral
+  sidecar for exact carried type, layout, ownership, and cleanup dependencies;
+  `psi-checked-trees/src/flow/semantic_dependencies.rs` owns its durable checked
+  vocabulary.
 - `borrow.rs` assembles borrow facts. `borrow/accesses.rs` owns argument access
   routing, `borrow/accesses/collection.rs` owns the shared
   `BorrowAccessCollection` arena/context bundle, `borrow/accesses/read.rs`

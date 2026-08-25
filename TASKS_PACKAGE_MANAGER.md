@@ -652,6 +652,19 @@ complete.
   transitive-only conformance bound and accepts it after direct admission.
   This custody does not preempt Q1's separate declaration-publication rule.
 
+  Milestone 2026-08-25: checked flow now retains a package-neutral exact
+  semantic-dependency sidecar. Machine-head types, checked call-result types,
+  and ownership-place types contribute exact nominal identity, layout, and
+  ownership-behavior rows; automatic affine cleanup additionally retains the
+  exact nominal cleanup machine selected through attached declaration identity,
+  never a same-spelled unrelated machine. Duplicate private/public observations
+  promote to public interface. A root-middle-leaf package canary permits root
+  to carry a leaf-owned type solely through middle while retaining leaf's exact
+  owner in root's private dependency evidence. This is a checked fact carrier,
+  not nominal Chi. Joining these compiler-private symbols to canonical package
+  evidence and proving total coverage for every remaining semantic form are
+  still package-admission work.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
@@ -665,9 +678,10 @@ complete.
   behaves as an ordinary mutable call and may be followed by automatic cleanup;
   classification alone cannot define that ownership event. The package manager
   stays disabled until those gaps close.
-  Exact carried-semantic-dependency evidence also remains. Visibility for
-  independently selectable roots that currently reject `pub` remains owner
-  question Q1.
+  The first exact carried-semantic-dependency carrier has landed, but its
+  canonical package/artifact projection and remaining coverage audit are not
+  complete. Visibility for independently selectable roots that currently
+  reject `pub` remains owner question Q1.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.

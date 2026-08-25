@@ -235,12 +235,14 @@ package's operation is different and requires that package as a direct
 dependency.
 
 The foreign nominal identity is never hidden from artifacts. The transitive
-lock closure retains its owning package, and semantic dependency records retain
-the exact declaration when available. A private occurrence affects rebuild and
-artifact identity; an occurrence in a public signature also affects public
-compatibility identity. Whole-package dependency keying is a sound conservative
-implementation because it only over-rejects reuse; exact declaration edges are
-the normative form.
+lock closure retains its owning package. After successful checking, a
+package-neutral semantic-dependency sidecar retains exact declarations carried
+through machine heads, checked call results, ownership places, and automatic
+cleanup. A private occurrence affects rebuild and artifact identity; an
+occurrence in a public signature also affects public compatibility identity.
+Whole-package dependency keying remains a sound conservative gate while the
+compiler-private rows are qualified and encoded for package evidence; exact
+declaration edges are the normative form.
 
 The compiler retains authored selection occurrences while source spans and
 public-versus-private position are still exact, then joins each occurrence to
@@ -285,6 +287,12 @@ Carried nominal identity, compiler-planned layout and move/copy behavior, and
 automatic cleanup produce semantic dependency evidence but never manufacture
 authored selection authority. No package or build-time code selected by such an
 occurrence may execute before the finalized selection gate succeeds.
+
+The checked carrier retains an automatic cleanup machine by its exact
+attachment to the nominal declaration. A package-controlled machine with the
+same trailing `drop` spelling on another type cannot become that dependency.
+Whether authored code may call the reserved cleanup machine remains a separate
+ownership rule; compiler-selected cleanup does not depend on that answer.
 
 ## Visibility
 
