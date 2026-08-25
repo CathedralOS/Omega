@@ -523,6 +523,13 @@ type changes canonical evidence. This rung admits zero-lifetime generic data
 applications only. Lifetime-bearing applications, generic machine/conformance
 applications, unresolved forwarded type/const binders, proposition/evidence
 static arguments, quotient calls, and compiler intrinsics remain fail-closed.
+Review v47 and canonical row v7 admit lifetime-bearing recursive generic data
+static arguments in contract calls after an exact data-declaration lifetime-
+arity join. Lifetime arguments retain alpha-normalized caller lifetime-binder
+ordinals: renames are stable, while selecting a different lifetime changes
+canonical evidence. Generic machine/conformance applications, unresolved
+forwarded type/const binders, proposition/evidence static arguments, quotient
+calls, and compiler intrinsics remain fail-closed.
 Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
@@ -607,7 +614,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v46 projection therefore
+remain separately bound. The current incomplete review-v47 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

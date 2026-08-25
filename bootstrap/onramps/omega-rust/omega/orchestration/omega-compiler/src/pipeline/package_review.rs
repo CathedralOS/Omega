@@ -753,9 +753,10 @@ pub enum PackageReviewContractStaticArgument {
     Type(PackageReviewTypeIdentity),
     /// One exact generic data-family application whose base declaration and
     /// recursively categorized static arguments rejoin the checked data
-    /// telescope. Lifetime-bearing applications remain fail-closed.
+    /// telescope. Lifetime arguments are caller-binder ordinals.
     GenericType {
         base: PackageReviewTypeIdentity,
+        lifetime_arguments: Vec<u32>,
         arguments: Vec<PackageReviewContractStaticArgument>,
     },
     /// One parser-canonical integer literal in an exact const-parameter slot.
@@ -3232,6 +3233,7 @@ fn project_trait_requirement(
         },
         parameters: contract_parameters,
         domain_symbol: None,
+        lifetime_binders: &lifetime_binders,
     };
     let contracts =
         project_trait_requirement_contracts(compilation, requirement, &contract_context, &binders)?;
@@ -3397,6 +3399,7 @@ fn project_domain_predicate_facts(
         },
         parameters: &[],
         domain_symbol: Some(definition.symbol),
+        lifetime_binders: &[],
     };
     let reviewed_package = compilation.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -3915,6 +3918,7 @@ fn project_machine_parameter_contract(
                 },
                 parameters,
                 domain_symbol: None,
+                lifetime_binders: &lifetime_binders,
             };
             let contracts = project_contracts(
                 compilation,
@@ -5048,6 +5052,7 @@ struct ContractProjectionContext<'a> {
     point: psi_facts::ProgramPoint,
     parameters: &'a [psi_typed_trees::signature::StateParameter],
     domain_symbol: Option<SymbolHandle>,
+    lifetime_binders: &'a [psi_typed_trees::name::Identifier],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5074,6 +5079,7 @@ fn project_callable_contracts(
         },
         parameters,
         domain_symbol: None,
+        lifetime_binders: &machine.lifetime_parameters,
     };
     project_contracts(
         compilation,
@@ -6378,10 +6384,9 @@ fn project_contract_static_argument(
                 "whose generic data base does not rejoin exactly one checked declaration",
             ));
         };
-        if !definition.lifetime_parameters.is_empty() || !application.lifetime_arguments.is_empty()
-        {
+        if definition.lifetime_parameters.len() != application.lifetime_arguments.len() {
             return Err(rejected(
-                "with lifetime arguments not yet represented by package review",
+                "whose lifetime argument count differs from its checked data declaration",
             ));
         }
         let parameters = compilation.data_type_parameters(definition);
@@ -6411,10 +6416,22 @@ fn project_contract_static_argument(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let lifetime_arguments = application
+            .lifetime_arguments
+            .iter()
+            .map(|lifetime| {
+                lifetime_binder_ordinal(
+                    lifetime,
+                    context.lifetime_binders,
+                    "contract-call nested type",
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         return Ok(PackageReviewContractStaticArgument::GenericType {
             base: PackageReviewTypeIdentity {
                 canonical: base.into_string(),
             },
+            lifetime_arguments,
             arguments,
         });
     }

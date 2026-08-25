@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v46 rows are not promoted
+subjects or provenance. The current incomplete review-v47 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1349,6 +1349,13 @@ type changes canonical evidence. This rung admits zero-lifetime generic data
 applications only. Lifetime-bearing applications, generic machine/conformance
 applications, unresolved forwarded type/const binders, proposition/evidence
 static arguments, quotient calls, and compiler intrinsics remain fail-closed.
+Review v47 and canonical row v7 admit lifetime-bearing recursive generic data
+static arguments in contract calls after an exact data-declaration lifetime-
+arity join. Lifetime arguments retain alpha-normalized caller lifetime-binder
+ordinals: renames are stable, while selecting a different lifetime changes
+canonical evidence. Generic machine/conformance applications, unresolved
+forwarded type/const binders, proposition/evidence static arguments, quotient
+calls, and compiler intrinsics remain fail-closed.
 Other non-public, external, operator, or lifetime-parameterized trait
 realizations likewise remain fail-closed; binder-free generic requirements,
 explicit evidence binders, and non-generic selected conformances use the same
@@ -1381,8 +1388,8 @@ checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
 signature identity. Forwarded or symbolic type/const binders,
-proposition/evidence static arguments, quotient calls, lifetime-bearing data
-applications, generic machine/conformance applications, compiler-intrinsic
+proposition/evidence static arguments, quotient calls, generic
+machine/conformance applications, compiler-intrinsic
 calls, computed members, proposition-argument members without their checked
 join, and aggregate expression forms fail closed.
 Contract

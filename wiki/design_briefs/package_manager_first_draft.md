@@ -510,14 +510,21 @@ type changes canonical evidence. This rung admits zero-lifetime generic data
 applications only. Lifetime-bearing applications, generic machine/conformance
 applications, unresolved forwarded type/const binders, proposition/evidence
 static arguments, quotient calls, and compiler intrinsics remain fail-closed.
+Review v47 and canonical row v7 admit lifetime-bearing recursive generic data
+static arguments in contract calls after an exact data-declaration lifetime-
+arity join. Lifetime arguments retain alpha-normalized caller lifetime-binder
+ordinals: renames are stable, while selecting a different lifetime changes
+canonical evidence. Generic machine/conformance applications, unresolved
+forwarded type/const binders, proposition/evidence static arguments, quotient
+calls, and compiler intrinsics remain fail-closed.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
 interface declaration-selection row. The whole-source commitment separately
 pins the helper body; a callable signature is not body identity. Forwarded or
 symbolic type/const binders, proposition/evidence static arguments, quotient
-calls, lifetime-bearing data applications, generic machine/conformance
-applications, compiler-intrinsic calls, semantic roles, and domain operators
+calls, generic machine/conformance applications, compiler-intrinsic calls,
+semantic roles, and domain operators
 reject until exact rows are settled; none is inferred from the domain name.
 Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
@@ -955,7 +962,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v46 bytes cannot be promoted merely because the future artifact reuses
+review-v47 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

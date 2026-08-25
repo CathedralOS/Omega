@@ -852,6 +852,13 @@ complete.
   generic machine/conformance applications, unresolved forwarded type/const
   binders, proposition/evidence static arguments, quotient calls, and compiler
   intrinsics remain fail-closed.
+  Review v47 and canonical row v7 admit lifetime-bearing recursive generic
+  data static arguments in contract calls after an exact data-declaration
+  lifetime-arity join. Lifetime arguments retain alpha-normalized caller
+  lifetime-binder ordinals: renames are stable, while selecting a different
+  lifetime changes canonical evidence. Generic machine/conformance
+  applications, unresolved forwarded type/const binders, proposition/evidence
+  static arguments, quotient calls, and compiler intrinsics remain fail-closed.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
@@ -1410,7 +1417,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v46
+  create a placeholder `PackageInstance` or bless current incomplete review v47
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is
