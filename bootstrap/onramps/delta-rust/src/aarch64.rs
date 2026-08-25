@@ -55,7 +55,12 @@ pub fn lower_program(program: &Program) -> String {
     // The single trap target shared by every machine: overflow, divide-by-zero,
     // and out-of-bounds indexing land here (brk faults the process — the analog of
     // x64's ud2 / idiv #DE).
-    asm.push_str("Ltrap:\n    brk #0x1\n");
+    if program.uses_imports {
+        emit_flush_support(&mut asm);
+        asm.push_str("Ltrap:\n    bl Lflush_output\n    brk #0x1\n");
+    } else {
+        asm.push_str("Ltrap:\n    brk #0x1\n");
+    }
 
     // This target provisions the entry machine's receiver as a zero-initialized
     // instance in writable image storage.
@@ -68,6 +73,8 @@ pub fn lower_program(program: &Program) -> String {
     // A 1-byte static scratch buffer for write_byte / read_byte.
     if program.uses_imports {
         asm.push_str(".zerofill __DATA,__bss,_iobyte,1,0\n");
+        asm.push_str(".zerofill __DATA,__bss,_iobuf_used,4,2\n");
+        asm.push_str(".zerofill __DATA,__bss,_iobuf,4096,4\n");
     }
 
     // write_line string literals as read-only data (raw bytes — write() uses an
@@ -138,7 +145,7 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
         lower_statement(statement, machine_index, program, frame, self_disp, asm);
     }
     if !machine.states.is_empty() && block_falls_through(&machine.entry) {
-        emit_implicit_return(frame, asm);
+        emit_implicit_return(frame, is_entry && program.uses_imports, asm);
     }
     for (state_index, state_statements) in machine.states.iter().enumerate() {
         asm.push_str(&format!("Lm{}s{}:\n", machine_index, state_index));
@@ -146,12 +153,12 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
             lower_statement(statement, machine_index, program, frame, self_disp, asm);
         }
         if state_index + 1 < machine.states.len() && block_falls_through(state_statements) {
-            emit_implicit_return(frame, asm);
+            emit_implicit_return(frame, is_entry && program.uses_imports, asm);
         }
     }
     // Preserve the existing trailing default for the final state (or entry when
     // there are no states). Explicit control flow makes it unreachable.
-    emit_implicit_return(frame, asm);
+    emit_implicit_return(frame, is_entry && program.uses_imports, asm);
 }
 
 fn block_falls_through(statements: &[Statement]) -> bool {
@@ -162,9 +169,46 @@ fn block_falls_through(statements: &[Statement]) -> bool {
     }
 }
 
-fn emit_implicit_return(frame: i32, asm: &mut String) {
+fn emit_implicit_return(frame: i32, flush: bool, asm: &mut String) {
+    if flush {
+        asm.push_str("    bl Lflush_output\n");
+    }
     asm.push_str("    mov w0, #0\n");
     emit_epilogue(frame, asm);
+}
+
+fn emit_flush_support(asm: &mut String) {
+    asm.push_str(
+        r#"Lflush_output:
+    stp x19, x20, [sp, #-32]!
+    str x30, [sp, #16]
+    adrp x9, _iobuf_used@PAGE
+    add x9, x9, _iobuf_used@PAGEOFF
+    ldr w19, [x9]
+    cbz w19, Lflush_done
+    mov x20, #0
+Lflush_loop:
+    mov x0, #1
+    adrp x1, _iobuf@PAGE
+    add x1, x1, _iobuf@PAGEOFF
+    add x1, x1, x20
+    sub x2, x19, x20
+    bl _write
+    cmp x0, #0
+    b.le Lflush_discard
+    add x20, x20, x0
+    cmp x20, x19
+    b.lo Lflush_loop
+Lflush_discard:
+    adrp x9, _iobuf_used@PAGE
+    add x9, x9, _iobuf_used@PAGEOFF
+    str wzr, [x9]
+Lflush_done:
+    ldr x30, [sp, #16]
+    ldp x19, x20, [sp], #32
+    ret
+"#,
+    );
 }
 
 fn align16(n: i32) -> i32 {
@@ -251,6 +295,11 @@ fn lower_statement(
         Statement::Return(expression) | Statement::Exit(expression) => {
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop into w0 (exit code / return value)
+            if machine_index == program.entry_machine && program.uses_imports {
+                asm.push_str("    str x0, [sp, #-16]!\n");
+                asm.push_str("    bl Lflush_output\n");
+                asm.push_str("    ldr x0, [sp], #16\n");
+            }
             emit_epilogue(frame, asm);
         }
         Statement::Transition(subject, arms) => {
@@ -303,6 +352,7 @@ fn lower_statement(
             // write(1, &Lstr<i>, len) via libSystem. The string bytes are emitted
             // in a read-only data section by lower_program.
             let len = program.strings[*string_index].len() as i32;
+            asm.push_str("    bl Lflush_output\n");
             asm.push_str("    mov x0, #1\n"); // fd = stdout
             asm.push_str(&format!("    adrp x1, Lstr{}@PAGE\n", string_index));
             asm.push_str(&format!("    add x1, x1, Lstr{}@PAGEOFF\n", string_index));
@@ -310,15 +360,27 @@ fn lower_statement(
             asm.push_str("    bl _write\n");
         }
         Statement::WriteByte(expression) => {
-            // store the low byte to the static scratch, then write(1, &_iobyte, 1).
+            // Buffer single-byte writes. Large compiler outputs otherwise spend
+            // nearly all runtime crossing the host boundary one byte at a time.
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
-            asm.push_str("    adrp x9, _iobyte@PAGE\n    add x9, x9, _iobyte@PAGEOFF\n");
-            asm.push_str("    strb w0, [x9]\n"); // _iobyte = low byte
-            asm.push_str("    mov x0, #1\n"); // fd = stdout
-            asm.push_str("    adrp x1, _iobyte@PAGE\n    add x1, x1, _iobyte@PAGEOFF\n");
-            asm.push_str("    mov x2, #1\n"); // len = 1
-            asm.push_str("    bl _write\n");
+            asm.push_str("    adrp x9, _iobuf_used@PAGE\n");
+            asm.push_str("    add x9, x9, _iobuf_used@PAGEOFF\n");
+            asm.push_str("    ldr w10, [x9]\n");
+            asm.push_str("    cmp w10, #1, lsl #12\n");
+            asm.push_str("    b.lo 1f\n");
+            asm.push_str("    str x0, [sp, #-16]!\n");
+            asm.push_str("    bl Lflush_output\n");
+            asm.push_str("    ldr x0, [sp], #16\n");
+            asm.push_str("    mov w10, #0\n");
+            asm.push_str("    adrp x9, _iobuf_used@PAGE\n");
+            asm.push_str("    add x9, x9, _iobuf_used@PAGEOFF\n");
+            asm.push_str("1:\n");
+            asm.push_str("    adrp x11, _iobuf@PAGE\n");
+            asm.push_str("    add x11, x11, _iobuf@PAGEOFF\n");
+            asm.push_str("    strb w0, [x11, x10]\n");
+            asm.push_str("    add w10, w10, #1\n");
+            asm.push_str("    str w10, [x9]\n");
         }
     }
 }
@@ -452,6 +514,7 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
         }
         Expr::ReadByte => {
             // read(0, &_iobyte, 1); result = (count >= 1) ? _iobyte : -1 (branchless).
+            asm.push_str("    bl Lflush_output\n");
             asm.push_str("    mov x0, #0\n"); // fd = stdin
             asm.push_str("    adrp x1, _iobyte@PAGE\n    add x1, x1, _iobyte@PAGEOFF\n");
             asm.push_str("    mov x2, #1\n"); // len = 1
