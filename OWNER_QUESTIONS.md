@@ -35,27 +35,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q2 — What does a boundary clause mean on an abstract requirement?
-
-Boundary syntax distinguishes host and named boundary levels before semantic
-lowering, but the state-signature path collapses them to one undifferentiated
-`Boundary` contract kind and carries no proof facts. Package review therefore
-cannot preserve the authored level or explain how the clause differs from a
-boundary trait, exact service reach, or an admitted qualification route.
-
-Choose whether abstract requirements need this clause at all. If retained, its
-host/named level, authority effect, inheritance, provider relationship, and
-comparison identity must survive as structural checked semantics.
-
-Recommended direction: do not admit boundary clauses on trait requirements;
-use boundary-trait identity, service reach, and explicit checked establishment
-routes for the one-purpose language's actual boundaries. A coherent alternative
-is to retain an exact nominal boundary-level identity through checking when a
-real external contract requires it. Tempting but wrong alternatives are to
-encode the word `boundary`, treat host and named levels as equal, or infer the
-missing level from a service name during package projection.
-
-## Q3 — What compiler/toolchain provenance seals a package instance?
+## Q2 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
@@ -85,7 +65,7 @@ producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
 
-## Q4 — How does `build.omg` name its package-scoped filesystem roots?
+## Q3 — How does `build.omg` name its package-scoped filesystem roots?
 
 The build executor already gives each package an immutable source root and a
 fresh writable staging root, and the checked interpreter enforces those grants.

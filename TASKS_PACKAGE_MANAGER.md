@@ -624,14 +624,16 @@ complete.
   unnamed `requires` and `ensures` through the same closed structural
   fact/expression lane as public callables, joined to exactly one checked
   `StateSignature` owner. Generic
-  selected-conformance telescopes, named evidence contracts,
-  boundary clauses, and unsupported expression forms still fail closed. Exact
+  selected-conformance telescopes, named evidence contracts, and unsupported
+  expression forms still fail closed. Trailing `boundary host` / `boundary
+  Name` clauses are retired at the source grammar rather than awaiting a
+  package row. Exact
   checked crash capsules keyed by trait and requirement now project each
   abstract published crash ceiling as canonical cause-and-guard routes without
   fabricating realized body sites or calls; no public trait is silently omitted.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. The remaining
-  named/boundary public-trait contract lanes, call-bearing domain
+  named public-trait contract lanes, call-bearing domain
   predicates, semantic-role/operator lanes,
   generated/toolchain symbol ownership, package-qualified provider
   binding/selection identities, source/toolchain/compiler commitments,
@@ -659,8 +661,8 @@ complete.
   external, operator, or lifetime-parameterized realizations reject until their
   complete rows exist
   rather than disappearing from review.
-  Public callable `requires`, `ensures`, and boundary clauses now retain exact
-  structural rows for the closed boolean/integer expression subset over
+  Public callable `requires` and `ensures` retain exact structural rows for the
+  closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified
   nominals. Domain-membership rows additionally retain the exact value and
   package-qualified public domain; exposing a private package domain rejects.

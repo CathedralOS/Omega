@@ -24,9 +24,11 @@ pub trait Content<A> {
 }
 
 // Conservation contracts call the exact owner projection above around the
-// compiler-owned proof-only `entry(&place)` and `separate(a, b, ...)`
-// builtins. They are reserved compiler symbols rather than package machines:
-// neither can be implemented, overridden, stored, or executed.
+// proof-only `old(&place)` and `separate(a, b, ...)` term formers. `old`
+// selects the same callable-entry revision used by scoped-fact and borrow
+// certificates; it is not a runtime snapshot. Neither term may be implemented,
+// overridden, stored, or executed. The Rust on-ramp still accepts the retired
+// `entry(&place)` spelling pending the tracked parser migration.
 
 // Uniform specification-number injection. Every fixed-width integer and
 // address embeds into proof Int with its complete carrier range; a consumer

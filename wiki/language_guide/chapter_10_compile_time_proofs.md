@@ -986,20 +986,23 @@ ensures
 }
 ```
 
-The `before` value is explicit. There is no implicit `old` keyword here. A
-caller that wants to prove preservation can make or carry a snapshot itself.
+The `before` value is explicit. A caller that wants to preserve an arbitrary
+computed value can make or carry such a snapshot itself.
 
-Contracts also have one narrower, proof-only entry-state form:
-`entry(place)`. It selects the machine-entry version of a structural place so a
-postcondition can relate the entry and current content of an owned claim. It is
-not a runtime snapshot, does not duplicate the place or its value, and is not a
-general `old(expression)` modality. Ordinary value-preservation proofs still
-pass an explicit value such as `before` above.
+Contracts also have the narrower proof-only `old(place)` form. It selects the
+callable-entry revision of a structural place so a postcondition can relate
+that place's prior and current content. It is not a runtime snapshot, does not
+duplicate the place or its value, and initially does not accept an arbitrary
+computed expression. For example, `old(&extent)` gives a content projection a
+stable pre-state subject while preserving the exact owned occurrence.
 
-The distinction is deliberate: `entry(&extent)` gives a content projection a
-stable entry-state subject, while arbitrary computed expressions do not acquire
-implicit history. Terminal Psi represents this as an entry/current version on
-the structural-place term itself.
+`old` is derived from the same place-revision model used by scoped facts and
+borrow certificates; it is not a second history mechanism. Terminal Psi
+retains the structural place, its callable-entry revision, and the current
+place separately. It is the sole source pre-state term former, is admitted only
+in fact position where a callable-entry revision exists, and packages cannot
+implement or override it. The retired proof spelling `entry(place)` and the
+retired explicit machine-member `entry` grammar are not aliases.
 
 ## Helper Machines
 

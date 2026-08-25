@@ -149,11 +149,11 @@ same stable backing identity must derive their custody from a common root; a
 set of individually honest provider ledgers does not establish cross-provider
 separation.
 
-No source-visible backing-receipt binder exists. Parameters, entry-version
-structural places, and result paths are the contract subjects. The static
-requirement fingerprints the normalized algebra expression; each invocation
-substitutes its actual values. For multiple content-bearing results, one n-ary
-separated relation bounds all newly established result claims together. Content
+No source-visible backing-receipt binder exists. Parameters, structural places
+at their callable-entry revision, and result paths are the contract subjects.
+The static requirement fingerprints the normalized algebra expression; each
+invocation substitutes its actual values. For multiple content-bearing results,
+one n-ary separated relation bounds all newly established result claims together. Content
 transferred from input claims remains ordinary conservation and is not counted
 again as new boundary supply.
 
@@ -329,26 +329,28 @@ claims.
 
 Two conservation-specific proof-only operations complete this source surface:
 
-- `entry(place)` denotes the callable-entry version of a parameter, `self`, or
+- `old(place)` denotes the callable-entry revision of a parameter, `self`, or
   one of their structural places; it is not executable, does not copy an owned
-  value, and is not a modality over arbitrary propositions; and
+  value, and initially is not a modality over arbitrary propositions; and
 - `separate(a, b, ...)` applies the selected closed algebra's partial n-ary
   composition and generates compatibility and separation obligations.
 
-Proof operations compose around entry-version places. A content split may
+Proof operations compose around revisioned places. A content split may
 therefore state:
 
 ```omega
 ensures
-    Granted::content(entry(&whole))
+    Granted::content(old(&whole))
     == separate(
         Granted::content(&result.left),
         Granted::content(&result.right),
     );
 ```
 
-Terminal Psi represents `entry` as a version on the existing structural-place
-term (`Entry | Current`), not as entry variants of every proposition node.
+Terminal Psi represents `old` through the existing revision on the structural-
+place term (`CallableEntry | Current`), not as variants of every proposition
+node. The revision identity is shared with scoped facts and borrow certificates;
+`old` does not create a parallel history model.
 `separate` is a compiler-owned proof intrinsic over the closed algebra
 vocabulary. Both use ordinary call-shaped source spelling, erase completely,
 and cannot be implemented or overridden by packages.

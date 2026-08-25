@@ -559,6 +559,39 @@ Remaining:
   extent fabrication, unmeasured retry, lost linear capability, incorrect
   success/failure status mapping, provider use after exit, duplicated storage
   lineage, and a `Granted` residual containing the active stack.
+- **RETIRED-ENTRY-AND-BOUNDARY-LEVEL-SYNTAX.** Bring both compiler sources and
+  the Rust comparator into line with the settled source surface. Remove the
+  legacy `library "..." calling_convention ... { entry ... }` block, the
+  already-retired `capability { entry ... }` host scaffold, explicit nested
+  `entry` / `pub entry` machine members, and trailing `boundary host` /
+  `boundary Name` contract clauses. Delete their dedicated syntax/semantic
+  nodes and package-review rows rather than accepting distinctions that later
+  stages discard. Preserve `boundary trait`, `boundary machine`, `boundary
+  operator`, exact `satisfies ... via` realizations, target/build boundary
+  admission, and the compiler's generated internal entry block.
+
+  Replace the proof-only `entry(place)` builtin with `old(place)`. Initially its
+  operand is a parameter-, `self`-, or field-rooted structural place (including
+  the shared-borrow spelling consumed by `Content<A>::project`), never `result`,
+  a local, or an arbitrary computed expression. Normalize it as that exact
+  place at the callable-entry revision already used by scoped facts and borrow
+  certificates; do not create a parallel history identity or a runtime
+  snapshot. Remove `entry` as a reserved source keyword while keeping it legal
+  as an ordinary declaration name and internal compiler term. Update the
+  Omega-written lexer/token vocabulary and Rust comparator together. `old` is
+  contextual to the proof term form rather than a globally reserved word;
+  existing parameters and locals named `old` remain ordinary identifiers.
+
+  Acceptance: the former passing library-block fixture becomes a directed
+  `library_block_retired` failure canary; separate failure canaries reject
+  capability-entry, explicit machine-member entry, and both trailing boundary-
+  level spellings. Content-conservation pass/fail canaries use `old`, Terminal
+  replay retains the exact structural place and callable-entry revision, and
+  source/profile tests prove that no retired syntax node, `ContentEntry`
+  builtin, or undifferentiated boundary-contract row survives. Ordinary
+  machine bodies still generate one internal entry block, and an ordinary
+  machine named `entry` remains legal. Existing migration code with a value
+  named `old` continues to parse unchanged.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Take one real
   content-bearing source program through terminal Psi. Add sealed introduction
   and custody-exit frontiers, derive residual geometry at partial bodyless
@@ -595,13 +628,15 @@ Remaining:
   identity retained as zero-runtime metadata. Exact whole-parameter content
   custody now also lowers from a real qualified source declaration through both
   Unit and primitive-result bodyless exits. The source-derived terminal entry
-  row retains the checked claim, entry-version subject, owner-unique projection,
+  row retains the checked claim, callable-entry-revision subject, owner-unique
+  projection,
   and content algebra; verification rejects structural/content rebinding,
   provider rejection leaves custody live, and successful completion consumes
   it. This slice remains deliberately whole-root: projected bodyless exits still
   require authored partition/residual geometry. Bodyless boundary completion
   sources also retain one canonical combined whole-claim/content row: exact
-  claim, optional structural entry path, full entry-version content subject,
+  claim, optional structural entry path, full callable-entry-revision content
+  subject,
   and owner-unique projection/algebra identity. Omega preserves and replays the
   catalog beside exact provider execution through native evidence and canonical
   installation format 30; missing, duplicate, malformed, or whole/content-
