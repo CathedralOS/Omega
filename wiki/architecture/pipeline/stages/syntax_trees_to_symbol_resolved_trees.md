@@ -59,6 +59,12 @@ Must own:
   before table rebuilding consumes that form. Exact targets and static
   conformance arguments settle here; unresolved call targets retain an explicit
   checked-call obligation at the target token.
+- Recording every source-backed static argument path recursively. A resolved
+  conformance uses the conformance kind; every other selected type, machine, or
+  forwarded binder uses the common static-argument kind. Literal arguments
+  select no declaration, and named const reduction retains its declaration in
+  the separate const-substitution custody path. An unresolved static path is an
+  explicit late obligation, never an omitted row.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 - Preflighting signature-free requirement paths after symbol assignment and

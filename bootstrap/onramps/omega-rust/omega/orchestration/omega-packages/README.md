@@ -554,6 +554,15 @@ Compiler-owned build markers and lowered assembly operations have closed
 intrinsic identities, while every ordinary statement target remains subject to
 the direct-dependency gate.
 
+Every source-backed static argument path on an expression or statement call is
+also an authored declaration selection. Explicit conformance paths retain the
+dedicated conformance kind; other type, static-machine, and forwarded-binder
+paths share one static-argument kind and retain the exact selected symbol.
+Nested declaration applications recurse. Integer literals select no
+declaration, and named const reduction separately preserves the exact const
+declaration that supplied the value. Any unresolved static path remains visible
+and fails package admission.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

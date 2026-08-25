@@ -612,15 +612,27 @@ complete.
   transitive-only void statement call and a conformance inferred by one, then
   accept each after direct admission.
 
+  Milestone 2026-08-25: every explicit source-backed static argument path on an
+  expression or statement call now retains declaration custody. Conformance
+  arguments keep their dedicated kind; type, static-machine, and forwarded
+  binder paths use one `StaticArgument` kind because the selected declaration
+  and callee telescope already determine the semantic category. Nested static
+  applications recurse. Integer literals select no declaration, while named
+  const substitution keeps its existing exact const-declaration provenance.
+  An unresolved static path remains an explicit late obligation and therefore
+  fails package admission rather than disappearing. A root-middle-leaf canary
+  rejects transitive-only data and machine arguments independently and accepts
+  both after direct admission.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
   explicit static conformance arguments, expression and statement calls,
-  inferred generic-call conformances, and checked trait-operator conformances.
-  Public expression positions, non-conformance static argument categories,
-  named conformance selectors in callable bounds, and explicit cleanup
-  classification are not yet total. The package manager stays disabled until
-  those gaps close.
+  all source-backed static declaration arguments, inferred generic-call
+  conformances, and checked trait-operator conformances. Public expression
+  positions, named conformance selectors in callable bounds, and explicit
+  cleanup classification are not yet total. The package manager stays disabled
+  until those gaps close.
   Exact carried-semantic-dependency evidence also remains. Visibility for
   independently selectable roots that currently reject `pub` remains owner
   question Q1.

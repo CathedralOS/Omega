@@ -1112,6 +1112,16 @@ assembly operations use closed intrinsic ledger variants rather than synthetic
 package declarations. A statement call to ordinary package code remains an
 authored selection and requires direct authority.
 
+Static call arguments do not form a separate dependency loophole. Every
+source-backed declaration path is retained recursively at its own span.
+Conformance paths keep their evidence-specific kind; type, static-machine, and
+forwarded-binder paths use one static-argument kind because their exact symbol
+and the selected callable telescope carry the category. Integer literals name
+no declaration. Named const reduction preserves the exact const declaration in
+the existing substitution-provenance row. An unresolved static path remains a
+late obligation and package admission fails closed if no exact declaration is
+available.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type
