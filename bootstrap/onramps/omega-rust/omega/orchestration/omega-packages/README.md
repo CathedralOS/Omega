@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v11 carries operation-attempt schema v11, retaining exact
+Observation schema v12 carries operation-attempt schema v12, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -301,7 +301,9 @@ while a host error retains a prior authorization without fabricating a refusal.
 Granted evaluator failures retain partial typed outcomes; worker
 failures mark evidence unavailable, and Omega emits no package review row.
 Descriptor, native, and find inputs retain Resolved/Null/Unknown logical
-lifetimes; successful opens mint monotonic IDs, duplicate and borrowed outputs
+lifetimes immediately after successful typing. A later preparation failure
+keeps the completed prefix, while a fully prepared call must reproduce the
+exact logical-handle plan. Successful opens mint monotonic IDs, duplicate and borrowed outputs
 bind their source, and successful closes retain every invalidation. Failed
 closes retire nothing and reused provider tokens receive fresh identities. A
 token live in another logical domain rejects before provider access; provider
@@ -329,8 +331,8 @@ contained. Directory-entry names, symlink targets, find patterns, and other
 non-rooted path-like operands occupy a distinct ordinal-tagged lane, are
 retained incrementally across later preparation failure, and are bound by the
 package commitment without rendering bytes as text. Preparation-failure
-rooted-path/logical-handle/mutable prefixes, retained returned-path bytes, and
-complete observed-input content remain absent, so this is an
+rooted-path/mutable prefixes, retained returned-path bytes, and complete
+observed-input content remain absent, so this is an
 incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/

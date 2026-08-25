@@ -152,10 +152,11 @@ pub struct EvaluationUsage {
 ///
 /// This records call-start order, exact provider, every successfully authorized
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
-/// exact path-like byte operands, and a typed returned or evaluator-halted
+/// exact path-like byte operands, each successfully typed logical-handle input
+/// even when later preparation fails, and a typed returned or evaluator-halted
 /// outcome. It is not the canonical replay transcript: complete returned
 /// content and complete content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 11;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {

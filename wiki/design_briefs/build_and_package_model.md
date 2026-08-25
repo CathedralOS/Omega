@@ -654,7 +654,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation schema v11 carries operation-attempt schema v11: an ordered
+Observation schema v12 carries operation-attempt schema v12: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -666,7 +666,9 @@ ceiling exhaustion non-catchably halts the evaluator. Granted evaluator
 failures retain partial usage and typed outcomes; worker
 failures mark evidence unavailable. Omega emits fixed non-admission counts and
 no review row. Descriptor, native-handle, and find-handle inputs retain exact
-Resolved/Null/Unknown disposition; successful opens mint monotonic logical
+Resolved/Null/Unknown disposition immediately after successful typing. A later
+preparation failure keeps the completed prefix, while a fully prepared call
+must reproduce the exact logical-handle plan; successful opens mint monotonic logical
 lifetimes, duplicates and borrowed views bind their source, and successful
 closes retain all invalidated lifetimes. Raw provider-token reuse cannot reuse
 logical identity, failed closes retire nothing, and successful use of an
@@ -699,8 +701,8 @@ path-like operand is retained as preparation advances, so a later preparation
 halt keeps the completed ordinal prefix; a fully prepared call must reproduce those rows
 exactly before provider access. Prior or nested staging effects remain cleanup-
 contained. Package commitments frame these rows without rendering payload
-bytes as text. Preparation-failure rooted-path/logical-handle/mutable prefixes,
-retained returned-path bytes, and complete observed-input content remain
+bytes as text. Preparation-failure rooted-path/mutable prefixes, retained
+returned-path bytes, and complete observed-input content remain
 absent, so the row is still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/

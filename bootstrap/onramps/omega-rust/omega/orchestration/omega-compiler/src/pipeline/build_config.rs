@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 11;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 12;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -1713,8 +1713,12 @@ pub(crate) fn compute_build_config(
                     .iter()
                     .map(|attempt| attempt.path_like_operands().len())
                     .sum::<usize>();
+                let logical_handle_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.logical_handle_inputs().len())
+                    .sum::<usize>();
                 format!(
-                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s)",
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {logical_handle_operands} logical-handle operand(s)",
                     attempts.len()
                 )
             })

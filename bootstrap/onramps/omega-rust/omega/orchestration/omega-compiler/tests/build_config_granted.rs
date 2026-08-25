@@ -201,7 +201,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 11);
+    assert_eq!(checked_observations.schema_version(), 12);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -212,7 +212,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        11
+        12
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1055,6 +1055,30 @@ fn failed_filesystem_preparation_retains_the_completed_path_like_operand_prefix(
     assert!(
         rendered.contains("1 path-like operand(s)"),
         "the completed find pattern must survive the later buffer-capacity failure: {rendered}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn failed_filesystem_preparation_retains_the_completed_logical_handle_prefix() {
+    let (project, profile) = rooted_build_probe_project(
+        "logical-handle-preparation-prefix",
+        r#"    self.code = self.filesystem.find_next(7, &mut self.small_buffer);"#,
+    );
+    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("undersized find-data output must reject build evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("filesystem output requires 320 bytes"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("1 logical-handle operand(s)"),
+        "the completed find handle must survive the later buffer-capacity failure: {rendered}"
     );
     let _ = std::fs::remove_dir_all(&project);
 }

@@ -765,8 +765,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v11
-carries operation-attempt schema v11, retaining each completed operation's exact
+Observation schema v12
+carries operation-attempt schema v12, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -777,7 +777,9 @@ host access; budget exhaustion non-catchably halts evaluation. Partial typed
 outcomes survive evaluator failure, while worker
 failure marks evidence unavailable; Omega emits fixed non-admission counts and
 no review row. Descriptor, native, and find operands retain exact
-Resolved/Null/Unknown logical lifetimes. Successful opens mint monotonic IDs;
+Resolved/Null/Unknown logical lifetimes immediately after successful typing. A
+later preparation failure keeps the completed prefix, while a fully prepared
+call must reproduce the exact logical-handle plan. Successful opens mint monotonic IDs;
 duplicates and borrowed native views retain their source, successful closes
 retain every invalidation, failed closes retire nothing, and provider-token
 reuse after close receives a fresh ID. A token live in another logical domain
@@ -811,8 +813,8 @@ preparation halt keeps the completed ordinal prefix; the fully prepared call
 must reproduce those rows exactly before provider access. Prior or nested staging effects
 remain cleanup-contained. Package commitments hash immutable, path-like, and
 mutable rows without rendering them. Retained returned-path bytes,
-preparation-failure rooted-path/logical-handle/mutable prefixes, and complete
-observed-input content remain absent, so
+preparation-failure rooted-path/mutable prefixes, and complete observed-input
+content remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.
