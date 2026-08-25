@@ -2,10 +2,10 @@
 
 Checkpoint 000001 is the first coherent Omega-written product compiler source
 snapshot. It implements Psi source custody, final token/lexical-diagnostic
-representations, Unicode 17 XID classification, and complete source-to-token
-spelling. The hosted adapter reads one source unit, exits with its accepted
-status 0, rejects lexical errors with status 251, and rejects source
-capacity exhaustion with status 252.
+representations, Unicode 17 XID classification, and the current source-to-token
+machinery. The hosted adapter reads one source unit, exits with its accepted
+status 0, rejects lexical errors with status 251, and rejects source capacity
+exhaustion with status 252.
 
 This is a mechanically enforced provisional profile, not the final `Ωself`
 freeze. It records general facilities used by the exact manifest in
@@ -102,6 +102,17 @@ accepted only when all of the following hold:
 4. Invalid UTF-8, unterminated nested comments, invalid cooked-string escapes,
    and unsupported punctuation reject with status 251 and publish no token
    observation as success.
+
+These observations do not settle conflicting language-surface claims. Unicode
+XID identifiers contradict the guide's ASCII-transparent/source-payload-only
+wording; the current lexer accepts `\u{...}` and encodes the scalar as UTF-8
+while the guide explicitly forbids that escape; raw-string delimiter/content
+rules are not normative there; and `u32` cursor expressions compare directly
+with slice `.len`, whose specified count type is `u64`, without a settled
+cross-carrier comparison or explicit cast. The checkpoint therefore records
+those tested implementation behaviors without treating them as full-Omega
+lexical authority. `TASKS.md` owns the required rulings or product-source
+refactors.
 
 The standard gate now enforces the normalized-syntax and resource portion of
 this provisional `Ωself` profile. Negative fixtures are valid full-Omega

@@ -109,6 +109,18 @@ Remaining:
   differential. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
+  The lexical claim is design-blocked at explicit specification conflicts. The
+  current Omega-written lexer accepts Unicode XID identifiers despite the
+  guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
+  escapes even though the guide forbids codepoint-to-byte escapes, and accepts
+  raw strings whose delimiter/content rules are not yet normative there. Its
+  `u32` cursors also compare directly with slice `.len`, whose specified count
+  type is `u64`, without a settled heterogeneous-comparison or explicit-cast
+  rule. The language owner must rule these forms and update the guide or
+  refactor the product source and preserve rejection canaries. Until then, the
+  checkpoint records tested implementation behavior but does not claim
+  full-spec lexical conformance for those forms.
+
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
