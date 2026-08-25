@@ -2,6 +2,7 @@ use psi_language_semantics::byte_predicates::ByteSequencePredicate;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
+use super::expressions::assign_membership_symbol;
 use super::targets::resolve_free_machine_entry_state_symbol;
 
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
@@ -327,10 +328,21 @@ fn assign_proof_expression_symbols(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
+            // Proof expressions live in the shared body-expression table, but
+            // are not visited by the ordinary machine-expression resolver.
+            // Assign the same exact declared-domain or Type::Case identities
+            // here, at their symbol-resolution owner, before reconciling the
+            // specialized domain lookup below.
+            assign_membership_symbol(symbols, expression_table, membership.domain, expression);
+            let domain_symbol = resolve_domain_symbol(symbols, domain_symbols, &name);
             if let psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
                 expression_table.expression_mut(expression)
             {
-                membership.domain_symbol = resolve_domain_symbol(symbols, domain_symbols, &name);
+                membership.domain_symbol = domain_symbol;
+                if domain_symbol.is_valid() {
+                    membership.case_type_symbol = SymbolHandle::invalid();
+                    membership.case_symbol = SymbolHandle::invalid();
+                }
             }
         }
         psi_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
