@@ -179,6 +179,10 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
                 && location.relative_path() == "build.omg"
         }));
         assert!(locations.iter().any(|location| {
+            location.role() == PackageReviewSourceLocationRole::ProviderRequirementDeclaration
+                && location.relative_path() == "main.omg"
+        }));
+        assert!(locations.iter().any(|location| {
             location.role() == PackageReviewSourceLocationRole::ProviderRealization
                 && location.relative_path() == "main.omg"
         }));

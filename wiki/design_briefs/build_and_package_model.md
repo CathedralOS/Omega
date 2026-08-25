@@ -911,7 +911,9 @@ plan and overload strings remain operational/audit data. Projection verifies
 each declaration against the selected plan's exact package owner, or against an
 exact authored toolchain-source identity when the plan carries no package
 owner. Package-less user source, unresolved/source-free ownership, and owner
-drift reject. Selection
+drift reject. Explanatory source custody records each exact requirement
+declaration separately from its realizing machine, preventing a provider row
+from retaining only its implementation anchor. Selection
 and canonical sorting keep that pair intact, adding exact authored build/target-
 default sites or a closed reason for an implicit unique choice. The resulting
 selected-provider row may mix authored coordinates and compiler-derived reasons

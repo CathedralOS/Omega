@@ -1597,6 +1597,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::ProviderRealization => 7,
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
+        PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
     }
 }
 
@@ -1609,6 +1610,9 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::ProviderSelection => "provider_selection",
         PackageReviewSourceLocationRole::ProviderSchemaDeclaration => "provider_schema_declaration",
         PackageReviewSourceLocationRole::ProviderTypeDeclaration => "provider_type_declaration",
+        PackageReviewSourceLocationRole::ProviderRequirementDeclaration => {
+            "provider_requirement_declaration"
+        }
         PackageReviewSourceLocationRole::ProviderRealization => "provider_realization",
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => {
             "semantic_dependency_consumer"

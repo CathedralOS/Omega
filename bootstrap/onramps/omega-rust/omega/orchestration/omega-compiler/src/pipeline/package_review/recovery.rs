@@ -551,6 +551,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::ProviderRealization => 7,
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
+        PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
     }
 }
 
@@ -568,6 +569,7 @@ fn decode_source_location_role(
         7 => Ok(PackageReviewSourceLocationRole::ProviderRealization),
         8 => Ok(PackageReviewSourceLocationRole::SemanticDependencyConsumer),
         9 => Ok(PackageReviewSourceLocationRole::SemanticDependencyDeclaration),
+        10 => Ok(PackageReviewSourceLocationRole::ProviderRequirementDeclaration),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown role tag",
         )),
