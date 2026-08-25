@@ -396,7 +396,7 @@ reconstructs them from reduced nominal identity. Provider candidate derivation
 captures a compiler-internal
 sidecar beside each semantic plan: exact schema and optional nominal-provider
 symbols, plus the exact requirement and realizing machine for every external or
-checked-adapter row. Review v40 encodes those declarations as exact
+checked-adapter row. Review v41 encodes those declarations as exact
 package-qualified nominal identities; readable plan and overload strings remain
 operational/audit data. Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
@@ -460,11 +460,18 @@ Arithmetic domains and aggregate carry policy are already closed compiler enums;
 their diagnostic labels are not package authority. Typed domain constraints now
 distinguish declared, carry, value-domain, and `OmegaLayout` subjects. Layout
 retains a closed grammar and exact structural schema argument; symbol-backed
-declarations remain declared regardless of spelling. Review v40 encodes those
+declarations remain declared regardless of spelling. Review v41 encodes those
 subjects structurally and rejects legacy/unclassified layout names, malformed
 compiler subjects, residual const calls, unsupported index forms, and missing,
 duplicate, or incomplete checked index selections. This remains an internal
 checked-compilation join, not a reason for nominal Chi.
+Review v41 additionally decodes compiler-reserved canonical-const transport
+atoms into closed type/value terms, omits diagnostic display text, and treats
+decimal leaves as numeric values. They are admitted only beneath an exact
+declared const parameter. Const binders must reconcile uniquely to the projected
+alpha-normalized telescope; residual const declarations and unrelated textual
+leaves reject. Neither the legacy atom nor a binder spelling enters review
+identity.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
@@ -908,7 +915,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v40 bytes cannot be promoted merely because the future artifact reuses
+review-v41 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

@@ -856,7 +856,13 @@ fn normalize_type_reference(
         }
         TypeReferenceNode::Named { symbol, name } => compound(
             "named",
-            [atom("name", &context.name(program, *symbol, name.as_str()))],
+            [normalize_const_or_nominal_name(
+                program,
+                *symbol,
+                name.as_str(),
+                "name",
+                context,
+            )],
         ),
         TypeReferenceNode::Unit => "unit".to_owned(),
     }
@@ -875,9 +881,12 @@ fn normalize_index_expression(
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
-            atom(
+            normalize_const_or_nominal_name(
+                program,
+                path.symbol,
+                fallback.as_str(),
                 "const-name",
-                &context.name(program, path.symbol, fallback.as_str()),
+                context,
             )
         }
         ExpressionNode::Binary(binary) => {
@@ -947,6 +956,36 @@ fn normalize_index_expression(
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::ZeroValue(_) => "unsupported-index-expression".to_owned(),
     }
+}
+
+fn normalize_const_or_nominal_name(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    spelling: &str,
+    nominal_tag: &str,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    if !symbol.is_valid() {
+        // The const evaluator alone can create this source-unspellable atom.
+        // Decode its semantic fields and deliberately omit diagnostic display;
+        // package review separately proves that the leaf occupies one exact
+        // declared const slot before accepting this identity.
+        if let Some(value) =
+            psi_language_semantics::const_value::CanonicalConstValue::from_atom(spelling)
+        {
+            return compound(
+                "canonical-const",
+                [
+                    atom("type", &value.type_name),
+                    atom("encoding", &value.encoding),
+                ],
+            );
+        }
+        if let Ok(value) = spelling.parse::<i128>() {
+            return atom("integer-const", &value.to_string());
+        }
+    }
+    atom(nominal_tag, &context.name(program, symbol, spelling))
 }
 
 fn open_index_operation_selection(
@@ -1424,6 +1463,64 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.as_str(), "named(name($T0))");
         assert!(!first.as_str().contains("owner"));
+    }
+
+    #[test]
+    fn package_qualified_const_values_use_closed_semantics_without_display_text() {
+        let mut program = TypedTrees::default();
+        let first = psi_language_semantics::const_value::CanonicalConstValue::new(
+            "Unit",
+            "record4:Unit4:code9:integer3:u321:7",
+            "Unit { code: 7 }",
+        );
+        let second = psi_language_semantics::const_value::CanonicalConstValue::new(
+            "Unit",
+            first.encoding.clone(),
+            "diagnostic text must not be identity",
+        );
+        let changed = psi_language_semantics::const_value::CanonicalConstValue::new(
+            "Unit",
+            "record4:Unit4:code9:integer3:u321:8",
+            "Unit { code: 8 }",
+        );
+        let first = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(first.atom()),
+            });
+        let second = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(second.atom()),
+            });
+        let integer = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("007"),
+            });
+        let changed = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(changed.atom()),
+            });
+
+        let first = program.package_qualified_type_identity(first);
+        let second = program.package_qualified_type_identity(second);
+        let integer = program.package_qualified_type_identity(integer);
+        let changed = program.package_qualified_type_identity(changed);
+
+        assert_eq!(first, second);
+        assert_ne!(first, changed);
+        assert!(first.as_str().contains("canonical-const"), "{first}");
+        assert!(first.as_str().contains("encoding"), "{first}");
+        assert!(!first.as_str().contains("Unit { code: 7 }"), "{first}");
+        assert!(!first.as_str().contains("unresolved-owner"), "{first}");
+        assert!(integer.as_str().contains("integer-const(7)"), "{integer}");
+        assert!(!integer.as_str().contains("unresolved-owner"), "{integer}");
     }
 
     #[test]

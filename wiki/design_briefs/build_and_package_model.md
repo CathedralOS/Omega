@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v40 rows are not promoted
+subjects or provenance. The current incomplete review-v41 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -905,7 +905,7 @@ join reconstructs those coordinates from reduced nominal identity.
 Provider candidate derivation captures a compiler-internal sidecar beside each
 semantic plan: exact boundary-schema and optional nominal-provider symbols, and
 the exact requirement plus realizing machine for every external or
-checked-adapter row. Review v40 encodes those schema, provider, requirement, and
+checked-adapter row. Review v41 encodes those schema, provider, requirement, and
 realization declarations as package-qualified nominal identities; readable
 plan and overload strings remain operational/audit data. Selection
 and canonical sorting keep that pair intact, adding exact authored build/target-
@@ -945,10 +945,17 @@ closed enums; rendering their compiler-owned labels is not an authority hole.
 Typed domain constraints now distinguish declared, carry, closed value-domain,
 and `OmegaLayout` subjects. Layout retains a closed grammar and an exact
 structural schema type with its declaration symbol. Symbol-backed declarations
-remain declared regardless of diagnostic spelling. Review v40 encodes the
+remain declared regardless of diagnostic spelling. Review v41 encodes the
 compiler variants structurally and rejects legacy/unclassified layouts,
 malformed subjects, residual const calls, unsupported index forms, and missing,
 duplicate, or incomplete checked index selections.
+Review v41 also parses the compiler-reserved canonical-const transport atom
+back into a closed type-and-encoding term and excludes its diagnostic display.
+Decimal const leaves become numeric terms. Both forms are legal only under an
+exact declared const parameter; fixed-array and open-expression binders must
+reconcile uniquely to the exact alpha-normalized telescope. Residual const
+declarations and unrelated source-spelled leaves reject. The transport atom is
+never itself package identity.
 Public data projects its supply, generic shape, properties,
 fields/variants/payloads, relevance, and stable numbered and retired identities.
 Those numbered ordinary-data identities are

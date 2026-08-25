@@ -395,13 +395,19 @@ constraints now distinguish declared, carry, value-domain, and `OmegaLayout`
 subjects; layout retains a closed grammar and exact structural schema argument.
 Review rejects legacy/unclassified layout forms, malformed compiler subjects,
 residual const calls, and unsupported or unselected index expressions. The
-projection uses that same exact source commitment inside every structural type identity;
-the frontend `SourceId` used to join a nominal to its source never enters the
+v41 projection also decodes source-unspellable canonical-const transport atoms
+into closed type/value terms, excludes their diagnostic display text, and
+encodes decimal const values numerically. Const values are accepted only in an
+exact declared const slot; const binders must reconcile uniquely to the exact
+alpha-normalized telescope, while residual const declarations and unresolved
+source spellings reject. The projection uses that same exact source commitment
+inside every structural type identity. The frontend `SourceId` used to join a
+nominal to its source never enters the
 canonical bytes, and a missing join rejects review rather than substituting the
 weaker generic toolchain marker. The projection includes selected provider
 mechanisms, and provider plans/trust rows retain
 exact package owners for the realizing machine, provider type, service schema,
-and requirement owner. Review v40 additionally binds the exact schema,
+and requirement owner. Review v41 additionally binds the exact schema,
 provider-type, requirement, and realizing-machine declarations as canonical
 nominal identities, so readable plan/overload strings are never declaration
 identity.
@@ -423,7 +429,7 @@ that happen to share a native ABI. Capability-flow states, including propagated
 `via` states, are package-qualified. Ordinary public-machine visibility now
 survives checked compilation; public omission enforces empty reach, invocation,
 suspension, blocking, and crash ceilings. Exact source-body presence survives
-resolved and typed copies. Review v40 uses inferred transitive reach only for
+resolved and typed copies. Review v41 uses inferred transitive reach only for
 actual checked bodies and records bodyless supply explicitly instead of copying
 its published ceiling into a false realization. Its concrete row retains the
 preselection body base rather than reconstructing it from the current callable;
@@ -568,7 +574,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v40 projection therefore
+remain separately bound. The current incomplete review-v41 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
