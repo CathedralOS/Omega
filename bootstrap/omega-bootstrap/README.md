@@ -143,6 +143,19 @@ language, generation, or architectural role; new documentation and work use
   `0`, semantic `251`, and resource `252` through Gamma under a measured
   393,216-byte elaboration ceiling. CKIR→ELF composition and lower-rooted
   `OMGRFN2` reconstruction remain separate seams.
+- [`compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md)
+  versions that private handoff for an exact selected root and finite acyclic
+  attached-machine calls. The Delta-written
+  [`compiler/omega-bootstrap-resolved-to-ckir2.alp`](compiler/omega-bootstrap-resolved-to-ckir2.alp)
+  and
+  [`compiler/omega-bootstrap-checked-ir-v2-to-elf.alp`](compiler/omega-bootstrap-checked-ir-v2-to-elf.alp)
+  close focused native and Delta-self-built production, validation,
+  conservative ELF emission, exact result, and independent byte reconstruction
+  for the same-module cross-source call fixture. The focused
+  [`gates/delta-resolved-to-ckir2.sh`](gates/delta-resolved-to-ckir2.sh) and
+  [`gates/delta-checked-ir-v2-backend.sh`](gates/delta-checked-ir-v2-backend.sh)
+  do not yet supply the required Rust-free meaning or lower-rooted `OMGRFN3`
+  refinement; the versioned-call task remains open until those seams compose.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

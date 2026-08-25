@@ -792,3 +792,8 @@ which CKIR1 now supports this bounded artifact tranche. Later widening must
 publish a new schema version or a compatible rule explicitly defined by a
 later contract; unused flag bits, tags, fields, padding, and reserved values
 cannot be interpreted by convention.
+
+The first such widening is the separately versioned
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), which
+keeps CKIR1 frozen while adding an exact selected root and finite acyclic
+attached-machine calls.
