@@ -692,12 +692,13 @@ complete.
 - [ ] **COMPLETE-STANDALONE-DECLARATION-VISIBILITY.** Extend ordinary `pub`
   retention through syntax, symbols, typed/checked trees, snapshots, package
   review, and compatibility identity for independently nameable `operator`,
-  `proposition`, `measure`, and `const` declarations. Carrier-qualified roots
-  own their visibility; only genuine members of one exact semantic owner
-  inherit it. Reject every public-interface selection of a private declaration.
-  Keep `terminates by` and its selected measure private proof evidence even on
-  a public machine, while allowing another package to cite an explicitly public
-  measure. Compiler intrinsics remain a closed non-package selection category.
+  `proposition`, and `const` declarations. Carrier-qualified roots own their
+  visibility; only genuine members of one exact semantic owner inherit it.
+  Reject every public-interface selection of a private declaration. Declared
+  measures are always package-private ranking witnesses: `pub measure` rejects,
+  `terminates by` and its selected measure remain private proof evidence even on
+  a public machine, and another package cannot cite that measure directly.
+  Compiler intrinsics remain a closed non-package selection category.
 
   Milestone 2026-08-25: ordinary `pub proposition` now survives syntax copying,
   resolved and typed lowering, checked proposition vocabulary, snapshots, and
