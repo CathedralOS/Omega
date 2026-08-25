@@ -217,6 +217,11 @@ bootstrap languages form the audited spine:
 Alpha → Beta → Gamma → Delta
 ```
 
+Omega is the full product language reached after that spine. In capability
+terms the progression is therefore `Alpha → Beta → Gamma → Delta → Omega`.
+The Delta-written `omega-bootstrap` named below is an intermediate compiler
+artifact on the build path, not another language rung.
+
 Delta is the systems/compiler-host rung and an independent language. It should
 be robust, C-like in systems power, and Omega-shaped where consistency is cheap;
 it is not required to be a syntactic or semantic Omega subset.
@@ -239,6 +244,15 @@ Generated-code quality is likewise not a language inventory.
 The frozen D0/O0/O1 envelopes are regression contracts for existing vertical
 slices, not additional inventories or numbered ancestors of these two
 contracts.
+
+The names have exactly these roles:
+
+| Name | Kind | Meaning |
+| --- | --- | --- |
+| Delta v1 | language specification | source language of the canonical Delta compiler and `omega-bootstrap` |
+| `Ωself` | ordinary-Omega source profile | compositional authoring restriction on the production compiler source |
+| `omega-bootstrap` | compiler artifact | accepts `Ωself` and produces the first production `omega` executable |
+| `omega` | production compiler artifact | accepts and implements full Omega; an optional rebuild changes executable quality only |
 
 Delta v1 is not frozen in advance from the current Rust producer or D0 corpus.
 The fixed design constraints are deterministic specified behavior, no undefined

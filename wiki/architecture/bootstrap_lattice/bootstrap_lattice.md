@@ -1,8 +1,10 @@
 # The Bootstrap Lattice
 
 > **Status: DIRECTION + a working vertical slice.** The audited bootstrap spine is
-> `Alpha → Beta → Gamma → Delta`; the complete build lattice continues
-> `→ omega-bootstrap (accepts Ωself) → omega (implements full Ω)`. Alpha through Gamma exist on the audited
+> `Alpha → Beta → Gamma → Delta`; the language-capability progression then reaches
+> full `Omega`. The concrete build path continues through the non-language
+> compiler artifact `omega-bootstrap (accepts Ωself) → omega (implements full
+> Ω)`. Alpha through Gamma exist on the audited
 > lineage; the Delta rung's native corpus, self-hosting compiler, and meaning
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
@@ -14,11 +16,24 @@
 > [Bootstrap repository structure](repository_structure.md).
 
 This is the architecture for how the Psi/Omega toolchain is rebuilt from a tiny
-hand-audited seed through increasingly capable languages. Delta builds a
+hand-audited seed through increasingly capable languages. Keep the language and
+artifact views distinct:
+
+```text
+language capability: Alpha → Beta → Gamma → Delta → Omega
+build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap → omega [→ omega]
+```
+
+`omega-bootstrap` is a Delta-written compiler artifact, not a language between
+Delta and Omega. The bracketed second `omega` is the same production compiler
+source rebuilt by production `omega`; it is not a second Omega language or a
+new compiler generation. The capability arrows mean “the lower construction
+can realize the next stage,” not “the earlier language is a syntactic subset of
+the later one”; Delta remains independent of Omega. Delta builds the
 profile-limited bridge compiler; that compiler builds the full-spec Omega
 compiler, including its optimizer and advanced lowering, from deliberately
-constrained Omega source. Only the optional final
-Omega-to-Omega rebuild is strict self-hosting. The construction is separate
+constrained Omega source. Only the optional final Omega-to-Omega rebuild is
+strict self-hosting. The construction is separate
 from two things it is easy to confuse it with:
 
 - **What Omega means** — the language semantics. Owned by the
@@ -210,8 +225,9 @@ Alpha has no idea what “proof” means.
 
 ## Why this is a lattice rather than a pedigree chain
 
-The build spine (`Alpha → Beta → Gamma → Delta → omega-bootstrap → omega`) gives
-staged comprehensibility. It
+The concrete build path (`Alpha → Beta → Gamma → Delta → omega-bootstrap → omega`)
+gives staged comprehensibility. The language-capability progression omits the
+bridge artifact and is `Alpha → Beta → Gamma → Delta → Omega`. It
 does not become trustworthy merely by extending that pedigree. The **lattice**
 comes from joining each build edge to canonical meaning and artifact checking:
 

@@ -1,7 +1,9 @@
 # `compiler/` — product compiler source
 
 Omega is rebuilt from a small audited seed through increasingly capable
-languages, then through one deliberately profile-limited hosted edge:
+languages, then through one deliberately profile-limited hosted edge. The
+language progression is `Alpha → Beta → Gamma → Delta → Omega`; the concrete
+build inserts a Delta-written compiler artifact:
 
 ```text
 Alpha → Beta → Gamma → Delta
