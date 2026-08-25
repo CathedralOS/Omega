@@ -21,7 +21,7 @@ mod filesystem_preparation;
 use filesystem_preparation::{
     PreparedByteOutput, PreparedFilesystemCall, PreparedFilesystemLogicalHandleOutput,
     PreparedFilesystemLogicalHandlePlan, PreparedFilesystemMutableObservationPlan,
-    synthetic_handle_fd,
+    PreparedFilesystemPreparation, synthetic_handle_fd,
 };
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
@@ -877,11 +877,11 @@ struct Evaluator<'program> {
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.
     filesystem_logical_handles: FilesystemLogicalHandles,
-    /// Aggregate retained rooted-path bytes.
+    /// Aggregate retained authorized rooted-path bytes.
     filesystem_observation_path_bytes: usize,
-    /// Aggregate retained immutable, path-like, and mutable operand-evidence
-    /// bytes, including resolution and provider pre/post copies. This
-    /// compiler-side account is not observable by Omega code.
+    /// Aggregate retained immutable, path-like, rooted-resolution, and mutable
+    /// operand-evidence bytes, including resolution and provider pre/post
+    /// copies. This compiler-side account is not observable by Omega code.
     filesystem_observation_evidence_bytes: usize,
     /// Pending non-catchable halt set when retaining a successfully authorized
     /// rooted path would exceed the compiler's evidence-custody bound.
@@ -905,7 +905,7 @@ struct Evaluator<'program> {
 mod boundary_console;
 #[path = "evaluator/build_paths.rs"]
 mod build_paths;
-use build_paths::rooted_build_path_parts;
+use build_paths::{rooted_build_path_parts, validate_build_relative_path};
 #[path = "evaluator/casts_and_recasts.rs"]
 mod casts_and_recasts;
 #[path = "evaluator/execution.rs"]

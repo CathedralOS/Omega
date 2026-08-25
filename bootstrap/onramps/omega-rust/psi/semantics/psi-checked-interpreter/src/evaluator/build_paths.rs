@@ -325,7 +325,7 @@ pub(super) fn rooted_build_path_parts(
     Ok(Some((root, relative)))
 }
 
-fn validate_build_relative_path(relative: &[u8]) -> EvalResult<()> {
+pub(super) fn validate_build_relative_path(relative: &[u8]) -> EvalResult<()> {
     if relative.is_empty() {
         return Err(Halt::Trap("build-root path is empty".to_owned()));
     }

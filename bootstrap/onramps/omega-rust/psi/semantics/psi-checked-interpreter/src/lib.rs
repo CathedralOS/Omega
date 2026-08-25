@@ -157,7 +157,7 @@ pub struct EvaluationUsage {
 /// returned or evaluator-halted outcome. It is not the canonical replay
 /// transcript: complete returned content and complete content custody are not
 /// present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 13;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -309,6 +309,31 @@ impl FilesystemPathLikeOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+/// One compiler-rooted path at the instant its authored operand successfully
+/// resolves during call preparation. This preserves the portable input before
+/// physical provider-path lowering. It is not an authorization result: a later
+/// grant check may resolve symlinks to a different canonical rooted location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemRootedPathOperandResolution {
+    operand_ordinal: u8,
+    root: FilesystemGrantRootIdentity,
+    relative_path: Vec<u8>,
+}
+
+impl FilesystemRootedPathOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn root(&self) -> FilesystemGrantRootIdentity {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
     }
 }
 
@@ -562,6 +587,7 @@ pub struct FilesystemOperationAttempt {
     scalar_operands: Vec<FilesystemScalarOperand>,
     byte_operands: Vec<FilesystemByteOperand>,
     path_like_operands: Vec<FilesystemPathLikeOperand>,
+    rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
     mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
@@ -582,6 +608,7 @@ impl FilesystemOperationAttempt {
             scalar_operands: Vec::new(),
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
             mutable_byte_operand_resolutions: Vec::new(),
             mutable_i64_operand_resolutions: Vec::new(),
             mutable_byte_operands: Vec::new(),
@@ -632,6 +659,10 @@ impl FilesystemOperationAttempt {
 
     pub fn path_like_operands(&self) -> &[FilesystemPathLikeOperand] {
         &self.path_like_operands
+    }
+
+    pub fn rooted_path_operand_resolutions(&self) -> &[FilesystemRootedPathOperandResolution] {
+        &self.rooted_path_operand_resolutions
     }
 
     pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {

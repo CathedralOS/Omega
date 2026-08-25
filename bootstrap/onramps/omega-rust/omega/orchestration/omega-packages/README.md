@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v13 carries operation-attempt schema v13, retaining exact
+Observation schema v14 carries operation-attempt schema v14, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -329,15 +329,21 @@ carrier; the snapshots need not match. Post-state follows provider return or
 halt, and input-only mutable ABI carriers remain explicit even when unchanged.
 Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
 aggregate operand-evidence sponsor reserves immutable bytes, exact path-like
-bytes, one resolution copy, and both provider copies before provider access;
+bytes, canonical rooted-resolution bytes, one mutable resolution copy, and
+both provider copies before provider access;
 prior or nested staging effects remain cleanup-
 contained. Directory-entry names, symlink targets, find patterns, and other
 non-rooted path-like operands occupy a distinct ordinal-tagged lane, are
 retained incrementally across later preparation failure, and are bound by the
-package commitment without rendering bytes as text. Preparation-failure
-rooted-path prefixes, retained returned-path bytes, and complete
-observed-input content remain absent, so this is an
-incomplete trace rather than a transcript or receipt.
+package commitment without rendering bytes as text. Rooted-path preparation
+prefixes occupy a separate lane with exact ordinal, closed
+Source/Output identity, and canonical relative bytes captured before physical
+provider-path lowering. They survive later preparation failure and a fully
+prepared call must reproduce the complete compiler-private semantic sidecar.
+This is input resolution, not authorization; later grant resolution separately
+retains access and may select a different canonical rooted location. Retained
+returned-path bytes and complete observed-input content remain absent, so this
+is an incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

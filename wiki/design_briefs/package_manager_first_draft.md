@@ -765,8 +765,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v13
-carries operation-attempt schema v13, retaining each completed operation's exact
+Observation schema v14
+carries operation-attempt schema v14, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -807,17 +807,21 @@ alias an earlier carrier; resolution and provider snapshots need not match.
 Post-state follows provider return or halt, including unchanged input-only ABI carriers.
 Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
 aggregate operand-evidence sponsor reserves immutable bytes, exact path-like
-bytes, one resolution copy, and both provider copies before that call's provider access. Directory-
+bytes, canonical rooted-resolution bytes, one mutable resolution copy, and both
+provider copies before that call's provider access. Directory-
 entry names, symlink targets, find patterns, and other non-rooted path-like
 operands occupy their own ordinal-tagged lane rather than impersonating rooted
 authorization or payload. Each successfully typed non-handle scalar, immutable
-payload, and path-like operand is retained as preparation advances, so a later
-preparation halt keeps the completed ordinal prefix; the fully prepared call
-must reproduce those rows exactly before provider access. Prior or nested staging effects
-remain cleanup-contained. Package commitments hash immutable, path-like, and
-mutable rows without rendering them. Retained returned-path bytes,
-preparation-failure rooted-path prefixes, and complete observed-input content
-remain absent, so
+payload, path-like operand, and rooted path is retained as preparation advances,
+so a later preparation halt keeps the completed ordinal prefix. Rooted rows
+carry exact ordinal, closed Source/Output identity, and canonical relative bytes
+before physical provider-path lowering; they are input resolution rather than
+authorization, which separately carries access and may select a different
+canonical rooted location. The fully prepared call must reproduce each complete
+compiler-private semantic sidecar before provider access. Prior or nested
+staging effects remain cleanup-contained. Package commitments hash immutable, path-like,
+rooted, and mutable rows without rendering them. Retained returned-path bytes
+and complete observed-input content remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.
