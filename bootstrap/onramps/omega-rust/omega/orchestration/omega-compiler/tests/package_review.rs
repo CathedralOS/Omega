@@ -2103,7 +2103,7 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_nested_machine_applications_until_compiler_closes_their_identity() {
+fn compiler_rejects_nested_machine_arguments_before_package_review() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -2135,18 +2135,16 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
         Some(target),
         package_inputs(&package.0),
     )
-    .expect("the checked tree currently retains nested machine-application syntax");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("nested machine applications remain fail-closed without closed identity");
+    .expect_err("nested machine applications must fail before checked lowering");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("non-data nested static application")
+            .contains("nested machine application; recursive specialization identity")
     }));
 }
 
