@@ -365,7 +365,7 @@ join.
       intrinsic-constant, and opcode-13 nominal-envelope join.
     - [ ] Reconstruct source-body lowering and physically artifact-free source
       meaning, including runtime constructor canonicalization and Call/Copy.
-    - [ ] Reconstruct complete CKIR4/result meaning, constructor object/frame
+    - [x] Reconstruct complete CKIR4/result meaning, constructor object/frame
       extents, and every exact ELF byte.
     - [ ] Compose every responsibility over one immutable canonical `OMGRFN5`
       carrier with phase-local mutations and valid-but-mismatched cross-pairs.
