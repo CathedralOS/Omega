@@ -831,16 +831,20 @@ identity, and structural type arguments. Binder-free `where T satisfies Trait`
 does not fabricate evidence. Non-generic selected conformances retain exact
 package-qualified conformance, carrier, and underlying public-trait identities
 plus carrier/trait applications; the semantic declaration owns exact carrier
-and trait symbols. Public trait requirements retain unnamed `requires` and
-`ensures` through the same closed structural fact/expression vocabulary as
-public callables, joined to their exact checked state-signature owner. Their
+and trait symbols. Public trait requirements retain named and unnamed
+`requires` and `ensures` through the same closed structural fact/expression and
+evidence vocabulary as public callables, joined to their exact checked
+state-signature owner. Named inputs retain ordered proposition and evidence-
+interface identity while treating their source aliases as local. Named outputs
+also retain their public selector identity. Their
 abstract published crash ceilings come from exactly one checked capsule keyed
 by the trait and requirement symbols and retain canonical causes and guards;
 they do not fabricate realized body sites or calls. Generic selected-conformance
-telescopes, named evidence contracts, and unsupported expression forms reject
-until complete canonical rows exist. Trailing `boundary host` / `boundary Name`
+telescopes and unsupported expression forms reject until complete canonical
+rows exist. Trailing `boundary host` / `boundary Name`
 clauses and trait `invariant` clauses are retired rather than awaiting package
-rows; trait requirements publish facts only through their explicit contracts.
+rows. Trait requirement witnesses remain ordinary explicit contracts rather
+than package-only evidence syntax.
 Requirements also retain whether their checked declaration supplies a default
 realization; implementation bodies remain checked source subject to universal
 update triage rather than entering the evidence format as compiler-private IR.

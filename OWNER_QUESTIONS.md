@@ -13,29 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-24.
 
-## Q1 — Should trait requirements admit named witness contracts?
-
-Concrete machines use named `requires`/`ensures` contracts as erased witness
-input/output lanes. Public trait requirement syntax currently does not admit the
-binding form, validation does not define conformance or call forwarding for it,
-and checked state-signature facts therefore retain no evidence term. The shared
-package projector could encode such a term, but no authored Omega declaration
-can coherently produce one today.
-
-Choose whether named evidence is part of a trait requirement's public callable
-contract. If it is, specify erased lane ordering, call syntax, conformance
-inheritance, default realizations, and whether a renamed `requires` alias remains
-local while a renamed `ensures` selector changes public output identity.
-
-Recommended direction: keep trait requirements fact-only until a concrete use
-needs abstract witness transport. Then extend ordinary signature syntax and
-checked call/conformance semantics together, reusing the existing positional
-evidence lanes. A valid larger alternative is to add that complete feature now.
-Tempting but wrong alternatives are to expose the latent optional binding field
-only to package review, synthesize evidence terms after checking, or invent new
-package-only syntax.
-
-## Q2 — What compiler/toolchain provenance seals a package instance?
+## Q1 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
@@ -65,7 +43,7 @@ producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
 
-## Q3 — How does `build.omg` name its package-scoped filesystem roots?
+## Q2 — How does `build.omg` name its package-scoped filesystem roots?
 
 The build executor already gives each package an immutable source root and a
 fresh writable staging root, and the checked interpreter enforces those grants.
