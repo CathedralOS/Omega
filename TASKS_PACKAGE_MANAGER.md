@@ -12,11 +12,12 @@ governing design is:
 
 ## Trust status
 
-All current `omega-packages` code predates the corrected identity and admission
-model. Treat it as suspect scaffolding. Nothing that accepts caller-authored
-manifest JSON, package names, aliases, or free-form review receipts may become a
-production trust input. Existing source/hash/graph code is reusable only after
-focused review.
+The release surface now contains reviewed corrected-model building blocks for
+source custody, typed identity/closure, compiler handoff/review, row conflicts,
+and triage. Legacy manifest, name-keyed lock, whole-section receipt, and
+install/update scaffolding remains test-only and untrusted. No caller-authored
+manifest JSON, package name, alias, free-form review receipt, or synthetic
+security artifact may re-enter a production trust path.
 
 Do not wire mutating `omega install` or `omega update` until every P0 task is
 complete.
@@ -132,7 +133,8 @@ complete.
   permissions normalize to the read-only snapshot policy rather than preserving
   irrelevant host-checkout state. Git caches now use full policy-versioned
   keys, exclusive per-entry locking, staged publication, exact resolver
-  metadata/origin/config verification, sealed Git configuration, and
+  metadata and canonical local configuration verification, sealed Git
+  execution, and
   pre-materialization rejection of `.gitmodules` and gitlinks. Git source is
   now read from a parent-authenticated selected object graph. The resolver
   requires an exact requested object ID to equal the selected commit, recomputes
@@ -192,8 +194,9 @@ complete.
 
   Remaining suspect points:
 
-  - cache origin/config checks are mediated by Git and do not establish cache
-    directory ownership independently of the helper;
+  - Windows cache ownership and DACL enforcement remain for the native
+    isolation backend; the portable non-Unix floor currently checks only
+    concrete kinds and bounded topology;
   - the local before/after check does not defend against a deliberately hostile
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
@@ -213,7 +216,7 @@ complete.
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
-  Completed 2026-08-24: parent-owned Git object authentication recomputes
+  Milestone 2026-08-24: parent-owned Git object authentication recomputes
   commit/blob identities, proves the commit-to-root-tree edge, reconstructs the
   canonical recursive tree graph from authenticated leaves and explicit child
   edges, and checks destination containment before snapshot staging. A follow-up
@@ -228,7 +231,7 @@ complete.
   resolver evidence, but it does not weaken any remaining isolation,
   cache-custody, resource, SSH-custody, or receipt requirement.
 
-  Completed 2026-08-24: symbolic revisions no longer silently choose a SHA-1
+  Milestone 2026-08-24: symbolic revisions no longer silently choose a SHA-1
   cache. A sealed, launch/output/deadline-bounded `ls-remote` preflight asks for
   only `HEAD` and the requested selector, rejects absent, malformed, or mixed
   object-ID formats, and initializes the quarantine for SHA-1 or SHA-256. Its
@@ -236,12 +239,25 @@ complete.
   authentication remain the evidence boundary. Real SHA-256 repositories pass
   with both exact and symbolic revisions.
 
-  Completed 2026-08-24: local traversal now bounds each directory listing by
+  Milestone 2026-08-24: local traversal now bounds each directory listing by
   the remaining source-entry budget plus only the one or two names that the
   toolchain itself may exclude, before retaining and sorting the listing. Git
   paths and symlink targets now reject drive/alternate-stream colons, Windows
   forbidden characters and controls, trailing dots/spaces, and reserved device
   names during portable preflight rather than relying on host path behavior.
+
+  Milestone 2026-08-24: Git no longer stores or consults a cache-local remote
+  origin. Fetch receives the exact resolver request directly, while the parent
+  writes one byte-exact SHA-1 or SHA-256 bare-repository configuration and
+  validates it without asking Git to describe itself. Any added setting or
+  spelling drift rejects. Git and local caches now receive a separately bounded
+  65,536-node parent traversal before and after use. On Unix every cache node
+  and lock must be owned by the resolver's effective user and cannot be group-
+  or other-writable; canonical ancestry must be root/resolver-owned and not
+  replaceable through a non-sticky writable directory; special kinds reject.
+  This closes the ordinary cross-user ownership/configuration gap independently,
+  but not hostile same-user racing, platform ACL policy, or native process
+  isolation.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
@@ -387,8 +403,9 @@ complete.
   it. Missing build entries receive the ordinary canonical machine. Ambiguous,
   commented, or noncanonical rows produce only compiler-generated old/new
   statements and a manual-placement reason; source-controlled strings remain
-  escaped Omega literals. Atomic application after admission, broader target
-  vocabulary, and orchestration of reconciled compiler bindings remain.
+  escaped Omega literals. Validated closures are already translated into exact
+  compiler inputs and reviewed dependency-first. Atomic application after
+  admission and broader target vocabulary remain.
 
 - **DECLARATION-SELECTION-AND-CARRIED-IDENTITY.** Enforce the settled split
   between direct source authority and inferred nominal flow. Any authored path,
@@ -1246,13 +1263,15 @@ complete.
 
 ## P7 — Fixtures
 
-- **MIGRATE-PACKAGE-FIXTURES.** Add `PACKAGE` declarations and canonical build
+- [x] **MIGRATE-PACKAGE-FIXTURES.** Add `PACKAGE` declarations and canonical build
   variable names to every fixture.
 
   Acceptance: fixture identity comes from source, not directory names or test
-  constructors, and compiler admission emits every expected evidence row.
+  constructors, and package-aware review compilation emits every currently
+  representable expected evidence row. Sealed admission is tracked by the
+  admission and lock tasks rather than this mechanical migration.
 
-  Progress 2026-08-24: all eleven local package fixtures declare `PACKAGE` and
+  Completed 2026-08-24: all eleven local package fixtures declare `PACKAGE` and
   use the coherent `builder` parameter name. Their private CathedralOS mirrors
   carry byte-identical source at refreshed exact pins. The optional live-network
   test now compares package declarations, source content, and canonical

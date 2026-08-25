@@ -20,3 +20,6 @@ psi-tokens = { path = "../../../psi/representations/psi-tokens" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 sha1-checked = { version = "0.10.0", default-features = false }
 sha2 = "0.10.9"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["user"] }

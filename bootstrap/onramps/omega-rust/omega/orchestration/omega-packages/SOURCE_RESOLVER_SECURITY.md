@@ -186,11 +186,22 @@ materialization still run in the parent process
 without filesystem/network confinement or CPU, memory, process-count, and
 transfer ceilings. A deliberately hostile same-user process can race
 cooperative locks and validation, including the local before/after observation.
-Cache origin/config checks remain mediated by Git and do not independently
-establish cache-directory ownership. Git path and symlink preflight rejects
-Windows drive/alternate-stream colons, forbidden characters and controls,
-trailing dots/spaces, and reserved device names independently of the host path
-parser.
+Git no longer stores a cache-local remote origin. Fetch receives the exact
+resolver request directly, and the parent overwrites local repository config
+with one byte-exact SHA-1 or SHA-256 bare-repository file. Before every use the
+parent reads and compares those bytes itself; added settings, includes, remotes,
+or spelling drift reject without asking Git to report its own configuration.
+Git and local cache custody also receive a separately bounded 65,536-node
+parent traversal before and after use. On Unix each cache entry and lock must be
+owned by the resolver's effective user and not group- or other-writable;
+canonical ancestry must be root/resolver-owned and cannot be replaceable
+through a non-sticky writable directory; unsupported filesystem kinds reject.
+This closes ordinary cross-user
+ownership/configuration substitution on Unix. It does not prevent the owning
+user from racing observations, establish Windows ownership/DACL policy, or
+replace native isolation. Git path and symlink preflight rejects Windows
+drive/alternate-stream colons, forbidden characters and controls, trailing
+dots/spaces, and reserved device names independently of the host path parser.
 The fixed helper path still permits Git to invoke required transport helpers;
 those descendants are not yet bound to retained executable identities. SSH is
 forced through an absolute client with user configuration disabled,
@@ -202,5 +213,5 @@ process custody, remaining resource ceilings, and opaque-receipt work land.
 
 Parent-owned selected-object-graph authentication supplies real evidence for a
 later strict receipt but does not itself make the resolver admissible. Native
-isolation, independent cache ownership, resource ceilings, explicit SSH
-trust/credential custody, and the opaque receipt remain open.
+isolation, hostile same-user and Windows ACL cache custody, resource ceilings,
+explicit SSH trust/credential custody, and the opaque receipt remain open.

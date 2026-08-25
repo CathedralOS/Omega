@@ -729,10 +729,12 @@ manufacture a portable “proof of audit.”
 
 ## Implementation trust status
 
-The current `omega-packages` Rust crate is exploratory scaffolding. Its source
-fetching, hashing, normalization, and graph routines may be reusable after
-review, but its trust model is not accepted. In particular, production code
-must not:
+The `omega-packages` release surface now contains reviewed corrected-model
+building blocks for immutable source custody, typed identity and closure,
+compiler handoff/review, exact row conflicts, and review-only triage. Its final
+admission model is not yet accepted. Legacy manifest, name-keyed lock,
+whole-section receipt, and install/update scaffolding remains isolated behind
+crate tests. Production code must not:
 
 - key locks or symbols by package-authored name alone;
 - ask the installer for both alias and package name;
@@ -748,9 +750,10 @@ mutate project state.
 
 ## Test packages
 
-The existing fixture package purposes remain useful, but every fixture must
-gain an explicit `PACKAGE` declaration and compiler-derived evidence. Tests
-must stop fabricating package manifests from fixture intent. Remote fixtures
+The existing fixtures now declare `PACKAGE`, use canonical build parameters,
+and regenerate currently representable compiler review evidence from resolver
+custody. Tests no longer fabricate package manifests from fixture intent.
+Remote fixtures
 must exercise transport-normalized lineage, immutable commit/tree identity,
 missing-old-source review, missing-lock fresh admission, retained dangerous
 authority triage, and same-name/different-lineage spoof rejection.

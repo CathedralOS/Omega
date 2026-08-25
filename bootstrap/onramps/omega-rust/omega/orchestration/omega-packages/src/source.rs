@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v6";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v7";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -29,7 +29,10 @@ const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v2";
 const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] = b"omega-local-source-snapshot-custody-v1";
 const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
-const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
+const GIT_CONFIG_SHA1: &[u8] =
+    b"[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = true\n";
+const GIT_CONFIG_SHA256: &[u8] = b"[core]\n\trepositoryformatversion = 1\n\tfilemode = false\n\tbare = true\n[extensions]\n\tobjectformat = sha256\n";
+const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
@@ -495,15 +498,14 @@ pub fn resolve_git_source(
         let cache_dir = cache_dir
             .canonicalize()
             .map_err(|error| io_error(cache_dir, error))?;
+        verify_git_cache_root_custody(&cache_dir)?;
         let cache_identity = git_cache_identity(&spec.url, &requested_rev);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
         let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
 
         if entry_root.exists() {
-            if let Err(error) =
-                verify_git_cache_entry(&executor, &entry_root, &spec.url, &requested_rev)
-            {
+            if let Err(error) = verify_git_cache_entry(&entry_root, &spec.url, &requested_rev) {
                 invalidate_git_cache_entry(&entry_root);
                 return Err(error);
             }
@@ -525,10 +527,17 @@ pub fn resolve_git_source(
             &requested_rev,
             limits,
         );
-        if result.is_err() {
-            invalidate_git_cache_entry(&entry_root);
+        match result {
+            Ok(resolved) => {
+                verify_git_cache_root_custody(&cache_dir)?;
+                verify_git_cache_custody(&entry_root)?;
+                Ok(resolved)
+            }
+            Err(error) => {
+                invalidate_git_cache_entry(&entry_root);
+                Err(error)
+            }
         }
-        result
     })();
     let executable_result = executor.verify_content();
     reconcile_git_command_result(result, executable_result, Ok(()))
@@ -541,7 +550,7 @@ fn resolve_verified_git_cache_entry(
     requested_rev: &str,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev)?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     run_git(
@@ -554,11 +563,11 @@ fn resolve_verified_git_cache_entry(
             OsStr::new("--no-tags"),
             OsStr::new("--no-recurse-submodules"),
             OsStr::new("--"),
-            OsStr::new("origin"),
+            OsStr::new(url),
             OsStr::new(requested_rev),
         ],
     )?;
-    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev)?;
 
     let commit = run_git_stdout(
         executor,
@@ -581,12 +590,12 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev)?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    verify_git_cache_entry(entry_root, url, requested_rev)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
         url: url.to_owned(),
@@ -2407,26 +2416,23 @@ fn create_git_cache_entry(
     init_arguments.push(empty_template.as_os_str().to_owned());
     init_arguments.push(repository.as_os_str().to_owned());
     run_git(executor, &pending.root, init_arguments.iter())?;
-    run_git(
-        executor,
-        &repository,
-        [
-            OsStr::new("config"),
-            OsStr::new("--local"),
-            OsStr::new("remote.origin.url"),
-            OsStr::new(url),
-        ],
-    )?;
-    run_git(
-        executor,
-        &repository,
-        [
-            OsStr::new("config"),
-            OsStr::new("--local"),
-            OsStr::new("remote.origin.fetch"),
-            OsStr::new(GIT_ORIGIN_FETCH),
-        ],
-    )?;
+    let config_path = repository.join("config");
+    let canonical_config = match object_format {
+        GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
+        GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
+    };
+    std::fs::remove_file(&config_path).map_err(|error| io_error(&config_path, error))?;
+    let mut config = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&config_path)
+        .map_err(|error| io_error(&config_path, error))?;
+    config
+        .write_all(canonical_config)
+        .map_err(|error| io_error(&config_path, error))?;
+    config
+        .sync_all()
+        .map_err(|error| io_error(&config_path, error))?;
     std::fs::remove_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
@@ -2442,7 +2448,7 @@ fn create_git_cache_entry(
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
 
-    verify_git_cache_entry(executor, &pending.root, url, requested_rev)?;
+    verify_git_cache_entry(&pending.root, url, requested_rev)?;
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
@@ -2511,11 +2517,11 @@ fn parse_git_remote_object_format(
 }
 
 fn verify_git_cache_entry(
-    executor: &GitExecutor,
     entry_root: &Path,
     url: &str,
     requested_rev: &str,
 ) -> Result<(), SourceResolveError> {
+    verify_git_cache_custody(entry_root)?;
     require_real_directory(entry_root, "cache entry root is not a real directory")?;
     let metadata_path = entry_root.join(GIT_CACHE_METADATA);
     require_regular_file(&metadata_path, "resolver metadata is not a regular file")?;
@@ -2562,123 +2568,11 @@ fn verify_git_cache_entry(
         &config_path,
         "local Git configuration is not a regular file",
     )?;
-    if std::fs::symlink_metadata(&config_path)
-        .map_err(|error| io_error(&config_path, error))?
-        .len()
-        > 64 * 1024
-    {
+    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
+    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
         return Err(cache_invalid(
             &config_path,
-            "local Git configuration exceeds the resolver limit",
-        ));
-    }
-    let config = run_git_bytes_stdout(
-        executor,
-        &repository,
-        [
-            OsStr::new("config"),
-            OsStr::new("--local"),
-            OsStr::new("--no-includes"),
-            OsStr::new("--null"),
-            OsStr::new("--list"),
-        ],
-    )?;
-    verify_local_git_config(entry_root, url, &config)?;
-
-    let origin = run_git_bytes_stdout(
-        executor,
-        &repository,
-        [
-            OsStr::new("config"),
-            OsStr::new("--local"),
-            OsStr::new("--no-includes"),
-            OsStr::new("--null"),
-            OsStr::new("--get"),
-            OsStr::new("remote.origin.url"),
-        ],
-    )?;
-    let mut expected_origin = url.as_bytes().to_vec();
-    expected_origin.push(0);
-    if origin != expected_origin {
-        return Err(cache_invalid(
-            entry_root,
-            "Git origin does not match the exact source locator",
-        ));
-    }
-    Ok(())
-}
-
-fn verify_local_git_config(
-    entry_root: &Path,
-    url: &str,
-    bytes: &[u8],
-) -> Result<(), SourceResolveError> {
-    let mut seen = BTreeSet::new();
-    let mut repository_format = None;
-    let mut object_format = None;
-    for record in bytes
-        .split(|byte| *byte == 0)
-        .filter(|record| !record.is_empty())
-    {
-        let Some(separator) = record.iter().position(|byte| *byte == b'\n') else {
-            return Err(cache_invalid(
-                entry_root,
-                "malformed local Git configuration",
-            ));
-        };
-        let key = &record[..separator];
-        let value = &record[separator + 1..];
-        if !seen.insert(key.to_vec()) {
-            return Err(cache_invalid(
-                entry_root,
-                "duplicate local Git configuration",
-            ));
-        }
-        let allowed = match key {
-            b"core.repositoryformatversion" => {
-                repository_format = Some(value);
-                value == b"0" || value == b"1"
-            }
-            b"extensions.objectformat" => {
-                object_format = Some(value);
-                value == b"sha256"
-            }
-            b"core.filemode" | b"core.ignorecase" | b"core.precomposeunicode" => {
-                value == b"true" || value == b"false"
-            }
-            b"core.bare" => value == b"true",
-            b"remote.origin.url" => value == url.as_bytes(),
-            b"remote.origin.fetch" => value == GIT_ORIGIN_FETCH.as_bytes(),
-            _ => false,
-        };
-        if !allowed {
-            return Err(cache_invalid(
-                entry_root,
-                "local Git configuration contains a non-resolver setting",
-            ));
-        }
-    }
-    for required in [
-        b"core.repositoryformatversion".as_slice(),
-        b"core.filemode".as_slice(),
-        b"core.bare".as_slice(),
-        b"remote.origin.url".as_slice(),
-        b"remote.origin.fetch".as_slice(),
-    ] {
-        if !seen.contains(required) {
-            return Err(cache_invalid(
-                entry_root,
-                "local Git configuration is missing a resolver-owned setting",
-            ));
-        }
-    }
-    if !matches!(
-        (repository_format, object_format),
-        (Some(b"0"), None) | (Some(b"1"), Some(b"sha256"))
-    ) {
-        return Err(cache_invalid(
-            entry_root,
-            "local Git object format is incomplete or inconsistent",
+            "local Git configuration is not the exact resolver-owned canonical file",
         ));
     }
     Ok(())
@@ -2740,6 +2634,178 @@ fn require_regular_file(path: &Path, message: &str) -> Result<(), SourceResolveE
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CacheCustodyKind {
+    Git,
+    LocalSnapshot,
+}
+
+fn verify_git_cache_custody(root: &Path) -> Result<(), SourceResolveError> {
+    verify_cache_custody(root, CacheCustodyKind::Git)
+}
+
+fn verify_git_cache_root_custody(root: &Path) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(root, CacheCustodyKind::Git)
+}
+
+fn verify_local_cache_custody(root: &Path) -> Result<(), SourceResolveError> {
+    verify_cache_custody(root, CacheCustodyKind::LocalSnapshot)
+}
+
+fn verify_local_cache_root_custody(root: &Path) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(root, CacheCustodyKind::LocalSnapshot)
+}
+
+fn verify_cache_custody_root(
+    root: &Path,
+    kind: CacheCustodyKind,
+) -> Result<(), SourceResolveError> {
+    verify_cache_ancestry(kind, root)?;
+    let metadata = std::fs::symlink_metadata(root).map_err(|error| io_error(root, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(cache_custody_invalid(
+            kind,
+            root,
+            "cache custody root is not a concrete directory",
+        ));
+    }
+    verify_cache_node_owner_and_mode(kind, root, &metadata)
+}
+
+#[cfg(unix)]
+fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let effective_user = nix::unistd::Uid::effective().as_raw();
+    for ancestor in root.ancestors() {
+        let metadata =
+            std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(cache_custody_invalid(
+                kind,
+                ancestor,
+                "cache custody ancestry contains a non-directory or symlink",
+            ));
+        }
+        if metadata.uid() != effective_user && metadata.uid() != 0 {
+            return Err(cache_custody_invalid(
+                kind,
+                ancestor,
+                "cache custody ancestry is owned by an unrelated user",
+            ));
+        }
+        let mode = metadata.mode();
+        if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+            return Err(cache_custody_invalid(
+                kind,
+                ancestor,
+                "cache custody ancestry is externally writable without sticky-entry protection",
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_cache_ancestry(_kind: CacheCustodyKind, _root: &Path) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+fn verify_cache_custody(root: &Path, kind: CacheCustodyKind) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(root, kind)?;
+
+    let mut pending = vec![root.to_path_buf()];
+    let mut observed = 0usize;
+    while let Some(path) = pending.pop() {
+        observed = observed.checked_add(1).ok_or_else(|| {
+            cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
+        })?;
+        if observed > CACHE_CUSTODY_ENTRY_LIMIT {
+            return Err(cache_custody_invalid(
+                kind,
+                root,
+                format!(
+                    "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+                ),
+            ));
+        }
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
+        verify_cache_node_owner_and_mode(kind, &path, &metadata)?;
+        let file_type = metadata.file_type();
+        if file_type.is_dir() {
+            let children = std::fs::read_dir(&path).map_err(|error| io_error(&path, error))?;
+            for child in children {
+                if pending.len() >= CACHE_CUSTODY_ENTRY_LIMIT {
+                    return Err(cache_custody_invalid(
+                        kind,
+                        root,
+                        format!(
+                            "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+                        ),
+                    ));
+                }
+                pending.push(child.map_err(|error| io_error(&path, error))?.path());
+            }
+        } else if !file_type.is_file() && !file_type.is_symlink() {
+            return Err(cache_custody_invalid(
+                kind,
+                &path,
+                "cache custody contains an unsupported filesystem entry kind",
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn verify_cache_node_owner_and_mode(
+    kind: CacheCustodyKind,
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let effective_user = nix::unistd::Uid::effective().as_raw();
+    if metadata.uid() != effective_user {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache entry is not owned by the resolver's effective user",
+        ));
+    }
+    if !metadata.file_type().is_symlink() && metadata.mode() & 0o022 != 0 {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache entry is writable by group or other users",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_cache_node_owner_and_mode(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    // Windows ownership/DACL enforcement belongs to the native isolation
+    // backend. The portable floor still checks concrete kinds and bounded
+    // topology instead of asking Git to describe its own cache.
+    Ok(())
+}
+
+fn cache_custody_invalid(
+    kind: CacheCustodyKind,
+    path: &Path,
+    message: impl Into<String>,
+) -> SourceResolveError {
+    match kind {
+        CacheCustodyKind::Git => cache_invalid(path, message),
+        CacheCustodyKind::LocalSnapshot => local_snapshot_invalid(path, message),
+    }
+}
+
 struct CacheEntryLock {
     file: File,
 }
@@ -2783,6 +2849,8 @@ impl CacheEntryLock {
             return Err(error);
         }
         require_regular_file(path, "cache lock was replaced while being acquired")?;
+        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+        verify_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &metadata)?;
         Ok(Self { file })
     }
 
@@ -2791,6 +2859,8 @@ impl CacheEntryLock {
         let file = Self::open_git(path)?;
         file.lock().map_err(|error| io_error(path, error))?;
         require_regular_file(path, "cache lock was replaced while being acquired")?;
+        let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+        verify_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &metadata)?;
         Ok(Self { file })
     }
 
@@ -2818,6 +2888,7 @@ impl CacheEntryLock {
                 "cache lock was replaced while being acquired",
             ));
         }
+        verify_cache_node_owner_and_mode(CacheCustodyKind::LocalSnapshot, path, &metadata)?;
         Ok(Self { file })
     }
 }
@@ -3018,6 +3089,8 @@ fn publish_local_snapshot(
         &snapshots,
         "local snapshot collection is not a real directory",
     )?;
+    verify_local_cache_root_custody(&canonical_cache_dir)?;
+    verify_local_cache_root_custody(&snapshots)?;
 
     let identity = captured.normalized.content_identity.clone();
     let custody_identity = local_snapshot_custody_identity(
@@ -3036,6 +3109,9 @@ fn publish_local_snapshot(
         materialize_local_snapshot(&snapshots, &publication, &captured, limits)?
     };
 
+    verify_local_cache_root_custody(&canonical_cache_dir)?;
+    verify_local_cache_root_custody(&snapshots)?;
+    verify_local_cache_custody(&publication)?;
     Ok(ResolvedLocalSnapshot {
         requested_root,
         canonical_live_root: captured.normalized.root,
@@ -6255,31 +6331,101 @@ mod tests {
     }
 
     #[test]
-    fn git_cache_rejects_origin_substitution() {
+    fn git_cache_rejects_repository_config_substitution_without_asking_git() {
         let (repo, _) = create_git_source("git-origin-source");
-        let (substitute, _) = create_git_source("git-origin-substitute");
         let cache = temp_root("git-origin-cache");
         let url = repo.display().to_string();
-        let substitute_url = substitute.display().to_string();
         let spec = GitSourceSpec {
             url: url.clone(),
             rev: Some("HEAD".to_owned()),
         };
         resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
         let repository = git_cache_entry_root(&cache, &url, "HEAD").join(GIT_CACHE_REPOSITORY);
-        run_test_git(
-            &repository,
-            ["remote", "set-url", "origin", substitute_url.as_str()],
-        );
+        let config = repository.join("config");
+        assert_eq!(std::fs::read(&config).unwrap(), GIT_CONFIG_SHA1);
+        let mut substituted = GIT_CONFIG_SHA1.to_vec();
+        substituted.extend_from_slice(b"[remote \"origin\"]\n\turl = /substitute\n");
+        std::fs::write(&config, substituted).expect("substitute repository config");
         let entry = git_cache_entry_root(&cache, &url, "HEAD");
 
         let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
-            .expect_err("substituted origin must reject");
+            .expect_err("any noncanonical repository configuration must reject");
 
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
         let _ = std::fs::remove_dir_all(&repo);
-        let _ = std::fs::remove_dir_all(&substitute);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_rejects_group_or_other_writable_custody() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (repo, _) = create_git_source("git-custody-source");
+        let cache = temp_root("git-custody-cache");
+        let spec = GitSourceSpec {
+            url: repo.display().to_string(),
+            rev: Some("HEAD".to_owned()),
+        };
+        resolve_git_source(&spec, &cache, LocalSourceLimits::default()).expect("prime cache");
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o777))
+            .expect("make cache externally writable");
+
+        let error = resolve_git_source(&spec, &cache, LocalSourceLimits::default())
+            .expect_err("externally writable cache custody must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_custody_rejects_replaceable_nonsticky_ancestry() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let parent = temp_root("replaceable-cache-parent");
+        let cache = parent.join("cache");
+        std::fs::create_dir_all(&cache).expect("create nested cache");
+        std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o777))
+            .expect("make parent replaceable");
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700))
+            .expect("keep cache itself private");
+
+        assert!(matches!(
+            verify_git_cache_root_custody(&cache),
+            Err(SourceResolveError::GitCacheInvalid { .. })
+        ));
+
+        std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&parent);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_snapshot_cache_rejects_group_or_other_writable_custody() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let source = temp_root("local-custody-source");
+        let cache = temp_root("local-custody-cache");
+        std::fs::create_dir_all(&source).expect("create source");
+        std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
+        resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
+            .expect("prime local snapshot cache");
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o777))
+            .expect("make cache externally writable");
+
+        let error = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
+            .expect_err("externally writable local cache custody must reject");
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&source);
         let _ = std::fs::remove_dir_all(&cache);
     }
 
