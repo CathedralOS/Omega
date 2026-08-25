@@ -867,6 +867,16 @@ than authority supplied by either compiler or verifier. Certificate identity,
 proof route, and checking dependencies remain derivation provenance outside
 semantic compatibility identity.
 
+The ordinary produced artifact is the complete versioned package-admission
+semantic row set under one exact package key, target, dependency closure, and
+obligation schema. It is neither native code nor a renamed compiler review.
+Review may carry candidate bytes in the same canonical vocabulary, but a
+consumer gives them force only by independently reconstructing the total set
+from exact source and comparing bytes exactly. Source, proof route, compiler
+observations, and local decisions remain separately bound. Current incomplete
+review-v34 bytes cannot be promoted merely because the future artifact reuses
+their row vocabulary.
+
 That local reconstruction may read the earliest coherent compiler-owned IR in
 which an obligation is semantically complete, including private pre-Psi or
 pre-Terminal state. The checker is part of the compiler and may move with those
