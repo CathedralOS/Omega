@@ -1051,8 +1051,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 54);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 14);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 55);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 15);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -4352,7 +4352,7 @@ fn review_projects_exact_selected_conformance_carrier_trait_and_arguments() {
         r#"pub trait Marker<Tag> { }
 pub data Tag { }
 pub data Good { }
-Primary: Good satisfies Marker<Tag>;
+pub Primary: Good satisfies Marker<Tag> { }
 pub machine accept<Element>(value: &Element)
 where Element satisfies Good::Primary
 { }
@@ -6554,6 +6554,284 @@ machine build(builder: &mut Build) { }
             .message
             .contains("rejects unresolved contract-entailment stand-down")
     }));
+}
+
+#[test]
+fn review_projects_public_closed_conformance_without_private_realization_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let source = r#"pub trait Ranked {
+    machine Self::rank(&self) -> u32;
+}
+pub data Card { value: u32; }
+pub PowerOrder: Card satisfies Ranked {
+    machine rank(&self) -> u32 { self.value }
+}
+CostOrder: Card satisfies Ranked {
+    machine rank(&self) -> u32 { 0u32 }
+}
+"#;
+    let changed_private_body = r#"pub trait Ranked {
+    machine Self::rank(&self) -> u32;
+}
+pub data Card { value: u32; }
+pub PowerOrder: Card satisfies Ranked {
+    machine rank(&self) -> u32 { 1u32 }
+}
+CostOrder: Card satisfies Ranked {
+    machine rank(&self) -> u32 { self.value }
+}
+"#;
+
+    let project = |source: &str| {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("public closed conformance fixture should check");
+        project_checked_package_review(&checked).expect("public conformance review should close")
+    };
+    let original = project(source);
+    let changed = project(changed_private_body);
+
+    let [shape] = original.public_conformances() else {
+        panic!("only the public complete conformance is projected")
+    };
+    assert_eq!(shape.identity().path(), "PowerOrder");
+    assert_eq!(
+        shape.subject().expect("carrier subject").identity().path(),
+        "Card"
+    );
+    assert!(shape.subject().unwrap().arguments().is_empty());
+    assert_eq!(shape.trait_identity().path(), "Ranked");
+    assert!(shape.trait_arguments().is_empty());
+    assert_eq!(shape.requirement_map().len(), 1);
+    assert!(
+        shape.requirement_map()[0]
+            .requirement()
+            .path()
+            .contains("Ranked::rank")
+    );
+    assert!(shape.laws().is_empty());
+    assert_eq!(
+        shape.evidence_interface().requirements(),
+        shape.requirement_map()
+    );
+
+    let row = original
+        .canonical_rows()
+        .expect("canonical public conformance row")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("one public conformance row");
+    let changed_row = changed
+        .canonical_rows()
+        .expect("changed canonical rows")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("one changed public conformance row");
+    assert_eq!(row.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(row.canonical_bytes(), changed_row.canonical_bytes());
+    let [location] = row.source().authored_locations().expect("authored source") else {
+        panic!("one conformance declaration source")
+    };
+    assert_eq!(
+        location.role(),
+        PackageReviewSourceLocationRole::Declaration
+    );
+}
+
+#[test]
+fn review_retains_exact_public_conformance_overload_map_and_alpha_normalizes_telescope() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let overloads = TempPackage::new();
+    overloads.write(
+        "main.omg",
+        r#"pub trait Converter {
+    machine Self::convert(&self, value: i32) -> i32 { value }
+    machine Self::convert(&self, value: i32) -> i32 in Saturating { value }
+}
+pub data Item { }
+pub Primary: Item satisfies Converter { }
+"#,
+    );
+    overloads.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &overloads.0.join("main.omg"),
+        Some(target),
+        package_inputs(&overloads.0),
+    )
+    .expect("overloaded public conformance fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("overloaded public conformance review should close");
+    let [shape] = review.public_conformances() else {
+        panic!("one overloaded conformance")
+    };
+    assert_eq!(shape.requirement_map().len(), 2);
+    assert_ne!(
+        shape.requirement_map()[0].requirement(),
+        shape.requirement_map()[1].requirement(),
+        "same-named result overloads need distinct normalized coordinates"
+    );
+
+    let generic = |parameter: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub trait Evidence<T> {{ machine witness(value: T); }}\n\
+                 pub Concrete<{parameter}>: satisfies Evidence<{parameter}> {{\n\
+                     machine witness(value: {parameter}) {{ }}\n\
+                 }}\n"
+            ),
+        );
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("generic subjectless conformance fixture should check");
+        project_checked_package_review(&checked)
+            .expect("generic subjectless conformance review should close")
+            .canonical_rows()
+            .expect("generic conformance rows")
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+            .expect("generic public conformance row")
+            .canonical_bytes()
+            .to_vec()
+    };
+    assert_eq!(generic("T"), generic("Value"));
+}
+
+#[test]
+fn review_rejects_public_conformance_without_exact_closed_or_subject_shape() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let bodyless = TempPackage::new();
+    bodyless.write(
+        "main.omg",
+        "pub trait Marker { }\npub data Good { }\npub Primary: Good satisfies Marker;\n",
+    );
+    bodyless.write("build.omg", build);
+    let checked = compile_to_checked_with_packages(
+        &bodyless.0.join("main.omg"),
+        Some(target),
+        package_inputs(&bodyless.0),
+    )
+    .expect("bodyless public conformance should check before review");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("package review must reject an unretained closed map");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has no retained closed requirement map")
+    }));
+
+    let generic_subject = TempPackage::new();
+    generic_subject.write(
+        "main.omg",
+        "pub trait Marker { }\npub Generic<T>: T satisfies Marker { }\n",
+    );
+    generic_subject.write("build.omg", build);
+    let diagnostics = compile_to_checked_with_packages(
+        &generic_subject.0.join("main.omg"),
+        Some(target),
+        package_inputs(&generic_subject.0),
+    )
+    .expect_err("generic subject must fail closed until its application is retained");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("without retained declaration visibility")
+    }));
+}
+
+#[test]
+fn review_allows_public_conformance_over_direct_dependency_subject_and_trait() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let root = TempPackage::new();
+    let dependency = TempPackage::new();
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    root.write(
+        "main.omg",
+        "use dependency::main;\npub RootEvidence: Foreign satisfies ForeignMarker { }\n",
+    );
+    root.write("build.omg", build);
+    dependency.write(
+        "main.omg",
+        "pub data Foreign { }\npub trait ForeignMarker { }\n",
+    );
+    dependency.write("build.omg", build);
+    let root_identity = package_identity();
+    let dependency_identity =
+        PackageKeyIdentity::from_digest([0x7b; 32]).expect("dependency identity");
+    let inputs = PackageCompilationInputs::new(
+        root_identity,
+        vec![
+            PackageSourceBinding::new(root_identity, "root", root.0.clone()),
+            PackageSourceBinding::new(dependency_identity, "dependency", dependency.0.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            root_identity,
+            "dependency",
+            dependency_identity,
+        )],
+    )
+    .expect("direct dependency graph");
+    let checked = compile_to_checked_with_packages(&root.0.join("main.omg"), Some(target), inputs)
+        .expect("third-party public conformance should check");
+    let review = project_checked_package_review(&checked)
+        .expect("third-party public conformance should project");
+    let [shape] = review.public_conformances() else {
+        panic!("one package-owned public conformance")
+    };
+    assert_eq!(
+        shape.identity().owner(),
+        PackageReviewNominalOwner::Package(root_identity)
+    );
+    assert_eq!(
+        shape.subject().unwrap().identity().owner(),
+        PackageReviewNominalOwner::Package(dependency_identity)
+    );
+    assert_eq!(
+        shape.trait_identity().owner(),
+        PackageReviewNominalOwner::Package(dependency_identity)
+    );
 }
 
 fn host_target_name() -> Option<&'static str> {

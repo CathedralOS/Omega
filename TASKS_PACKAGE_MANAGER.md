@@ -810,6 +810,23 @@ complete.
   subject and proof/law row shapes must reject closed until their retained IR
   coverage lands.
 
+  Milestone 2026-08-25: package review v55 / canonical row v15 now emits one
+  blocking `PublicConformance` row for every package-owned public closed
+  conformance whose surface is represented exactly. The row retains the
+  package-qualified conformance identity, alpha-normalized telescope, optional
+  non-generic nominal subject, exact trait application, overload-qualified
+  inherited requirement map, empty proven law lane, and checked evidence
+  interface. It rejoins the retained closed rows to the complete inherited
+  requirement closure and rejects missing, duplicate, unexpected, or unchecked
+  rows. Private realization machines, states, row-source choices, and bodies do
+  not enter the row; generated inline/default realization provenance derives
+  only its package/source custody from the owning conformance. Bodyless
+  attached-machine maps, generic applied subjects, repeated inherited trait
+  applications that the retained map cannot distinguish, and proposition/law
+  surfaces without complete typed retention reject closed. Public subjects and
+  traits may remain direct-dependency declarations; only the emitted
+  conformance must be owned by the reviewed package.
+
   Milestone 2026-08-25: one shared typed-tree visibility resolver now gates all
   settled independently nameable declaration families in both public
   interfaces and cross-package authored selections. Genuine fields, variants,
