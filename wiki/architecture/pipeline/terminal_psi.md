@@ -184,6 +184,15 @@ private relocation. Retained registration provenance keeps the selected
 identity and lease disposition without making the actual envelope an ambient
 caller fact.
 
+A nested layout-field place originates in one explicitly selected named
+`PrivateCallbackSlot<Requirement>` conformance retained by the evaluated
+layout plan. The conformance declaration is inert until the plan cites it; Psi
+never reconstructs the slot through ambient conformance lookup. The retained
+demand separates conformance-owned slot identity, exact target-neutral
+requirement overload, target-closed physical placement, and complete layout
+plan fingerprint. A byte offset may be authored inside the layout policy but
+is neither slot identity nor a calling-plan coordinate.
+
 Legacy native planning already binds each such row to the selected control-flow
 entry and one deterministic private thunk symbol, failing closed if the entry
 was lost. This is still address-free planning: multi-entry code emission and

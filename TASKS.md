@@ -5150,15 +5150,17 @@ Owners:
   the exact registrar layout, admit the evaluated catalog through the
   context-bound path, and join it to each checked callback use before private
   relocation emission.
-  **Design blocked:** the abstract layout model requires a private
-  materialization slot and its exact callback requirement, but no settled
-  source/library input lets a target package declare that slot while keeping it
-  absent from the semantic schema and keeping `LayoutPlanId`, `LayoutSlotId`,
-  and `CallbackRequirementId` compiler-issued. Letting the registrar's
-  materialization row create its own demand would make the supply authorize its
-  destination; authored numeric identities would reintroduce magic IDs. Settle
-  the declaration shape that independently creates this typed private layout
-  demand before wiring the already-built closure validator into production.
+  The declaration shape is now settled. A target package declares one stable
+  typed slot as an explicitly named
+  `Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and
+  its layout policy explicitly cites that exact evidence through the bounded
+  `Plan::place_private` vocabulary. The conformance is inert until cited; no
+  ambient lookup or owner-only exception exists. Its subject and static
+  argument derive layout/requirement identity, while the evaluated plan derives
+  target-closed placement and `LayoutSlotId`. The authoritative layout may
+  author or compute the physical offset, but neither the slot identity nor the
+  calling plan contains a repeated raw offset. Implement that source ABI and
+  publish its exact catalog to the existing closure validator.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
@@ -6809,14 +6811,29 @@ Owners:
 - **CALLBACK-PRIVATE-MATERIALIZATION — close the outbound registrar plan.**
   Extend normalized `CallPlan` with callback-materialization rows and
   `NativePlace` with exact native-parameter and validated layout-field paths.
-  Extend normalized layout plans with typed private-materialization demands
-  that are absent from the source schema and cannot be read, written,
-  serialized, or addressed by source. Require one compatible nonoverlapping
-  supply per binder and demand; reject missing, duplicate, inferred-order,
-  hidden-argument, raw-offset, and unresolved forms. Retain the fixed registrar
-  fingerprint separately from per-use selected-machine/thunk identity, join
-  them only during private relocation emission, and add direct-argument,
-  nested-field, multi-binder, and tamper canaries.
+  Add the compiler-known `PrivateCallbackSlot<machine Requirement>`
+  relationship and bounded `Plan::place_private<Conformance>` source
+  vocabulary. The named conformance must be selected explicitly, its subject
+  must equal the active layout-plan producer, and its signature-free
+  requirement path must resolve uniquely. Normalize that declaration plus its
+  target-closed plan placement into typed private-materialization demands that
+  are absent from the source schema and cannot be read, written, serialized, or
+  addressed by source. Permit physical offsets only inside the authoritative
+  layout policy; no materialization row, `Binding`, or source field may repeat
+  one or use it as identity. Require one compatible nonoverlapping supply per
+  binder and demand; reject missing, duplicate, wrong-layout,
+  wrong-requirement, inferred-order, hidden-argument, raw-offset, ambient-
+  conformance, and unresolved forms. Retain the fixed registrar fingerprint
+  separately from per-use selected-machine/thunk identity and join them only
+  during private relocation emission.
+
+  Add pass canaries for direct parameters, one nested slot, multiple explicitly
+  named slots, an inert uncited third-party conformance, and the same
+  target-neutral requirement placed at different x86/x64 offsets. Add fail
+  canaries for an uncited demand assumption, ambiguous requirement path,
+  conformance/layout-subject mismatch, wrong requirement, missing/duplicate or
+  overlapping supply, semantic projection/read/write/serialization, raw
+  calling-plan offset, selected-machine-as-slot identity, and replay drift.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful
@@ -7753,8 +7770,6 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
-- **CALLBACK-PRIVATE-LAYOUT-DEMAND:** target-package declaration of a typed
-  private native callback slot in `OWNER_QUESTIONS.md` Q1.
 
 ## Platform-gated verification
 

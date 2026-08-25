@@ -238,10 +238,16 @@ materialization rows. Each maps one nominal static-machine binder slot to an
 already-declared native parameter or to a field path through one validated
 native layout. A static-machine parameter has no ABI ordinal of its own. Nested
 callback fields are typed private layout demands absent from the semantic data
-schema; the composed call plan must supply each demand exactly once. The rows
-carry no source-visible address and do not describe whether the foreign side
-copies or retains argument storage—that remains the ordinary parameter
-lifetime/custody disposition.
+schema. A target package declares one as a named conformance such as
+`WndClassWindowProcedureSlot: WndClassLayout satisfies
+PrivateCallbackSlot<WindowProcedure::call>;`; the layout plan explicitly cites
+that evidence when it places the slot. The declaration is inert until cited,
+so no ambient conformance lookup or special owner rule exists. The composed
+call plan must supply each demand exactly once. The authoritative layout owns
+the physical offset; the materialization row names only the validated slot.
+The rows carry no source-visible address and do not describe whether the
+foreign side copies or retains argument storage—that remains the ordinary
+parameter lifetime/custody disposition.
 
 A boundary requirement names its convention through the ordinary generic policy
 relationship `Calling<C>`, where `C` satisfies `CallingPolicy`. The policy's

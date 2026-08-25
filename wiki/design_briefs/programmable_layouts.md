@@ -82,11 +82,52 @@ SlotSource =
 ```
 
 The first customer is a foreign callback field whose kind names one exact
-callback requirement. The source-visible specification has no corresponding
-field. A layout containing a private demand is incomplete for ordinary value
-materialization; only a consuming plan that supplies every demand exactly once
-may use it. The compiler never exposes the materialized entry identity as
-source-visible `addr` data.
+callback requirement. Core supplies the empty compiler-known relationship. A
+target package declares the stable typed slot as an ordinary named conformance,
+then explicitly cites that exact evidence while building the native plan:
+
+```omega
+trait PrivateCallbackSlot<machine Requirement> {
+}
+
+WndClassWindowProcedureSlot:
+    WndClassLayout satisfies
+        PrivateCallbackSlot<WindowProcedure::call>;
+
+// Conceptual closed-vocabulary plan operation. The selected conformance, not
+// the offset, is the slot identity.
+Plan::place_private<WndClassWindowProcedureSlot>(
+    plan,
+    window_procedure_offset
+)
+```
+
+The conformance declaration is inert until a plan explicitly cites it. There
+is no enumeration of conformances on `WndClassLayout`, unique-visible choice,
+or owner-only exception to ordinary named-conformance rules. A third-party
+declaration cannot inject a demand into an existing plan; an explicit citation
+instead records the dependency and selected evidence normally. The conformance
+subject makes the layout owner part of the typed declaration, and its static
+requirement argument must resolve to one exact signature-free callback
+requirement. An ambiguous overload rejects.
+
+Plan evaluation resolves the conformance into a compiler-issued slot identity
+and exact callback-requirement identity. The authoritative layout policy may
+author or compute the physical offset, including from target semantics, but
+that offset never identifies the slot and is never repeated in a calling or
+binding plan. The normalized demand retains the stable slot declaration,
+requirement declaration, target-closed placement, and complete layout-plan
+identity separately. A target-neutral callback requirement may therefore keep
+one identity while x86 and x64 plans place its slot differently.
+
+The source-visible specification has no corresponding field. A layout
+containing a private demand is incomplete for ordinary value materialization;
+only a consuming plan that supplies every demand exactly once may use it. The
+slot is absent from source projection, read, write, serialization, and runtime
+value topology, and the compiler never exposes the materialized entry identity
+as source-visible `addr` data. `Placed<P, T>` may carry staging or retained
+native storage after validation, but it does not remove this plan entry: `T`
+still has no semantic member from which the private demand could be derived.
 
 ## Plan validation
 

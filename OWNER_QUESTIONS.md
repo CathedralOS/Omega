@@ -13,38 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-24.
 
-## Q1 — How does a native layout declare a private callback demand?
-
-Registered-callback lowering already maps one nominal static-machine binder to
-one native parameter or nested layout place. A nested destination is valid only
-when the independently validated native layout declares a typed private slot
-for that exact callback requirement. That slot is absent from the semantic
-schema and its layout, slot, and requirement identities are compiler-issued,
-but no source/library input currently creates the demand.
-
-Choose the target-package declaration and layout-policy input for one private
-callback demand. It must:
-
-- declare the native slot independently of the registrar's materialization row,
-  so the supply cannot authorize its own destination;
-- name one exact signature-free callback requirement and reject overload
-  ambiguity without authored numeric identities;
-- keep the slot absent from source projection, read, write, serialization, and
-  runtime value topology while retaining it in normalized layout identity;
-- allow the compiler to derive `LayoutPlanId`, `LayoutSlotId`, and
-  `CallbackRequirementId` from resolved declarations and the validated plan;
-  and
-- support exact missing, duplicate, overlap, wrong-requirement, wrong-layout,
-  and replay-drift rejection when the calling plan closes the demand.
-
-Recommended direction: extend the ordinary `Schema`/`Plan` library vocabulary
-with a bounded compiler-private slot source whose authored inputs are a stable
-native slot declaration and exact callback-requirement path. The compiler
-resolves those names into opaque identities during layout evaluation. Do not
-put raw IDs or field offsets in source, infer the demand from the callback row,
-or expose a callback-address-shaped semantic field.
-
-## Q2 — Does `export` re-export dependencies, or should it be retired?
+## Q1 — Does `export` re-export dependencies, or should it be retired?
 
 The parser accepts `export path [as alias];`, but symbol resolution deliberately
 drops the item. The language guide instead makes `pub` on package-owned
@@ -72,7 +41,7 @@ same-package, module-only export whose target retains exact package-owned
 identity. Do not allow a dependency declaration to be relabeled as exporter-
 owned or let an alias hide the package/reach edge.
 
-## Q3 — May a trait invariant introduce an undeclared structural member?
+## Q2 — May a trait invariant introduce an undeclared structural member?
 
 The language guide illustrates `invariant self.value in 0..=1000`, but a trait
 declares no field named `value` and has no associated-data/member namespace.
@@ -98,7 +67,7 @@ it. Tempting but wrong alternatives are to canonically encode the string
 `value`, infer an implicit structural member and its type from invariant uses,
 or add a report-only IR stage that merely freezes the unresolved spelling.
 
-## Q4 — Should trait requirements admit named witness contracts?
+## Q3 — Should trait requirements admit named witness contracts?
 
 Concrete machines use named `requires`/`ensures` contracts as erased witness
 input/output lanes. Public trait requirement syntax currently does not admit the
@@ -120,7 +89,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q5 — What does a boundary clause mean on an abstract requirement?
+## Q4 — What does a boundary clause mean on an abstract requirement?
 
 Boundary syntax distinguishes host and named boundary levels before semantic
 lowering, but the state-signature path collapses them to one undifferentiated
@@ -140,7 +109,7 @@ real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
 
-## Q6 — What compiler/toolchain provenance seals a package instance?
+## Q5 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
@@ -170,7 +139,7 @@ producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
 
-## Q7 — How does `build.omg` name its package-scoped filesystem roots?
+## Q6 — How does `build.omg` name its package-scoped filesystem roots?
 
 The build executor already gives each package an immutable source root and a
 fresh writable staging root, and the checked interpreter enforces those grants.

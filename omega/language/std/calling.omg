@@ -151,8 +151,11 @@ data EntryControl {
 
 // These fields carry compiler-issued nominal identities. Publishing the
 // binder/signature and validated layout-demand catalogs that supply them is a
-// separate compiler step; a policy cannot establish an identity by inventing
-// an integer, and unknown values reject during plan validation.
+// separate compiler step. A private layout demand originates only from one
+// explicitly cited named `PrivateCallbackSlot<Requirement>` conformance in the
+// authoritative layout plan; its physical offset is not repeated here. A
+// policy cannot establish an identity by inventing an integer, and unknown
+// values reject during plan validation.
 data NativePlace {
     case Parameter(parameter: u64);
     case Field(
