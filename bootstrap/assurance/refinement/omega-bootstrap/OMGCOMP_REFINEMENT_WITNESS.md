@@ -323,12 +323,27 @@ The split is required by Beta's 128-procedure ceiling: current one-unit table
 and lowering compositions already use 123 and 115 procedures respectively.
 Adding OMGCOMP resolution to either monolith is not credible modularization.
 
-Implementation status: layer 1 is executable in
-[`omgrfn2-frame-omgcomp-custody.beta`](omgrfn2-frame-omgcomp-custody.beta) with
-its focused gate. It closes framing and complete OMGCOMP structural/source-
-extent custody only. Layers 2–5 remain open and must be independently authored;
-mechanically translating the Delta resolver into Beta would preserve the same
-common-mode mistakes and does not satisfy source-to-witness reconstruction.
+Implementation status:
+
+- layer 1 closes framing and complete OMGCOMP structural/source-extent custody
+  in
+  [`omgrfn2-frame-omgcomp-custody.beta`](omgrfn2-frame-omgcomp-custody.beta);
+- layer 2 independently reconstructs source resolution and exact witness bytes
+  in
+  [`omgrfn2-source-witness-independent.beta`](omgrfn2-source-witness-independent.beta);
+- layer 3 reconstructs layout, interning, declarations, blocks, and the selected
+  root in
+  [`omgrfn2-witness-ckir-tables.beta`](omgrfn2-witness-ckir-tables.beta); and
+- layer 5 reuses the complete CKIR and CKIR-to-ELF relations at the v2 frame
+  offsets through
+  [`omgrfn2-ckir-elf-refinement.sh`](omgrfn2-ckir-elf-refinement.sh).
+
+Layer 4, resolved bodies→CKIR plus the independent source-only result, remains
+the open semantic layer. The final conjunction and lattice orchestration remain
+open until that layer joins the four closed responsibilities. Mechanically
+translating the Delta resolver into Beta would preserve the same common-mode
+mistakes and does not satisfy source-to-witness reconstruction; the closed
+layer 2 is independently authored.
 
 ## Authority separation
 

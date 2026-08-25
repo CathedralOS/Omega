@@ -209,7 +209,7 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | closed through canonical CKIR for that fixture | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | producer composition | closed through the limited ELF backend with exact witness, CKIR, ELF, and result | bridge gates and the contracts above |
-| lower-rooted `OMGRFN2` reconstruction | frame/source custody and CKIR→ELF adaptation closed; intervening semantic joins remain active | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
+| lower-rooted `OMGRFN2` reconstruction | frame/source custody, independent source→witness, witness→CKIR tables, and CKIR→ELF adaptation closed; resolved bodies→CKIR/result and the final conjunction remain active | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md) |
 | compilation authority | open: accepted resolver commitment plus exact envelope SHA-256 still required | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -223,12 +223,11 @@ compiler implementation remain product work in `TASKS.md`.
   This join blocks final artifact acceptance, not fixture-driven implementation
   and testing of resolution, checking, or lowering against structurally valid
   envelopes.
-- [ ] Complete the remaining independently authored lower-rooted `OMGRFN2`
-  layers: source→witness, witness→CKIR tables, resolved bodies→CKIR/result, and
-  CKIR→ELF at the v2 offsets. Join them to the closed frame/OMGCOMP-custody
-  layer and producer-side two-package composition; compare exact CKIR, ELF, and
-  result through native, self-built, Rust-free meaning, and lower-rooted
-  evidence. The selected
+- [ ] Complete the independently authored resolved-bodies→CKIR/result layer of
+  lower-rooted `OMGRFN2`, then join it to the already closed frame/OMGCOMP
+  custody, source→witness, witness→CKIR-table, and CKIR→ELF layers plus the
+  producer-side two-package composition. Compare exact CKIR, ELF, and result
+  through native, self-built, Rust-free meaning, and lower-rooted evidence. The selected
   [`OMGCOMP → OMGRSW1 → CKIR`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md)
   boundary and its lower-rooted
   [resolution witness](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
