@@ -378,8 +378,15 @@ requires exact event order, inputs, outputs, exhaustion, and final result. The
 package commitment binds this partial replay fact. Compiler replay-record v1
 now retains the exact verified chain, and review-baseline capsule v2 preserves
 it across restart as opaque, bounded, non-admitting bytes associated with the
-parent observation. It does not make the build `Receipted`; executing reopened
-custody, full operation coverage, and staged-output reproduction remain open.
+parent observation. Checked compilation can strictly rehydrate those bytes into
+the PSI executor's exact typed `open`/`read`/`close` replay and reevaluate the
+selected build machine without a host filesystem provider. Recorded source
+bytes are used even after the corresponding host file changes, while changed
+authored inputs or event structure reject. This creates no host authority,
+authenticity claim, admission, public IR contract, or nominal Chi. It does not
+make the build `Receipted`; full operation coverage, output mutation and staged-
+tree reproduction, package-command integration, and a complete replay verdict
+remain open.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

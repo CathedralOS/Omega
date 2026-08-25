@@ -17,7 +17,7 @@ use omega_compiler::{
     PackageCompilationInputs, PackageSourceBinding,
     capture_verified_build_filesystem_replay_record, compile, compile_to_checked,
     compile_to_checked_with_packages_in_build_dir,
-    compile_to_checked_with_packages_in_sponsored_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
 use psi_core::PackageKeyIdentity;
@@ -1423,6 +1423,53 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     assert!(
         recover_review_only_build_filesystem_replay_record(&spoofed_lane, limits).is_err(),
         "an operation-inapplicable lane must not survive semantic recovery"
+    );
+
+    std::fs::write(project.join("main.omg"), "data Main { value: u16; }\n")
+        .expect("change host source after replay capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record.clone(),
+    )
+    .expect("reopened replay should not consult the changed host source during build evaluation");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened replay retains observations");
+    assert!(replayed_summary.open_read_close_replay_verified());
+    assert_eq!(replayed_summary.ceiling(), BuildObservationClass::Volatile);
+    assert_eq!(replayed_summary.realized(), BuildObservationClass::Volatile);
+    let [_, replayed_read, _] = replayed_summary.filesystem_operation_attempts() else {
+        panic!("reopened replay has three events")
+    };
+    assert_eq!(
+        replayed_read.observed_bytes(&replayed_read.observed_byte_regions()[0]),
+        Some(&b"data Main { value: u8; "[..]),
+        "build evaluation must receive the retained bytes, not changed host bytes"
+    );
+
+    let build_path = project.join("build.omg");
+    let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
+    let changed_build = original_build.replace(
+        "self.filesystem.read(self.descriptor, &mut self.buffer, 23)",
+        "self.filesystem.read(self.descriptor, &mut self.buffer, 22)",
+    );
+    assert_ne!(
+        changed_build, original_build,
+        "fixture must change replay input"
+    );
+    std::fs::write(&build_path, changed_build).expect("change build replay input");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record,
+    )
+    .expect_err("changed authored replay input must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("prepared inputs changed")),
+        "replay mismatch must identify changed prepared inputs: {diagnostics:?}"
     );
     let _ = std::fs::remove_dir_all(&project);
 }

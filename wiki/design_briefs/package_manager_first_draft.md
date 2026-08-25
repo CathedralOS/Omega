@@ -877,9 +877,14 @@ Compiler replay-record v1 now preserves every lane of the verified chain in a
 bounded canonical binary form, rejects stale semantic schemas and inconsistent
 operation-specific state, and is retained by review-baseline capsule v2 under
 a parent-observation association and aggregate byte ceiling. This is durable
-review-only custody, not authority to execute a reopened record. The package
-remains `Volatile`; reopened-record execution, full operation replay, staged-
-output reproduction, and a `Receipted` verdict remain absent.
+review-only custody, not proof of authenticity, review, or admission. Checked
+compilation can now strictly decode the reopened bytes into the PSI executor's
+exact typed three-event replay and evaluate the build machine without a host
+filesystem provider. Retained source bytes serve the replay even after host
+source drift; changed authored call inputs or event structure reject. No public
+IR stage or nominal Chi is introduced. The package remains `Volatile`; full
+operation replay, output mutation and staged-output reproduction, package-
+command integration, and a `Receipted` verdict remain absent.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

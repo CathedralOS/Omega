@@ -47,7 +47,7 @@ use super::build_staged_output::{
 };
 
 const BUILD_MACHINE: &str = "build";
-const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+pub(crate) const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
     match BuildMachineFilesystemGrantRootIdentity::new(1) {
         Some(identity) => identity,
         None => panic!("build source root identity must be nonzero"),
@@ -68,6 +68,7 @@ pub(crate) struct BuildMachineFilesystemScope {
     source_root: PathBuf,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
+    replay: Option<psi_checked_interpreter::FilesystemReplay>,
 }
 
 impl BuildMachineFilesystemScope {
@@ -85,10 +86,19 @@ impl BuildMachineFilesystemScope {
             source_root,
             build_dir,
             sponsor,
+            replay: None,
         }
     }
 
+    pub(crate) fn with_replay(mut self, replay: psi_checked_interpreter::FilesystemReplay) -> Self {
+        self.replay = Some(replay);
+        self
+    }
+
     fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
+        if let Some(replay) = &self.replay {
+            return BuildMachineFilesystemAccess::ReplayOpenReadClose(replay.clone());
+        }
         let grants = BuildMachineFilesystemGrants {
             read_roots: vec![BuildMachineFilesystemGrantRoot::new(
                 BUILD_SOURCE_ROOT_IDENTITY,
@@ -109,6 +119,9 @@ impl BuildMachineFilesystemScope {
     }
 
     fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
+        if self.replay.is_some() {
+            return Ok(());
+        }
         if let Some(sponsor) = &self.sponsor {
             let path = sponsor
                 .bind_path(&self.build_dir)

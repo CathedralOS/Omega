@@ -114,6 +114,63 @@ pub fn recover_review_only_build_filesystem_replay_record(
     bytes: &[u8],
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<ReviewOnlyBuildFilesystemReplayRecord, BuildFilesystemReplayRecordError> {
+    decode_shapes(bytes, limits)?;
+    let canonical_bytes = clone_bytes(bytes)?;
+    Ok(ReviewOnlyBuildFilesystemReplayRecord {
+        commitment: record_commitment(&canonical_bytes),
+        canonical_bytes,
+    })
+}
+
+pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
+    record: &ReviewOnlyBuildFilesystemReplayRecord,
+    limits: BuildFilesystemReplayRecordLimits,
+) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
+    let shapes = decode_shapes(record.canonical_bytes(), limits)?;
+    let [open, read, close] = shapes.as_slice() else {
+        unreachable!("validated bounded replay has exactly three attempts")
+    };
+    let ShapeResult::Handle(logical_handle_identity) = open.result else {
+        unreachable!("validated bounded replay open returns a handle")
+    };
+    let ShapeResult::Scalar(read_result) = read.result else {
+        unreachable!("validated bounded replay read returns a scalar")
+    };
+    let [(2, ShapeScalar::U64(requested_count))] = read.scalars.as_slice() else {
+        unreachable!("validated bounded replay read has one count")
+    };
+    let [source_path] = open.rooted_paths.as_slice() else {
+        unreachable!("validated bounded replay open has one rooted path")
+    };
+    let [(1, mutable_resolution)] = read.mutable_byte_resolutions.as_slice() else {
+        unreachable!("validated bounded replay read has one mutable resolution")
+    };
+    let [mutable_carrier] = read.mutable_bytes.as_slice() else {
+        unreachable!("validated bounded replay read has one mutable carrier")
+    };
+    let typed_record = psi_checked_interpreter::FilesystemOpenReadCloseReplayRecord::new(
+        super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(source_path.bytes)?,
+        logical_handle_identity,
+        open.post_error,
+        *requested_count,
+        read_result,
+        read.post_error,
+        clone_bytes(mutable_resolution)?,
+        clone_bytes(mutable_carrier.pre)?,
+        clone_bytes(mutable_carrier.post)?,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new("filesystem replay record could not be rehydrated")
+    })?;
+    Ok(psi_checked_interpreter::FilesystemReplay::from_open_read_close_record(typed_record))
+}
+
+fn decode_shapes(
+    bytes: &[u8],
+    limits: BuildFilesystemReplayRecordLimits,
+) -> Result<Vec<AttemptShape<'_>>, BuildFilesystemReplayRecordError> {
     if bytes.len() > limits.maximum_bytes {
         return Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay record exceeds its byte ceiling",
@@ -148,11 +205,7 @@ pub fn recover_review_only_build_filesystem_replay_record(
     }
     decoder.finish()?;
     validate_first_rung(&shapes)?;
-    let canonical_bytes = clone_bytes(bytes)?;
-    Ok(ReviewOnlyBuildFilesystemReplayRecord {
-        commitment: record_commitment(&canonical_bytes),
-        canonical_bytes,
-    })
+    Ok(shapes)
 }
 
 fn encode_attempt(
@@ -382,6 +435,7 @@ struct AttemptShape<'a> {
     operation: u16,
     provider: u8,
     result: ShapeResult,
+    post_error: i32,
     scalars: Vec<(u8, ShapeScalar)>,
     byte_operand_count: usize,
     path_like_operand_count: usize,
@@ -410,7 +464,7 @@ fn decode_attempt<'a>(
         1 => ShapeResult::Handle(decoder.nonzero_u64()?),
         _ => unreachable!(),
     };
-    let _post_error = decoder.i32()?;
+    let post_error = decoder.i32()?;
 
     let mut scalars = Vec::new();
     let count = decoder.count()?;
@@ -586,6 +640,7 @@ fn decode_attempt<'a>(
         operation,
         provider,
         result,
+        post_error,
         scalars,
         byte_operand_count,
         path_like_operand_count,
