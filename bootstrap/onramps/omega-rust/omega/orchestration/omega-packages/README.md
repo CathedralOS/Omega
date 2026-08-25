@@ -506,8 +506,12 @@ use their exact checked rows. A simple total, pure call retains its optional
 receiver, exact checked package-qualified entry target, and ordinary arguments
 after joining one public-interface declaration-selection row. The separate
 whole-source commitment pins the helper body; a callable signature is not body
-identity. Static/generic, quotient, evidence-lane, and compiler-intrinsic calls,
-semantic roles, and operators remain fail-closed until complete rows land.
+identity. Review v44 and canonical row v4 extend that call row with static-
+machine arguments, retaining either the exact caller machine-binder ordinal or
+the exact concrete machine entry identity. Contract-call type, const, and
+evidence arguments, quotient calls, nested static applications, compiler-
+intrinsic calls, semantic roles, and operators remain fail-closed until exact
+rows land.
 Reviewed boundary/public
 machines and the selected build machine retain exact canonical entry
 signatures and checked-body/boundary/accepted supply tiers. Bodyless boundary
@@ -592,7 +596,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v43 projection therefore
+remain separately bound. The current incomplete review-v44 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

@@ -834,6 +834,9 @@ complete.
   and requirement identities. Nested structural binders receive exact checked
   contract and crash custody; malformed depth, missing checked rows, and
   non-public nominal requirements reject.
+  Review v44 and canonical row v4 extend this representation to contract-call
+  static-machine arguments. Each retains either the exact caller machine-binder
+  ordinal or the exact concrete machine entry identity.
   Package-owned public domains now project exact identity, alpha-normalized type
   and const parameters, carrier type, and index arguments. Synthesized domain
   paths retain their owned semantic spelling and exact authored package
@@ -859,9 +862,9 @@ complete.
   arguments after joining exactly one public-interface declaration-selection
   row. The separate source-consumption commitment pins the helper body; the
   call row does not confuse signature identity with implementation identity.
-  Static/generic, quotient, evidence-lane, and compiler-intrinsic calls,
-  semantic roles, and domain operators still reject until their complete rows
-  are settled.
+  Contract-call type, const, and evidence arguments, quotient calls, nested
+  static applications, compiler-intrinsic calls, semantic roles, and domain
+  operators still reject until their exact canonical rows are settled.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including
@@ -1391,7 +1394,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v43
+  create a placeholder `PackageInstance` or bless current incomplete review v44
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

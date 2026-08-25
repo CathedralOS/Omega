@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v43 rows are not promoted
+subjects or provenance. The current incomplete review-v44 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1332,6 +1332,9 @@ requirement identities. Checked proof/crash rows are keyed to each structural
 binder, including nested binders; missing custody, excessive nesting, and
 private nominal contracts reject. Proposition parameters and static-machine or
 proposition arguments in selected conformance applications remain fail-closed.
+Review v44 and canonical row v4 extend contract-call rows with static-machine
+arguments. Each retains either the exact caller machine-binder ordinal or the
+exact concrete machine entry identity.
 Other non-public, external, operator, or lifetime-parameterized trait
 realizations likewise remain fail-closed; binder-free generic requirements,
 explicit evidence binders, and non-generic selected conformances use the same
@@ -1363,9 +1366,10 @@ place join. Simple total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
-signature identity. Static/generic, quotient, evidence-lane, and compiler-
-intrinsic calls, computed members, proposition-argument members without their
-checked join, and aggregate expression forms fail closed. Contract
+signature identity. Contract-call type, const, and evidence arguments, quotient
+calls, nested static applications, compiler-intrinsic calls, computed members,
+proposition-argument members without their checked join, and aggregate
+expression forms fail closed. Contract
 casts retain their structural operand, alpha-normalized target, arithmetic
 policy, package-qualified semantic domain and arguments, and value/recast form.
 Diagnostic spellings are absent, and private package domains reject when a

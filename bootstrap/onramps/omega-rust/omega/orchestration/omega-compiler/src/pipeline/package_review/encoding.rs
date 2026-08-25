@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 43;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 44;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 3;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1250,11 +1250,16 @@ fn encode_contract_expression(
         PackageReviewContractExpression::Call {
             receiver,
             target,
+            static_machine_arguments,
             arguments,
         } => {
             encoder.byte(11);
             encoder.option(receiver.as_deref(), encode_contract_expression)?;
             encode_nominal(encoder, target)?;
+            encoder.sequence(
+                static_machine_arguments,
+                encode_contract_static_machine_argument,
+            )?;
             encoder.sequence(arguments, encode_contract_expression)?;
         }
         PackageReviewContractExpression::Binary {
@@ -1293,6 +1298,23 @@ fn encode_contract_expression(
                 PackageReviewContractUnaryOperator::LogicalNot => 1,
             });
             encode_contract_expression(encoder, operand)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_contract_static_machine_argument(
+    encoder: &mut Encoder,
+    argument: &PackageReviewContractStaticMachineArgument,
+) -> Result<(), PackageReviewEncodingError> {
+    match argument {
+        PackageReviewContractStaticMachineArgument::GenericBinder(position) => {
+            encoder.byte(0);
+            encoder.u32(*position);
+        }
+        PackageReviewContractStaticMachineArgument::ConcreteMachine(identity) => {
+            encoder.byte(1);
+            encode_nominal(encoder, identity)?;
         }
     }
     Ok(())
