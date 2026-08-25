@@ -265,41 +265,81 @@ pub(super) fn validate_unit_operation_static(
                 .windows(2)
                 .any(|pair| pair[0] >= pair[1])
                 || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
-                || result.claims.len() != 1
-                || !result.claims[0].path.is_empty()
-                || claim_transfers.len() != 1
-                || claim_transfers[0].argument_index != 0
-                || returned_claim_transfers.len() != 1
+                || result.claims.is_empty()
+                || claim_transfers.is_empty()
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index != 0)
+                || returned_claim_transfers.is_empty()
                 || returned_claim_transfers
                     .windows(2)
                     .any(|pair| pair[0] >= pair[1])
+                || result.claims.iter().any(|binding| {
+                    resolve_structural_path(module, result.structural_type, &binding.path).is_none()
+                })
+                || result.claims.iter().enumerate().any(|(index, binding)| {
+                    result.claims[index + 1..]
+                        .iter()
+                        .any(|other| structural_paths_may_overlap(&binding.path, &other.path))
+                })
             {
                 return Err(ModuleError::NonCanonicalStructuralOperationResult(
                     operation.id,
                 ));
             }
-            let [callee_entry_claim] = callee.entry_claims.as_slice() else {
+            let callee_claims = callee
+                .entry_claims
+                .iter()
+                .map(|claim| (claim.claim, claim.path.as_slice()))
+                .collect::<BTreeMap<_, _>>();
+            let result_claims = result
+                .claims
+                .iter()
+                .map(|binding| (binding.claim, binding.path.as_slice()))
+                .collect::<BTreeMap<_, _>>();
+            let transferred_caller_claims = claim_transfers
+                .iter()
+                .map(|transfer| transfer.claim)
+                .collect::<BTreeSet<_>>();
+            let returned_callee_claims = returned_claim_transfers
+                .iter()
+                .map(|transfer| transfer.callee_claim)
+                .collect::<BTreeSet<_>>();
+            let returned_caller_claims = returned_claim_transfers
+                .iter()
+                .map(|transfer| transfer.caller_claim)
+                .collect::<BTreeSet<_>>();
+            if callee_claims.is_empty()
+                || callee_claims.len() != callee.entry_claims.len()
+                || result_claims.len() != result.claims.len()
+                || returned_callee_claims.len() != returned_claim_transfers.len()
+                || returned_caller_claims.len() != returned_claim_transfers.len()
+                || returned_callee_claims != callee_claims.keys().copied().collect()
+                || returned_caller_claims != result_claims.keys().copied().collect()
+                || transferred_caller_claims != result_claims.keys().copied().collect()
+                || returned_claim_transfers.iter().any(|transfer| {
+                    callee_claims.get(&transfer.callee_claim)
+                        != result_claims.get(&transfer.caller_claim)
+                })
+            {
                 return Err(ModuleError::StructuralCallClaimInterfaceMismatch(
                     operation.id,
                 ));
-            };
-            let transfer = claim_transfers[0];
-            let returned = returned_claim_transfers[0];
-            let binding = &result.claims[0];
-            if !callee_entry_claim.path.is_empty()
-                || returned.callee_claim != callee_entry_claim.claim
-                || returned.caller_claim != transfer.claim
-                || binding.claim != transfer.claim
-                || callee.blocks.iter().any(|block| {
-                    matches!(
-                        &block.terminator,
-                        Terminator::ReturnStructural {
-                            returned_claims,
-                            ..
-                        } if returned_claims.as_slice() != [callee_entry_claim.claim]
-                    )
-                })
-            {
+            }
+            let expected_callee_returns = callee
+                .entry_claims
+                .iter()
+                .map(|claim| claim.claim)
+                .collect::<Vec<_>>();
+            if callee.blocks.iter().any(|block| {
+                matches!(
+                    &block.terminator,
+                    Terminator::ReturnStructural {
+                        returned_claims,
+                        ..
+                    } if returned_claims != &expected_callee_returns
+                )
+            }) {
                 return Err(ModuleError::StructuralCallClaimInterfaceMismatch(
                     operation.id,
                 ));

@@ -84,7 +84,7 @@ use psi_terminal::{
 use psi_terminal_verifier::{ModuleError, validate_module_representation};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
@@ -842,7 +842,8 @@ fn validate_operation_foundation(
                 return malformed("structural call has no structural operation result");
             };
             if !callee.parameters.is_empty()
-                || structural_arguments.len() != callee.structural_parameters.len()
+                || structural_arguments.len() != 1
+                || callee.structural_parameters.len() != 1
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
                 || actual_result.qualifications != expected_result.qualifications
@@ -882,6 +883,15 @@ fn validate_operation_foundation(
                     return malformed("structural call result has an unknown structural domain");
                 }
             }
+            if actual_result.claims.is_empty()
+                || claim_transfers.is_empty()
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index != 0)
+                || returned_claim_transfers.is_empty()
+            {
+                return malformed("structural call requires a nonempty whole-root claim map");
+            }
             let mut result_paths = Vec::with_capacity(actual_result.claims.len());
             for binding in &actual_result.claims {
                 validate_structural_path(module, actual_result.structural_type, &binding.path)?;
@@ -898,28 +908,59 @@ fn validate_operation_foundation(
             let caller_result_claims = actual_result
                 .claims
                 .iter()
-                .map(|binding| binding.claim)
+                .map(|binding| (binding.claim, binding.path.as_slice()))
+                .collect::<BTreeMap<_, _>>();
+            let callee_claims = callee
+                .entry_claims
+                .iter()
+                .map(|claim| (claim.claim, claim.path.as_slice()))
+                .collect::<BTreeMap<_, _>>();
+            let transferred_caller_claims = claim_transfers
+                .iter()
+                .map(|transfer| transfer.claim)
+                .collect::<BTreeSet<_>>();
+            let returned_callee_claims = returned_claim_transfers
+                .iter()
+                .map(|transfer| transfer.callee_claim)
                 .collect::<BTreeSet<_>>();
             let returned_caller_claims = returned_claim_transfers
                 .iter()
                 .map(|transfer| transfer.caller_claim)
                 .collect::<BTreeSet<_>>();
-            if caller_result_claims.len() != actual_result.claims.len()
+            if callee_claims.is_empty()
+                || callee_claims.len() != callee.entry_claims.len()
+                || caller_result_claims.len() != actual_result.claims.len()
+                || transferred_caller_claims.len() != claim_transfers.len()
+                || returned_callee_claims.len() != returned_claim_transfers.len()
                 || returned_caller_claims.len() != returned_claim_transfers.len()
-                || caller_result_claims != returned_caller_claims
+                || returned_callee_claims != callee_claims.keys().copied().collect()
+                || returned_caller_claims != caller_result_claims.keys().copied().collect()
+                || transferred_caller_claims != caller_result_claims.keys().copied().collect()
+                || returned_claim_transfers.iter().any(|transfer| {
+                    callee_claims.get(&transfer.callee_claim)
+                        != caller_result_claims.get(&transfer.caller_claim)
+                })
             {
                 return malformed(
                     "structural call returned claims disagree with its result bindings",
                 );
             }
-            if returned_claim_transfers.iter().any(|transfer| {
-                !callee
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.claim == transfer.callee_claim)
+            let expected_callee_returns = callee
+                .entry_claims
+                .iter()
+                .map(|claim| claim.claim)
+                .collect::<Vec<_>>();
+            if callee.blocks.iter().any(|block| {
+                matches!(
+                    &block.terminator,
+                    Terminator::ReturnStructural {
+                        returned_claims,
+                        ..
+                    } if returned_claims != &expected_callee_returns
+                )
             }) {
                 return malformed(
-                    "structural call returned claim references an unknown callee claim",
+                    "structural callee return does not preserve its exact entry claim map",
                 );
             }
             validate_structural_arguments(

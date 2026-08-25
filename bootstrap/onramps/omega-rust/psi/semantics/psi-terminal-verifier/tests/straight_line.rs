@@ -2628,6 +2628,69 @@ fn structural_call_rebinds_one_exact_whole_root_claim_and_rejects_tampering() {
 }
 
 #[test]
+fn structural_call_rebinds_an_exact_multi_claim_whole_root_map() {
+    let module = multi_claim_structural_call_module();
+    validate_module(&module).expect("two exact projected claims cross a whole-root call");
+
+    let mut swapped_paths = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut swapped_paths.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let first_caller = returned_claim_transfers[0].caller_claim;
+    returned_claim_transfers[0].caller_claim = returned_claim_transfers[1].caller_claim;
+    returned_claim_transfers[1].caller_claim = first_caller;
+    assert_eq!(
+        validate_module(&swapped_paths).unwrap_err(),
+        ModuleError::StructuralCallClaimInterfaceMismatch(OperationId::new(1).unwrap())
+    );
+
+    let mut missing_return = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut missing_return.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers.pop();
+    assert_eq!(
+        validate_module(&missing_return).unwrap_err(),
+        ModuleError::StructuralCallClaimInterfaceMismatch(OperationId::new(1).unwrap())
+    );
+
+    let mut duplicate_caller = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut duplicate_caller.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers[1].caller_claim = ClaimId::new(1).unwrap();
+    assert_eq!(
+        validate_module(&duplicate_caller).unwrap_err(),
+        ModuleError::StructuralCallClaimInterfaceMismatch(OperationId::new(1).unwrap())
+    );
+
+    let mut callee_returns_a_subset = module;
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut callee_returns_a_subset.machines[1].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    returned_claims.pop();
+    assert_eq!(
+        validate_module(&callee_returns_a_subset).unwrap_err(),
+        ModuleError::StructuralCallClaimInterfaceMismatch(OperationId::new(1).unwrap())
+    );
+}
+
+#[test]
 fn structural_return_requires_exact_trivial_affine_local_establishment_and_cleanup() {
     let (mut module, _, _) = identity_reshuffle_module();
     let machine = &mut module.machines[0];
@@ -3663,6 +3726,85 @@ fn structural_call_module() -> TerminalModule {
         closed_conformance_applications: Vec::new(),
         machines: vec![caller_machine, callee_machine],
     }
+}
+
+fn multi_claim_structural_call_module() -> TerminalModule {
+    let mut module = structural_call_module();
+    let element_type = StructuralTypeId::new(2).unwrap();
+    module.structural_types[0].shape = StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 2,
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: element_type,
+        identity: "ReceiptElement".to_owned(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+
+    let paths = [
+        vec![psi_terminal::StructuralPathSegment::FixedIndex(0)],
+        vec![psi_terminal::StructuralPathSegment::FixedIndex(1)],
+    ];
+    for machine in &mut module.machines {
+        machine.entry_claims = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| EntryClaim {
+                claim: ClaimId::new(index as u64 + 1).unwrap(),
+                input: machine.structural_parameters[0].place,
+                path: path.clone(),
+            })
+            .collect();
+        let Terminator::ReturnStructural {
+            returned_claims, ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *returned_claims = vec![ClaimId::new(1).unwrap(), ClaimId::new(2).unwrap()];
+    }
+
+    let operation = &mut module.machines[0].blocks[0].operations[0];
+    let OperationResult::Structural(result) = &mut operation.result else {
+        unreachable!()
+    };
+    result.claims = paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| StructuralResultClaimBinding {
+            claim: ClaimId::new(index as u64 + 1).unwrap(),
+            path: path.clone(),
+        })
+        .collect();
+    let OperationKind::CallStructural {
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    *claim_transfers = vec![
+        ClaimTransfer {
+            claim: ClaimId::new(1).unwrap(),
+            argument_index: 0,
+        },
+        ClaimTransfer {
+            claim: ClaimId::new(2).unwrap(),
+            argument_index: 0,
+        },
+    ];
+    *returned_claim_transfers = vec![
+        StructuralResultClaimTransfer {
+            callee_claim: ClaimId::new(1).unwrap(),
+            caller_claim: ClaimId::new(1).unwrap(),
+        },
+        StructuralResultClaimTransfer {
+            callee_claim: ClaimId::new(2).unwrap(),
+            caller_claim: ClaimId::new(2).unwrap(),
+        },
+    ];
+    module
 }
 
 fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId) {

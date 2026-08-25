@@ -10,14 +10,15 @@ use psi_core::{
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
-    ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim, EvidenceInterfaceIdentity,
-    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, ProofOnlyValueType,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    ContentPlaceSubstitution, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    EntryClaim, EvidenceInterfaceIdentity, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId,
+    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -973,11 +974,11 @@ fn projected_ordinary_unit_argument_round_trips_canonically() {
         shape: StructuralTypeShape::FixedArray { element, length: 2 },
     });
     module.machines[0].structural_parameters[0].structural_type = array;
-    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
     module.machines[0].structural_parameters[0]
         .qualifications
         .clear();
-    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(0)];
     module.machines[1].structural_parameters[0]
         .qualifications
         .clear();
@@ -992,7 +993,26 @@ fn projected_ordinary_unit_argument_round_trips_canonically() {
     else {
         unreachable!()
     };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(0)];
+    let caller_input = module.machines[0].structural_parameters[0].place;
+    module.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(2),
+        input: caller_input,
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+    });
+    let mut second_call = module.machines[0].blocks[0].operations[0].clone();
+    second_call.id = operation_id(4);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut second_call.kind
+    else {
+        unreachable!()
+    };
     structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    claim_transfers[0].claim = claim_id(2);
+    module.machines[0].blocks[0].operations.push(second_call);
 
     let bytes = encode_module(&module).expect("projected ordinary call encodes");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
@@ -1168,7 +1188,7 @@ fn structural_foundation_requires_claim_and_argument_paths_to_match() {
     let OperationKind::BoundaryCall {
         structural_arguments,
         ..
-    } = &mut module.machines[0].blocks[0].operations[1].kind
+    } = &mut module.machines[0].blocks[0].operations[2].kind
     else {
         unreachable!()
     };
@@ -2529,6 +2549,67 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
 }
 
 #[test]
+fn structural_call_multi_claim_map_round_trips_and_rejects_inexact_maps() {
+    let module = multi_claim_structural_call_fixture();
+    let bytes = encode_module(&module).expect("multi-claim structural call should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    let expected = Err(CodecError::MalformedStructuralFoundation(
+        "structural call returned claims disagree with its result bindings",
+    ));
+
+    let mut swapped_paths = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut swapped_paths.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let first_caller = returned_claim_transfers[0].caller_claim;
+    returned_claim_transfers[0].caller_claim = returned_claim_transfers[1].caller_claim;
+    returned_claim_transfers[1].caller_claim = first_caller;
+    assert_eq!(encode_module(&swapped_paths), expected);
+
+    let mut missing_return = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut missing_return.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers.pop();
+    assert_eq!(encode_module(&missing_return), expected);
+
+    let mut duplicate_caller = module.clone();
+    let OperationKind::CallStructural {
+        returned_claim_transfers,
+        ..
+    } = &mut duplicate_caller.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    returned_claim_transfers[1].caller_claim = claim_id(1);
+    assert_eq!(encode_module(&duplicate_caller), expected);
+
+    let mut incomplete_callee_return = module;
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut incomplete_callee_return.machines[1].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    returned_claims.pop();
+    assert_eq!(
+        encode_module(&incomplete_callee_return),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural callee return does not preserve its exact entry claim map"
+        ))
+    );
+}
+
+#[test]
 fn structural_call_rows_require_canonical_claim_and_qualification_order() {
     let baseline = structural_call_fixture();
 
@@ -2716,6 +2797,80 @@ fn structural_call_fixture() -> TerminalModule {
     module
 }
 
+fn multi_claim_structural_call_fixture() -> TerminalModule {
+    let mut module = structural_call_fixture();
+    let element_type = structural_type_id(2);
+    module.structural_types[0].shape = StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 2,
+    };
+    let paths = [
+        vec![StructuralPathSegment::FixedIndex(0)],
+        vec![StructuralPathSegment::FixedIndex(1)],
+    ];
+
+    for machine in &mut module.machines {
+        machine.entry_claims = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| EntryClaim {
+                claim: claim_id(index as u64 + 1),
+                input: machine.structural_parameters[0].place,
+                path: path.clone(),
+            })
+            .collect();
+        let Terminator::ReturnStructural {
+            returned_claims, ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *returned_claims = vec![claim_id(1), claim_id(2)];
+    }
+
+    let operation = &mut module.machines[0].blocks[0].operations[0];
+    let OperationResult::Structural(result) = &mut operation.result else {
+        unreachable!()
+    };
+    result.claims = paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| StructuralResultClaimBinding {
+            claim: claim_id(index as u64 + 1),
+            path: path.clone(),
+        })
+        .collect();
+    let OperationKind::CallStructural {
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    *claim_transfers = vec![
+        ClaimTransfer {
+            claim: claim_id(1),
+            argument_index: 0,
+        },
+        ClaimTransfer {
+            claim: claim_id(2),
+            argument_index: 0,
+        },
+    ];
+    *returned_claim_transfers = vec![
+        StructuralResultClaimTransfer {
+            callee_claim: claim_id(1),
+            caller_claim: claim_id(1),
+        },
+        StructuralResultClaimTransfer {
+            callee_claim: claim_id(2),
+            caller_claim: claim_id(2),
+        },
+    ];
+    module
+}
+
 #[test]
 fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
     let mut module = structural_effect_fixture();
@@ -2801,6 +2956,19 @@ fn project_boundary_argument(
     module.machines[0].structural_parameters[0]
         .qualifications
         .clear();
+    let Terminator::ReturnUnit { edge, .. } = module.machines[0].blocks[0].terminator else {
+        unreachable!()
+    };
+    module.machines[0].blocks[0].terminator = Terminator::Crash {
+        edge,
+        cause: CrashCause::Trap,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    module.machines[0].contract.crash_routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    }];
     project_boundary_path_only(module, path);
 }
 
@@ -2838,13 +3006,13 @@ fn fixed_array_custody_fixture() -> TerminalModule {
     }
     for machine in &mut module.machines {
         for parameter in &mut machine.structural_parameters {
-            parameter.multiplicity = StructuralMultiplicity::Affine;
+            parameter.multiplicity = StructuralMultiplicity::Linear;
             parameter.qualifications.clear();
         }
     }
 
     module.machines[0].structural_parameters[0].structural_type = array;
-    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(0)];
     let OperationKind::BoundaryCall {
         structural_arguments,
         ..
@@ -2852,7 +3020,26 @@ fn fixed_array_custody_fixture() -> TerminalModule {
     else {
         unreachable!()
     };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(0)];
+    let caller_input = module.machines[0].structural_parameters[0].place;
+    module.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(2),
+        input: caller_input,
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+    });
+    let mut second_call = module.machines[0].blocks[0].operations[1].clone();
+    second_call.id = operation_id(4);
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &mut second_call.kind
+    else {
+        unreachable!()
+    };
     structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    completion_receipts[0].claim = claim_id(2);
+    module.machines[0].blocks[0].operations.push(second_call);
     module
 }
 

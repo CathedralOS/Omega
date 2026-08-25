@@ -325,6 +325,58 @@ fn internal_structural_call_resumes_at_each_charge_without_replaying_custody() {
 }
 
 #[test]
+fn internal_multi_claim_structural_call_resumes_without_replaying_or_swapping_claims() {
+    let module = multi_claim_internal_structural_call_module(false);
+    let semantic = encode_module(&module).expect("multi-claim structural call encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0xc014,
+        structural_type: structural_type_id(1),
+        qualifications: vec![structural_domain_id(1)],
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        std::slice::from_ref(&argument),
+    )
+    .expect("verified multi-claim structural call starts");
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+
+    for (expected_site, expected_usage) in [
+        (FuelChargeSite::Operation(operation_id(1)), 0),
+        (FuelChargeSite::Edge(edge_id(2)), 1),
+        (FuelChargeSite::Edge(edge_id(1)), 2),
+    ] {
+        assert!(matches!(
+            execution.resume(&mut meter).unwrap(),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion { site, .. })
+                if site == expected_site
+        ));
+        assert_eq!(
+            execution.live_claim_frontier().collect::<Vec<_>>(),
+            vec![claim_id(1), claim_id(2)]
+        );
+        assert_eq!(meter.usage().total_units(), expected_usage);
+        meter.replenish(1).unwrap();
+    }
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(
+            psi_terminal_interpreter::TerminalStructuralResult {
+                value: argument,
+                claims: vec![claim_id(1), claim_id(2)],
+            }
+        ))
+    );
+    assert!(execution.live_claim_frontier().next().is_none());
+    assert_eq!(meter.usage().total_units(), 3);
+}
+
+#[test]
 fn crashing_structural_callee_never_produces_a_caller_result() {
     let module = internal_structural_call_module(true);
     let semantic = encode_module(&module).expect("crashing structural call encodes");
@@ -351,6 +403,38 @@ fn crashing_structural_callee_never_produces_a_caller_result() {
         TerminalExecutionStatus::Crashed(crash)
             if crash.edge == edge_id(2)
                 && crash.frontier_lower_bound == vec![claim_id(1)]
+    ));
+    assert_eq!(execution.resume(&mut meter).unwrap(), crashed);
+    assert_eq!(meter.usage().total_units(), 2);
+}
+
+#[test]
+fn crashing_multi_claim_structural_callee_preserves_the_exact_abandonment_frontier() {
+    let module = multi_claim_internal_structural_call_module(true);
+    let semantic = encode_module(&module).expect("crashing multi-claim call encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let argument = TerminalStructuralValue {
+        opaque_identity: 0xc015,
+        structural_type: structural_type_id(1),
+        qualifications: vec![structural_domain_id(1)],
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        std::slice::from_ref(&argument),
+    )
+    .expect("verified crashing multi-claim call starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+
+    let crashed = execution.resume(&mut meter).unwrap();
+    assert!(matches!(
+        &crashed,
+        TerminalExecutionStatus::Crashed(crash)
+            if crash.edge == edge_id(2)
+                && crash.frontier_lower_bound == vec![claim_id(1), claim_id(2)]
     ));
     assert_eq!(execution.resume(&mut meter).unwrap(), crashed);
     assert_eq!(meter.usage().total_units(), 2);
@@ -3413,6 +3497,88 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         closed_conformance_applications: Vec::new(),
         machines: vec![caller, callee],
     }
+}
+
+fn multi_claim_internal_structural_call_module(crashes: bool) -> TerminalModule {
+    let mut module = internal_structural_call_module(crashes);
+    let element_type = structural_type_id(2);
+    module.structural_types[0].shape = StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 2,
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: element_type,
+        identity: "test::ResourceElement".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let paths = [
+        vec![psi_terminal::StructuralPathSegment::FixedIndex(0)],
+        vec![psi_terminal::StructuralPathSegment::FixedIndex(1)],
+    ];
+
+    for machine in &mut module.machines {
+        machine.entry_claims = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| EntryClaim {
+                claim: claim_id(index as u64 + 1),
+                input: machine.structural_parameters[0].place,
+                path: path.clone(),
+            })
+            .collect();
+        match &mut machine.blocks[0].terminator {
+            Terminator::ReturnStructural {
+                returned_claims, ..
+            } => *returned_claims = vec![claim_id(1), claim_id(2)],
+            Terminator::Crash {
+                frontier_lower_bound,
+                ..
+            } => *frontier_lower_bound = vec![claim_id(1), claim_id(2)],
+            _ => unreachable!(),
+        }
+    }
+
+    let operation = &mut module.machines[0].blocks[0].operations[0];
+    let OperationResult::Structural(result) = &mut operation.result else {
+        unreachable!()
+    };
+    result.claims = paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| StructuralResultClaimBinding {
+            claim: claim_id(index as u64 + 1),
+            path: path.clone(),
+        })
+        .collect();
+    let OperationKind::CallStructural {
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    *claim_transfers = vec![
+        ClaimTransfer {
+            claim: claim_id(1),
+            argument_index: 0,
+        },
+        ClaimTransfer {
+            claim: claim_id(2),
+            argument_index: 0,
+        },
+    ];
+    *returned_claim_transfers = vec![
+        StructuralResultClaimTransfer {
+            callee_claim: claim_id(1),
+            caller_claim: claim_id(1),
+        },
+        StructuralResultClaimTransfer {
+            callee_claim: claim_id(2),
+            caller_claim: claim_id(2),
+        },
+    ];
+    module
 }
 
 fn machine_id(raw: u64) -> MachineId {
