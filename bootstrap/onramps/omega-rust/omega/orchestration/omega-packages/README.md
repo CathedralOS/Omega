@@ -573,3 +573,7 @@ lock mutation; tests that fabricate manifests from fixture intent have been
 removed from integration coverage. The `process-exit` fixture exercises exact
 toolchain `Console` provenance, compiler-owned process classification, and the
 audit recommendation retained on both initial admission and unchanged update.
+A separate production-path canary resolves two byte-identical packages with
+the same declared name and provider symbols from distinct lineages. Local
+snapshot custody keeps separate physical compiler roots, and selected-provider
+evidence remains bound to the explicitly imported package identity.

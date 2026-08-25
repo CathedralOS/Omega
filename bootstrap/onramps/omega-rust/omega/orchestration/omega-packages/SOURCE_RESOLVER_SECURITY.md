@@ -85,14 +85,20 @@ lock.
 
 ## Current engineering delta
 
-Git resolution now validates exact tree/blob objects and materializes them into
-a staged, read-only, atomically published snapshot without invoking checkout,
-filters, hooks, submodules, or package code. It re-hashes the published source
-and revalidates it before reuse. This establishes the object-to-snapshot shape,
+Git resolution now validates helper-reported tree/blob spelling, type, size,
+ordering, framing, and materialized snapshot equality. It materializes those
+bytes into a staged, read-only, atomically published snapshot without invoking
+checkout, filters, hooks, submodules, or package code, then re-hashes the
+published source and revalidates it before reuse. The parent does not yet
+recompute Git SHA-1/SHA-256 object IDs or independently prove commit-to-tree and
+tree-to-child relationships. This establishes the object-to-snapshot shape,
 not the complete production boundary.
 
 Local sources now use a bounded in-memory capture, content-addressed staging,
-read-only atomic publication, and revalidation before reuse. The resolver
+read-only atomic publication, and revalidation before reuse. Physical
+publication is additionally namespaced by the canonical live-source lineage,
+so byte-identical packages from distinct paths retain distinct compiler custody
+roots while keeping the same content identity. The resolver
 rejects source/cache overlap and ordinary mutation observed between capture and
 publication; compilation-facing diagnostics expose the published snapshot, not
 the live tree. Empty directories participate in identity while directory
@@ -159,6 +165,11 @@ materialization still run in the parent process
 without filesystem/network confinement or CPU, memory, process-count, and
 transfer ceilings. A deliberately hostile same-user process can race
 cooperative locks and validation, including the local before/after observation.
+Cache origin/config checks remain mediated by Git and do not independently
+establish cache-directory ownership. Local traversal applies the total source
+entry ceiling as entries are retained, but currently collects one complete
+directory listing before that check. Windows Git paths still need explicit
+rejection of drive-prefixed and NTFS-special spellings.
 The fixed helper path still permits Git to invoke required transport helpers;
 those descendants are not yet bound to retained executable identities. SSH is
 forced through an absolute client with user configuration disabled,
@@ -167,3 +178,10 @@ consults the user's default known-host and key files, so host and credential
 custody remain ambient and unsuitable for strict admission. Those conditions
 keep the resolver diagnostic-only until native helper confinement, hostile-
 process custody, remaining resource ceilings, and opaque-receipt work land.
+
+The next bounded hardening milestone is parent-owned authentication of the
+selected Git object graph before any snapshot stage exists: recompute commit,
+tree, and blob IDs for SHA-1 and SHA-256 repositories, verify every graph edge,
+and reject mismatches before materialization. Destination containment is
+rechecked in the same preflight. This milestone supplies real evidence for a
+later strict receipt but does not itself make the resolver admissible.

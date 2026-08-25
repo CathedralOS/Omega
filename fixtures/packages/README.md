@@ -37,8 +37,15 @@ Packages:
 - `graph-workbench`: root graph fixture depending on pure and capability-bearing
   packages.
 
-The admission matrix must additionally cover same-name/different-lineage
-spoofing, transport-normalized lineage, retained dangerous authority, missing
-old source with a valid lock baseline, missing lock baseline, and conflicting
-instance requests for one `PackageKey`. `remote-journal` provides the local and
-remote compiler-backed retained-dangerous-authority case.
+The production-path lineage-spoofing canary constructs two byte-identical
+`shared-provider` packages with the same declaration and symbols but distinct
+external-local lineages. Both remain separate graph/review identities, and a
+root provider selection imported from one cannot be captured by the other.
+
+The admission matrix must additionally cover remote compiler-backed
+transport-normalized lineage, provider-selection updates, retained dangerous
+authority, missing accepted-lock state, and conflicting instance requests for
+one `PackageKey`. Missing old source is already covered with both live and
+reopened review-only baselines. `remote-journal` provides the local and remote
+source-custody retained-dangerous-authority case; sealed remote admission still
+depends on the accepted-lock pipeline.

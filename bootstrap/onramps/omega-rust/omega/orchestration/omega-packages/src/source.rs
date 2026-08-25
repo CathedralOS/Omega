@@ -25,6 +25,7 @@ const LOCAL_CACHE_SNAPSHOTS: &str = "local-snapshots";
 const LOCAL_SNAPSHOT_METADATA: &str = "snapshot.identity";
 const LOCAL_SNAPSHOT_SOURCE: &str = "source";
 const LOCAL_SNAPSHOT_POLICY: &[u8] = b"omega-local-source-snapshot-v2";
+const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] = b"omega-local-source-snapshot-custody-v1";
 const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 const GIT_ORIGIN_FETCH: &str = "+refs/heads/*:refs/remotes/origin/*";
@@ -2442,8 +2443,12 @@ fn publish_local_snapshot(
     )?;
 
     let identity = captured.normalized.content_identity.clone();
-    let publication = snapshots.join(format!("source-{identity}"));
-    let lock_path = snapshots.join(format!("source-{identity}.lock"));
+    let custody_identity = local_snapshot_custody_identity(
+        &captured.normalized.root,
+        &captured.normalized.content_identity,
+    );
+    let publication = snapshots.join(format!("source-{custody_identity}"));
+    let lock_path = snapshots.join(format!("source-{custody_identity}.lock"));
     let _entry_lock = CacheEntryLock::acquire_local(&lock_path)?;
 
     let normalized = if publication.exists() {
@@ -2478,6 +2483,17 @@ fn validate_local_snapshot_topology(
         });
     }
     Ok(canonical_cache_dir)
+}
+
+fn local_snapshot_custody_identity(canonical_live_root: &Path, content_identity: &str) -> String {
+    let mut hasher = Sha256::new();
+    hash_bytes(&mut hasher, LOCAL_SNAPSHOT_CUSTODY_POLICY);
+    hash_bytes(
+        &mut hasher,
+        raw_os_bytes(canonical_live_root.as_os_str()).as_slice(),
+    );
+    hash_bytes(&mut hasher, content_identity.as_bytes());
+    format_sha256(&hasher.finalize())
 }
 
 fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveError> {
@@ -4538,7 +4554,10 @@ mod tests {
             SourceTreePolicy::LocalPackage,
         )
         .expect("capture source");
-        let captured_identity = captured.normalized.content_identity.clone();
+        let captured_custody_identity = local_snapshot_custody_identity(
+            &captured.normalized.root,
+            &captured.normalized.content_identity,
+        );
         std::fs::write(root.join("main.omg"), "machine After::main() {}\n")
             .expect("mutate live source");
 
@@ -4552,7 +4571,7 @@ mod tests {
         let snapshots = cache.join(LOCAL_CACHE_SNAPSHOTS);
         assert!(
             !snapshots
-                .join(format!("source-{captured_identity}"))
+                .join(format!("source-{captured_custody_identity}"))
                 .exists()
         );
         assert!(
@@ -4567,6 +4586,53 @@ mod tests {
 
         make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn byte_identical_local_sources_retain_distinct_custody_roots() {
+        let first_root = temp_root("local-snapshot-first-lineage");
+        let second_root = temp_root("local-snapshot-second-lineage");
+        let cache = temp_root("local-snapshot-lineage-cache");
+        for root in [&first_root, &second_root] {
+            std::fs::create_dir_all(root).expect("create source root");
+            std::fs::write(
+                root.join("main.omg"),
+                "pub machine identity() -> u64 { 1 }\n",
+            )
+            .expect("write identical source");
+        }
+
+        let first =
+            resolve_local_source_snapshot(&first_root, &cache, LocalSourceLimits::default())
+                .expect("publish first lineage snapshot");
+        let second =
+            resolve_local_source_snapshot(&second_root, &cache, LocalSourceLimits::default())
+                .expect("publish second lineage snapshot");
+
+        assert_eq!(
+            first.normalized.content_identity, second.normalized.content_identity,
+            "content identity must remain independent of source lineage"
+        );
+        assert_ne!(first.canonical_live_root, second.canonical_live_root);
+        assert_ne!(
+            first.snapshot_root, second.snapshot_root,
+            "distinct lineages need distinct physical custody roots for compiler attribution"
+        );
+        assert_eq!(
+            resolve_local_source_snapshot(&first_root, &cache, LocalSourceLimits::default())
+                .expect("reuse first lineage snapshot"),
+            first
+        );
+        assert_eq!(
+            resolve_local_source_snapshot(&second_root, &cache, LocalSourceLimits::default())
+                .expect("reuse second lineage snapshot"),
+            second
+        );
+
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&first_root);
+        let _ = std::fs::remove_dir_all(&second_root);
         let _ = std::fs::remove_dir_all(&cache);
     }
 

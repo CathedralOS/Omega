@@ -663,6 +663,10 @@ identity without contaminating the normalized capability/API comparison bytes.
 The resolver retains exact immutable source resolutions and rechecks whole
 snapshots plus compiler-retained bytes around compilation; an OS isolation
 boundary is still required against a deliberately hostile same-user racer.
+Physical local snapshot custody is keyed by both canonical source lineage and
+content identity. Byte-identical packages from different lineages therefore
+keep distinct compiler roots even though their content commitments agree; one
+physical source root is never ambiguously assigned to two package identities.
 
 The envelope separately identifies the producer executable file bytes observed
 before and after closure review, rejecting if those observations differ and

@@ -271,10 +271,46 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
             }));
             assert!(selected.source().compiler_derivations().is_empty());
         }
-        "capability-vault" => assert!(
-            !callable.capability_flows().is_empty(),
-            "capability-vault must issue exact capability-flow evidence"
-        ),
+        "capability-vault" => {
+            let flows = callable.capability_flows();
+            let acquisitions = flows
+                .iter()
+                .filter(|flow| flow.kind().as_str() == "acquires")
+                .collect::<Vec<_>>();
+            let [acquisition] = acquisitions.as_slice() else {
+                panic!("capability-vault must retain one exact capability acquisition")
+            };
+            assert_eq!(acquisition.capability().path(), "SecretHost");
+            let returns = flows
+                .iter()
+                .filter(|flow| flow.kind().as_str() == "returns")
+                .collect::<Vec<_>>();
+            let [returned] = returns.as_slice() else {
+                panic!("capability-vault must retain one exact capability return")
+            };
+            assert_eq!(returned.capability().path(), "SecretHost");
+            for flow in flows {
+                assert_eq!(flow.capability().path(), "SecretHost");
+                assert_eq!(flow.state().path(), "Vault::open_secret::open_secret");
+                assert_eq!(
+                    flow.capability().owner(),
+                    PackageReviewNominalOwner::Package(review.package()),
+                    "capability identity must retain exact package provenance"
+                );
+                assert_eq!(
+                    flow.state().owner(),
+                    PackageReviewNominalOwner::Package(review.package()),
+                    "state identity must retain exact package provenance"
+                );
+                if let Some(via) = flow.via_state() {
+                    assert_eq!(
+                        via.owner(),
+                        PackageReviewNominalOwner::Package(review.package()),
+                        "capability-flow intermediary must retain exact package provenance"
+                    );
+                }
+            }
+        }
         "axiom-ledger" => {
             let [contract] = callable.contracts() else {
                 panic!("axiom-ledger exact accepted claim")

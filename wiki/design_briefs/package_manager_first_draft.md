@@ -691,6 +691,10 @@ must stop fabricating package manifests from fixture intent. Remote fixtures
 must exercise transport-normalized lineage, immutable commit/tree identity,
 missing-old-source review, missing-lock fresh admission, retained dangerous
 authority triage, and same-name/different-lineage spoof rejection.
+The local production-path spoof canary already proves that byte-identical,
+same-declared-name packages from distinct lineages retain separate physical
+compiler custody and package-qualified provider evidence. Remote transport
+coverage must preserve the same result rather than relying on content equality.
 The canonical `Console`/process case must additionally prove that classification
 comes from exact toolchain provenance and that a package-owned lookalike cannot
 mint the same risk class.

@@ -169,7 +169,9 @@ complete.
   object-store quota. Local
   sources now follow the same custody shape: a bounded capture is
   re-materialized into a content-addressed, read-only, atomically published
-  resolver snapshot;
+  resolver snapshot. Publication keys bind both canonical live-source lineage
+  and content identity, so byte-identical packages from different paths cannot
+  collapse onto one compiler source root;
   source/cache overlap and ordinary concurrent mutation reject, and diagnostics
   expose the snapshot path rather than the live tree. Mutable local-package
   capture now excludes the compiler-reserved root `build/` output directory
@@ -183,8 +185,17 @@ complete.
 
   Remaining suspect points:
 
+  - Git currently supplies the selected commit/tree IDs, recursive tree rows,
+    and blob framing. The parent validates spelling, type, size, ordering, and
+    snapshot equality, but does not yet recompute SHA-1/SHA-256 object IDs or
+    independently prove commit-to-tree and tree-to-child relationships;
+  - cache origin/config checks are mediated by Git and do not establish cache
+    directory ownership independently of the helper;
   - the local before/after check does not defend against a deliberately hostile
     same-user process racing both observations;
+  - local traversal retains a complete single-directory listing before the
+    total entry ceiling is applied, and Windows Git paths still need explicit
+    rejection of drive-prefixed and NTFS-special spellings;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
   - the selected Git path/content observation does not certify path ownership,
@@ -201,6 +212,13 @@ complete.
     user's default known-host and key files without explicit credential custody;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
+
+  Next bounded milestone: independently authenticate the selected Git object
+  graph before snapshot staging. Recompute commit, tree, and blob object IDs for
+  both SHA-1 and SHA-256 repositories; verify commit-to-tree and every
+  tree-to-child edge; assert destination containment before materialization;
+  and prove every mismatch leaves no snapshot stage. This is internal resolver
+  engineering and requires no new Omega language decision.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
@@ -247,7 +265,12 @@ complete.
   source resolution but deliberately cannot construct an accepted instance.
   `PackageKey::identity()` now emits a domain-separated opaque 256-bit
   commitment shared with the compiler; it is stable across revisions and
-  changes when package name or canonical lineage changes.
+  changes when package name or canonical lineage changes. A production-path
+  canary now resolves two byte-identical, same-declared-name packages from
+  distinct external-local lineages in one closure and proves compiler review
+  keeps their package identities separate. Provider selection imported from
+  one lineage retains that exact realizing, provider-type, and schema package;
+  the same-spelled lookalike cannot replace it.
 
 - **SOURCE-LINEAGE-NORMALIZATION.** Define canonical lineage for Git, URL
   archives, and local/workspace paths.
@@ -1150,8 +1173,9 @@ complete.
   a bodyless accepted boundary claim with a distinct blocking row and
   initial-admission source packet, exact filesystem reach/invocation,
   retained network reach without a hidden invocation, exact clock-service
-  reach/invocation, capability acquisition/return flow, and a two-dependency
-  source graph. `opaque-carrier` adds an exact package-qualified public-data row
+  reach/invocation, package-qualified capability acquisition and return flow,
+  and a two-dependency source graph. `opaque-carrier` adds an exact
+  package-qualified public-data row
   with boundary-opaque supply and no authored semantic claim; its byte-identical
   private CathedralOS mirror is pinned at an exact commit. It deliberately does
   not fabricate the still-unsealed mechanism/ABI evidence. The local
@@ -1171,10 +1195,19 @@ complete.
   `generated-table` now covers the canonical build machine's exact toolchain-
   owned filesystem reach/invocation ceiling from immutable source custody and a
   separate writable root inside a disposable review child session. Fixture-
+  backed same-name/different-lineage coverage now keeps two byte-identical
+  `shared-provider` packages as distinct exact-key graph nodes and proves the
+  selected-provider review row remains bound to only the explicitly imported
+  lineage. This exposed and fixed local snapshot deduplication that previously
+  collapsed distinct lineages onto one physical compiler root. Missing old
+  source is covered both with live review state and a reopened review-only
+  baseline; missing accepted-lock state remains blocked on Q7 rather than being
+  simulated with that non-admitting capsule. Fixture-
   executed build-provider operations, canonical observation transcripts/
   receipts, sealed representation
   mechanism/ABI evidence, general
-  dangerous-authority escalation, missing baselines, graph-level spoofing, and
+  dangerous-authority escalation, remote compiler-backed transport
+  normalization, provider-selection update conflicts, and real-custody
   reconciliation conflicts remain.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
