@@ -83,6 +83,15 @@ pairs and the shared `65,536/65,537` dynamic-block-entry boundary. This closes
 the selected constant-aggregate source-to-artifact relation below Delta; it
 does not widen an earlier OMGRFN frame or admit the family to final `Ωself`.
 
+The CKIR4 runtime-record successor is separately specified as
+[`OMGRFN5`](OMGCOMP_REFINEMENT_WITNESS_V5.md). It retains the same component
+ceilings and 4,497,544-byte simultaneous maximum while assigning runtime
+constructor field binding/canonicalization, artifact-free snapshot meaning,
+constructor-object frame extents, structural Call/Copy transport, and exact
+opcode-13 ELF reconstruction to independent responsibilities. The contract is
+frozen; its persisted-Beta responsibilities and unchanged-frame composite are
+still open and no earlier OMGRFN checker is widened or relabeled.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical

@@ -413,7 +413,9 @@ requires:
    independently reconstructs constructor values, structural argument
    transport, destination copy, selected result, and exhaustion. A Rust product
    compiler remains differential evidence only.
-7. Lower-rooted refinement uses a distinct `OMGRFN5` carrier embedding one
+7. Lower-rooted refinement uses the distinct
+   [`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md)
+   carrier embedding one
    exact unchanged OMGCOMP, exact unchanged OMGRSW1, CKIR4, ELF, and claimed
    result. Independent responsibilities establish: frame/component custody;
    source-to-OMGRSW1 reconstruction; OMGRSW1-to-CKIR4 tables; source-body-to-
