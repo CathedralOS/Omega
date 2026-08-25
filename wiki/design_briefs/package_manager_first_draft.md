@@ -876,6 +876,16 @@ to stabilize this seam. Add one only if implementation discovers a genuine
 reusable semantic boundary, and prefer an existing coherent stage such as Exact
 when it can carry the same meaning with less machinery.
 
+Terminal Psi now provides the first concrete replay ledger: one ordered,
+owner-tagged set covers executable operations, call and nominal-cleanup
+requirements, and contract guarantees, retaining each exact proposition,
+obligation class, assumption list, and reconstructed axiom order. The verifier
+consumes and retains that set. Its canonical bytes bind exact Terminal-Psi and
+source-backed verifier trust-graph identities but exclude proof route, so
+different valid certificates preserve semantic identity. A decoded producer
+ledger is accepted only after exact local reconstruction. This remains a narrow
+Terminal component, not whole-package evidence or lock authority.
+
 Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity because one closure may contain evidence produced
 under several versions. Checked obligations compose upward. Missing or

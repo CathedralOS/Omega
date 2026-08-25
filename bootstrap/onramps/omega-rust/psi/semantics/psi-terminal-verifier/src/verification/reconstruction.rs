@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::Proposition;
+use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_kernel::Obligation;
@@ -28,11 +28,69 @@ mod terminator_facts;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedOperationObligation {
+    pub owner: ReconstructedTerminalObligationOwner,
     pub obligation: Obligation,
     pub semantic_axioms: Vec<Proposition>,
     /// The obligation is the operation schema's canonical kernel proposition,
     /// not a proposition selected by a trusted sufficient-form reducer.
     pub canonical_certificate: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReconstructedTerminalObligationOwner {
+    Operation {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    CallRequires {
+        machine: MachineId,
+        operation: OperationId,
+        requirement_position: u32,
+    },
+    NominalCleanupRequires {
+        machine: MachineId,
+        edge: EdgeId,
+        cleanup_position: u32,
+        requirement_position: u32,
+    },
+    ContractEnsures {
+        machine: MachineId,
+        contract: ContractId,
+        clause_position: u32,
+    },
+}
+
+impl ReconstructedTerminalObligationOwner {
+    pub const fn machine(self) -> MachineId {
+        match self {
+            Self::Operation { machine, .. }
+            | Self::CallRequires { machine, .. }
+            | Self::NominalCleanupRequires { machine, .. }
+            | Self::ContractEnsures { machine, .. } => machine,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReconstructedTerminalObligation {
+    pub owner: ReconstructedTerminalObligationOwner,
+    pub obligation: Obligation,
+    pub requirements: Vec<Proposition>,
+    pub semantic_axioms: Vec<Proposition>,
+    /// The obligation is the operation schema's canonical kernel proposition,
+    /// not a proposition selected by a trusted sufficient-form reducer.
+    pub canonical_certificate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReconstructedTerminalObligationSet {
+    obligations: Vec<ReconstructedTerminalObligation>,
+}
+
+impl ReconstructedTerminalObligationSet {
+    pub fn obligations(&self) -> &[ReconstructedTerminalObligation] {
+        &self.obligations
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +112,56 @@ pub fn reconstruct_operation_obligations(
         obligations.extend(reconstruct_machine_semantics(module, machine)?.operation_obligations);
     }
     Ok(obligations)
+}
+
+/// Reconstruct the complete proof question replayed by [`crate::verify_module`].
+/// Rows retain exact semantic owners, assumptions, and axiom ordering. The set
+/// contains both executable-site obligations and every published contract
+/// `ensures` clause; a proof bundle cannot add, remove, or retarget either.
+pub fn reconstruct_terminal_obligations(
+    module: &TerminalModule,
+) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
+    validate_module(module)?;
+    reconstruct_validated_terminal_obligations(module)
+}
+
+pub(super) fn reconstruct_validated_terminal_obligations(
+    module: &TerminalModule,
+) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
+    let mut obligations = Vec::new();
+    for machine in &module.machines {
+        let semantics = reconstruct_machine_semantics(module, machine)?;
+        obligations.extend(semantics.operation_obligations.into_iter().map(|site| {
+            ReconstructedTerminalObligation {
+                owner: site.owner,
+                obligation: site.obligation,
+                requirements: machine.contract.requires.clone(),
+                semantic_axioms: site.semantic_axioms,
+                canonical_certificate: site.canonical_certificate,
+            }
+        }));
+        obligations.extend(machine.contract.ensures.iter().enumerate().map(
+            |(clause_position, clause)| {
+                ReconstructedTerminalObligation {
+                    owner: ReconstructedTerminalObligationOwner::ContractEnsures {
+                        machine: machine.id,
+                        contract: machine.contract.id,
+                        clause_position: u32::try_from(clause_position)
+                            .expect("validated contract clause position fits u32"),
+                    },
+                    obligation: Obligation {
+                        id: clause.obligation,
+                        proposition: clause.proposition.clone(),
+                        class: psi_proof_kernel::ObligationClass::Derivable,
+                    },
+                    requirements: machine.contract.requires.clone(),
+                    semantic_axioms: semantics.exit_axioms.clone(),
+                    canonical_certificate: false,
+                }
+            },
+        ));
+    }
+    Ok(ReconstructedTerminalObligationSet { obligations })
 }
 
 /// Reconstruct facts at each executable obligation site and facts established

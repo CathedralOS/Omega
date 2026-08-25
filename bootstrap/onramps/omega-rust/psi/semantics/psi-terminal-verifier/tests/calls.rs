@@ -13,8 +13,9 @@ use psi_terminal::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ModuleError, ObligationEvidence, ProofBundle, reconstruct_operation_obligations,
-    validate_module, verify_module,
+    ModuleError, ObligationEvidence, ProofBundle, ReconstructedTerminalObligationOwner,
+    reconstruct_operation_obligations, reconstruct_terminal_obligations, validate_module,
+    verify_module,
 };
 
 #[test]
@@ -27,6 +28,31 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
         obligations[0].obligation.proposition,
         Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true))
     );
+    let reconstructed =
+        reconstruct_terminal_obligations(&module).expect("complete terminal obligations");
+    let [call_requirement, callee_guarantee] = reconstructed.obligations() else {
+        panic!("one call requirement and one contract guarantee")
+    };
+    assert_eq!(
+        call_requirement.owner,
+        ReconstructedTerminalObligationOwner::CallRequires {
+            machine: machine_id(1),
+            operation: operation_id(2),
+            requirement_position: 0,
+        }
+    );
+    assert_eq!(call_requirement.obligation.id, obligation_id(1));
+    assert!(call_requirement.requirements.is_empty());
+    assert_eq!(
+        callee_guarantee.owner,
+        ReconstructedTerminalObligationOwner::ContractEnsures {
+            machine: machine_id(2),
+            contract: contract_id(2),
+            clause_position: 0,
+        }
+    );
+    assert_eq!(callee_guarantee.obligation.id, obligation_id(2));
+    assert_eq!(callee_guarantee.requirements.len(), 1);
 
     let bundle = ProofBundle {
         evidence_producers: Vec::new(),
@@ -48,6 +74,7 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("callee requirement and guarantee verify");
     assert_eq!(verified.accepted_facts().len(), 2);
+    assert_eq!(verified.reconstructed_obligations(), &reconstructed);
 }
 
 #[test]

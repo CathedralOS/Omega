@@ -14,7 +14,9 @@ use crate::ModuleError;
 
 use super::super::call_composition::compose_call_operation;
 use super::super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
-use super::{ReconstructedOperationObligation, certificate_entry};
+use super::{
+    ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, certificate_entry,
+};
 
 pub(super) fn append_operation(
     module: &TerminalModule,
@@ -86,6 +88,10 @@ pub(super) fn append_operation(
             })
         };
         operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
             obligation: Obligation {
                 id: semantics.obligation(),
                 proposition,

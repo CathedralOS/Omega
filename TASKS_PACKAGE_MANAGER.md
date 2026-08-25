@@ -1327,6 +1327,23 @@ complete.
   collapse work into an existing coherent stage such as Exact when that makes
   the reconstruction smaller without losing meaning.
 
+  Milestone 2026-08-25: Terminal verification now exposes one complete ordered
+  `ReconstructedTerminalObligationSet` for operation, call-requirement,
+  nominal-cleanup, and contract-`ensures` rows. Every row retains its exact
+  semantic owner, proposition, obligation class, assumptions, reconstructed
+  axiom order, and canonical-certificate disposition. `verify_module` consumes
+  and retains that same set instead of privately rebuilding contract guarantees.
+  A bounded canonical ledger codec binds the set to exact Terminal-Psi identity
+  and the current verifier trust-graph identity while excluding proof route;
+  decode is non-authoritative until local reconstruction matches it exactly.
+  The trust graph now hashes a deterministic closure of every Rust verifier
+  source file, closing the prior deep-module omission. Tampered questions and
+  changed trust/program subjects reject; different valid proof routes retain
+  one semantic ledger. This is a real Terminal replay component, not package
+  sealing. Whole-package source/artifact obligation reconstruction, ordinary
+  capability/API evidence, transitive open obligations, schema deltas, and
+  `PackageInstance` remain deliberately absent.
+
 - **ACCEPTED-LOCK-SCHEMA.** Replace name-keyed/fingerprint-only lock entries.
 
   Acceptance: `omega.lock` records `PackageKey`, `PackageInstance`, source

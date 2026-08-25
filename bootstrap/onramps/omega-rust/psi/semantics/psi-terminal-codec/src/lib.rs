@@ -14,6 +14,7 @@ mod contract_wire;
 mod debug_map;
 mod machine_wire;
 mod module_wire;
+mod obligation_ledger;
 mod program_local_root_catalog;
 mod proof_bundle;
 mod proof_declaration_wire;
@@ -37,6 +38,12 @@ pub use debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
     DebugSourceSpan, DebugSubject, TerminalDebugMap, decode_debug_map, encode_debug_map,
     source_digest, validate_debug_map,
+};
+pub use obligation_ledger::{
+    TerminalObligationLedger, TerminalObligationLedgerFingerprint,
+    build_terminal_obligation_ledger, decode_terminal_obligation_ledger,
+    encode_terminal_obligation_ledger, terminal_obligation_ledger_fingerprint,
+    validate_terminal_obligation_ledger,
 };
 pub use program_local_root_catalog::{
     ProgramLocalRootProducerCatalogError, VerifiedProgramLocalRootProducerCatalog,
@@ -1538,6 +1545,7 @@ pub enum CodecError {
     MalformedStructuralFoundation(&'static str),
     MalformedProposition(PropositionError),
     InvalidModule(ModuleError),
+    ObligationLedgerMismatch,
 }
 
 impl std::fmt::Display for CodecError {

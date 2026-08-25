@@ -6,15 +6,16 @@ use super::{
     INTEGER_CONVERSION_COMPOSITION_SOURCE, INTEGER_CONVERSION_SOURCE,
     INTEGER_DIVIDE_REMAINDER_SOURCE, INTEGER_FOUNDATION_SOURCE, INTEGER_MULTIPLY_SOURCE,
     INTEGER_SHIFT_CHAINS_SOURCE, INTEGER_SHIFT_COMPOSITION_SOURCE, INTEGER_SHIFT_SOURCE,
-    MIGRATION_POLICY_DESCRIPTOR, PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE,
-    PROOF_KERNEL_EVIDENCE_SOURCE, PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
+    MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_BUNDLE_SOURCE,
+    PROOF_CODEC_SOURCE, PROOF_KERNEL_EVIDENCE_SOURCE, PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
     PROOF_KERNEL_INTEGER_CAST_SOURCE, PROOF_KERNEL_KERNEL_SOURCE, PROOF_KERNEL_LIB_SOURCE,
     PROOF_KERNEL_PROOF_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
     SUFFICIENT_REDUCTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_MODEL_SOURCE,
     TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
     TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
     TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
-    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
+    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
+    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
     validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
@@ -210,6 +211,14 @@ fn verifier_node() -> TrustDependencyNode {
             "root:explicit-rust-migration-policy",
         ]),
         &[
+            (
+                "psi-terminal-codec/build.rs",
+                VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/source-closure",
+                VERIFIER_SOURCE_CLOSURE,
+            ),
             ("psi-terminal-verifier/lib.rs", VERIFIER_LIB_SOURCE),
             (
                 "psi-terminal-verifier/validation.rs",
@@ -265,6 +274,18 @@ fn ledger_framework_node() -> TrustDependencyNode {
             "root:explicit-rust-migration-policy",
         ]),
         &[
+            (
+                "psi-terminal-codec/obligation_ledger.rs",
+                OBLIGATION_LEDGER_CODEC_SOURCE,
+            ),
+            (
+                "psi-terminal-codec/build.rs",
+                VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE,
+            ),
+            (
+                "psi-terminal-verifier/source-closure",
+                VERIFIER_SOURCE_CLOSURE,
+            ),
             (
                 "psi-terminal-verifier/validation.rs",
                 VERIFIER_VALIDATION_SOURCE,
