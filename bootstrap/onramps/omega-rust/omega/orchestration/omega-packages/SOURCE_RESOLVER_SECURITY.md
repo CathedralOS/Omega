@@ -150,7 +150,12 @@ Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
 concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
-for the exact object-ID request file supplied to `cat-file --batch`. Fetch
+for the exact object-ID request file supplied to `cat-file --batch`. Before
+initializing a cache for a symbolic selector, one bounded `ls-remote` request
+asks only for `HEAD` and that selector and rejects absent, malformed, or mixed
+object formats. The discovered SHA-1/SHA-256 format controls quarantine setup
+but is not evidence; parent-owned object authentication still decides whether
+the selected graph is coherent. Fetch
 requests only the selected revision at depth one and disables automatic
 maintenance and garbage collection, so selecting one package revision does not
 traverse its unrelated reachable history. A whole-resolution budget now caps
@@ -189,8 +194,6 @@ keep the resolver diagnostic-only until native helper confinement, hostile-
 process custody, remaining resource ceilings, and opaque-receipt work land.
 
 Parent-owned selected-object-graph authentication supplies real evidence for a
-later strict receipt but does not itself make the resolver admissible. SHA-256
-cache initialization currently requires an exact 64-digit revision; symbolic
-SHA-256 selectors still need bounded remote object-format discovery before
-fetch. Native isolation, independent cache ownership, resource ceilings,
-explicit SSH trust/credential custody, and the opaque receipt remain open.
+later strict receipt but does not itself make the resolver admissible. Native
+isolation, independent cache ownership, resource ceilings, explicit SSH
+trust/credential custody, and the opaque receipt remain open.
