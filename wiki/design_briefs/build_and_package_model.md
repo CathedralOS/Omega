@@ -120,10 +120,13 @@ invokes FilesystemHost;
 }
 ```
 
-`BuildSource::resolve`, `BuildOutput::resolve`, and the ordinary `Filesystem`
-surface are settled. `BuildOutput::include_source` is the explicit generated-
-source handoff still to be implemented. Resolving a path and publishing a
-generated output remain separate operations.
+`BuildSource::resolve`, `BuildOutput::resolve`, the ordinary `Filesystem`
+surface, and the exact `BuildOutput::include_source` handoff are implemented.
+The handoff accepts only an interpreter-retained Output-rooted path and becomes
+usable only after matching sponsored staged-tree custody. Feeding those
+retained bytes into the frozen final compilation pass remains implementation
+work. Resolving a path and publishing a generated output remain separate
+operations.
 
 The dependency's own `PACKAGE` supplies its name. Its default local import
 alias is derived mechanically from kebab-case to snake_case; only a real local

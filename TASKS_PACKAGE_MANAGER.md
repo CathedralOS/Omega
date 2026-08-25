@@ -1480,10 +1480,19 @@ complete.
   symlinks and emits exact Source/Output root identities plus canonical
   relative bytes. The checker now retains exact parameter-field receiver calls
   and statement-scoped local selections needed by package admission. Full
-  checker/interpreter suites and the granted-build integration pass. Remaining
-  here: `BuildOutput::include_source`, the frozen build-only prepass/final-pass
-  handoff, generated-source fixture migration, and output-without-handoff and
-  failed-publication canaries.
+  checker/interpreter suites and the granted-build integration pass.
+
+  Progress 2026-08-25: exact toolchain `BuildOutput::include_source` now records
+  only interpreter-retained Output-rooted paths, rejects Source/unrooted,
+  duplicate, over-count, and unscoped handoffs, and publishes its sidecar only
+  after successful granted evaluation. Omega matches each handoff against its
+  sponsored captured tree and retains only an ordinary, non-executable `.omg`
+  file's exact bytes, relative path, and digest. Missing, wrong-kind,
+  wrong-extension, and uncaptured handoffs reject. Until the next slice lands,
+  a successfully captured handoff stops at an explicit final-pass gate rather
+  than being silently ignored. Remaining here: the frozen build-only
+  prepass/final-pass split and reuse, generated-source fixture migration, and
+  output-without-handoff and failed-publication canaries.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network

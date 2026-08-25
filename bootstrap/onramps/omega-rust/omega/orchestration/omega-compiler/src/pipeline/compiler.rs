@@ -615,6 +615,7 @@ impl Compiler {
             &build_file_machine_names,
             &build_machine_filesystem_scope,
         )?;
+        crate::pipeline::build_config::reject_uncompiled_generated_sources(&computed_build_config)?;
         let build_evaluation_usage = computed_build_config.evaluation_usage;
         let build_observation_summary = computed_build_config.observation_summary;
         let build_config = computed_build_config.config;

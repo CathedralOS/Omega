@@ -605,6 +605,7 @@ impl FilesystemOperationAttempt {
 pub struct EvaluationObservations {
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+    build_included_sources: Vec<BuildIncludedSource>,
 }
 
 impl Default for EvaluationObservations {
@@ -612,6 +613,7 @@ impl Default for EvaluationObservations {
         Self {
             filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts: Vec::new(),
+            build_included_sources: Vec::new(),
         }
     }
 }
@@ -619,10 +621,12 @@ impl Default for EvaluationObservations {
 impl EvaluationObservations {
     fn from_filesystem_operation_attempts(
         filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+        build_included_sources: Vec<BuildIncludedSource>,
     ) -> Self {
         Self {
             filesystem_operation_schema_version: FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
             filesystem_operation_attempts,
+            build_included_sources,
         }
     }
 
@@ -636,6 +640,37 @@ impl EvaluationObservations {
 
     pub fn filesystem_operation_attempts(&self) -> &[FilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
+    }
+
+    pub fn build_included_sources(&self) -> &[BuildIncludedSource] {
+        &self.build_included_sources
+    }
+}
+
+/// One explicit generated-source handoff emitted by the exact toolchain
+/// `BuildOutput::include_source` machine during a successful granted build.
+/// The compiler still has to match this coordinate to its captured staged
+/// tree before the bytes may enter compilation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildIncludedSource {
+    root: FilesystemGrantRootIdentity,
+    relative_path: Vec<u8>,
+}
+
+impl BuildIncludedSource {
+    pub(crate) fn new(root: FilesystemGrantRootIdentity, relative_path: Vec<u8>) -> Self {
+        Self {
+            root,
+            relative_path,
+        }
+    }
+
+    pub const fn root(&self) -> FilesystemGrantRootIdentity {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
     }
 }
 

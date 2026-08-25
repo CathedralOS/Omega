@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    FilesystemByteOperand, FilesystemGrantRootIdentity, FilesystemMutableByteOperand,
-    FilesystemMutableI64Operand, FilesystemScalarOperand, FilesystemScalarOperandValue,
+    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableI64Operand,
+    FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
@@ -1924,34 +1924,6 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             trap("canonical filesystem call has unconsumed authored operands")
         }
     }
-}
-
-fn rooted_build_path_parts(
-    value: &Value,
-) -> EvalResult<Option<(FilesystemGrantRootIdentity, Vec<u8>)>> {
-    let Value::Struct {
-        type_name, fields, ..
-    } = value
-    else {
-        return Ok(None);
-    };
-    if type_name != ROOTED_BUILD_PATH_TYPE {
-        return Ok(None);
-    }
-    let root = fields
-        .get("root")
-        .and_then(|root| root.borrow().as_int())
-        .and_then(|root| u32::try_from(root).ok())
-        .and_then(FilesystemGrantRootIdentity::new)
-        .ok_or_else(|| Halt::Trap("rooted build path has no valid root identity".to_owned()))?;
-    let relative = fields
-        .get("relative")
-        .and_then(|relative| match &*relative.borrow() {
-            Value::Str(bytes) => Some(bytes.borrow().clone()),
-            _ => None,
-        })
-        .ok_or_else(|| Halt::Trap("rooted build path has no relative bytes".to_owned()))?;
-    Ok(Some((root, relative)))
 }
 
 impl<'program> Evaluator<'program> {

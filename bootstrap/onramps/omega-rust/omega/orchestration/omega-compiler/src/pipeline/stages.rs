@@ -320,6 +320,8 @@ machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'p
 machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
 }
+machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
+}
 "#;
 
 const PACKAGE_PRELUDE: &str = r#"
