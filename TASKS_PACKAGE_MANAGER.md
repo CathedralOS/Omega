@@ -868,6 +868,16 @@ complete.
   declarations or expressions, proposition/evidence static arguments, true
   nested machine/conformance applications, quotient calls, and compiler
   intrinsics remain fail-closed.
+  Review v49 and canonical row v9 admit public-trait proposition-family
+  parameters with their mandatory declaration-site value signature. Each
+  retains the ordered, package-qualified and alpha-normalized value-parameter
+  types. Trait, proposition, and value-parameter binder renames are stable,
+  while changing a signature type changes canonical evidence. Non-default
+  `const`/`mut`/`self` value-parameter modes remain fail-closed because current
+  proposition-family compatibility checking does not certify those modes.
+  Proposition-valued or evidence contract-call static arguments remain
+  fail-closed, as do symbolic const declarations or expressions, true nested
+  machine/conformance applications, quotients, and compiler intrinsics.
   In particular, true nested machine static applications such as
   `consumer<family<Selected>>()` remain fail-closed: checked
   monomorphization has no closed application identity and currently omits
@@ -1435,7 +1445,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v48
+  create a placeholder `PackageInstance` or bless current incomplete review v49
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

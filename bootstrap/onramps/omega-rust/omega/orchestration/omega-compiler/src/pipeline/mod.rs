@@ -124,6 +124,7 @@ pub use package_review::{
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
