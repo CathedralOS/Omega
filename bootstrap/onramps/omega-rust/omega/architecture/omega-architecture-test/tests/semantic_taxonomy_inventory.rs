@@ -63,6 +63,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
             classification: _,
             semantic_roles: _,
             establishment_routes: _,
+            authored_selection: _,
         } = constraint;
     }
     let _ = witness;

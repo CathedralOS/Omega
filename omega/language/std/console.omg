@@ -13,12 +13,12 @@ use omega::language::std::targets::linux_arm64::console_impl;
 // The result of a byte-level stdin read. `Eof` is ORDINAL 0: a
 // zero-initialized ByteRead IS end-of-input -- ZII, no magic sentinel
 // (the byte result has no sentinel).
-data ByteRead {
+pub data ByteRead {
     case Eof;
     case Byte(value: i32 [0..=255]);
 }
 
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: &[u8])
     reaches
         Console;

@@ -1442,14 +1442,15 @@ The IDT is consequently a first serious customer, not a special construct:
 8. a linear acknowledgement token forces exactly-once completion.
 
 The source obligation contract is live in
-`omega::language::core::interrupt`. `InterruptMaskGuard` is ordinary linear
-data carrying the exact root, invocation, control, guard, prior-state, and
-masked-state identities used at settlement; routed `Active` records valid
-issuance and is required by consuming `restore`. An independent ordinary
-linear `InterruptAcknowledgement` carries the exact root, provider execution,
-invocation, policy, and acknowledgement identities; routed `Pending` is
-required by consuming `complete`. Reconstructing either field set does not
-reconstruct the fact. Restoring the prior CPU interrupt mask reaches
+`omega::language::core::interrupt`. `InterruptMaskGuard` is public opaque
+linear boundary data whose provider-owned representation retains the exact
+root, invocation, control, guard, prior-state, and masked-state identities used
+at settlement; routed `Active` records valid issuance and is required by
+consuming `restore`. Independent public opaque linear
+`InterruptAcknowledgement` retains provider-owned root, execution, invocation,
+policy, and acknowledgement identity; routed `Pending` is required by
+consuming `complete`. Package code cannot inspect or reconstruct either
+representation. Restoring the prior CPU interrupt mask reaches
 `MachineControl`. Interrupt acknowledgement is provider-neutral: the installed
 completion operation resolves one bounded abstract reach row beneath
 `MachineControl + PortIo`. A legacy PIC realization publishes `PortIo`; a

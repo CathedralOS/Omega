@@ -26,7 +26,7 @@ use omega::language::core::option;
 // and its alignment is a nonzero power of two at most 16. (Schema is
 // compiler-built and passed BY VALUE into plan() -- it is never
 // zero-initialized machine state, so the 0-excluding alignment range is sound.)
-data SchemaField {
+pub data SchemaField {
     key: u64;
     size: u64 [0..=4096];
     align: u64 [1..=16];
@@ -42,7 +42,7 @@ data SchemaField {
 // A schema field's SHAPE fact -- what a grammar policy needs to choose a
 // placement (a scalar varint-encodes; text/nested/repeated payloads are
 // length-prefixed). ZII: the zero case is Scalar.
-data FieldKind {
+pub data FieldKind {
     case Scalar;
     case Text;
     case Nested;
@@ -52,7 +52,7 @@ data FieldKind {
 // One reflected sum case. Stable identity is schema metadata; declaration
 // position remains the independent home-layout discriminant. Payload fields
 // have their own numbered scope and tombstones.
-data SchemaCase {
+pub data SchemaCase {
     key: u64;
     identity: Optional<u64>;
     payload_fields: [SchemaField; 32];
@@ -61,7 +61,7 @@ data SchemaCase {
     retired_payload_identity_count: u64 [0..=32];
 }
 
-data Schema {
+pub data Schema {
     fields: [SchemaField; 32];
     field_count: u64 [0..=32];
     retired_field_identities: [u64; 32];
@@ -86,12 +86,12 @@ data Schema {
 // read-only interpreter record views use the same decode. Concrete proved-fit
 // mutation remains fail-closed. Tagged/wire placements remain consumers of the
 // wire-plan path today.
-data IntegerInterpretation {
+pub data IntegerInterpretation {
     case Signed;
     case Unsigned;
 }
 
-data FieldPlan {
+pub data FieldPlan {
     case At(offset: u64);
     case IntegerAt(
         offset: u64,
@@ -109,7 +109,7 @@ data FieldPlan {
     case LengthPrefixed(tag: u64);
 }
 
-data FieldEntry {
+pub data FieldEntry {
     key: u64;
     placement: FieldPlan;
 }
@@ -124,7 +124,7 @@ data FieldEntry {
 // That source ABI and its `Plan::place_private` constructor remain engineering
 // work; neither raw slot identities nor callback addresses enter this record
 // in the interim.
-data Plan {
+pub data Plan {
     entries: [FieldEntry; 64];
     entry_count: u64;
     size_fixed: u64;
@@ -137,24 +137,24 @@ data Plan {
 // compiler evaluates policy machines and validates their returned values, but
 // source code cannot construct lowering authority from the records alone.
 
-data Exposure {
+pub data Exposure {
     case Exported;
     case BindingPrivate;
 }
 
-data Observation {
+pub data Observation {
     case Stable;
     case External;
     case Atomic;
 }
 
-data ExternalRead {
+pub data ExternalRead {
     case None;
     case Read;
     case Take;
 }
 
-data AtomicOperations [copy] {
+pub data AtomicOperations [copy] {
     load: bool;
     store: bool;
     fetch_add: bool;
@@ -171,14 +171,14 @@ data AtomicOperations [copy] {
 
 // Transfer width and alignment are byte-count facts. Access authors do not
 // choose offsets; validated layout geometry supplies those.
-data TransferRule [copy] {
+pub data TransferRule [copy] {
     width_bits: u64;
     alignment_bytes: u64;
 }
 
 // Invalid observation/operation cross-products are unrepresentable. The
 // effective transfer rule comes from the validated layout/resource join.
-data FieldAccess {
+pub data FieldAccess {
     case Inaccessible;
     case Stable(
         read: bool,
@@ -196,14 +196,14 @@ data FieldAccess {
     );
 }
 
-data AccessFieldEntry {
+pub data AccessFieldEntry {
     key: u64;
     access: FieldAccess;
 }
 
 // Fixed capacity is a bootstrap carrier only. The compiler requires exactly
 // `field_count` canonical schema decisions and ignores the zero tail.
-data AccessPlan {
+pub data AccessPlan {
     entries: [AccessFieldEntry; 32];
     field_count: u64 [0..=32];
 }
@@ -211,7 +211,7 @@ data AccessPlan {
 // The inaccessible seed is the only source constructor for a fresh access
 // decision set. Every live slot copies its compiler-issued Schema key; the
 // fixed-capacity tail is semantically absent because field_count excludes it.
-machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
+pub machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
     AccessPlan {
         entries: [
             AccessFieldEntry { key: schema.fields[0].key, access: FieldAccess::Inaccessible },
@@ -255,7 +255,7 @@ machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
 // A key outside the seed is deliberately retained as an extra/overwriting
 // entry so compiler validation rejects it rather than silently ignoring an
 // authored mistake.
-machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
+pub machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
     AccessPlan::with_bounded(self, key, access, 128)
 }
 
@@ -347,41 +347,41 @@ terminates by fuel;
 
 // A normalized static set of boundary-service keys. Suspension and blocking
 // are independent contract axes and never enter this record.
-data BoundaryReach {
+pub data BoundaryReach {
     services: [u64; 32];
     service_count: u64 [0..=32];
 }
 
-data PlacementPlan {
+pub data PlacementPlan {
     layout: Plan;
     access: AccessPlan;
     reach: BoundaryReach;
 }
 
-data RelativeRange [copy] {
+pub data RelativeRange [copy] {
     offset: u64;
     length: u64;
 }
 
-data StableCapability {
+pub data StableCapability {
     case None;
     case Read;
     case Write;
     case ReadWrite;
 }
 
-data ExternalReadBehavior {
+pub data ExternalReadBehavior {
     case None;
     case Repeatable;
     case Destructive;
 }
 
-data TransferRules {
+pub data TransferRules {
     entries: [TransferRule; 16];
     rule_count: u64 [0..=16];
 }
 
-data ExternalCapability {
+pub data ExternalCapability {
     case None;
     case Access(
         read: ExternalReadBehavior,
@@ -390,22 +390,22 @@ data ExternalCapability {
     );
 }
 
-data AtomicTransferRule {
+pub data AtomicTransferRule {
     transfer: TransferRule;
     operations: AtomicOperations;
 }
 
-data AtomicTransferRules {
+pub data AtomicTransferRules {
     entries: [AtomicTransferRule; 16];
     rule_count: u64 [0..=16];
 }
 
-data AtomicCapability {
+pub data AtomicCapability {
     case None;
     case Access(transfers: AtomicTransferRules);
 }
 
-data ResourceRegion {
+pub data ResourceRegion {
     range: RelativeRange;
     stable: StableCapability;
     external: ExternalCapability;
@@ -413,7 +413,7 @@ data ResourceRegion {
     reach: BoundaryReach;
 }
 
-data ResourceProfile {
+pub data ResourceProfile {
     regions: [ResourceRegion; 32];
     region_count: u64 [0..=32];
 }
@@ -422,19 +422,19 @@ data ResourceProfile {
 // helpers can accept one accessor without receiving the whole placed view.
 // The compiler derives conforming accessor types from a normalized placement;
 // source cannot construct the opaque template or use it as placement evidence.
-trait Readable<T> {
+pub trait Readable<T> {
     machine read(&self) -> T;
 }
 
-trait DestructiveRead<T> {
+pub trait DestructiveRead<T> {
     machine take(&mut self) -> T;
 }
 
-trait Writable<T> {
+pub trait Writable<T> {
     machine write(&mut self, value: T);
 }
 
-boundary data PlacedField<T>;
+pub boundary data PlacedField<T>;
 
 boundary machine PlacedField::read<T>(&self) -> T
 satisfies Readable<T>::read;
@@ -447,14 +447,14 @@ satisfies Writable<T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
-trait Layout {
+pub trait Layout {
     machine plan(schema: Schema) -> Plan;
 }
 
-trait Access {
+pub trait Access {
     machine plan(schema: Schema, layout: Plan) -> AccessPlan;
 }
 
-trait Placement {
+pub trait Placement {
     machine plan(schema: Schema) -> PlacementPlan;
 }

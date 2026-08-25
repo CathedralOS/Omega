@@ -485,17 +485,19 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     loop {
         let (first_domain_name, mut rest) = cursor.take_identifier()?;
         let mut qualified_domain_name = first_domain_name.as_str().to_owned();
+        let mut qualified_domain_span = first_domain_name.source_span();
         while rest.at_punctuation(PunctuationKind::ColonColon) {
             rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
             let (member, next) = rest.take_identifier()?;
             qualified_domain_name.push_str("::");
             qualified_domain_name.push_str(member.as_str());
+            qualified_domain_span.span.end = member.source_span().span.end;
             rest = next;
         }
         let domain_name = if qualified_domain_name == first_domain_name.as_str() {
             first_domain_name
         } else {
-            Identifier::generated(qualified_domain_name)
+            Identifier::new(qualified_domain_name, qualified_domain_span)
         };
         let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
         if domain_name.as_str() == "Carry::Portable" {

@@ -864,6 +864,17 @@ pub struct DomainConstraint {
     pub predicate_body: psi_language_semantics::DomainPredicateBody,
     pub semantic_roles: psi_language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<psi_language_semantics::DomainEstablishmentRoute>,
+    /// Temporary source custody retained only until carrier-aware domain
+    /// normalization can bind the authored spelling to an exact symbol and
+    /// move the occurrence into the declaration-selection ledger.
+    pub authored_selection: Option<AuthoredDomainConstraintSelection>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredDomainConstraintSelection {
+    pub source_span: psi_source::SourceSpan,
+    pub exposure:
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 }
 
 impl DomainConstraint {

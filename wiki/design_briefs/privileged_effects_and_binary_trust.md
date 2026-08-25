@@ -124,10 +124,10 @@ operations with explicit `MachineOwner` authority, target applicability, and
 RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
 `pushfq <destination>`/`popfq <source>` operations preserve RSP, use exact
 `u64` places, and give restore the same `MachineControl`/`MachineOwner`
-contract. Their higher-level saved-mask/restore protocol is ordinary linear
-`InterruptMaskGuard` data: compact runtime fields identify the exact
-root/invocation/control, guard, and mask states, while routed `Active`
-records valid issuance. Its compatibility source contract is live with
+contract. Their higher-level saved-mask/restore protocol is public opaque
+linear `InterruptMaskGuard` boundary data: provider-owned runtime identity
+tracks the exact root/invocation/control, guard, and mask states, while routed
+`Active` records valid issuance. Its compatibility source contract is live with
 `InterruptMaskControl` in `omega::language::core::interrupt`; provider
 establishment and lowering remain.
 

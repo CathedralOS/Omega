@@ -27,6 +27,7 @@ pub mod trait_definition;
 pub mod type_identity;
 pub mod typed_trees;
 pub mod types;
+pub mod visibility;
 pub mod wire;
 
 pub use psi_language_semantics::declaration_selection::{

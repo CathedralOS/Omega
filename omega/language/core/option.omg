@@ -3,7 +3,7 @@
 // discriminants. The home-representation obligation below pins None as the
 // meaning of all-zero storage.
 
-data Optional<T> {
+pub data Optional<T> {
     case #0 None;
     case #1 Some(value: T);
 }

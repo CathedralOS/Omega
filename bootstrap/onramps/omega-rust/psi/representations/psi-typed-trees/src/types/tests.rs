@@ -121,6 +121,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
             predicate_body,
             semantic_roles,
             establishment_routes: establishment_routes.clone(),
+            authored_selection: None,
         }),
     ]);
     let source_root = source_types.insert(TypeReferenceNode::Constrained {

@@ -564,6 +564,123 @@ requires value in u64::Trusted
 }
 
 #[test]
+fn ordinary_declaration_visibility_gates_cross_package_selection() {
+    let cases = [
+        (
+            "data",
+            "LeafValue",
+            "use leaf::leaf;\nmachine inspect(value: LeafValue) { }\n",
+            "data LeafValue { value: u64; }\n",
+            "pub data LeafValue { value: u64; }\n",
+        ),
+        (
+            "domain",
+            "Trusted",
+            "use leaf::leaf;\nmachine inspect(value: u64 in u64::Trusted) { }\n",
+            "domain u64::Trusted;\n",
+            "pub domain u64::Trusted;\n",
+        ),
+        (
+            "machine",
+            "leaf_action",
+            "use leaf::leaf;\nmachine inspect() { leaf_action(); }\n",
+            "machine leaf_action() { }\n",
+            "pub machine leaf_action() { }\n",
+        ),
+        (
+            "trait",
+            "LeafService",
+            "use leaf::leaf;\nmachine inspect(service: LeafService) { }\n",
+            "trait LeafService { machine act(); }\n",
+            "pub trait LeafService { machine act(); }\n",
+        ),
+    ];
+
+    for (kind, name, root_source, private_leaf, public_leaf) in cases {
+        let tree = TempTree::new();
+        let root = tree.package("root");
+        let leaf = tree.package("leaf");
+        TempTree::write(root.join("main.omg"), root_source);
+        TempTree::write(leaf.join("leaf.omg"), private_leaf);
+
+        let inputs = || {
+            PackageCompilationInputs::new(
+                identity(1),
+                vec![
+                    PackageSourceBinding::new(identity(1), "root", root.clone()),
+                    PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+                ],
+                vec![PackageDependencyBinding::new(
+                    identity(1),
+                    "leaf",
+                    identity(2),
+                )],
+            )
+            .expect("direct dependency graph should validate")
+        };
+
+        let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+            .expect_err("a direct dependency does not implicitly publish declarations");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains(&format!("private {kind}"))
+                    && diagnostic.message.contains(name)
+            }),
+            "unexpected {kind} diagnostics: {diagnostics:#?}"
+        );
+
+        TempTree::write(leaf.join("leaf.omg"), public_leaf);
+        compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
+            |diagnostics| panic!("public {kind} should be selectable: {diagnostics:#?}"),
+        );
+    }
+}
+
+#[test]
+fn carrier_qualified_declarations_own_visibility_independently() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data Token [copy] { value: u64; }\npub domain Token::Trusted;\n",
+    );
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only package graph should validate")
+    };
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public domain may not hide a private carrier");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private data `Token`")
+        }),
+        "unexpected public-domain diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data Token [copy] { value: u64; }\npub operator < Token::less(left: Token, right: Token) -> bool;\n",
+    );
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public operator may not hide a private carrier");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private data `Token`")
+        }),
+        "unexpected public-operator diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn proposition_visibility_gates_public_and_cross_package_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -856,6 +973,36 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
     .expect("root-only private operator implementation should validate");
     compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
         .expect("private implementation may select its package-private operator");
+}
+
+#[test]
+fn public_machine_keeps_its_declared_ranking_measure_private() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"data Card { }
+measure Card::PowerOrder(power: u64) -> u64 { power }
+
+pub machine weaken(power: u64)
+terminates by power -> Card::PowerOrder;
+-> u64
+{
+    transition power > 0 {
+        true -> weaken(power - 1)
+        false -> power
+    }
+}
+"#,
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only ranking fixture should validate structurally");
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("a public termination guarantee may use a same-package private ranking measure");
 }
 
 #[test]
@@ -1511,8 +1658,8 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
     );
     TempTree::write(
         dependency.join("provider.omg"),
-        r#"boundary trait Pair { machine first(); }
-data Provider { }
+        r#"pub boundary trait Pair { machine first(); }
+pub data Provider { }
 machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
 "#,
     );

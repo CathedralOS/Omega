@@ -615,6 +615,7 @@ fn collect_declared_result_dispatch_terms(
                     predicate_body: constituent_definition.predicate_body,
                     semantic_roles: constituent_definition.semantic_roles,
                     establishment_routes: constituent_definition.establishment_routes.clone(),
+                    authored_selection: None,
                 };
                 collect_declared_result_dispatch_terms(
                     program,
@@ -1921,6 +1922,7 @@ mod tests {
             predicate_body: DomainPredicateBody::Present,
             semantic_roles: DomainSemanticRoles::default(),
             establishment_routes: Vec::new(),
+            authored_selection: None,
         })
     }
 
@@ -1942,6 +1944,7 @@ mod tests {
             predicate_body,
             semantic_roles,
             establishment_routes,
+            authored_selection: None,
         })
     }
 
