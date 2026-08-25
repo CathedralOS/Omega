@@ -13,9 +13,15 @@ use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::types::TypeReferenceNode;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
-pub fn evaluate_const_generic_calls(
+pub fn evaluate_const_generic_calls(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    evaluate_const_generic_calls_with_optional_sources(syntax, None)
+}
+
+pub(crate) fn evaluate_const_generic_calls_with_optional_sources(
     mut syntax: SyntaxTrees,
+    sources: Option<Arc<psi_source::SourceMap>>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut pending_type_references = Vec::new();
@@ -42,7 +48,7 @@ pub fn evaluate_const_generic_calls(
         );
     }
     let probe = psi_generic_instances::normalize_pre_resolution(probe)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&probe)?;
+    let resolved = crate::lower_probe_with_optional_sources(&probe, sources)?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     let admission = crate::BuildTimeAdmissionPlan::infer(&typed);

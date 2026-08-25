@@ -13,6 +13,8 @@ mod placed_views;
 mod plan_laid;
 mod wire_plans;
 
+use std::sync::Arc;
+
 pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use admission::BuildTimeAdmissionPlan;
 pub use build_machines::{
@@ -46,9 +48,33 @@ pub struct PreResolutionEvaluation {
 pub fn evaluate_pre_resolution(
     syntax_trees: psi_syntax_trees::SyntaxTrees,
 ) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
-    let mut syntax_trees = evaluate_const_generic_calls(syntax_trees)?;
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, None)
+}
+
+/// Package-aware pre-resolution evaluation.
+///
+/// Probe compilations must retain the same source/package custody as the
+/// authoritative compilation. Otherwise a compile-time machine selected from
+/// dependency source loses its owner before the execution-admission gate can
+/// inspect it.
+pub fn evaluate_pre_resolution_with_sources(
+    syntax_trees: psi_syntax_trees::SyntaxTrees,
+    sources: Arc<psi_source::SourceMap>,
+) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
+    evaluate_pre_resolution_with_optional_sources(syntax_trees, Some(sources))
+}
+
+fn evaluate_pre_resolution_with_optional_sources(
+    syntax_trees: psi_syntax_trees::SyntaxTrees,
+    sources: Option<Arc<psi_source::SourceMap>>,
+) -> Result<PreResolutionEvaluation, Vec<psi_diagnostics::Diagnostic>> {
+    let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls_with_optional_sources(
+        syntax_trees,
+        sources.clone(),
+    )?;
     psi_syntax_trees_to_symbol_resolved_trees::synthesize_trait_defaults(&mut syntax_trees)?;
-    let placed_view_records = desugar_placed_views(&mut syntax_trees)?;
+    let placed_view_records =
+        placed_views::desugar_placed_views_with_optional_sources(&mut syntax_trees, sources)?;
     let mut syntax_trees = psi_generic_instances::normalize_pre_resolution(syntax_trees)?;
     let plan_laid_records = desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
@@ -56,6 +82,21 @@ pub fn evaluate_pre_resolution(
         placed_view_records,
         plan_laid_records,
     })
+}
+
+fn lower_probe_with_optional_sources(
+    syntax_trees: &psi_syntax_trees::SyntaxTrees,
+    sources: Option<Arc<psi_source::SourceMap>>,
+) -> Result<psi_symbol_resolved_trees::SymbolResolvedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    match sources {
+        Some(sources) => {
+            psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+                syntax_trees,
+                sources,
+            )
+        }
+        None => psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(syntax_trees),
+    }
 }
 
 /// Apply the target-neutral build-time services that normalize typed trees
@@ -71,4 +112,43 @@ pub fn evaluate_pre_check(
     compute_plan_laid_layouts(typed, plan_laid_records)?;
     validate_placed_view_plans(typed, placed_view_records)?;
     compute_wire_plans(typed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lower_probe_with_optional_sources;
+    use psi_core::PackageKeyIdentity;
+    use psi_source::{SourceMap, SourceOrigin};
+    use psi_source_files_to_tokens::Lexer;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees_with_id;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    #[test]
+    fn package_aware_probe_retains_authored_symbol_ownership() {
+        let source = "machine selected() {}";
+        let package =
+            PackageKeyIdentity::from_digest([0x6a; 32]).expect("nonzero package identity");
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add_with_metadata(
+                PathBuf::from("cache/selected/main.omg"),
+                source.to_owned(),
+                PathBuf::from("cache/selected"),
+                Some(package),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+
+        let resolved = lower_probe_with_optional_sources(&syntax, Some(Arc::new(sources)))
+            .expect("package-aware probe resolution");
+        let machine = resolved.machines.first().expect("selected machine");
+
+        assert_eq!(
+            resolved.symbols.symbol_package_identity(machine.symbol),
+            Some(package)
+        );
+    }
 }
