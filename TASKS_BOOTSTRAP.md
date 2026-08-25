@@ -224,7 +224,7 @@ as one growing verifier:
 | source resolution | closed through canonical `OMGRSW1` for the selected public two-package fixture and exact same-module attached-machine call bindings across source files | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
 | resolved-source lowering | CKIR1 remains frozen; CKIR2 exact-root/call lowering is closed across native, self-built, and Rust-free meaning routes; the focused CKIR3 producer closes constant aggregates, `<=`, guardless jumps, and cyclic interval custody across native/self bytes, including adversarial arm-local, ordinal-transfer, complete-predecessor, and declaration-order controls, plus representative constant-aggregate 0/251/252 observations through Rust-free Gamma | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md) |
 | producer composition | CKIR1 and CKIR2 remain closed; focused CKIR3 native, self-built, and mixed producer/backend pairs now yield exact CKIR3, independently evaluated result, and independently reconstructed ELF | bridge gates and the contracts above |
-| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate; CKIR3 `OMGRFN4` frame/source custody is closed while its other four responsibilities and composition remain open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md) |
+| lower-rooted artifact reconstruction | CKIR1 is closed through five independent `OMGRFN2` responsibilities; CKIR2 is closed through five independent `OMGRFN3` responsibilities and one same-exact-frame composition gate; CKIR3 `OMGRFN4` frame/source custody and independent source resolution are closed while its other three responsibilities and composition remain open | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -292,7 +292,9 @@ on the separately blocked compilation-authority join.
 
     - [x] Close exact frame and complete `OMGCOMP`/source custody while treating
       `OMGRSW1`, CKIR3, ELF, and result claims as opaque.
-    - [ ] Reconstruct source-to-`OMGRSW1` resolution.
+    - [x] Reconstruct source-to-`OMGRSW1` resolution independently for the
+      selected two-source Unicode constant-aggregate family, including every
+      role-3 binding and renamed-source controls.
     - [ ] Reconstruct declarations, layout, types, root, and intrinsic constant
       graph structure.
     - [ ] Reconstruct source lowering and compute artifact-free source meaning.
