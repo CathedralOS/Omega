@@ -80,15 +80,20 @@ fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
 #[test]
 fn production_compile_rejects_an_unrooted_legacy_entry() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
-    let build_dir = unique_no_output_build_dir();
+    let scratch = unique_no_output_build_dir();
+    let source_dir = scratch.join("source");
+    let build_dir = scratch.join("output");
+    fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy source without its entry-selecting build companion");
     let diagnostics = production_compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: true,
     })
     .expect_err("production compilation must not discover `Main::main` by name");
-    let _ = fs::remove_dir_all(build_dir);
+    let _ = fs::remove_dir_all(scratch);
 
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -101,9 +106,14 @@ fn production_compile_rejects_an_unrooted_legacy_entry() {
 #[test]
 fn production_check_accepts_entry_agnostic_semantic_corpus() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
-    let build_dir = unique_no_output_build_dir();
+    let scratch = unique_no_output_build_dir();
+    let source_dir = scratch.join("source");
+    let build_dir = scratch.join("output");
+    fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+        .expect("copy source without its entry-selecting build companion");
     let report = production_compile(CompileOptions {
-        root_path: canary.join("main.omg"),
+        root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: false,
@@ -114,7 +124,7 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     assert!(report.program_storage_entry().is_none());
     assert!(build_dir.join("04_typed_trees.json").is_file());
     assert!(build_dir.join("05_machine_contracts.json").is_file());
-    let _ = fs::remove_dir_all(build_dir);
+    let _ = fs::remove_dir_all(scratch);
 }
 
 #[test]
