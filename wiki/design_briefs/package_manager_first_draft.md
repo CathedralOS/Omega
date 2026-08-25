@@ -223,8 +223,10 @@ Package capabilities are derived from the candidate repository after the
 complete source/build closure is available. The package author writes ordinary
 Omega contracts; it cannot author or patch the admission manifest.
 
-Ordinary admission derives from the compiler's coherent checked semantic graph
-through a total internal `PackageAdmissionProjection`. The projection is not a
+Ordinary admission derives from coherent compiler-owned semantic state after
+successful checking through a total internal `PackageAdmissionProjection`.
+Individual rows may draw from different private representations, as described
+below. The projection is not a
 new public IR or execution stage: it owns no transformations or independent
 semantics. It normalizes only package-visible semantic identities and evidence
 rows, rejects any required fact that is unresolved or cannot be projected, and

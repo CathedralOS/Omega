@@ -38,8 +38,10 @@ complete.
   review rows.
 - Capabilities are compiler-derived from checked candidate source/build output.
 - Ordinary admission uses a total internal `PackageAdmissionProjection` from
-  checked semantic state. The lock stores only versioned canonical evidence;
-  raw IR and compiler-private identities never become lock format.
+  coherent compiler-owned semantic state after successful checking. Its rows
+  may draw from different private representations. The lock stores only
+  versioned canonical evidence; raw IR and compiler-private identities never
+  become lock format.
 - The compiler admission projection may read each evidence fact from the
   earliest coherent compiler-owned representation in which that fact is
   semantically settled. This may be private pre-Psi structure or Psi state;
