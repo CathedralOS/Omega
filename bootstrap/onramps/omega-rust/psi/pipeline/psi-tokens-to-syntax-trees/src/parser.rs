@@ -8,7 +8,6 @@ mod export_item;
 mod expression;
 mod file;
 mod input;
-mod invariant;
 mod item;
 mod library;
 mod machine;

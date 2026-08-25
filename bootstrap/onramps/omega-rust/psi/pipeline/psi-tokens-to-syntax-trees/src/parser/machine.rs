@@ -175,17 +175,13 @@ pub(super) fn parse_machine<'tokens, 'source>(
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
             parse_state(syntax_trees, input2, StateKind::State)?
         } else if input.at_keyword(KeywordKind::Invariant) {
-            let input2 = input.take_keyword(KeywordKind::Invariant, "invariant")?;
-            let (_, rest) = skip_machine_invariant(input2)?;
-            input = rest;
-            continue;
+            return Err(input.error_here(
+                "the `invariant` machine member is retired: state arrival facts use \
+                 `requires`, result facts use `ensures`, and loop facts are derived from \
+                 checked transitions",
+            ));
         } else {
-            return Err(input.expected_one_of_here(&[
-                "`pub entry`",
-                "`entry`",
-                "`state`",
-                "`invariant`",
-            ]));
+            return Err(input.expected_one_of_here(&["`pub entry`", "`entry`", "`state`"]));
         };
 
         if let Some(entry_name) = &entry_name {
@@ -815,22 +811,6 @@ fn join_path_identifier(members: &[Identifier]) -> Identifier {
         name,
         SourceSpan::new(first.source_id, Span::new(first.span.start, last.span.end)),
     )
-}
-
-fn skip_machine_invariant<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ()> {
-    let (_, input) = input.take_identifier()?;
-
-    if input.at_punctuation(PunctuationKind::Equal) {
-        let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (_, input) = input.skip_bracketed_block()?;
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        Ok(((), input))
-    } else {
-        let (_, input) = input.skip_braced_block()?;
-        Ok(((), input))
-    }
 }
 
 #[cfg(test)]

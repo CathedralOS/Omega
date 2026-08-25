@@ -496,7 +496,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_inferred_satisfaction",
-    "traits/trait_invariant_clause",
     "traits/trait_method_ensures_clause",
     "traits/trait_satisfies_machine_signature",
     "control_flow/termination_countdown_compile",
@@ -3726,6 +3725,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "traits/trait_invariant_clause_retired",
+    "traits/trait_contract_undeclared_self_member",
     "tasks/task_runtime_provider_contract_narrowing",
     "tasks/task_runtime_selected_provider_missing",
     "data/fixed_array_too_large",

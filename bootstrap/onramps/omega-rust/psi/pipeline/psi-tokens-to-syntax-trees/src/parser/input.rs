@@ -423,29 +423,11 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Ok((self.advanced(prefix_tokens), self.advanced(rest_tokens)))
     }
 
-    pub(super) fn skip_braced_block(self) -> Result<(usize, Self), ParseError> {
-        let input = self.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        skip_delimited_block_after_open(
-            input,
-            PunctuationKind::LeftBrace,
-            PunctuationKind::RightBrace,
-        )
-    }
-
     pub(super) fn skip_parenthesized_tokens_after_open(self) -> Result<(usize, Self), ParseError> {
         skip_delimited_block_after_open(
             self,
             PunctuationKind::LeftParen,
             PunctuationKind::RightParen,
-        )
-    }
-
-    pub(super) fn skip_bracketed_block(self) -> Result<(usize, Self), ParseError> {
-        let input = self.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-        skip_delimited_block_after_open(
-            input,
-            PunctuationKind::LeftBracket,
-            PunctuationKind::RightBracket,
         )
     }
 }

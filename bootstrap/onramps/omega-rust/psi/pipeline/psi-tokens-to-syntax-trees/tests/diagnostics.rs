@@ -15,7 +15,7 @@ fn top_level_item_error_lists_expected_items() {
     let message = parse_error_message("{");
     assert_eq!(
         message,
-        "expected one of `use`, `export`, `data`, `domain`, `abi`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `trait`, `boundary operator`, `boundary data`, `boundary trait`, found punctuation `{`"
+        "expected one of `use`, `export`, `data`, `domain`, `abi`, `machine`, `target`, `capability`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `trait`, `boundary operator`, `boundary data`, `boundary trait`, found punctuation `{`"
     );
 }
 
@@ -65,7 +65,7 @@ fn machine_item_error_lists_expected_members() {
     let message = parse_error_message("machine main { entry() {} let value: i32; }");
     assert_eq!(
         message,
-        "expected one of `pub entry`, `entry`, `state`, `invariant`, found keyword `let`"
+        "expected one of `pub entry`, `entry`, `state`, found keyword `let`"
     );
 }
 

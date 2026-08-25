@@ -361,6 +361,20 @@ pub(crate) fn validate_proof_facts(
     owner: ProofFactOwner<'_>,
 ) {
     for fact in facts {
+        if matches!(
+            owner,
+            ProofFactOwner::StateSignatureContract {
+                owner: StateSignatureOwner::Trait(_),
+                ..
+            }
+        ) && let Some(member) = abstract_trait_self_member_in_fact(program, fact)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} references undeclared structural member `{member}`; abstract `Self` \
+                 has no field namespace -- use an explicit proposition parameter or a declared \
+                 accessor requirement"
+            )));
+        }
         match fact {
             ProofFact::Expression(expression) => {
                 if !is_boolean_fact_expression(program, *expression) {
@@ -470,6 +484,103 @@ pub(crate) fn validate_proof_facts(
                 }
             }
         }
+    }
+}
+
+fn abstract_trait_self_member_in_fact(program: &TypedTrees, fact: &ProofFact) -> Option<String> {
+    let mut visited = Vec::new();
+    match fact {
+        ProofFact::Expression(expression) => {
+            abstract_trait_self_member_in_expression(program, *expression, &mut visited)
+        }
+        ProofFact::Membership(membership) => {
+            abstract_trait_self_member_in_expression(program, membership.value, &mut visited)
+        }
+        ProofFact::Proposition(application) => program
+            .expression_table
+            .expression_handles(application.arguments)
+            .iter()
+            .find_map(|argument| {
+                abstract_trait_self_member_in_expression(program, *argument, &mut visited)
+            }),
+    }
+}
+
+fn abstract_trait_self_member_in_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+) -> Option<String> {
+    if !expression.is_valid() || visited.contains(&expression) {
+        return None;
+    }
+    visited.push(expression);
+    if let Some(member) = self_member_name(program, expression) {
+        return Some(member.to_owned());
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .find_map(|value| abstract_trait_self_member_in_expression(program, *value, visited)),
+        ExpressionNode::Atomic(atomic) => {
+            abstract_trait_self_member_in_expression(program, atomic.value, visited).or_else(|| {
+                abstract_trait_self_member_in_expression(program, atomic.result, visited)
+            })
+        }
+        ExpressionNode::Binary(binary) => {
+            abstract_trait_self_member_in_expression(program, binary.left, visited).or_else(|| {
+                abstract_trait_self_member_in_expression(program, binary.right, visited)
+            })
+        }
+        ExpressionNode::Cast(cast) => {
+            abstract_trait_self_member_in_expression(program, cast.value, visited)
+        }
+        ExpressionNode::Call(call) => {
+            abstract_trait_self_member_in_expression(program, call.receiver, visited).or_else(
+                || {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .find_map(|argument| {
+                            abstract_trait_self_member_in_expression(program, *argument, visited)
+                        })
+                },
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            abstract_trait_self_member_in_expression(program, indexed.collection, visited).or_else(
+                || abstract_trait_self_member_in_expression(program, indexed.index, visited),
+            )
+        }
+        ExpressionNode::Member(member) => {
+            abstract_trait_self_member_in_expression(program, member.receiver, visited)
+        }
+        ExpressionNode::Borrow(value) => {
+            abstract_trait_self_member_in_expression(program, value.target, visited)
+        }
+        ExpressionNode::Range(range) => {
+            abstract_trait_self_member_in_expression(program, range.start, visited)
+                .or_else(|| abstract_trait_self_member_in_expression(program, range.end, visited))
+        }
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find_map(|field| {
+                abstract_trait_self_member_in_expression(program, field.value, visited)
+            }),
+        ExpressionNode::Unary(unary) => {
+            abstract_trait_self_member_in_expression(program, unary.operand, visited)
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }
 

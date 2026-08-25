@@ -36,24 +36,17 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;
-    let mut invariants = HandleSpan::empty();
+    let invariants = HandleSpan::empty();
     let mut machine_start = Handle::invalid();
     let mut machine_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_keyword(KeywordKind::Invariant) {
-            input = input.take_keyword(KeywordKind::Invariant, "invariant")?;
-            let ((facts, _token_count), rest) =
-                parse_proof_facts_until(syntax_trees, input, |input| {
-                    input.at_punctuation(PunctuationKind::Semicolon)
-                        || input.at_keyword(KeywordKind::Machine)
-                        || input.at_contextual("operator")
-                        || input.at_punctuation(PunctuationKind::RightBrace)
-                        || input.tokens.is_empty()
-                })?;
-            extend_contiguous_span(&mut invariants, facts);
-            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            continue;
+            return Err(input.error_here(
+                "the `invariant` clause is retired: traits publish proof obligations through \
+                 explicit `requires` and `ensures`; value-wide facts belong to the carrier's \
+                 default domain",
+            ));
         }
 
         if input.at_contextual("requires") {
@@ -740,16 +733,5 @@ fn take_operational_signature_clause<'tokens, 'source>(
         // A bodyless requirement shares its final clause semicolon with the
         // signature terminator; leave it for the owning parser.
         Ok(after_name)
-    }
-}
-
-fn extend_contiguous_span<T>(target: &mut HandleSpan<T>, source: HandleSpan<T>) {
-    let mut index = source.start().arena_index();
-    let generation = source.start().generation();
-    for _ in 0..source.count() {
-        target.push_contiguous(Handle::from_parts(index, generation));
-        index = index
-            .checked_add(1)
-            .expect("trait invariant proof fact span index overflow");
     }
 }
