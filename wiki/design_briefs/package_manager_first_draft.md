@@ -185,12 +185,25 @@ Downloaded code never receives resolver fetch/archive authority, the root
 package's providers, or authority to alter its own dependency graph during
 build execution.
 
-Implemented package-review sequencing freezes the resolved source closure,
-executes the selected build prepass exactly once, and joins only explicit
-Output-rooted `include_source` handoffs to retained staged-tree bytes. Those
-bytes receive ordinary final parsing, resolution, typing, and checking without
-rerunning dependency discovery or build execution. The native-image command
-remains gated until it consumes the same sponsored package transaction.
+Implemented package-review sequencing freezes the resolved source closure and
+runs a complete checked preflight over the ordinary graph. Package-aware
+checked and native compilation reject unresolved or unauthorized authored
+selections before the selected build machine can execute. The build prepass
+then executes exactly once and joins only explicit Output-rooted
+`include_source` handoffs to retained staged-tree bytes. Those bytes receive
+ordinary final parsing, resolution, typing, checking, and the repeated
+selection gate without rerunning dependency discovery or build execution. The
+native-image command remains gated until it consumes the same sponsored package
+transaction.
+
+This checked preflight currently follows Psi's target-neutral const-generic,
+const-domain, layout, and placed-view elaboration. Those compiler-run machines
+already require empty boundary reach and retain package source provenance, but
+their admission does not yet consume the reconciled direct-dependency graph.
+Production package mutation therefore remains disabled until equivalent
+package selection authority gates those earlier effect-free evaluation paths;
+the selected-build-machine ordering above is not presented as closing that
+broader requirement.
 
 ## Authored requests versus accepted lock state
 

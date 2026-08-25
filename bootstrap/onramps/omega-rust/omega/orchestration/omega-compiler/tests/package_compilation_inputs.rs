@@ -1,6 +1,7 @@
 use omega_compiler::{
     CompileOptions, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-    compile_to_checked_with_packages, compile_with_packages,
+    compile_to_checked_with_packages, compile_to_checked_with_packages_in_build_dir,
+    compile_with_packages,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -215,6 +216,104 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 
     compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
         .expect("direct dependency should admit the exact leaf declaration selection");
+}
+
+#[test]
+fn package_selection_admission_precedes_build_machine_side_effects() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nconst RESULT: u32 = 42;\n",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"use omega::language::std::filesystem_host;
+
+target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+invokes FilesystemHost;
+{
+    let marker: &[u8] in Path = builder.output.resolve("build-ran.marker");
+    let descriptor: i32 = builder.filesystem.create(marker, 438);
+    let closed: i32 = builder.filesystem.close(descriptor);
+    let transitive: u32 = leaf_value();
+}
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_value() -> u32 { leaf_value() }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub machine leaf_value() -> u32 { 42 }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let checked_build = tree.0.join("checked-build");
+    let checked_diagnostics = compile_to_checked_with_packages_in_build_dir(
+        &root.join("main.omg"),
+        &checked_build,
+        None,
+        inputs.clone(),
+    )
+    .expect_err("checked package compilation must reject the transitive selection");
+    assert!(
+        checked_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected checked diagnostics: {checked_diagnostics:#?}"
+    );
+    assert!(
+        !checked_build.join("build-ran.marker").exists(),
+        "checked package admission must reject before build execution"
+    );
+
+    if let Some(target_name) = host_target_name() {
+        let native_build = tree.0.join("native-build");
+        let native_diagnostics = compile_with_packages(
+            CompileOptions {
+                root_path: root.join("main.omg"),
+                build_dir: Some(native_build.clone()),
+                target_name: Some(target_name.to_owned()),
+                write_output: false,
+            },
+            inputs,
+        )
+        .expect_err("native package compilation must reject the transitive selection");
+        assert!(
+            native_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+            "unexpected native diagnostics: {native_diagnostics:#?}"
+        );
+        assert!(
+            !native_build.join("build-ran.marker").exists(),
+            "native package admission must reject before build execution"
+        );
+    }
 }
 
 #[test]
