@@ -1,10 +1,11 @@
 use omega_compiler::{
     BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
-    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewContractBinaryOperator,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRisk, PackageReviewCastForm, PackageReviewCheckedServiceReach,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractStaticArgument,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
     PackageReviewMachineParameterContract, PackageReviewNominalOwner,
@@ -1049,8 +1050,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 50);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 10);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 51);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 11);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -5161,6 +5162,108 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
+    let project = |predicate: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!("pub domain [u8]::ReviewedBytes\nrequires\n    {predicate}(self);\n"),
+        );
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("compiler-owned byte predicate should check");
+        project_checked_package_review(&checked)
+            .expect("compiler-owned byte predicate should have exact review identity")
+    };
+
+    let mut encodings = Vec::new();
+    for (name, expected) in [
+        ("valid_utf8", PackageReviewByteSequencePredicate::ValidUtf8),
+        ("no_nul", PackageReviewByteSequencePredicate::NoNul),
+        ("ascii_only", PackageReviewByteSequencePredicate::AsciiOnly),
+        ("non_empty", PackageReviewByteSequencePredicate::NonEmpty),
+    ] {
+        let review = project(name);
+        let [domain] = review.public_domains() else {
+            panic!("one byte-domain row")
+        };
+        let [
+            PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
+                target,
+                static_arguments,
+                arguments,
+                ..
+            }),
+        ] = domain.predicate_facts()
+        else {
+            panic!("one byte-predicate call")
+        };
+        assert_eq!(target.byte_sequence_predicate(), Some(expected));
+        assert!(static_arguments.is_empty());
+        assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
+        encodings.push(review.canonical_review_bytes().unwrap());
+    }
+    encodings.sort();
+    encodings.dedup();
+    assert_eq!(
+        encodings.len(),
+        4,
+        "each exact compiler predicate must have distinct package-review identity"
+    );
+}
+
+#[test]
+fn package_callable_wins_over_compiler_byte_predicate_spelling_in_review() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub machine valid_utf8(value: &[u8]) -> bool { true }
+pub domain [u8]::ReviewedBytes
+requires
+    valid_utf8(self);
+"#,
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("package callable lookalike should check as an ordinary call");
+    let review = project_checked_package_review(&checked)
+        .expect("package callable lookalike should retain nominal identity");
+    let [domain] = review.public_domains() else {
+        panic!("one byte-domain row")
+    };
+    let [
+        PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
+            target, ..
+        }),
+    ] = domain.predicate_facts()
+    else {
+        panic!("one nominal predicate call")
+    };
+    let nominal = target
+        .nominal()
+        .expect("package declaration must remain nominal");
+    assert_eq!(nominal.path(), "valid_utf8::entry");
+    assert_eq!(
+        nominal.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+}
+
+#[test]
 fn public_domain_predicate_review_rejects_checked_owner_and_dependency_spoofs() {
     let compile = || {
         let package = TempPackage::new();
@@ -5472,7 +5575,10 @@ requires
         panic!("one callable domain predicate")
     };
     assert!(receiver.is_none());
-    assert_eq!(target.path(), "within_calibration::entry");
+    assert_eq!(
+        target.nominal().expect("ordinary callable target").path(),
+        "within_calibration::entry"
+    );
     assert!(static_arguments.is_empty());
     assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
 }
@@ -6161,7 +6267,7 @@ machine build(builder: &mut Build) { }
     assert!(matches!(
         right.as_ref(),
         PackageReviewContractExpression::Call { target, .. }
-            if target.path() == "computed_zero::entry"
+            if target.nominal().is_some_and(|target| target.path() == "computed_zero::entry")
     ));
 }
 

@@ -796,6 +796,36 @@ pub enum PackageReviewContractStaticArgument {
     ConcreteMachine(PackageReviewNominalIdentity),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewByteSequencePredicate {
+    ValidUtf8,
+    NoNul,
+    AsciiOnly,
+    NonEmpty,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewContractCallTarget {
+    Nominal(PackageReviewNominalIdentity),
+    ByteSequencePredicate(PackageReviewByteSequencePredicate),
+}
+
+impl PackageReviewContractCallTarget {
+    pub const fn nominal(&self) -> Option<&PackageReviewNominalIdentity> {
+        match self {
+            Self::Nominal(identity) => Some(identity),
+            Self::ByteSequencePredicate(_) => None,
+        }
+    }
+
+    pub const fn byte_sequence_predicate(&self) -> Option<PackageReviewByteSequencePredicate> {
+        match self {
+            Self::Nominal(_) => None,
+            Self::ByteSequencePredicate(predicate) => Some(*predicate),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
     Boolean(bool),
@@ -825,7 +855,7 @@ pub enum PackageReviewContractExpression {
     /// signature identifies its body.
     Call {
         receiver: Option<Box<PackageReviewContractExpression>>,
-        target: PackageReviewNominalIdentity,
+        target: PackageReviewContractCallTarget,
         static_arguments: Vec<PackageReviewContractStaticArgument>,
         arguments: Vec<PackageReviewContractExpression>,
     },
@@ -6193,13 +6223,27 @@ fn project_contract_expression_with_substitutions(
             operand: Box::new(child(unary.operand)?),
         }),
         ExpressionNode::Call(call) => {
-            require_exact_checked_contract_call_selection(compilation, context, expression, call)?;
-            let static_parameter_kinds = contract_call_static_parameter_kinds(
-                compilation,
-                context,
-                call.target_symbol,
-                call.machine_arguments.len(),
-            )?;
+            let target =
+                exact_checked_contract_call_target(compilation, context, expression, call)?;
+            let static_parameter_kinds = match &target {
+                PackageReviewContractCallTarget::Nominal(_) => {
+                    contract_call_static_parameter_kinds(
+                        compilation,
+                        context,
+                        call.target_symbol,
+                        call.machine_arguments.len(),
+                    )?
+                }
+                PackageReviewContractCallTarget::ByteSequencePredicate(_) => {
+                    if !call.machine_arguments.is_empty() {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed {} `{}` supplies static arguments to a compiler-owned byte-sequence predicate",
+                            context.subject_kind, context.subject_name
+                        ))]);
+                    }
+                    Vec::new()
+                }
+            };
             if call.quotient_operation.is_some() {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed {} `{}` uses a quotient contract call not yet represented by package review",
@@ -6222,7 +6266,7 @@ fn project_contract_expression_with_substitutions(
                     .then(|| child(call.receiver))
                     .transpose()?
                     .map(Box::new),
-                target: nominal_identity(compilation, call.target_symbol)?,
+                target,
                 static_arguments: call
                     .machine_arguments
                     .iter()
@@ -6369,12 +6413,12 @@ fn project_contract_expression_with_substitutions(
     }
 }
 
-fn require_exact_checked_contract_call_selection(
+fn exact_checked_contract_call_target(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     expression: psi_typed_trees::expression::ExpressionHandle,
     call: &psi_typed_trees::expression::TableCallExpression,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PackageReviewContractCallTarget, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
@@ -6408,14 +6452,41 @@ fn require_exact_checked_contract_call_selection(
         AuthoredDeclarationSelectionTarget::Resolved(target)
             if target.selected_symbol() == call.target_symbol =>
         {
-            Ok(())
+            Ok(PackageReviewContractCallTarget::Nominal(nominal_identity(
+                compilation,
+                call.target_symbol,
+            )?))
         }
         AuthoredDeclarationSelectionTarget::Resolved(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call target disagrees with its exact checked call-selection row",
             context.subject_kind, context.subject_name
         ))]),
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                predicate,
+            ),
+        ) if !call.target_symbol.is_valid()
+            && !call.receiver.is_valid()
+            && psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(
+                call.target.as_str(),
+            ) == Some(predicate) => Ok(PackageReviewContractCallTarget::ByteSequencePredicate(
+                match predicate {
+                    psi_language_semantics::byte_predicates::ByteSequencePredicate::ValidUtf8 => {
+                        PackageReviewByteSequencePredicate::ValidUtf8
+                    }
+                    psi_language_semantics::byte_predicates::ByteSequencePredicate::NoNul => {
+                        PackageReviewByteSequencePredicate::NoNul
+                    }
+                    psi_language_semantics::byte_predicates::ByteSequencePredicate::AsciiOnly => {
+                        PackageReviewByteSequencePredicate::AsciiOnly
+                    }
+                    psi_language_semantics::byte_predicates::ByteSequencePredicate::NonEmpty => {
+                        PackageReviewByteSequencePredicate::NonEmpty
+                    }
+                },
+            )),
         AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a compiler-intrinsic contract call not yet represented by package review",
+            "reviewed {} `{}` contract-call intrinsic identity disagrees with its exact checked call-selection row or is not yet represented by package review",
             context.subject_kind, context.subject_name
         ))]),
         AuthoredDeclarationSelectionTarget::LateBound(_) => Err(vec![Diagnostic::error(format!(
