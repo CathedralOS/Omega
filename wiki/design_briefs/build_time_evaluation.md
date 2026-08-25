@@ -519,9 +519,16 @@ successful partial replay. Compiler replay-record v1 now retains the complete
 three-event record in canonical binary form, rejects stale semantic schemas and
 operation-inapplicable or internally inconsistent lanes, and survives restart
 inside review-baseline capsule v2. The record is opaque, bounded, and review-
-only; custody does not authorize replay or establish a receipt. The build
-remains `Volatile` until reopened-record execution, all operations, staged
-output reproduction, and the complete replay verdict are implemented.
+only; custody alone establishes neither authenticity, admission, nor a receipt.
+An explicit checked-compilation entry now strictly rehydrates the canonical
+record into the PSI executor's exact typed three-event replay and evaluates the
+build machine with no host filesystem provider. The replay supplies retained
+source bytes even if that host file has changed and rejects changed authored
+inputs or event structure through the same exact checks. This uses an existing
+compiler-private checked/evaluator seam rather than exposing an IR contract or
+adding nominal Chi. The build remains `Volatile` until all operations, output
+mutation and staged-output reproduction, package-command integration, and the
+complete replay verdict are implemented.
 
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities

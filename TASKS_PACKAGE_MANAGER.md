@@ -1514,9 +1514,18 @@ complete.
   aggregate capsule budget and binds their commitment to the parent build-
   observation commitment. Compiler recovery remains explicitly review-only;
   the checksum and parent association detect inconsistent custody but prove
-  neither authenticity nor review. The build remains `Volatile`: replay from
-  the reopened record, other operations, output mutation replay, staged-tree
-  reproduction, and a complete replay verdict remain open.
+  neither authenticity nor review. Milestone 2026-08-25: checked compilation
+  can now strictly decode that reopened record into the PSI executor's exact
+  typed three-event replay object and evaluate the selected build machine with
+  no host filesystem provider. Recorded source bytes remain authoritative for
+  that build call even if the host file has changed; a changed authored path,
+  count, event order, output, or event count rejects through the existing exact
+  replay checks. The record grants no ambient host authority and still proves
+  neither provenance nor admission. The build remains `Volatile`: other
+  operations, output mutation replay, staged-tree reproduction, package-command
+  integration, and a complete replay verdict remain open. This uses the
+  compiler's existing coherent checked-entry/evaluator seam; it does not expose
+  a public IR contract or justify nominal Chi.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

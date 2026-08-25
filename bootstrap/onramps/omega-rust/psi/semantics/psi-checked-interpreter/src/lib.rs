@@ -1244,6 +1244,69 @@ pub struct FilesystemReplay {
     attempts: Vec<FilesystemOperationAttempt>,
 }
 
+/// Typed input used to reconstruct the first replay rung after its canonical
+/// compiler record has crossed a process boundary. Construction validates the
+/// same closed source-read shape; it grants no host filesystem authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemOpenReadCloseReplayRecord {
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    logical_handle_identity: FilesystemLogicalHandleIdentity,
+    open_post_error: i32,
+    requested_count: u64,
+    read_result: i64,
+    read_post_error: i32,
+    mutable_resolution: Vec<u8>,
+    mutable_pre_state: Vec<u8>,
+    mutable_post_state: Vec<u8>,
+    close_post_error: i32,
+}
+
+impl FilesystemOpenReadCloseReplayRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_root: FilesystemGrantRootIdentity,
+        source_relative_path: Vec<u8>,
+        logical_handle_identity: u64,
+        open_post_error: i32,
+        requested_count: u64,
+        read_result: i64,
+        read_post_error: i32,
+        mutable_resolution: Vec<u8>,
+        mutable_pre_state: Vec<u8>,
+        mutable_post_state: Vec<u8>,
+        close_post_error: i32,
+    ) -> Result<Self, String> {
+        let logical_handle_identity = FilesystemLogicalHandleIdentity::new(logical_handle_identity)
+            .ok_or_else(|| "filesystem replay logical identity must be nonzero".to_owned())?;
+        let read_length = usize::try_from(read_result)
+            .map_err(|_| "filesystem replay read result must be nonnegative".to_owned())?;
+        let requested_capacity = usize::try_from(requested_count)
+            .map_err(|_| "filesystem replay request exceeds this host".to_owned())?;
+        if mutable_resolution != mutable_pre_state
+            || mutable_pre_state.len() != mutable_post_state.len()
+            || requested_capacity > mutable_post_state.len()
+            || read_length > requested_capacity
+            || mutable_pre_state[read_length..] != mutable_post_state[read_length..]
+        {
+            return Err("filesystem replay mutable read carrier is inconsistent".to_owned());
+        }
+        Ok(Self {
+            source_root,
+            source_relative_path,
+            logical_handle_identity,
+            open_post_error,
+            requested_count,
+            read_result,
+            read_post_error,
+            mutable_resolution,
+            mutable_pre_state,
+            mutable_post_state,
+            close_post_error,
+        })
+    }
+}
+
 impl FilesystemReplay {
     pub fn from_open_read_close_observations(
         observations: &EvaluationObservations,
@@ -1280,6 +1343,126 @@ impl FilesystemReplay {
 
     pub fn attempts(&self) -> &[FilesystemOperationAttempt] {
         &self.attempts
+    }
+
+    pub fn from_open_read_close_record(record: FilesystemOpenReadCloseReplayRecord) -> Self {
+        let identity = record.logical_handle_identity;
+        let open = FilesystemOperationAttempt {
+            operation_tag: 2,
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::LogicalHandle(identity),
+                post_error: record.open_post_error,
+            }),
+            scalar_operands: vec![FilesystemScalarOperand {
+                operand_ordinal: 1,
+                value: FilesystemScalarOperandValue::I32(0),
+            }],
+            byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+                operand_ordinal: 0,
+                root: record.source_root,
+                relative_path: record.source_relative_path.clone(),
+            }],
+            returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: vec![FilesystemAuthorizedPath {
+                operand_ordinal: 0,
+                access: FilesystemGrantAccess::Read,
+                root: record.source_root,
+                relative_path: record.source_relative_path,
+            }],
+            logical_handle_inputs: Vec::new(),
+            logical_handle_output: Some(FilesystemLogicalHandleOutput {
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                identity,
+                source: FilesystemLogicalHandleOutputSource::Created,
+            }),
+            retired_logical_handles: Vec::new(),
+            grant_refusals: Vec::new(),
+        };
+        let read_length =
+            usize::try_from(record.read_result).expect("validated replay read result fits usize");
+        let read = FilesystemOperationAttempt {
+            operation_tag: 4,
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::Scalar(record.read_result),
+                post_error: record.read_post_error,
+            }),
+            scalar_operands: vec![FilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: FilesystemScalarOperandValue::U64(record.requested_count),
+            }],
+            byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
+            observed_byte_regions: vec![FilesystemObservedByteRegion {
+                output_operand_ordinal: 1,
+                kind: FilesystemObservedByteRegionKind::SequentialFileRead,
+                offset: 0,
+                length: read_length,
+            }],
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
+                operand_ordinal: 1,
+                bytes: record.mutable_resolution,
+            }],
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: vec![FilesystemMutableByteOperand {
+                operand_ordinal: 1,
+                pre_bytes: record.mutable_pre_state,
+                post_bytes: record.mutable_post_state,
+            }],
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: Vec::new(),
+            logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+            }],
+            logical_handle_output: None,
+            retired_logical_handles: Vec::new(),
+            grant_refusals: Vec::new(),
+        };
+        let close = FilesystemOperationAttempt {
+            operation_tag: 8,
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::Scalar(0),
+                post_error: record.close_post_error,
+            }),
+            scalar_operands: Vec::new(),
+            byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: Vec::new(),
+            logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+            }],
+            logical_handle_output: None,
+            retired_logical_handles: vec![identity],
+            grant_refusals: Vec::new(),
+        };
+        Self {
+            attempts: vec![open, read, close],
+        }
     }
 }
 

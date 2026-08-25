@@ -205,6 +205,50 @@ pub fn compile_to_checked_with_packages(
     })
 }
 
+/// Checked-only compilation whose build machine reconsumes one compiler-owned
+/// source-read replay record. The replay installs no host filesystem provider;
+/// authored build inputs and the complete event stream must still match.
+pub fn compile_to_checked_with_replay_record(
+    root_path: &Path,
+    target_name: Option<&str>,
+    replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = root_path.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner_with_replay(
+            &root_path,
+            target_name.as_deref(),
+            None,
+            None,
+            None,
+            Some(&replay_record),
+        )
+    })
+}
+
+/// Package-aware checked compilation whose build machine reconsumes one
+/// compiler-owned source-read replay record without host filesystem authority.
+pub fn compile_to_checked_with_packages_and_replay_record(
+    root_path: &Path,
+    target_name: Option<&str>,
+    package_inputs: PackageCompilationInputs,
+    replay_record: super::ReviewOnlyBuildFilesystemReplayRecord,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = root_path.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner_with_replay(
+            &root_path,
+            target_name.as_deref(),
+            Some(&package_inputs),
+            None,
+            None,
+            Some(&replay_record),
+        )
+    })
+}
+
 /// Package-aware checked compilation with a caller-owned writable build root.
 /// Resolver snapshots remain immutable; package admission and build execution
 /// must stage outputs in separate custody.
@@ -335,6 +379,24 @@ fn compile_to_checked_inner(
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    compile_to_checked_inner_with_replay(
+        root_path,
+        target_name,
+        package_inputs,
+        build_dir,
+        filesystem_sponsor,
+        None,
+    )
+}
+
+fn compile_to_checked_inner_with_replay(
+    root_path: &Path,
+    target_name: Option<&str>,
+    package_inputs: Option<&PackageCompilationInputs>,
+    build_dir: Option<&Path>,
+    filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    replay_record: Option<&super::ReviewOnlyBuildFilesystemReplayRecord>,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
     let package_identity = package_inputs.map(PackageCompilationInputs::root);
 
@@ -356,7 +418,23 @@ fn compile_to_checked_inner(
             &mut timings,
         )?;
     }
-    let build_machine_filesystem_scope =
+    let filesystem_replay = replay_record
+        .map(|record| {
+            super::build_replay_record::rehydrate_review_only_build_filesystem_replay_record(
+                record,
+                super::BuildFilesystemReplayRecordLimits::new(
+                    record.canonical_bytes().len(),
+                    4_096,
+                ),
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "could not reopen build filesystem replay record: {error}"
+                ))]
+            })
+        })
+        .transpose()?;
+    let mut build_machine_filesystem_scope =
         crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
             root_path,
             build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
@@ -368,6 +446,10 @@ fn compile_to_checked_inner(
             }),
             filesystem_sponsor,
         );
+    if let Some(filesystem_replay) = filesystem_replay {
+        build_machine_filesystem_scope =
+            build_machine_filesystem_scope.with_replay(filesystem_replay);
+    }
     let computed_build_config = crate::pipeline::build_config::compute_build_config(
         &frontend.typed,
         &frontend.build_file_machine_names,

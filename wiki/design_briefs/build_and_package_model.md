@@ -768,8 +768,14 @@ shape. Review-baseline capsule v2 keeps those opaque bytes across restart,
 binds their commitment to the parent build observation, and accounts them under
 one aggregate capsule ceiling. The checksum and association are custody checks,
 not authenticity or admission. This does not change the observation class:
-replay from reopened custody, broad operation replay, output-tree reproduction,
-and a complete replay verdict remain absent.
+checked compilation can now strictly rehydrate reopened custody into the PSI
+executor's exact typed three-event replay and evaluate the build machine with
+no host filesystem provider. Retained source bytes serve that build call even
+after host source drift, while changed authored inputs or event structure
+reject. This uses the existing compiler-private checked/evaluator seam and does
+not justify nominal Chi. Broad operation replay, output mutation and output-
+tree reproduction, package-command integration, and a complete replay verdict
+remain absent, so the build remains `Volatile`.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
