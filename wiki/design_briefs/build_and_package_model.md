@@ -913,7 +913,9 @@ This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for collection or format stability. It has no execution
 semantics or transformation pipeline of its own. A future shared stage is
 warranted only if independent consumers, shared invariants, or transformations
-establish an actual semantic boundary.
+establish an actual semantic boundary. Psi may repeat the same invariant as a
+downstream backstop without becoming the mandatory reconstruction source for a
+fact already complete in an earlier compiler-owned representation.
 Conversely, discovery may place more rows in an existing coherent
 representation such as `Exact` when that simplifies the compiler without
 erasing meaning.

@@ -388,7 +388,10 @@ distinct IR is justified later only if multiple independent consumers need the
 same semantic boundary or it acquires its own transformations, invariants, and
 verification rules. Implementation discovery may also collapse rows into an
 existing coherent representation, including `Exact`, when that removes
-machinery without losing semantic distinctions.
+machinery without losing semantic distinctions. Psi may independently repeat
+an invariant as a downstream backstop; that does not require the package
+checker to discard an earlier semantically complete fact and reconstruct it
+from Psi.
 
 Conflict explanation follows the same ownership rule. The compiler attaches
 canonical package-relative UTF-8 paths and exact byte spans to its canonical

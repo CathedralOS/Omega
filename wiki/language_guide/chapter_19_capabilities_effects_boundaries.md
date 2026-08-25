@@ -793,7 +793,9 @@ reach and authority admission. The package checker moves with the private
 representations it consumes; their instability is internal compiler coupling,
 not a package-format promise. It does not require a nominal report-only stage
 unless independent semantics, shared invariants, transformations, or consumers
-later establish one.
+later establish one. Psi may repeat an invariant as a downstream backstop
+without requiring package admission to reconstruct an already-settled earlier
+fact from Psi.
 
 Generated Omega source carries no build authority into the resulting program.
 It is checked under the consuming artifact's ordinary runtime reach, crash,
