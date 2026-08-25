@@ -104,5 +104,8 @@ pub(crate) fn lower_typed_trees(
     }
     facts.flow.terminal_unit_effects = terminal_unit_effects;
 
+    crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
+        .map_err(|diagnostic| vec![diagnostic])?;
+
     Ok(CheckedTrees::with_roots(program, facts))
 }

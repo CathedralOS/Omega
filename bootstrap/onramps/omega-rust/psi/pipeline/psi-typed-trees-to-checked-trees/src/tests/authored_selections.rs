@@ -1,0 +1,79 @@
+use super::{
+    Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
+};
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+};
+
+#[test]
+fn successful_checking_finalizes_authored_call_occurrences() {
+    let source = r#"
+        machine identity(value: u32) -> u32 { value }
+        machine compare(value: u32) -> bool { identity(value) == value }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Call
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+}
+
+#[test]
+fn successful_checking_finalizes_declared_operator_occurrences() {
+    let source = r#"
+        data Quantity { value: i32; }
+
+        domain Quantity::Additive
+        requires
+            self.value >= 0;
+
+        operator + Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
+
+        data Main {}
+
+        machine Main::combine(&self, left: Quantity, right: Quantity)
+        requires
+            left in Quantity::Additive
+        {
+            let sum: Quantity = left + right;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    assert!(
+        resolved
+            .authored_declaration_selections()
+            .iter()
+            .any(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                    && matches!(
+                        selection.target(),
+                        AuthoredDeclarationSelectionTarget::LateBound(_)
+                    )
+            })
+    );
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+}

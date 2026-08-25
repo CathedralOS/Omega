@@ -1,3 +1,4 @@
+mod authored_selections;
 mod call_acknowledgements;
 mod capabilities;
 mod checks;

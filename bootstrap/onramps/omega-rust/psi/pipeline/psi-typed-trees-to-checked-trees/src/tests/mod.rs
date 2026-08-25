@@ -32,6 +32,7 @@ fn mutable_borrow(target: Expression) -> Expression {
 }
 
 mod admissibility;
+mod authored_selections;
 mod borrow;
 mod carry;
 mod cleanup;
