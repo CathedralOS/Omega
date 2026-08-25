@@ -28,6 +28,13 @@ pub mod typed_trees;
 pub mod types;
 pub mod wire;
 
+pub use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
+    AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
+    ResolvedAuthoredDeclarationSelection,
+};
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{
     PlanLaidBitField, PlanLaidBitFragment, PlanLaidIntegerField, PlanLaidLayout,

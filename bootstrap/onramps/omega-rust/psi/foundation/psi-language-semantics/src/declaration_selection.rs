@@ -1,0 +1,341 @@
+use psi_source::SourceSpan;
+use psi_symbols::SymbolHandle;
+
+/// Whether an authored declaration selection contributes only to an
+/// implementation or is exposed through a package's published surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionExposure {
+    PrivateImplementation,
+    PublicInterface,
+}
+
+/// The authored syntax which selected a declaration.
+///
+/// These kinds describe source authority only. Compiler-planned layout,
+/// movement, and automatic cleanup are semantic dependencies and do not belong
+/// in this ledger.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionKind {
+    TypeReference,
+    StaticPathSegment,
+    MemberAccess,
+    StructLiteralType,
+    StructLiteralCase,
+    StructLiteralField,
+    CaseReference,
+    CaseMembership,
+    Call,
+    Operator,
+    Conformance,
+    ExplicitCleanupCall,
+}
+
+/// The checked fact family which must supply a declaration selected too late
+/// for symbol resolution to settle it.
+///
+/// A late-bound occurrence is explicit ledger state. It must not be encoded as
+/// a resolved target containing an invalid symbol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionLateBinding {
+    CheckedCall,
+    CheckedOperator,
+    CheckedConformance,
+}
+
+/// A symbol known to be valid when its authored selection row was recorded.
+///
+/// The private field prevents callers from constructing a resolved target with
+/// `SymbolHandle::invalid()` and accidentally bypassing later finalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedAuthoredDeclarationSelection {
+    selected_symbol: SymbolHandle,
+}
+
+impl ResolvedAuthoredDeclarationSelection {
+    pub fn new(selected_symbol: SymbolHandle) -> Option<Self> {
+        selected_symbol
+            .is_valid()
+            .then_some(Self { selected_symbol })
+    }
+
+    pub fn selected_symbol(self) -> SymbolHandle {
+        self.selected_symbol
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionTarget {
+    Resolved(ResolvedAuthoredDeclarationSelection),
+    LateBound(AuthoredDeclarationSelectionLateBinding),
+}
+
+/// Deterministic identity of one authored occurrence within a compilation's
+/// declaration-selection ledger.
+///
+/// The ledger mints identities in deterministic resolution traversal order.
+/// Later representations carry the value verbatim and attach it to the
+/// corresponding typed or checked fact; they never reconstruct it from source
+/// text, diagnostic rendering, or a mutable IR handle. Compiler-generated
+/// clones may deliberately retain the same identity because they derive from
+/// the same authored occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AuthoredDeclarationSelectionOccurrenceId(u64);
+
+impl AuthoredDeclarationSelectionOccurrenceId {
+    pub fn ordinal(self) -> u64 {
+        self.0
+    }
+}
+
+/// Why an authored selection could not enter the ledger.
+///
+/// Recording is transactional: either a complete row receives its occurrence
+/// identity or the ledger remains unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionRecordError {
+    InvalidSelectedSymbol,
+    OccurrenceCapacityExceeded,
+}
+
+/// One authored occurrence retained while its source location and exposure are
+/// still exact. Package ownership is intentionally absent and is joined by a
+/// later compiler integration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredDeclarationSelection {
+    occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+    source_span: SourceSpan,
+    exposure: AuthoredDeclarationSelectionExposure,
+    kind: AuthoredDeclarationSelectionKind,
+    target: AuthoredDeclarationSelectionTarget,
+}
+
+impl AuthoredDeclarationSelection {
+    fn resolved(
+        occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        selected_symbol: SymbolHandle,
+    ) -> Result<Self, AuthoredDeclarationSelectionRecordError> {
+        let selected = ResolvedAuthoredDeclarationSelection::new(selected_symbol)
+            .ok_or(AuthoredDeclarationSelectionRecordError::InvalidSelectedSymbol)?;
+        Ok(Self {
+            occurrence_id,
+            source_span,
+            exposure,
+            kind,
+            target: AuthoredDeclarationSelectionTarget::Resolved(selected),
+        })
+    }
+
+    fn late_bound(
+        occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        late_binding: AuthoredDeclarationSelectionLateBinding,
+    ) -> Self {
+        Self {
+            occurrence_id,
+            source_span,
+            exposure,
+            kind,
+            target: AuthoredDeclarationSelectionTarget::LateBound(late_binding),
+        }
+    }
+
+    pub fn occurrence_id(self) -> AuthoredDeclarationSelectionOccurrenceId {
+        self.occurrence_id
+    }
+
+    pub fn source_span(self) -> SourceSpan {
+        self.source_span
+    }
+
+    pub fn exposure(self) -> AuthoredDeclarationSelectionExposure {
+        self.exposure
+    }
+
+    pub fn kind(self) -> AuthoredDeclarationSelectionKind {
+        self.kind
+    }
+
+    pub fn target(self) -> AuthoredDeclarationSelectionTarget {
+        self.target
+    }
+}
+
+/// Append-only authored-selection custody in deterministic source traversal
+/// order.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AuthoredDeclarationSelections {
+    rows: Vec<AuthoredDeclarationSelection>,
+}
+
+impl AuthoredDeclarationSelections {
+    pub fn record_resolved(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        selected_symbol: SymbolHandle,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        let occurrence_id = self.next_occurrence_id()?;
+        let selection = AuthoredDeclarationSelection::resolved(
+            occurrence_id,
+            source_span,
+            exposure,
+            kind,
+            selected_symbol,
+        )?;
+        self.rows.push(selection);
+        Ok(occurrence_id)
+    }
+
+    pub fn record_late_bound(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        late_binding: AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        let occurrence_id = self.next_occurrence_id()?;
+        self.rows.push(AuthoredDeclarationSelection::late_bound(
+            occurrence_id,
+            source_span,
+            exposure,
+            kind,
+            late_binding,
+        ));
+        Ok(occurrence_id)
+    }
+
+    pub fn get(
+        &self,
+        occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Option<&AuthoredDeclarationSelection> {
+        let index = usize::try_from(occurrence_id.0).ok()?;
+        let selection = self.rows.get(index)?;
+        (selection.occurrence_id == occurrence_id).then_some(selection)
+    }
+
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &AuthoredDeclarationSelection> {
+        self.rows.iter()
+    }
+
+    pub fn as_slice(&self) -> &[AuthoredDeclarationSelection] {
+        &self.rows
+    }
+
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    fn next_occurrence_id(
+        &self,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        let ordinal = u64::try_from(self.rows.len())
+            .map_err(|_| AuthoredDeclarationSelectionRecordError::OccurrenceCapacityExceeded)?;
+        Ok(AuthoredDeclarationSelectionOccurrenceId(ordinal))
+    }
+}
+
+impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
+    type Item = &'ledger AuthoredDeclarationSelection;
+    type IntoIter = std::slice::Iter<'ledger, AuthoredDeclarationSelection>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_source::{SourceId, Span};
+
+    fn source_span(start: usize, end: usize) -> SourceSpan {
+        SourceSpan::new(SourceId(7), Span::new(start, end))
+    }
+
+    fn record_fixture(selections: &mut AuthoredDeclarationSelections) {
+        selections
+            .record_resolved(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(3),
+            )
+            .expect("valid resolved selection");
+        selections
+            .record_late_bound(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            )
+            .expect("ledger capacity");
+    }
+
+    #[test]
+    fn occurrence_identities_are_unique_and_deterministic() {
+        let mut first_run = AuthoredDeclarationSelections::default();
+        let mut second_run = AuthoredDeclarationSelections::default();
+        record_fixture(&mut first_run);
+        record_fixture(&mut second_run);
+
+        let first_ids = first_run
+            .iter()
+            .map(|selection| selection.occurrence_id())
+            .collect::<Vec<_>>();
+        let second_ids = second_run
+            .iter()
+            .map(|selection| selection.occurrence_id())
+            .collect::<Vec<_>>();
+
+        assert_eq!(first_ids, second_ids);
+        assert_eq!(first_ids.len(), 2);
+        assert_ne!(first_ids[0], first_ids[1]);
+        assert_eq!(first_ids[0].ordinal(), 0);
+        assert_eq!(first_ids[1].ordinal(), 1);
+        assert_eq!(first_run.get(first_ids[0]), first_run.as_slice().first());
+        assert_eq!(first_run.get(first_ids[1]), first_run.as_slice().get(1));
+    }
+
+    #[test]
+    fn invalid_resolved_target_fails_closed_without_consuming_an_identity() {
+        let mut selections = AuthoredDeclarationSelections::default();
+
+        let error = selections
+            .record_resolved(
+                source_span(4, 9),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::TypeReference,
+                SymbolHandle::invalid(),
+            )
+            .expect_err("invalid target must reject");
+
+        assert_eq!(
+            error,
+            AuthoredDeclarationSelectionRecordError::InvalidSelectedSymbol
+        );
+        assert!(selections.is_empty());
+
+        let first_valid = selections
+            .record_late_bound(
+                source_span(4, 9),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            )
+            .expect("ledger capacity");
+        assert_eq!(first_valid.ordinal(), 0);
+    }
+}

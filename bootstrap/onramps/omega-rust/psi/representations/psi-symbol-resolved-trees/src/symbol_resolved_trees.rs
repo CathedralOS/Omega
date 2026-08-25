@@ -1,10 +1,13 @@
 use crate::{
-    AuthoredDeclarationSelection, AuthoredDeclarationSelectionHandle,
-    AuthoredDeclarationSelections, data, domain, expression, measure, operator, proposition,
-    signature, snapshot, state, statement, tables, types, wire,
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionRecordError, AuthoredDeclarationSelections, data, domain,
+    expression, measure, operator, proposition, signature, snapshot, state, statement, tables,
+    types, wire,
 };
 use psi_arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use psi_diagnostics::PhaseSnapshot;
+use psi_source::SourceSpan;
 use psi_symbols::SymbolTable;
 use std::ops::{Deref, DerefMut};
 
@@ -132,13 +135,33 @@ impl SymbolResolvedTrees {
         self.tables.declarations.data_members.span_or_empty(span)
     }
 
-    pub fn record_authored_declaration_selection(
+    pub fn record_resolved_authored_declaration_selection(
         &mut self,
-        selection: AuthoredDeclarationSelection,
-    ) -> AuthoredDeclarationSelectionHandle {
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        selected_symbol: psi_symbols::SymbolHandle,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        self.tables.authored_declaration_selections.record_resolved(
+            source_span,
+            exposure,
+            kind,
+            selected_symbol,
+        )
+    }
+
+    pub fn record_late_bound_authored_declaration_selection(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        late_binding: AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
         self.tables
             .authored_declaration_selections
-            .record(selection)
+            .record_late_bound(source_span, exposure, kind, late_binding)
     }
 
     pub fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {
@@ -442,10 +465,9 @@ impl DerefMut for SymbolResolvedTrees {
 #[cfg(test)]
 mod tests {
     use crate::{
-        AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
-        AuthoredDeclarationSelectionKind, SymbolResolvedRoots, SymbolResolvedTableStorage,
-        SymbolResolvedTrees, data, domain, invariant, machine, name::DiagnosticName, operator,
-        trait_definition,
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
+        invariant, machine, name::DiagnosticName, operator, trait_definition,
     };
     use psi_arena::{HandleSpan, OrderedRootArena};
     use psi_source::{SourceId, SourceSpan, Span};
@@ -494,20 +516,23 @@ mod tests {
     #[test]
     fn symbol_resolved_trees_owns_authored_declaration_selections() {
         let mut trees = SymbolResolvedTrees::default();
-        let selection = AuthoredDeclarationSelection::resolved(
-            SourceSpan::new(SourceId(4), Span::new(8, 13)),
-            AuthoredDeclarationSelectionExposure::PublicInterface,
-            AuthoredDeclarationSelectionKind::TypeReference,
-            SymbolHandle::from_arena_index(9),
-        )
-        .expect("valid selected symbol");
-
-        let handle = trees.record_authored_declaration_selection(selection);
+        let occurrence_id = trees
+            .record_resolved_authored_declaration_selection(
+                SourceSpan::new(SourceId(4), Span::new(8, 13)),
+                AuthoredDeclarationSelectionExposure::PublicInterface,
+                AuthoredDeclarationSelectionKind::TypeReference,
+                SymbolHandle::from_arena_index(9),
+            )
+            .expect("valid selected symbol");
+        let selection = *trees
+            .authored_declaration_selections()
+            .get(occurrence_id)
+            .expect("recorded selection");
         let copied_trees = trees.clone();
         trees.rebuild_tables();
 
         assert_eq!(
-            trees.authored_declaration_selections().get(handle),
+            trees.authored_declaration_selections().get(occurrence_id),
             Some(&selection)
         );
         assert_eq!(
