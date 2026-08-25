@@ -3788,7 +3788,7 @@ fn review_type_identity_with_binders(
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference)?;
+    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let identity = compilation
         .package_qualified_type_identity_with_binders_and_toolchain_sources(
             type_reference,
@@ -3807,7 +3807,7 @@ fn review_type_identity_with_binders_and_substitutions(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference)?;
+    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let identity = compilation
         .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
             type_reference,
@@ -3824,23 +3824,33 @@ fn review_type_identity_with_binders_and_substitutions(
 fn validate_package_type_identity_input(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Result<(), Vec<Diagnostic>> {
+    validate_package_type_identity_input_inner(program, type_reference, binders, false)
+}
+
+fn validate_package_type_identity_input_inner(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    allow_const_value: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     use psi_typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            validate_package_type_identity_input(program, *referee)
+            validate_package_type_identity_input_inner(program, *referee, binders, false)
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            validate_package_type_identity_input(program, *base_type)?;
+            validate_package_type_identity_input_inner(program, *base_type, binders, false)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     TypeConstraintNode::Range { minimum, maximum } => {
-                        validate_package_index_expression(program, *minimum)?;
-                        validate_package_index_expression(program, *maximum)?;
+                        validate_package_index_expression(program, *minimum, binders)?;
+                        validate_package_index_expression(program, *maximum, binders)?;
                     }
                     TypeConstraintNode::Domain(domain) => {
                         use psi_typed_trees::types::DomainConstraintSubject;
@@ -3878,8 +3888,28 @@ fn validate_package_type_identity_input(
                                 }
                             }
                         }
-                        for argument in &domain.arguments {
-                            validate_package_type_identity_input(program, *argument)?;
+                        let declared_parameters = (domain.subject
+                            == psi_typed_trees::types::DomainConstraintSubject::Declared)
+                            .then(|| {
+                                program
+                                    .domain_definitions()
+                                    .iter()
+                                    .find(|definition| definition.symbol == domain.symbol)
+                            })
+                            .flatten()
+                            .map(|definition| program.domain_type_parameters(definition));
+                        for (index, argument) in domain.arguments.iter().enumerate() {
+                            let is_const = declared_parameters
+                                .and_then(|parameters| parameters.get(index + 1))
+                                .is_some_and(|parameter| {
+                                    matches!(
+                                        parameter.kind,
+                                        psi_typed_trees::data::TypeParameterKind::Const { .. }
+                                    )
+                                });
+                            validate_package_type_identity_input_inner(
+                                program, *argument, binders, is_const,
+                            )?;
                         }
                     }
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
@@ -3891,44 +3921,153 @@ fn validate_package_type_identity_input(
             element_type,
             length,
         } => {
-            validate_package_type_identity_input(program, *element_type)?;
+            validate_package_type_identity_input_inner(program, *element_type, binders, false)?;
             match length {
-                FixedArrayLength::Literal(_) | FixedArrayLength::ConstParameter { .. } => Ok(()),
+                FixedArrayLength::Literal(_) => Ok(()),
+                FixedArrayLength::ConstParameter { symbol, name } => {
+                    validate_package_const_binder(program, *symbol, name.as_str(), binders)
+                }
                 FixedArrayLength::ConstCall { .. } => Err(vec![Diagnostic::error(
                     "package review rejects an unevaluated const call in structural type identity",
                 )]),
             }
         }
         TypeReferenceNode::Slice { element_type } => {
-            validate_package_type_identity_input(program, *element_type)
+            validate_package_type_identity_input_inner(program, *element_type, binders, false)
         }
-        TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in program
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let parameters = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *base_symbol)
+                .map(|definition| program.data_type_parameters(definition));
+            for (index, argument) in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
+                .iter()
+                .enumerate()
             {
-                validate_package_type_identity_input(program, *argument)?;
+                let is_const = parameters
+                    .and_then(|parameters| parameters.get(index))
+                    .is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            psi_typed_trees::data::TypeParameterKind::Const { .. }
+                        )
+                    });
+                validate_package_type_identity_input_inner(program, *argument, binders, is_const)?;
             }
             Ok(())
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            validate_package_index_expression(program, *expression)
+            if !allow_const_value {
+                return Err(vec![Diagnostic::error(
+                    "package review rejects a const expression outside one exact declared const-parameter slot",
+                )]);
+            }
+            validate_package_index_expression(program, *expression, binders)
         }
-        TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::Named { symbol, name } => validate_package_named_type_leaf(
+            program,
+            *symbol,
+            name.as_str(),
+            binders,
+            allow_const_value,
+        ),
+        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => Ok(()),
     }
+}
+
+fn validate_package_named_type_leaf(
+    program: &psi_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    spelling: &str,
+    binders: &[(SymbolHandle, String)],
+    allow_const_value: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    if symbol.is_valid() {
+        if program.symbols.get(symbol).kind == psi_symbols::SymbolKind::Const {
+            return Err(vec![Diagnostic::error(
+                "package review rejects a residual const declaration in structural type identity",
+            )]);
+        }
+        return Ok(());
+    }
+    if allow_const_value
+        && (psi_language_semantics::const_value::CanonicalConstValue::from_atom(spelling).is_some()
+            || spelling.parse::<i128>().is_ok())
+    {
+        return Ok(());
+    }
+    let mut matches = binders.iter().filter(|(candidate, _)| {
+        candidate.is_valid() && program.symbols.name(*candidate) == spelling
+    });
+    if matches.next().is_some() && matches.next().is_none() {
+        return Ok(());
+    }
+    Err(vec![Diagnostic::error(
+        "package review rejects a source-spelled type or const leaf without exact semantic identity",
+    )])
+}
+
+fn validate_package_const_binder(
+    program: &psi_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    spelling: &str,
+    binders: &[(SymbolHandle, String)],
+) -> Result<(), Vec<Diagnostic>> {
+    if symbol.is_valid() && binders.iter().any(|(candidate, _)| *candidate == symbol) {
+        return Ok(());
+    }
+    let mut matches = binders.iter().filter(|(candidate, _)| {
+        !symbol.is_valid() && candidate.is_valid() && program.symbols.name(*candidate) == spelling
+    });
+    if matches.next().is_some() && matches.next().is_none() {
+        return Ok(());
+    }
+    Err(vec![Diagnostic::error(
+        "package review rejects a const binder without one exact telescope identity",
+    )])
 }
 
 fn validate_package_index_expression(
     program: &psi_typed_trees::TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
+    binders: &[(SymbolHandle, String)],
 ) -> Result<(), Vec<Diagnostic>> {
     use psi_typed_trees::expression::ExpressionNode;
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Integer(_) => Ok(()),
-        ExpressionNode::Unary(unary) => validate_package_index_expression(program, unary.operand),
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            let spelling = members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if !path.symbol.is_valid()
+                && (psi_language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
+                    .is_some()
+                    || spelling.parse::<i128>().is_ok())
+            {
+                return Ok(());
+            }
+            if members.len() == 1 {
+                validate_package_const_binder(program, path.symbol, &spelling, binders)
+            } else {
+                Err(vec![Diagnostic::error(
+                    "package review rejects an index name without one exact const-binder or compiler-const identity",
+                )])
+            }
+        }
+        ExpressionNode::Integer(_) => Ok(()),
+        ExpressionNode::Unary(unary) => {
+            validate_package_index_expression(program, unary.operand, binders)
+        }
         ExpressionNode::Binary(binary) => {
             let mut selections = program
                 .open_index_normalizations
@@ -3953,8 +4092,8 @@ fn validate_package_index_expression(
                     "package review rejects an open index operation with incomplete semantic authority",
                 )]);
             }
-            validate_package_index_expression(program, binary.left)?;
-            validate_package_index_expression(program, binary.right)
+            validate_package_index_expression(program, binary.left, binders)?;
+            validate_package_index_expression(program, binary.right, binders)
         }
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
@@ -3991,7 +4130,7 @@ fn review_signature_type_identity_with_binders(
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(&compilation.typed, type_reference)?;
+    validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let runtime = compilation
         .package_qualified_type_identity_with_binders_and_toolchain_sources(
             type_reference,
@@ -6623,11 +6762,11 @@ fn exactly_one<'item, Item>(
 mod tests {
     use super::{
         PackageReviewNominalOwner, nominal_owner_from_symbols, toolchain_source_identity,
-        validate_package_type_identity_input,
+        validate_package_type_identity_input, validate_package_type_identity_input_inner,
     };
     use psi_core::PackageKeyIdentity;
     use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
-    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+    use psi_symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -6651,9 +6790,48 @@ mod tests {
                     source_span: SourceSpan::default(),
                 },
             });
-        let error = validate_package_type_identity_input(&program, residual)
+        let error = validate_package_type_identity_input(&program, residual, &[])
             .expect_err("residual const call must reject package evidence");
         assert!(error[0].message.contains("unevaluated const call"));
+
+        let textual = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("source_spelling"),
+            });
+        let error = validate_package_type_identity_input(&program, textual, &[])
+            .expect_err("unresolved source spelling must reject package evidence");
+        assert!(error[0].message.contains("without exact semantic identity"));
+
+        let misplaced_const = psi_language_semantics::const_value::CanonicalConstValue::new(
+            "u32",
+            "integer3:u321:7",
+            "7",
+        );
+        let misplaced_const = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(misplaced_const.atom()),
+            });
+        let error = validate_package_type_identity_input(&program, misplaced_const, &[])
+            .expect_err("canonical const outside a declared const slot must reject");
+        assert!(error[0].message.contains("without exact semantic identity"));
+
+        let unresolved_binder =
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::ConstParameter {
+                        symbol: SymbolHandle::invalid(),
+                        name: Identifier::generated("N"),
+                    },
+                });
+        let error = validate_package_type_identity_input(&program, unresolved_binder, &[])
+            .expect_err("unreconciled const binder must reject package evidence");
+        assert!(error[0].message.contains("exact telescope identity"));
 
         let left = program.expression_table.insert(ExpressionNode::Integer(
             psi_numerics::literals::IntegerLiteral::zero(),
@@ -6672,7 +6850,7 @@ mod tests {
         let open_index = program
             .type_reference_table
             .insert(TypeReferenceNode::ConstExpression(binary));
-        let error = validate_package_type_identity_input(&program, open_index)
+        let error = validate_package_type_identity_input_inner(&program, open_index, &[], true)
             .expect_err("unselected open index operation must reject package evidence");
         assert!(error[0].message.contains("without exact checked selection"));
 
@@ -6682,7 +6860,7 @@ mod tests {
         let unsupported = program
             .type_reference_table
             .insert(TypeReferenceNode::ConstExpression(unsupported));
-        let error = validate_package_type_identity_input(&program, unsupported)
+        let error = validate_package_type_identity_input_inner(&program, unsupported, &[], true)
             .expect_err("unsupported index shape must reject package evidence");
         assert!(error[0].message.contains("unsupported structural index"));
 
@@ -6699,7 +6877,7 @@ mod tests {
                 base_type: element_type,
                 constraints: legacy_layout,
             });
-        let error = validate_package_type_identity_input(&program, legacy_layout)
+        let error = validate_package_type_identity_input(&program, legacy_layout, &[])
             .expect_err("flattened layout spelling must reject package evidence");
         assert!(error[0].message.contains("legacy flattened OmegaLayout"));
 
@@ -6720,7 +6898,7 @@ mod tests {
                 base_type: element_type,
                 constraints: malformed_carry,
             });
-        let error = validate_package_type_identity_input(&program, malformed_carry)
+        let error = validate_package_type_identity_input(&program, malformed_carry, &[])
             .expect_err("malformed closed domain must reject package evidence");
         assert!(error[0].message.contains("malformed compiler-owned scalar"));
     }

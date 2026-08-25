@@ -1048,7 +1048,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 40);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 41);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 1);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -2413,6 +2413,73 @@ machine build(builder: &mut Build) { }
             .canonical()
             .contains("unresolved-owner")
     );
+}
+
+#[test]
+fn public_signatures_encode_structured_const_values_without_transport_or_display_text() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data UnitIndex { scale: u64; exponent: i32; }
+data UnitIndices {}
+const UnitIndices::Meters: UnitIndex = UnitIndex { scale: 1, exponent: 0 };
+
+pub domain<Carrier, const Index: UnitIndex> Carrier::Quantity<Index>;
+pub domain<Carrier, const Count: u64> Carrier::Counted<Count>;
+
+pub data Reading {
+    value: i64 in Quantity<UnitIndices::Meters>;
+    count: i64 in Counted<7>;
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("structured const package fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("structured const value should project through closed identity");
+    let reading = review
+        .public_data()
+        .iter()
+        .find(|data| data.identity().path().contains("Reading"))
+        .expect("Reading review row");
+    let field = |name| {
+        reading
+            .members()
+            .iter()
+            .find_map(|member| match member {
+                PackageReviewDataMember::Field(field) if field.name() == name => Some(field),
+                PackageReviewDataMember::Field(_) | PackageReviewDataMember::Variant { .. } => None,
+            })
+            .unwrap_or_else(|| panic!("Reading field `{name}`"))
+    };
+    let identity = field("value").type_identity().canonical();
+
+    assert!(identity.contains("canonical-const"), "{identity}");
+    assert!(identity.contains("encoding"), "{identity}");
+    assert!(!identity.contains("#omega-const"), "{identity}");
+    assert!(!identity.contains("UnitIndex {"), "{identity}");
+    assert!(!identity.contains("unresolved-owner"), "{identity}");
+    let integer = field("count").type_identity().canonical();
+    assert!(integer.contains("integer-const"), "{integer}");
+    assert!(integer.contains('7'), "{integer}");
+    assert!(!integer.contains("unresolved-owner"), "{integer}");
 }
 
 #[test]
