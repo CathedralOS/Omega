@@ -238,6 +238,24 @@ That gives the design loop exactly two feature inventories:
 Everything else in the hosted build is implementation, validation, or optional
 optimization work under those two inventories.
 
+Until measurements overturn them, use these authoring defaults:
+
+- keep proof-program mathematics and dependent or proof-indexed typing out of
+  the production compiler's own source;
+- use ordinary compiler data and control facilities where they materially help
+  clarity and robustness—especially named records, payload sums, basic
+  generics, ownership, and explicit arenas—rather than hand-expanding them away;
+- measure domains, numeric schema tags, mixed record/sum declarations, and
+  aggregate transition payloads against simpler encodings; and
+- do not remove a facility from the product source unless the simpler source
+  remains regular, maintainable, and cheaper to compile and assure.
+
+These are working biases, not final profile rulings. In particular, ordinary
+named fields and numeric tags such as `0:` are different facilities. Omitting
+numeric tags does not require positional records. Likewise, splitting a mixed
+field-plus-case declaration into a record and a sum is an available refactor,
+not a standing requirement.
+
 | Question | Decision state |
 | --- | --- |
 | Is Delta an Omega subset? | settled: no requirement; Delta is an independent literal language |
