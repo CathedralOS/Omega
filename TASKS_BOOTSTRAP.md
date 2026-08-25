@@ -75,8 +75,10 @@ Guardrails for this queue:
   cross-compiler agreement is optional bug-finding evidence. See
   [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 - Do not create a diverse-double-compilation lane. The complete lower-rooted
-  chain checks each compiler edge directly; another producer may find bugs but
-  cannot add authority or become a release dependency merely by agreeing.
+  chain checks source correspondence and semantic refinement at every compiler
+  edge directly, which subsumes the relevant DDC provenance question. Another
+  producer may find bugs but cannot add authority or become a release
+  dependency merely by agreeing.
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
   `compiler/{psi,omega}/` owns Omega-written product source.
@@ -130,6 +132,13 @@ The required execution order is:
 4. build and validate `omega-bootstrap` through the lattice; and
 5. perform the one required hosted production build.
 
+Steps 2 and 3 are two publications from one completed source-and-bridge join,
+not independent upstream/downstream language rungs. `Ωself` is frozen from the
+complete production source plus measured bridge cost; Delta v1 is frozen from
+the complete bridge source plus its compiler-host arguments. Numbering them
+separately keeps their evidence and versioning distinct—it does not introduce a
+third profile or a circular build dependency.
+
 The optional product self-rebuild is not part of this queue. Fixed or paged
 backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
 available bridge implementation choices when they reduce total cost. They do
@@ -137,7 +146,7 @@ not become Delta features without specified behavior, lower-rung meaning, and
 explicit failure. Maintain that evidence only in
 [`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md).
 
-## Language rulings required
+## Current language-design blockers
 
 The visibility rule for private access between distinct logical modules in one
 package is unspecified. Until it is ruled, the bridge rejects that case. Public

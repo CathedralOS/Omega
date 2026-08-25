@@ -522,8 +522,10 @@ prune accidental producer/corpus behavior, publish the general Delta v1 grammar
 and semantics, and prove that exact closure valid under the frozen language. The
 Omega product-source manifest plus measured bridge cost decide `Ωself`; the
 Delta bridge-source manifest plus explicit compiler-host coherence arguments
-decide Delta v1. Neither manifest substitutes for the corresponding general
-profile or language contract.
+decide Delta v1. These are two publications from the same completed
+source-and-bridge join, not sequential language rungs or a circular build
+dependency. Neither manifest substitutes for the corresponding general profile
+or language contract.
 
 The current Rust Psi/Omega compiler remains a maintained reference and
 differential producer while useful. It is neither a bootstrap dependency nor an
