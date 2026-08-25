@@ -296,8 +296,13 @@ complete.
   work is native fetch/materialization confinement, effective endpoint and SSH
   credential custody, during-operation resource quotas, handle-relative cache
   custody, canonical build-observable source metadata, and a locally
-  reconstructed opaque strict receipt. Redirect, helper, diagnostic, and future
-  resolver routes must not bypass the same request validator.
+  reconstructed opaque strict receipt. Public requests now admit only HTTPS and
+  SSH transports; the sealed executor disables HTTP, unauthenticated `git://`,
+  and HTTP redirects, and permits file transport only through the explicit
+  test adapter. This removes redirect-selected endpoint substitution but does
+  not yet retain or confine the effective socket/DNS/TLS/SSH endpoint. Helper,
+  diagnostic, and future resolver routes must not bypass the same request
+  validator.
 
   Acceptance: cache ownership/origin is verified, identities use full
   collision-resistant keys, Git runs with sealed configuration in an isolated
