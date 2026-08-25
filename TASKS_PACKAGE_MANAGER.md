@@ -798,6 +798,18 @@ complete.
   exact trait application, complete requirement map, laws, and checked evidence
   interface while excluding member/proof bodies and physical code identity.
 
+  Milestone 2026-08-25: the ordinary visibility gate is implemented through
+  syntax, symbol-resolved, typed/checked trees, snapshots, and package-aware
+  selection. Complete named conformances now retain `is_public`; private ones
+  remain selectable inside their package but reject from public interfaces and
+  dependencies, while `pub` conformances additionally require the declaring
+  package as a direct dependency. Public headers expose their exact subject,
+  trait, and static-argument selections, so private declarations cannot leak
+  through a published conformance. The blocking `PublicConformance` package-
+  review row remains the next compatibility milestone; unsupported generic-
+  subject and proof/law row shapes must reject closed until their retained IR
+  coverage lands.
+
   Milestone 2026-08-25: one shared typed-tree visibility resolver now gates all
   settled independently nameable declaration families in both public
   interfaces and cross-package authored selections. Genuine fields, variants,

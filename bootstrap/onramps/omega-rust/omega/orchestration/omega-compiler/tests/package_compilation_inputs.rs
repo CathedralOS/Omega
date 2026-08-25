@@ -1063,7 +1063,7 @@ terminates by power -> Card::PowerOrder;
 }
 
 #[test]
-fn public_callable_bound_requires_the_named_conformance_owner() {
+fn public_callable_bound_requires_a_public_conformance_and_its_direct_owner() {
     let tree = TempTree::new();
     let root = tree.package("root");
     let middle = tree.package("middle");
@@ -1105,14 +1105,12 @@ Primary: Good satisfies Marker;
     .expect("transitive package graph should validate structurally");
 
     let diagnostics =
-        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("public callable may not select transitive-only conformance evidence");
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only.clone())
+            .expect_err("a public callable may not publish private conformance evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("`root`")
-                && diagnostic.message.contains("`leaf`")
-                && (diagnostic.message.contains("Good") || diagnostic.message.contains("Primary"))
-                && diagnostic.message.contains("direct dependency")
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("Primary")
         }),
         "unexpected diagnostics: {diagnostics:#?}"
     );
@@ -1122,7 +1120,7 @@ Primary: Good satisfies Marker;
         vec![
             PackageSourceBinding::new(identity(1), "root", root.clone()),
             PackageSourceBinding::new(identity(2), "middle", middle),
-            PackageSourceBinding::new(identity(3), "leaf", leaf),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
         ],
         vec![
             PackageDependencyBinding::new(identity(1), "middle", identity(2)),
@@ -1132,8 +1130,40 @@ Primary: Good satisfies Marker;
     )
     .expect("direct leaf admission should validate");
 
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted.clone())
+            .expect_err("a direct dependency does not publish its private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("Primary")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait Marker { }
+pub data Good { }
+pub Primary: Good satisfies Marker;
+"#,
+    );
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("public conformance evidence still requires its direct owner");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("Primary")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
     let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the public callable bound");
+        .expect("a direct dependency may select the dependency's public conformance");
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.kind()
             == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
@@ -1190,8 +1220,53 @@ GoodMarker: Good satisfies Marker;
     .expect("transitive package graph should validate structurally");
 
     let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only.clone())
+            .expect_err("root may not infer a private leaf conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("`GoodMarker`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct leaf admission should validate");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted.clone())
+            .expect_err("direct dependency authority does not publish a private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("`GoodMarker`")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait Marker { }
+pub data Good { }
+pub GoodMarker: Good satisfies Marker;
+"#,
+    );
+
+    let diagnostics =
         compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
-            .expect_err("root may not infer a transitive-only leaf conformance");
+            .expect_err("public inferred evidence still requires a direct dependency");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("`root`")
@@ -1202,23 +1277,71 @@ GoodMarker: Good satisfies Marker;
         "unexpected diagnostics: {diagnostics:#?}"
     );
 
-    let directly_admitted = PackageCompilationInputs::new(
-        identity(1),
-        vec![
-            PackageSourceBinding::new(identity(1), "root", root.clone()),
-            PackageSourceBinding::new(identity(2), "middle", middle),
-            PackageSourceBinding::new(identity(3), "leaf", leaf),
-        ],
-        vec![
-            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
-            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
-            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
-        ],
-    )
-    .expect("direct leaf admission should validate");
-
     compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
-        .expect("direct dependency should admit the inferred leaf conformance");
+        .expect("direct dependency should admit the public inferred leaf conformance");
+}
+
+#[test]
+fn same_package_private_conformance_is_implementation_only() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub trait Marker { }
+pub data Good { }
+Primary: Good satisfies Marker;
+
+machine internal_accept<Element>(value: &Element)
+where Element satisfies Good::Primary
+{
+}
+"#,
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only conformance fixture should validate structurally");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("same-package private implementation may select its private conformance");
+}
+
+#[test]
+fn public_interface_rejects_same_package_private_conformance() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub trait Marker { }
+pub data Good { }
+Primary: Good satisfies Marker;
+
+pub machine exported_accept<Element>(value: &Element)
+where Element satisfies Good::Primary
+{
+}
+"#,
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only public-interface fixture should validate structurally");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("a public interface may not name a same-package private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private conformance")
+                && diagnostic.message.contains("Primary")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

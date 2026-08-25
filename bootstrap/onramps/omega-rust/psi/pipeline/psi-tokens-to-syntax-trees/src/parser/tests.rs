@@ -283,6 +283,35 @@ fn parses_public_and_private_const_declarations() {
 }
 
 #[test]
+fn parses_public_and_private_named_conformances() {
+    let source = r#"
+        trait Shape {}
+        data Circle {}
+        pub PublicCircle: Circle satisfies Shape;
+        PrivateCircle: Circle satisfies Shape;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize named conformances");
+    let parsed = parse_syntax_trees(&tokens).expect("parse named conformances");
+    let conformances = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(conformances.len(), 2);
+    assert!(conformances[0].is_public);
+    assert!(!conformances[1].is_public);
+    let snapshot = parsed.snapshot_json().expect("conformance syntax snapshot");
+    assert!(snapshot.contains("\"kind\":\"conformance\""));
+    assert!(snapshot.contains("\"is_public\":true"));
+    assert!(snapshot.contains("\"is_public\":false"));
+}
+
+#[test]
 fn parses_type_and_integer_const_proposition_arguments() {
     let source = r#"
         proposition indexed<T, const N: i32>();

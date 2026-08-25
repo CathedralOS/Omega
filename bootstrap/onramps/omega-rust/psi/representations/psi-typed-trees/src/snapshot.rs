@@ -12,7 +12,9 @@ use crate::proposition::{
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use crate::trait_definition::TraitDefinition;
+use crate::trait_definition::{
+    Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
+};
 use crate::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -87,6 +89,11 @@ impl TypedTreesSnapshot {
                         declared_type: type_reference_snapshot(program, declaration.declared_type),
                         canonical_value_encoding: declaration.canonical_value_encoding.clone(),
                     })
+                    .collect(),
+                conformances: program
+                    .conformances()
+                    .iter()
+                    .map(|conformance| conformance_snapshot(program, conformance))
                     .collect(),
                 data_definitions: program
                     .data_definitions()
@@ -257,6 +264,8 @@ pub enum ExternalBindingValueSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedRootsSnapshot {
     pub const_declarations: Vec<ConstDeclarationSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformances: Vec<ConformanceSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
@@ -265,6 +274,42 @@ pub struct TypedRootsSnapshot {
     pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConformanceSnapshot {
+    pub name: String,
+    pub is_public: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    pub trait_name: String,
+    pub argument_count: usize,
+    pub implementation: &'static str,
+    pub row_count: usize,
+}
+
+fn conformance_snapshot(program: &TypedTrees, conformance: &Conformance) -> ConformanceSnapshot {
+    let (implementation, row_count) = match &conformance.implementation {
+        ConformanceImplementation::AttachedRequirementMachines => {
+            ("attached_requirement_machines", 0)
+        }
+        ConformanceImplementation::Closed { rows } => ("closed", rows.len()),
+    };
+    ConformanceSnapshot {
+        name: program.symbols.display_path(conformance.symbol, "::"),
+        is_public: conformance.is_public,
+        subject: match &conformance.subject {
+            ConformanceSubject::Carrier(name) => Some(name.to_string()),
+            ConformanceSubject::Subjectless => None,
+        },
+        trait_name: conformance.trait_name.to_string(),
+        argument_count: program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .len(),
+        implementation,
+        row_count,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

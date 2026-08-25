@@ -155,6 +155,7 @@ fn lower_item_with_exposure(
                 .conformances
                 .push(psi_symbol_resolved_trees::trait_definition::Conformance {
                 symbol: psi_symbols::SymbolHandle::invalid(),
+                is_public: conformance.is_public,
                 lifetime_parameters: conformance
                     .lifetime_parameters
                     .iter()
@@ -267,6 +268,9 @@ fn item_expression_exposure(
 
     match item {
         syntax::item::Item::Data(definition) if definition.is_public => Exposure::PublicInterface,
+        syntax::item::Item::Conformance(definition) if definition.is_public => {
+            Exposure::PublicInterface
+        }
         syntax::item::Item::Domain(definition) if definition.is_public => Exposure::PublicInterface,
         syntax::item::Item::Proposition(definition) if definition.is_public => {
             Exposure::PublicInterface

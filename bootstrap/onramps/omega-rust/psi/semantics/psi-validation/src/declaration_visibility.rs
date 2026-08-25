@@ -11,6 +11,7 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_public_const_declared_types(program, diagnostics);
+    validate_public_conformance_headers(program, diagnostics);
 
     for selection in program.authored_declaration_selections() {
         if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
@@ -46,6 +47,55 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
                 .with_source_span(selection.source_span()),
             );
         }
+    }
+}
+
+fn validate_public_conformance_headers(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for conformance in program
+        .conformances()
+        .iter()
+        .filter(|conformance| conformance.is_public)
+    {
+        if conformance.carrier_symbol.is_valid() {
+            validate_public_conformance_header_selection(
+                program,
+                conformance.symbol,
+                conformance.carrier_symbol,
+                diagnostics,
+            );
+        }
+        validate_public_conformance_header_selection(
+            program,
+            conformance.symbol,
+            conformance.trait_symbol,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_public_conformance_header_selection(
+    program: &TypedTrees,
+    conformance_symbol: psi_symbols::SymbolHandle,
+    selected_symbol: psi_symbols::SymbolHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(visibility) =
+        psi_typed_trees::visibility::declaration_visibility(program, selected_symbol)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "public conformance `{}` selects `{}` without retained declaration visibility",
+            program.symbols.display_path(conformance_symbol, "::"),
+            program.symbols.display_path(selected_symbol, "::"),
+        )));
+        return;
+    };
+    if !visibility.is_public() {
+        diagnostics.push(Diagnostic::error(format!(
+            "public conformance `{}` exposes private {} `{}` in its header",
+            program.symbols.display_path(conformance_symbol, "::"),
+            visibility.kind(),
+            program.symbols.display_path(selected_symbol, "::"),
+        )));
     }
 }
 

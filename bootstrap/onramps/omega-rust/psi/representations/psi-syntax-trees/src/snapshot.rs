@@ -67,6 +67,7 @@ pub enum ItemSnapshot {
         members: Vec<CapabilityMemberSnapshot>,
     },
     Conformance {
+        is_public: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -812,6 +813,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
         },
         Item::Conformance(value) => ItemSnapshot::Conformance {
+            is_public: value.is_public,
             lifetime_parameters: value
                 .lifetime_parameters
                 .iter()

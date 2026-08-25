@@ -248,6 +248,7 @@ impl SyntaxTrees {
                     }
                 };
                 Item::Conformance(crate::item::ConformanceItem {
+                    is_public: conformance.is_public,
                     lifetime_parameters: conformance.lifetime_parameters.clone(),
                     type_parameters: self
                         .copy_type_parameter_span(other, conformance.type_parameters),

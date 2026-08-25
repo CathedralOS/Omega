@@ -493,6 +493,9 @@ pub enum ConformanceSubject {
 /// subjectless form is `EvidenceName: satisfies Evidence { ... }`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
+    /// Source visibility for the complete name-first conformance declaration.
+    /// Exact machine requirement-satisfier edges own no standalone visibility.
+    pub is_public: bool,
     /// Generic binders belong to the declared conformance name, not to its
     /// carrier or trait application.
     pub lifetime_parameters: Vec<Identifier>,

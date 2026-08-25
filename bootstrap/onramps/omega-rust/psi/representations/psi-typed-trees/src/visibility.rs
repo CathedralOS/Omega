@@ -19,12 +19,11 @@ impl DeclarationVisibility {
 }
 
 /// Whether this symbol family participates in ordinary package visibility.
-/// Named conformances are deliberately absent pending the owner-level choice
-/// of explicit `pub` versus public-by-definition semantics.
 pub const fn requires_declaration_visibility(kind: SymbolKind) -> bool {
     matches!(
         kind,
         SymbolKind::Data
+            | SymbolKind::Conformance
             | SymbolKind::Domain
             | SymbolKind::Field
             | SymbolKind::Variant
@@ -53,6 +52,11 @@ pub fn declaration_visibility(
             .iter()
             .find(|declaration| declaration.symbol == symbol)
             .map(|declaration| ("data", declaration.is_public)),
+        SymbolKind::Conformance => program
+            .conformances()
+            .iter()
+            .find(|declaration| declaration.symbol == symbol)
+            .map(|declaration| ("conformance", declaration.is_public)),
         SymbolKind::Domain => program
             .domain_definitions()
             .iter()

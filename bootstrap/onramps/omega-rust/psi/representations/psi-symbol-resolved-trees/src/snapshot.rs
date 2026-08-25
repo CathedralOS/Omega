@@ -9,7 +9,9 @@ use crate::proposition::{PropositionBinderKind, PropositionBody, PropositionDefi
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
-use crate::trait_definition::TraitDefinition;
+use crate::trait_definition::{
+    Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
+};
 use crate::types::{TypeConstraint, TypeReference};
 use crate::wire::{WireMember, WireSchema};
 use psi_arena::HandleSpan;
@@ -72,6 +74,11 @@ impl SymbolResolvedTreesSnapshot {
                         ),
                         canonical_value_encoding: declaration.canonical_value_encoding.clone(),
                     })
+                    .collect(),
+                conformances: symbol_resolved_trees
+                    .conformances
+                    .iter()
+                    .map(|conformance| conformance_snapshot(symbol_resolved_trees, conformance))
                     .collect(),
                 data_definitions: symbol_resolved_trees
                     .data_definitions
@@ -170,6 +177,8 @@ impl SymbolResolvedTreesSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SymbolResolvedRootsSnapshot {
     pub const_declarations: Vec<ConstDeclarationSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformances: Vec<ConformanceSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
@@ -179,6 +188,47 @@ pub struct SymbolResolvedRootsSnapshot {
     pub propositions: Vec<PropositionSnapshot>,
     pub traits: Vec<TraitSnapshot>,
     pub wire_schemas: Vec<WireSchemaSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConformanceSnapshot {
+    pub name: String,
+    pub is_public: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+    pub trait_name: String,
+    pub argument_count: usize,
+    pub implementation: &'static str,
+    pub row_count: usize,
+}
+
+fn conformance_snapshot(
+    program: &SymbolResolvedTrees,
+    conformance: &Conformance,
+) -> ConformanceSnapshot {
+    let (implementation, row_count) = match &conformance.implementation {
+        ConformanceImplementation::AttachedRequirementMachines => {
+            ("attached_requirement_machines", 0)
+        }
+        ConformanceImplementation::Closed { rows } => ("closed", rows.len()),
+    };
+    ConformanceSnapshot {
+        name: program.symbols.display_path(conformance.symbol, "::"),
+        is_public: conformance.is_public,
+        subject: match &conformance.subject {
+            ConformanceSubject::Carrier(name) => Some(name.to_string()),
+            ConformanceSubject::Subjectless => None,
+        },
+        trait_name: conformance.trait_name.to_string(),
+        argument_count: program
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(conformance.arguments)
+            .len(),
+        implementation,
+        row_count,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
