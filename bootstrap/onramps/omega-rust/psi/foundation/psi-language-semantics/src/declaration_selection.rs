@@ -73,7 +73,17 @@ impl ResolvedAuthoredDeclarationSelection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionTarget {
     Resolved(ResolvedAuthoredDeclarationSelection),
+    Intrinsic(AuthoredDeclarationSelectionIntrinsic),
     LateBound(AuthoredDeclarationSelectionLateBinding),
+}
+
+/// A compiler-owned language meaning selected by authored syntax without a
+/// package declaration. Intrinsics finalize explicitly so package admission
+/// never invents a declaration symbol or leaves a successful selection
+/// unresolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuiltinOperator,
 }
 
 /// Deterministic identity of one authored occurrence within a compilation's
@@ -272,7 +282,8 @@ impl AuthoredDeclarationSelections {
             .filter(|row| row.occurrence_id == occurrence_id)
             .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         match row.target {
-            AuthoredDeclarationSelectionTarget::Resolved(_) => {
+            AuthoredDeclarationSelectionTarget::Resolved(_)
+            | AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
                 Err(AuthoredDeclarationSelectionFinalizationError::AlreadyResolved)
             }
             AuthoredDeclarationSelectionTarget::LateBound(actual) if actual != expected_binding => {
@@ -285,10 +296,42 @@ impl AuthoredDeclarationSelections {
         }
     }
 
+    pub fn finalize_intrinsic(
+        &mut self,
+        occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+        expected_binding: AuthoredDeclarationSelectionLateBinding,
+        intrinsic: AuthoredDeclarationSelectionIntrinsic,
+    ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
+        let index = usize::try_from(occurrence_id.0)
+            .map_err(|_| AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        let row = self
+            .rows
+            .get_mut(index)
+            .filter(|row| row.occurrence_id == occurrence_id)
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        match row.target {
+            AuthoredDeclarationSelectionTarget::Resolved(_)
+            | AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
+                Err(AuthoredDeclarationSelectionFinalizationError::AlreadyResolved)
+            }
+            AuthoredDeclarationSelectionTarget::LateBound(actual) if actual != expected_binding => {
+                Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
+            }
+            AuthoredDeclarationSelectionTarget::LateBound(_) => {
+                row.target = AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic);
+                Ok(())
+            }
+        }
+    }
+
     pub fn all_finalized(&self) -> bool {
-        self.rows
-            .iter()
-            .all(|row| matches!(row.target, AuthoredDeclarationSelectionTarget::Resolved(_)))
+        self.rows.iter().all(|row| {
+            matches!(
+                row.target,
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+                    | AuthoredDeclarationSelectionTarget::Intrinsic(_)
+            )
+        })
     }
 
     fn next_occurrence_id(
