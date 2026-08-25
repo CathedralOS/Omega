@@ -1509,7 +1509,10 @@ complete.
   Its observations are correctly Volatile and retain the six rooted filesystem
   attempts plus the replayable staged tree. Remaining here: route native-image
   compilation through the same sponsored package transaction instead of its
-  current explicit generated-source gate.
+  current explicit generated-source gate. That native route belongs after
+  `RECHECKABLE-PACKAGE-EVIDENCE` and `ACCEPTED-LOCK-SCHEMA`: it must rebuild and
+  compare against accepted evidence inside the install/update transaction, not
+  let standalone compilation mint package admission or filesystem authority.
 
 - **SECURITY-FIXTURE-MATRIX.** Add local and remote cases for pure code,
   generated files, filesystem, network overreach, retained filesystem+network
