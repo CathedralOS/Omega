@@ -3,8 +3,86 @@ use super::{
     StructLiteral, StructLiteralField, TableBinaryExpression, TableNamePath,
 };
 use crate::name::Identifier;
+use crate::{
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelections,
+};
+use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
+
+fn authored_selection_occurrences() -> [AuthoredDeclarationSelectionOccurrenceId; 2] {
+    let mut selections = AuthoredDeclarationSelections::default();
+    let first = selections
+        .record_resolved(
+            SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::StaticPathSegment,
+            SymbolHandle::from_arena_index(41),
+        )
+        .expect("valid selected symbol");
+    let second = selections
+        .record_resolved(
+            SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::Call,
+            SymbolHandle::from_arena_index(42),
+        )
+        .expect("valid selected symbol");
+    [first, second]
+}
+
+#[test]
+fn expression_occurrences_survive_typed_clone_and_symbol_remap() {
+    let occurrences = authored_selection_occurrences();
+    let original_symbol = SymbolHandle::from_arena_index(50);
+    let remapped_symbol = SymbolHandle::from_arena_index(51);
+
+    let mut source = ExpressionTable::new();
+    let members = source.reserve_name_path_members(1);
+    source.set_name_path_member_at_offset(members, 0, Identifier::generated("value"));
+    let member_symbols = source.reserve_name_path_member_symbols(1);
+    source.set_name_path_member_symbol_at_offset(member_symbols, 0, original_symbol);
+    let expression = source.insert(ExpressionNode::Name(TableNamePath {
+        members,
+        member_symbols,
+        head_symbol: original_symbol,
+        symbol: original_symbol,
+    }));
+    source.attach_authored_selection_occurrences(expression, occurrences);
+
+    let mut cloned = ExpressionTable::with_capacities(source.copy_capacity());
+    let cloned_expression = cloned.copy_from(&source, expression);
+    cloned.remap_symbols_in(cloned_expression, &[(original_symbol, remapped_symbol)]);
+
+    assert_eq!(
+        cloned
+            .authored_selection_occurrences(cloned_expression)
+            .collect::<Vec<_>>(),
+        occurrences
+    );
+    let ExpressionNode::Name(path) = cloned.expression(cloned_expression) else {
+        panic!("cloned expression should remain a name path");
+    };
+    assert_eq!(path.head_symbol, remapped_symbol);
+    assert_eq!(path.symbol, remapped_symbol);
+    assert_eq!(
+        cloned.name_path_member_symbols(path.member_symbols),
+        [remapped_symbol]
+    );
+
+    let self_copied_expression = source.insert_copy(expression);
+    source.remap_symbols_in(
+        self_copied_expression,
+        &[(original_symbol, remapped_symbol)],
+    );
+    assert_eq!(
+        source
+            .authored_selection_occurrences(self_copied_expression)
+            .collect::<Vec<_>>(),
+        occurrences
+    );
+}
 
 #[test]
 fn expression_table_stores_recursive_typed_expressions_as_handles() {

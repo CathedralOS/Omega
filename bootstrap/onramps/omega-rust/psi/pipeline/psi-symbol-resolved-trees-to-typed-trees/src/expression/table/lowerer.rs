@@ -65,8 +65,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         let source_span = self.source.source_span(expression);
+        let authored_selection_occurrences = self
+            .source
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
         let lowered = self.lower_node(expression)?;
         self.target().set_source_span(lowered, source_span);
+        self.target()
+            .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
         Ok(lowered)
     }
 
