@@ -152,12 +152,17 @@ language, generation, or architectural role; new documentation and work use
   [Gamma composition gate](gates/delta-two-package-composite-meaning.sh) feeds
   the CKIR bytes produced by the Gamma lowerer directly to the Gamma backend
   and requires the same exact ELF.
-- [`../assurance/refinement/omega-bootstrap/omgrfn2-frame-omgcomp-custody.beta`](../assurance/refinement/omega-bootstrap/omgrfn2-frame-omgcomp-custody.beta)
-  is lower-rooted `OMGRFN2` layer 1. Its focused gate checks exact v2 framing,
-  complete OMGCOMP structure, graph, nested bundle, resources, EOF, and exact
-  source content extents while deliberately treating witness, CKIR, ELF, and
-  result claims as opaque. Independent source→witness and later refinement
-  layers remain open.
+- Lower-rooted `OMGRFN2` refinement is split by responsibility under
+  [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/):
+  layer 1 checks exact framing and OMGCOMP/source custody; layer 2 independently
+  reconstructs source→witness resolution; layer 3 reconstructs witness→CKIR
+  declaration, layout, and root tables; and layer 5 adapts the complete
+  CKIR/result and CKIR→ELF relations to the v2 frame. These focused layers are
+  closed. Resolved bodies→CKIR plus the independent source-only result is the
+  remaining layer before the exact conjunction can close. This split is
+  deliberate: transport, resolution, table/layout, body/result, and artifact
+  claims share versioned bytes without becoming one verifier or a Cartesian
+  product of fixture permutations.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over
