@@ -181,5 +181,5 @@ Every implementation milestone carries phase-isolated semantic negatives,
 exact/adjacent resources, deterministic output, native and Delta-self-built
 agreement, Rust-free meaning observations, and lower-rooted cross-pairs. The
 version-1 capacities are private implementation/evidence limits rather than
-`Ωself` language limits; widening versions the carrier instead of silently
+`Ωself` profile limits; widening versions the carrier instead of silently
 changing its meaning.
