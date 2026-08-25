@@ -91,7 +91,7 @@ def _project_declarations(
     )}
     rewritten = []
     for row in projected["types"]:
-        if row[1] == 6:
+        if row[1] in (6, 7):
             record_id = len(projected["records"])
             projected["records"].append(
                 (record_id, row[0], len(projected["fields"]), 0, 1, 0, 0, 0)
@@ -109,15 +109,17 @@ def decode(contents: bytes, *, expected_major: int = 5,
            allow_scalar_equal: bool = False,
            allow_greater: bool = False,
            allow_integer_widen: bool = False,
-           require_trapping_add: bool = False) -> Module:
-    require(expected_major in (5, 6, 7, 8, 9, 10, 11),
+           require_trapping_add: bool = False,
+           allow_static_byte_view: bool = False) -> Module:
+    require(expected_major in (5, 6, 7, 8, 9, 10, 11, 12),
             "internal CKIR schema selection")
     require(allow_logical_not == (expected_major >= 6)
             and allow_logical_binary == (expected_major >= 7)
             and allow_scalar_equal == (expected_major >= 8)
             and allow_greater == (expected_major >= 9)
             and allow_integer_widen == (expected_major >= 10)
-            and require_trapping_add == (expected_major == 11),
+            and require_trapping_add == (expected_major == 11)
+            and allow_static_byte_view == (expected_major == 12),
             "internal CKIR feature selection")
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
@@ -177,8 +179,9 @@ def decode(contents: bytes, *, expected_major: int = 5,
     nominal_sums: dict[int, int] = {}
     type_keys: set[tuple[int, ...]] = set()
     for type_id, kind, type_flags, reserved, payload0, payload1, low, high in types:
-        require(kind in range(1, 7) and reserved == 0 and type_flags <= 1, "bad type row")
-        require(kind not in (3, 4, 6) or type_flags == 0, "forbidden type flag")
+        require(kind in range(1, 8 if allow_static_byte_view else 7)
+                and reserved == 0 and type_flags <= 1, "bad type row")
+        require(kind not in (3, 4, 6, 7) or type_flags == 0, "forbidden type flag")
         if kind in (1, 2, 3):
             require(payload0 == payload1 == 0 and low <= high, "bad scalar type")
             require(high <= (255 if kind == 1 else 1 if kind == 3 else 0x7FFF_FFFF),
@@ -193,11 +196,17 @@ def decode(contents: bytes, *, expected_major: int = 5,
         elif kind == 5:
             require(payload0 < len(types) and payload1 <= 65_536 and low == high == 0,
                     "bad array type")
-        else:
+        elif kind == 6:
             require(payload0 < len(sums) and payload1 == low == high == 0,
                     "bad sum type")
             require(payload0 not in nominal_sums, "duplicate sum nominal")
             nominal_sums[payload0] = type_id
+        else:
+            require(payload0 < len(types) and payload1 == low == high == 0,
+                    "bad shared byte-slice type")
+            element = types[payload0]
+            require(element == (payload0, 1, 0, 0, 0, 0, 0, 255),
+                    "shared byte-slice element type")
         key = (kind, type_flags, payload0, payload1, low, high)
         require(key not in type_keys, "duplicate interned type")
         type_keys.add(key)
@@ -258,6 +267,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
             result = (1, 1)
         elif kind == 2:
             result = (4, 4)
+        elif kind == 7:
+            result = (16, 8)
         elif kind == 5:
             size, alignment = type_layout(payload0)
             result = (align(size, alignment) * payload1, alignment)
@@ -305,7 +316,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(type_id not in copy_active, "recursive copyability")
         copy_active.add(type_id)
         kind, payload0 = types[type_id][1], types[type_id][4]
-        if kind in (1, 2, 3):
+        if kind in (1, 2, 3, 7):
             result = True
         elif kind == 5:
             result = copyable(payload0)
@@ -357,7 +368,59 @@ def decode(contents: bytes, *, expected_major: int = 5,
 
     require(all(not contains_sum(row[1]) for row in tables["constants"]),
             "sum constant")
-    children, nodes = v4._validate_constant_graph(tables)
+    if not allow_static_byte_view:
+        children, nodes = v4._validate_constant_graph(tables)
+    else:
+        children = [row[0] for row in tables["constant_children"]]
+        nodes = tables["constants"]
+        heights: list[int] = []
+        keys: list[tuple[int, ...]] = []
+        next_child = 0
+        for index, node in enumerate(nodes):
+            node_id, type_id, child_start, child_count, scalar, reserved = node
+            require(node_id == index and type_id < len(types) and reserved == 0,
+                    "constant node identity")
+            require(child_start == next_child, "constant child partition")
+            node_children = children[child_start:child_start + child_count]
+            require(len(node_children) == child_count
+                    and all(child < index for child in node_children),
+                    "constant child order")
+            kind = types[type_id][1]
+            if kind in (1, 2, 3):
+                require(child_count == 0 and types[type_id][6] <= scalar <= types[type_id][7],
+                        "scalar constant")
+                height = 0
+                key = (height, type_id, scalar)
+            else:
+                require(scalar == 0, "structural constant scalar")
+                if kind == 4:
+                    record = records[types[type_id][4]]
+                    expected = [
+                        fields[field_id][3]
+                        for field_id in span(record[2], record[3], len(fields),
+                                             "constant fields")
+                    ]
+                    require(child_count <= 4, "record constant child exhaustion")
+                elif kind == 5:
+                    expected = [types[type_id][4]] * types[type_id][5]
+                    require(child_count <= 1_024, "array constant child exhaustion")
+                elif kind == 7:
+                    if child_count > 32:
+                        raise Ckir5ResourceError("static byte-view literal exhaustion")
+                    expected = [types[type_id][4]] * child_count
+                else:
+                    raise Ckir5Error("sum constant")
+                require(child_count == len(expected), "structural constant arity")
+                require(all(nodes[child][1] == wanted
+                            for child, wanted in zip(node_children, expected)),
+                        "constant child type")
+                height = 1 + max((heights[child] for child in node_children), default=-1)
+                key = (height, type_id, child_count, *node_children)
+            require(not keys or keys[-1] < key, "constant canonical order")
+            heights.append(height)
+            keys.append(key)
+            next_child += child_count
+        require(next_child == len(children), "unused constant child")
 
     machines, machine_params = tables["machines"], tables["machine_params"]
     blocks, block_params = tables["blocks"], tables["block_params"]
@@ -396,7 +459,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         block_id, owner, access, block_flags, reserved = block[:5]
         require(owner < len(machines) and access in (1, 2) and access <= machines[owner][2],
                 "bad block")
-        require(block_flags == reserved == 0 and block[9] == block_id,
+        require(reserved == 0 and block[9] == block_id
+                and (block_flags in (0, 1) if allow_static_byte_view else block_flags == 0),
                 "block flags/terminator")
         require(block[5] == next_block_param and block[6] <= 7,
                 "block parameter partition")
@@ -451,6 +515,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     greater_count = 0
     integer_widen_count = 0
     trapping_add_count = 0
+    byte_view_counts = {opcode: 0 for opcode in range(22, 26)}
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
          result_type, operand_start, operand_count, imm0, imm1) = operation
@@ -462,7 +527,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         op_values = operands[operand_start:operand_start + operand_count]
         require(len(op_values) == operand_count, "operation operand extent")
         next_operand += operand_count
-        opcode_limit = 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
+        opcode_limit = 26 if allow_static_byte_view else 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
         require(opcode in range(1, opcode_limit), "opcode")
         if opcode == 10:
             require(imm0 < len(machines), "call target")
@@ -490,7 +555,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         expected_operands = (1 + machines[imm0][7] if opcode == 10 else {
             1: 0, 2: 0, 3: 1, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2,
             11: 1, 12: 2, 15: 1, 16: 2, 17: 2, 18: 2, 19: 2, 20: 2,
-            21: 1,
+            21: 1, 22: 0, 23: 1, 24: 1, 25: 1,
         }.get(opcode))
         if opcode not in (13, 14):
             require(operand_count == expected_operands, "operation arity")
@@ -606,6 +671,28 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     (result_type, 2, 1, 0, 0, 0, 0, 0x7FFF_FFFF),
                     "IntegerWiden canonical u32 Trapping result")
             integer_widen_count += 1
+        elif opcode == 22:
+            require(imm1 == 0 and imm0 < len(nodes), "StaticByteView root")
+            require(types[result_type][1] == 7 and nodes[imm0][1] == result_type,
+                    "StaticByteView result/root type")
+            roots.append(imm0)
+            byte_view_counts[opcode] += 1
+        elif opcode in (23, 24, 25):
+            require(imm0 == imm1 == 0
+                    and visible_value(op_values[0], owner, block, op_id),
+                    "byte-view operand")
+            source_type = value_types[op_values[0]]
+            require(types[source_type][1] == 7, "byte-view source type")
+            if opcode == 23:
+                require(types[result_type] ==
+                        (result_type, 3, 0, 0, 0, 0, 0, 1),
+                        "SliceNonEmpty canonical bool result")
+            elif opcode == 24:
+                require(result_type == types[source_type][4],
+                        "SliceHead exact-u8 result")
+            else:
+                require(result_type == source_type, "SliceTailOne result type")
+            byte_view_counts[opcode] += 1
         elif opcode == 10:
             callee = machines[imm0]
             require(imm1 == 0 and visible_place(op_values[0], block, op_id), "call receiver")
@@ -687,8 +774,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(integer_widen_count > 0, "CKIR10 requires IntegerWiden")
     elif expected_major == 11:
         require(trapping_add_count > 0, "CKIR11 requires canonical u32 Trapping Add")
+    elif expected_major == 12:
+        require(all(byte_view_counts.values()), "CKIR12 requires byte-view operations 22-25")
 
     next_arm = next_arm_arg = 0
+    predecessors: list[list[tuple[int, int, int, tuple[int, ...]]]] = [
+        [] for _ in blocks
+    ]
     for term in terminators:
         (term_id, owner, block, kind, term_flags, reserved, value,
          target0, start0, count0, target1, start1, count1, arm_start, arm_count) = term
@@ -715,8 +807,10 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     require(visible_value(argument, owner, block, block_end)
                             and argument not in constructor_results, "edge argument")
                     actual, wanted = value_types[argument], block_params[parameter_id][3]
-                    require(actual == wanted if types[wanted][1] in (4, 5, 6)
+                    require(actual == wanted if types[wanted][1] in (4, 5, 6, 7)
                             else types[actual][1] == types[wanted][1], "edge argument type")
+                predecessors[target].append((block, 0 if target == target0 else 1, value,
+                                             tuple(operands[start:start + count])))
             result_type = machines[owner][5]
             if kind == 1:
                 require(value == target1 == NO_ID and target0 != NO_ID, "jump shape")
@@ -779,7 +873,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     bound_payloads.add(reference)
                     actual = payloads[reference][3]
                 wanted = block_params[parameter_id][3]
-                require(actual == wanted if types[wanted][1] in (4, 5, 6)
+                require(actual == wanted if types[wanted][1] in (4, 5, 6, 7)
                         else types[actual][1] == types[wanted][1],
                         "case-arm argument type")
             require(bound_payloads == set(span(case[3], case[4], len(payloads),
@@ -790,6 +884,47 @@ def decode(contents: bytes, *, expected_major: int = 5,
     require(next_operand == len(operands), "unused ordinary operands")
     require(next_arm == len(arms) and next_arm_arg == len(arm_args),
             "unused case arm rows")
+
+    if allow_static_byte_view:
+        synthetic = [block[0] for block in blocks if block[3] & 1]
+        require(len(synthetic) == 1, "unique synthetic nonempty-edge block")
+        synthetic_id = synthetic[0]
+        synthetic_block = blocks[synthetic_id]
+        require(synthetic_block[6] == 1, "synthetic slice parameter shape")
+        parameter = block_params[synthetic_block[5]]
+        require(types[parameter[3]][1] == 7, "synthetic slice parameter type")
+        incoming = predecessors[synthetic_id]
+        require(len(incoming) == 1, "synthetic unique predecessor")
+        source, edge_slot, condition, arguments = incoming[0]
+        source_term = terminators[source]
+        require(source_term[3] == 2 and edge_slot == 0 and source_term[10] != synthetic_id,
+                "synthetic true-edge-only predecessor")
+        require(len(arguments) == 1, "synthetic incoming argument shape")
+        condition_op = value_operations[condition]
+        require(condition_op != NO_ID and operations[condition_op][3] == 23,
+                "synthetic predecessor condition")
+        condition_operand = operands[operations[condition_op][8]]
+        require(arguments[0] == condition_operand,
+                "synthetic condition/passed-slice identity")
+        for op_id in span(synthetic_block[7], synthetic_block[8], len(operations),
+                          "synthetic operations"):
+            operation = operations[op_id]
+            require(operation[3] in (24, 25)
+                    and operation[9] == 1
+                    and operands[operation[8]] == parameter[4],
+                    "synthetic operation shape")
+        require({operations[op_id][3] for op_id in
+                 span(synthetic_block[7], synthetic_block[8], len(operations),
+                      "synthetic operations")} == {24, 25},
+                "synthetic head/tail coverage")
+        synthetic_term = terminators[synthetic_id]
+        require(synthetic_term[3] == 1 and synthetic_term[7] != NO_ID
+                and blocks[synthetic_term[7]][3] == 0,
+                "synthetic authored jump target")
+
+        rooted_views = {root for root in roots if types[nodes[root][1]][1] == 7}
+        require(all(types[node[1]][1] != 7 or node[0] in rooted_views for node in nodes),
+                "byte-view literal must be a StaticByteView root")
 
     require((not nodes) == (not roots), "constant/root presence")
     reachable: set[int] = set()
@@ -853,6 +988,8 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
         kind, payload0, payload1 = types[type_id][1], types[type_id][4], types[type_id][5]
         if kind in (1, 2, 3):
             yield base, module.layouts[type_id][0]
+        elif kind == 7:
+            yield base, 16
         elif kind == 4:
             record = records[payload0]
             for field_id in span(record[2], record[3], len(fields), "runtime copy fields"):
@@ -963,6 +1100,34 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     )
                 elif opcode == 21:
                     values[result_id] = (result_type, int(values[args[0]][1]))
+                elif opcode == 22:
+                    root = tables["constants"][op[10]]
+                    values[result_id] = (
+                        result_type,
+                        struct.pack("<QII", op[10], 0, root[3]),
+                    )
+                elif opcode in (23, 24, 25):
+                    descriptor = values[args[0]][1]
+                    require(isinstance(descriptor, bytes) and len(descriptor) == 16,
+                            "runtime byte-view descriptor")
+                    root_id, offset, length = struct.unpack("<QII", descriptor)
+                    require(root_id < len(tables["constants"]),
+                            "runtime byte-view root")
+                    root = tables["constants"][root_id]
+                    require(types[root[1]][1] == 7 and offset + length <= root[3],
+                            "runtime byte-view extent")
+                    if opcode == 23:
+                        values[result_id] = (result_type, int(length != 0))
+                    elif opcode == 24:
+                        require(length != 0, "runtime SliceHead on empty view")
+                        child_id = tables["constant_children"][root[2] + offset][0]
+                        values[result_id] = (result_type, tables["constants"][child_id][4])
+                    else:
+                        require(length != 0, "runtime SliceTailOne on empty view")
+                        values[result_id] = (
+                            result_type,
+                            struct.pack("<QII", root_id, offset + 1, length - 1),
+                        )
                 elif opcode == 10:
                     _, callee_receiver = places[args[0]]
                     result = run_machine(op[10], callee_receiver,
