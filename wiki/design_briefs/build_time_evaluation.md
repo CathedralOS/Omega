@@ -394,7 +394,7 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v9 carries operation-attempt schema v9, retaining in call-start order
+schema v10 carries operation-attempt schema v9, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand

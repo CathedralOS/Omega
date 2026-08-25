@@ -821,7 +821,7 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v9
+  `final_path_name_by_handle` are unconditionally so. Observation schema v10
   carries operation-attempt schema v9: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
@@ -915,11 +915,19 @@ complete.
   successful hermetic build receives the explicit empty-tree commitment;
   unsponsored caller-owned build roots are not represented as package output.
   The package observation commitment binds the tree digest, entry count, and
-  unique file-byte count, and the fixture review proves that evidence survives
-  disposal of the physical session. This remains commitment-only: complete
-  path-like byte serialization, operation transcripts, retained content,
-  generated-output handoff, and replay remain. Same-user host racing is not
-  solved by this custody rung. Raw byte-valued inputs reject above a
+  topology-independent unique-content byte count. Compiler review now retains
+  the complete canonical tree content behind a non-constructible carrier, so
+  exact ordinary/executable file bytes, empty directories, and relative
+  symlink spellings survive disposal of the physical session. That carrier can
+  materialize into an existing empty concrete directory and independently
+  re-inspects every resulting path, kind, mode, target, and byte before
+  returning the original commitment; invalid shape, nonempty or symlink
+  destinations, write failure, extra/missing state, and drift reject. Hard-link
+  topology is neither retained nor leaked through the content count. This is
+  staged-tree custody and replay only: complete path-like operation operands,
+  operation replay, retained observed inputs, generated-output handoff, and a
+  `Receipted` verdict remain. Same-user host racing is not solved by this
+  custody rung. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
   conversion shared by both providers and reject negative, wrapped, or
@@ -1290,10 +1298,13 @@ complete.
   admission and lock tasks rather than this mechanical migration.
 
   Completed 2026-08-24: all eleven local package fixtures declare `PACKAGE` and
-  use the coherent `builder` parameter name. Their private CathedralOS mirrors
-  carry byte-identical source at refreshed exact pins. The optional live-network
-  test now compares package declarations, source content, and canonical
-  dependency projections rather than assuming every fixture is dependency-free.
+  use the coherent `builder` parameter name. Their exact private CathedralOS
+  pins were refreshed from the same local source. The optional live-network
+  test compares package declarations, source content, and canonical dependency
+  projections rather than assuming every fixture is dependency-free; it is the
+  continuing remote-parity check and is explicitly ignored when private SSH
+  access is unavailable. The ordinary local suite proves the checked-in pin and
+  fixture declarations, not current remote bytes.
   A local integration canary now resolves each real package closure through
   resolver-owned immutable custody, compiles it through the package-aware
   compiler path, and asserts canonical compiler-issued review evidence for the

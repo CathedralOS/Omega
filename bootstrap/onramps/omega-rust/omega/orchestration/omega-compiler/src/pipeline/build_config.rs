@@ -39,7 +39,7 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 
-use super::build_staged_output::{BuildStagedOutputTreeCommitment, capture, empty};
+use super::build_staged_output::{BuildStagedOutputTree, capture, empty};
 
 const BUILD_MACHINE: &str = "build";
 const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
@@ -158,7 +158,7 @@ impl BuildMachineFilesystemScope {
     fn staged_output_tree(
         &self,
         filesystem_reachable: bool,
-    ) -> Result<Option<BuildStagedOutputTreeCommitment>, Vec<Diagnostic>> {
+    ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
         let Some(sponsor) = &self.sponsor else {
             return Ok(None);
         };
@@ -208,7 +208,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 9;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 10;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -649,7 +649,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
-    staged_output_tree: Option<BuildStagedOutputTreeCommitment>,
+    staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
 impl BuildObservationSummary {
@@ -669,8 +669,8 @@ impl BuildObservationSummary {
         self.filesystem_operation_schema_version
     }
 
-    pub const fn staged_output_tree(&self) -> Option<BuildStagedOutputTreeCommitment> {
-        self.staged_output_tree
+    pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {
+        self.staged_output_tree.as_ref()
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
