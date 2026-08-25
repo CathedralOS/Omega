@@ -907,7 +907,11 @@ semantic plan: exact boundary-schema and optional nominal-provider symbols, and
 the exact requirement plus realizing machine for every external or
 checked-adapter row. Review v41 encodes those schema, provider, requirement, and
 realization declarations as package-qualified nominal identities; readable
-plan and overload strings remain operational/audit data. Selection
+plan and overload strings remain operational/audit data. Projection verifies
+each declaration against the selected plan's exact package owner, or against an
+exact authored toolchain-source identity when the plan carries no package
+owner. Package-less user source, unresolved/source-free ownership, and owner
+drift reject. Selection
 and canonical sorting keep that pair intact, adding exact authored build/target-
 default sites or a closed reason for an implicit unique choice. The resulting
 selected-provider row may mix authored coordinates and compiler-derived reasons

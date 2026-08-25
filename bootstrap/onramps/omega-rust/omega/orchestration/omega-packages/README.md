@@ -410,13 +410,17 @@ exact package owners for the realizing machine, provider type, service schema,
 and requirement owner. Review v41 additionally binds the exact schema,
 provider-type, requirement, and realizing-machine declarations as canonical
 nominal identities, so readable plan/overload strings are never declaration
-identity.
+identity. Projection also verifies each declaration owner against the selected
+plan: an owned declaration must match its exact `PackageKeyIdentity`, while a
+package-less plan declaration must have an exact authored toolchain-source
+identity. Package-less user source, unresolved/source-free ownership, and every
+owner mismatch reject rather than entering review evidence.
 Checked-adapter bindings resolve by canonical overload plus exact package owner
 without a short-name fallback. Authored provider choices retain two structural
 type paths, resolve to exact typed trait/data symbols, and match plans only by
 package plus canonical path. The selected plans remain intact through cycle,
 ABI, and checked-fact construction; package-distinct same-spelled slots and
-providers do not collapse. Remaining schema/grant joins, whole-compiler and
+providers do not collapse. Remaining grant joins, whole-compiler and source-free
 compiler-intrinsic toolchain identity, and the remaining
 trust/proof/reproducibility joins are incomplete. Build-bound
 progress obligations retain and match package ownership for both service and

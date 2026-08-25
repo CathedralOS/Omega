@@ -1046,9 +1046,13 @@ complete.
   plus canonical-path identities; same-spelled cross-package slots/providers
   remain distinct and no leaf-name fallback remains. The exact selected plans
   survive cycle, ABI, and checked-fact construction without a name-based
-  candidate rejoin. Several downstream schema/grant joins and
-  compiler-intrinsic toolchain ownership are not yet package-qualified or
-  sealed. Selected-provider provenance now additionally retains the exact
+  candidate rejoin. Package review now cross-checks every selected schema,
+  optional provider type, requirement, and realizing declaration against the
+  exact package owner carried by the selected plan, or against an exact authored
+  toolchain-source identity where the plan has no package owner. Mismatched,
+  package-less user, and unresolved/source-free ownership rejects. Remaining
+  grant joins and whole-compiler/compiler-intrinsic toolchain identity are not
+  yet fully sealed. Selected-provider provenance additionally retains the exact
   requirement declaration for every row and review v41 encodes exact nominal
   identities for the schema, optional provider type, each requirement, and each
   realizing machine. Build-bound progress
