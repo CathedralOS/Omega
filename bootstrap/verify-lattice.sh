@@ -65,8 +65,15 @@ RAN=0; SKIPPED=0
 step() {  # label dir script [extra dep dirs...]
   s_label="$1"; s_role="$2"; s_script="$3"; shift 3
   s_dir=$(omega_bootstrap_path "$s_role") || exit $?
-  s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
-  s_hash="$CORE:$(hash_inputs "$s_role" "$@")"
+  s_variant=${LATTICE_STEP_VARIANT:-default}
+  if [ "$s_variant" = default ]; then
+    # Preserve existing cache keys and hashes for every unvariant step.
+    s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
+    s_hash="$CORE:$(hash_inputs "$s_role" "$@")"
+  else
+    s_key=$(printf '%s_%s_%s' "$s_role" "$s_script" "$s_variant" | tr '/ .' '___')
+    s_hash="$CORE:$s_variant:$(hash_inputs "$s_role" "$@")"
+  fi
   if [ "${LATTICE_FULL:-0}" != "1" ] && [ -f "$CACHE/$s_key" ] \
      && [ "$(cat "$CACHE/$s_key")" = "$s_hash" ]; then
     printf '\n=== %s === (cached: inputs unchanged since last green run)\n' "$s_label"
@@ -91,7 +98,12 @@ step "alpha — disposable Rust assembler producer agrees with the lattice assem
 step "bc    — Alpha-written cold-start compiler surface" beta cold-start/test.sh alpha alpha-assembler
 step "bc    — Alpha-rooted full source, artifact fixed point, corpus" beta cold-start/full-source.sh alpha alpha-assembler
 step "bc    — lower-rooted artifact framing + direct-target + call-region obligations" beta-refinement bc-artifact-structure.sh alpha beta alpha-assembler
-step "bc    — source control/effect/frame/data sites composed against Alpha CFG" beta-refinement bc-block-control.sh alpha beta alpha-assembler
+if [ "${LATTICE_FULL:-0}" = "1" ]; then
+  step "bc    — source control/effect/frame/data sites plus exhaustive historical mutations" beta-refinement bc-block-control.sh alpha beta alpha-assembler
+else
+  BC_BLOCK_FOCUS=root-observation LATTICE_STEP_VARIANT=root-observation \
+    step "bc    — source/artifact control composed to the maximal root observation" beta-refinement bc-block-control.sh alpha beta alpha-assembler
+fi
 step "bc    — Beta compiler in Beta self-hosts"       beta   selfhost.sh
 step "bc    — per-feature gate"                       beta   test.sh
 step "bc    — checked compiler resource profile"      beta   source-exhaustion.sh alpha-assembler

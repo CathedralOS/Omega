@@ -59,6 +59,15 @@ composed-expression values, frame contents and dynamic call depth, return values
 non-literal I/O values, global trace order/reachability, terminal classes,
 memory/stack bounds, and cyclic progress remain open.
 
+The top-level lattice normally invokes this gate with
+`BC_BLOCK_FOCUS=root-observation`. That focus independently rebuilds the exact
+canonical prerequisite conjunction and checks the maximal root observation plus
+its phase-isolated teeth in roughly half a minute. `LATTICE_FULL=1` retains the
+complete historical mutation matrix. The latter remains authoritative but is
+not rerun merely because an unrelated lattice input invalidated the outer
+cache; its remaining per-responsibility sharding/cache work is tracked in
+`TASKS_BOOTSTRAP.md`.
+
 `bc-frame-shape.alpha`, concatenated into that same checker, derives 27
 parameters and 51 function-scoped `let`s directly from the source. It validates
 all 70 base prologues, the 47 nonempty frame allocations covering 78 slots, and
