@@ -40,11 +40,16 @@ pub(super) fn validate_authored_declaration_selections(
 
         let selected = match selection.target() {
             AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-            // The direct-dependency gate is already normative for every exact
-            // row, but the package manager remains disabled until capture and
-            // checked finalization cover every family. Do not misdiagnose a
-            // valid package while that P0 work is visibly incomplete.
-            AuthoredDeclarationSelectionTarget::LateBound(_) => continue,
+            AuthoredDeclarationSelectionTarget::LateBound(binding) => {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "package-authored declaration selection remained unresolved after successful checking: {:?} ({binding:?})",
+                        selection.kind(),
+                    ))
+                    .with_source_span(source_span),
+                );
+                continue;
+            }
             AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
         };
 

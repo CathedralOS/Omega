@@ -90,3 +90,37 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
             )
     }));
 }
+
+#[test]
+fn successful_checking_finalizes_inferred_field_members_and_primitive_operators() {
+    let source = r#"
+        data Build { freestanding: bool; }
+
+        machine Build::configure(&mut self) {
+            self.freestanding = false;
+            let unchanged: bool = self.freestanding == false;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+            && matches!(
+                selection.target(),
+                AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::Operator
+            && selection.target()
+                == AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )
+    }));
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+}

@@ -503,24 +503,28 @@ complete.
   handles retain every associated occurrence. Private state-body expressions
   now capture exact paths, members, calls, struct types/cases/fields, domain
   membership, and operators while source ownership and exposure are present.
-  Checked lowering finalizes calls, members, paths, struct rows, declared
-  operators, and explicitly classified compiler intrinsics by exact occurrence;
-  inconsistent clone resolution rejects transactionally. Package-aware checked
-  and native compilation then reject every finalized user-package selection
-  whose owner is neither the requester nor one direct dependency; a three-
-  package canary rejects `root -> middle -> leaf` transitive-only selection.
-  Build-time const-generic and placed-view probes lower with the assembled
-  package source map instead of losing source ownership.
+  Checked lowering finalizes calls, effective inferred members, paths, struct
+  rows, declared operators, and explicitly classified compiler intrinsics by
+  exact occurrence; inconsistent clone resolution rejects transactionally.
+  Source-less parser/lowering helpers are excluded at candidate capture rather
+  than treated as authored code. Package-aware checked and native compilation
+  reject any package-authored occurrence still late after successful checking,
+  then reject every finalized user-package selection whose owner is neither the
+  requester nor one direct dependency. A three-package canary rejects
+  `root -> middle -> leaf` transitive-only selection. Build-time const-generic
+  and placed-view probes lower with the assembled package source map instead of
+  losing source ownership. An earlier global typed-lowering struct-literal
+  identity check was removed: the exact authored-selection ledger, not ordinary
+  typed lowering, is the package-admission boundary.
 
   This is deliberately not yet total admission. Toolchain-authored bodies are
-  outside package admission, and still-late rows are temporarily deferred while
-  remaining authored forms and generated/default-span distinctions are closed.
-  The package manager stays disabled until every package-authored occurrence is
-  captured and finalized, late rows reject, public-interface exposure is
-  retained, and the same gate runs before any selected package or build-time
-  code can execute. Exact carried-semantic-dependency evidence also remains.
-  Visibility for independently selectable roots that currently reject `pub`
-  remains owner question Q1.
+  outside package admission, and capture still covers only private state-body
+  expression forms. The package manager stays disabled until public-interface
+  exposure, remaining authored conformance/cleanup forms, and the same gate
+  before any selected package or build-time code can execute are complete.
+  Exact carried-semantic-dependency evidence also remains. Visibility for
+  independently selectable roots that currently reject `pub` remains owner
+  question Q1.
 
 - [x] **HERMETIC-DEPENDENCY-PROJECTION.** Derive dependency source requests without
   executing build-host effects or imported code.

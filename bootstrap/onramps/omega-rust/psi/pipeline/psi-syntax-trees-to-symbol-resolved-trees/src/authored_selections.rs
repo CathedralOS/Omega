@@ -189,6 +189,11 @@ fn expression_candidates(
         _ => {}
     }
 
+    // Parser/lowering-generated helpers carry no token span. They may appear
+    // beneath an authored expression, but only a candidate with an exact
+    // source token is itself an authored declaration selection.
+    candidates
+        .retain(|candidate| candidate.source_span.span.start < candidate.source_span.span.end);
     candidates
 }
 

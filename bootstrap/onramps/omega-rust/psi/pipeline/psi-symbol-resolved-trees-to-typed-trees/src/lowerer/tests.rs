@@ -443,7 +443,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
 }
 
 #[test]
-fn rejects_struct_literal_when_exact_identity_is_missing() {
+fn typed_lowering_does_not_replace_the_authored_struct_selection_ledger() {
     let source = "data Item { value: u32; } machine make() -> Item { Item { value: 1 } }";
     let tokens = Lexer::new(source).tokenize().expect("tokenize literal");
     let syntax = parse_syntax_trees(&tokens).expect("parse literal");
@@ -468,13 +468,16 @@ fn rejects_struct_literal_when_exact_identity_is_missing() {
     };
     literal.type_symbol = psi_symbols::SymbolHandle::invalid();
 
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("missing exact literal identity must fail closed");
-    assert!(
-        diagnostic
-            .message
-            .contains("without exact declaration identity")
-    );
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("typed lowering is not the authored package-admission gate");
+    assert!(typed.authored_declaration_selections().iter().any(|selection| {
+        selection.kind()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StructLiteralType
+            && matches!(
+                selection.target(),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(_)
+            )
+    }));
 }
 
 #[test]
