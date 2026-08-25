@@ -1,9 +1,11 @@
-# Beta executable reference meaning
+# Beta executable semantic reference
 
-This directory owns the untrusted, executable reference meaning for the Beta
-rung. `beta_parser.py` recognizes the Beta source surface and `beta_interp.py`
-executes its tuple AST. The fuzz and exhaustive-I/O gates compare that meaning
-with programs produced by the canonical self-hosting Beta compiler.
+This directory owns an untrusted executable semantic reference for the Beta
+rung. Canonical Beta meaning is the written
+[`../SEMANTICS.md`](../SEMANTICS.md). `beta_parser.py` recognizes the Beta
+source surface and `beta_interp.py` executes its tuple AST. Fuzz and
+exhaustive-I/O gates compare that finite executable observation with programs
+produced by the canonical self-hosting Beta compiler.
 
 The owner contains no compiler backend and imports no refinement machinery.
 Its comparisons are diagnostics, not artifact authority. Acceptance of a

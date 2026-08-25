@@ -17,7 +17,7 @@ bootstrap/
   rungs/
     alpha/                  written semantics + native seeds + Alpha assembler
     beta/                   Beta language + self-hosting compiler
-      reference/            executable reference meaning + semantic fuzzing
+      reference/            untrusted executable semantic reference + fuzzing
     gamma/                  Gamma language, interpreter, and type checker
     delta/                  Delta language + lattice-built compiler
 
@@ -116,22 +116,12 @@ does not grant authority. Compiler outputs become acceptable through
 lower-rooted source-to-artifact refinement, not agreement between producers.
 See [D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
 
-The useful contents formerly grouped under the retired
-`compiler/beta-lang-py/` facade now have
-role-based owners:
-
-| Former content / retained responsibility | Actual role | Canonical owner |
-| --- | --- | --- |
-| `beta_interp.py` and semantic fuzzing | executable Beta reference meaning | `bootstrap/rungs/beta/reference/` |
-| `beta_symbolic.py` and symbolic-loop checks | untrusted refinement reconstruction | `bootstrap/assurance/refinement/beta/` |
-| `beta_parser.py` | shared untrusted Beta source recognition | `bootstrap/rungs/beta/reference/`, imported by refinement |
-
-The former byte-comparison gate and `bc2.py` backend have been removed after
-showing they provided no unique semantic or refinement coverage. The `bc`
-cold-start edge closes only through lower-rooted source-to-artifact checking.
-No forwarding entry points remain under `compiler/`.
-
-Python is an implementation detail of these tools, not their common owner.
+Beta's untrusted executable semantic reference and parser live at
+`bootstrap/rungs/beta/reference/`; symbolic reconstruction lives at
+`bootstrap/assurance/refinement/beta/`. Python is an implementation detail, not
+an ownership category or reason for a product-root facade. The retired
+comparison compiler and old paths are recorded in D5 and Git history rather
+than in this canonical placement map.
 
 ## Canonical ownership map
 

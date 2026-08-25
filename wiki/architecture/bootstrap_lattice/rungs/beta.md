@@ -52,8 +52,8 @@ Beta remains a small compiler-construction substrate with raw memory.
 - `bootstrap/rungs/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `bootstrap/rungs/beta/bc.beta` — self-hosting Beta compiler;
 - `bootstrap/onramps/beta-rust/` — retained Rust diagnostic/reference producer;
-- `bootstrap/rungs/beta/reference/` — executable Python reference meaning,
-  parser, and semantic fuzzing;
+- `bootstrap/rungs/beta/reference/` — untrusted executable Python semantic
+  reference, parser, and fuzzing;
 - `bootstrap/assurance/refinement/beta/` — symbolic/refinement reconstruction;
 - `bootstrap/rungs/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;

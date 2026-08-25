@@ -131,6 +131,16 @@ Remaining:
   checkpoint records tested implementation behavior but does not claim
   full-spec lexical conformance for those forms.
 
+  Two broader evaluation/layout rulings must also close before a source
+  checkpoint may depend on them observably. Call-argument and aggregate-literal
+  field evaluation order are not normative; current bridge slices therefore
+  admit only combinations whose relative order cannot be observed. Explicit sum
+  discriminants can also conflict with the first-case/tag-zero initialization
+  invariant, while default aggregate byte layout remains compiler-controlled.
+  Rule these in the language guide before relying on effectful/trapping
+  evaluation order or explicit discriminants; do not let a bootstrap-private
+  layout become the public Omega ABI by accident.
+
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `bootstrap/onramps/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
@@ -142,6 +152,18 @@ Remaining:
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in its suffixed on-ramp and never
   moves into `compiler/{psi,omega}/`.
+
+- **PSI-PROOF-ADMISSION-NAME.** Rename the Rust on-ramp crate currently called
+  `psi-proof-kernel` to a product-local admission/checking name such as
+  `psi-proof-admission`. Its job is Psi judgment and admission policy, not the
+  generic cross-cutting derivation kernel under
+  `bootstrap/assurance/proof-kernel/`. Keep this as ordinary product/on-ramp
+  maintenance; do not move it into `TASKS_BOOTSTRAP.md` or change either
+  component's authority while renaming it.
+
+  Acceptance: Cargo metadata, imports, architecture maps, and focused tests use
+  the new role name; no live product crate can be mistaken for the generic
+  bootstrap proof kernel.
 
 ## Execution order
 

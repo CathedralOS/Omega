@@ -57,7 +57,7 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 | --- | --- | --- | --- |
 | machines, states, transitions, loops, and calls | `lowermachine` self-host, historical O0/O1 canaries, and the CKIR2 exact-root tranche demonstrate typed finite acyclic attached-machine calls across sources in one logical module; producer, Rust-free meaning, lower-rooted reconstruction, and one-frame composition are closed | keep the finite static-call form; add recursion, general member receivers, or broader module/package calls only when the complete bridge requires them | finite static calls demonstrated; broader forms and final disposition unresolved |
 | integer arithmetic | D0 and the Rust producer accept several overflow policies and disagree at some edges | use Exact throughout; add only a narrow modular operation if artifact encoding requires it | unresolved |
-| records, fixed arrays, and recursively constant aggregates | the checkpoint-000001 frontend probe and selected one-/two-package checked-IR paths establish records, arrays, nominal identity, conservative lowering, and lower-rooted reconstruction for bounded runtime source tranches; CKIR3 closes typed interned constant DAGs through native/self/mixed production, Rust-free meaning, independent result/ELF reconstruction, and all five `OMGRFN4` responsibilities over one exact carrier; CKIR4 closes runtime named-record construction through declaration-order canonicalization, nested records, structural Call/Copy, native/self production, Rust-free 0/251/252 meaning, independent object/result/ELF reconstruction, and all five `OMGRFN5` responsibilities over distinct 16,274-byte opener and 16,417-byte complete-`SourceUnit`-API carriers without format widening | retain the typed constant graph/pool, aggregate copy, and ordinary named fields while completing general bridge coverage; the measured selected-tranche cost no longer argues for hand-expanded initialization or positional compiler data | selected constant-aggregate and runtime named-record closures are complete; general record/array coverage and final disposition unresolved |
+| records, fixed arrays, and recursively constant aggregates | checkpoint 000001 and selected CKIR3/CKIR4 paths establish bounded nominal layout, constant graphs, runtime named construction, structural Call/Copy, native/self/mixed production, Rust-free meaning, and responsibility-local lower-rooted reconstruction; the direct-field successor reuses CKIR4 rather than widening it | retain the typed constant graph/pool, aggregate copy, and ordinary named fields while completing general bridge coverage; the measured selected-tranche cost no longer argues for hand-expanded initialization or positional compiler data | selected constant-aggregate, runtime-record, and direct-field closures are complete; general coverage and final disposition unresolved |
 | slices and runtime views | checkpoint 000001 uses source, decoded-byte, token, and spelling views, but no complete bridge artifact path exists yet | compare a regular slice facility with explicit backing-plus-span records; retain slices when the latter duplicates checking or obscures ownership | observed in product source; bridge cost and final disposition unresolved |
 | payload-bearing sum data | checkpoint 000001 uses token, numeric-base, diagnostic, and console-result sums, but the current checked-IR tranches do not lower them | compare general tagged data with explicit tag-plus-payload records; do not force the split when it increases invalid states or duplicated dispatch | observed in product source; bridge cost and final disposition unresolved |
 | runtime-sized reservation from fixed backing and integer-offset arenas | storage canaries and current compiler tables demonstrate fixed partitioning, checked exhaustion, and bulk reset without a general heap | keep fixed arrays or library arenas while sufficient; add deterministic bump/paged reservation only when the complete bridge needs it | fixed partitioning demonstrated; runtime reservation unpresumed |
@@ -78,11 +78,13 @@ and the lower-rooted refinement contracts
 [`OMGRFN2`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 and
 [`OMGRFN3`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md).
-The focused CKIR3 successor uses the distinct
-[`OMGRFN4`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md)
-contract; its selected constant-aggregate implementations and unchanged-frame
-composition are closed without deciding general Delta coverage or final
-disposition.
+The focused successors use the distinct
+[`OMGRFN4`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md),
+[`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md),
+and
+[`OMGRFN6`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md)
+contracts. Their selected implementations and same-frame compositions are
+closed without deciding general Delta coverage or final disposition.
 
 ## Freeze gate
 

@@ -44,8 +44,11 @@ let command: Command = self.parser.resolve(&self.line);
 self.view.render_room(&self.room);
 ```
 
-Argument evaluation order should be specified and stable. The initial policy
-should be left-to-right because it is easiest to reason about and diagnose.
+Argument evaluation order remains a language ruling. Left-to-right is the
+current implementation direction because it is easiest to reason about and
+diagnose, but this paragraph is not yet normative. Until the ruling lands,
+portable source and bootstrap profiles must not rely on relative ordering among
+effectful or trapping argument expressions.
 
 Calls whose statically known operational envelope may pause execution while
 live state remains held require an exact acknowledgement:

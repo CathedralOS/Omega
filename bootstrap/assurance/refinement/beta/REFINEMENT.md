@@ -32,16 +32,19 @@ The certificate is a diamond with the trust anchor
       alpha bytecode ──alpha_symbolic──▶ C = ⟦bc(P)⟧_alpha
             │                                   │
             └── pinned to alpha_ref.py          └── pinned to beta_interp.py
-                (the real VM) on random inputs      (the real interpreter) on random inputs
+                (untrusted executable refs on finite random inputs)
 ```
 
 Both symbolic evaluators are **UNTRUSTED and checked**, exactly like the other `*_ref` / `*_symbolic` tools
 (`alpha_ref.py`, `asm_ref.py`, `gamma_ref.py`, `check_ref.py`). Two independent checks make a bug in
 either evaluator — or a real miscompile — surface loudly:
 
-1. **Differential pinning.** `C` evaluated at random inputs must equal what the actual bytecode does on the
-   alpha VM (`alpha_ref.py`); `M` must equal what the source does in the interpreter (`beta_interp.py`). Each
-   derivation is tied to its *own* reference, so neither can drift from ground truth undetected.
+1. **Differential pinning.** `C` evaluated at random inputs must equal the
+   untrusted executable Alpha reference (`alpha_ref.py`); `M` must equal the
+   untrusted executable Beta reference (`beta_interp.py`). Each derivation is
+   tied to an independently implemented finite-run cross-check, so ordinary
+   implementation drift surfaces quickly. Canonical authority remains the
+   written semantics and the lower-rooted refinement obligation.
 2. **Kernel-checked equivalence.** `∀ inputs. C = M` is proved and the proof validated by the trust anchor.
    The proof ties `C` (what the machine does) to `M` (what the source means); the two pins ground both ends.
    A perturbed meaning `(s M)` is required to be *unprovable* (the teeth).
@@ -272,7 +275,9 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 
 ## Reference producers (never run in the trusted lineage)
 
-`alpha_ref.py` (the alpha VM in Python) and `beta_interp.py` (the Beta interpreter) are the ground-truth
-references the two symbolic evaluators are pinned against. `proof-kernel/prover.py` searches for the equality proof;
+`alpha_ref.py` (the Alpha VM in Python) and `beta_interp.py` (the Beta
+interpreter) are untrusted executable differential references against which the
+two symbolic evaluators are pinned. They do not define either language's
+meaning. `proof-kernel/prover.py` searches for the equality proof;
 `bootstrap/assurance/proof-kernel/implementations/beta/check.beta` (the trust
 anchor) validates it.

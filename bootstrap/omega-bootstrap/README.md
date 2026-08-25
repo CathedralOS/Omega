@@ -22,7 +22,8 @@ A later product self-rebuild can optimize the compiler binary; it is optional
 assurance/performance work, not another rung.
 
 Ownership is explicit: `meaning/` contains the Rust-free meaning route,
-`compiler/` contains the first-compiler profiles and source-bundle tooling, and
+`compiler/` contains bridge regression profiles/contracts and source-bundle
+tooling, and
 `gates/` contains executable acceptance and conformance checks plus their
 private fixtures. Cross-rung meaning/artifact obligation reconstruction lives
 under `bootstrap/assurance/refinement/omega-bootstrap/`; compatibility symlinks

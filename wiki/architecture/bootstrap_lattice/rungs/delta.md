@@ -130,24 +130,14 @@ MMIO, interrupt, and general foreign-call authority are not presumed. If the
 complete bridge source demonstrates another unavoidable host operation, it must
 be specified and added to the trust ledger explicitly.
 
-## Open work
+## Closure criteria
 
-- Complete the Rust-free Delta implementation and keep its self-host fixed point.
-- Maintain Delta's provisional feature ledger while implementing the bridge,
-  then remove accidental producer/corpus behavior and freeze a coherent,
-  robust literal specification containing the complete `omega-bootstrap`
-  source closure. Preserve Omega spelling and ordinary meaning for retained
-  shared constructs without forcing subset compatibility.
-- Build `omega-bootstrap` with exact `Ωself` acceptance and enough conservative
-  lowering to compile the source that implements the production optimizer and
-  advanced lowering; do not duplicate those product passes in Delta.
-- Use it once to build and validate the full-spec production compiler from
-  `Ωself`-constrained Omega source.
-- Continue widening the Delta-to-Gamma meaning route beyond the now-gated O1
-  frontend. Native, Delta-self-hosted, and Beta-to-Gamma execution agree on its
-  canonical retained-operand digest; the lower-rung route also pins zero/two-
-  write observations and semantic rejection independently of the Rust producer.
-- Keep the now-logical `lowermachine` table/source arenas within the checked D0
-  backing convention as compiler capacity grows. Compiler tables use integer
-  offsets in one typed backing extent; source storage grows in an explicit byte
-  backing and rejects exhaustion rather than truncating input.
+Delta closes only when its complete deterministic `omega-bootstrap` source
+closure is valid under a versioned, independently specified Delta contract; the
+lattice-built compiler accepts all conforming programs within published bounds;
+and native, self-built, and Delta-to-Gamma routes agree at their declared
+observations. The resulting bridge must then accept exactly frozen `Ωself` and
+perform the one required hosted production build. Exact execution order and
+current bridge capabilities live only in
+[`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md); this rung definition is
+not a second task queue.

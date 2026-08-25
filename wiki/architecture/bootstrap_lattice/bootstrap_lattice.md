@@ -124,11 +124,12 @@ These are different budgets and must be tracked separately.
 - **Native minimality** — how much *architecture-specific* code must exist? Ideal:
   one `alpha` interpreter per ISA, a loader, a minimal I/O boundary. This is the
   hand-inspected native seed. Keep it tiny.
-- **Semantic minimality** — how much code ultimately *participates in deciding
-  correctness*? This is larger: the alpha VM, the beta/gamma interpreters, the
-  proof kernel, the written semantics, and the certificates. But it is **not**
-  hand-written assembly — it accumulates gradually in increasingly readable,
-  safer languages, and **freezes** as each rung is finished.
+- **Semantic minimality** — how much material ultimately *participates in
+  deciding correctness*? This is larger: the Alpha and Beta written small-step
+  semantics, Gamma's reference interpreter, the lower-rung elaboration routes,
+  the proof kernel, and the certificates. But it is **not** all hand-written
+  assembly — it accumulates gradually in increasingly readable, safer
+  languages, and **freezes** as each rung is finished.
 
 The trustworthy core grows, but its lower layers stay frozen and comprehensible.
 
@@ -136,9 +137,9 @@ The trustworthy core grows, but its lower layers stay frozen and comprehensible.
 
 Build two parallel stacks.
 
-- The **meaning stack** is what programs *mean* — defined operationally by
-  **reference interpreters** (see next section). Slow, canonical, the spine of
-  truth.
+- The **meaning stack** is what programs *mean* — fixed by each rung's canonical
+  written semantics or lower-rung evaluator route (see next section). Slow and
+  auditable, it is the spine of truth.
 - The **machine stack** is the actual stuff: source text, the real (untrusted)
   compiler, real bytes, real silicon.
 
@@ -153,7 +154,7 @@ not choose which claims count as sufficient; only fully verified output ships.
    ------------------------------         -------------------------
    what a program means     <—— verify artifact + check proofs —— output + evidence
         |                                          |
-   ...defined by interpreters                 ...produced by any tooling
+   ...defined by canonical semantics          ...produced by any tooling
         |                                          |
    alpha small-step semantics                 native bytes
         |                                          |
@@ -165,19 +166,23 @@ machine stack ends at *the actual chip*. The gap between them — does silicon
 truly obey its own manual — is the one thing software can never close. That is
 the irreducible axiom.
 
-## Meaning is a reference interpreter; the compiler is an acceleration
+## Meaning follows a canonical semantic route; compilers are checked realizations
 
-For each language, the **definition of meaning is a canonical interpreter**:
+The rungs do not all use the same form of semantic authority. Alpha and Beta
+have written small-step semantics. Gamma is defined by its fuel-bounded
+reference interpreter written in Beta. Delta has a structural, nonoptimizing
+elaboration into Gamma and then uses that interpreter:
 
 ```text
-meaning of a Gamma program  =  what the Gamma reference interpreter does
+Alpha source/artifact  ──▶ Alpha written small-step semantics
+Beta source            ──▶ Beta written small-step semantics
+Gamma source           ──▶ Gamma reference interpreter written in Beta
+Delta source           ──▶ Delta-to-Gamma elaboration ──▶ Gamma interpreter
 ```
 
-A compiler is then *merely an accelerator* — "Alpha code that should behave like
-the interpreter" — which is far easier to reason about than letting an optimizing
-compiler *be* the definition. The reference route nests all the way down and is
-absurdly slow, and that is fine; it is the semantic spine, not the production
-path:
+A compiler is a realization checked against the applicable route; it never
+defines its source language by compiling it. The nested route may be absurdly
+slow, and that is fine: it is the semantic spine, not the production path:
 
 ```text
 omega-bootstrap hosted in Delta
@@ -195,7 +200,8 @@ Alpha has no idea what “proof” means.
 
 ## Why this is a lattice rather than a pedigree chain
 
-The build spine (`alpha → beta → … → omega`) gives staged comprehensibility. It
+The build spine (`Alpha → Beta → Gamma → Delta → omega-bootstrap → omega`) gives
+staged comprehensibility. It
 does not become trustworthy merely by extending that pedigree. The **lattice**
 comes from joining each build edge to canonical meaning and artifact checking:
 
@@ -227,11 +233,12 @@ You cannot reach zero trust. The honest, finite list:
    conformance testing, a formal ISA model, reproducible builds, and additional
    platform realizations where useful. Alpha does **not** authenticate itself
    merely by being small or multiply implemented.
-3. **A short, frozen sequence of audited programs** — the Alpha VM, the Beta and
-   Gamma meaning path, and the proof kernel. Its Beta and Gamma implementations
-   are cross-checked against shared corpora and semantic seams while the formal
-   soundness bridges mature. The audit burden shrinks going up, as lower tooling
-   helps check each next artifact.
+3. **A short, frozen semantic/checking base** — the Alpha VM and written
+   semantics, Beta's written semantics and checked realization, Gamma's
+   reference interpreter, the lower-rung elaboration routes, and the proof
+   kernel. Implementations are cross-checked against shared corpora and semantic
+   seams while the formal soundness bridges mature. The audit burden shrinks
+   going up, as lower tooling helps check each next artifact.
 
 The craft is making this set as small, as explicit, and as independently
 re-verified as possible — then deriving or checking *everything else*.
@@ -244,7 +251,7 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 | Rung | Adds (one idea) | Implemented in | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
-| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | alpha | the Beta-language compiler, **written in Beta** (`bc.beta`), lowers to Alpha assembly | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
+| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | Alpha-rooted cold start; steady-state `bc.beta` self-host | Beta's written small-step semantics ([`SEMANTICS.md`](../../../bootstrap/rungs/beta/SEMANTICS.md)) | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
 | [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../bootstrap/rungs/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../bootstrap/assurance/proof-kernel/implementations/gamma/checker.gamma)) |
 | [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete `omega-bootstrap` source closure | gamma | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; the v1 feature inventory and full Rust-free toolchain hosting remain open |
 
@@ -418,10 +425,10 @@ architecture questions:
 Every rung document answers:
 
 - **Adds** — the one coherent idea this rung introduces.
-- **Written in** — the rung below (so its implementation is a program in that
-  rung), and what its reference interpreter is written in.
-- **Meaning** — what defines a program of this rung (its reference interpreter, or
-  for alpha its small-step semantics).
+- **Written in** — how the rung's implementation is rooted in the rung below.
+- **Meaning** — the rung's canonical semantic authority: written small-step
+  semantics for Alpha/Beta, Gamma's reference interpreter, or Delta's
+  nonoptimizing elaboration into Gamma.
 - **Must not contain** — what belongs higher, kept out to keep the rung small and
   the trust argument clean.
 - **Current repo reality** — where the actual repository is versus this target.

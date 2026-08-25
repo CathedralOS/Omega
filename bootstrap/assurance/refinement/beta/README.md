@@ -9,13 +9,13 @@ low-rung proof kernel to check their equivalence. The curated
 edge. See [`REFINEMENT.md`](REFINEMENT.md) for its exact claim and limits.
 
 `symbolic_loop_check.py` remains the focused source-side check that pins Beta
-loop summaries to executable reference meaning over concrete input grids. It is
-refinement support, not Beta's canonical interpreter and not Alpha opcode
-conformance.
+loop summaries to the untrusted executable reference over concrete input grids.
+It is refinement support, not Beta's canonical interpreter and not Alpha
+opcode conformance.
 
 The shared parser and concrete interpreter remain under
-`bootstrap/rungs/beta/reference/`. Reconstruction may consume that meaning
-surface, but it neither compiles Beta nor grants an artifact authority.
+`bootstrap/rungs/beta/reference/`. Reconstruction may consume that executable
+reference surface, but it neither defines Beta nor grants an artifact authority.
 Support binaries are compiled with the persisted lattice-built `bc.tape`
 through `bootstrap/rungs/beta/artifact_env.sh`; the refinement owner does not
 rebuild or depend on the disposable Rust Beta producer.

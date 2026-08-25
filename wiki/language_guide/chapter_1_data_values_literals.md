@@ -126,6 +126,13 @@ in-memory tag under a layout policy, so a foreign enum reads back into the right
 case. For a purely internal sum, leave them off — tag identity is the compiler's
 to assign.
 
+The interaction between explicit discriminants and the zero-initialization
+rule below is not yet settled: an explicit first discriminant other than zero
+conflicts with the rule that zeroed storage denotes the first case. The current
+specification therefore does not determine that combination's meaning.
+Bootstrap slices exclude explicit discriminants rather than choosing one side
+locally.
+
 A declaration's shape follows from its members: only fields is a RECORD, only
 cases is a SUM, fields AND cases together is MIXED -- common fields shared by
 every case, plus a case part:
@@ -251,8 +258,9 @@ synthesized equality through their live length and bytes.[^case-members]
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`
 statement must reuse that spelling rather than inventing another pattern
-language. Generic payloads use ordinary cased data (`Optional<T>`-style), while the layout rule for payload storage
-(tag-prefixed overlay with the zero case payload-free). A domain declared as a
+language. Generic payloads use ordinary cased data (`Optional<T>`-style), while
+the layout rule for payload storage uses a tag-prefixed overlay with a
+recursively zeroed first-case payload. A domain declared as a
 pure case union is recognized for exhaustiveness
   SYNTACTICALLY -- the domain `requires` clause must contain exactly the fact
 `self in Type::A | Type::B` over the target type's own cases; recognition by

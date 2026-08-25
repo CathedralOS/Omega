@@ -66,12 +66,18 @@ standing design brief as universal constants.
 
 ## Bootstrap role
 
-The intended progression is:
+The language spine and hosted build are:
 
 ```text
-Alpha executor → Alpha assembler → Beta compiler → Gamma → Delta
-              → omega-bootstrap → production Omega compiler
+Alpha → Beta → Gamma → Delta
+Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
+Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
+Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
+
+The native Alpha executor and Alpha-written assembler are implementation
+components owned by the Alpha rung; they are not extra language rungs in that
+diagram.
 
 Self-reproduction at any compiler stage establishes deterministic dependency
 closure, not correctness. Compiler artifacts become authoritative only when the
