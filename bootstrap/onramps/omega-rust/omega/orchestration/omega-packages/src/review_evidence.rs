@@ -298,6 +298,20 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, returned.bytes());
         }
         digest.update(
+            u64::try_from(attempt.observed_byte_regions().len())
+                .expect("build observation observed-byte-region count fits u64")
+                .to_le_bytes(),
+        );
+        for region in attempt.observed_byte_regions() {
+            digest.update([region.output_operand_ordinal()]);
+            digest.update([match region.kind() {
+                omega_compiler::BuildFilesystemObservedByteRegionKind::SequentialFileRead => 0,
+                omega_compiler::BuildFilesystemObservedByteRegionKind::PositionedFileRead => 1,
+            }]);
+            digest.update(region.offset().to_le_bytes());
+            digest.update(region.length().to_le_bytes());
+        }
+        digest.update(
             u64::try_from(attempt.mutable_byte_operand_resolutions().len())
                 .expect("build observation mutable-byte-resolution count fits u64")
                 .to_le_bytes(),
@@ -707,8 +721,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 15);
-        assert_eq!(first.filesystem_operation_schema_version(), 15);
+        assert_eq!(first.schema_version(), 16);
+        assert_eq!(first.filesystem_operation_schema_version(), 16);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
@@ -845,10 +859,25 @@ reaches FilesystemHost
             changed_read.mutable_byte_operands()[0].post_bytes(),
             b"bravo\n"
         );
+        let [first_region] = first_read.observed_byte_regions() else {
+            panic!("successful read retains one semantic observed-byte region")
+        };
+        let [changed_region] = changed_read.observed_byte_regions() else {
+            panic!("changed read retains one semantic observed-byte region")
+        };
+        assert_eq!(first_region, changed_region);
+        assert_eq!(
+            first_read.observed_bytes(first_region),
+            Some(b"alpha\n".as_slice())
+        );
+        assert_eq!(
+            changed_read.observed_bytes(changed_region),
+            Some(b"bravo\n".as_slice())
+        );
         assert_ne!(
             build_observation_commitment(&first),
             build_observation_commitment(&changed),
-            "one changed mutable post-state changes observation identity"
+            "one changed observed file-content region changes observation identity"
         );
     }
 

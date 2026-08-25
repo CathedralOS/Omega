@@ -154,10 +154,10 @@ pub struct EvaluationUsage {
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
 /// exact path-like byte operands, each successfully resolved mutable carrier
 /// and logical-handle input even when later preparation fails, and a typed
-/// returned or evaluator-halted outcome. It is not the canonical replay
-/// transcript: returned content outside the exact path-result rows and complete
-/// content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 15;
+/// returned or evaluator-halted outcome. Exact path results and successful
+/// file-read regions are semantically designated, but directory/metadata
+/// observations and replay execution are not complete yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -345,6 +345,41 @@ pub struct FilesystemReturnedPath {
     kind: FilesystemReturnedPathKind,
     completeness: FilesystemReturnedPathCompleteness,
     bytes: Vec<u8>,
+}
+
+/// Semantic designation of one host-derived byte region returned through an
+/// already-custodied mutable output carrier. The bytes are referenced from the
+/// matching provider post-state rather than copied a fourth time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemObservedByteRegionKind {
+    SequentialFileRead,
+    PositionedFileRead,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesystemObservedByteRegion {
+    output_operand_ordinal: u8,
+    kind: FilesystemObservedByteRegionKind,
+    offset: usize,
+    length: usize,
+}
+
+impl FilesystemObservedByteRegion {
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+
+    pub const fn kind(self) -> FilesystemObservedByteRegionKind {
+        self.kind
+    }
+
+    pub const fn offset(self) -> usize {
+        self.offset
+    }
+
+    pub const fn length(self) -> usize {
+        self.length
+    }
 }
 
 impl FilesystemReturnedPath {
@@ -619,8 +654,9 @@ impl FilesystemGrantRefusal {
 /// normalized into logical lifetimes; provider token numbers do not survive.
 /// Failed handle-result sentinels remain scalar results. Mutable carriers
 /// retain both their successfully resolved preparation prefix and complete
-/// provider-visible pre/post snapshots, but complete path/content custody is
-/// still absent, so this remains below receipt strength.
+/// provider-visible pre/post snapshots. Path results and successful file-read
+/// regions have semantic rows; directory/metadata observations and replay
+/// execution remain incomplete, so this stays below receipt strength.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOperationAttempt {
     operation_tag: u16,
@@ -631,6 +667,7 @@ pub struct FilesystemOperationAttempt {
     path_like_operands: Vec<FilesystemPathLikeOperand>,
     rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
     returned_paths: Vec<FilesystemReturnedPath>,
+    observed_byte_regions: Vec<FilesystemObservedByteRegion>,
     mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
@@ -653,6 +690,7 @@ impl FilesystemOperationAttempt {
             path_like_operands: Vec::new(),
             rooted_path_operand_resolutions: Vec::new(),
             returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
             mutable_byte_operand_resolutions: Vec::new(),
             mutable_i64_operand_resolutions: Vec::new(),
             mutable_byte_operands: Vec::new(),
@@ -711,6 +749,10 @@ impl FilesystemOperationAttempt {
 
     pub fn returned_paths(&self) -> &[FilesystemReturnedPath] {
         &self.returned_paths
+    }
+
+    pub fn observed_byte_regions(&self) -> &[FilesystemObservedByteRegion] {
+        &self.observed_byte_regions
     }
 
     pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {

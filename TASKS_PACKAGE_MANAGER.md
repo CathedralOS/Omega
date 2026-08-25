@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v15
-  carries operation-attempt schema v15: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v16
+  carries operation-attempt schema v16: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1407,7 +1407,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v15 retains each successfully typed non-handle
+  Operation-attempt schema v16 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1457,10 +1457,18 @@ complete.
   distinguishes exact-fit from truncated `read_link`. Failures and final-path
   insufficient-capacity returns emit no output row. Capture occurs where the
   provider knows what it wrote rather than by scanning mutable post-state, and
-  charges only the exact retained bytes to the aggregate sponsor. Package-
-  rooted execution still rejects the two always-absolute operations; a
-  `read_link` result remains inert payload and grants no path authority. This
-  deliberately incomplete trace still omits complete input content custody.
+  charges only the exact retained bytes to the aggregate sponsor. Package-rooted
+  execution still rejects the two always-absolute operations; a
+  `read_link` result remains inert payload and grants no path authority.
+  Successful `read` and `read_at` calls now add one exact semantic designation
+  over the already-custodied mutable post-carrier: output ordinal, closed
+  `SequentialFileRead`/`PositionedFileRead` kind, zero offset, and exact
+  returned length. The region length must equal the nonnegative scalar result and fit the
+  retained post-state; successful EOF retains a zero-length row, while failure
+  retains none. The bytes are recovered from that post-state rather than copied
+  a fourth time, so the row consumes no additional byte sponsor. This
+  deliberately incomplete trace still lacks semantic directory/find output,
+  canonical metadata observations, and the replay executor.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

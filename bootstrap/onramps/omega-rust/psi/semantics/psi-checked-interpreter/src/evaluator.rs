@@ -871,17 +871,19 @@ struct Evaluator<'program> {
     /// Ordered operation-attempt evidence for exact canonical filesystem host
     /// calls. Direct scoped path authorizations retain compiler-rooted paths;
     /// typed operands, mutable carriers, and logical handles retain their
-    /// completed preparation prefix. This remains deliberately below replay
-    /// strength until complete path and content custody is present.
+    /// completed preparation prefix. Exact path results and file-read regions
+    /// are designated, but directory/metadata observations and replay execution
+    /// remain incomplete.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
     /// Compiler-only normalization state for provider descriptor/handle tokens.
     /// This state is not observable by evaluated Omega code.
     filesystem_logical_handles: FilesystemLogicalHandles,
     /// Aggregate retained authorized rooted-path bytes.
     filesystem_observation_path_bytes: usize,
-    /// Aggregate retained immutable, path-like, rooted-resolution, and mutable
-    /// operand-evidence bytes, including resolution and provider pre/post
-    /// copies. This compiler-side account is not observable by Omega code.
+    /// Aggregate retained immutable, path-like, rooted-resolution,
+    /// returned-path, and mutable evidence bytes, including resolution and
+    /// provider pre/post copies. Observed-byte regions reference post-state and
+    /// add no byte copy. This compiler-side account is not observable by Omega.
     filesystem_observation_evidence_bytes: usize,
     /// Pending non-catchable halt set when retaining a successfully authorized
     /// rooted path would exceed the compiler's evidence-custody bound.

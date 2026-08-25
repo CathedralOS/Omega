@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 15;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 16;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -430,6 +430,38 @@ impl BuildFilesystemReturnedPath {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemObservedByteRegionKind {
+    SequentialFileRead,
+    PositionedFileRead,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemObservedByteRegion {
+    output_operand_ordinal: u8,
+    kind: BuildFilesystemObservedByteRegionKind,
+    offset: u64,
+    length: u64,
+}
+
+impl BuildFilesystemObservedByteRegion {
+    pub const fn output_operand_ordinal(self) -> u8 {
+        self.output_operand_ordinal
+    }
+
+    pub const fn kind(self) -> BuildFilesystemObservedByteRegionKind {
+        self.kind
+    }
+
+    pub const fn offset(self) -> u64 {
+        self.offset
+    }
+
+    pub const fn length(self) -> u64 {
+        self.length
     }
 }
 
@@ -702,6 +734,7 @@ pub struct BuildFilesystemOperationAttempt {
     path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
     rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
     returned_paths: Vec<BuildFilesystemReturnedPath>,
+    observed_byte_regions: Vec<BuildFilesystemObservedByteRegion>,
     mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
@@ -748,6 +781,21 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn returned_paths(&self) -> &[BuildFilesystemReturnedPath] {
         &self.returned_paths
+    }
+
+    pub fn observed_byte_regions(&self) -> &[BuildFilesystemObservedByteRegion] {
+        &self.observed_byte_regions
+    }
+
+    pub fn observed_bytes(&self, region: &BuildFilesystemObservedByteRegion) -> Option<&[u8]> {
+        let output = self
+            .mutable_byte_operands
+            .iter()
+            .find(|output| output.operand_ordinal == region.output_operand_ordinal)?;
+        let offset = usize::try_from(region.offset).ok()?;
+        let length = usize::try_from(region.length).ok()?;
+        let end = offset.checked_add(length)?;
+        output.post_bytes.get(offset..end)
     }
 
     pub fn mutable_byte_operand_resolutions(
@@ -822,9 +870,9 @@ impl BuildObservationSummary {
 
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: returned-path normalization,
-    /// preparation-failure evidence for other operand classes, and observed
-    /// input-content custody are absent.
+    /// intentionally not a replay transcript: exact path results and file-read
+    /// regions are present, while directory/metadata observation semantics and
+    /// replay execution remain incomplete.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1992,6 +2040,33 @@ pub(crate) fn compute_build_config(
                     bytes: returned.bytes().to_vec(),
                 })
                 .collect();
+            let observed_byte_regions = attempt
+                .observed_byte_regions()
+                .iter()
+                .map(|region| {
+                    Ok(BuildFilesystemObservedByteRegion {
+                        output_operand_ordinal: region.output_operand_ordinal(),
+                        kind: match region.kind() {
+                            psi_checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead => {
+                                BuildFilesystemObservedByteRegionKind::SequentialFileRead
+                            }
+                            psi_checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead => {
+                                BuildFilesystemObservedByteRegionKind::PositionedFileRead
+                            }
+                        },
+                        offset: u64::try_from(region.offset()).map_err(|_| {
+                            Diagnostic::error(
+                                "build observation byte-region offset is not canonically representable",
+                            )
+                        })?,
+                        length: u64::try_from(region.length()).map_err(|_| {
+                            Diagnostic::error(
+                                "build observation byte-region length is not canonically representable",
+                            )
+                        })?,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
             let mutable_byte_operand_resolutions = attempt
                 .mutable_byte_operand_resolutions()
                 .iter()
@@ -2065,6 +2140,7 @@ pub(crate) fn compute_build_config(
                 path_like_operands,
                 rooted_path_operand_resolutions,
                 returned_paths,
+                observed_byte_regions,
                 mutable_byte_operand_resolutions,
                 mutable_i64_operand_resolutions,
                 mutable_byte_operands,

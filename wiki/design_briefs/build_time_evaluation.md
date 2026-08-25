@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-schema v15 carries operation-attempt schema v15, retaining in call-start order
+schema v16 carries operation-attempt schema v16, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -487,8 +487,13 @@ canonical, and final-path bytes without terminators or stale tails, including
 closed kind and Complete/LimitReached disposition. Provider-known target length
 distinguishes exact-fit from truncated `read_link`; failures and insufficient-
 capacity returns add no row. Package-rooted execution rejects canonical and
-final absolute outputs, while `read_link` remains inert. Complete content
-custody remains absent. It is an incomplete operation trace,
+final absolute outputs, while `read_link` remains inert. Content custody remains
+incomplete. Successful `read`/`read_at` calls designate the
+exact returned prefix of the already-retained mutable post-carrier as
+sequential or positioned file content. Length equals the nonnegative result;
+EOF retains an empty row and failure retains none. The zero-copy designation
+adds no sponsor charge. Directory/find and metadata output semantics plus
+replay execution remain absent. It is an incomplete operation trace,
 not a transcript or receipt, and makes no replayability or source-
 rebuildability claim.
 
