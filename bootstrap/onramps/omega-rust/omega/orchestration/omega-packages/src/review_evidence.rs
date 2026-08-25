@@ -239,6 +239,26 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, operand.bytes());
         }
         digest.update(
+            u64::try_from(attempt.mutable_byte_operands().len())
+                .expect("build observation mutable-byte-operand count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.mutable_byte_operands() {
+            digest.update([operand.operand_ordinal()]);
+            hash_bytes(&mut digest, operand.pre_bytes());
+            hash_bytes(&mut digest, operand.post_bytes());
+        }
+        digest.update(
+            u64::try_from(attempt.mutable_i64_operands().len())
+                .expect("build observation mutable-i64-operand count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.mutable_i64_operands() {
+            digest.update([operand.operand_ordinal()]);
+            digest.update(operand.pre_value().to_le_bytes());
+            digest.update(operand.post_value().to_le_bytes());
+        }
+        digest.update(
             u64::try_from(attempt.authorized_paths().len())
                 .expect("build observation authorized-path count fits u64")
                 .to_le_bytes(),
@@ -464,6 +484,47 @@ reaches FilesystemHost
         summary
     }
 
+    fn compiled_read_observation(input_bytes: &str) -> BuildObservationSummary {
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-read-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).unwrap();
+        let input = project.join("input.txt");
+        std::fs::write(&input, input_bytes).unwrap();
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {{}}
+
+data RootedReader {{ filesystem: FilesystemHost; descriptor: i32; buffer: [u8; 6]; read: i64; result: i32; }}
+
+machine RootedReader::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+    self.descriptor = self.filesystem.open("{input}", 0);
+    self.read = self.filesystem.read(self.descriptor, &mut self.buffer, 6);
+    self.result = self.filesystem.close(self.descriptor);
+}}
+"#,
+                input = input.display().to_string().replace('\\', "/"),
+            ),
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("filesystem build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
@@ -492,8 +553,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 6);
-        assert_eq!(first.filesystem_operation_schema_version(), 7);
+        assert_eq!(first.schema_version(), 7);
+        assert_eq!(first.filesystem_operation_schema_version(), 8);
         let [create, write, close] = first.filesystem_operation_attempts() else {
             panic!("fixture performs create, write, and close")
         };
@@ -566,5 +627,28 @@ reaches FilesystemHost
             )
         );
         assert_ne!(first_input.resolution(), second_input.resolution());
+    }
+
+    #[test]
+    fn observation_commitment_binds_mutable_pre_and_post_state() {
+        let first = compiled_read_observation("alpha\n");
+        let changed = compiled_read_observation("bravo\n");
+        let first_read = &first.filesystem_operation_attempts()[1];
+        let changed_read = &changed.filesystem_operation_attempts()[1];
+        assert_eq!(first_read.mutable_byte_operands()[0].pre_bytes(), &[0; 6]);
+        assert_eq!(changed_read.mutable_byte_operands()[0].pre_bytes(), &[0; 6]);
+        assert_eq!(
+            first_read.mutable_byte_operands()[0].post_bytes(),
+            b"alpha\n"
+        );
+        assert_eq!(
+            changed_read.mutable_byte_operands()[0].post_bytes(),
+            b"bravo\n"
+        );
+        assert_ne!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&changed),
+            "one changed mutable post-state changes observation identity"
+        );
     }
 }

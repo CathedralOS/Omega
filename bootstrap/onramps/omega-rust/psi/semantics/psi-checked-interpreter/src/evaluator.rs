@@ -19,7 +19,8 @@ use filesystem_logical_handles::FilesystemLogicalHandles;
 mod filesystem_preparation;
 use filesystem_preparation::{
     PreparedByteOutput, PreparedFilesystemCall, PreparedFilesystemLogicalHandleOutput,
-    PreparedFilesystemLogicalHandlePlan, synthetic_handle_fd,
+    PreparedFilesystemLogicalHandlePlan, PreparedFilesystemMutableObservationPlan,
+    synthetic_handle_fd,
 };
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the

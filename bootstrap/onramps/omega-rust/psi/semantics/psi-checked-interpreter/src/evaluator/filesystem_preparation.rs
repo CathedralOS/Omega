@@ -1,5 +1,8 @@
 use super::*;
-use crate::{FilesystemByteOperand, FilesystemScalarOperand, FilesystemScalarOperandValue};
+use crate::{
+    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableI64Operand,
+    FilesystemScalarOperand, FilesystemScalarOperandValue,
+};
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
 const FILETIME_BYTES: usize = 8;
@@ -76,6 +79,7 @@ pub(super) struct PreparedTransferCount {
     pub(super) host: usize,
 }
 
+#[derive(Clone)]
 pub(super) enum PreparedByteOutput {
     Text {
         text: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
@@ -158,6 +162,7 @@ pub(super) struct PreparedMutableByteInput {
     pub(super) bytes: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub(super) struct PreparedI64Output {
     cell: Cell,
     pub(super) initial: i64,
@@ -167,6 +172,13 @@ impl PreparedI64Output {
     pub(super) fn write(&self, value: i64) -> EvalResult<()> {
         *self.cell.borrow_mut() = Value::Int(value);
         Ok(())
+    }
+
+    fn snapshot(&self) -> EvalResult<i64> {
+        self.cell
+            .borrow()
+            .as_int()
+            .ok_or_else(|| Halt::Trap("filesystem mutable scalar became non-integer".to_owned()))
     }
 }
 
@@ -476,6 +488,116 @@ fn observed_bytes(operand_ordinal: u8, value: &[u8]) -> FilesystemByteOperand {
         operand_ordinal,
         bytes: value.to_vec(),
     }
+}
+
+pub(super) struct PreparedFilesystemMutableByteObservation {
+    operand_ordinal: u8,
+    output: PreparedByteOutput,
+    pre_bytes: Vec<u8>,
+}
+
+pub(super) struct PreparedFilesystemMutableI64Observation {
+    operand_ordinal: u8,
+    output: PreparedI64Output,
+    pre_value: i64,
+}
+
+pub(super) struct PreparedFilesystemMutableObservationPlan {
+    byte_operands: Vec<PreparedFilesystemMutableByteObservation>,
+    i64_operands: Vec<PreparedFilesystemMutableI64Observation>,
+}
+
+impl PreparedFilesystemMutableObservationPlan {
+    pub(super) fn reserved_bytes(&self) -> Option<usize> {
+        self.byte_operands
+            .iter()
+            .try_fold(0usize, |total, operand| {
+                operand
+                    .pre_bytes
+                    .len()
+                    .checked_mul(2)
+                    .and_then(|bytes| total.checked_add(bytes))
+            })
+    }
+
+    pub(super) fn initial_rows(
+        &self,
+    ) -> (
+        Vec<FilesystemMutableByteOperand>,
+        Vec<FilesystemMutableI64Operand>,
+    ) {
+        (
+            self.byte_operands
+                .iter()
+                .map(|operand| FilesystemMutableByteOperand {
+                    operand_ordinal: operand.operand_ordinal,
+                    pre_bytes: operand.pre_bytes.clone(),
+                    post_bytes: operand.pre_bytes.clone(),
+                })
+                .collect(),
+            self.i64_operands
+                .iter()
+                .map(|operand| FilesystemMutableI64Operand {
+                    operand_ordinal: operand.operand_ordinal,
+                    pre_value: operand.pre_value,
+                    post_value: operand.pre_value,
+                })
+                .collect(),
+        )
+    }
+
+    pub(super) fn completed_rows(
+        &self,
+    ) -> EvalResult<(
+        Vec<FilesystemMutableByteOperand>,
+        Vec<FilesystemMutableI64Operand>,
+    )> {
+        let byte_operands = self
+            .byte_operands
+            .iter()
+            .map(|operand| {
+                Ok(FilesystemMutableByteOperand {
+                    operand_ordinal: operand.operand_ordinal,
+                    pre_bytes: operand.pre_bytes.clone(),
+                    post_bytes: operand.output.snapshot()?,
+                })
+            })
+            .collect::<EvalResult<Vec<_>>>()?;
+        let i64_operands = self
+            .i64_operands
+            .iter()
+            .map(|operand| {
+                Ok(FilesystemMutableI64Operand {
+                    operand_ordinal: operand.operand_ordinal,
+                    pre_value: operand.pre_value,
+                    post_value: operand.output.snapshot()?,
+                })
+            })
+            .collect::<EvalResult<Vec<_>>>()?;
+        Ok((byte_operands, i64_operands))
+    }
+}
+
+fn mutable_byte_observation(
+    operand_ordinal: u8,
+    output: &PreparedByteOutput,
+) -> EvalResult<PreparedFilesystemMutableByteObservation> {
+    Ok(PreparedFilesystemMutableByteObservation {
+        operand_ordinal,
+        output: output.clone(),
+        pre_bytes: output.snapshot()?,
+    })
+}
+
+fn mutable_i64_observation(
+    operand_ordinal: u8,
+    output: &PreparedI64Output,
+) -> EvalResult<PreparedFilesystemMutableI64Observation> {
+    Ok(PreparedFilesystemMutableI64Observation {
+        operand_ordinal,
+        output: output.clone(),
+        pre_value: output.snapshot()?,
+    })
 }
 
 impl PreparedFilesystemCall {
@@ -793,6 +915,85 @@ impl PreparedFilesystemCall {
             | Self::Errno => {}
         }
         (scalars, bytes)
+    }
+
+    /// Snapshot mutable carriers only after all authored arguments have been
+    /// evaluated. A later argument may alias an earlier carrier, so capturing
+    /// while the argument cursor advances would not describe provider-visible
+    /// pre-state.
+    pub(super) fn mutable_observation_plan(
+        &self,
+    ) -> EvalResult<PreparedFilesystemMutableObservationPlan> {
+        let mut byte_operands = Vec::new();
+        let mut i64_operands = Vec::new();
+        match self {
+            Self::Read { buffer, .. }
+            | Self::ReadAt { buffer, .. }
+            | Self::ReadLink { buffer, .. }
+            | Self::Canonicalize { buffer, .. }
+            | Self::FinalPathNameByHandle { buffer, .. }
+            | Self::ReadMetadata { buffer, .. }
+            | Self::ReadFileMetadata { buffer, .. }
+            | Self::ReadSymlinkMetadata { buffer, .. } => {
+                byte_operands.push(mutable_byte_observation(1, buffer)?);
+            }
+            Self::ReadDir {
+                buffer, position, ..
+            } => {
+                byte_operands.push(mutable_byte_observation(1, buffer)?);
+                i64_operands.push(mutable_i64_observation(3, position)?);
+            }
+            Self::FindFirst { data, .. } | Self::FindNext { data, .. } => {
+                byte_operands.push(mutable_byte_observation(1, data)?);
+            }
+            Self::LockFileEx { overlapped, .. } => {
+                byte_operands.push(mutable_byte_observation(5, &overlapped.output)?);
+            }
+            Self::SetFileTimes { times, .. } => {
+                byte_operands.push(mutable_byte_observation(1, &times.output)?);
+            }
+            Self::Create { .. }
+            | Self::Open { .. }
+            | Self::OpenCreate { .. }
+            | Self::Write { .. }
+            | Self::WriteAt { .. }
+            | Self::Close { .. }
+            | Self::Remove { .. }
+            | Self::Seek { .. }
+            | Self::CreateDir { .. }
+            | Self::RemoveDir { .. }
+            | Self::CreateDirName { .. }
+            | Self::OpenAt { .. }
+            | Self::UnlinkAt { .. }
+            | Self::SetPermissions { .. }
+            | Self::SetFilePermissions { .. }
+            | Self::Rename { .. }
+            | Self::HardLink { .. }
+            | Self::Symlink { .. }
+            | Self::FindClose { .. }
+            | Self::CreateHardLink { .. }
+            | Self::OpenPathHandle { .. }
+            | Self::CloseHandle { .. }
+            | Self::GetOsfHandle { .. }
+            | Self::SetFileTime { .. }
+            | Self::UnlockFile { .. }
+            | Self::GetLastError
+            | Self::RemoveName { .. }
+            | Self::RemoveDirName { .. }
+            | Self::SetLen { .. }
+            | Self::Sync { .. }
+            | Self::SyncData { .. }
+            | Self::Duplicate { .. }
+            | Self::LockFile { .. }
+            | Self::ChangeOwner { .. }
+            | Self::ChangeOwnerNoFollow { .. }
+            | Self::ChangeFileOwner { .. }
+            | Self::Errno => {}
+        }
+        Ok(PreparedFilesystemMutableObservationPlan {
+            byte_operands,
+            i64_operands,
+        })
     }
 }
 
@@ -1348,6 +1549,9 @@ mod tests {
         for operation in FilesystemHostOperation::ALL {
             let call = prepared_call_fixture(operation);
             let logical_plan = call.logical_handle_plan();
+            let mutable_plan = call
+                .mutable_observation_plan()
+                .unwrap_or_else(|_| panic!("mutable observation fixture must be representable"));
             let logical_ordinals = logical_plan
                 .inputs
                 .iter()
@@ -1392,6 +1596,40 @@ mod tests {
                 expected_immutable_byte_ordinals(operation),
                 "immutable byte evidence role drift for `{operation}`"
             );
+            let expected_mutable_bytes = operation
+                .operand_kinds()
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, kind)| {
+                    (*kind == Kind::MutableBytes).then_some(u8::try_from(ordinal).unwrap())
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                mutable_plan
+                    .byte_operands
+                    .iter()
+                    .map(|operand| operand.operand_ordinal)
+                    .collect::<Vec<_>>(),
+                expected_mutable_bytes,
+                "mutable byte evidence role drift for `{operation}`"
+            );
+            let expected_mutable_i64 = operation
+                .operand_kinds()
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, kind)| {
+                    (*kind == Kind::MutableI64).then_some(u8::try_from(ordinal).unwrap())
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                mutable_plan
+                    .i64_operands
+                    .iter()
+                    .map(|operand| operand.operand_ordinal)
+                    .collect::<Vec<_>>(),
+                expected_mutable_i64,
+                "mutable i64 evidence role drift for `{operation}`"
+            );
 
             let mut observed_ordinals = logical_ordinals;
             for ordinal in actual_scalars
@@ -1405,6 +1643,60 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn mutable_observation_plan_retains_complete_pre_and_post_carriers() {
+        let buffer = array_output(3);
+        buffer
+            .write(&[9, 8, 7])
+            .unwrap_or_else(|_| panic!("fixture write must fit"));
+        let call = PreparedFilesystemCall::Read {
+            fd: 3,
+            buffer: buffer.clone(),
+            count: PreparedTransferCount { raw: 1, host: 1 },
+        };
+        let plan = call
+            .mutable_observation_plan()
+            .unwrap_or_else(|_| panic!("mutable observation fixture must be representable"));
+        assert_eq!(plan.reserved_bytes(), Some(6));
+        let (initial_bytes, initial_i64) = plan.initial_rows();
+        assert!(initial_i64.is_empty());
+        assert_eq!(initial_bytes[0].pre_bytes(), &[9, 8, 7]);
+        assert_eq!(initial_bytes[0].post_bytes(), &[9, 8, 7]);
+
+        buffer
+            .write(&[1])
+            .unwrap_or_else(|_| panic!("fixture write must fit"));
+        let (completed_bytes, completed_i64) = plan
+            .completed_rows()
+            .unwrap_or_else(|_| panic!("completed fixture must be representable"));
+        assert!(completed_i64.is_empty());
+        assert_eq!(completed_bytes[0].pre_bytes(), &[9, 8, 7]);
+        assert_eq!(
+            completed_bytes[0].post_bytes(),
+            &[1, 8, 7],
+            "unchanged mutable tail remains explicit"
+        );
+
+        let position = mutable_i64();
+        let call = PreparedFilesystemCall::ReadDir {
+            fd: 3,
+            buffer: array_output(1),
+            count: transfer_count(),
+            position: position.clone(),
+        };
+        let plan = call
+            .mutable_observation_plan()
+            .unwrap_or_else(|_| panic!("mutable observation fixture must be representable"));
+        position
+            .write(12)
+            .unwrap_or_else(|_| panic!("fixture cursor write must fit"));
+        let (_, completed_i64) = plan
+            .completed_rows()
+            .unwrap_or_else(|_| panic!("completed fixture must be representable"));
+        assert_eq!(completed_i64[0].pre_value(), 7);
+        assert_eq!(completed_i64[0].post_value(), 12);
     }
 
     #[test]

@@ -35,15 +35,33 @@ impl<'program> Evaluator<'program> {
             Ok(call) => {
                 let logical_handle_plan = call.logical_handle_plan();
                 let (scalar_operands, byte_operands) = call.operand_observation_plan();
-                self.record_operand_observations(attempt_index, scalar_operands, byte_operands)
-                    .and_then(|()| {
+                match call.mutable_observation_plan().and_then(|mutable_plan| {
+                    self.record_operand_observations(
+                        attempt_index,
+                        scalar_operands,
+                        byte_operands,
+                        &mutable_plan,
+                    )?;
+                    Ok(mutable_plan)
+                }) {
+                    Ok(mutable_plan) => {
                         self.record_logical_handle_inputs(attempt_index, &logical_handle_plan);
-                        self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
-                    })
-                    .and_then(|()| {
-                        self.serve_filesystem_call(call)
-                            .map(|value| (value, logical_handle_plan))
-                    })
+                        match self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan) {
+                            Err(halt) => Err(halt),
+                            Ok(()) => {
+                                let served = self.serve_filesystem_call(call);
+                                let completed = self
+                                    .complete_mutable_observations(attempt_index, &mutable_plan);
+                                match (served, completed) {
+                                    (Ok(value), Ok(())) => Ok((value, logical_handle_plan)),
+                                    (Err(halt), Ok(())) => Err(halt),
+                                    (_, Err(halt)) => Err(halt),
+                                }
+                            }
+                        }
+                    }
+                    Err(halt) => Err(halt),
+                }
             }
             Err(halt) => Err(halt),
         };
@@ -123,21 +141,44 @@ impl<'program> Evaluator<'program> {
         attempt_index: usize,
         scalar_operands: Vec<FilesystemScalarOperand>,
         byte_operands: Vec<FilesystemByteOperand>,
+        mutable_plan: &PreparedFilesystemMutableObservationPlan,
     ) -> EvalResult<()> {
-        let retained_bytes = byte_operands.iter().try_fold(0usize, |total, operand| {
-            total.checked_add(operand.bytes.len())
-        });
+        let retained_bytes = byte_operands
+            .iter()
+            .try_fold(0usize, |total, operand| {
+                total.checked_add(operand.bytes.len())
+            })
+            .and_then(|total| {
+                mutable_plan
+                    .reserved_bytes()
+                    .and_then(|mutable| total.checked_add(mutable))
+            });
         let Some(next_total) = retained_bytes.and_then(|bytes| {
             checked_observation_evidence_total(self.filesystem_observation_evidence_bytes, bytes)
         }) else {
             return Err(Halt::Resource(format!(
-                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte immutable-operand ceiling"
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
             )));
         };
         self.filesystem_observation_evidence_bytes = next_total;
         let attempt = &mut self.filesystem_operation_attempts[attempt_index];
         attempt.scalar_operands = scalar_operands;
         attempt.byte_operands = byte_operands;
+        let (mutable_byte_operands, mutable_i64_operands) = mutable_plan.initial_rows();
+        attempt.mutable_byte_operands = mutable_byte_operands;
+        attempt.mutable_i64_operands = mutable_i64_operands;
+        Ok(())
+    }
+
+    fn complete_mutable_observations(
+        &mut self,
+        attempt_index: usize,
+        plan: &PreparedFilesystemMutableObservationPlan,
+    ) -> EvalResult<()> {
+        let (mutable_byte_operands, mutable_i64_operands) = plan.completed_rows()?;
+        let attempt = &mut self.filesystem_operation_attempts[attempt_index];
+        attempt.mutable_byte_operands = mutable_byte_operands;
+        attempt.mutable_i64_operands = mutable_i64_operands;
         Ok(())
     }
 

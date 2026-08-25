@@ -192,7 +192,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 6;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 7;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -329,6 +329,48 @@ impl BuildFilesystemByteOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemMutableByteOperand {
+    operand_ordinal: u8,
+    pre_bytes: Vec<u8>,
+    post_bytes: Vec<u8>,
+}
+
+impl BuildFilesystemMutableByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn pre_bytes(&self) -> &[u8] {
+        &self.pre_bytes
+    }
+
+    pub fn post_bytes(&self) -> &[u8] {
+        &self.post_bytes
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemMutableI64Operand {
+    operand_ordinal: u8,
+    pre_value: i64,
+    post_value: i64,
+}
+
+impl BuildFilesystemMutableI64Operand {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn pre_value(self) -> i64 {
+        self.pre_value
+    }
+
+    pub const fn post_value(self) -> i64 {
+        self.post_value
     }
 }
 
@@ -502,6 +544,8 @@ pub struct BuildFilesystemOperationAttempt {
     post_error: i32,
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
     byte_operands: Vec<BuildFilesystemByteOperand>,
+    mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
+    mutable_i64_operands: Vec<BuildFilesystemMutableI64Operand>,
     authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
     logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
     logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
@@ -532,6 +576,14 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn byte_operands(&self) -> &[BuildFilesystemByteOperand] {
         &self.byte_operands
+    }
+
+    pub fn mutable_byte_operands(&self) -> &[BuildFilesystemMutableByteOperand] {
+        &self.mutable_byte_operands
+    }
+
+    pub fn mutable_i64_operands(&self) -> &[BuildFilesystemMutableI64Operand] {
+        &self.mutable_i64_operands
     }
 
     pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
@@ -1603,6 +1655,24 @@ pub(crate) fn compute_build_config(
                     bytes: operand.bytes().to_vec(),
                 })
                 .collect();
+            let mutable_byte_operands = attempt
+                .mutable_byte_operands()
+                .iter()
+                .map(|operand| BuildFilesystemMutableByteOperand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    pre_bytes: operand.pre_bytes().to_vec(),
+                    post_bytes: operand.post_bytes().to_vec(),
+                })
+                .collect();
+            let mutable_i64_operands = attempt
+                .mutable_i64_operands()
+                .iter()
+                .map(|operand| BuildFilesystemMutableI64Operand {
+                    operand_ordinal: operand.operand_ordinal(),
+                    pre_value: operand.pre_value(),
+                    post_value: operand.post_value(),
+                })
+                .collect();
             let logical_handle_output = attempt.logical_handle_output().map(|output| {
                 BuildFilesystemLogicalHandleOutput {
                     kind: project_logical_handle_kind(output.kind()),
@@ -1637,6 +1707,8 @@ pub(crate) fn compute_build_config(
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
                 scalar_operands,
                 byte_operands,
+                mutable_byte_operands,
+                mutable_i64_operands,
                 authorized_paths,
                 logical_handle_inputs,
                 logical_handle_output,

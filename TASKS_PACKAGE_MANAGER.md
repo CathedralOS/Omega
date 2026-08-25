@@ -774,8 +774,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v6
-  carries operation-attempt schema v7: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v7
+  carries operation-attempt schema v8: an ordered successful-run call-start
   trace of exact provider, operation tag, scalar return, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -814,16 +814,23 @@ complete.
   signedness. Immutable write/FILETIME payloads retain exact authored bytes,
   including trailing bytes beyond the provider's minimum read, while validated
   `open_at`/`unlink_at` components retain their exact portable spelling. Raw
-  rooted/path-alias spellings never enter this payload lane. A separate 256 MiB
-  aggregate immutable-evidence sponsor reserves custody before that call's
-  provider access; exhaustion non-catchably halts that call. Prior or nested
+  rooted/path-alias spellings never enter this payload lane. Mutable byte
+  carriers retain their complete capacity before and after the provider call,
+  including unchanged tails; mutable i64 carriers retain exact pre/post values.
+  Pre-state is captured only after every authored argument has been evaluated,
+  and post-state is captured after either provider return or provider halt.
+  Input-only ABI carriers remain explicit even when unchanged. A separate 256
+  MiB aggregate operand-evidence sponsor reserves immutable bytes plus both
+  copies of every mutable carrier before that call's provider access;
+  exhaustion non-catchably halts that call. Prior or nested
   staging effects remain cleanup-contained rather than being denied
-  retroactively. Package review commitments frame scalar tags, ordinals, and
-  bytes exactly and never render payload bytes as text.
+  retroactively. Package review commitments frame scalar tags, ordinals,
+  immutable bytes, and mutable pre/post states exactly and never render payload
+  bytes as text.
   This deliberately incomplete trace may still expose runtime descriptor values
   and omits path-like byte operands not yet represented by rooted evidence,
-  mutable byte regions, retained returned-path bytes, preparation-failure
-  operand prefixes, and complete content custody.
+  retained returned-path bytes, preparation-failure operand prefixes, and
+  complete content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -844,8 +851,8 @@ complete.
   executable real-scoped canaries prove ignored-operand traps and invalid
   outputs occur before disk mutation or grant consultation. The canonical trait
   test pins each operation's exact operand order/kind and result width.
-  Complete path-like byte and mutable-region event serialization,
-  transcripts/content custody, cleanup-gated publication, output-tree
+  Complete path-like byte serialization, transcripts/content custody,
+  cleanup-gated publication, output-tree
   commitment, and replay remain. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
