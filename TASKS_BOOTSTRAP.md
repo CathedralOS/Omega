@@ -328,6 +328,10 @@ work.
   measured 103 seconds in `independent-historical-teeth` alone and then spent
   more than four additional minutes in the unreported
   `checker-a-historical-mutations` phase before the unrelated run was stopped.
+  The ordinary lattice now runs the existing maximal-root-observation focus,
+  including its independently rebuilt canonical prerequisites and root teeth,
+  in about 33 seconds; `LATTICE_FULL=1` retains the monolithic historical
+  matrix until this remaining sharding/cache work lands.
 
 - Keep one focused gate per active capability; run the full lattice gate only
   at coherent milestones.
