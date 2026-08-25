@@ -13,7 +13,7 @@ through 21. Earlier OMGLOW and CKIR identities and bytes remain frozen.
 
 This is bounded bridge-cost evidence for a common checkpoint source form. It
 is not a public Omega IR, a general arithmetic admission, a full-width host
-`u32` claim, or final admission to `Omega-self`.
+`u32` claim, or final admission to `Ωself`.
 
 ## 1. Independent lowering and resolution versions
 

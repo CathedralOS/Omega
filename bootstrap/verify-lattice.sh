@@ -249,6 +249,12 @@ precise_step() { # label dir script cache-profile
       fi
       s_profile_hash=$CACHE_HASH_CKIR11
       ;;
+    omega-bootstrap-ckir12)
+      if [ -z "${CACHE_HASH_CKIR12+x}" ]; then
+        CACHE_HASH_CKIR12=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_CKIR12
+      ;;
     omega-bootstrap-omgrfn10)
       if [ -z "${CACHE_HASH_OMGRFN10+x}" ]; then
         CACHE_HASH_OMGRFN10=$(hash_cache_profile "$s_profile") || exit $?
@@ -272,6 +278,12 @@ precise_step() { # label dir script cache-profile
         CACHE_HASH_OMGRFN13=$(hash_cache_profile "$s_profile") || exit $?
       fi
       s_profile_hash=$CACHE_HASH_OMGRFN13
+      ;;
+    omega-bootstrap-omgrfn14)
+      if [ -z "${CACHE_HASH_OMGRFN14+x}" ]; then
+        CACHE_HASH_OMGRFN14=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_OMGRFN14
       ;;
     *)
       s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
@@ -348,6 +360,7 @@ step "omega-bootstrap source bundle — canonical deterministic multi-file input
 step "omega-bootstrap compilation envelope — canonical package/source/alias transport and malformed/resource teeth" omega-bootstrap-gates omega-bootstrap-compilation-test.sh omega-bootstrap
 step "omega-bootstrap Delta compilation-envelope checker — structural native/self-built relations and resource boundaries" omega-bootstrap-gates delta-compilation-envelope.sh delta-rust omega-bootstrap
 step "omega-bootstrap Delta compilation-envelope meaning (RUST-FREE) — structural 0/251/252 through Gamma" omega-bootstrap-gates delta-compilation-envelope-meaning.sh omega-bootstrap-meaning gamma
+precise_step "omega-bootstrap OMGCOMP2 custody — exact Linux-x86-64/native-provider target configuration with opaque source semantics" omega-bootstrap-gates delta-compilation-envelope-v2.sh omega-bootstrap-omgcomp2
 step "omega-bootstrap two-package fixture — pinned deterministic OMGCOMP and semantic negatives" omega-bootstrap-gates two-unit-compilation-fixture.sh omega-bootstrap-compiler
 step "omega-bootstrap Delta resolution handoff — exact OMGCOMP to canonical OMGRSW1, native/self/resource agreement" omega-bootstrap-gates delta-resolution-handoff.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap resolution meaning (RUST-FREE) — canonical 0/251/252 through Gamma" omega-bootstrap-gates delta-resolution-handoff-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
@@ -422,6 +435,10 @@ precise_step "omega-bootstrap CKIR11 independent reference — canonical trappin
 precise_step "omega-bootstrap CKIR11 resolved-source lowerer — OMGLOWC selected trapping addition in admitted contexts" omega-bootstrap-gates delta-resolved-to-ckir11.sh omega-bootstrap-ckir11
 precise_step "omega-bootstrap CKIR11 lowering meaning (RUST-FREE) — successful and runtime-overflow Add through Gamma" omega-bootstrap-gates delta-resolved-to-ckir11-meaning.sh omega-bootstrap-ckir11
 precise_step "omega-bootstrap CKIR11 backend — exact Add/carry/range/store template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v11-backend.sh omega-bootstrap-ckir11
+precise_step "omega-bootstrap OMGRSW4 resolution — bounded shared-byte views and plain-ASCII literals" omega-bootstrap-gates delta-shared-byte-view-resolution-handoff.sh omega-bootstrap-ckir12
+precise_step "omega-bootstrap CKIR12 independent reference — program-static shared-byte-view meaning and resource teeth" omega-bootstrap-gates delta-checked-ir-v12-reference.sh omega-bootstrap-ckir12
+precise_step "omega-bootstrap CKIR12 resolved-source lowerer — OMGLOWD guarded head and one-byte tail" omega-bootstrap-gates delta-resolved-to-ckir12.sh omega-bootstrap-ckir12
+precise_step "omega-bootstrap CKIR12 backend — exact descriptor, guarded head/tail, and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v12-backend.sh omega-bootstrap-ckir12
 step "omega-bootstrap OMGRFN5/6/7 layer 1 — exact successor frame, OMGCOMP graph, and source custody" omega-bootstrap-refinement omgrfn5-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 2 — independent runtime-record source resolution below Delta" omega-bootstrap-refinement omgrfn5-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 3 — independent witness-to-CKIR4 declarations, layout, root, and intrinsic envelope" omega-bootstrap-refinement omgrfn5-witness-ckir4-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -443,6 +460,7 @@ precise_step "omega-bootstrap OMGRFN10 composite — all five independent respon
 precise_step "omega-bootstrap OMGRFN11 composite — all five independent responsibilities consume one exact primitive-ordered-comparison frame" omega-bootstrap-refinement omgrfn11-same-frame-composite.sh omega-bootstrap-omgrfn11
 precise_step "omega-bootstrap OMGRFN12 composite — all five independent responsibilities consume one exact primitive-integer-widen frame" omega-bootstrap-refinement omgrfn12-same-frame-composite.sh omega-bootstrap-omgrfn12
 precise_step "omega-bootstrap OMGRFN13 composite — all five independent responsibilities consume one exact canonical trapping-add frame" omega-bootstrap-refinement omgrfn13-same-frame-composite.sh omega-bootstrap-omgrfn13
+precise_step "omega-bootstrap OMGRFN14 composite — all five independent responsibilities consume exact static shared-byte-view frames" omega-bootstrap-refinement omgrfn14-same-frame-composite.sh omega-bootstrap-omgrfn14
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints

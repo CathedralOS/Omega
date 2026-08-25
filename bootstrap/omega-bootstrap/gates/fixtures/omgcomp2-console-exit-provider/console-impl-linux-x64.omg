@@ -1,0 +1,7 @@
+linux_x64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
+
+linux_x64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    defaults.select_provider<Console, ConsoleNativeProvider>();
+}

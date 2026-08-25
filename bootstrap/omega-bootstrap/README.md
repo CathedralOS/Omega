@@ -56,7 +56,7 @@ The repository has working bounded slices, not the complete bridge:
 
 | Responsibility | Current boundary | Canonical contracts |
 | --- | --- | --- |
-| source bundle and multi-unit custody | canonical bounded transport and structural checking; no package/lock authority | [`OMEGA_BOOTSTRAP_BUNDLE.md`](compiler/OMEGA_BOOTSTRAP_BUNDLE.md), [`OMEGA_BOOTSTRAP_COMPILATION.md`](compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
+| source bundle and multi-unit custody | canonical bounded transport, generic OMGCOMP1 checking, and exact Linux-x86-64/native-provider configuration custody in OMGCOMP2; source spellings remain opaque and no package/lock authority follows | [`OMEGA_BOOTSTRAP_BUNDLE.md`](compiler/OMEGA_BOOTSTRAP_BUNDLE.md), [`OMEGA_BOOTSTRAP_COMPILATION.md`](compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md) |
 | resolution | selected public multi-unit, call, data, receiver, scalar, and view relations; each widening is bounded by its own least-version contract | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts under [`compiler/`](compiler/) |
 | checked lowering and conservative emission | private versioned vertical slices preserve prior admitted forms while adding one selected compositional relation at a time | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts under [`compiler/`](compiler/) |
 | lower-rooted reconstruction | selected source/checked-IR/artifact closures have independent R1–R5 reconstruction through the latest published witness | [`../assurance/refinement/omega-bootstrap/README.md`](../assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
