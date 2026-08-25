@@ -24,9 +24,18 @@ impl<'program> Evaluator<'program> {
                 provider,
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
-        let mut outcome = self
-            .prepare_filesystem_call(operation, arguments, frame)
-            .and_then(|call| self.serve_filesystem_call(call));
+        let mut outcome = match self.prepare_filesystem_call(operation, arguments, frame) {
+            Ok(call) => {
+                let logical_handle_plan = call.logical_handle_plan();
+                self.record_logical_handle_inputs(attempt_index, &logical_handle_plan);
+                self.reject_cross_domain_logical_handle_inputs(&logical_handle_plan)
+                    .and_then(|()| {
+                        self.serve_filesystem_call(call)
+                            .map(|value| (value, logical_handle_plan))
+                    })
+            }
+            Err(halt) => Err(halt),
+        };
         if let Some(message) = self.filesystem_observation_resource_halt.take() {
             // Observation custody is compiler policy, not Omega program
             // semantics. The provider has already refused host access, and the
@@ -40,7 +49,7 @@ impl<'program> Evaluator<'program> {
             .expect("filesystem operation attempt stack must balance");
         debug_assert_eq!(completed_index, attempt_index);
         match outcome {
-            Ok(value) => {
+            Ok((value, logical_handle_plan)) => {
                 let Some(result) = value.as_int() else {
                     self.filesystem_operation_attempts[attempt_index].outcome =
                         Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
@@ -60,6 +69,21 @@ impl<'program> Evaluator<'program> {
                     return Err(Halt::Trap(format!(
                         "canonical filesystem operation `{operation}` returned `{result}` outside its i32 result type"
                     )));
+                }
+                if let Err(halt) = self.complete_logical_handle_observations(
+                    attempt_index,
+                    &logical_handle_plan,
+                    result,
+                ) {
+                    let kind = match &halt {
+                        Halt::Exit(_) => FilesystemEvaluationHaltKind::Exit,
+                        Halt::Unsupported(_) => FilesystemEvaluationHaltKind::Unsupported,
+                        Halt::Trap(_) => FilesystemEvaluationHaltKind::Trap,
+                        Halt::Resource(_) => FilesystemEvaluationHaltKind::ResourceExhausted,
+                    };
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(kind));
+                    return Err(halt);
                 }
                 let post_error = self
                     .real_fs
@@ -81,6 +105,174 @@ impl<'program> Evaluator<'program> {
                 Err(halt)
             }
         }
+    }
+
+    fn record_logical_handle_inputs(
+        &mut self,
+        attempt_index: usize,
+        plan: &PreparedFilesystemLogicalHandlePlan,
+    ) {
+        let inputs = plan
+            .inputs
+            .iter()
+            .map(|input| FilesystemLogicalHandleInput {
+                operand_ordinal: input.operand_ordinal,
+                kind: input.kind,
+                resolution: self.filesystem_logical_handles.resolve(
+                    input.kind,
+                    input.raw,
+                    input.null_allowed,
+                ),
+            })
+            .collect();
+        self.filesystem_operation_attempts[attempt_index].logical_handle_inputs = inputs;
+    }
+
+    fn reject_cross_domain_logical_handle_inputs(
+        &self,
+        plan: &PreparedFilesystemLogicalHandlePlan,
+    ) -> EvalResult<()> {
+        if plan.inputs.iter().any(|input| {
+            self.filesystem_logical_handles.conflicts_with_live_domain(
+                input.kind,
+                input.raw,
+                input.null_allowed,
+            )
+        }) {
+            return trap(
+                "filesystem input aliases a live token from another logical-handle domain",
+            );
+        }
+        Ok(())
+    }
+
+    fn complete_logical_handle_observations(
+        &mut self,
+        attempt_index: usize,
+        plan: &PreparedFilesystemLogicalHandlePlan,
+        result: i64,
+    ) -> EvalResult<()> {
+        if plan
+            .input_success
+            .is_some_and(|success| success.accepts(result))
+            && self.filesystem_operation_attempts[attempt_index]
+                .logical_handle_inputs
+                .iter()
+                .any(|input| {
+                    matches!(
+                        input.resolution,
+                        FilesystemLogicalHandleInputResolution::Unknown
+                    )
+                })
+        {
+            return trap(
+                "filesystem provider accepted an input outside its live logical-handle domain",
+            );
+        }
+        if let Some(output) = plan.output {
+            let (success, kind, source) = match output {
+                PreparedFilesystemLogicalHandleOutput::Created { kind, success } => {
+                    (success, kind, FilesystemLogicalHandleOutputSource::Created)
+                }
+                PreparedFilesystemLogicalHandleOutput::Duplicated {
+                    source_operand_ordinal,
+                    success,
+                } => {
+                    let source = self.resolved_logical_handle_input(
+                        attempt_index,
+                        source_operand_ordinal,
+                        FilesystemLogicalHandleKind::Descriptor,
+                    );
+                    if success.accepts(result) && source.is_none() {
+                        return trap(
+                            "filesystem provider duplicated an unresolved descriptor token",
+                        );
+                    }
+                    (
+                        success,
+                        FilesystemLogicalHandleKind::Descriptor,
+                        source
+                            .map(FilesystemLogicalHandleOutputSource::Duplicated)
+                            .unwrap_or(FilesystemLogicalHandleOutputSource::Created),
+                    )
+                }
+                PreparedFilesystemLogicalHandleOutput::Borrowed {
+                    source_operand_ordinal,
+                    success,
+                } => {
+                    let source = self.resolved_logical_handle_input(
+                        attempt_index,
+                        source_operand_ordinal,
+                        FilesystemLogicalHandleKind::Descriptor,
+                    );
+                    if success.accepts(result) && source.is_none() {
+                        return trap(
+                            "filesystem provider returned a native view for an unresolved descriptor token",
+                        );
+                    }
+                    (
+                        success,
+                        FilesystemLogicalHandleKind::Native,
+                        source
+                            .map(FilesystemLogicalHandleOutputSource::Borrowed)
+                            .unwrap_or(FilesystemLogicalHandleOutputSource::Created),
+                    )
+                }
+            };
+            if success.accepts(result) {
+                let identity = match source {
+                    FilesystemLogicalHandleOutputSource::Borrowed(source) => self
+                        .filesystem_logical_handles
+                        .borrow_native(result, source),
+                    FilesystemLogicalHandleOutputSource::Created
+                    | FilesystemLogicalHandleOutputSource::Duplicated(_) => {
+                        self.filesystem_logical_handles.create(kind, result)
+                    }
+                }
+                .map_err(filesystem_logical_handle_halt)?;
+                self.filesystem_operation_attempts[attempt_index].logical_handle_output =
+                    Some(FilesystemLogicalHandleOutput {
+                        kind,
+                        identity,
+                        source,
+                    });
+            }
+        }
+
+        if let Some(retirement) = plan.retirement
+            && retirement.success.accepts(result)
+        {
+            let input = self.filesystem_operation_attempts[attempt_index]
+                .logical_handle_inputs
+                .iter()
+                .find(|input| input.operand_ordinal == retirement.operand_ordinal)
+                .copied()
+                .expect("retirement plan must name one retained handle input");
+            let FilesystemLogicalHandleInputResolution::Resolved(identity) = input.resolution
+            else {
+                return trap("filesystem provider closed an unresolved logical handle token");
+            };
+            self.filesystem_operation_attempts[attempt_index].retired_logical_handles =
+                self.filesystem_logical_handles.retire(input.kind, identity);
+        }
+        Ok(())
+    }
+
+    fn resolved_logical_handle_input(
+        &self,
+        attempt_index: usize,
+        operand_ordinal: u8,
+        kind: FilesystemLogicalHandleKind,
+    ) -> Option<crate::FilesystemLogicalHandleIdentity> {
+        self.filesystem_operation_attempts[attempt_index]
+            .logical_handle_inputs
+            .iter()
+            .find(|input| input.operand_ordinal == operand_ordinal && input.kind == kind)
+            .and_then(|input| match input.resolution {
+                FilesystemLogicalHandleInputResolution::Resolved(identity) => Some(identity),
+                FilesystemLogicalHandleInputResolution::Null
+                | FilesystemLogicalHandleInputResolution::Unknown => None,
+            })
     }
 
     /// Drive a value-returning `FilesystemHost` operation against the selected
@@ -230,14 +422,11 @@ impl<'program> Evaluator<'program> {
             }
             PreparedFilesystemCall::Duplicate { fd } => {
                 // `dup(fd)`: mint a fresh descriptor over the same open file (Rust
-                // `File::try_clone`). Native dup SHARES the underlying file offset;
-                // the hermetic model gives the clone its OWN cursor snapshotted from
-                // the source (independent thereafter) -- faithful for the common
-                // clone-then-use pattern, where the clone's offset starts where the
-                // source's was. EBADF for an unknown fd.
+                // `File::try_clone`). Both descriptor lifetimes share the same
+                // open-file-description cursor. EBADF for an unknown fd.
                 let clone = self.virtual_fds.get(&fd).map(|descriptor| VirtualFd {
                     path: descriptor.path.clone(),
-                    cursor: descriptor.cursor,
+                    cursor: std::rc::Rc::clone(&descriptor.cursor),
                     writable: descriptor.writable,
                     is_dir: descriptor.is_dir,
                 });
@@ -1090,7 +1279,7 @@ impl<'program> Evaluator<'program> {
             fd,
             VirtualFd {
                 path,
-                cursor: 0,
+                cursor: std::rc::Rc::new(std::cell::Cell::new(0)),
                 writable,
                 is_dir: false,
             },
@@ -1106,16 +1295,14 @@ impl<'program> Evaluator<'program> {
             return None;
         }
         let path = descriptor.path.clone();
-        let cursor = descriptor.cursor;
+        let cursor = descriptor.cursor.get();
         let content = self.virtual_files.get_mut(&path)?;
         let end = cursor + bytes.len();
         if content.len() < end {
             content.resize(end, 0);
         }
         content[cursor..end].copy_from_slice(bytes);
-        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
-            descriptor.cursor = end;
-        }
+        descriptor.cursor.set(end);
         Some(bytes.len())
     }
 
@@ -1124,14 +1311,12 @@ impl<'program> Evaluator<'program> {
     fn virtual_read_n(&mut self, fd: i32, count: usize) -> Option<Vec<u8>> {
         let descriptor = self.virtual_fds.get(&fd)?;
         let path = descriptor.path.clone();
-        let cursor = descriptor.cursor;
+        let cursor = descriptor.cursor.get();
         let content = self.virtual_files.get(&path)?;
         let available = content.get(cursor..).unwrap_or(&[]);
         let take = available.len().min(count);
         let bytes = available[..take].to_vec();
-        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
-            descriptor.cursor = cursor + take;
-        }
+        descriptor.cursor.set(cursor + take);
         Some(bytes)
     }
 
@@ -1218,7 +1403,7 @@ impl<'program> Evaluator<'program> {
                 fd,
                 VirtualFd {
                     path,
-                    cursor: 0,
+                    cursor: std::rc::Rc::new(std::cell::Cell::new(0)),
                     writable: false,
                     is_dir: true,
                 },
@@ -1243,7 +1428,7 @@ impl<'program> Evaluator<'program> {
             fd,
             VirtualFd {
                 path,
-                cursor,
+                cursor: std::rc::Rc::new(std::cell::Cell::new(cursor)),
                 writable,
                 is_dir: false,
             },
@@ -1256,7 +1441,7 @@ impl<'program> Evaluator<'program> {
     fn virtual_seek(&mut self, fd: i32, offset: i64, whence: i32) -> Option<i64> {
         let descriptor = self.virtual_fds.get(&fd)?;
         let path = descriptor.path.clone();
-        let cursor = descriptor.cursor as i64;
+        let cursor = descriptor.cursor.get() as i64;
         let len = self.virtual_files.get(&path).map_or(0, Vec::len) as i64;
         let new_pos = match whence {
             0 => offset,          // SEEK_SET
@@ -1267,9 +1452,7 @@ impl<'program> Evaluator<'program> {
         if new_pos < 0 {
             return None;
         }
-        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
-            descriptor.cursor = new_pos as usize;
-        }
+        descriptor.cursor.set(new_pos as usize);
         Some(new_pos)
     }
 
@@ -1302,6 +1485,23 @@ impl<'program> Evaluator<'program> {
             self.virtual_errno = 1; // EPERM
             -1
         }
+    }
+}
+
+fn filesystem_logical_handle_halt(
+    error: filesystem_logical_handles::FilesystemLogicalHandleError,
+) -> Halt {
+    use filesystem_logical_handles::FilesystemLogicalHandleError as Error;
+    match error {
+        Error::IdentityExhausted => {
+            Halt::Resource("filesystem logical-handle identity space exhausted".to_owned())
+        }
+        Error::LiveProviderTokenCollision { kind, raw } => Halt::Trap(format!(
+            "filesystem provider reused live {kind:?} token `{raw}`"
+        )),
+        Error::BorrowSourceMismatch { raw } => Halt::Trap(format!(
+            "filesystem provider reused native token `{raw}` for a different descriptor source"
+        )),
     }
 }
 

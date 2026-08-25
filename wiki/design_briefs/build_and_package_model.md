@@ -574,7 +574,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Future rooted evidence must reject or virtualize absolute path bytes returned
 unconditionally by `canonicalize`/`final_path_name_by_handle` or conditionally
 by `read_link`.
-Observation schema v4 carries operation-attempt schema v5: an ordered
+Observation schema v5 carries operation-attempt schema v6: an ordered
 successful-run call-start trace of exact provider, operation tag, scalar return,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -585,9 +585,20 @@ paths, and the 16 MiB aggregate retained-path ceiling reject before host access;
 ceiling exhaustion non-catchably halts the evaluator. Granted evaluator
 failures retain partial usage and typed outcomes; worker
 failures mark evidence unavailable. Omega emits fixed non-admission counts and
-no review row. Complete operands, descriptor/logical-handle lineage, mutable
-outputs, returned path bytes, and content remain absent; raw runtime descriptor
-returns therefore remain non-replayable.
+no review row. Descriptor, native-handle, and find-handle inputs retain exact
+Resolved/Null/Unknown disposition; successful opens mint monotonic logical
+lifetimes, duplicates and borrowed views bind their source, and successful
+closes retain all invalidated lifetimes. Raw provider-token reuse cannot reuse
+logical identity, failed closes retire nothing, and successful use of an
+otherwise Unknown token traps. A token live in a different logical domain
+rejects before provider access. Virtual duplicates share the source cursor. Real
+descriptors retain their rooted write grant through duplicate and borrowed
+views; content, extent, metadata, ownership, and host-lock mutations deny before
+sponsor or host access when the origin was admitted only for source reads.
+`open_at`/`unlink_at` accept only one portable relative component, while real
+path outputs are lossless or reject. Complete scalar/byte operands, mutable
+outputs, retained returned-path bytes, and content remain absent, so the row is
+still non-replayable.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

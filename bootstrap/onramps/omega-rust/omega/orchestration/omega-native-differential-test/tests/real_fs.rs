@@ -20,6 +20,7 @@ use omega_compiler::{CheckedCompilation, compile_to_checked};
 use psi_checked_interpreter::{
     BuildMachineEvaluationFailureKind, BuildTimeValue, FilesystemAccess,
     FilesystemEvaluationHaltKind, FilesystemGrantRoot, FilesystemGrantRootIdentity,
+    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemOperationAttemptOutcome, FilesystemSponsor, FilesystemSponsorLimits, FsGrants,
     InterpretOptions, InterpretOutcome, evaluate_build_machine_with_filesystem,
     evaluate_build_machine_with_filesystem_measured, interpret_entry, interpret_entry_with_options,
@@ -159,6 +160,87 @@ fn real_mode_stages_files_on_disk_and_hermetic_default_does_not() {
     assert!(
         !staged.exists(),
         "hermetic default must not touch the real filesystem"
+    );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+fn duplicate_descriptors_share_one_open_file_cursor_in_both_providers() {
+    let base = std::env::temp_dir().join(format!(
+        "omega_real_fs_duplicate_cursor_{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&base).expect("create duplicate-cursor probe root");
+    let file = base.join("cursor.bin");
+    let source = format!(
+        r#"use omega::language::std::filesystem_host;
+
+boundary trait Console {{ machine exit_process(return_code: i32); }}
+
+data Main {{
+    fs: FilesystemHost;
+    console: Console;
+    fd: i32;
+    duplicate_fd: i32;
+    count: i64;
+    position: i64;
+    buffer: [u8; 2];
+}}
+
+machine Main::main(&mut self) {{
+    self.fd = self.fs.create("{file}", 438);
+    self.count = self.fs.write(self.fd, "abcdef");
+    self.count = self.fs.close(self.fd);
+    self.fd = self.fs.open("{file}", 0);
+    self.duplicate_fd = self.fs.duplicate(self.fd);
+    self.count = self.fs.read(self.fd, &mut self.buffer, 2);
+    self.position = self.fs.seek(self.duplicate_fd, 0, 1);
+    self.count = self.fs.close(self.duplicate_fd);
+    self.count = self.fs.close(self.fd);
+    self.console.exit_process(self.position as i32);
+}}
+"#,
+        file = omg_path(&file),
+    );
+    let main_path = base.join("main.omg");
+    std::fs::write(&main_path, source).expect("write duplicate-cursor probe");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "duplicate-cursor probe compile failed:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    let real = interpret_with_options(
+        &checked,
+        &[],
+        InterpretOptions {
+            filesystem: FilesystemAccess::RealUnscoped,
+        },
+    );
+    assert!(!real.is_error(), "real duplicate probe: {:?}", real.error);
+    assert_eq!(real.exit_code, 2, "real duplicate must share the cursor");
+    std::fs::remove_file(&file).expect("remove real-provider probe output");
+
+    let hermetic = interpret(&checked, &[]);
+    assert!(
+        !hermetic.is_error(),
+        "virtual duplicate probe: {:?}",
+        hermetic.error
+    );
+    assert_eq!(
+        hermetic.exit_code, 2,
+        "virtual duplicate must share the cursor"
+    );
+    assert!(
+        !file.exists(),
+        "virtual provider must not write the host file"
     );
 
     let _ = std::fs::remove_dir_all(&base);
@@ -675,7 +757,7 @@ fn scoped_wrapper_read_dir_count_enumerates_a_real_directory() {
 }
 
 /// The GRANTED BUILD probe (rung 4, interpreter side): an augmenting
-/// `build(b: &mut Build)` machine that BOTH stages a real asset through its
+/// `build(builder: &mut Build)` machine that BOTH stages a real asset through its
 /// granted filesystem AND augments the Build value the compiler reads back --
 /// the settled open-work #3 shape (no declarative asset list; build code
 /// copies assets itself; the grant is the audit surface).
@@ -695,17 +777,17 @@ data Stager {{
     n: i64;
 }}
 
-machine Stager::build(&mut self, b: &mut Build) {{
+machine Stager::build(&mut self, builder: &mut Build) {{
     self.fd = self.fs.create("{out}/asset.bin", 438);
-    transition self.fd >= 0 {{ true -> put(b) _ -> mark(b, 0 - 1) }}
-    state put(&mut self, b: &mut Build) {{
+    transition self.fd >= 0 {{ true -> put(builder) _ -> mark(builder, 0 - 1) }}
+    state put(&mut self, builder: &mut Build) {{
         self.n = self.fs.write(self.fd, "staged by build\n");
         self.n = self.fs.close(self.fd);
-        transition true {{ true -> mark(b, 1) _ -> mark(b, 1) }}
+        transition true {{ true -> mark(builder, 1) _ -> mark(builder, 1) }}
     }}
-    state mark(&mut self, b: &mut Build, staged: i64) {{
-        b.target_index = 7;
-        b.staged = staged;
+    state mark(&mut self, builder: &mut Build, staged: i64) {{
+        builder.target_index = 7;
+        builder.staged = staged;
     }}
 }}
 
@@ -746,6 +828,12 @@ fn filesystem_operands_prepare_before_real_authority() {
     let out = base.join("out");
     std::fs::create_dir_all(&out).expect("create preparation output root");
     let prepared_file = out.join("prepared.txt");
+    let cross_domain_file = out.join("cross-domain.txt");
+    std::fs::write(&cross_domain_file, "unchanged\n").expect("seed cross-domain probe file");
+    let original_modified = std::fs::metadata(&cross_domain_file)
+        .unwrap()
+        .modified()
+        .unwrap();
     let outside = base.join("outside-link");
     let main_path = base.join("main.omg");
     std::fs::write(
@@ -793,9 +881,25 @@ machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
     self.result = self.fs.canonicalize("{outside}", &mut self.buffer);
     build.target_index = 11;
 }}
+
+data CrossDomainProbe {{
+    fs: FilesystemHost;
+    descriptor: i32;
+    handle: i64;
+    filetime: [u8; 8];
+    result: i32;
+}}
+
+machine CrossDomainProbe::run(&mut self, build: &mut Build) {{
+    self.descriptor = self.fs.open("{cross_domain_file}", 2);
+    self.handle = self.descriptor as i64;
+    self.result = self.fs.set_file_time(self.handle, 0, &self.filetime, &self.filetime);
+    build.target_index = 13;
+}}
 "#,
             prepared_file = omg_path(&prepared_file),
             outside = omg_path(&outside),
+            cross_domain_file = omg_path(&cross_domain_file),
         ),
     )
     .expect("write preparation probe");
@@ -902,6 +1006,53 @@ machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) {{
     assert!(
         canonicalize_attempt.grant_refusals().is_empty(),
         "canonicalize capacity preparation must fail before path grants are consulted"
+    );
+
+    let cross_domain_failure = evaluate_build_machine_with_filesystem_measured(
+        &checked.typed,
+        "CrossDomainProbe::run",
+        vec![zero_build()],
+        options(),
+    )
+    .expect_err("a descriptor token cannot be used as an unborrowed native handle");
+    assert_eq!(
+        cross_domain_failure.kind(),
+        BuildMachineEvaluationFailureKind::Trap
+    );
+    let [opened, rejected] = cross_domain_failure
+        .observations()
+        .expect("cross-domain preflight failure retains observations")
+        .filesystem_operation_attempts()
+    else {
+        panic!("cross-domain probe must retain its open and rejected mutation")
+    };
+    assert_eq!(opened.operation_tag(), 2);
+    assert!(matches!(
+        opened.outcome(),
+        Some(FilesystemOperationAttemptOutcome::Returned { result, .. }) if result >= 0
+    ));
+    assert_eq!(rejected.operation_tag(), 32);
+    assert_eq!(
+        rejected.outcome(),
+        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+            FilesystemEvaluationHaltKind::Trap
+        ))
+    );
+    let [native_input] = rejected.logical_handle_inputs() else {
+        panic!("rejected native operation must retain its prepared handle input")
+    };
+    assert_eq!(native_input.kind(), FilesystemLogicalHandleKind::Native);
+    assert_eq!(
+        native_input.resolution(),
+        FilesystemLogicalHandleInputResolution::Unknown
+    );
+    assert_eq!(
+        std::fs::metadata(&cross_domain_file)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        original_modified,
+        "logical-domain rejection must precede provider metadata mutation"
     );
 
     let _ = std::fs::remove_dir_all(&base);
@@ -1067,7 +1218,7 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
     });
 
     // REAL SCOPED: the asset lands on disk; the augmented Build reads back.
-    let augmented = evaluate_build_machine_with_filesystem(
+    let real_evaluation = evaluate_build_machine_with_filesystem_measured(
         &checked.typed,
         "Stager::build",
         vec![zero_build()],
@@ -1079,6 +1230,22 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
         },
     )
     .expect("granted build run");
+    let logical_handles = |observations: &psi_checked_interpreter::EvaluationObservations| {
+        observations
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| {
+                (
+                    attempt.operation_tag(),
+                    attempt.logical_handle_inputs().to_vec(),
+                    attempt.logical_handle_output(),
+                    attempt.retired_logical_handles().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let real_logical_handles = logical_handles(real_evaluation.observations());
+    let augmented = real_evaluation.into_value();
     let build = augmented.last().expect("the Build argument comes back");
     assert_eq!(
         build_field(build, "staged"),
@@ -1094,13 +1261,19 @@ fn granted_build_machine_stages_assets_and_augments_the_build() {
     // HERMETIC DEFAULT: the same machine runs against the virtual fs --
     // same augmentation, nothing on real disk.
     std::fs::remove_file(out.join("asset.bin")).expect("clear staged asset");
-    let hermetic = evaluate_build_machine_with_filesystem(
+    let hermetic_evaluation = evaluate_build_machine_with_filesystem_measured(
         &checked.typed,
         "Stager::build",
         vec![zero_build()],
         InterpretOptions::default(),
     )
     .expect("hermetic granted build run");
+    assert_eq!(
+        logical_handles(hermetic_evaluation.observations()),
+        real_logical_handles,
+        "equivalent virtual and scoped-real operations must normalize to the same logical lifetimes"
+    );
+    let hermetic = hermetic_evaluation.into_value();
     let build = hermetic.last().expect("the Build argument comes back");
     assert_eq!(build_field(build, "staged"), 1, "virtual staging succeeds");
     assert!(
@@ -1132,16 +1305,16 @@ data Build { target_index: i64; }
 
 data Chatty { console: Console; }
 
-machine Chatty::build(&mut self, b: &mut Build) {
+machine Chatty::build(&mut self, builder: &mut Build) {
     self.console.write("granted build logging is served");
-    b.target_index = 1;
+    builder.target_index = 1;
 }
 
 data Noisy { beeper: Beeper; }
 
-machine Noisy::build(&mut self, b: &mut Build) {
+machine Noisy::build(&mut self, builder: &mut Build) {
     self.beeper.beep(3);
-    b.target_index = 2;
+    builder.target_index = 2;
 }
 
 data Main { }

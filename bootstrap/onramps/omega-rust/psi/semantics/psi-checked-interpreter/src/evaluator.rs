@@ -1,17 +1,26 @@
 use crate::{
     BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind, EvaluationObservations,
     EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
-    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemObservationProvider,
-    FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, InterpretOptions,
-    InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemLogicalHandleInput,
+    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
+    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
+    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+    InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
 };
 
 mod filesystem_host_operation;
 use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
 
+#[path = "evaluator/filesystem_logical_handles.rs"]
+mod filesystem_logical_handles;
+use filesystem_logical_handles::FilesystemLogicalHandles;
+
 #[path = "evaluator/filesystem_preparation.rs"]
 mod filesystem_preparation;
-use filesystem_preparation::{PreparedByteOutput, PreparedFilesystemCall, synthetic_handle_fd};
+use filesystem_preparation::{
+    PreparedByteOutput, PreparedFilesystemCall, PreparedFilesystemLogicalHandleOutput,
+    PreparedFilesystemLogicalHandlePlan, synthetic_handle_fd,
+};
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private
@@ -747,7 +756,9 @@ struct Frame {
 /// refers to, the read/write cursor, and whether it was opened writable.
 struct VirtualFd {
     path: Vec<u8>,
-    cursor: usize,
+    /// Open-file-description cursor shared by every descriptor produced by
+    /// `duplicate`, matching POSIX `dup`/Rust `File::try_clone` semantics.
+    cursor: std::rc::Rc<std::cell::Cell<usize>>,
     writable: bool,
     /// A descriptor over a DIRECTORY (opened read-only for `read_dir`); a normal
     /// `read`/`write` on it is EISDIR.
@@ -845,6 +856,9 @@ struct Evaluator<'program> {
     /// this remains deliberately incomplete until complete operands, mutable
     /// outputs, logical handle lineage, and retained content are recorded.
     filesystem_operation_attempts: Vec<FilesystemOperationAttempt>,
+    /// Compiler-only normalization state for provider descriptor/handle tokens.
+    /// This state is not observable by evaluated Omega code.
+    filesystem_logical_handles: FilesystemLogicalHandles,
     /// Aggregate retained rooted-path bytes. This compiler-side account is not
     /// observable by Omega code and prevents successful grant evidence from
     /// growing without a dedicated bound.

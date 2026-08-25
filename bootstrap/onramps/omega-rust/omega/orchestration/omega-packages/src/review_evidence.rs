@@ -1,9 +1,11 @@
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
 use omega_compiler::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildObservationClass, BuildObservationSummary,
-    CompilerExecutableCommitment, DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
+    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemProvider, BuildFilesystemRoot,
+    BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
+    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageSourceConsumptionCommitment,
 };
 use sha2::{Digest, Sha256};
@@ -213,6 +215,50 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, path.relative_path());
         }
         digest.update(
+            u64::try_from(attempt.logical_handle_inputs().len())
+                .expect("build observation logical-handle input count fits u64")
+                .to_le_bytes(),
+        );
+        for input in attempt.logical_handle_inputs() {
+            digest.update([input.operand_ordinal()]);
+            digest.update([logical_handle_kind_tag(input.kind())]);
+            match input.resolution() {
+                BuildFilesystemLogicalHandleInputResolution::Resolved(identity) => {
+                    digest.update([0]);
+                    digest.update(identity.get().to_le_bytes());
+                }
+                BuildFilesystemLogicalHandleInputResolution::Null => digest.update([1]),
+                BuildFilesystemLogicalHandleInputResolution::Unknown => digest.update([2]),
+            }
+        }
+        match attempt.logical_handle_output() {
+            None => digest.update([0]),
+            Some(output) => {
+                digest.update([1]);
+                digest.update([logical_handle_kind_tag(output.kind())]);
+                digest.update(output.identity().get().to_le_bytes());
+                match output.source() {
+                    BuildFilesystemLogicalHandleOutputSource::Created => digest.update([0]),
+                    BuildFilesystemLogicalHandleOutputSource::Duplicated(identity) => {
+                        digest.update([1]);
+                        digest.update(identity.get().to_le_bytes());
+                    }
+                    BuildFilesystemLogicalHandleOutputSource::Borrowed(identity) => {
+                        digest.update([2]);
+                        digest.update(identity.get().to_le_bytes());
+                    }
+                }
+            }
+        }
+        digest.update(
+            u64::try_from(attempt.retired_logical_handles().len())
+                .expect("build observation retired logical-handle count fits u64")
+                .to_le_bytes(),
+        );
+        for identity in attempt.retired_logical_handles() {
+            digest.update(identity.get().to_le_bytes());
+        }
+        digest.update(
             u64::try_from(attempt.grant_refusals().len())
                 .expect("build observation refusal count fits u64")
                 .to_le_bytes(),
@@ -262,6 +308,14 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
     match root {
         BuildFilesystemRoot::Source => 0,
         BuildFilesystemRoot::Output => 1,
+    }
+}
+
+const fn logical_handle_kind_tag(kind: BuildFilesystemLogicalHandleKind) -> u8 {
+    match kind {
+        BuildFilesystemLogicalHandleKind::Descriptor => 0,
+        BuildFilesystemLogicalHandleKind::Native => 1,
+        BuildFilesystemLogicalHandleKind::Find => 2,
     }
 }
 
@@ -322,6 +376,52 @@ reaches FilesystemHost
         summary
     }
 
+    fn compiled_handle_order_observation(reverse_close_order: bool) -> BuildObservationSummary {
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-handle-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).unwrap();
+        let input = project.join("input.txt");
+        std::fs::write(&input, "input\n").unwrap();
+        let close_order = if reverse_close_order {
+            "self.result = self.filesystem.close(self.second);\n    self.result = self.filesystem.close(self.first);"
+        } else {
+            "self.result = self.filesystem.close(self.first);\n    self.result = self.filesystem.close(self.second);"
+        };
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {{}}
+
+data HandleOrder {{ filesystem: FilesystemHost; first: i32; second: i32; result: i32; }}
+
+machine HandleOrder::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+    self.first = self.filesystem.open("{input}", 0);
+    self.second = self.filesystem.open("{input}", 0);
+    {close_order}
+}}
+"#,
+                input = input.display().to_string().replace('\\', "/"),
+            ),
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("filesystem build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         let first = compiled_observation("stage/artifact.bin");
@@ -338,8 +438,8 @@ reaches FilesystemHost
             build_observation_commitment(&first),
             build_observation_commitment(&changed)
         );
-        assert_eq!(first.schema_version(), 4);
-        assert_eq!(first.filesystem_operation_schema_version(), 5);
+        assert_eq!(first.schema_version(), 5);
+        assert_eq!(first.filesystem_operation_schema_version(), 6);
         let [create, close] = first.filesystem_operation_attempts() else {
             panic!("fixture performs create and close")
         };
@@ -349,5 +449,63 @@ reaches FilesystemHost
         assert_eq!(path.root(), BuildFilesystemRoot::Output);
         assert_eq!(path.relative_path(), b"stage/artifact.bin");
         assert!(close.authorized_paths().is_empty());
+    }
+
+    #[test]
+    fn observation_commitment_binds_logical_handle_lifetimes() {
+        let forward = compiled_handle_order_observation(false);
+        let reverse = compiled_handle_order_observation(true);
+        let without_handles = |summary: &BuildObservationSummary| {
+            summary
+                .filesystem_operation_attempts()
+                .iter()
+                .map(|attempt| {
+                    (
+                        attempt.operation_tag(),
+                        attempt.provider(),
+                        attempt.result(),
+                        attempt.post_error(),
+                        attempt.authorized_paths().to_vec(),
+                        attempt.grant_refusals().to_vec(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            without_handles(&forward),
+            without_handles(&reverse),
+            "the fixture pair differs only in logical descriptor use"
+        );
+        assert_ne!(forward, reverse);
+        assert_ne!(
+            build_observation_commitment(&forward),
+            build_observation_commitment(&reverse),
+            "package review must bind which live descriptor each close consumed"
+        );
+
+        let [_, _, forward_first_close, forward_second_close] =
+            forward.filesystem_operation_attempts()
+        else {
+            panic!("forward fixture performs two opens and two closes")
+        };
+        let [first_input] = forward_first_close.logical_handle_inputs() else {
+            panic!("first close retains one logical descriptor")
+        };
+        let [second_input] = forward_second_close.logical_handle_inputs() else {
+            panic!("second close retains one logical descriptor")
+        };
+        assert_eq!(
+            first_input.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Resolved(
+                forward_first_close.retired_logical_handles()[0]
+            )
+        );
+        assert_eq!(
+            second_input.resolution(),
+            BuildFilesystemLogicalHandleInputResolution::Resolved(
+                forward_second_close.retired_logical_handles()[0]
+            )
+        );
+        assert_ne!(first_input.resolution(), second_input.resolution());
     }
 }

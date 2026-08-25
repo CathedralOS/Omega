@@ -774,8 +774,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v4
-  carries operation-attempt schema v5: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v5
+  carries operation-attempt schema v6: an ordered successful-run call-start
   trace of exact provider, operation tag, scalar return, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -790,9 +790,28 @@ complete.
   reason, including both operands of a two-path operation. Host OS errors carry
   no fabricated refusal but retain any authorization that preceded the host
   failure; pure and console-only traces are empty.
+  Every prepared descriptor/handle operand is separately normalized as a
+  Descriptor, Native, or Find lifetime with an exact operand ordinal and a
+  closed Resolved/Null/Unknown disposition. Successful opens mint monotonic
+  logical identities independent of provider tokens; duplicate outputs retain
+  their source lifetime, `_get_osfhandle` outputs retain a borrowed source, and
+  successful closes retain every invalidated lifetime. Provider-token reuse
+  after close mints a fresh identity, failed closes retire nothing, repeated
+  borrowed conversion preserves one alias, and a provider that successfully
+  accepts an otherwise Unknown token non-catchably traps rather than publishing
+  contradictory lineage. A raw token live in another logical domain rejects
+  before provider access. The virtual duplicate provider now shares the source
+  cursor as the canonical contract requires. A real descriptor also retains its
+  rooted write grant across duplicates and borrowed native views; writes,
+  extent/metadata changes, ownership changes, and host-visible locks reject
+  before sponsor or host access when the origin was admitted only for source
+  reads.
+  `open_at`/`unlink_at` names reject before provider/grant access unless they are
+  one nonempty portable component, and real-provider path outputs no longer use
+  lossy host-string conversion.
   This deliberately incomplete trace may still expose runtime descriptor values
-  and omits complete operands, descriptor-to-path/logical-handle lineage,
-  mutable byte regions, returned path bytes, and content.
+  and omits complete scalar/byte operands, mutable byte regions, retained
+  returned-path bytes, and content.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -813,8 +832,8 @@ complete.
   executable real-scoped canaries prove ignored-operand traps and invalid
   outputs occur before disk mutation or grant consultation. The canonical trait
   test pins each operation's exact operand order/kind and result width.
-  Complete transcript schema and serialization, complete descriptor-rooted
-  operation lineage, transcripts/content custody, cleanup-gated publication, output-tree
+  Complete scalar/byte and mutable-region event serialization,
+  transcripts/content custody, cleanup-gated publication, output-tree
   commitment, and replay remain. Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
@@ -1253,9 +1272,10 @@ complete.
   mechanism/ABI evidence, general
   dangerous-authority escalation, remote compiler-backed transport
   normalization remain. Successful portable fixture execution is blocked on
-  OWNER_QUESTIONS Q8: the executor has exact physical source/output grants, but
-  package code has no settled stable rooted-path surface and must not embed
-  compiler-host absolute paths or inherit the process working directory.
+  the portable build-filesystem surface in `OWNER_QUESTIONS.md`: the executor
+  has exact physical source/output grants, but package code has no settled
+  stable rooted-path surface and must not embed compiler-host absolute paths or
+  inherit the process working directory.
 
 - [x] **REMOVE-FABRICATED-MANIFEST-TESTS.** Replace integration tests that construct
   manifests from fixture intent with locally regenerated compiler evidence.

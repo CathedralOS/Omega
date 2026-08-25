@@ -394,22 +394,36 @@ closed, explicitly tagged operation identity exhaustively handled by both
 filesystem providers. ABI aliases remain distinct. Future rooted transcripts
 must account for conditionally absolute `read_link` results and unconditionally
 absolute `canonicalize` and `final_path_name_by_handle` results. Observation
-schema v4 carries operation-attempt schema v5, retaining in call-start order
+schema v5 carries operation-attempt schema v6, retaining in call-start order
 each completed operation's exact provider, stable tag, scalar return,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
 ordinal, read/write access, closed Source/Output root, and canonical
 slash-separated relative UTF-8 bytes without a host absolute prefix. Grant-gate
 denials remain distinct; ordinary host errors do not fabricate one and retain
-any authorization that preceded the host failure.
-Runtime descriptor values are not logical handles. A granted evaluation failure
+any authorization that preceded the host failure. Prepared handle operands are
+classified as Descriptor, Native, or Find and retain exact Resolved, Null, or
+Unknown disposition. Successful created and duplicated outputs mint monotonic
+logical lifetime IDs; a repeated borrowed native conversion reuses its live
+alias, while both duplicate and borrowed views retain their source. Successful
+closes retain every invalidated lifetime, raw provider-token reuse never reuses
+an ID, and failed closes retire nothing. A token live in another logical domain
+rejects before provider access; provider acceptance of an otherwise Unknown
+token traps instead of publishing contradictory lineage.
+The hermetic duplicate model shares one open-file cursor with its source. Real
+descriptors retain rooted write authority across duplicate and borrowed views,
+and deny content, extent, metadata, ownership, or host-lock mutation before
+sponsor or host access when opened under source-read authority alone.
+`open_at`/`unlink_at` accept only one nonempty portable relative component, and
+real-provider path outputs use lossless native bytes or reject.
+A granted evaluation failure
 retains partial usage and observations with an explicit returned/evaluator-halt
 outcome; worker creation or panic marks evidence unavailable. Omega emits only
 fixed non-admission counts and no review row on failure. Duplicate identities,
 conflicting equal roots, unresolved roots, unrepresentable rooted paths, and
 the 16 MiB aggregate retained-path ceiling reject before host access. Complete
-operands, descriptor/logical-handle lineage, mutable byte regions, returned
-path bytes, and content are absent. It is an incomplete operation trace, not a
+scalar/byte operands, mutable byte regions, retained returned-path bytes, and
+content are absent. It is an incomplete operation trace, not a
 transcript or receipt, and makes no replayability or source-rebuildability
 claim.
 

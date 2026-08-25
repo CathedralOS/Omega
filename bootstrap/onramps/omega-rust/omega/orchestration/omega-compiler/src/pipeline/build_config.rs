@@ -192,7 +192,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 4;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 5;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -292,6 +292,147 @@ impl BuildFilesystemAuthorizedPath {
     }
 }
 
+/// Stable compiler-owned identity for one descriptor/handle lifetime in a
+/// package build evaluation. Provider token values never define this identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BuildFilesystemLogicalHandleIdentity(u64);
+
+impl BuildFilesystemLogicalHandleIdentity {
+    const fn new(value: u64) -> Option<Self> {
+        if value == 0 { None } else { Some(Self(value)) }
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleKind {
+    Descriptor,
+    Native,
+    Find,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleInputResolution {
+    Resolved(BuildFilesystemLogicalHandleIdentity),
+    Null,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemLogicalHandleInput {
+    operand_ordinal: u8,
+    kind: BuildFilesystemLogicalHandleKind,
+    resolution: BuildFilesystemLogicalHandleInputResolution,
+}
+
+impl BuildFilesystemLogicalHandleInput {
+    pub const fn operand_ordinal(self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
+        self.kind
+    }
+
+    pub const fn resolution(self) -> BuildFilesystemLogicalHandleInputResolution {
+        self.resolution
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemLogicalHandleOutputSource {
+    Created,
+    Duplicated(BuildFilesystemLogicalHandleIdentity),
+    Borrowed(BuildFilesystemLogicalHandleIdentity),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildFilesystemLogicalHandleOutput {
+    kind: BuildFilesystemLogicalHandleKind,
+    identity: BuildFilesystemLogicalHandleIdentity,
+    source: BuildFilesystemLogicalHandleOutputSource,
+}
+
+impl BuildFilesystemLogicalHandleOutput {
+    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
+        self.kind
+    }
+
+    pub const fn identity(self) -> BuildFilesystemLogicalHandleIdentity {
+        self.identity
+    }
+
+    pub const fn source(self) -> BuildFilesystemLogicalHandleOutputSource {
+        self.source
+    }
+}
+
+const fn project_logical_handle_identity(
+    identity: psi_checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> BuildFilesystemLogicalHandleIdentity {
+    match BuildFilesystemLogicalHandleIdentity::new(identity.get()) {
+        Some(identity) => identity,
+        None => panic!("checked-interpreter logical handle identity must be nonzero"),
+    }
+}
+
+const fn project_logical_handle_kind(
+    kind: psi_checked_interpreter::FilesystemLogicalHandleKind,
+) -> BuildFilesystemLogicalHandleKind {
+    match kind {
+        psi_checked_interpreter::FilesystemLogicalHandleKind::Descriptor => {
+            BuildFilesystemLogicalHandleKind::Descriptor
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleKind::Native => {
+            BuildFilesystemLogicalHandleKind::Native
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleKind::Find => {
+            BuildFilesystemLogicalHandleKind::Find
+        }
+    }
+}
+
+const fn project_logical_handle_input_resolution(
+    resolution: psi_checked_interpreter::FilesystemLogicalHandleInputResolution,
+) -> BuildFilesystemLogicalHandleInputResolution {
+    match resolution {
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Resolved(identity) => {
+            BuildFilesystemLogicalHandleInputResolution::Resolved(project_logical_handle_identity(
+                identity,
+            ))
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Null => {
+            BuildFilesystemLogicalHandleInputResolution::Null
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown => {
+            BuildFilesystemLogicalHandleInputResolution::Unknown
+        }
+    }
+}
+
+const fn project_logical_handle_output_source(
+    source: psi_checked_interpreter::FilesystemLogicalHandleOutputSource,
+) -> BuildFilesystemLogicalHandleOutputSource {
+    match source {
+        psi_checked_interpreter::FilesystemLogicalHandleOutputSource::Created => {
+            BuildFilesystemLogicalHandleOutputSource::Created
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleOutputSource::Duplicated(identity) => {
+            BuildFilesystemLogicalHandleOutputSource::Duplicated(project_logical_handle_identity(
+                identity,
+            ))
+        }
+        psi_checked_interpreter::FilesystemLogicalHandleOutputSource::Borrowed(identity) => {
+            BuildFilesystemLogicalHandleOutputSource::Borrowed(project_logical_handle_identity(
+                identity,
+            ))
+        }
+    }
+}
+
 /// One completed call from a successful build evaluation. This partial row is
 /// execution evidence, not a replay event or receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,6 +442,9 @@ pub struct BuildFilesystemOperationAttempt {
     result: i64,
     post_error: i32,
     authorized_paths: Vec<BuildFilesystemAuthorizedPath>,
+    logical_handle_inputs: Vec<BuildFilesystemLogicalHandleInput>,
+    logical_handle_output: Option<BuildFilesystemLogicalHandleOutput>,
+    retired_logical_handles: Vec<BuildFilesystemLogicalHandleIdentity>,
     grant_refusals: Vec<BuildFilesystemGrantRefusal>,
 }
 
@@ -323,6 +467,18 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn authorized_paths(&self) -> &[BuildFilesystemAuthorizedPath] {
         &self.authorized_paths
+    }
+
+    pub fn logical_handle_inputs(&self) -> &[BuildFilesystemLogicalHandleInput] {
+        &self.logical_handle_inputs
+    }
+
+    pub const fn logical_handle_output(&self) -> Option<BuildFilesystemLogicalHandleOutput> {
+        self.logical_handle_output
+    }
+
+    pub fn retired_logical_handles(&self) -> &[BuildFilesystemLogicalHandleIdentity] {
+        &self.retired_logical_handles
     }
 
     pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
@@ -358,8 +514,8 @@ impl BuildObservationSummary {
 
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: complete arguments, mutable
-    /// output regions, logical-handle lineage, and content custody are absent.
+    /// intentionally not a replay transcript: complete scalar/byte arguments,
+    /// mutable output regions, and content custody are absent.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -1353,6 +1509,28 @@ pub(crate) fn compute_build_config(
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let logical_handle_inputs = attempt
+                .logical_handle_inputs()
+                .iter()
+                .map(|input| BuildFilesystemLogicalHandleInput {
+                    operand_ordinal: input.operand_ordinal(),
+                    kind: project_logical_handle_kind(input.kind()),
+                    resolution: project_logical_handle_input_resolution(input.resolution()),
+                })
+                .collect();
+            let logical_handle_output = attempt.logical_handle_output().map(|output| {
+                BuildFilesystemLogicalHandleOutput {
+                    kind: project_logical_handle_kind(output.kind()),
+                    identity: project_logical_handle_identity(output.identity()),
+                    source: project_logical_handle_output_source(output.source()),
+                }
+            });
+            let retired_logical_handles = attempt
+                .retired_logical_handles()
+                .iter()
+                .copied()
+                .map(project_logical_handle_identity)
+                .collect();
             Ok(BuildFilesystemOperationAttempt {
                 operation_tag: attempt.operation_tag(),
                 provider: match attempt.provider() {
@@ -1373,6 +1551,9 @@ pub(crate) fn compute_build_config(
                     .post_error()
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
                 authorized_paths,
+                logical_handle_inputs,
+                logical_handle_output,
+                retired_logical_handles,
                 grant_refusals: attempt
                     .grant_refusals()
                     .iter()
