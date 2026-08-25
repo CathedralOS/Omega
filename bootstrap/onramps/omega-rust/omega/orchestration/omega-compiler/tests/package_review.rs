@@ -4,17 +4,18 @@ use omega_compiler::{
     PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewContractBinaryOperator,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
-    PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
-    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewSemanticDependencyExposure,
-    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
-    compile_to_checked_with_packages, project_checked_package_review,
+    PackageReviewContractStaticMachineArgument, PackageReviewCrashInterface,
+    PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataMember,
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewDomainEstablishmentKind, PackageReviewMachineParameterContract,
+    PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
+    PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
+    project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -1049,8 +1050,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 43);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 3);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 44);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 4);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1938,21 +1939,183 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn review_rejects_unrepresented_callable_contract_expressions() {
+fn review_projects_exact_concrete_machine_arguments_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |selected: &str| {
+        format!(
+            r#"machine chosen(value: u64) -> u64 {{ value }}
+machine alternate(value: u64) -> u64 {{ value }}
+machine apply<machine Selected>(value: u64) -> u64
+where machine Selected(value: u64) -> u64
+{{
+    Selected(value)
+}}
+boundary machine trusted_zero() -> u64
+ensures result == apply<{selected}>(0);
+"#,
+        )
+    };
+    package.write("main.omg", &source("chosen"));
+    changed.write("main.omg", &source("alternate"));
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    package.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("effect-free static contract call should check");
+        project_checked_package_review(&checked)
+            .expect("an exact concrete machine argument has a canonical contract row")
+    };
+    let review = project(&package);
+    let changed = project(&changed);
+    let trusted_zero = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_zero")
+        .expect("trusted boundary callable");
+    let [contract] = trusted_zero.contracts() else {
+        panic!("one trusted-zero contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-zero equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_machine_arguments,
+        ..
+    } = right.as_ref()
+    else {
+        panic!("static apply call")
+    };
+    let [PackageReviewContractStaticMachineArgument::ConcreteMachine(selected)] =
+        static_machine_arguments.as_slice()
+    else {
+        panic!("one exact concrete machine argument")
+    };
+    assert_eq!(selected.path(), "chosen::entry");
+    assert_eq!(
+        selected.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("chosen-machine contract encoding"),
+        changed
+            .canonical_review_bytes()
+            .expect("alternate-machine contract encoding"),
+        "changing an exact concrete static-machine selection must change package-review identity",
+    );
+}
+
+#[test]
+fn review_projects_contract_machine_binders_by_canonical_static_ordinal() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let compile = |binder: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"machine apply<machine Selected>(value: u64) -> u64
+where machine Selected(value: u64) -> u64
+{{
+    Selected(value)
+}}
+pub machine trusted_apply<machine {binder}>(value: u64) -> u64
+where machine {binder}(value: u64) -> u64;
+requires apply<{binder}>(value) == apply<{binder}>(value)
+{{
+    0
+}}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("generic public contract fixture should check");
+        project_checked_package_review(&checked)
+            .expect("a forwarded machine binder has a canonical contract row")
+    };
+    let original = compile("Operation");
+    let renamed = compile("RenamedOperation");
+    let trusted_apply = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted_apply")
+        .expect("trusted generic public callable");
+    let [contract] = trusted_apply.contracts() else {
+        panic!("one trusted-apply contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted-apply equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_machine_arguments,
+        ..
+    } = right.as_ref()
+    else {
+        panic!("generic apply call")
+    };
+    assert_eq!(
+        static_machine_arguments,
+        &[PackageReviewContractStaticMachineArgument::GenericBinder(0)]
+    );
+    assert_eq!(
+        original
+            .canonical_review_bytes()
+            .expect("original generic contract encoding"),
+        renamed
+            .canonical_review_bytes()
+            .expect("renamed generic contract encoding"),
+        "renaming a local machine binder must not alter package-review identity",
+    );
+}
+
+#[test]
+fn review_rejects_non_machine_static_arguments_in_contract_calls() {
     let Some(target) = host_target_name() else {
         return;
     };
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"machine chosen(value: u64) -> u64 { value }
-machine apply<machine Selected>(value: u64) -> u64
-where machine Selected(value: u64) -> u64
-{
-    Selected(value)
-}
+        r#"machine identity<Value>(value: Value) -> Value { value }
 boundary machine trusted_zero() -> u64
-ensures result == apply<chosen>(0);
+ensures result == identity<u64>(0);
 "#,
     );
     package.write(
@@ -1969,13 +2132,13 @@ machine build(builder: &mut Build) { }
         Some(target),
         package_inputs(&package.0),
     )
-    .expect("effect-free static contract call should check");
+    .expect("effect-free static type contract call should check");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("unrepresented static call arguments must fail closed");
+        .expect_err("unrepresented static type arguments must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("static arguments not yet represented")
+            .contains("static category is not an executable machine")
     }));
 }
 
@@ -4361,6 +4524,7 @@ requires
         PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
             receiver,
             target,
+            static_machine_arguments,
             arguments,
         }),
     ] = domain.predicate_facts()
@@ -4369,6 +4533,7 @@ requires
     };
     assert!(receiver.is_none());
     assert_eq!(target.path(), "within_calibration::entry");
+    assert!(static_machine_arguments.is_empty());
     assert_eq!(arguments, &[PackageReviewContractExpression::DomainSubject]);
 }
 

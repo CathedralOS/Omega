@@ -493,14 +493,17 @@ must join exact checked contract and crash rows; missing custody, excessive
 depth, or a private nominal requirement rejects. Proposition parameters and
 static-machine/proposition arguments in selected conformance applications remain
 fail-closed.
+Review v44 and canonical row v4 extend contract-call rows with static-machine
+arguments. Each retains either the exact caller machine-binder ordinal or the
+exact concrete machine entry identity.
 Proposition applications use their exact checked rows. A simple total, pure
 callable application retains its optional receiver, exact checked package-
 qualified entry target, and ordinary arguments after joining one public-
 interface declaration-selection row. The whole-source commitment separately
-pins the helper body; a callable signature is not body identity. Static/generic,
-quotient, evidence-lane, and compiler-intrinsic calls, semantic roles, and
-domain operators reject until their complete rows are settled; none is inferred
-from the domain name. Compiler-owned
+pins the helper body; a callable signature is not body identity. Contract-call
+type, const, and evidence arguments, quotient calls, nested static applications,
+compiler-intrinsic calls, semantic roles, and domain operators reject until
+exact rows are settled; none is inferred from the domain name. Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
 package-qualified trait/requirement identities; alternative routes normalize
 as a sorted set.
@@ -936,7 +939,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v43 bytes cannot be promoted merely because the future artifact reuses
+review-v44 bytes cannot be promoted merely because the future artifact reuses
 their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in
