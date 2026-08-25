@@ -700,7 +700,7 @@ complete.
   sequenced after generic cleanup-row lowering under
   `CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP` in `TASKS.md`.
 
-- [ ] **COMPLETE-STANDALONE-DECLARATION-VISIBILITY.** Extend ordinary `pub`
+- [x] **COMPLETE-STANDALONE-DECLARATION-VISIBILITY.** Extend ordinary `pub`
   retention through syntax, symbols, typed/checked trees, snapshots, package
   review, and compatibility identity for independently nameable `operator`,
   `proposition`, and `const` declarations. Carrier-qualified roots own their
@@ -834,8 +834,7 @@ complete.
   private domain cannot cross a package boundary through a type annotation.
   Toolchain build vocabulary and the core layout/optional/filesystem/console
   surfaces now mark the APIs they actually publish; implementation helpers
-  remain private. Named conformance is the remaining settled declaration-
-  visibility implementation slice.
+  remain private.
 
   Milestone 2026-08-25: complete name-first conformances now retain ordinary
   `pub` independently from their subject and trait through syntax copying,
@@ -859,12 +858,24 @@ complete.
   conflict rendering cover the new row. No accepted admission is implied by
   visibility or review retention alone.
 
-  Add cross-package pass/fail canaries for every declaration kind, a
-  carrier-qualified domain or operator whose carrier has different visibility,
-  a public contract selecting a private proposition/const/operator, a public
-  machine with a private ranking witness, parser rejection of `pub measure`,
-  and a public bodyless proposition that grants no fact by declaration alone.
-  For conformance specifically, cover private same-package selection, public
+  Completed 2026-08-25: ordinary visibility, package-authority selection,
+  checked retention, snapshots, and blocking compatibility rows now cover all
+  independently nameable declaration families in this task. Cross-package and
+  public-interface canaries cover proposition, const, operator, and complete
+  named conformance visibility; carrier-qualified declarations retain their
+  own visibility; exact-edge `as Name` labels cannot satisfy whole-trait
+  bounds; public bare-`dyn` returns may carry private producer-selected
+  evidence without making it receiver-nameable; bodyless propositions mint no
+  facts; and public termination guarantees retain private ranking witnesses.
+  `pub measure` remains a parser error by design.
+
+  Coverage includes cross-package pass/fail canaries for every declaration
+  kind, a carrier-qualified domain or operator whose carrier has different
+  visibility, a public contract selecting a private proposition/const/operator,
+  a public machine with a private ranking witness, parser rejection of
+  `pub measure`, and a public bodyless proposition that grants no fact by
+  declaration alone.
+  Conformance coverage includes private same-package selection, public
   cross-package selection, private cross-package and public-contract rejection,
   an `as Name` exact-edge label that cannot satisfy a whole-trait bound, and a
   public `dyn` return carrying private producer-selected evidence without making
