@@ -279,8 +279,8 @@ beside the linked contracts:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for exact `OMGCOMP`; no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md) |
 | source resolution | closed through same-module direct receivers and the first pure-sum ownership relation; OMGRSW3 native/self publication, least-version behavior, canonical types, and 251/252 boundaries are gated | [`OMEGA_BOOTSTRAP_RESOLUTION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md), [`OMEGA_BOOTSTRAP_RESOLUTION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-| checked lowering and composition | closed through CKIR5 for the selected payload-sum relation; focused bool-only `!` production now uses OMGLOW7 with least OMGRSW1/2/3 and CKIR6, and its independent, Rust-free, and backend gates pass, but its lower-rooted successor closure remains open | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md) |
-| lower-rooted artifact reconstruction | closed through the selected CKIR5 payload-sum successor: OMGRFN7 R1–R5 and their immutable result-70 same-frame composition are gated, with independent source resolution, lowering, source meaning, CKIR/result checking, and exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
+| checked lowering and composition | closed through CKIR6 for the selected bool-only `!` relation: OMGLOW7 selects least OMGRSW1/2/3, emits one LogicalNot per authored token, retains CKIR5 sums/calls, and has independent meaning plus conservative backend evidence | [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md) |
+| lower-rooted artifact reconstruction | closed through the selected CKIR6 logical-negation successor: OMGRFN8 R1–R5 consume one immutable result-70 payload-sum frame, with compact least-OMGRSW1/2 controls, independent source lowering/meaning, complete CKIR meaning, and exact ELF reconstruction | [`OMGCOMP_REFINEMENT_WITNESS.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md), [`OMGCOMP_REFINEMENT_WITNESS_V3.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V3.md), [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md), [`OMGCOMP_REFINEMENT_WITNESS_V5.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md), [`OMGCOMP_REFINEMENT_WITNESS_V6.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md), [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md), [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md) |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -292,7 +292,7 @@ language coverage or admission to final `Ωself`. Continue with capabilities
 actually used by published product checkpoints; do not idle on the separately
 gated compilation-authority join.
 
-- [ ] Implement boolean logical negation, the next smallest observed
+- [x] Implement boolean logical negation, the next smallest observed
   checkpoint-000001 capability, as one complete vertical slice. The admitted
   form is bool-only `!`: false becomes true and true becomes false; integer
   truthiness and bitwise complement are excluded. Carry production and
@@ -305,10 +305,12 @@ gated compilation-authority join.
   `Ωself` candidate; it is not final profile admission.
   Focused OMGLOW7→CKIR6 production, independent CKIR6 meaning, conservative
   native/self backend identity, version cross-pairs, source/IR/artifact
-  mutations, and inherited resource controls are now gated. Resolution remains
-  least-version OMGRSW1/2/3; there is no OMGRSW4. Remaining closure is the
-  OMGRFN8 R1–R5 source-to-artifact reconstruction/composition over one
-  immutable carrier.
+  mutations, and inherited resource controls are gated. Resolution remains
+  least-version OMGRSW1/2/3; there is no OMGRSW4. OMGRFN8 now closes R1–R5 over
+  one immutable result-70 payload-sum carrier whose selected result depends on
+  reachable `false → true → false`; the materialized checker suite compiles
+  once per Beta generation and its full composition gate completes in about
+  twenty seconds on the reference host.
 - [ ] Continue through the remaining general capabilities used by checkpoint
   000001, then later provisional checkpoints, until the bridge generally parses,
   resolves, checks, diagnoses, and conservatively lowers every program admitted

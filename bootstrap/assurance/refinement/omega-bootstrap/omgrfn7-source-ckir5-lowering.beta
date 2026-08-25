@@ -98,7 +98,7 @@ proc r47_ckir_prepare() {
         to bad when (r47_ckir_byte(2)!='G') to bad when (r47_ckir_byte(3)!='C')
         to bad when (r47_ckir_byte(4)!='K') to bad when (r47_ckir_byte(5)!='I')
         to bad when (r47_ckir_byte(6)!='R') to bad when (r47_ckir_byte(7)!=0)
-        to bad when (r47_ckir_byte(8)!=5) to bad when (r47_ckir_byte(9)!=0)
+        to bad when (r47_ckir_byte(8)!=word[879088]-2) to bad when (r47_ckir_byte(9)!=0)
         to bad when (r47_ckir_byte(10)!=0) to bad when (r47_ckir_byte(11)!=0)
         to bad when (r47_ckir_byte(12)!=1) to bad when (r47_ckir_byte(13)!=0)
         to bad when (r47_ckir_byte(15)!=0) to counts
@@ -196,7 +196,14 @@ proc r47_literal_join() {
     state blocks { to block_one when (block<word[879040]) r47_next_opcode(1,cursor) to bad when (word[951000]!=4294967295) return 0 }
     state block_one { machine=word[888000+block*96] source=word[884000+machine*128] token=r47_block_token_start(source,block) end=word[888032+block*96] to tokens }
     state tokens { to token_one when (token<word[880000+source*8]) block=block+1 to blocks }
-    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to number when (omgrfn4_r2_tkind(source,token)==257) to true_value when (r47_is_true(source,token)==1) to false_value when (r47_is_false(source,token)==1) token=token+1 to tokens }
+    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to number when (omgrfn4_r2_tkind(source,token)==257) to true_token when (r47_is_true(source,token)==1) to false_token when (r47_is_false(source,token)==1) token=token+1 to tokens }
+    state true_token { to label when (token+1<word[880000+source*8]) to true_value }
+    state false_token { to label when (token+1<word[880000+source*8]) to false_value }
+    state label { to label_arrow when (omgrfn4_r2_tkind(source,token+1)==45) to bool_value }
+    state label_arrow { to skip_label when (token+2<word[880000+source*8]) to bool_value }
+    state skip_label { to skip when (omgrfn4_r2_tkind(source,token+2)==62) to bool_value }
+    state bool_value { to true_value when (r47_is_true(source,token)==1) to false_value }
+    state skip { token=token+1 to tokens }
     state block_done { block=block+1 to blocks }
     state number { omgrfn4_r2_number(source,token) to bad when (word[700000]!=0) value=word[879000] to compare }
     state true_value { value=1 to compare }
@@ -325,7 +332,10 @@ proc r47_transition_join() {
     state blocks { to one when (block<word[879040]) to exact }
     state one { machine=word[888000+block*96] source=word[884000+machine*128] token=r47_block_token_start(source,block) end=word[888032+block*96] to tokens }
     state tokens { to token_one when (token<word[880000+source*8]) block=block+1 to blocks }
-    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to transition when (r47_is_transition(source,token)==1) token=token+1 to tokens }
+    state token_one { to block_done when (omgrfn4_r2_tstart(source,token)>=end) to transition_kind when (r47_is_transition(source,token)==1) token=token+1 to tokens }
+    state transition_kind { to logical_transition when (token+1<word[880000+source*8]) to transition }
+    state logical_transition { to skip_logical when (omgrfn4_r2_tkind(source,token+1)==33) to transition }
+    state skip_logical { token=token+1 to tokens }
     state transition { status=r47_transition_one(block,machine,source,token) to done when (status!=0) to place when (r47_ckir_byte(word[950312]+block*52+13)==2) value_seen=1 token=token+1 to tokens }
     state place { place_seen=1 token=token+1 to tokens }
     state block_done { block=block+1 to blocks }
@@ -334,12 +344,78 @@ proc r47_transition_join() {
     state done { return status }
 }
 
+; Exact authored-prefix-to-opcode join for V8.  R3/R5 own the intrinsic row
+; envelope and value visibility; this owner proves that every authored `!` in
+; an exact body produces one distinct opcode-15 row, with no folding.  One
+; adjacent source pair must correspond to the inner-result/outer-operand chain.
+proc r48_logical_join() {
+    let block=0 let machine=0 let source=0 let token=0 let end=0
+    let bangs=0 let adjacent=0 let op=0 let op_count=0 let first=0 let second=0
+    state blocks { to block_one when (block<word[879040]) to operations }
+    state block_one {
+        machine=word[888000+block*96] source=word[884000+machine*128]
+        token=r47_block_token_start(source,block) end=word[888032+block*96]
+        to tokens
+    }
+    state tokens { to token_one when (token<word[880000+source*8]) block=block+1 to blocks }
+    state token_one {
+        to block_done when (omgrfn4_r2_tstart(source,token)>=end)
+        to bang when (omgrfn4_r2_tkind(source,token)==33)
+        token=token+1 to tokens
+    }
+    state bang {
+        bangs=bangs+1
+        to adjacent_bang when (token+1<word[880000+source*8])
+        token=token+1 to tokens
+    }
+    state adjacent_bang {
+        to adjacent_yes when (omgrfn4_r2_tkind(source,token+1)==33)
+        token=token+1 to tokens
+    }
+    state adjacent_yes { adjacent=1 token=token+1 to tokens }
+    state block_done { block=block+1 to blocks }
+    state operations { to operation when (op<word[950096]) to exact }
+    state operation {
+        to logical when (r47_ckir_byte(word[950296]+op*40+12)==15)
+        op=op+1 to operations
+    }
+    state logical {
+        to remember_first when (op_count==0)
+        to remember_second when (op_count==1)
+        op_count=op_count+1 op=op+1 to operations
+    }
+    state remember_first { first=op op_count=op_count+1 op=op+1 to operations }
+    state remember_second { second=op op_count=op_count+1 op=op+1 to operations }
+    state exact {
+        to bad when (bangs<2)
+        to bad when (bangs!=op_count)
+        to bad when (adjacent!=1)
+        to bad when (second!=first+1)
+        to bad when (r47_row_word(13,r47_row_word(12,second,24),0)!=r47_row_word(12,first,16))
+        return 0
+    }
+    state bad { return omgrfn4_l2_reject() }
+}
+
 proc omgrfn7_r4_lowering_check() {
     let status=r47_prepare_source()
-    state source { to done when (status!=0) status=r47_ckir_prepare() to literals }
+    state source { to done when (status!=0) to bad when (word[879088]!=7) status=r47_ckir_prepare() to literals }
     state literals { to done when (status!=0) status=r47_literal_join() to constructors }
     state constructors { to done when (status!=0) status=r47_constructor_join() to calls }
     state calls { to done when (status!=0) status=r47_call_join() to transitions }
     state transitions { to done when (status!=0) status=r47_transition_join() to done }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc omgrfn8_r4_lowering_check() {
+    let status=r47_prepare_source()
+    state source { to done when (status!=0) to bad when (word[879088]!=8) status=r47_ckir_prepare() to literals }
+    state literals { to done when (status!=0) status=r47_literal_join() to constructors }
+    state constructors { to done when (status!=0) status=r47_constructor_join() to calls }
+    state calls { to done when (status!=0) status=r47_call_join() to transitions }
+    state transitions { to done when (status!=0) status=r47_transition_join() to logical }
+    state logical { to done when (status!=0) status=r48_logical_join() to done }
+    state bad { return omgrfn4_l2_reject() }
     state done { return status }
 }

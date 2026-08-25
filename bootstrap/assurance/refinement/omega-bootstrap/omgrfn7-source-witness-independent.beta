@@ -1,4 +1,10 @@
-; OMGRFN7 responsibility 2: independent exact source -> OMGRSW3 resolution.
+; Shared OMGRFN7/OMGRFN8 responsibility 2 source-resolution model.
+;
+; OMGRFN7 retains its exact pure-sum -> OMGRSW3 proposition. OMGRFN8 accepts
+; the least OMGRSW1/2/3 identity selected by the exact source: sums select 3,
+; otherwise a direct field-receiver call selects 2, and otherwise 1. Authored
+; logical negation is required by OMGRFN8 but creates no resolution identity
+; and therefore never affects that selection.
 ;
 ; This adapter is compiled with the frozen OMGRFN4 responsibility-2 source
 ; model.  It reuses only propositionally unchanged OMGCOMP decoding, lexical
@@ -19,9 +25,11 @@ proc omgrfn5_r2_read_frame() {
         to bad when (omgrfn4_l2_frame_byte(2)!='G') to bad when (omgrfn4_l2_frame_byte(3)!='R')
         to bad when (omgrfn4_l2_frame_byte(4)!='F') to bad when (omgrfn4_l2_frame_byte(5)!='N')
         to bad when (omgrfn4_l2_frame_byte(7)!=0)
-        to v7 when (omgrfn4_l2_frame_byte(6)=='7') to bad
+        to v7 when (omgrfn4_l2_frame_byte(6)=='7')
+        to v8 when (omgrfn4_l2_frame_byte(6)=='8') to bad
     }
     state v7 { to bad when (omgrfn5_r2_u32(8)!=7) word[879088]=7 to components }
+    state v8 { to bad when (omgrfn5_r2_u32(8)!=8) word[879088]=8 to components }
     state components {
         word[500016]=omgrfn5_r2_u32(12) word[500032]=omgrfn5_r2_u32(16)
         word[500048]=omgrfn5_r2_u32(20) word[500064]=omgrfn5_r2_u32(24)
@@ -107,13 +115,13 @@ proc omgrfn5_r2_parse_type(source_id) {
 
 proc omgrfn5_r2_parse_data(source_id) {
     let rid=word[879008] let sid=word[879344] let name=0 let fid=0 let cid=0 let pid=0 let at=0 let flags=0
-    state cap { to v7_cap when (word[879088]==7) to exhausted when (rid>=16) to keyword }
+    state cap { to v7_cap when (word[879088]>=7) to exhausted when (rid>=16) to keyword }
     state v7_cap { to exhausted when (rid+sid>=128) to keyword }
     state keyword { to bad when (omgrfn4_r2_expect_word(source_id,0)!=0) name=omgrfn4_r2_cur(source_id) to name }
     state name { to bad when (omgrfn4_r2_expect_kind(source_id,256)!=0) to copy_open when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==91) to open }
     state copy_open { omgrfn4_r2_next(source_id) to bad when (omgrfn4_r2_expect_word(source_id,3)!=0) to copy_close }
     state copy_close { to bad when (omgrfn4_r2_expect_kind(source_id,93)!=0) flags=1 to open }
-    state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) to sum when (word[879088]==7) to record }
+    state open { to bad when (omgrfn4_r2_expect_kind(source_id,123)!=0) to sum when (word[879088]>=7) to record }
     state sum { to sum_start when (omgrfn7_r2_is_case(source_id,omgrfn4_r2_cur(source_id))==1) to record }
     state record { word[881000+rid*64]=source_id word[881008+rid*64]=name word[881032+rid*64]=word[879016] word[881048+rid*64]=flags word[879008]=rid+1 omgrfn4_r2_add_decl(1,source_id,name,rid) word[881016+rid*64]=word[879176] to fields }
     state fields { to bad when (word[700000]!=0) to close when (omgrfn4_r2_tkind(source_id,omgrfn4_r2_cur(source_id))==125) to field_cap }
@@ -390,7 +398,7 @@ proc omgrfn5_r2_resolve() {
     state results { to result when (i<word[879024]) i=0 to graph }
     state result { at=884000+i*128 to result_next when (word[at+40]==4294967295) id=omgrfn5_r2_type_id(word[at+40]) to bad when (id==4294967295) word[at+40]=id to result_next }
     state result_next { i=i+1 to results }
-    state graph { to calls when (word[879088]<7) to bad when (omgrfn7_r2_validate_data_graph()!=0) i=0 to calls }
+    state graph { to bad when (omgrfn7_r2_validate_data_graph()!=0) i=0 to calls }
     state calls { to call when (i<word[879064]) found=0 j=0 to root_search }
     state call { at=894000+i*48 owner=word[884088+word[at+24]*128] to call_ready when (word[at+40]==4294967295) to field_version }
     state field_version { found=0 j=0 field=4294967295 to field_search }
@@ -474,22 +482,61 @@ proc omgrfn5_r2_emit_type(id) {
     state bad { return omgrfn4_l2_reject() }
 }
 
-proc omgrfn5_r2_emit_expected() {
+; OMGRSW1/2 retain the 72-byte header and have no sum tables. This emitter is
+; reached only after least-version selection has proved that the sum census is
+; zero. The focused shared source model interns the exact three scalar types
+; used by these bool-not carriers after the nominal records.
+proc omgrfn8_r2_emit_expected_legacy() {
     let i=0 let at=0 let expected=0
     word[700048]=0
-    state version { expected=84+2*36+word[879072]*28+word[879056]*28+(word[879008]+word[879344]+3)*24+word[879008]*24+word[879016]*24+word[879344]*24+word[879352]*28+word[879360]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24 to common_header }
+    expected=72+word[500320]*36+word[879072]*28+word[879056]*28+(word[879008]+3)*24+word[879008]*24+word[879016]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24
+    omgrfn4_l2_put_byte('O') omgrfn4_l2_put_byte('M') omgrfn4_l2_put_byte('G') omgrfn4_l2_put_byte('R')
+    omgrfn4_l2_put_byte('S') omgrfn4_l2_put_byte('W') omgrfn4_l2_put_byte('0'+word[879376]) omgrfn4_l2_put_byte(0)
+    omgrfn4_l2_put_u16(word[879376]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(72)
+    omgrfn4_l2_put_u32(expected) omgrfn4_l2_put_u32(word[500320]) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879072])
+    omgrfn4_l2_put_u32(word[879056]) omgrfn4_l2_put_u32(word[879008]+3) omgrfn4_l2_put_u32(word[879008]) omgrfn4_l2_put_u32(word[879016])
+    omgrfn4_l2_put_u32(word[879024]) omgrfn4_l2_put_u32(word[879032]) omgrfn4_l2_put_u32(word[879040]) omgrfn4_l2_put_u32(word[879048])
+    omgrfn4_l2_put_u32(word[879080]) omgrfn4_l2_put_u32(0)
+    state units { to unit when (i<word[500320]) i=0 to bindings }
+    state unit { omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[600640+i*8]) omgrfn4_l2_put_u32(4294967295) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879400+i*16]) omgrfn4_l2_put_u32(word[879408+i*16]) i=i+1 to units }
+    state bindings { to binding when (i<word[879072]) i=0 to declarations }
+    state binding { at=897000+i*56 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_byte(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(4294967295) i=i+1 to bindings }
+    state declarations { to declaration when (i<word[879056]) i=0 to types }
+    state declaration { at=895000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_byte(word[at]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to declarations }
+    state types { to type when (i<word[879008]+3) i=0 to records }
+    state type { omgrfn5_r2_emit_type(i) i=i+1 to types }
+    state records { to record when (i<word[879008]) i=0 to fields }
+    state record { at=881000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_byte(word[at+48]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_byte(0) i=i+1 to records }
+    state fields { to field when (i<word[879016]) i=0 to machines }
+    state field { at=882000+i*64 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) i=i+1 to fields }
+    state machines { to machine when (i<word[879024]) i=0 to mparams }
+    state machine { at=884000+i*128 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at+80]) omgrfn4_l2_put_u32(word[at+88]) omgrfn4_l2_put_byte(word[at+32]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) omgrfn4_l2_put_u32(word[at+56]) omgrfn4_l2_put_u32(word[at+64]) omgrfn4_l2_put_u32(word[at+72]) omgrfn4_l2_put_u32(word[at+64]) i=i+1 to machines }
+    state mparams { to mparam when (i<word[879032]) i=0 to blocks }
+    state mparam { at=886000+i*48 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) i=i+1 to mparams }
+    state blocks { to block when (i<word[879040]) i=0 to bparams }
+    state block { at=888000+i*96 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_byte(0) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(word[at+48]) omgrfn4_l2_put_u32(word[at+56]) omgrfn4_l2_put_u32(word[at+64]) i=i+1 to blocks }
+    state bparams { to bparam when (i<word[879048]) i=0 to length }
+    state bparam { at=893000+i*48 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_u32(word[at+8]) omgrfn4_l2_put_u32(word[at+16]) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) i=i+1 to bparams }
+    state length { to bad when (word[700048]!=expected) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc omgrfn7_r2_emit_expected_v3() {
+    let i=0 let at=0 let expected=0
+    word[700048]=0
+    state version { expected=84+word[500320]*36+word[879072]*28+word[879056]*28+(word[879008]+word[879344]+3)*24+word[879008]*24+word[879016]*24+word[879344]*24+word[879352]*28+word[879360]*24+word[879024]*40+word[879032]*24+word[879040]*40+word[879048]*24 to common_header }
     state common_header {
     omgrfn4_l2_put_byte('O') omgrfn4_l2_put_byte('M') omgrfn4_l2_put_byte('G') omgrfn4_l2_put_byte('R')
-    omgrfn4_l2_put_byte('S') omgrfn4_l2_put_byte('W') omgrfn4_l2_put_byte('0'+word[879088]-4) omgrfn4_l2_put_byte(0)
-    omgrfn4_l2_put_u16(word[879088]-4) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(0)
+    omgrfn4_l2_put_byte('S') omgrfn4_l2_put_byte('W') omgrfn4_l2_put_byte('0'+word[879376]) omgrfn4_l2_put_byte(0)
+    omgrfn4_l2_put_u16(word[879376]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u16(0)
     omgrfn4_l2_put_u16(84)
-        omgrfn4_l2_put_u32(expected) omgrfn4_l2_put_u32(2) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879072])
+        omgrfn4_l2_put_u32(expected) omgrfn4_l2_put_u32(word[500320]) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879072])
         omgrfn4_l2_put_u32(word[879056]) omgrfn4_l2_put_u32(word[879008]+word[879344]+3) omgrfn4_l2_put_u32(word[879008]) omgrfn4_l2_put_u32(word[879016])
         omgrfn4_l2_put_u32(word[879024]) omgrfn4_l2_put_u32(word[879032]) omgrfn4_l2_put_u32(word[879040]) omgrfn4_l2_put_u32(word[879048])
         omgrfn4_l2_put_u32(word[879344]) omgrfn4_l2_put_u32(word[879352]) omgrfn4_l2_put_u32(word[879360])
         omgrfn4_l2_put_u32(word[879080]) omgrfn4_l2_put_u32(0) to units
     }
-    state units { to unit when (i<2) i=0 to bindings }
+    state units { to unit when (i<word[500320]) i=0 to bindings }
     state unit { omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[600640+i*8]) omgrfn4_l2_put_u32(4294967295) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(0) omgrfn4_l2_put_u32(word[879400+i*16]) omgrfn4_l2_put_u32(word[879408+i*16]) i=i+1 to units }
     state bindings { to binding when (i<word[879072]) i=0 to declarations }
     state binding { at=897000+i*56 omgrfn4_l2_put_u32(i) omgrfn4_l2_put_u32(word[at]) omgrfn4_l2_put_byte(word[at+8]) omgrfn4_l2_put_byte(word[at+16]) omgrfn4_l2_put_u16(0) omgrfn4_l2_put_u32(word[at+24]) omgrfn4_l2_put_u32(word[at+32]) omgrfn4_l2_put_u32(word[at+40]) omgrfn4_l2_put_u32(4294967295) i=i+1 to bindings }
@@ -519,23 +566,52 @@ proc omgrfn5_r2_emit_expected() {
     state bad { return omgrfn4_l2_reject() }
 }
 
+; This is only the R2 lexical presence tooth. R4 owns expression admission,
+; bool typing, recursive lowering, and meaning for each authored token.
+proc omgrfn8_r2_count_logical_not() {
+    let source=0 let token=0
+    state sources { to source_one when (source<word[500320]) return 0 }
+    state source_one { token=0 to tokens }
+    state tokens { to token_one when (token<word[880000+source*8]) source=source+1 to sources }
+    state token_one { to found when (omgrfn4_r2_tkind(source,token)==33) token=token+1 to tokens }
+    state found { word[879384]=word[879384]+1 token=token+1 to tokens }
+}
+
+proc omgrfn8_r2_select_resolution() {
+    state sums { to v3 when (word[879344]>0) to fields }
+    state fields { to v2 when (word[879336]>0) word[879376]=1 return 0 }
+    state v2 { word[879376]=2 return 0 }
+    state v3 { word[879376]=3 return 0 }
+}
+
 proc omgrfn5_r2_check() {
     let status=0 let source=0
     word[700000]=0 word[879008]=0 word[879016]=0 word[879024]=0 word[879032]=0
     word[879040]=0 word[879048]=0 word[879056]=0 word[879064]=0 word[879072]=0
     word[879088]=0 word[879336]=0 word[879344]=0 word[879352]=0 word[879360]=0 word[879368]=0
+    word[879376]=0 word[879384]=0
     word[879200]=0 word[879208]=0
     status=omgrfn5_r2_read_frame()
     state framed { to done when (status!=0) status=omgrfn4_l2_decode_compilation() to compiled }
     state compiled { to done when (status!=0) omgrfn4_r2_init_words() source=0 to tokenize }
-    state tokenize { to tokenize_one when (source<2) source=0 to parse }
+    state tokenize { to tokenize_one when (source<word[500320]) source=0 omgrfn8_r2_count_logical_not() to parse }
     state tokenize_one { status=omgrfn4_r2_tokenize(source) to done when (status!=0) source=source+1 to tokenize }
-    state parse { to parse_one when (source<2) to bad_version when (word[879088]==7) status=omgrfn5_r2_resolve() to resolved }
+    state parse { to parse_one when (source<word[500320]) to v7 when (word[879088]==7) to v8 }
     state parse_one { status=omgrfn5_r2_parse_source(source) to done when (status!=0) source=source+1 to parse }
-    state bad_version { to reject when (word[879344]<1) status=omgrfn5_r2_resolve() to resolved }
+    state v7 { to reject when (word[879344]<1) word[879376]=3 status=omgrfn5_r2_resolve() to resolved }
+    state v8 { to reject when (word[879384]<1) omgrfn8_r2_select_resolution() status=omgrfn5_r2_resolve() to resolved }
     state reject { status=omgrfn4_l2_reject() to done }
     state resolved { to done when (status!=0) status=omgrfn5_r2_build_bindings() to bound }
-    state bound { to done when (status!=0) status=omgrfn5_r2_emit_expected() to built }
+    state bound { to done when (status!=0) to v3_emit when (word[879376]==3) status=omgrfn8_r2_emit_expected_legacy() to built }
+    state v3_emit { status=omgrfn7_r2_emit_expected_v3() to built }
     state built { to done when (status!=0) status=omgrfn4_l2_compare_expected() to done }
     state done { return word[700000] }
+}
+
+proc omgrfn7_r2_check() { return omgrfn5_r2_check() }
+proc omgrfn8_r2_check() {
+    let status=omgrfn5_r2_check()
+    state checked { to done when (status!=0) to exact when (word[879088]==8) return 251 }
+    state exact { return 0 }
+    state done { return status }
 }

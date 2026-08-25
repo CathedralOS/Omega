@@ -1,4 +1,4 @@
-; Lower-rooted CKIR5 selected-result evaluator.
+; Lower-rooted CKIR5/6 selected-result evaluator.
 ; Concatenate after omgrfn7-component-envelope-r5.beta and
 ; ckir5-refinement-artifact.beta with the structure checker's main removed.
 ; This suffix reuses only state independently reconstructed in the same process;
@@ -414,6 +414,7 @@ proc ckir_interpret_selected() {
         to less_equal when (opcode == 12)
         to constructor when (opcode == 13)
         to case_constructor when (opcode == 14)
+        to logical_not when (opcode == 15)
         to less
     }
     state constant { word[8800000 + result * 8] = ckir_op_word(op, 32)  to op_next }
@@ -559,6 +560,11 @@ proc ckir_interpret_selected() {
         to op_next
     }
     state less_equal_true { word[8800000+result*8]=1 to op_next }
+    state logical_not {
+        a = ckir_operand(start)
+        word[8800000 + result * 8] = 1 - word[8800000 + a * 8]
+        to op_next
+    }
     state call {
         ; The selected root is active at depth zero. Entering a call while 63
         ; continuations are retained would create the forbidden 65th frame.

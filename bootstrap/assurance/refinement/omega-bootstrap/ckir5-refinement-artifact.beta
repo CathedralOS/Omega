@@ -1,4 +1,4 @@
-; Lower-rooted CKIR5 decoder, complete relation checker, and constant-image
+; Lower-rooted CKIR5/6 decoder, complete relation checker, and constant-image
 ; reconstructor. Selected-result evaluation is the independent result suffix.
 ; Concatenate after omgrfn7-component-envelope-r5.beta. This program deliberately
 ; does not import or execute either Delta CKIR producer/backend.
@@ -32,6 +32,7 @@ proc ckir_span_ok(start, count, length) {
 }
 
 proc ckir_entry() { state live { to saved when(word[60900000]!=0) return word[525000] } state saved { return word[60900400] } }
+proc ckir_schema() { return word[524384] }
 proc ckir_count(index) { state live { to saved when(word[60900000]!=0) return word[525016+index*8] } state saved { return word[60900100+index*8] } }
 proc ckir_base(index) { state live { to saved when(word[60900000]!=0) return word[525400+index*8] } state saved { return word[60900300+index*8] } }
 
@@ -97,7 +98,14 @@ proc ckir_decode_header() {
     state magic6 { to bad when (refinement_ckir_byte(6) != 'R')  to magic7 }
     state magic7 { to bad when (refinement_ckir_byte(7) != 0)  to schema }
     state schema {
-        to bad when (ckir_u16(8) != 5)
+        word[524384] = ckir_u16(8)
+        to schema5 when (ckir_schema() == 5)
+        to schema6 when (ckir_schema() == 6)
+        to bad
+    }
+    state schema5 { to bad when (word[524376] != 7)  to schema_shared }
+    state schema6 { to bad when (word[524376] != 8)  to schema_shared }
+    state schema_shared {
         to bad when (ckir_u16(10) != 0)
         to bad when (ckir_u16(12) != 1)
         to bad when (ckir_u16(14) > 1)
@@ -1057,6 +1065,7 @@ proc ckir_validate_operations() {
     let parameter = 0
     let argument = 0
     let j = 0
+    let logical_not_count = 0
     state begin { ckir_initialize_value_scopes() ckir_initialize_call_graph() to loop }
     state loop { to one when (i < ckir_count(9))  to finish }
     state one {
@@ -1077,7 +1086,12 @@ proc ckir_validate_operations() {
         to bad when (operand_start != next_operand)
         to bad when (ckir_span_ok(operand_start, operand_count, ckir_count(10)) == 0)
         to bad when (opcode < 1)
-        to bad when (opcode > 14)
+        to bad when (opcode > 15)
+        to schema5_opcode when (ckir_schema() == 5)
+        to opcode_ready
+    }
+    state schema5_opcode { to bad when (opcode == 15)  to opcode_ready }
+    state opcode_ready {
         expected_kind = 1
         to call_kind when (opcode == 10)
         to none_kind when (opcode == 6)
@@ -1134,6 +1148,7 @@ proc ckir_validate_operations() {
         to arity_constructor when (opcode == 13)
         to arity_call when (opcode == 10)
         to arity1 when (opcode == 11)
+        to arity1 when (opcode == 15)
         to arity0 when (opcode == 1)
         to arity0 when (opcode == 2)
         to arity1 when (opcode == 3)
@@ -1169,6 +1184,7 @@ proc ckir_validate_operations() {
         to op_copy_const when (opcode == 11)
         to op_constructor when (opcode == 13)
         to op_case_constructor when (opcode == 14)
+        to op_logical_not when (opcode == 15)
         to op_less
     }
     state immediates_zero {
@@ -1220,6 +1236,14 @@ proc ckir_validate_operations() {
         to bad when (ckir_place_visible(a, block, i) == 0)
         to bad when (result_type != ckir_place_type(a))
         to bad when (ckir_type_byte(result_type, 4) > 3)
+        to immediates_zero
+    }
+    state op_logical_not {
+        to bad when (ckir_value_visible(a, owner, block, i) == 0)
+        source_type = ckir_value_type(a)
+        to bad when (source_type != result_type)
+        to bad when (ckir_type_byte(result_type, 4) != 3)
+        logical_not_count = logical_not_count + 1
         to immediates_zero
     }
     state op_store {
@@ -1387,8 +1411,10 @@ proc ckir_validate_operations() {
         word[525224] = next_operand
         to bad when (word[525208] != ckir_count(12))
         to bad when (word[525216] != ckir_count(13))
+        to logical_not_required when (ckir_schema() == 6)
         return 0
     }
+    state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
     state exhausted { return 252 }
     state bad { return 251 }
 }

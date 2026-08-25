@@ -112,7 +112,7 @@ This tranche does not add general unary operators, Boolean/integer coercions,
 short-circuit operators, constant folding, new resolution identities, or a
 new Omega source dialect.
 
-## 5. Focused evidence and remaining closure
+## 5. Focused and lower-rooted evidence
 
 The focused evidence is:
 
@@ -128,10 +128,12 @@ The focused evidence is:
   mutations; and
 - `../gates/delta-checked-ir-v6-backend.sh`: Delta-native/self backend identity,
   the pinned logical-not instruction template, and artifact mutations.
+- `../../assurance/refinement/omega-bootstrap/omgrfn8-same-frame-composite.sh`:
+  persisted-Beta R1–R5 reconstruction over one immutable payload-sum carrier,
+  compact least-OMGRSW1/2 controls, result 70, ownership mutations, version
+  cross-pairs, and exact ELF identity.
 
 These gates close the focused producer, Rust-free lowering meaning, checked-IR
-meaning, and conservative backend cost. Complete lower-rooted source-to-
-artifact reconstruction remains
-the separate `OMGRFN8` successor obligation; until it lands, the boolean-
-negation task is not a complete vertical slice and remains open in
-`TASKS_BOOTSTRAP.md`.
+meaning, conservative backend cost, and the selected lower-rooted OMGRFN8
+source-to-artifact relation. This is a complete bounded vertical slice, not
+general unary coverage or admission of the feature to final `Ωself`.

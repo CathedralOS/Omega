@@ -3575,7 +3575,7 @@ machine Main::parse_runtime_scalar_field(&mut self, expected: i32) {
     // ck3[33]/[34] return whether this leaf is recursively constant and
     // whether it contained a fixed-array literal used only by assignment's
     // constant-classification pass.
-    self.ck3[33] = 0; self.ck3[34] = 0; self.ck3[38] = 0;
+    self.ck3[33] = 0; self.ck3[34] = 0;
     transition self.tok == 257 { true -> literal() _ -> identifier() }
     state literal() { self.ck3[33] = 1; self.parse_primary(); transition self.status == 0 { true -> assignable() _ -> done() } }
     state identifier() { transition self.tok == 256 { true -> true_check() _ -> bad() } }
@@ -3583,7 +3583,7 @@ machine Main::parse_runtime_scalar_field(&mut self, expected: i32) {
     state false_check() { self.token_word(41, 5); transition self.match_ok == 1 { true -> boolean() _ -> self_check() } }
     state boolean() { self.ck3[33] = 1; self.parse_primary(); transition self.status == 0 { true -> assignable() _ -> done() } }
     state self_check() { self.token_word(18, 4); transition self.match_ok == 1 { true -> self_path() _ -> parameter() } }
-    state self_path() { self.ck3[38] = 1; self.parse_postfix(); transition self.status == 0 { true -> self_shape() _ -> done() } }
+    state self_path() { self.parse_postfix(); transition self.status == 0 { true -> self_shape() _ -> done() } }
     state self_shape() { transition self.expr_subject_kind == 1 { true -> scalar_kind() _ -> bad() } }
     state parameter() { self.parse_primary(); transition self.status == 0 { true -> parameter_shape() _ -> done() } }
     state parameter_shape() { transition self.expr_subject_kind == 2 { true -> scalar_kind() _ -> bad() } }

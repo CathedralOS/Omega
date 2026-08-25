@@ -57,6 +57,7 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 | --- | --- | --- | --- |
 | machines, states, transitions, loops, and calls | `lowermachine` self-host, historical O0/O1 canaries, and the CKIR2 exact-root tranche demonstrate typed finite acyclic attached-machine calls across sources in one logical module; producer, Rust-free meaning, lower-rooted reconstruction, and one-frame composition are closed | keep the finite static-call form; add recursion, general member receivers, or broader module/package calls only when the complete bridge requires them | finite static calls demonstrated; broader forms and final disposition unresolved |
 | integer arithmetic | D0 and the Rust producer accept several overflow policies and disagree at some edges | use Exact throughout; add only a narrow modular operation if artifact encoding requires it | unresolved |
+| bool-only prefix logical negation | the selected OMGLOW7/CKIR6 relation closes least-OMGRSW1/2/3 production, lower-rung meaning, conservative emission, and all OMGRFN8 R1–R5 joins over one immutable payload-sum carrier | retain ordinary Omega spelling and exact Boolean meaning; do not add integer truthiness, bitwise complement, or user-defined unary dispatch | selected compiler path demonstrated; broader expression coverage and final disposition unresolved |
 | records, fixed arrays, and recursively constant aggregates | checkpoint 000001 and selected CKIR3/CKIR4 paths establish bounded nominal layout, constant graphs, runtime named construction, structural Call/Copy, native/self/mixed production, Rust-free meaning, and responsibility-local lower-rooted reconstruction; the direct-field successor reuses CKIR4 rather than widening it | retain the typed constant graph/pool, aggregate copy, and ordinary named fields while completing general bridge coverage; the measured selected-tranche cost no longer argues for hand-expanded initialization or positional compiler data | selected constant-aggregate, runtime-record, and direct-field closures are complete; general coverage and final disposition unresolved |
 | slices and runtime views | checkpoint 000001 uses source, decoded-byte, token, and spelling views, but no complete bridge artifact path exists yet | compare a regular slice facility with explicit backing-plus-span records; retain slices when the latter duplicates checking or obscures ownership | observed in product source; bridge cost and final disposition unresolved |
 | payload-bearing sum data | checkpoint 000001 uses token, numeric-base, diagnostic, and console-result sums; the selected unnumbered pure-sum tranche closes OMGRSW3 resolution, general OMGLOW6 construction/Copy/Call/dispatch lowering, CKIR5 publication and independent meaning, conservative CKIR5→ELF emission native/self, and all OMGRFN7 R1–R5 lower-rooted joins in one immutable frame | compare general tagged data with explicit tag-plus-payload records; do not force the split when it increases invalid states or duplicated dispatch | selected compiler path demonstrated; general coverage and final disposition unresolved |
@@ -75,6 +76,7 @@ Evidence owners for the longer rows are
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md),
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md),
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V5.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md),
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md),
 and the lower-rooted refinement contracts
 [`OMGRFN2`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 and
@@ -83,8 +85,9 @@ The focused successors use the distinct
 [`OMGRFN4`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md),
 [`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md),
 [`OMGRFN6`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md),
+[`OMGRFN7`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md),
 and
-[`OMGRFN7`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md)
+[`OMGRFN8`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md)
 contracts. Their selected implementations and same-frame compositions are
 closed without deciding general Delta coverage or final disposition.
 
