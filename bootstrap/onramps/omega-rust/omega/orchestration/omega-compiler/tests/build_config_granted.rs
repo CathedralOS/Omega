@@ -11,11 +11,14 @@ use omega_compiler::{
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
     BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
-    BuildFilesystemScalarOperandValue, BuildObservationClass, CheckedCompilation, CompileOptions,
-    FilesystemSponsor, PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
+    BuildFilesystemReplayRecordLimits, BuildFilesystemReturnedPathCompleteness,
+    BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
+    PackageCompilationInputs, PackageSourceBinding,
+    capture_verified_build_filesystem_replay_record, compile, compile_to_checked,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir,
+    recover_review_only_build_filesystem_replay_record,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -1364,6 +1367,63 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
         read.observed_bytes(&read.observed_byte_regions()[0]),
         Some(&b"data Main { value: u8; "[..])
     );
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified replay record must encode")
+        .expect("verified replay must publish review-only custody bytes");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("canonical replay record must recover");
+    assert_eq!(recovered, record);
+    assert_ne!(record.commitment(), [0; 32]);
+
+    let mut corrupted = record.canonical_bytes().to_vec();
+    let last = corrupted.len() - 1;
+    corrupted[last] ^= 1;
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&corrupted, limits).is_err(),
+        "changed replay semantics must reject"
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(
+            &record.canonical_bytes()[..record.canonical_bytes().len() - 1],
+            limits,
+        )
+        .is_err(),
+        "truncated replay record must reject"
+    );
+    let mut wrong_schema = record.canonical_bytes().to_vec();
+    let schema_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len() + 2;
+    wrong_schema[schema_offset..schema_offset + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(&wrong_schema, limits)
+            .expect_err("unknown observation schema must reject")
+            .message(),
+        "unsupported filesystem replay semantic schema"
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(
+            record.canonical_bytes(),
+            BuildFilesystemReplayRecordLimits::new(record.canonical_bytes().len() - 1, 4_096),
+        )
+        .is_err(),
+        "record byte ceiling must reject before parsing"
+    );
+    let mut spoofed_lane = record.canonical_bytes().to_vec();
+    let record_header_bytes = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len() + 2 + 4 + 4 + 8;
+    let open_byte_lane_offset = record_header_bytes + 2 + 1 + 1 + 8 + 4 + 8 + 1 + 1 + 4;
+    let mut fake_byte_operand = Vec::new();
+    fake_byte_operand.extend_from_slice(&1u64.to_le_bytes());
+    fake_byte_operand.push(0);
+    fake_byte_operand.extend_from_slice(&0u64.to_le_bytes());
+    spoofed_lane.splice(
+        open_byte_lane_offset..open_byte_lane_offset + 8,
+        fake_byte_operand,
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&spoofed_lane, limits).is_err(),
+        "an operation-inapplicable lane must not survive semantic recovery"
+    );
     let _ = std::fs::remove_dir_all(&project);
 }
 
@@ -1382,6 +1442,14 @@ fn write_like_source_open_does_not_claim_bounded_replay() {
         .build_observation_summary()
         .expect("filesystem build retains observations");
     assert!(!summary.open_read_close_replay_verified());
+    assert!(
+        capture_verified_build_filesystem_replay_record(
+            summary,
+            BuildFilesystemReplayRecordLimits::default(),
+        )
+        .expect("non-replayed summary is not a codec error")
+        .is_none()
+    );
     let _ = std::fs::remove_dir_all(&project);
 }
 

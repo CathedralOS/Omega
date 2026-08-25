@@ -105,15 +105,20 @@ assembly. These checks establish review custody only; they do not issue an
 accepted lock or settle complete toolchain provenance.
 Review baselines can now cross a process restart without old source custody. A
 bounded binary capsule retains the complete typed source graph, immutable
-resolutions, target and comparison commitments, and every canonical comparison
-row with its exact source sidecar. Compiler-owned decode derives row kind, risk,
+resolutions, target and comparison commitments, every canonical comparison
+row with its exact source sidecar, and any compiler-verified bounded source-read
+replay record. Compiler-owned decode derives row kind, risk,
 key, package, and target from the canonical row frame and rejects malformed or
 noncanonical source coordinates; package code leaves row payloads opaque.
 Recovered rows remain a distinct review-only type and cannot become newly
 compiler-issued evidence. The outer decoder checks its corruption checksum
 (not authenticity or proof of review), canonical re-encoding, strict
 package/row order, singleton header/provider rows, graph closure and depth, and
-independent resource ceilings. Recovered baselines produce the same conflicts,
+independent resource ceilings. Replay-record recovery requires the exact
+semantic schemas and complete operation-specific lane relationships; capsule
+v2 binds the opaque record to its parent build observation and charges all
+records to one aggregate byte budget. That association is consistency checking,
+not authenticity or admission. Recovered baselines produce the same conflicts,
 triage, and source packets as live baselines, including standalone candidate
 packets when old source is unavailable. This capsule is not `omega.lock`: it
 cannot issue a package instance, resolve a conflict, or mutate a project.
@@ -370,9 +375,11 @@ Exactly one successful Source-rooted, flags-zero `open` -> `read` -> `close`
 chain receives one bounded compiler replay with no filesystem provider. It
 supplies recorded results and read bytes, reconstructs logical descriptors, and
 requires exact event order, inputs, outputs, exhaustion, and final result. The
-package commitment binds this partial replay fact. It does not make the build
-`Receipted`; full operation coverage, durable record custody, and staged-output
-reproduction remain open.
+package commitment binds this partial replay fact. Compiler replay-record v1
+now retains the exact verified chain, and review-baseline capsule v2 preserves
+it across restart as opaque, bounded, non-admitting bytes associated with the
+parent observation. It does not make the build `Receipted`; executing reopened
+custody, full operation coverage, and staged-output reproduction remain open.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

@@ -2,6 +2,7 @@ mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
 mod build_config;
+mod build_replay_record;
 mod build_staged_output;
 mod calling_policy_plans;
 mod checked_entry;
@@ -71,6 +72,11 @@ pub use build_config::{
     BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
     BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
     BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
+};
+pub use build_replay_record::{
+    BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
+    ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
 };
 pub use build_staged_output::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,

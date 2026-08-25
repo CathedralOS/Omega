@@ -872,9 +872,14 @@ For exactly one successful Source-rooted, flags-zero `open` -> `read` ->
 `close` chain, the compiler performs one bounded replay with no filesystem
 provider. It consumes rows in order, supplies recorded results and read bytes,
 reconstructs logical descriptors, and requires exact event exhaustion,
-observations, and final result. Summary v19 binds that partial replay fact. The
-package remains `Volatile`; this is not durable custody, full operation replay,
-staged-output reproduction, or a `Receipted` verdict.
+observations, and final result. Summary v19 binds that partial replay fact.
+Compiler replay-record v1 now preserves every lane of the verified chain in a
+bounded canonical binary form, rejects stale semantic schemas and inconsistent
+operation-specific state, and is retained by review-baseline capsule v2 under
+a parent-observation association and aggregate byte ceiling. This is durable
+review-only custody, not authority to execute a reopened record. The package
+remains `Volatile`; reopened-record execution, full operation replay, staged-
+output reproduction, and a `Receipted` verdict remain absent.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
@@ -1049,14 +1054,17 @@ accepted lock evidence or attest that review happened.
 
 Review can resume after process restart without refetching the old source. A
 versioned, bounded binary review-baseline capsule retains the complete resolved
-`PackageKey` graph and immutable resolutions, comparison commitments, and every
-canonical comparison row plus its source-explanation sidecar. The compiler owns
+`PackageKey` graph and immutable resolutions, comparison commitments, every
+canonical comparison row plus its source-explanation sidecar, and any verified
+bounded source-read replay record. The compiler owns
 strict row-envelope recovery; orchestration treats row values as opaque, and a
 recovered row remains distinctly review-only rather than becoming newly
 compiler-issued evidence. The capsule checksum detects accidental corruption,
 not authenticity or proof of review, while canonical decode rechecks graph
-closure, row/package/target identity, ordering, singleton rows, and all resource
-ceilings. It is deliberately a non-admitting checkpoint: no API converts it to
+closure, row/package/target identity, ordering, singleton rows, replay semantic
+schemas and operation-specific lanes, parent-observation association, and all
+resource ceilings including aggregate replay bytes. The association is also a
+consistency check rather than authenticity. It is deliberately a non-admitting checkpoint: no API converts it to
 `PackageInstance`, a conflict resolution, project mutation, or accepted lock.
 The future lock may contain the same normalized material only after a consumer
 reconstructs the exact source-and-artifact obligations, checks the retained
