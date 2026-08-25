@@ -2671,7 +2671,7 @@ fn candidate_const_index_expressions(
     expressions
 }
 
-fn collect_statement_expression_trees(
+pub(crate) fn collect_statement_expression_trees(
     program: &TypedTrees,
     statement: &StatementNode,
     handles: &mut Vec<ExpressionHandle>,

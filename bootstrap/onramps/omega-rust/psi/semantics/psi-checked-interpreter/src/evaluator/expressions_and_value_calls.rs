@@ -309,6 +309,9 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
+        if let Some(value) = self.try_build_root_resolve_value_call(call, frame)? {
+            return Ok(value);
+        }
         // CH10 root grant marker (see the statement-call twin): a no-op.
         if target.starts_with("accept_boundary#")
             || target == "select_provider"

@@ -28,6 +28,50 @@ fn executable_name() -> &'static str {
     }
 }
 
+fn rooted_build_probe_project(label: &str, body: &str) -> (PathBuf, omega_target::TargetProfile) {
+    let profile = omega_target::TargetProfile::host();
+    let project = std::env::temp_dir().join(format!(
+        "omega-rooted-build-probe-{label}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project);
+    std::fs::create_dir_all(&project).expect("create rooted build probe");
+    std::fs::write(
+        project.join("build.omg"),
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+data FakeRoot {{}}
+machine FakeRoot::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {{
+    relative
+}}
+
+data RootProbe {{
+    filesystem: FilesystemHost;
+    fake: FakeRoot;
+    descriptor: i32;
+    result: i64;
+    buffer: [u8; 4096];
+}}
+
+machine RootProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+{body}
+    builder.freestanding = false;
+}}
+"#,
+            target = profile.target_name(),
+        ),
+    )
+    .expect("write rooted build probe");
+    std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n")
+        .expect("write rooted build probe main");
+    (project, profile)
+}
+
 #[test]
 fn declared_filesystem_build_machine_stages_at_compile_time() {
     let profile = omega_target::TargetProfile::host();
@@ -48,9 +92,6 @@ use omega::language::std::filesystem_host;
 
 target {target} {{}}
 
-data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
 data Stager {{
     fs: FilesystemHost;
     log: Console;
@@ -68,11 +109,13 @@ reaches
 {{
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     self.log.write_line("build: staging");
-    self.fd = self.fs.open("{source}/inputs/table.txt", 0);
+    let source_path: &[u8] in Path = builder.source.resolve("inputs/table.txt");
+    self.fd = self.fs.open(source_path, 0);
     self.n = self.fs.read(self.fd, &mut self.buffer, 6);
     self.handle = self.fs.get_osfhandle(self.fd);
     self.rc = self.fs.close(self.fd);
-    self.fd = self.fs.create("{stage}/asset.tmp", 438);
+    let staged_path: &[u8] in Path = builder.output.resolve("stage/asset.tmp");
+    self.fd = self.fs.create(staged_path, 438);
     transition self.fd >= 0 {{ true -> put(builder) _ -> done(builder) }}
     state put(&mut self, builder: &mut Build) {{
         self.clone_fd = self.fs.duplicate(self.fd);
@@ -80,7 +123,9 @@ reaches
         _ = self.fs.sync(self.clone_fd);
         self.n = self.fs.close(self.clone_fd);
         self.n = self.fs.close(self.fd);
-        self.rc = self.fs.rename("{stage}/asset.tmp", "{stage}/asset.bin");
+        let staged_path: &[u8] in Path = builder.output.resolve("stage/asset.tmp");
+        let final_path: &[u8] in Path = builder.output.resolve("stage/asset.bin");
+        self.rc = self.fs.rename(staged_path, final_path);
         transition true {{ true -> done(builder) _ -> done(builder) }}
     }}
     state done(&mut self, builder: &mut Build) {{
@@ -88,11 +133,6 @@ reaches
     }}
 }}
 "#,
-            // Forward slashes so the embedded path lexes on windows too
-            // (`C:\Users\...` would read `\U` as an escape sequence); every
-            // host fs API accepts them.
-            stage = stage.display().to_string().replace('\\', "/"),
-            source = project.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
         ),
@@ -886,6 +926,131 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
 
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn canonical_build_roots_reject_unrooted_and_noncanonical_paths() {
+    let cases = [
+        (
+            "unrooted",
+            r#"    self.descriptor = self.filesystem.open("input.txt", 0);"#,
+            "must come from BuildSource::resolve or BuildOutput::resolve",
+        ),
+        (
+            "fake-resolver",
+            r#"    let path: &[u8] in Path = self.fake.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);"#,
+            "must come from BuildSource::resolve or BuildOutput::resolve",
+        ),
+        (
+            "parent",
+            r#"    let path: &[u8] in Path = builder.source.resolve("../input.txt");"#,
+            "canonical relative components",
+        ),
+        (
+            "absolute",
+            r#"    let path: &[u8] in Path = builder.source.resolve("/input.txt");"#,
+            "absolute or host-specific spelling",
+        ),
+        (
+            "backslash",
+            r#"    let path: &[u8] in Path = builder.source.resolve("dir\\input.txt");"#,
+            "absolute or host-specific spelling",
+        ),
+        (
+            "empty-component",
+            r#"    let path: &[u8] in Path = builder.source.resolve("dir//input.txt");"#,
+            "canonical relative components",
+        ),
+        (
+            "drive-prefix",
+            r#"    let path: &[u8] in Path = builder.output.resolve("C:input.txt");"#,
+            "absolute or host-specific spelling",
+        ),
+    ];
+
+    for (label, body, expected) in cases {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let diagnostics =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect_err("invalid rooted build path must reject before host access");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(rendered.contains(expected), "{label}: {rendered}");
+        let _ = std::fs::remove_dir_all(&project);
+    }
+}
+
+#[test]
+fn canonical_source_root_cannot_be_used_for_writes() {
+    let (project, profile) = rooted_build_probe_project(
+        "source-write",
+        r#"    let path: &[u8] in Path = builder.source.resolve("blocked.bin");
+    self.descriptor = self.filesystem.create(path, 438);"#,
+    );
+    let report = compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(project.join("build")),
+        target_name: Some(profile.target_name().to_owned()),
+        write_output: false,
+    })
+    .expect("a denied source-root write is an observed build result");
+    let observations = report
+        .build_observation_summary
+        .expect("source-root denial remains observable");
+    let [create] = observations.filesystem_operation_attempts() else {
+        panic!("source-root write must retain one attempted create")
+    };
+    assert_eq!(create.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(create.post_error(), 13);
+    assert!(create.authorized_paths().is_empty());
+    let [refusal] = create.grant_refusals() else {
+        panic!("source-root write must retain its refused path")
+    };
+    assert_eq!(refusal.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(
+        refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+    assert!(!project.join("blocked.bin").exists());
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn canonical_build_roots_reject_host_absolute_path_results() {
+    let cases = [
+        (
+            "canonicalize",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.result = self.filesystem.canonicalize(path, &mut self.buffer);"#,
+            "canonicalize",
+        ),
+        (
+            "final-path",
+            r#"    self.result = self.filesystem.final_path_name_by_handle(0, &mut self.buffer, 4096, 0);"#,
+            "final_path_name_by_handle",
+        ),
+    ];
+    for (label, body, operation) in cases {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let diagnostics =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect_err("host-absolute path result must reject in rooted build mode");
+        let rendered = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(rendered.contains(operation), "{label}: {rendered}");
+        assert!(
+            rendered.contains("would expose a host-absolute path"),
+            "{label}: {rendered}"
+        );
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }
 
 #[test]

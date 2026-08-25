@@ -27,6 +27,7 @@ impl<'program> Evaluator<'program> {
                 .collect(),
             virtual_errno: 0,
             real_fs: None,
+            rooted_build_paths_required: false,
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
             filesystem_operation_attempts: Vec::new(),
@@ -235,6 +236,7 @@ impl<'program> Evaluator<'program> {
         arguments: Vec<crate::build_time::BuildTimeValue>,
         allow_filesystem: bool,
     ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        self.enable_rooted_build_paths_from_arguments(&arguments);
         let machine = self
             .find_machine_by_name(machine_name)
             .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?

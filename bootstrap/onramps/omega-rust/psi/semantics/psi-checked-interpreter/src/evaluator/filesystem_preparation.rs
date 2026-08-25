@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableI64Operand,
-    FilesystemScalarOperand, FilesystemScalarOperandValue,
+    FilesystemByteOperand, FilesystemGrantRootIdentity, FilesystemMutableByteOperand,
+    FilesystemMutableI64Operand, FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
@@ -1805,7 +1805,12 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn bytes(&mut self) -> EvalResult<Vec<u8>> {
-        match self.value()? {
+        let value = self.value()?;
+        if let Some((_, relative)) = rooted_build_path_parts(&value)? {
+            check_byte_len(relative.len())?;
+            return Ok(relative);
+        }
+        match value {
             Value::Str(text) => {
                 let text = text.borrow();
                 check_byte_len(text.len())?;
@@ -1826,6 +1831,46 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             },
             other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
         }
+    }
+
+    fn path(&mut self) -> EvalResult<Vec<u8>> {
+        let value = self.value()?;
+        let Some((root, relative)) = rooted_build_path_parts(&value)? else {
+            if self.evaluator.rooted_build_paths_required
+                && self
+                    .evaluator
+                    .real_fs
+                    .as_ref()
+                    .is_some_and(real_fs::RealFs::is_scoped)
+            {
+                return Err(Halt::Trap(
+                    "package build filesystem paths must come from BuildSource::resolve or BuildOutput::resolve"
+                        .to_owned(),
+                ));
+            }
+            return match value {
+                Value::Str(text) => {
+                    let text = text.borrow();
+                    check_byte_len(text.len())?;
+                    Ok(text.clone())
+                }
+                Value::Array(cells) => {
+                    check_byte_len(cells.len())?;
+                    cells.iter().map(prepared_byte).collect()
+                }
+                other => unsupported(format!(
+                    "filesystem call expected path byte data, got {other:?}"
+                )),
+            };
+        };
+        let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
+            Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
+        })?;
+        filesystem
+            .rooted_path_bytes(root, &relative)
+            .ok_or_else(|| {
+                Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
+            })
     }
 
     fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {
@@ -1881,6 +1926,34 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 }
 
+fn rooted_build_path_parts(
+    value: &Value,
+) -> EvalResult<Option<(FilesystemGrantRootIdentity, Vec<u8>)>> {
+    let Value::Struct {
+        type_name, fields, ..
+    } = value
+    else {
+        return Ok(None);
+    };
+    if type_name != ROOTED_BUILD_PATH_TYPE {
+        return Ok(None);
+    }
+    let root = fields
+        .get("root")
+        .and_then(|root| root.borrow().as_int())
+        .and_then(|root| u32::try_from(root).ok())
+        .and_then(FilesystemGrantRootIdentity::new)
+        .ok_or_else(|| Halt::Trap("rooted build path has no valid root identity".to_owned()))?;
+    let relative = fields
+        .get("relative")
+        .and_then(|relative| match &*relative.borrow() {
+            Value::Str(bytes) => Some(bytes.borrow().clone()),
+            _ => None,
+        })
+        .ok_or_else(|| Halt::Trap("rooted build path has no relative bytes".to_owned()))?;
+    Ok(Some((root, relative)))
+}
+
 impl<'program> Evaluator<'program> {
     pub(super) fn prepare_filesystem_call(
         &mut self,
@@ -1889,18 +1962,30 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<PreparedFilesystemCall> {
         check_filesystem_arity(operation, arguments.len())?;
+        if self.rooted_build_paths_required
+            && matches!(
+                operation,
+                FilesystemHostOperation::Canonicalize
+                    | FilesystemHostOperation::FinalPathNameByHandle
+            )
+        {
+            return Err(Halt::Trap(format!(
+                "package build filesystem operation `{}` would expose a host-absolute path",
+                operation.canonical_name()
+            )));
+        }
         let mut a = FilesystemArgumentCursor::new(self, arguments, frame);
         let call = match operation {
             FilesystemHostOperation::Create => PreparedFilesystemCall::Create {
-                path: a.bytes()?,
+                path: a.path()?,
                 mode: a.i32()?,
             },
             FilesystemHostOperation::Open => PreparedFilesystemCall::Open {
-                path: a.bytes()?,
+                path: a.path()?,
                 flags: a.i32()?,
             },
             FilesystemHostOperation::OpenCreate => PreparedFilesystemCall::OpenCreate {
-                path: a.bytes()?,
+                path: a.path()?,
                 flags: a.i32()?,
                 mode: a.i32()?,
             },
@@ -1934,18 +2019,18 @@ impl<'program> Evaluator<'program> {
                 offset: a.i64()?,
             },
             FilesystemHostOperation::Close => PreparedFilesystemCall::Close { fd: a.fd()? },
-            FilesystemHostOperation::Remove => PreparedFilesystemCall::Remove { path: a.bytes()? },
+            FilesystemHostOperation::Remove => PreparedFilesystemCall::Remove { path: a.path()? },
             FilesystemHostOperation::Seek => PreparedFilesystemCall::Seek {
                 fd: a.fd()?,
                 offset: a.i64()?,
                 whence: a.i32()?,
             },
             FilesystemHostOperation::CreateDir => PreparedFilesystemCall::CreateDir {
-                path: a.bytes()?,
+                path: a.path()?,
                 mode: a.i32()?,
             },
             FilesystemHostOperation::RemoveDir => {
-                PreparedFilesystemCall::RemoveDir { path: a.bytes()? }
+                PreparedFilesystemCall::RemoveDir { path: a.path()? }
             }
             FilesystemHostOperation::CreateDirName => PreparedFilesystemCall::CreateDirName {
                 name: a.bytes()?,
@@ -1964,7 +2049,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::UnlinkAt { dirfd, name, flags }
             }
             FilesystemHostOperation::SetPermissions => PreparedFilesystemCall::SetPermissions {
-                path: a.bytes()?,
+                path: a.path()?,
                 mode: a.u32()?,
             },
             FilesystemHostOperation::SetFilePermissions => {
@@ -1974,19 +2059,19 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::Rename => PreparedFilesystemCall::Rename {
-                from: a.bytes()?,
-                to: a.bytes()?,
+                from: a.path()?,
+                to: a.path()?,
             },
             FilesystemHostOperation::HardLink => PreparedFilesystemCall::HardLink {
-                original: a.bytes()?,
-                link: a.bytes()?,
+                original: a.path()?,
+                link: a.path()?,
             },
             FilesystemHostOperation::Symlink => PreparedFilesystemCall::Symlink {
                 target: a.bytes()?,
-                link: a.bytes()?,
+                link: a.path()?,
             },
             FilesystemHostOperation::ReadLink => {
-                let path = a.bytes()?;
+                let path = a.path()?;
                 let buffer = a.mutable_bytes()?;
                 let count = a.count()?;
                 buffer.require_capacity(count.host)?;
@@ -1997,7 +2082,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             FilesystemHostOperation::Canonicalize => {
-                let path = a.bytes()?;
+                let path = a.path()?;
                 let buffer = a.mutable_bytes()?;
                 buffer.require_capacity(PATH_MAX_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::Canonicalize { path, buffer }
@@ -2031,12 +2116,12 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::FindClose { handle: a.i64()? }
             }
             FilesystemHostOperation::CreateHardLink => PreparedFilesystemCall::CreateHardLink {
-                link: a.bytes()?,
-                existing: a.bytes()?,
+                link: a.path()?,
+                existing: a.path()?,
                 security_attributes: a.i64()?,
             },
             FilesystemHostOperation::OpenPathHandle => PreparedFilesystemCall::OpenPathHandle {
-                path: a.bytes()?,
+                path: a.path()?,
                 desired_access: a.u32()?,
                 share_mode: a.u32()?,
                 security_attributes: a.i64()?,
@@ -2104,7 +2189,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::RemoveDirName { path: a.bytes()? }
             }
             FilesystemHostOperation::ReadMetadata => {
-                let path = a.bytes()?;
+                let path = a.path()?;
                 let buffer = a.mutable_bytes()?;
                 buffer.require_capacity(STAT_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::ReadMetadata { path, buffer }
@@ -2116,7 +2201,7 @@ impl<'program> Evaluator<'program> {
                 PreparedFilesystemCall::ReadFileMetadata { fd, buffer }
             }
             FilesystemHostOperation::ReadSymlinkMetadata => {
-                let path = a.bytes()?;
+                let path = a.path()?;
                 let buffer = a.mutable_bytes()?;
                 buffer.require_capacity(STAT_OUTPUT_BYTES)?;
                 PreparedFilesystemCall::ReadSymlinkMetadata { path, buffer }
@@ -2137,13 +2222,13 @@ impl<'program> Evaluator<'program> {
                 operation: a.i32()?,
             },
             FilesystemHostOperation::ChangeOwner => PreparedFilesystemCall::ChangeOwner {
-                path: a.bytes()?,
+                path: a.path()?,
                 uid: a.i32()?,
                 gid: a.i32()?,
             },
             FilesystemHostOperation::ChangeOwnerNoFollow => {
                 PreparedFilesystemCall::ChangeOwnerNoFollow {
-                    path: a.bytes()?,
+                    path: a.path()?,
                     uid: a.i32()?,
                     gid: a.i32()?,
                 }
