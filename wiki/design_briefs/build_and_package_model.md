@@ -814,8 +814,10 @@ public callables, joined to their exact checked state-signature owner. Their
 abstract published crash ceilings come from exactly one checked capsule keyed
 by the trait and requirement symbols and retain canonical causes and guards;
 they do not fabricate realized body sites or calls. Generic selected-conformance
-telescopes, public-trait invariants, named evidence contracts, boundary clauses,
-and unsupported expression forms reject until complete canonical rows exist.
+telescopes, named evidence contracts, boundary clauses, and unsupported
+expression forms reject until complete canonical rows exist. Trait `invariant`
+clauses are retired rather than awaiting a package row; trait requirements
+publish facts only through their explicit contracts.
 Requirements also retain whether their checked declaration supplies a default
 realization; implementation bodies remain checked source subject to universal
 update triage rather than entering the evidence format as compiler-private IR.

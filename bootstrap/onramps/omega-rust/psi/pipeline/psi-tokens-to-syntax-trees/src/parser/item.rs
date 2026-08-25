@@ -7,7 +7,6 @@ use crate::parser::data::{
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parser::invariant::parse_invariant_definition;
 use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
 use crate::parser::measure::parse_measure_definition;
@@ -199,9 +198,11 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Invariant) {
-        let input = input.take_keyword(KeywordKind::Invariant, "invariant")?;
-        let (item, rest) = parse_invariant_definition(syntax_trees, input)?;
-        return Ok((Item::Invariant(item), rest));
+        return Err(input.error_here(
+            "the `invariant` declaration is retired: put value-wide facts in a data \
+             default domain (`where` or field constraints) and behavioral facts in \
+             explicit contracts",
+        ));
     }
 
     if input.at_keyword(KeywordKind::Library) {
@@ -395,7 +396,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`machine`",
         "`target`",
         "`capability`",
-        "`invariant`",
         "`library`",
         "`measure`",
         "`host`",

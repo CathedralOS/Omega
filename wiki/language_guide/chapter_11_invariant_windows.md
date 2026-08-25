@@ -3,6 +3,10 @@
 Writes never fail an invariant check. Invariants are checked where a value
 can be observed.
 
+"Invariant" here names the carrier's default-domain facts and their derived
+window lifecycle, not a source keyword. Authors state those facts with data
+field constraints, data `where` clauses, and ordinary contracts.
+
 Chapter 7 owns what invariants mean; this chapter owns when they must be
 re-established. No explicit `relax` construct exists—the checker derives an
 invariant window from writes and closes it at the next consumption point.

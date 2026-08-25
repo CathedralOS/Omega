@@ -41,33 +41,7 @@ same-package, module-only export whose target retains exact package-owned
 identity. Do not allow a dependency declaration to be relabeled as exporter-
 owned or let an alias hide the package/reach edge.
 
-## Q2 — May a trait invariant introduce an undeclared structural member?
-
-The language guide illustrates `invariant self.value in 0..=1000`, but a trait
-declares no field named `value` and has no associated-data/member namespace.
-The compiler currently accepts that invariant while retaining both `self` and
-`value` only as unresolved spellings: neither has a symbol or declared type even
-in validated typed trees. Package review therefore cannot give the member an
-exact semantic coordinate without pretending source text is a nominal field.
-
-Choose the semantic surface of trait invariants. It must make conformance
-checking, member type, inherited substitution, public compatibility, and
-package evidence exact rather than inferred from an expression spelling.
-
-Recommended direction: trait invariants may constrain `Self` as a whole through
-resolved domains or propositions, but may not introduce `self.member` by use.
-Concrete field invariants remain on a data declaration's default domain. Add an
-explicit typed trait-member/related-data requirement later only when a concrete
-customer justifies that larger feature, then mint its identity from the trait
-declaration and declared member rather than from use-site text.
-
-A coherent larger alternative is to add an explicit typed field or related-data
-requirement to traits now and require every invariant member path to resolve to
-it. Tempting but wrong alternatives are to canonically encode the string
-`value`, infer an implicit structural member and its type from invariant uses,
-or add a report-only IR stage that merely freezes the unresolved spelling.
-
-## Q3 — Should trait requirements admit named witness contracts?
+## Q2 — Should trait requirements admit named witness contracts?
 
 Concrete machines use named `requires`/`ensures` contracts as erased witness
 input/output lanes. Public trait requirement syntax currently does not admit the
@@ -89,7 +63,7 @@ Tempting but wrong alternatives are to expose the latent optional binding field
 only to package review, synthesize evidence terms after checking, or invent new
 package-only syntax.
 
-## Q4 — What does a boundary clause mean on an abstract requirement?
+## Q3 — What does a boundary clause mean on an abstract requirement?
 
 Boundary syntax distinguishes host and named boundary levels before semantic
 lowering, but the state-signature path collapses them to one undifferentiated
@@ -109,7 +83,7 @@ real external contract requires it. Tempting but wrong alternatives are to
 encode the word `boundary`, treat host and named levels as equal, or infer the
 missing level from a service name during package projection.
 
-## Q5 — What compiler/toolchain provenance seals a package instance?
+## Q4 — What compiler/toolchain provenance seals a package instance?
 
 Review orchestration now binds exact compiler-consumed package/toolchain bytes
 and the producer executable bytes observed before and after closure review.
@@ -139,7 +113,7 @@ producer. Keep capability/API comparison bytes independent of this envelope.
 Do not treat a path hash of the current executable, a self-reported version,
 PCC, or an audit-attestation string as proof of producer identity or honesty.
 
-## Q6 — How does `build.omg` name its package-scoped filesystem roots?
+## Q5 — How does `build.omg` name its package-scoped filesystem roots?
 
 The build executor already gives each package an immutable source root and a
 fresh writable staging root, and the checked interpreter enforces those grants.

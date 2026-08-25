@@ -1,6 +1,7 @@
 # Chapter 7: Contracts And Flow Facts
 
-Omega no longer puts invariant syntax directly on types with `Type[...]`.
+Omega has no authored `invariant` declaration or clause. The retired word does
+not name a separate proof surface.
 
 Proof obligations live in contracts, domains, and local flow facts. Values are
 still stored as ordinary machine types; the compiler is responsible for proving

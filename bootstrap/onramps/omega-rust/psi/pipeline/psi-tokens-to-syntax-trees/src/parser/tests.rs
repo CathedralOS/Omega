@@ -1739,6 +1739,30 @@ fn rejects_retired_operator_spelling_clause() {
 }
 
 #[test]
+fn rejects_all_retired_invariant_declaration_forms_with_direction() {
+    for (source, expected) in [
+        (
+            "invariant Positive(value: i32) { value > 0 }",
+            "the `invariant` declaration is retired",
+        ),
+        (
+            "trait Counter { invariant self.value > 0; }",
+            "the `invariant` clause is retired",
+        ),
+        (
+            "machine Counter { invariant valid { } }",
+            "the `invariant` machine member is retired",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("retired invariant must reject");
+        assert!(error.message.contains(expected), "got: {}", error.message);
+    }
+}
+
+#[test]
 fn rejects_retired_provider_item_and_operator_clause() {
     let tokens = Lexer::new("provider omega::host::WriteBytes : HostAbiCall;")
         .tokenize()

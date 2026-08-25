@@ -1,0 +1,12 @@
+// Removing trait invariant syntax must not leave the same unresolved member
+// path legal in an ordinary requirement contract.
+trait BrokenCounter {
+    machine increment(&mut self)
+        ensures self.value in 0..=1000;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

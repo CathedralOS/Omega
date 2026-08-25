@@ -2303,7 +2303,7 @@ Remaining:
   proof-bundle v18, and installation-record v24 retain the structural shapes,
   case-payload paths, and proposition. Continue with the fenced mixed,
   recursive, and erased aggregate cases. Concrete machine/state
-  contracts plus domain/data predicates, trait invariants and signatures,
+  contracts plus domain/data predicates and trait requirement signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
   conversions. Comparisons, bitwise inspection, float classification,
@@ -7219,6 +7219,18 @@ and allocation handles expose no compiler-owned stack/control storage.
 Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
+
+- **INVARIANT-SOURCE-RETIREMENT — delete unreachable declaration scaffolding.**
+  Source admission is closed: top-level, trait, and machine `invariant` forms
+  reject with direction, and trait requirement contracts reject structural
+  `self.member` paths because abstract `Self` has no field namespace. Remove
+  the now-unreachable keyword/token, standalone-invariant item and symbol kinds,
+  trait-invariant spans and proof-owner rows, snapshot/identity/census fields,
+  package-review fence, and self-hosted lexer route. Preserve default-domain
+  facts, derived invariant-window tracking, and loop reasoning; those semantic
+  concepts do not consume authored invariant syntax. Acceptance: `invariant`
+  is available as an ordinary identifier, no published artifact contains a
+  trait-invariant row, and the two retirement fail canaries remain pinned.
 
 - **SELECTED-WITNESS-EVIDENCE — finish executable proof-output calls.** The
   unconditional lane is implemented. `let (value; public_slot: local_term) =

@@ -546,7 +546,7 @@ fn trapping_arithmetic_is_illegal_in_operator_contracts() {
 }
 
 #[test]
-fn trapping_arithmetic_is_illegal_in_domain_data_and_trait_predicates() {
+fn trapping_arithmetic_is_illegal_in_domain_and_data_predicates() {
     let source = r#"
         domain i32::Risky
         requires
@@ -558,17 +558,12 @@ fn trapping_arithmetic_is_illegal_in_domain_data_and_trait_predicates() {
         {
             count: i32 in Trapping;
         }
-
-        trait InvariantRule {
-            invariant (1 as i32 in Trapping) + 1 > 0;
-        }
     "#;
 
     let diagnostics = checked(source).expect_err("predicate facts inhabit Prop");
     for owner in [
         "domain `i32::Risky` predicate",
         "data `Ledger` default-domain predicate",
-        "trait `InvariantRule` invariant",
     ] {
         assert!(
             diagnostics.iter().any(|diagnostic| {

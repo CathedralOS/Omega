@@ -1,0 +1,11 @@
+// Authored invariant clauses are retired. Value-wide facts belong to a
+// carrier's default domain; trait operations publish explicit contracts.
+trait BoundedCounter {
+    invariant self.value in 0..=1000;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

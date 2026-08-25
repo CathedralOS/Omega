@@ -396,9 +396,10 @@ structural fact/expression vocabulary as public callables and join every fact to
 its exact checked state-signature owner. Abstract trait-requirement crash
 ceilings retain canonical cause-and-guard routes from exactly one checked
 trait/requirement capsule without inventing realized body sites or calls.
-Generic selected-conformance telescopes, public-trait invariants, named evidence
-contracts, boundary clauses, and unsupported expression forms fail closed until
-complete rows land. Requirements also retain whether their checked declaration
+Generic selected-conformance telescopes, named evidence contracts, boundary
+clauses, and unsupported expression forms fail closed until complete rows land.
+Trait `invariant` clauses are retired rather than awaiting a package row.
+Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source
 subject to universal update triage rather than compiler-private IR in package evidence. Public
 domains with representable shape now retain exact package identity,

@@ -942,24 +942,37 @@ conformance above. Structural checks still answer whether the declared
 conformance fits a transparent refinement, but they never create its nominal
 edge.
 
-## Invariants And Reach
+## Contracts And Reach
 
-A trait can require more than machine names. It can require the facts that make
-those machines safe to use.
+A trait can require more than machine names. Its requirements publish the facts
+that make those machines safe to use through ordinary contracts. There is no
+trait-level `invariant` clause and no implicit contract injected around every
+requirement.
 
 ```omega
-trait BoundedCounter {
-    invariant self.value in 0..=1000;
-
+trait BoundedCounter<proposition Valid>
+where proposition Valid(value: Self);
+{
     machine Self::increment(&mut self)
-        ensures self.value in 0..=1000;
+        ensures Valid(self);
 
-    machine Self::snapshot(&self, out: &mut CounterSnapshot);
+    machine Self::snapshot(&self, out: &mut CounterSnapshot)
+        requires Valid(self);
 }
 ```
 
-This matters because a reusable surface is not only "these calls exist." It is
-also "these calls preserve the obligations callers rely on."
+The proposition parameter has an authored signature and enters the exact trait
+application. A conformance therefore binds it explicitly; the compiler never
+discovers or fabricates a carrier predicate. Abstract `Self` has no structural
+field namespace, so `self.value` in a trait requirement contract rejects.
+Representation-independent traits use proposition parameters or declared
+accessor requirements instead.
+
+Value-wide facts belong to the carrier's default domain: field constraints and
+the data signature's `where` facts. Algebraic laws remain resultless theorem
+requirements with `ensures`. Invariant windows remain compiler-derived proof
+debt opened by writes and closed at consumption points; they do not imply an
+authored `invariant` keyword.
 
 Trait machine requirements carry the same separate ceilings as other exported
 machines. `reaches` names reachable boundary traits such as `Readable` or
@@ -992,8 +1005,8 @@ trait QuiescentMigratable<Old, New> {
 }
 ```
 
-The syntax is open, but the answer is yes: traits should be able to require
-invariants, reach, and proof obligations in addition to machine signatures.
+Traits may therefore publish reach and explicit proof obligations in addition
+to machine signatures without acquiring a second fact surface.
 
 ## Trait Parameters And Related Types
 
