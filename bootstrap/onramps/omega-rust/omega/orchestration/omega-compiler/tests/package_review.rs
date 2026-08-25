@@ -1051,8 +1051,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 52);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 12);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 53);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 13);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -1702,6 +1702,65 @@ machine build(builder: &mut Build) { }
     assert_eq!(
         proposition_rows, 2,
         "private propositions stay out of public API rows"
+    );
+}
+
+#[test]
+fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#;
+    let project = |source: &str| {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("public const declaration should check");
+        project_checked_package_review(&checked).expect("public const review")
+    };
+
+    let original = project("pub const LIMIT: u64 = 4;\nconst HIDDEN_LIMIT: u64 = 2;\n");
+    let changed_value = project("pub const LIMIT: u64 = 5;\n");
+    let changed_type = project("pub const LIMIT: u32 = 4;\n");
+
+    let [limit] = original.public_consts() else {
+        panic!("private consts must stay out of public compatibility rows");
+    };
+    assert_eq!(limit.identity().path(), "LIMIT");
+    assert!(limit.declared_type().canonical().contains("u64"));
+    assert!(!limit.canonical_value_encoding().is_empty());
+    let rows = original
+        .canonical_rows()
+        .expect("canonical public const rows");
+    let const_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+        .collect::<Vec<_>>();
+    assert_eq!(const_rows.len(), 1);
+    assert_eq!(
+        const_rows[0].risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+    assert!(const_rows[0].source().authored_locations().is_some());
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_value.canonical_review_bytes().unwrap(),
+        "changing a public const value must change package compatibility",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_type.canonical_review_bytes().unwrap(),
+        "changing a public const declared type must change package compatibility",
     );
 }
 

@@ -312,18 +312,27 @@ pub(crate) fn finalize_const_declarations(
         .flatten()
         .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
         .collect::<Vec<_>>();
-    if const_symbols.len() != pending.len() {
+    if const_symbols.len() != pending.len()
+        || program.roots.const_declarations.len() != pending.len()
+    {
         return Err(Diagnostic::error(
             "failed to retain const declaration visibility provenance",
         ));
     }
-    for (symbol, declaration) in const_symbols.into_iter().zip(pending) {
-        program.roots.const_declarations.push(
-            psi_symbol_resolved_trees::constant::ConstDeclaration {
-                symbol,
-                is_public: declaration.is_public,
-            },
-        );
+    let mut ordinal = 0usize;
+    let mut visibility_drifted = false;
+    program
+        .roots
+        .const_declarations
+        .for_each_mut(|declaration| {
+            declaration.symbol = const_symbols[ordinal];
+            visibility_drifted |= declaration.is_public != pending[ordinal].is_public;
+            ordinal += 1;
+        });
+    if visibility_drifted {
+        return Err(Diagnostic::error(
+            "const declaration visibility drifted before symbol assignment",
+        ));
     }
     Ok(())
 }

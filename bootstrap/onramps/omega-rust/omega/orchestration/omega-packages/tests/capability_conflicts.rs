@@ -554,3 +554,71 @@ ensures result == 1;
     let _ = std::fs::remove_dir_all(accepted_claim_candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);
 }
+
+#[test]
+fn public_const_changes_render_as_blocking_review_conflicts() {
+    let live = temp_root("public-const-live");
+    let baseline_cache = temp_root("public-const-baseline");
+    let candidate_cache = temp_root("public-const-candidate");
+    let build_root = temp_root("public-const-build");
+    let context = ExternalSourceContext::derive(b"public-const-conflict-test");
+
+    write_package(&live, "pub const LIMIT: u64 = 4;\n");
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public const baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile public const baseline");
+
+    write_package(&live, "pub const LIMIT: u64 = 5;\n");
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public const candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile public const candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare public const compatibility");
+    assert_eq!(conflicts.conflict_count(), 1);
+    let [package] = conflicts.packages() else {
+        panic!("one changed package")
+    };
+    let [conflict] = package.conflicts() else {
+        panic!("one changed public const row")
+    };
+    assert_eq!(conflict.kind(), PackageReviewCanonicalRowKind::PublicConst);
+    assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    assert!(conflict.is_blocking());
+    assert!(
+        conflicts
+            .render_bounded(1024 * 1024)
+            .expect("render public const conflict")
+            .contains("change changed\nkind public_const\nrisk blocking\n")
+    );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}

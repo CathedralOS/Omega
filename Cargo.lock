@@ -1780,6 +1780,7 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-diagnostics",
+ "psi-generic-instances",
  "psi-language-semantics",
  "psi-numerics",
  "psi-source",

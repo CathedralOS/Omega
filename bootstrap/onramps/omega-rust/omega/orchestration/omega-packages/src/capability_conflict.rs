@@ -1536,6 +1536,7 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::PublicDomain => "public_domain",
         PackageReviewCanonicalRowKind::PublicData => "public_data",
         PackageReviewCanonicalRowKind::PublicProposition => "public_proposition",
+        PackageReviewCanonicalRowKind::PublicConst => "public_const",
         PackageReviewCanonicalRowKind::RepresentationTcb => "representation_tcb",
         PackageReviewCanonicalRowKind::Callable => "callable",
         PackageReviewCanonicalRowKind::DangerousAuthority => "dangerous_authority",
@@ -1560,6 +1561,7 @@ const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
         PackageReviewCanonicalRowKind::SemanticDependency => 10,
         PackageReviewCanonicalRowKind::PublicProposition => 11,
+        PackageReviewCanonicalRowKind::PublicConst => 12,
     }
 }
 

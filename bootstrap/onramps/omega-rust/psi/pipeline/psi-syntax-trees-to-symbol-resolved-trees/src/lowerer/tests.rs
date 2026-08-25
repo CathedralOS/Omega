@@ -1782,6 +1782,30 @@ fn retains_const_declaration_visibility_after_value_substitution() {
 }
 
 #[test]
+fn public_const_requires_canonical_compatibility_value_but_private_const_v0_does_not() {
+    let private_source = r#"const LABEL: string = "private";"#;
+    let tokens = Lexer::new(private_source)
+        .tokenize()
+        .expect("tokenize private string const");
+    let syntax = parse_syntax_trees(&tokens).expect("parse private string const");
+    lower_syntax_trees(&syntax).expect("private const-v0 behavior remains unchanged");
+
+    let public_source = r#"pub const LABEL: string = "public";"#;
+    let tokens = Lexer::new(public_source)
+        .tokenize()
+        .expect("tokenize public string const");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public string const");
+    let diagnostics = lower_syntax_trees(&syntax)
+        .expect_err("unsupported public const identity must reject rather than emit a weak row");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("public const `LABEL` has no canonical declaration identity")
+            && diagnostic.message.contains("not eligible as a const index")
+    }));
+}
+
+#[test]
 fn lowers_dungeon_style_machine_program() {
     let source = r#"
     data Inventory {

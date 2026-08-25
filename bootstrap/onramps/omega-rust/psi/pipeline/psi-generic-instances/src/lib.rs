@@ -44,6 +44,31 @@ mod const_evaluation;
 
 use const_evaluation::*;
 
+/// Canonicalize one source const declaration against its own declared type.
+///
+/// This is the narrow handoff used by declaration/API retention. The returned
+/// value's structural encoding is semantic material; its display text remains
+/// diagnostic-only. Constrained public constants stay unsupported until their
+/// declaration-site proof obligations are checked rather than erased here.
+pub fn canonicalize_declared_const_definition(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+) -> Result<CanonicalConstValue, String> {
+    if matches!(
+        syntax
+            .tables
+            .type_references
+            .type_reference(definition.type_reference),
+        TypeReferenceNode::Constrained { .. }
+    ) {
+        return Err(
+            "constrained const declarations require declaration-site proof checking before they can publish compatibility identity"
+                .to_owned(),
+        );
+    }
+    canonicalize_const_definition(syntax, definition, definition.type_reference)
+}
+
 struct GenericData {
     name: String,
     is_public: bool,

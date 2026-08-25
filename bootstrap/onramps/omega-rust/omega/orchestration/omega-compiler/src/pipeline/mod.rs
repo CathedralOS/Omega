@@ -106,7 +106,7 @@ pub use package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryError,
     PackageReviewCanonicalRowRecoveryLimits, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource, PackageReviewCapabilityFlow, PackageReviewCastForm,
-    PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceBound, PackageReviewConstShape,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewCrash,

@@ -51,7 +51,7 @@ fn fixture_rows() -> Option<(
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        "pub data Token { value: i64; }\npub proposition ready();\n",
+        "pub data Token { value: i64; }\npub proposition ready();\npub const LIMIT: u64 = 4;\n",
     );
     package.write(
         "build.omg",
@@ -98,6 +98,11 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
         rows.iter()
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition),
         "the new public proposition row kind must survive canonical recovery"
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst),
+        "the public const row kind must survive canonical recovery"
     );
 
     for row in rows {

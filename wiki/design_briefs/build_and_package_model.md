@@ -1406,6 +1406,14 @@ forms retain their structural interface or normalized expansion. This source
 API row does not mint a primitive fact, and a transparent alias remains absent
 from normalized proposition identity while still participating in source
 compatibility.
+Review v53 and canonical row v13 add blocking standalone public-const shape.
+Every package-owned public const contributes its exact package-qualified
+declaration identity, exact typed declared-type identity, and canonical
+structural declaration value even when unused. Neither source initializer text
+nor runtime storage identity substitutes for that semantic subject. A public
+const whose type exposes private data, or whose value lacks supported canonical
+identity, rejects closed. Declared-type or value changes become source-backed
+`public_const` conflicts; private const-v0 declarations remain unprojected.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

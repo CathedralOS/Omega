@@ -38,6 +38,18 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     let child_type_references = &mut program.tables.declarations.child_type_references;
     program
         .roots
+        .const_declarations
+        .for_each_mut(|declaration| {
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &[],
+                &mut declaration.declared_type,
+            );
+        });
+    program
+        .roots
         .data_definitions
         .for_each_mut(|data_definition| {
             let data_symbol = data_definition.symbol;

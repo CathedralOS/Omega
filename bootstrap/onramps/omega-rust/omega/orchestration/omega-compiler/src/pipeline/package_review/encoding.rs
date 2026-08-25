@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 52;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 53;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 12;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -90,6 +90,7 @@ fn encode_with_limits(
     encoder.sequence(&review.public_traits, encode_trait_shape)?;
     encoder.sequence(&review.public_domains, encode_domain_shape)?;
     encoder.sequence(&review.public_propositions, encode_proposition_shape)?;
+    encoder.sequence(&review.public_consts, encode_const_shape)?;
     encoder.sequence(&review.public_data, encode_data_shape)?;
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.semantic_dependencies, encode_semantic_dependency)?;
@@ -118,6 +119,7 @@ fn encode_rows_with_limits(
         .len()
         .saturating_add(review.public_domains.len())
         .saturating_add(review.public_propositions.len())
+        .saturating_add(review.public_consts.len())
         .saturating_add(review.public_data.len())
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.semantic_dependencies.len())
@@ -202,6 +204,22 @@ fn encode_rows_with_limits(
                 row_source(&review.row_sources.public_propositions, index)?,
                 |encoder| encode_nominal(encoder, &shape.identity),
                 |encoder| encode_proposition_shape(encoder, shape),
+            )?,
+        )?;
+    }
+    for (index, shape) in review.public_consts.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::PublicConst,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.public_consts, index)?,
+                |encoder| encode_nominal(encoder, &shape.identity),
+                |encoder| encode_const_shape(encoder, shape),
             )?,
         )?;
     }
@@ -440,6 +458,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
         PackageReviewCanonicalRowKind::SemanticDependency => 10,
         PackageReviewCanonicalRowKind::PublicProposition => 11,
+        PackageReviewCanonicalRowKind::PublicConst => 12,
     }
 }
 
@@ -1217,6 +1236,15 @@ fn encode_proposition_shape(
         }
     }
     Ok(())
+}
+
+fn encode_const_shape(
+    encoder: &mut Encoder,
+    shape: &PackageReviewConstShape,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &shape.identity)?;
+    encode_type_identity(encoder, &shape.declared_type)?;
+    encoder.string(&shape.canonical_value_encoding)
 }
 
 fn encode_proposition_binder(
@@ -2078,6 +2106,7 @@ mod tests {
             public_traits: Vec::new(),
             public_domains: Vec::new(),
             public_propositions: Vec::new(),
+            public_consts: Vec::new(),
             public_data: Vec::new(),
             representation_tcb: Vec::new(),
             semantic_dependencies: Vec::new(),
@@ -2089,6 +2118,7 @@ mod tests {
                 public_traits: Vec::new(),
                 public_domains: Vec::new(),
                 public_propositions: Vec::new(),
+                public_consts: Vec::new(),
                 public_data: Vec::new(),
                 representation_tcb: Vec::new(),
                 semantic_dependencies: Vec::new(),
