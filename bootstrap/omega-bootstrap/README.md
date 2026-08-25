@@ -282,9 +282,15 @@ language, generation, or architectural role; new documentation and work use
   schema 4. The focused native/self producer gate composes the complete current
   `SourceUnit` API through a nonzero-offset field and independently observes
   result 70; the compact Rust-free carrier also transports a runtime record
-  argument. This is a producer/meaning checkpoint, not lower-rooted closure:
-  OMGRFN6, source-only receiver-base evaluation, complete mutations/resources,
-  and exact artifact reconstruction remain open.
+  argument. The distinct
+  [`OMGRFN6`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md)
+  carrier now closes the lower-rooted relation without widening CKIR4. The
+  shared eight-executable composition accepts one immutable 16,817-byte exact
+  `SourceUnit` + `SourceHost` frame native/self; its artifact-free evaluator
+  transports the nonzero receiver base through mutable Unit and shared scalar
+  calls, while version cross-pairs, receiver-shape/address mutations, resources,
+  result, and exact ELF remain responsibility-local. This closes the selected
+  same-module tranche, not distinct-module visibility or final `Ωself` retention.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

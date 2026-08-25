@@ -1,7 +1,12 @@
-; OMGRFN5 responsibility 3: independent OMGRSW1 -> CKIR4 declaration,
+; OMGRFN5/OMGRFN6 responsibility 3: independent OMGRSW1/OMGRSW2 -> CKIR4
+; declaration,
 ; type/layout/selected-entry-root/table join and intrinsic constant validation.
 ;
-; This persisted-Beta checker reads one exact OMGRFN5 frame.  It treats
+; This persisted-Beta checker reads one exact OMGRFN5 or OMGRFN6 frame.  It
+; accepts only the exact OMGRFN5+OMGRSW1 or OMGRFN6+OMGRSW2 identity pair.  The
+; two witness schemas retain the declaration/type/layout rows owned here; field
+; receiver resolution and source-body meaning remain responsibility 2/4 work.
+; It treats
 ; OMGCOMP source bytes, operation operands, terminators, the claimed result, and
 ; ELF bytes as opaque.  It validates enough framing and every consumed extent
 ; locally, validates the complete OMGRSW1 declaration/type/layout/signature
@@ -67,7 +72,7 @@ proc l3_read_frame() {
     }
     state exhausted_byte { overflow = 1  c = read_byte()  to loop }
     state finish {
-        word[500000] = n  word[500008] = 0
+        word[500000] = n  word[500008] = 0  word[500104] = 0
         to over when (overflow == 1)
         to size when (n >= 40)
         to bad
@@ -81,10 +86,16 @@ proc l3_read_frame() {
     state magic3 { to bad when (l3_frame_byte(3) != 'R')  to magic4 }
     state magic4 { to bad when (l3_frame_byte(4) != 'F')  to magic5 }
     state magic5 { to bad when (l3_frame_byte(5) != 'N')  to magic6 }
-    state magic6 { to bad when (l3_frame_byte(6) != '5')  to magic7 }
+    state magic6 {
+        to version5_magic when (l3_frame_byte(6) == '5')
+        to version6_magic when (l3_frame_byte(6) == '6')
+        to bad
+    }
+    state version5_magic { word[500104] = 5  to magic7 }
+    state version6_magic { word[500104] = 6  to magic7 }
     state magic7 { to bad when (l3_frame_byte(7) != 0)  to version_bytes }
     state version_bytes {
-        to bad when (l3_frame_byte(8) != 5)
+        to bad when (l3_frame_byte(8) != word[500104])
         to bad when (l3_frame_byte(9) != 0)
         to bad when (l3_frame_byte(10) != 0)
         to bad when (l3_frame_byte(11) != 0)
@@ -184,10 +195,12 @@ proc l3_witness_header() {
     state magic3 { to magic4 when (l3_witness_byte(3) == 'R')  to bad }
     state magic4 { to magic5 when (l3_witness_byte(4) == 'S')  to bad }
     state magic5 { to magic6 when (l3_witness_byte(5) == 'W')  to bad }
-    state magic6 { to magic7 when (l3_witness_byte(6) == '1')  to bad }
+    state magic6 { to version5_magic when (word[500104] == 5)  to version6_magic }
+    state version5_magic { to magic7 when (l3_witness_byte(6) == '1')  to bad }
+    state version6_magic { to magic7 when (l3_witness_byte(6) == '2')  to bad }
     state magic7 { to fixed when (l3_witness_byte(7) == 0)  to bad }
     state fixed {
-        to bad when (l3_witness_byte(8) != 1)
+        to bad when (l3_witness_byte(8) != word[500104] - 4)
         to bad when (l3_witness_byte(9) != 0)
         to bad when (l3_witness_byte(10) != 0)
         to bad when (l3_witness_byte(11) != 0)

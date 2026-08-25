@@ -32,6 +32,7 @@ CHECKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5-witness-ckir4-tables.bet
 CHECKER4="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4-witness-ckir3-tables.beta"
 CASES="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5_r3_cases.py"
 PACKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn5_bundle.py"
+PACKER6="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn6_bundle.py"
 PACKER4="$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT/omgrfn4_bundle.py"
 BUILDER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-fixture.py"
 LOW_FRAME="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-resolved-to-ckir4-frame.py"
@@ -41,7 +42,7 @@ SOURCE="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
 HARNESS="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/source-unit-harness.omg"
 DIRECT="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir4-runtime-records/direct-call.omg"
 COMPACT="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir3-constant-aggregates/renamed-reordered-nested.omg"
-for REQUIRED in "$CHECKER" "$CHECKER4" "$CASES" "$PACKER" "$PACKER4" \
+for REQUIRED in "$CHECKER" "$CHECKER4" "$CASES" "$PACKER" "$PACKER6" "$PACKER4" \
     "$BUILDER" "$LOW_FRAME" "$RESOLVER" "$LOWERER" "$SOURCE" "$HARNESS" \
     "$COMPACT" "$DIRECT" "$OMEGA_PATH_BETA/bc.beta"; do
   [ -f "$REQUIRED" ] || {
@@ -166,6 +167,38 @@ run_expect() { # input expected label
 
 build_pair exact SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$HARNESS"
 run_expect "$T/exact.rfn" 0 exact-check
+
+# OMGRSW2 retains R3's declaration/type/layout table schema.  Convert only its
+# exact schema identity, then require the same CKIR4 join under OMGRFN6.
+python3 - "$T/exact.witness" "$T/exact.witness2" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = bytearray(Path(sys.argv[1]).read_bytes())
+raw[6] = ord("2")
+struct.pack_into("<I", raw, 8, 2)
+Path(sys.argv[2]).write_bytes(raw)
+PY
+observe 10 - "$T/exact6.rfn" 0 exact6-pack python3 -B "$PACKER6" \
+  "$T/exact.omgc" "$T/exact.witness2" "$T/exact.ckir4" "$T/exact.elf" --result 70
+run_expect "$T/exact6.rfn" 0 exact-omgrfn6-omgrsw2-check
+
+# The outer/witness identity pair belongs to R3: neither cross-pair may inherit
+# the unchanged declaration-table conclusion.
+python3 - "$T/exact.rfn" "$T/outer6-witness1.rfn" \
+  "$T/outer5-witness2.rfn" <<'PY'
+from pathlib import Path
+import struct, sys
+canonical = Path(sys.argv[1]).read_bytes()
+raw = bytearray(canonical); raw[6] = ord("6"); struct.pack_into("<I", raw, 8, 6)
+Path(sys.argv[2]).write_bytes(raw)
+omgcomp_length = struct.unpack_from("<I", canonical, 16)[0]
+witness_at = 40 + omgcomp_length
+raw = bytearray(canonical); raw[witness_at + 6] = ord("2")
+struct.pack_into("<I", raw, witness_at + 8, 2)
+Path(sys.argv[3]).write_bytes(raw)
+PY
+run_expect "$T/outer6-witness1.rfn" 251 omgrfn6-omgrsw1-cross-pair
+run_expect "$T/outer5-witness2.rfn" 251 omgrfn5-omgrsw2-cross-pair
 run_expect "$T/constructor.rfn" 0 constructor-check
 run_expect "$T/compact.rfn" 0 compact-check
 run_expect "$T/five.rfn" 0 five-declaration-check
@@ -211,6 +244,6 @@ run_one "$T/v4" "$T/exact.rfn" 251 omgrfn5-frame-rejected-by-v4
 
 ELAPSED=$(($(date +%s) - STARTED))
 python3 -B "$CASES" report "$T/timings.tsv"
-echo "OMGRFN5 responsibility 3: OMGRSW1->CKIR4 declarations/layout/types/selected entry, dense tables, copyability, intrinsic constant DAG, and opcode-13 nominal envelope passed native/self"
-echo "OMGRFN5 responsibility 3: cross-pairs, phase opacity, V4/V5 separation, malformed-five=251, valid-five=252 passed (${ELAPSED}s; ${PROCEDURES}/128 procedures; ${MAX_LOCALS}/32 locals; ${TAPE_BYTES}/262140 tape bytes)"
-echo "OMGRFN5 responsibility 3 unowned: source-body lowering, constructor operand identity/order/visibility/typing, result/execution, objects/frame extents, image, and ELF"
+echo "OMGRFN5/6 responsibility 3: exact OMGRFN5+OMGRSW1 and OMGRFN6+OMGRSW2 -> CKIR4 declarations/layout/types/selected entry, dense tables, copyability, intrinsic constant DAG, and opcode-13 nominal envelope passed native/self"
+echo "OMGRFN5/6 responsibility 3: witness/carrier cross-pair rejection, phase opacity, V4/V5/V6 separation, malformed-five=251, valid-five=252 passed (${ELAPSED}s; ${PROCEDURES}/128 procedures; ${MAX_LOCALS}/32 locals; ${TAPE_BYTES}/262140 tape bytes)"
+echo "OMGRFN5/6 responsibility 3 unowned: source-body lowering, constructor operand identity/order/visibility/typing, result/execution, objects/frame extents, image, and ELF"

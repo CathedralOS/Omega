@@ -439,9 +439,13 @@ OMGRSW1/OMGLOW4 for inherited sources. Native and Delta-self-built routes now
 compose the complete current `SourceUnit` API through a nonzero-offset field to
 result 70, with exact receiver-shape and version-cross-pair negatives. Focused
 Rust-free producer meaning uses a compact runtime-record argument carrier.
-This is provisional producer/meaning cost evidence only; OMGRFN6 lower-rooted
-reconstruction and the distinct-module visibility ruling remain open before
-the capability can close or affect final `Ωself` disposition.
+The distinct OMGRFN6 carrier now closes all five lower-rooted responsibilities
+over one immutable 16,817-byte exact `SourceUnit` field-receiver frame. The
+shared checkers preserve OMGRFN5, carry the nonzero receiver base through the
+artifact-free evaluator, retain responsibility-local opacity, and reconstruct
+the unchanged CKIR4 result and exact ELF. The selected same-module capability
+is therefore closed implementation/assurance cost evidence; distinct-module
+visibility and final `Ωself` disposition remain open.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,

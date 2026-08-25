@@ -18,21 +18,22 @@
 ;   word[43000000 .. 43032768) edge staging (4096 * 8 bytes)
 ;   word[43100000 .. 43100128) frame results
 ;   word[43101000 .. 43101128) frame current blocks
+;   word[43103000 .. 43103128) frame receiver bases
 ;   byte[43200000 .. 43331072) overlap-safe copy snapshot
 ;   word[43400000] dynamic block-entry count
 ;
 ; The published source evaluator bounds are 16 active machine frames and
 ; 65,536 dynamic block entries.  Attempting the adjacent value returns 252.
 
-; Source meaning resolves each authored self call directly against the
+; Source meaning resolves each admitted authored receiver call directly against the
 ; independently reconstructed source machine table.  The sibling lowering
 ; proposition owns the distinct source-to-role-3-row join and static call
 ; graph; this companion owns the runtime call target and its 16-frame
 ; observation.
 proc v3_call_binding(source,start,count) {
-    let i=0 let row=0 let target=0 let owner=src_machine(src_low_g(4),2)
+    let i=0 let row=0 let target=0
     state rows { to one when (i<l4_count(3)) to bad }
-    state one { row=l4_base(3)+i*28 to next when (l4_wbyte(row+4)!=2) to next when (l4_wu32(row+20)!=count) to next when (src_spans_equal(l4_named_span(source,start),l4_named_span(l4_wu32(row+8),l4_wu32(row+16)),count)==0) target=l4_wu32(row+24) to next when (src_machine(target,2)!=owner) word[19990000]=target return 0 }
+    state one { row=l4_base(3)+i*28 to next when (l4_wbyte(row+4)!=2) to next when (l4_wu32(row+20)!=count) to next when (src_spans_equal(l4_named_span(source,start),l4_named_span(l4_wu32(row+8),l4_wu32(row+16)),count)==0) target=l4_wu32(row+24) word[19990000]=target return 0 }
     state next { i=i+1 to rows }
     state bad { return src_reject() }
 }
@@ -294,7 +295,7 @@ proc v4s_eval_machine(machine,depth) {
     state operation { opcode=src_lower_op(op,2) result=src_lower_op(op,4) result_type=src_lower_op(op,5) start=src_lower_op(op,6) to dispatch }
     state dispatch { to constant when (opcode==1) to self_place when (opcode==2) to field_place when (opcode==3) to index_place when (opcode==4) to load when (opcode==5) to store when (opcode==6) to copy when (opcode==7) to add when (opcode==8) to less when (opcode==9) to call when (opcode==10) to aggregate when (opcode==11) to less_equal when (opcode==12) to trap }
     state constant { word[value_base+result*8]=src_lower_op(op,8) to op_next }
-    state self_place { word[place_base+result*8]=0 to op_next }
+    state self_place { word[place_base+result*8]=word[43103000+depth*8] to op_next }
     state field_place { a=src_lower_operand(start) field=src_lower_op(op,8) word[place_base+result*8]=word[place_base+a*8]+src_field(field,4) to op_next }
     state index_place { a=src_lower_operand(start) b=src_lower_operand(start+1) value=word[value_base+b*8] base_type=src_lower_place_type(a) to trap when (value>=src_ck_type(base_type,3)) word[place_base+result*8]=word[place_base+a*8]+value*v4s_type_size(src_ck_type(base_type,2)) to op_next }
     state load { a=src_lower_operand(start) address=word[place_base+a*8] word[value_base+result*8]=v4s_load(result_type,address) to op_next }
@@ -314,7 +315,7 @@ proc v4s_eval_machine(machine,depth) {
     state call { callee=src_lower_op(op,8) a=src_lower_operand(start) count=src_lower_op(op,7)-1 i=0 to call_args }
     state call_args { to call_arg when (i<count) to call_run }
     state call_arg { parameter=src_machine(callee,5)+i value=word[value_base+src_lower_operand(start+1+i)*8] word[33000000+(depth+1)*294912+parameter*8]=value i=i+1 to call_args }
-    state call_run { value=v4s_eval_machine(callee,depth+1) to call_failed when (value!=0) to call_unit when (src_machine(callee,7)==4294967295) value=word[43100000+(depth+1)*8] word[value_base+result*8]=value to op_next }
+    state call_run { word[43103000+(depth+1)*8]=word[place_base+a*8] value=v4s_eval_machine(callee,depth+1) to call_failed when (value!=0) to call_unit when (src_machine(callee,7)==4294967295) value=word[43100000+(depth+1)*8] word[value_base+result*8]=value to op_next }
     state call_failed { to exhausted when (value==252) to trap }
     state call_unit { to op_next }
     state op_next { op=op+1 to operations }
@@ -337,7 +338,7 @@ proc v4s_source_result_check() {
     state entry { owner_size=src_record(src_machine(root,2),5) to exhausted when (owner_size>131072) to clear_owner }
     state clear_owner { to clear_one when (clear<owner_size) word[43400000]=0 to run }
     state clear_one { byte[32000000+clear]=0 clear=clear+1 to clear_owner }
-    state run { to done when (v4s_eval_machine(root,0)!=0) value=word[43100000] to bad when (value!=word[524360]) return 0 }
+    state run { word[43103000]=0 to done when (v4s_eval_machine(root,0)!=0) value=word[43100000] to bad when (value!=word[524360]) return 0 }
     state exhausted { return src_exhaust() }
     state bad { return src_reject() }
     state done { return word[530800] }
