@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v14
-  carries operation-attempt schema v14: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v15
+  carries operation-attempt schema v15: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1407,7 +1407,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v14 retains each successfully typed non-handle
+  Operation-attempt schema v15 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1437,8 +1437,8 @@ complete.
   are deliberately not required to match. Post-state follows provider return or
   provider halt. Input-only ABI carriers remain explicit even when unchanged. A
   separate 256 MiB aggregate operand-evidence sponsor reserves immutable,
-  path-like, rooted-resolution bytes, one mutable resolution copy, and both
-  provider copies of every mutable byte carrier;
+  path-like, rooted-resolution, and exact returned-path bytes, one mutable
+  resolution copy, and both provider copies of every mutable byte carrier;
   exhaustion non-catchably halts that call. Prior or nested
   staging effects remain cleanup-contained rather than being denied
   retroactively. Package review commitments frame scalar tags, ordinals,
@@ -1449,8 +1449,18 @@ complete.
   distinct ordinal-tagged lane. They consume the same aggregate byte sponsor,
   are retained as preparation advances, survive a later preparation halt, and
   are cross-checked against the fully prepared call; they never masquerade as
-  rooted grant paths or immutable payloads. This deliberately incomplete trace
-  still omits retained returned-path bytes and complete input content custody.
+  rooted grant paths or immutable payloads. Successful provider write branches
+  separately retain the exact meaningful bytes of `read_link`, `canonicalize`,
+  and `final_path_name_by_handle` outputs, excluding NUL terminators and stale
+  carrier tails. Rows retain exact output ordinal, closed operation-derived
+  kind, and Complete/LimitReached disposition; provider-known target length
+  distinguishes exact-fit from truncated `read_link`. Failures and final-path
+  insufficient-capacity returns emit no output row. Capture occurs where the
+  provider knows what it wrote rather than by scanning mutable post-state, and
+  charges only the exact retained bytes to the aggregate sponsor. Package-
+  rooted execution still rejects the two always-absolute operations; a
+  `read_link` result remains inert payload and grants no path authority. This
+  deliberately incomplete trace still omits complete input content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

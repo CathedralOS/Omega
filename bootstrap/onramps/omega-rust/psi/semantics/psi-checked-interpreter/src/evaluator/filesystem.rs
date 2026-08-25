@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperandResolution,
-    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
+    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand, FilesystemReturnedPath,
+    FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperand,
 };
 
@@ -199,6 +200,37 @@ impl<'program> Evaluator<'program> {
         let (mutable_byte_operands, mutable_i64_operands) = mutable_plan.initial_rows();
         attempt.mutable_byte_operands = mutable_byte_operands;
         attempt.mutable_i64_operands = mutable_i64_operands;
+        Ok(())
+    }
+
+    pub(super) fn record_returned_path_observation(
+        &mut self,
+        operand_ordinal: u8,
+        kind: FilesystemReturnedPathKind,
+        completeness: FilesystemReturnedPathCompleteness,
+        bytes: &[u8],
+    ) -> EvalResult<()> {
+        let Some(next_total) = checked_observation_evidence_total(
+            self.filesystem_observation_evidence_bytes,
+            bytes.len(),
+        ) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
+            )));
+        };
+        let attempt_index = *self
+            .filesystem_operation_attempt_stack
+            .last()
+            .expect("returned-path observation requires an active filesystem attempt");
+        self.filesystem_observation_evidence_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .returned_paths
+            .push(FilesystemReturnedPath {
+                operand_ordinal,
+                kind,
+                completeness,
+                bytes: bytes.to_owned(),
+            });
         Ok(())
     }
 
@@ -1084,6 +1116,12 @@ impl<'program> Evaluator<'program> {
                             let mut bytes = path.clone();
                             bytes.push(0);
                             buffer.write(&bytes)?;
+                            self.record_returned_path_observation(
+                                1,
+                                FilesystemReturnedPathKind::FinalPath,
+                                FilesystemReturnedPathCompleteness::Complete,
+                                &path,
+                            )?;
                             path.len() as i64
                         } else {
                             (path.len() + 1) as i64
@@ -1151,6 +1189,16 @@ impl<'program> Evaluator<'program> {
                     Some(target) => {
                         let n = target.len().min(count.host);
                         buffer.write(&target[..n])?;
+                        self.record_returned_path_observation(
+                            1,
+                            FilesystemReturnedPathKind::ReadLinkPayload,
+                            if n == target.len() {
+                                FilesystemReturnedPathCompleteness::Complete
+                            } else {
+                                FilesystemReturnedPathCompleteness::LimitReached
+                            },
+                            &target[..n],
+                        )?;
                         n as i64
                     }
                     None => {
@@ -1170,9 +1218,15 @@ impl<'program> Evaluator<'program> {
                 let exists = self.virtual_files.contains_key(&resolved)
                     || self.virtual_dirs.contains(&resolved);
                 if exists {
-                    let mut bytes = resolved;
+                    let mut bytes = resolved.clone();
                     bytes.push(0); // NUL-terminate like realpath's C string
                     buffer.write(&bytes)?;
+                    self.record_returned_path_observation(
+                        1,
+                        FilesystemReturnedPathKind::CanonicalPath,
+                        FilesystemReturnedPathCompleteness::Complete,
+                        &resolved,
+                    )?;
                     1
                 } else {
                     self.virtual_errno = 2; // ENOENT
@@ -2010,6 +2064,138 @@ mod tests {
         assert!(
             evaluator.filesystem_operation_attempts[0]
                 .rooted_path_operand_resolutions
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn returned_path_rows_retain_exact_bytes_and_completeness() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        evaluator
+            .record_returned_path_observation(
+                1,
+                FilesystemReturnedPathKind::ReadLinkPayload,
+                FilesystemReturnedPathCompleteness::Complete,
+                b"ab",
+            )
+            .unwrap_or_else(|_| panic!("complete returned path fits sponsor"));
+        evaluator
+            .record_returned_path_observation(
+                1,
+                FilesystemReturnedPathKind::ReadLinkPayload,
+                FilesystemReturnedPathCompleteness::LimitReached,
+                b"prefix",
+            )
+            .unwrap_or_else(|_| panic!("limited returned path fits sponsor"));
+        let [returned, limited] = &evaluator.filesystem_operation_attempts[0].returned_paths[..]
+        else {
+            panic!("fixture retains both returned paths")
+        };
+        assert_eq!(
+            returned.kind(),
+            crate::FilesystemReturnedPathKind::ReadLinkPayload
+        );
+        assert_eq!(returned.operand_ordinal(), 1);
+        assert_eq!(returned.bytes(), b"ab");
+        assert_eq!(
+            returned.completeness(),
+            crate::FilesystemReturnedPathCompleteness::Complete
+        );
+        assert_eq!(
+            limited.completeness(),
+            crate::FilesystemReturnedPathCompleteness::LimitReached
+        );
+        assert_eq!(limited.bytes(), b"prefix");
+        assert_eq!(evaluator.filesystem_observation_evidence_bytes, 8);
+    }
+
+    #[test]
+    fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        evaluator
+            .virtual_symlinks
+            .insert(b"exact".to_vec(), b"abcd".to_vec());
+        evaluator
+            .virtual_symlinks
+            .insert(b"limited".to_vec(), b"abcdef".to_vec());
+
+        let exact_output = mutable_byte_output(&[9; 6]);
+        let exact_result = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ReadLink {
+                path: b"exact".to_vec(),
+                buffer: exact_output.clone(),
+                count: PreparedTransferCount { raw: 4, host: 4 },
+            })
+            .unwrap_or_else(|_| panic!("exact-fit read_link succeeds"));
+        assert!(matches!(exact_result, Value::Int(4)));
+        assert_eq!(
+            exact_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("exact output remains readable")),
+            b"abcd\x09\x09"
+        );
+
+        let limited_output = mutable_byte_output(&[9; 6]);
+        let limited_result = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ReadLink {
+                path: b"limited".to_vec(),
+                buffer: limited_output.clone(),
+                count: PreparedTransferCount { raw: 4, host: 4 },
+            })
+            .unwrap_or_else(|_| panic!("truncated read_link succeeds"));
+        assert!(matches!(limited_result, Value::Int(4)));
+        assert_eq!(
+            limited_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("limited output remains readable")),
+            b"abcd\x09\x09"
+        );
+
+        let [exact, limited] = &evaluator.filesystem_operation_attempts[0].returned_paths[..]
+        else {
+            panic!("provider records both successful writes")
+        };
+        assert_eq!(exact.bytes(), b"abcd");
+        assert_eq!(
+            exact.completeness(),
+            FilesystemReturnedPathCompleteness::Complete
+        );
+        assert_eq!(limited.bytes(), b"abcd");
+        assert_eq!(
+            limited.completeness(),
+            FilesystemReturnedPathCompleteness::LimitReached
+        );
+    }
+
+    #[test]
+    fn returned_path_budget_failure_is_atomic() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        evaluator.filesystem_observation_evidence_bytes =
+            MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1;
+
+        assert!(
+            evaluator
+                .record_returned_path_observation(
+                    1,
+                    FilesystemReturnedPathKind::ReadLinkPayload,
+                    FilesystemReturnedPathCompleteness::Complete,
+                    b"ab",
+                )
+                .is_err()
+        );
+        assert_eq!(
+            evaluator.filesystem_observation_evidence_bytes,
+            MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1
+        );
+        assert!(
+            evaluator.filesystem_operation_attempts[0]
+                .returned_paths
                 .is_empty()
         );
     }

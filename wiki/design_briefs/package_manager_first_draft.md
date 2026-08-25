@@ -765,8 +765,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v14
-carries operation-attempt schema v14, retaining each completed operation's exact
+Observation schema v15
+carries operation-attempt schema v15, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -806,9 +806,9 @@ follows evaluation of every authored argument because a later argument may
 alias an earlier carrier; resolution and provider snapshots need not match.
 Post-state follows provider return or halt, including unchanged input-only ABI carriers.
 Rooted/path-alias spellings stay out of the payload lane. A separate 256 MiB
-aggregate operand-evidence sponsor reserves immutable bytes, exact path-like
-bytes, canonical rooted-resolution bytes, one mutable resolution copy, and both
-provider copies before that call's provider access. Directory-
+aggregate operand-evidence sponsor covers immutable bytes, exact path-like and
+rooted-resolution bytes, exact returned-path prefixes, one mutable resolution
+copy, and both provider copies. Directory-
 entry names, symlink targets, find patterns, and other non-rooted path-like
 operands occupy their own ordinal-tagged lane rather than impersonating rooted
 authorization or payload. Each successfully typed non-handle scalar, immutable
@@ -820,8 +820,13 @@ authorization, which separately carries access and may select a different
 canonical rooted location. The fully prepared call must reproduce each complete
 compiler-private semantic sidecar before provider access. Prior or nested
 staging effects remain cleanup-contained. Package commitments hash immutable, path-like,
-rooted, and mutable rows without rendering them. Retained returned-path bytes
-and complete observed-input content remain absent, so
+rooted, returned-path, and mutable rows without rendering them. Successful
+provider branches retain exact meaningful output bytes without terminators or
+stale tails, plus output ordinal, closed kind, and Complete/LimitReached state.
+Provider-known target length distinguishes exact-fit from truncated `read_link`;
+failure and insufficient-capacity returns add no row. Package-rooted builds
+reject canonical and final absolute output, while `read_link` remains inert.
+Complete observed-input content remains absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.

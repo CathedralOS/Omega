@@ -155,9 +155,9 @@ pub struct EvaluationUsage {
 /// exact path-like byte operands, each successfully resolved mutable carrier
 /// and logical-handle input even when later preparation fails, and a typed
 /// returned or evaluator-halted outcome. It is not the canonical replay
-/// transcript: complete returned content and complete content custody are not
-/// present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 14;
+/// transcript: returned content outside the exact path-result rows and complete
+/// content custody are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 15;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -321,6 +321,48 @@ pub struct FilesystemRootedPathOperandResolution {
     operand_ordinal: u8,
     root: FilesystemGrantRootIdentity,
     relative_path: Vec<u8>,
+}
+
+/// Closed semantic class for exact meaningful path bytes returned through a
+/// mutable output carrier. Terminators and unchanged carrier tails are not part
+/// of these bytes; the complete carrier remains available separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemReturnedPathKind {
+    ReadLinkPayload,
+    CanonicalPath,
+    FinalPath,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemReturnedPathCompleteness {
+    Complete,
+    LimitReached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemReturnedPath {
+    operand_ordinal: u8,
+    kind: FilesystemReturnedPathKind,
+    completeness: FilesystemReturnedPathCompleteness,
+    bytes: Vec<u8>,
+}
+
+impl FilesystemReturnedPath {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn kind(&self) -> FilesystemReturnedPathKind {
+        self.kind
+    }
+
+    pub const fn completeness(&self) -> FilesystemReturnedPathCompleteness {
+        self.completeness
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
 }
 
 impl FilesystemRootedPathOperandResolution {
@@ -588,6 +630,7 @@ pub struct FilesystemOperationAttempt {
     byte_operands: Vec<FilesystemByteOperand>,
     path_like_operands: Vec<FilesystemPathLikeOperand>,
     rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
+    returned_paths: Vec<FilesystemReturnedPath>,
     mutable_byte_operand_resolutions: Vec<FilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<FilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
@@ -609,6 +652,7 @@ impl FilesystemOperationAttempt {
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
             rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
             mutable_byte_operand_resolutions: Vec::new(),
             mutable_i64_operand_resolutions: Vec::new(),
             mutable_byte_operands: Vec::new(),
@@ -663,6 +707,10 @@ impl FilesystemOperationAttempt {
 
     pub fn rooted_path_operand_resolutions(&self) -> &[FilesystemRootedPathOperandResolution] {
         &self.rooted_path_operand_resolutions
+    }
+
+    pub fn returned_paths(&self) -> &[FilesystemReturnedPath] {
+        &self.returned_paths
     }
 
     pub fn mutable_byte_operand_resolutions(&self) -> &[FilesystemMutableByteOperandResolution] {

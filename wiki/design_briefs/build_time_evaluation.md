@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-schema v14 carries operation-attempt schema v14, retaining in call-start order
+schema v15 carries operation-attempt schema v15, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -473,7 +473,7 @@ provider pre/post state. Provider pre-state follows every authored argument
 because a later argument may alias an earlier carrier; post-state follows
 provider return or halt. Input-only mutable ABI carriers remain explicit. A
 separate 256 MiB aggregate operand-evidence sponsor covers immutable, path-like,
-rooted-resolution, and all mutable byte copies. Exhaustion halts that call;
+rooted-resolution, exact returned-path, and all mutable byte copies. Exhaustion halts that call;
 prior or nested staging effects remain cleanup-contained. Package commitment
 framing hashes every lane without rendering bytes as text.
 A granted evaluation failure
@@ -481,8 +481,14 @@ retains partial usage and observations with an explicit returned/evaluator-halt
 outcome; worker creation or panic marks evidence unavailable. Omega emits only
 fixed non-admission counts and no review row on failure. Duplicate identities,
 conflicting equal roots, unresolved roots, unrepresentable rooted paths, and
-the 16 MiB aggregate authorized-path ceiling reject before host access. Retained
-returned-path bytes and complete content custody remain absent. It is an incomplete operation trace,
+the 16 MiB aggregate authorized-path ceiling reject before host access.
+Successful provider write branches retain exact meaningful `read_link`,
+canonical, and final-path bytes without terminators or stale tails, including
+closed kind and Complete/LimitReached disposition. Provider-known target length
+distinguishes exact-fit from truncated `read_link`; failures and insufficient-
+capacity returns add no row. Package-rooted execution rejects canonical and
+final absolute outputs, while `read_link` remains inert. Complete content
+custody remains absent. It is an incomplete operation trace,
 not a transcript or receipt, and makes no replayability or source-
 rebuildability claim.
 

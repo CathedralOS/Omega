@@ -280,6 +280,24 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, operand.relative_path());
         }
         digest.update(
+            u64::try_from(attempt.returned_paths().len())
+                .expect("build observation returned-path count fits u64")
+                .to_le_bytes(),
+        );
+        for returned in attempt.returned_paths() {
+            digest.update([returned.operand_ordinal()]);
+            digest.update([match returned.kind() {
+                omega_compiler::BuildFilesystemReturnedPathKind::ReadLinkPayload => 0,
+                omega_compiler::BuildFilesystemReturnedPathKind::CanonicalPath => 1,
+                omega_compiler::BuildFilesystemReturnedPathKind::FinalPath => 2,
+            }]);
+            digest.update([match returned.completeness() {
+                omega_compiler::BuildFilesystemReturnedPathCompleteness::Complete => 0,
+                omega_compiler::BuildFilesystemReturnedPathCompleteness::LimitReached => 1,
+            }]);
+            hash_bytes(&mut digest, returned.bytes());
+        }
+        digest.update(
             u64::try_from(attempt.mutable_byte_operand_resolutions().len())
                 .expect("build observation mutable-byte-resolution count fits u64")
                 .to_le_bytes(),
@@ -622,6 +640,45 @@ reaches FilesystemHost
         summary
     }
 
+    #[cfg(unix)]
+    fn compiled_read_link_observation(target: &str) -> BuildObservationSummary {
+        use std::os::unix::fs::symlink;
+
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-read-link-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).unwrap();
+        symlink(target, project.join("fixture-link")).unwrap();
+        std::fs::write(
+            project.join("build.omg"),
+            r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {}
+
+data ReadLinkProbe { filesystem: FilesystemHost; buffer: [u8; 32]; result: i64; }
+
+machine ReadLinkProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{
+    let link: &[u8] in Path = builder.source.resolve("fixture-link");
+    self.result = self.filesystem.read_link(link, &mut self.buffer, 32);
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("read_link build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
@@ -650,8 +707,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 14);
-        assert_eq!(first.filesystem_operation_schema_version(), 14);
+        assert_eq!(first.schema_version(), 15);
+        assert_eq!(first.filesystem_operation_schema_version(), 15);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
@@ -684,6 +741,26 @@ reaches FilesystemHost
         );
         assert_eq!(write.byte_operands()[0].bytes(), b"payload-a");
         assert!(close.authorized_paths().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn observation_commitment_binds_exact_returned_path_bytes() {
+        let alpha = compiled_read_link_observation("alpha");
+        let bravo = compiled_read_link_observation("bravo");
+        let [alpha_attempt] = alpha.filesystem_operation_attempts() else {
+            panic!("fixture performs one read_link")
+        };
+        let [bravo_attempt] = bravo.filesystem_operation_attempts() else {
+            panic!("fixture performs one read_link")
+        };
+        assert_eq!(alpha_attempt.returned_paths()[0].bytes(), b"alpha");
+        assert_eq!(bravo_attempt.returned_paths()[0].bytes(), b"bravo");
+        assert_ne!(
+            build_observation_commitment(&alpha),
+            build_observation_commitment(&bravo),
+            "changed returned-path bytes change observation identity"
+        );
     }
 
     #[test]
