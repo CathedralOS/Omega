@@ -397,15 +397,20 @@ that private graph and derives the read-only image and ELF. All native, self-
 built, and mixed producer/backend pairs now compose to the same independently
 evaluated result and independently reconstructed ELF. Its lower-rooted evidence
 uses the distinct private `OMGRFN4` carrier with five independent responsibility
-owners; that transport and ownership contract is frozen. Focused Rust-free
-Gamma routes now reproduce representative producer and backend 0/251/252
-observations exactly. Focused native/self controls also distinguish a canonical
-guardless jump from an authored-true branch, install arm-local facts before
-checking edge arguments, transfer intervals by target ordinal, join every
-cyclic predecessor, and preserve the result across declaration order. The
-lower-rooted implementations remain open. This progress does not decide the
-final disposition of records, arrays, generated source, or any later checkpoint
-feature.
+owners; that transport and ownership contract is frozen. Frame/source custody,
+source-to-resolution reconstruction, and the resolution-to-CKIR3 declaration,
+layout, selected-root, and intrinsic-constant-table join are closed. Separate
+physically artifact-free source and CKIR evaluators close their owned active-
+frame and dynamic-block resource boundaries without claiming the still-open
+full source-lowering/meaning, CKIR/result/artifact, or same-frame composition
+responsibilities. Focused Rust-free Gamma routes now reproduce representative
+producer and backend 0/251/252 observations exactly. Focused native/self
+controls also distinguish a canonical guardless jump from an authored-true
+branch, install arm-local facts before checking edge arguments, transfer
+intervals by target ordinal, join every cyclic predecessor, and preserve the
+result across declaration order. The remaining lower-rooted responsibilities
+remain open. This progress does not decide the final disposition of records,
+arrays, generated source, or any later checkpoint feature.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
