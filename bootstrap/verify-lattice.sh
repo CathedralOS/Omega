@@ -243,6 +243,12 @@ precise_step() { # label dir script cache-profile
       fi
       s_profile_hash=$CACHE_HASH_CKIR10
       ;;
+    omega-bootstrap-ckir11)
+      if [ -z "${CACHE_HASH_CKIR11+x}" ]; then
+        CACHE_HASH_CKIR11=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_CKIR11
+      ;;
     omega-bootstrap-omgrfn10)
       if [ -z "${CACHE_HASH_OMGRFN10+x}" ]; then
         CACHE_HASH_OMGRFN10=$(hash_cache_profile "$s_profile") || exit $?
@@ -260,6 +266,12 @@ precise_step() { # label dir script cache-profile
         CACHE_HASH_OMGRFN12=$(hash_cache_profile "$s_profile") || exit $?
       fi
       s_profile_hash=$CACHE_HASH_OMGRFN12
+      ;;
+    omega-bootstrap-omgrfn13)
+      if [ -z "${CACHE_HASH_OMGRFN13+x}" ]; then
+        CACHE_HASH_OMGRFN13=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_OMGRFN13
       ;;
     *)
       s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
@@ -406,6 +418,10 @@ precise_step "omega-bootstrap CKIR10 independent reference — u8 as u32 in Trap
 precise_step "omega-bootstrap CKIR10 resolved-source lowerer — OMGLOWB exact unsigned u8-to-u32 widening" omega-bootstrap-gates delta-resolved-to-ckir10.sh omega-bootstrap-ckir10
 precise_step "omega-bootstrap CKIR10 lowering meaning (RUST-FREE) — IntegerWiden 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir10-meaning.sh omega-bootstrap-ckir10
 precise_step "omega-bootstrap CKIR10 backend — exact opcode-21 IntegerWiden load/store template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v10-backend.sh omega-bootstrap-ckir10
+precise_step "omega-bootstrap CKIR11 independent reference — canonical trapping-u32 leaf-plus-literal Add meaning and resource teeth" omega-bootstrap-gates delta-checked-ir-v11-reference.sh omega-bootstrap-ckir11
+precise_step "omega-bootstrap CKIR11 resolved-source lowerer — OMGLOWC selected trapping addition in admitted contexts" omega-bootstrap-gates delta-resolved-to-ckir11.sh omega-bootstrap-ckir11
+precise_step "omega-bootstrap CKIR11 lowering meaning (RUST-FREE) — successful and runtime-overflow Add through Gamma" omega-bootstrap-gates delta-resolved-to-ckir11-meaning.sh omega-bootstrap-ckir11
+precise_step "omega-bootstrap CKIR11 backend — exact Add/carry/range/store template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v11-backend.sh omega-bootstrap-ckir11
 step "omega-bootstrap OMGRFN5/6/7 layer 1 — exact successor frame, OMGCOMP graph, and source custody" omega-bootstrap-refinement omgrfn5-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 2 — independent runtime-record source resolution below Delta" omega-bootstrap-refinement omgrfn5-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 3 — independent witness-to-CKIR4 declarations, layout, root, and intrinsic envelope" omega-bootstrap-refinement omgrfn5-witness-ckir4-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -426,6 +442,7 @@ precise_step "omega-bootstrap OMGRFN9 composite — all five independent respons
 precise_step "omega-bootstrap OMGRFN10 composite — all five independent responsibilities consume one exact primitive-equality frame" omega-bootstrap-refinement omgrfn10-same-frame-composite.sh omega-bootstrap-omgrfn10
 precise_step "omega-bootstrap OMGRFN11 composite — all five independent responsibilities consume one exact primitive-ordered-comparison frame" omega-bootstrap-refinement omgrfn11-same-frame-composite.sh omega-bootstrap-omgrfn11
 precise_step "omega-bootstrap OMGRFN12 composite — all five independent responsibilities consume one exact primitive-integer-widen frame" omega-bootstrap-refinement omgrfn12-same-frame-composite.sh omega-bootstrap-omgrfn12
+precise_step "omega-bootstrap OMGRFN13 composite — all five independent responsibilities consume one exact canonical trapping-add frame" omega-bootstrap-refinement omgrfn13-same-frame-composite.sh omega-bootstrap-omgrfn13
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints

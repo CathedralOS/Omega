@@ -257,23 +257,28 @@ baseline, not a premature freeze:
 | Contract | Settled floor | Strong working default | Still decided by measured source/bridge cost |
 | --- | --- | --- | --- |
 | Delta v1 | independent, deterministic, specified, C-class compiler host with no undefined behavior or ambient authority | provide regular compiler-building data and control, deterministic storage/allocation with explicit exhaustion, and a sealed byte/artifact/diagnostic/exit boundary | the exact scalar, aggregate, slice, arena, call, module, arithmetic, and representation inventory |
-| `Ωself` | ordinary Omega with exact Omega meaning; the resulting compiler still implements full Omega | keep regular compiler facilities when they avoid duplication—modules, named records, sums, arrays/views, ordinary ownership, calls, basic generics, and concrete domains are not to be banned merely to shrink the profile | retain versus refactor each facility actually used by the completed compiler source, with bridge and assurance cost measured |
+| `Ωself` | ordinary Omega with exact Omega meaning; the resulting compiler still implements full Omega | retain ordinary compiler-building facilities when used—modules, named records, sums, arrays/views, ownership, mutation/control, calls, basic generics, and concrete domains—unless a measured source refactor is clearly cheaper overall | advanced or proof-coupled facilities, and any ordinary facility whose bridge/assurance cost materially exceeds its source benefit |
 
-Two expensive families begin on opposite sides of that working default. Proof-
-program mathematics, proof contracts used only for internal implementation, and
-dependent or proof-indexed types (including linear-dependent forms) are
-presumptive `Ωself` exclusions. Basic generics and concrete domains are
-presumptive source conveniences when they keep compiler code regular, but they
-are not admitted until an actual checkpoint uses them and the bridge cost is
-known. Numeric/schema field tags, mixed field-plus-case declarations, and
-aggregate transition payloads are explicit simplification candidates. Ordinary
-named fields and ordinary sum data are not implicated by those candidates.
+The burden is deliberately asymmetric. Proof-program mathematics, proof
+contracts used only for internal implementation, and dependent or proof-indexed
+types (including linear-dependent forms) are presumptive `Ωself` exclusions:
+the compiler can implement those user-facing features without using them in its
+own source. Ordinary compiler facilities are presumptive retentions once real
+source uses them. Basic generics and concrete domains therefore begin on the
+retention side, while domain polymorphism and advanced generic constraints are
+separate cost questions. Numeric/schema field tags, mixed field-plus-case
+declarations, and aggregate transition payloads remain explicit simplification
+candidates. Ordinary named fields and ordinary sum data are not implicated by
+those candidates.
 
-This baseline intentionally favors the most expressive profile that remains
-cheap and regular, not the smallest feature count. Exclusion is useful only
-when it removes material bridge or assurance complexity without replacing it
-with duplicated compiler source, invalid intermediate states, hand-expanded
-variants, or private AST permutations.
+This baseline favors the most expressive profile that remains cheap and
+regular, not the smallest feature count. For an ordinary compiler facility,
+retention is the default after a checkpoint demonstrates real use; exclusion
+must show that a concrete refactor removes material bridge or assurance cost
+without replacing it with duplicated source, invalid intermediate states,
+hand-expanded variants, or private AST permutations. This is an authoring rule
+while the final manifest is incomplete, not premature admission to the frozen
+profile.
 
 Route a question by the subject it changes, not by which compiler happens to
 encounter it:
@@ -300,8 +305,8 @@ Until measurements overturn them, use these authoring defaults:
   source;
 - use ordinary compiler data and control facilities where they materially help
   clarity and robustness—especially named records, payload sums, basic
-  generics, concrete domains, ownership, and explicit arenas—rather than
-  hand-expanding them away;
+  generics, concrete domains, ownership, mutation, calls, and explicit
+  arenas—rather than hand-expanding them away;
 - measure domain polymorphism, advanced generic constraints, numeric schema
   tags, mixed record/sum declarations, and aggregate transition payloads
   against simpler encodings; and
@@ -341,11 +346,15 @@ For every disputed `Ωself` facility, use one decision procedure:
 
 1. If the complete production-compiler closure does not use the facility,
    exclude it and add a phase-appropriate negative canary.
-2. If the closure uses it, compare retaining a general compositional form with
-   refactoring the product source to a simpler form.
-3. Retain it when the source clarity, regularity, reuse, or safety benefit
-   exceeds the measured Delta implementation and assurance cost. Otherwise
-   refactor it out and keep it excluded.
+2. If the closure uses an ordinary compiler-building facility, provisionally
+   retain its general compositional form and implement its vertical bridge
+   slice. Refactor only when a concrete alternative is available to compare.
+3. Retain it unless that refactor demonstrably reduces total implementation and
+   assurance cost while preserving source clarity, regularity, reuse, safety,
+   and valid-state modeling. Otherwise keep the ordinary facility.
+4. For proof-coupled or unusually broad facilities, reverse the presumption:
+   keep them excluded unless the complete source demonstrates a material need
+   that a simpler ordinary encoding cannot meet.
 
 This procedure does not reward feature removal by itself. A small general
 facility is preferable to monomorphic duplication, hand-expanded variants, or
@@ -370,7 +379,8 @@ establishes the implementation and assurance cost.
 | ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
 | concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | explicit exact `u8 as u32 in Trapping` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 contains 22 pure widening casts; OMGLOWB/CKIR10 and OMGRFN12 close the compositional pure-leaf relation, exact payload preservation, least-OMGRSW1/2/3 production, conservative `movzx` emission, and immutable R1–R5 reconstruction without adding a resolver schema; this does not authorize the checkpoint's direct `u32` uses against `u64` interfaces |
-| concrete Trapping arithmetic and remaining casts | measure | checkpoint 000001 uses cursor and UTF-8/scalar arithmetic plus 12 proof-gated narrowing or other casts; compare the complete ordinary rules with narrow checked helpers, and keep implicit widening, heterogeneous comparison, signed conversion, and the unresolved `u32` index/cursor versus `u64` interface uses outside the closed widening relation |
+| concrete `u32 in Trapping` leaf-plus-literal addition | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 104 authored additions, of which 78 are direct canonical trapping-u32 leaf-plus-anonymous-literal forms; OMGLOWC/CKIR11 and OMGRFN13 close assignment, guard, call, and transition-argument contexts, least-OMGRSW1/2/3 production, successful near-limit meaning, runtime overflow traps, conservative emission, and immutable R1–R5 reconstruction; the bridge carrier currently stops at 2147483647, and literal-left, nested, other-carrier/policy, and calls with multiple potentially observable arguments remain outside this relation |
+| remaining concrete Trapping arithmetic and casts | measure | checkpoint 000001 retains nonselected additions, cursor and UTF-8/scalar arithmetic, plus 12 proof-gated narrowing or other casts; compare complete ordinary rules with narrow checked helpers, and keep implicit widening, heterogeneous comparison, signed conversion, the full public `u32` range, and unresolved `u32` index/cursor versus `u64` interfaces outside the closed relations |
 | same-carrier primitive `<` and `<=` | presumptively retain; selected private-IR cost closed | CKIR1/CKIR3 carry exact unsigned carrier-compatible `u8`/`u32` comparisons and Boolean results; broader operands, `u64`, cross-carrier conversion, and observable operand effects remain separate |
 | exact primitive `==` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 63 authored equality tokens—60 same-carrier `u32`, one same-carrier `u8`, one unresolved `u32`/slice-`u64`, and one payload-free-sum case—plus equality introduced by normalized transition guards; OMGLOW9/CKIR8 and OMGRFN10 close exact `bool` and same-carrier `u8`/`u32` scalar equality without claiming structural, sum, `!=`, `u64`, or cross-carrier equality |
 | same-carrier primitive `>` and `>=` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 34 same-carrier `u32 >=` uses and one same-carrier `u32 >` use; OMGLOWA/CKIR9 and OMGRFN11 close exact unsigned same-carrier `u8`/`u32` authored-order operations, source/CKIR meaning, conservative SETA/SETAE emission, and immutable R1–R5 composition without swapping operands or inventing an upper-bound fact; two slice-length `u64 >` uses, cross-carrier conversion, effectful operands, and general transition-fact refinement remain outside this selected relation |
@@ -383,9 +393,9 @@ establishes the implementation and assurance cost.
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
 | boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface |
 | static provider path arguments | measure from checkpoint 000001 | the checkpoint proves only path-valued static arguments to sealed provider selection; it is not evidence for general generic declarations |
-| basic generic declarations and calls | open; expected useful but unmeasured | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before admitting a general bridge surface |
+| basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
-| concrete domains and domain arithmetic | open; expected useful but unmeasured | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
+| concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
 | specialization and reflection | no source-profile ruling yet | neither has a distinct accepted authored source spelling to admit or exclude; add a row when there is a censusable Omega surface |
@@ -424,6 +434,7 @@ gates rather than being repeated in this decision document.
 | exact primitive same-carrier `bool`/`u8`/`u32` equality | CKIR8 and OMGRFN10 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) and [`OMGCOMP_REFINEMENT_WITNESS_V10.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md) |
 | pure, total, nontrapping same-carrier unsigned `u8`/`u32` `>` and `>=` | CKIR9 and OMGRFN11 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V9.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md) and [`OMGCOMP_REFINEMENT_WITNESS_V11.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V11.md) |
 | explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
+| canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
 No row admits a facility to final `Ωself`, claims general checkpoint coverage,
@@ -496,15 +507,15 @@ benefit and robustness in the production Omega source closure
 implementation + assurance cost in the required Delta compiler/bridge source closures
 ```
 
-Payload sums are likely favorable. Basic generics and concrete domains may be
-as later compiler source arrives, but checkpoint 000001 currently proves only
-static provider path arguments, not general generic declarations or authored
-domain use. Proof syntax and dependent typing are not favorable defaults. This
-is a total-cost profile, not a contest to remove the most features: retaining a
-cheap general facility is preferable to forcing large, brittle, monomorphic
-compiler source. Profile growth or a product-source closure change reopens the
-profile and must update the rules, compiler, meaning route, diagnostics, and
-negative gates together.
+Payload sums, basic generics, and concrete domains are favorable ordinary
+compiler facilities when real source uses them, but checkpoint 000001 currently
+proves only static provider path arguments, not general generic declarations or
+authored domain use. Proof syntax and dependent typing are not favorable
+defaults. This is a total-cost profile, not a contest to remove the most
+features: retaining a cheap general facility is preferable to forcing large,
+brittle, monomorphic compiler source. Profile growth or a product-source closure
+change reopens the profile and must update the rules, compiler, meaning route,
+diagnostics, and negative gates together.
 
 ## One required hosted production build
 

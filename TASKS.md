@@ -76,9 +76,12 @@ Remaining:
   indexed typing, including linear-dependent forms, in the compiler's own
   source. Retain ordinary ownership/multiplicity, records, payload sums, and
   other regular compiler facilities when they improve the implementation.
-  Basic generics and concrete domains are expected to be useful and should be
-  measured from real source use rather than preemptively banned; domain
-  polymorphism and advanced generic constraints remain separate cost questions.
+  Basic generics and concrete domains are ordinary compiler facilities: use
+  them when they keep real source regular, and provisionally retain their
+  general compositional forms once a checkpoint demonstrates that use. Remove
+  them only when a concrete refactor measurably lowers total bridge and
+  assurance cost without creating monomorphic duplication. Domain polymorphism
+  and advanced generic constraints remain separate cost questions.
   Treat numeric schema tags, mixed field-plus-case declarations, and aggregate
   transition payloads as measured simplification candidates; do not conflate
   numeric tags with ordinary named fields, or force a split representation when

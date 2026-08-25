@@ -5,6 +5,8 @@
 // CKIR8 adds pure, nontrapping same-carrier opcode 18 ScalarEqual.
 // CKIR9 adds pure, nontrapping same-carrier opcodes 19 Greater and 20 GreaterEqual.
 // CKIR10 adds pure, nontrapping exact-u8 opcode 21 IntegerWiden.
+// CKIR11 selects canonical u32-in-Trapping opcode 8 Add while retaining all
+// CKIR10 operations and the inherited conservative overflow/range trap.
 // CKIR4 retains its frozen decode and artifact path byte-for-byte. Runtime
 // objects and binding snapshots are derived private frame extents; no producer
 // offset, layout, or byte image is accepted.
@@ -178,7 +180,8 @@ machine Main::read_header(&mut self) {
     state major7() { transition self.word == 7 { true -> keep_major() _ -> major8() } }
     state major8() { transition self.word == 8 { true -> keep_major() _ -> major9() } }
     state major9() { transition self.word == 9 { true -> keep_major() _ -> major10() } }
-    state major10() { transition self.word == 10 { true -> keep_major() _ -> bad() } }
+    state major10() { transition self.word == 10 { true -> keep_major() _ -> major11() } }
+    state major11() { transition self.word == 11 { true -> keep_major() _ -> bad() } }
     state keep_major() { self.schema_major = self.word; transition 0 { _ -> minor_read() } }
     state minor_read() { self.word = self.read_u16(); transition self.status == 0 { true -> minor() _ -> done() } }
     state minor() { transition self.word == 0 { true -> target_read() _ -> bad() } }
@@ -934,8 +937,10 @@ machine Main::validate_operations(&mut self) {
     state version8() { transition self.progress > 0 { true -> done() _ -> bad() } }
     state version9_relation() { transition self.schema_major == 9 { true -> version9() _ -> version10_relation() } }
     state version9() { transition self.progress > 0 { true -> done() _ -> bad() } }
-    state version10_relation() { transition self.schema_major == 10 { true -> version10() _ -> done() } }
+    state version10_relation() { transition self.schema_major == 10 { true -> version10() _ -> version11_relation() } }
     state version10() { transition self.progress > 0 { true -> done() _ -> bad() } }
+    state version11_relation() { transition self.schema_major == 11 { true -> version11() _ -> done() } }
+    state version11() { transition self.progress > 0 { true -> done() _ -> bad() } }
     state classify() { self.current_block = self.operation_arena[32768 + self.i]; self.current_machine = self.operation_arena[0 + self.i]; transition self.operation_arena[65536 + self.i] { 1 -> constant() 2 -> self_place() 3 -> field_place() 4 -> index_place() 5 -> load() 6 -> store() 7 -> copy() 8 -> add() 9 -> less() 10 -> call() 11 -> copy_constant() 12 -> less() 13 -> constructor() 14 -> case_constructor() 15 -> logical_not() 16 -> logical_binary() 17 -> logical_binary() 18 -> scalar_equal() 19 -> greater() 20 -> greater() 21 -> integer_widen() _ -> bad() } }
     state constant() { transition self.operation_arena[98304 + self.i] == 1 { true -> constant_operands() _ -> bad() } }
     state constant_operands() { transition self.operation_arena[229376 + self.i] == 0 { true -> constant_imm1() _ -> bad() } }
@@ -1015,8 +1020,17 @@ machine Main::validate_operations(&mut self) {
     state binary_right() { self.found = self.value_visible(self.value2); transition self.found == 1 { true -> add_types() _ -> bad() } }
     state add_types() { self.type_id = self.value_arena[0 + self.value]; self.type2 = self.value_arena[0 + self.value2]; transition self.metadata_arena[0 + self.type2] == self.metadata_arena[0 + self.type_id] { true -> add_result() _ -> bad() } }
     state add_result() { transition self.metadata_arena[0 + self.operation_arena[163840 + self.i]] == self.metadata_arena[0 + self.type_id] { true -> add_numeric() _ -> bad() } }
-    state add_numeric() { transition self.metadata_arena[0 + self.type_id] == 1 { true -> advance() _ -> add_u32() } }
-    state add_u32() { transition self.metadata_arena[0 + self.type_id] == 2 { true -> advance() _ -> bad() } }
+    state add_numeric() { transition self.metadata_arena[0 + self.type_id] == 1 { true -> add_seen() _ -> add_u32() } }
+    state add_u32() { transition self.metadata_arena[0 + self.type_id] == 2 { true -> add_seen() _ -> bad() } }
+    state add_seen() { transition self.schema_major == 11 { true -> add_selected_right() _ -> advance() } }
+    state add_selected_right() { transition self.type_id == self.type2 { true -> add_selected_result() _ -> advance() } }
+    state add_selected_result() { transition self.operation_arena[163840 + self.i] == self.type_id { true -> add_selected_flag() _ -> advance() } }
+    state add_selected_flag() { transition self.metadata_arena[8192 + self.type_id] == 1 { true -> add_selected_payload0() _ -> advance() } }
+    state add_selected_payload0() { transition self.metadata_arena[16384 + self.type_id] == 0 { true -> add_selected_payload1() _ -> advance() } }
+    state add_selected_payload1() { transition self.metadata_arena[24576 + self.type_id] == 0 { true -> add_selected_low() _ -> advance() } }
+    state add_selected_low() { transition self.metadata_arena[32768 + self.type_id] == 0 { true -> add_selected_high() _ -> advance() } }
+    state add_selected_high() { transition self.metadata_arena[40960 + self.type_id] == 2147483647 { true -> add_selected_count() _ -> advance() } }
+    state add_selected_count() { self.progress = self.progress + 1; transition 0 { _ -> advance() } }
     state less() { transition self.operation_arena[98304 + self.i] == 1 { true -> less_operands() _ -> bad() } }
     state less_operands() { transition self.operation_arena[229376 + self.i] == 2 { true -> less_imms() _ -> bad() } }
     state less_imms() { transition self.operation_arena[262144 + self.i] == 0 { true -> less_imm1() _ -> bad() } }
@@ -1076,7 +1090,7 @@ machine Main::validate_operations(&mut self) {
     state greater_bool_result() { transition self.operation_arena[163840 + self.i] == self.bool_type { true -> greater_seen() _ -> bad() } }
     state greater_seen() { transition self.schema_major == 9 { true -> greater_count() _ -> advance() } }
     state greater_count() { self.progress = self.progress + 1; transition 0 { _ -> advance() } }
-    state integer_widen() { transition self.schema_major == 10 { true -> integer_widen_result() _ -> bad() } }
+    state integer_widen() { transition self.schema_major >= 10 { true -> integer_widen_result() _ -> bad() } }
     state integer_widen_result() { transition self.operation_arena[98304 + self.i] == 1 { true -> integer_widen_operands() _ -> bad() } }
     state integer_widen_operands() { transition self.operation_arena[229376 + self.i] == 1 { true -> integer_widen_imm0() _ -> bad() } }
     state integer_widen_imm0() { transition self.operation_arena[262144 + self.i] == 0 { true -> integer_widen_imm1() _ -> bad() } }
@@ -1094,7 +1108,8 @@ machine Main::validate_operations(&mut self) {
     state integer_widen_target_payload1() { transition self.metadata_arena[24576 + self.type2] == 0 { true -> integer_widen_target_low() _ -> bad() } }
     state integer_widen_target_low() { transition self.metadata_arena[32768 + self.type2] == 0 { true -> integer_widen_target_high() _ -> bad() } }
     state integer_widen_target_high() { transition self.metadata_arena[40960 + self.type2] == 2147483647 { true -> integer_widen_seen() _ -> bad() } }
-    state integer_widen_seen() { self.progress = self.progress + 1; transition 0 { _ -> advance() } }
+    state integer_widen_seen() { transition self.schema_major == 10 { true -> integer_widen_count() _ -> advance() } }
+    state integer_widen_count() { self.progress = self.progress + 1; transition 0 { _ -> advance() } }
     state call() { transition self.operation_arena[294912 + self.i] == 0 { true -> call_callee() _ -> bad() } }
     state call_callee() { self.target = self.operation_arena[262144 + self.i]; self.found = self.valid_id(self.target, self.machine_count); transition self.found == 1 { true -> call_arity() _ -> bad() } }
     state call_arity() { self.call_arg_count = self.metadata_arena[106496 + 25728 + self.target]; transition self.operation_arena[229376 + self.i] == self.call_arg_count + 1 { true -> call_result_kind() _ -> bad() } }

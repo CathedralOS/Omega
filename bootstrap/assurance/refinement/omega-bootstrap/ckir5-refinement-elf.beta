@@ -1,4 +1,4 @@
-; Lower-rooted exact CKIR5..10 -> limited Linux x86-64 ELF checker.
+; Lower-rooted exact CKIR5..11 -> limited Linux x86-64 ELF checker.
 ; Concatenate after the shared OMGRFN7/8 R5 envelope and CKIR structure checker
 ; with both earlier main procedures removed.
 ;
@@ -25,7 +25,7 @@ proc elf_align(value, alignment) {
 ; structure conjunct's responsibility.
 proc elf_assign_operation_types() {
     let op=0  let owner=0  let block=0  let kind=0  let result=0  let type_id=0
-    let start=0  let count=0  let next_operand=0  let opcode=0  let logical_not_count=0 let logical_binary_count=0 let scalar_equal_count=0 let integer_widen_count=0
+    let start=0  let count=0  let next_operand=0  let opcode=0  let logical_not_count=0 let logical_binary_count=0 let scalar_equal_count=0 let integer_widen_count=0 let trapping_add_count=0
     state begin { ckir_initialize_value_scopes()  to operations }
     state operations { to one when (op < ckir_count(9))  to finish }
     state one {
@@ -75,7 +75,11 @@ proc elf_assign_operation_types() {
         word[7600000+result*8]=type_id  word[8200000+result*8]=block
         word[8500000+result*8]=op  word[525216]=result+1  to operation_ready
     }
-    state operation_ready { to logical_not when (opcode == 15) to logical_binary when (opcode == 16) to logical_binary when (opcode == 17) to scalar_equal when (opcode == 18) to integer_widen when (opcode == 21) to next }
+    state operation_ready { to trapping_add when (opcode == 8) to logical_not when (opcode == 15) to logical_binary when (opcode == 16) to logical_binary when (opcode == 17) to scalar_equal when (opcode == 18) to integer_widen when (opcode == 21) to next }
+    ; Structure, visibility, and exact carrier identity are the sibling R5
+    ; structure checker's ownership. This checker counts the selected carrier's
+    ; four Adds, then independently reconstructs every Add byte below.
+    state trapping_add { to next when (ckir_schema()!=11) trapping_add_count=trapping_add_count+1 to next }
     state logical_not {
         to bad when (kind != 1)
         to bad when (count != 1)
@@ -129,12 +133,14 @@ proc elf_assign_operation_types() {
         to logical_binary_required when (ckir_schema() == 7)
         to scalar_equal_required when (ckir_schema() == 8)
         to integer_widen_required when (ckir_schema() == 10)
+        to trapping_add_required when (ckir_schema() == 11)
         return 0
     }
     state logical_not_required { to bad when (logical_not_count == 0)  return 0 }
     state logical_binary_required { to bad when (logical_binary_count == 0) return 0 }
     state scalar_equal_required { to bad when (scalar_equal_count == 0) return 0 }
     state integer_widen_required { to bad when (integer_widen_count == 0) return 0 }
+    state trapping_add_required { to bad when (trapping_add_count != 4) return 0 }
     state bad { return 251 }
 }
 

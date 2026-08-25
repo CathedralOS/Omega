@@ -107,7 +107,7 @@ proc r47_ckir_prepare() {
     state one { count=r47_ckir_u32(24+i*4) word[950000+i*8]=count i=i+1 to counts }
     state bases { to base when (i<17) to exact }
     state base { word[950200+i*8]=cursor cursor=cursor+word[950000+i*8]*r47_table_size(i) i=i+1 to bases }
-    state exact { to v12 when (word[879088]==12) to exact_counts }
+    state exact { to v12 when (word[879088]>=12) to exact_counts }
     state v12 { extra=1 to exact_counts }
     state exact_counts {
         to bad when (r47_ckir_u32(20)!=n) to bad when (cursor!=n)
@@ -626,6 +626,38 @@ proc r412_integer_widen_join() {
     state bad { return omgrfn4_l2_reject() }
 }
 
+; Exact authored leaf `+` literal / canonical trapping-u32 opcode-8
+; correspondence. R4 reconstructs source order, right-literal identity, both
+; operand carriers, result carrier, arity, and zero immediates. R5 remains the
+; owner of visibility, runtime values, range/carry behavior, and ELF bytes.
+proc r413_trapping_add_join() {
+    let source=0 let token=0 let expected=0 let op=0 let actual=0 let p=0 let type_id=0 let start=0 let left=0 let right=0 let left_type=0 let right_type=0
+    state sources { to source_one when (source<word[500320]) to operations }
+    state source_one { token=0 to tokens }
+    state tokens { to token_one when (token+1<word[880000+source*8]) source=source+1 to sources }
+    state token_one { to plus when (omgrfn4_r2_tkind(source,token)==43) token=token+1 to tokens }
+    state plus { to next when (omgrfn4_r2_tkind(source,token+1)!=257) omgrfn4_r2_number(source,token+1) to bad when (word[700000]!=0) word[959200+expected*8]=word[879000] expected=expected+1 token=token+2 to tokens }
+    state next { token=token+1 to tokens }
+    state operations { to operation when (op<word[950096]) to exact }
+    state operation { p=word[950296]+op*40 to add_probe when (r47_ckir_byte(p+12)==8) op=op+1 to operations }
+    state add_probe {
+        type_id=r47_ckir_u32(p+20) to next when (type_id>=word[950000])
+        to next when (r47_ckir_byte(word[950200]+type_id*24+4)!=2) to next when (r47_ckir_byte(word[950200]+type_id*24+5)!=1)
+        to next when (r47_row_word(0,type_id,8)!=0) to next when (r47_row_word(0,type_id,12)!=0) to next when (r47_row_word(0,type_id,16)!=0) to next when (r47_row_word(0,type_id,20)!=2147483647)
+        to add
+    }
+    state add {
+        to bad when (actual>=expected) to bad when (r47_ckir_byte(p+13)!=1) to bad when (r47_ckir_byte(p+14)!=0) to bad when (r47_ckir_byte(p+15)!=0)
+        start=r47_ckir_u32(p+24) to bad when (r47_ckir_u32(p+28)!=2) to bad when (r47_ckir_u32(p+32)!=0) to bad when (r47_ckir_u32(p+36)!=0)
+        left=r47_row_word(13,start,0) right=r47_row_word(13,start+1,0) left_type=r412_value_type(left) right_type=r412_value_type(right)
+        to bad when (left_type!=type_id) to bad when (right_type!=type_id) to bad when (r411_value_is_constant(right,word[959200+actual*8])==0)
+        actual=actual+1 op=op+1 to operations
+    }
+    state next { op=op+1 to operations }
+    state exact { to bad when (expected!=4) to bad when (actual!=expected) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
 proc omgrfn7_r4_lowering_check() {
     let status=r47_prepare_source()
     state source { to done when (status!=0) to bad when (word[879088]!=7) status=r47_ckir_prepare() to literals }
@@ -694,6 +726,20 @@ proc omgrfn12_r4_lowering_check() {
     state transitions { to done when (status!=0) status=r47_transition_join() to equality }
     state equality { to done when (status!=0) status=r410_scalar_equal_join() to widen }
     state widen { to done when (status!=0) status=r412_integer_widen_join() to done }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc omgrfn13_r4_lowering_check() {
+    let status=r47_prepare_source()
+    state source { to done when (status!=0) to bad when (word[879088]!=13) status=r47_ckir_prepare() to literals }
+    state literals { to done when (status!=0) status=r47_literal_join() to constructors }
+    state constructors { to done when (status!=0) status=r47_constructor_join() to calls }
+    state calls { to done when (status!=0) status=r47_call_join() to transitions }
+    state transitions { to done when (status!=0) status=r47_transition_join() to equality }
+    state equality { to done when (status!=0) status=r410_scalar_equal_join() to widen }
+    state widen { to done when (status!=0) status=r412_integer_widen_join() to add }
+    state add { to done when (status!=0) status=r413_trapping_add_join() to done }
     state bad { return omgrfn4_l2_reject() }
     state done { return status }
 }

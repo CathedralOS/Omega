@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused OMGLOW6 source-to-CKIR5 producer gate."""
+"""Shared focused OMGLOW6-through-C source-to-CKIR5-through-11 gate."""
 
 from __future__ import annotations
 
@@ -37,6 +37,10 @@ try:
     import checked_ir_v10_reference as ir10  # noqa: E402
 except ImportError:
     ir10 = None
+try:
+    import checked_ir_v11_reference as ir11  # noqa: E402
+except ImportError:
+    ir11 = None
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
@@ -49,7 +53,8 @@ GATE_ERRORS = (
 ) + (() if ir7 is None else (ir7.Ckir7Error,)) \
     + (() if ir8 is None else (ir8.Ckir8Error,)) \
     + (() if ir9 is None else (ir9.Ckir9Error,)) \
-    + (() if ir10 is None else (ir10.Ckir10Error,))
+    + (() if ir10 is None else (ir10.Ckir10Error,)) \
+    + (() if ir11 is None else (ir11.Ckir11Error,))
 
 
 def require(condition: bool, message: str) -> None:
@@ -77,12 +82,12 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
 def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
                   resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (4, 5, 6, 7, 8, 9, 10, 11), "test lowering version")
-    require((version in (7, 8, 9, 10, 11) and resolution in (1, 2, 3))
-            or (version not in (7, 8, 9, 10, 11) and resolution == 0), "test resolution selector")
+    require(version in (4, 5, 6, 7, 8, 9, 10, 11, 12), "test lowering version")
+    require((version in (7, 8, 9, 10, 11, 12) and resolution in (1, 2, 3))
+            or (version not in (7, 8, 9, 10, 11, 12) and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
-    magic = (b"OMGLOWB\0" if version == 11 else b"OMGLOWA\0" if version == 10
+    magic = (b"OMGLOWC\0" if version == 12 else b"OMGLOWB\0" if version == 11 else b"OMGLOWA\0" if version == 10
              else f"OMGLOW{version}".encode("ascii") + b"\0")
     return LOWER_HEADER.pack(
         magic, version, 0, 0,
@@ -225,11 +230,12 @@ def inspect_positive(contents: bytes) -> ir5.Module:
 
 
 def run_gate(mode: str = "v5") -> None:
-    include_v6 = mode in ("v6", "v7", "v8", "v9", "v10")
-    include_v7 = mode in ("v7", "v8", "v9", "v10")
-    include_v8 = mode in ("v8", "v9", "v10")
-    include_v9 = mode in ("v9", "v10")
-    include_v10 = mode == "v10"
+    include_v6 = mode in ("v6", "v7", "v8", "v9", "v10", "v11")
+    include_v7 = mode in ("v7", "v8", "v9", "v10", "v11")
+    include_v8 = mode in ("v8", "v9", "v10", "v11")
+    include_v9 = mode in ("v9", "v10", "v11")
+    include_v10 = mode in ("v10", "v11")
+    include_v11 = mode == "v11"
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -244,8 +250,10 @@ def run_gate(mode: str = "v5") -> None:
     equality_general_path = HERE / "fixtures/ckir8-scalar-equality/general.omg"
     greater_general_path = HERE / "fixtures/ckir9-ordered-comparison/general.omg"
     widen_general_path = HERE / "fixtures/ckir10-integer-widen/general.omg"
+    trapping_add_general_path = HERE / "fixtures/ckir11-trapping-add/general.omg"
     for path in (resolver_source, lowerer_source, lowermachine_source, general_path,
-                 equality_general_path, greater_general_path, widen_general_path):
+                 equality_general_path, greater_general_path, widen_general_path,
+                 trapping_add_general_path):
         require(path.is_file(), f"missing {path}")
 
     fields, locals_used, procedures = producer_metadata(lowerer_source)
@@ -1197,16 +1205,140 @@ machine SumProducer::run(&mut self) -> u8 {
                   "controls passed; "
                   + " ".join(f"{name}={len(value)}B" for name, value in outputs10.items()))
 
+        if include_v11:
+            require(ir11 is not None, "missing CKIR11 independent reference")
+            add_sw1 = """data SumProducer { cursor: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.cursor = 68;
+    self.cursor = self.cursor + 1;
+    transition (self.cursor) + 1 < 71 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            add_sw2 = """data Gate {}
+machine Gate::keep(&self, prefix: u8, value: u32 in Trapping, suffix: u8) -> u32 in Trapping { value }
+data SumProducer { gate: Gate; cursor: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.cursor = 69;
+    self.cursor = self.gate.keep(1, self.cursor + 1, 2);
+    transition self.cursor == 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            add_sw3 = trapping_add_general_path.read_text(encoding="ascii")
+
+            def authored_selected_adds(source: str) -> int:
+                return len(re.findall(
+                    r"(?:\bself\.[A-Za-z_][A-Za-z0-9_]*|\b[A-Za-z_][A-Za-z0-9_]*)"
+                    r"\s*\)?\s*\+\s*[0-9]+\b", source,
+                ))
+
+            def resolve_and_lower_v12(name: str, source: str,
+                                      witness_major: int,
+                                      *, run: bool = True) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output11 = lower(name, pack_lowering(
+                    envelope, witness, 12, witness_major
+                ), 0)
+                module11 = ir11.decode(output11)
+                if run:
+                    require(ir11.interpret(module11) == 70, f"{name} CKIR11 result")
+                authored = authored_selected_adds(source)
+                actual = ir11.selected_add_count(module11)
+                require(authored > 0 and actual == authored,
+                        f"{name} trapping Add token/operation correspondence {actual}/{authored}")
+                return output11
+
+            outputs11 = {
+                "trapping-add-sw1": resolve_and_lower_v12(
+                    "trapping-add-sw1", add_sw1, 1
+                ),
+                "trapping-add-sw2": resolve_and_lower_v12(
+                    "trapping-add-sw2", add_sw2, 2
+                ),
+                "trapping-add-sw3": resolve_and_lower_v12(
+                    "trapping-add-sw3", add_sw3, 3
+                ),
+            }
+
+            sw1_envelope, sw1_witness = resolve(
+                "trapping-add-old-frame", add_sw1, 0, 1
+            )
+            lower("trapping-add-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 11, 1), 251)
+            inherited_only = add_sw1.replace(
+                "self.cursor = self.cursor + 1;", "self.cursor = 69;", 1
+            ).replace(
+                "(self.cursor) + 1 < 71", "self.cursor < 71", 1
+            )
+            inherited_envelope, inherited_witness = resolve(
+                "trapping-add-missing", inherited_only, 0, 1
+            )
+            lower("trapping-add-missing",
+                  pack_lowering(inherited_envelope, inherited_witness, 12, 1), 251)
+            lower("trapping-add-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 12, 2), 251)
+
+            overflow_possible = """data SumProducer { cursor: u32 in Trapping; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.cursor = self.cursor + 1;
+    70
+}
+"""
+            resolve_and_lower_v12(
+                "trapping-add-runtime-overflow", overflow_possible, 1, run=False
+            )
+
+            two_trapping_args = add_sw2.replace(
+                "machine Gate::keep(&self, prefix: u8, value: u32 in Trapping, suffix: u8) -> u32 in Trapping { value }",
+                "machine Gate::keep(&self, prefix: u32 in Trapping, value: u32 in Trapping, suffix: u8) -> u32 in Trapping { value }",
+                1,
+            ).replace(
+                "self.gate.keep(1, self.cursor + 1, 2)",
+                "self.gate.keep(self.cursor + 1, self.cursor + 2, 2)", 1,
+            )
+            negatives = {
+                "trapping-add-u8-left": add_sw1.replace(
+                    "cursor: u32 in Trapping", "cursor: u8", 1
+                ),
+                "trapping-add-literal-left": inherited_only.replace(
+                    "self.cursor < 71", "1 + self.cursor < 71", 1
+                ),
+                "trapping-add-typed-right": inherited_only.replace(
+                    "self.cursor < 71", "self.cursor + self.cursor < 71", 1
+                ),
+                "trapping-add-call-left": add_sw2.replace(
+                    "self.cursor + 1", "self.gate.keep(1, self.cursor, 2) + 1", 1
+                ),
+                "trapping-add-two-trapping-call-args": two_trapping_args,
+            }
+            for name, source in negatives.items():
+                witness_major = 3 if "transition" in name else 2 if "call" in name else 1
+                envelope, witness = resolve(name, source, 0, witness_major)
+                lower(name, pack_lowering(envelope, witness, 12, witness[8]), 251)
+
+            print("resolved-to-CKIR11: OMGLOWC independently pairs least OMGRSW1/2/3; "
+                  "canonical u32-in-Trapping leaf-plus-literal Add in assignment, guard, "
+                  "multi-argument call, and multi-argument transition contexts; one-potentially-"
+                  "trapping-call-argument order rule; runtime-overflow source remains admitted; native/"
+                  "self exact result 70; old/new, selector, carrier/shape/order controls passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs11.items()))
+
 
 def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in (
-            "gate", "gate-v6", "gate-v7", "gate-v8", "gate-v9", "gate-v10"):
+            "gate", "gate-v6", "gate-v7", "gate-v8", "gate-v9", "gate-v10", "gate-v11"):
         raise ValueError(
-            "usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8|gate-v9|gate-v10"
+            "usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8|gate-v9|gate-v10|gate-v11"
         )
     run_gate({
         "gate": "v5", "gate-v6": "v6", "gate-v7": "v7",
         "gate-v8": "v8", "gate-v9": "v9", "gate-v10": "v10",
+        "gate-v11": "v11",
     }[sys.argv[1]])
 
 

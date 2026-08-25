@@ -1,11 +1,18 @@
 # Bridge refinement reconstruction
 
-The current additive carrier is [`OMGRFN12`](OMGCOMP_REFINEMENT_WITNESS_V12.md):
-`OMGRFNC\0` / version 12 binds exact OMGCOMP and least OMGRSW1/2/3 to CKIR10
-opcode 21 `IntegerWiden` and its exact conservative artifact. Eight independent
-R1–R5 executables consume one immutable frame and reconstruct the admitted
-`u8 as u32 in Trapping` source relation, 0/70/255 payload preservation, final
-result 70, and unsigned `MOVZX` emission.
+The current additive carrier is [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md):
+`OMGRFND\0` / version 13 binds exact OMGCOMP and least OMGRSW1/2/3 to CKIR11's
+selected canonical `u32 in Trapping` leaf-plus-literal `Add` relation and its
+exact conservative artifact. Eight independent R1–R5 executables consume one
+immutable frame and reconstruct four authored additions, including
+`2147483646 + 1`, inherited CKIR10 widenings, final result 70, and the complete
+carry/range/store backend sequence.
+
+The immediately preceding widening carrier remains
+[`OMGRFN12`](OMGCOMP_REFINEMENT_WITNESS_V12.md): `OMGRFNC\0` / version 12 binds
+exact OMGCOMP and least OMGRSW1/2/3 to CKIR10 opcode 21 `IntegerWiden` and its
+unsigned `MOVZX` artifact. Shared responsibility owners remain version-aware;
+the OMGRFN12 composite is a required regression rather than relabeled as v13.
 
 The immediately preceding ordered-comparison carrier remains
 [`OMGRFN11`](OMGCOMP_REFINEMENT_WITNESS_V11.md): `OMGRFNB\0` / version 11 binds
