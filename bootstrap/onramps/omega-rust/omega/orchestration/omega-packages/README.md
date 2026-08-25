@@ -48,6 +48,12 @@ real package fixture demonstrates an irreducible external contract.
   or hardened profiles, not as a blanket package-admission gate.
 - `omega.lock` records the exact reconciled closure and normalized accepted
   evidence baseline. It should normally be committed.
+- The compiler's older standalone trust receipt is not package admission.
+  Domain and arbitrary-string root grants reject and produce no report row or
+  receipt; exact selected-provider grants remain, while exact accepted-machine
+  grants are temporary standalone compatibility only. Package-aware compilation
+  rejects the latter because one selector cannot admit the package's complete
+  accepted-claim inventory.
 - Every update receives source/provenance triage. Blocking capability/API
   changes produce exact conflicts; retained dangerous authority always
   recommends code audit.

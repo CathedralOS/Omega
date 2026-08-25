@@ -385,17 +385,17 @@ pub struct WireCompatibilityFactReport {
 /// The chapter-10 TRUST REPORT (GR5): one row per admitted semantic
 /// commitment, carrying its provenance tier. Dev-active rows (own-package
 /// claims, not yet root-granted) carry the STANDING WARNING the grant
-/// locality rule promises; root-granted rows name the grant. "The report
-/// sees every grant, private or public."
+/// locality rule promises; root-granted rows name the exact accepted-machine
+/// or selected-provider grant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustReportRow {
-    /// The commitment, consumer-rendered (`domain introduction: Meters`).
+    /// The commitment, consumer-rendered (`accepted fact: admitted`).
     pub commitment: String,
     /// `own-package (dev-active)` or `root grant`.
     pub provenance: String,
     /// Exact published contract identity for one local accepted machine.
-    /// Domains, provider commitments, and unmatched imported grants have no
-    /// machine contract and retain `None` rather than a synthesized identity.
+    /// Provider commitments have no machine contract and retain `None` rather
+    /// than a synthesized identity.
     pub machine_contract_fingerprint: Option<u64>,
     /// Exact normalized universal-template identity for one generic accepted
     /// machine. Non-generic accepted machines and every other row retain

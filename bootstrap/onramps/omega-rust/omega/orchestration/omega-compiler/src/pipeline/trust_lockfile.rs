@@ -3,16 +3,18 @@
 //! not two -- records the statement hash automatically; a statement that
 //! drifts under a grant fails the build until re-approved."
 //!
-//! v1 scope (packages do not exist yet): the lockfile holds only TRUST
-//! RECEIPTS -- one row per root grant, `<fnv1a hex>  <commitment>` -- and
+//! Legacy standalone scope: the lockfile holds only TRUST RECEIPTS -- one row
+//! per exact selected-provider or accepted-machine grant,
+//! `<identity hex>  <commitment>` -- and
 //! lives beside the project's build.omg (`omega.lock`, machine-written; it
 //! must persist ACROSS builds to see drift). A project with no grants gets
-//! no lockfile. Domains and unmatched grants retain their FNV-1a statement
-//! identity; provider plans retain selected-plan identity; generic accepted
+//! no lockfile. Provider plans retain selected-plan identity; generic accepted
 //! axioms retain universal template identity; and non-generic accepted axioms
-//! defer to the exact checked machine-contract fingerprint. Re-approval v1:
-//! delete the stale row (or the file); the error names it. The `defer`-tooling
-//! item owns the one-command re-approve UX.
+//! defer to the exact checked machine-contract fingerprint. Domain names and
+//! unmatched strings cannot manufacture receipts. Package-aware compilation
+//! rejects individual accepted-machine grants because package claims require
+//! complete package-level admission. Re-approval remains legacy standalone
+//! behavior: delete the stale row (or file); the error names it.
 
 use crate::pipeline::compile_options::CompileOptions;
 use psi_diagnostics::Diagnostic;
@@ -36,9 +38,7 @@ enum PreparedTrustIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NonProviderTrustGrant {
-    Domain(psi_symbols::SymbolHandle),
     AcceptedMachine(psi_symbols::SymbolHandle),
-    Unmatched,
 }
 
 struct NonProviderTrustGrantCandidate<'name> {
@@ -47,39 +47,19 @@ struct NonProviderTrustGrantCandidate<'name> {
     name: &'name str,
 }
 
-fn fnv1a(text: &str) -> u64 {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for byte in text.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
 pub(super) fn resolve_non_provider_trust_grant(
     typed: &TypedTrees,
     grant: &str,
 ) -> Result<NonProviderTrustGrant, Diagnostic> {
     let candidates = typed
-        .domain_definitions()
+        .machines()
         .iter()
-        .filter(|domain| domain.semantic_id.is_valid())
-        .map(|domain| NonProviderTrustGrantCandidate {
-            subject: NonProviderTrustGrant::Domain(domain.symbol),
-            kind: "domain",
-            name: domain.name.as_str(),
+        .filter(|machine| grantable_accepted_machine(typed, machine))
+        .map(|machine| NonProviderTrustGrantCandidate {
+            subject: NonProviderTrustGrant::AcceptedMachine(machine.symbol),
+            kind: "accepted machine",
+            name: machine.name.as_str(),
         })
-        .chain(
-            typed
-                .machines()
-                .iter()
-                .filter(|machine| grantable_accepted_machine(typed, machine))
-                .map(|machine| NonProviderTrustGrantCandidate {
-                    subject: NonProviderTrustGrant::AcceptedMachine(machine.symbol),
-                    kind: "accepted machine",
-                    name: machine.name.as_str(),
-                }),
-        )
         .collect::<Vec<_>>();
     let exact = candidates
         .iter()
@@ -90,18 +70,20 @@ pub(super) fn resolve_non_provider_trust_grant(
         [] => {}
         _ => return Err(ambiguous_grant(grant, &exact)),
     }
-    if grant.contains("::") {
-        return Ok(NonProviderTrustGrant::Unmatched);
+    if !grant.contains("::") {
+        let leaf = candidates
+            .iter()
+            .filter(|candidate| candidate.name.rsplit("::").next() == Some(grant))
+            .collect::<Vec<_>>();
+        match leaf.as_slice() {
+            [candidate] => return validate_grant_subject(grant, candidate),
+            [] => {}
+            _ => return Err(ambiguous_grant(grant, &leaf)),
+        }
     }
-    let leaf = candidates
-        .iter()
-        .filter(|candidate| candidate.name.rsplit("::").next() == Some(grant))
-        .collect::<Vec<_>>();
-    match leaf.as_slice() {
-        [candidate] => validate_grant_subject(grant, candidate),
-        [] => Ok(NonProviderTrustGrant::Unmatched),
-        _ => Err(ambiguous_grant(grant, &leaf)),
-    }
+    Err(Diagnostic::error(format!(
+        "root grant `{grant}` does not name an exact accepted machine or selected provider plan; domain and arbitrary-string trust grants are unsupported",
+    )))
 }
 
 fn grantable_accepted_machine(
@@ -120,12 +102,7 @@ fn validate_grant_subject(
     grant: &str,
     candidate: &NonProviderTrustGrantCandidate<'_>,
 ) -> Result<NonProviderTrustGrant, Diagnostic> {
-    let symbol = match candidate.subject {
-        NonProviderTrustGrant::Domain(symbol) | NonProviderTrustGrant::AcceptedMachine(symbol) => {
-            symbol
-        }
-        NonProviderTrustGrant::Unmatched => unreachable!("candidates always name a subject"),
-    };
+    let NonProviderTrustGrant::AcceptedMachine(symbol) = candidate.subject;
     if !symbol.is_valid() {
         return Err(Diagnostic::error(format!(
             "root grant `{grant}` resolves to {} `{}` with no valid exact symbol",
@@ -144,42 +121,6 @@ fn ambiguous_grant(grant: &str, candidates: &[&NonProviderTrustGrantCandidate<'_
     Diagnostic::error(format!(
         "root grant `{grant}` is ambiguous across non-provider trust subjects: {}",
         names.join(", "),
-    ))
-}
-
-fn domain_commitment_statement(
-    typed: &TypedTrees,
-    symbol: psi_symbols::SymbolHandle,
-) -> Result<(String, String), Diagnostic> {
-    let domains = typed
-        .domain_definitions()
-        .iter()
-        .filter(|domain| domain.semantic_id.is_valid() && domain.symbol == symbol)
-        .collect::<Vec<_>>();
-    let [domain] = domains.as_slice() else {
-        return Err(Diagnostic::error(match domains.len() {
-            0 => format!("granted domain symbol {symbol:?} has no exact typed definition"),
-            count => {
-                format!("granted domain symbol {symbol:?} has {count} exact typed definitions")
-            }
-        }));
-    };
-    let Some(facts) = typed.proof_facts.span(domain.facts) else {
-        return Err(Diagnostic::error(format!(
-            "granted domain `{}` has an invalid exact proof-fact span",
-            domain.name,
-        )));
-    };
-    let mut statement = format!("domain {}", domain.name.as_str());
-    for fact in facts {
-        if let psi_typed_trees::domain::ProofFact::Expression(expression) = fact {
-            statement.push_str("; ");
-            statement.push_str(&typed.expression_table.display_name(*expression));
-        }
-    }
-    Ok((
-        format!("domain introduction: {}", domain.name.as_str()),
-        statement,
     ))
 }
 
@@ -205,8 +146,36 @@ fn accepted_machine(
     Ok(*machine)
 }
 
-fn commitment_statement(grant: &str) -> (String, String) {
-    (format!("accepted fact: {grant}"), grant.to_owned())
+pub(super) fn reject_package_non_provider_grants(
+    typed: &TypedTrees,
+    root_grants: &[String],
+    provider_plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+        provider_plans,
+        selected_provider_plans,
+        root_grants,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    for grant in root_grants {
+        if provider_grants
+            .iter()
+            .any(|provider_grant| provider_grant.selector == *grant)
+        {
+            continue;
+        }
+        match resolve_non_provider_trust_grant(typed, grant)
+            .map_err(|diagnostic| vec![diagnostic])?
+        {
+            NonProviderTrustGrant::AcceptedMachine(_) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "package-aware compilation cannot admit individual accepted machine `{grant}`; package claims require complete package-level review",
+                ))]);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn prepare_trust_lockfile(
@@ -215,7 +184,16 @@ pub(super) fn prepare_trust_lockfile(
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    package_aware: bool,
 ) -> Result<PreparedTrustLock, Vec<Diagnostic>> {
+    if package_aware {
+        reject_package_non_provider_grants(
+            typed,
+            root_grants,
+            provider_plans,
+            selected_provider_plans,
+        )?;
+    }
     let Some(project_dir) = options.root_path.parent() else {
         return Ok(PreparedTrustLock {
             lock_path: None,
@@ -253,11 +231,6 @@ pub(super) fn prepare_trust_lockfile(
         let (commitment, identity) = match resolve_non_provider_trust_grant(typed, grant)
             .map_err(|diagnostic| vec![diagnostic])?
         {
-            NonProviderTrustGrant::Domain(symbol) => {
-                let (commitment, statement) = domain_commitment_statement(typed, symbol)
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                (commitment, PreparedTrustIdentity::Ready(fnv1a(&statement)))
-            }
             NonProviderTrustGrant::AcceptedMachine(symbol) => {
                 // MP5: a generic accepted axiom is granted ONCE at its universal
                 // normalized template. Every concrete specialization references this
@@ -278,10 +251,6 @@ pub(super) fn prepare_trust_lockfile(
                     format!("accepted fact: {}", machine.name.as_str()),
                     identity,
                 )
-            }
-            NonProviderTrustGrant::Unmatched => {
-                let (commitment, statement) = commitment_statement(grant);
-                (commitment, PreparedTrustIdentity::Ready(fnv1a(&statement)))
             }
         };
         if !rows.iter().any(|row| row.commitment == commitment) {
@@ -503,7 +472,7 @@ mod tests {
 
     use super::{
         NonProviderTrustGrant, PreparedTrustIdentity, PreparedTrustLock, PreparedTrustReceipt,
-        domain_commitment_statement, enforce_trust_lockfile, parse_trust_lock, render_trust_lock,
+        enforce_trust_lockfile, parse_trust_lock, prepare_trust_lockfile, render_trust_lock,
         resolve_non_provider_trust_grant, resolve_receipts, validate_complete_receipt_set,
     };
 
@@ -561,25 +530,19 @@ mod tests {
         let cases = [
             (
                 "exact qualified precedence",
-                typed_subjects(&[("u32::Meters", 1, true), ("i32::Meters", 2, true)], &[]),
-                "u32::Meters",
-                Expected::Subject(NonProviderTrustGrant::Domain(
+                typed_subjects(&[], &[("first::claim", 1), ("second::claim", 2)]),
+                "first::claim",
+                Expected::Subject(NonProviderTrustGrant::AcceptedMachine(
                     SymbolHandle::from_arena_index(1),
                 )),
             ),
             (
                 "unique short leaf",
-                typed_subjects(&[("u32::Meters", 1, true)], &[]),
-                "Meters",
-                Expected::Subject(NonProviderTrustGrant::Domain(
+                typed_subjects(&[], &[("proof::claim", 1)]),
+                "claim",
+                Expected::Subject(NonProviderTrustGrant::AcceptedMachine(
                     SymbolHandle::from_arena_index(1),
                 )),
-            ),
-            (
-                "ambiguous domain leaf",
-                typed_subjects(&[("u32::Meters", 1, true), ("i32::Meters", 2, true)], &[]),
-                "Meters",
-                Expected::Error("ambiguous across non-provider trust subjects"),
             ),
             (
                 "ambiguous accepted-machine leaf",
@@ -596,34 +559,28 @@ mod tests {
                 )),
             ),
             (
-                "ambiguous cross-kind leaf",
-                typed_subjects(&[("u32::claim", 1, true)], &[("proof::claim", 2)]),
-                "claim",
-                Expected::Error("ambiguous across non-provider trust subjects"),
-            ),
-            (
                 "duplicate exact name",
-                typed_subjects(&[("u32::Meters", 1, true), ("u32::Meters", 2, true)], &[]),
-                "u32::Meters",
+                typed_subjects(&[], &[("proof::claim", 1), ("proof::claim", 2)]),
+                "proof::claim",
                 Expected::Error("ambiguous across non-provider trust subjects"),
             ),
             (
-                "invalid domain excluded",
-                typed_subjects(&[("u32::Ghost", 1, false)], &[]),
-                "Ghost",
-                Expected::Subject(NonProviderTrustGrant::Unmatched),
+                "domain is not a trust subject",
+                typed_subjects(&[("u32::Meters", 1, true)], &[]),
+                "u32::Meters",
+                Expected::Error("domain and arbitrary-string trust grants are unsupported"),
             ),
             (
                 "qualified nonmatch does not fall back",
-                typed_subjects(&[("u32::Meters", 1, true)], &[]),
-                "other::Meters",
-                Expected::Subject(NonProviderTrustGrant::Unmatched),
+                typed_subjects(&[], &[("proof::claim", 1)]),
+                "other::claim",
+                Expected::Error("domain and arbitrary-string trust grants are unsupported"),
             ),
             (
                 "unmatched",
                 typed_subjects(&[], &[]),
                 "ExternalClaim",
-                Expected::Subject(NonProviderTrustGrant::Unmatched),
+                Expected::Error("domain and arbitrary-string trust grants are unsupported"),
             ),
         ];
 
@@ -645,29 +602,33 @@ mod tests {
     }
 
     #[test]
-    fn domain_commitment_rejects_an_invalid_exact_fact_span() {
-        let symbol = SymbolHandle::from_arena_index(1);
-        let mut typed = TypedTrees::default();
-        let semantic_id = typed.semantic_domains.intern("u32::Measured");
-        let mut facts = psi_arena::HandleSpan::empty();
-        typed.proof_facts.append_to_span(
-            &mut facts,
-            psi_typed_trees::domain::ProofFact::Expression(
-                psi_typed_trees::expression::ExpressionHandle::invalid(),
-            ),
+    fn package_aware_compilation_rejects_individual_accepted_machine_grants() {
+        let typed = typed_subjects(&[], &[("proof::claim", 1)]);
+        let result = prepare_trust_lockfile(
+            &crate::CompileOptions {
+                root_path: std::path::PathBuf::from("/tmp/omega-package/main.omg"),
+                build_dir: None,
+                target_name: None,
+                write_output: false,
+            },
+            &typed,
+            &["proof::claim".to_owned()],
+            &[],
+            &omega_effects::SelectedProviderPlanFacts::default(),
+            true,
         );
-        typed.push_domain_definition(psi_typed_trees::domain::DomainDefinition {
-            symbol,
-            name: psi_typed_trees::name::Identifier::generated("u32::Measured"),
-            facts,
-            semantic_id,
-            ..Default::default()
-        });
-        typed.proof_facts.clear();
-
-        let diagnostic = domain_commitment_statement(&typed, symbol)
-            .expect_err("invalid exact fact span must fail closed");
-        assert!(diagnostic.message.contains("invalid exact proof-fact span"));
+        let diagnostics = match result {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => {
+                panic!("package admission must not be minted by one accepted-machine selector")
+            }
+        };
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("package claims require complete package-level review")
+        );
     }
 
     #[test]

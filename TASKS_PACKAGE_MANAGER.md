@@ -913,9 +913,15 @@ complete.
   and realizing machine is retained from derivation through review; readable
   plan and overload strings are not declaration identity. Canonical
   `AcceptedClaim` rows already close non-provider claim ownership under exact
-  package identity. The legacy free-string/FNV trust-lock path remains to be
-  retired and must not be promoted into package evidence or used to manufacture
-  trust for domain declarations.
+  package identity. The legacy trust-lock path no longer creates authority from
+  domain names, unmatched strings, or FNV statement fingerprints, and domain
+  declarations no longer appear as grantable trust-report rows. Exact selected-
+  provider grants remain; exact accepted-machine grants remain temporarily for
+  standalone compilation only. Package-aware compilation rejects an individual
+  accepted-machine grant because package claim admission must cover the complete
+  exact `AcceptedClaim` inventory. The remaining v1 standalone receipt parser
+  and accepted-machine compatibility lane must not be promoted into package
+  evidence.
   Until the remaining joins exist, no projection may be persisted as accepted
   evidence. The compiler now exposes
   an explicitly review-only, in-memory projection for the reconciled root
