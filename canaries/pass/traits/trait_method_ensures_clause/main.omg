@@ -3,12 +3,12 @@ data Counter {
 }
 
 trait BoundedCounter {
-    machine increment(&mut self)
-        ensures self.value >= 0;
+    machine increment(&mut self, amount: u32)
+        ensures amount >= 0;
     machine snapshot(&self);
 }
 
-machine Counter::increment(&mut self) satisfies BoundedCounter::increment {
+machine Counter::increment(&mut self, amount: u32) satisfies BoundedCounter::increment {
     self.value = self.value + 1;
 }
 
