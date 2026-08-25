@@ -651,7 +651,7 @@ fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
     ));
 
     let _ = fs::remove_dir_all(&scratch);
-    compile_rooted_canary_for_native_host(&canary, scratch.clone())
+    compile_rooted_canary_for_native_host_with_auxiliary_artifacts(&canary, scratch.clone())
         .expect("wire encode borrowed scalar-slice canary should compile");
 
     let output = Command::new(scratch.join(executable_name()))
