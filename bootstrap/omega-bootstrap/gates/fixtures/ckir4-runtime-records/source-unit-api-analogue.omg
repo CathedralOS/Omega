@@ -1,0 +1,50 @@
+// Renamed, reordered, and count-varied analogue of the SourceUnit API carrier.
+// It prevents an exact owner, callee, or table census from standing in for
+// general CKIR4 source-body reconstruction.
+data BootstrapKey [copy] {
+    raw: u32 in Trapping;
+}
+
+data BootstrapBuffer {
+    key: BootstrapKey;
+    bytes: [u8; 4] in Trapping;
+    length: u32 [0..=4];
+    retained: bool;
+}
+
+machine BootstrapBuffer::exercise(&mut self) -> u8 {
+    self.reset(BootstrapKey { raw: 2 });
+    self.write(70);
+    self.read(0)
+}
+
+machine BootstrapBuffer::read(&self, index: u32 in Trapping) -> u8 {
+    transition index < self.length {
+        true -> present()
+        _ -> absent()
+    }
+    state present(&self) { self.bytes[index] }
+    state absent(&self) { 0 }
+}
+
+machine BootstrapBuffer::unused(&mut self) { self.retained = false; }
+
+machine BootstrapBuffer::reset(&mut self, key: BootstrapKey) {
+    self.key = key;
+    self.length = 0;
+    self.retained = true;
+}
+
+machine BootstrapBuffer::write(&mut self, byte: u8) {
+    self.retained = false;
+    transition self.length < 4 {
+        true -> keep()
+        _ -> full()
+    }
+    state keep(&mut self) {
+        self.bytes[self.length] = byte;
+        self.length = self.length + 1;
+        self.retained = true;
+    }
+    state full(&mut self) { self.retained = false; }
+}

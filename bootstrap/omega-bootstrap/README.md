@@ -265,10 +265,13 @@ language, generation, or architectural role; new documentation and work use
   eight bounded persisted-Beta executables: frame/source custody, resolution,
   intrinsic tables, source lowering, physically artifact-free source meaning,
   complete CKIR4/result validation, and exact ELF reconstruction. One composite
-  feeds them the same unchanged 16,274-byte exact carrier and isolates every
-  source/witness, witness/CKIR4, CKIR4/ELF, and result join. The selected
-  runtime-record tranche is closed; general bridge coverage and final `Ωself`
-  disposition remain open.
+  feeds them immutable 16,274-byte runtime-record-opener and 16,417-byte
+  complete-`SourceUnit`-API carriers. The second varies call and binding
+  structure without changing a schema and carries API-specific source/witness,
+  witness/CKIR4, CKIR4/ELF, and result cross-pairs; original opacity, mutation,
+  resource, and 0/251/252 controls remain intact. This is assurance hardening
+  over already-admitted forms. The selected runtime-record tranche is closed;
+  general bridge coverage and final `Ωself` disposition remain open.
 - [`gates/delta-two-package-composite.sh`](gates/delta-two-package-composite.sh)
   composes the actual resolver, resolved-source lowerer, and limited backend
   across native, Delta-self-built, and mixed-stage paths. It requires exact

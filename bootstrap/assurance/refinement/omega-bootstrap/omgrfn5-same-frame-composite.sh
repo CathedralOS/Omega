@@ -51,7 +51,7 @@ BACKEND=$C/omega-bootstrap-checked-ir-v4-to-elf.alp
 SOURCE=$OMEGA_REPO_ROOT/compiler/psi/source/source.omg
 FIXTURES=$G/fixtures/ckir4-runtime-records
 CHECKERS='r1 r2 r3 r4-lowering r4-source-lowering r4-source-result r5-result r5-elf'
-for REQUIRED in "$ENVELOPE" "$R1" "$R1CORE" "$R2" "$R2CORE" "$R3" "$R4" "$R4BASE" "$R4MODEL" "$R4COMMON" "$R4V3" "$R4OPS" "$R4RESULT" "$R5ARTIFACT" "$R5RESULT" "$R5ELF" "$PACKER" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$RESOLVER" "$LOWERER" "$BACKEND" "$SOURCE" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/authored-declaration-order.omg"; do
+for REQUIRED in "$ENVELOPE" "$R1" "$R1CORE" "$R2" "$R2CORE" "$R3" "$R4" "$R4BASE" "$R4MODEL" "$R4COMMON" "$R4V3" "$R4OPS" "$R4RESULT" "$R5ARTIFACT" "$R5RESULT" "$R5ELF" "$PACKER" "$BUILDER" "$LOW_FRAME" "$IR_REFERENCE" "$ELF_REFERENCE" "$RESOLVER" "$LOWERER" "$BACKEND" "$SOURCE" "$FIXTURES/source-unit-harness.omg" "$FIXTURES/source-unit-api-harness.omg" "$FIXTURES/authored-declaration-order.omg"; do
   [ -f "$REQUIRED" ] || { echo "OMGRFN5 same-frame composite: missing $REQUIRED" >&2; exit 1; }
 done
 
@@ -377,16 +377,20 @@ build_product() { # label owner machine source...
 }
 build_product exact SourceUnit bootstrap_runtime_record_probe "$SOURCE" "$FIXTURES/source-unit-harness.omg"
 build_product authored RuntimePairProbe run "$FIXTURES/authored-declaration-order.omg"
+build_product source-api SourceUnit bootstrap_source_api_probe "$SOURCE" "$FIXTURES/source-unit-api-harness.omg"
 for COMPONENT in omgc witness ckir4 elf; do
-  cmp -s "$T/exact.$COMPONENT" "$T/authored.$COMPONENT" && {
-    echo "OMGRFN5 composite: $COMPONENT cross-pair control is not distinct" >&2
-    exit 1
-  }
+  for CONTROL in authored source-api; do
+    cmp -s "$T/exact.$COMPONENT" "$T/$CONTROL.$COMPONENT" && {
+      echo "OMGRFN5 composite: $CONTROL $COMPONENT cross-pair control is not distinct" >&2
+      exit 1
+    }
+  done
 done
-python3 - "$T/exact.rfn" "$T/exact.sha256" <<'PY'
+python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/exact.sha256" "$T/source-api.sha256" <<'PY'
 from pathlib import Path
 import hashlib,sys
-raw=Path(sys.argv[1]).read_bytes(); Path(sys.argv[2]).write_text(hashlib.sha256(raw).hexdigest()+"\n",encoding="ascii")
+for source,digest in ((sys.argv[1],sys.argv[3]),(sys.argv[2],sys.argv[4])):
+ raw=Path(source).read_bytes(); Path(digest).write_text(hashlib.sha256(raw).hexdigest()+"\n",encoding="ascii")
 PY
 
 check() { # checker route expected input case
@@ -394,6 +398,7 @@ check() { # checker route expected input case
   observe "check-$CK_NAME-$CK_ROUTE-$CK_CASE" "$CK_EXPECTED" 90 "$CK_INPUT" "$T/$CK_NAME-$CK_ROUTE-$CK_CASE.out" yes "$T/$CK_NAME.$CK_ROUTE"
 }
 for NAME in $CHECKERS; do check "$NAME" native 0 "$T/exact.rfn" exact; check "$NAME" self 0 "$T/exact.rfn" exact; done
+for NAME in $CHECKERS; do check "$NAME" native 0 "$T/source-api.rfn" source-api; check "$NAME" self 0 "$T/source-api.rfn" source-api; done
 
 pack_cross() { # label comp witness ckir elf result
   PC_LABEL=$1
@@ -415,6 +420,26 @@ check r5-elf native 251 "$T/ckir-elf.rfn" ckir-elf
 pack_cross result-pair "$T/exact.omgc" "$T/exact.witness" "$T/exact.ckir4" "$T/exact.elf" 326
 for NAME in r1 r2 r3 r4-lowering r4-source-lowering r5-elf; do check "$NAME" native 0 "$T/result-pair.rfn" result-full-opaque; done
 for NAME in r4-source-result r5-result; do check "$NAME" native 251 "$T/result-pair.rfn" result-full; done
+
+# Repeat every relational join with the materially different complete-API
+# carrier.  Keep the adjacent component internally valid so each failure is
+# owned by the intended responsibility rather than by malformed framing.
+pack_cross api-source-witness "$T/source-api.omgc" "$T/exact.witness" "$T/exact.ckir4" "$T/exact.elf" 70
+check r1 native 0 "$T/api-source-witness.rfn" api-source-witness-opaque
+for NAME in r2 r4-lowering r4-source-lowering r4-source-result; do check "$NAME" native 251 "$T/api-source-witness.rfn" api-source-witness; done
+for NAME in r3 r5-result r5-elf; do check "$NAME" native 0 "$T/api-source-witness.rfn" api-source-witness-opaque; done
+
+pack_cross api-witness-ckir "$T/source-api.omgc" "$T/source-api.witness" "$T/exact.ckir4" "$T/exact.elf" 70
+for NAME in r1 r2 r4-source-lowering r4-source-result r5-result r5-elf; do check "$NAME" native 0 "$T/api-witness-ckir.rfn" api-witness-ckir-opaque; done
+for NAME in r3 r4-lowering; do check "$NAME" native 251 "$T/api-witness-ckir.rfn" api-witness-ckir; done
+
+pack_cross api-ckir-elf "$T/source-api.omgc" "$T/source-api.witness" "$T/source-api.ckir4" "$T/exact.elf" 70
+for NAME in r1 r2 r3 r4-lowering r4-source-lowering r4-source-result r5-result; do check "$NAME" native 0 "$T/api-ckir-elf.rfn" api-ckir-elf-opaque; done
+check r5-elf native 251 "$T/api-ckir-elf.rfn" api-ckir-elf
+
+pack_cross api-result-pair "$T/source-api.omgc" "$T/source-api.witness" "$T/source-api.ckir4" "$T/source-api.elf" 326
+for NAME in r1 r2 r3 r4-lowering r4-source-lowering r5-elf; do check "$NAME" native 0 "$T/api-result-pair.rfn" api-result-full-opaque; done
+for NAME in r4-source-result r5-result; do check "$NAME" native 251 "$T/api-result-pair.rfn" api-result-full; done
 
 # Whole-component opacity is checked only at owners that promise not to read it.
 printf opaque-front > "$T/opaque.omgc"
@@ -460,15 +485,16 @@ check r5-elf native 251 "$T/elf-byte.rfn" elf-byte
 for NAME in $CHECKERS; do check "$NAME" native 252 "$T/frame-over.rfn" frame-over; done
 for NAME in $CHECKERS; do check "$NAME" native 251 "$T/version4.rfn" version-separation; done
 
-python3 - "$T/exact.rfn" "$T/exact.sha256" <<'PY'
+python3 - "$T/exact.rfn" "$T/source-api.rfn" "$T/exact.sha256" "$T/source-api.sha256" <<'PY'
 from pathlib import Path
 import hashlib,sys
-expected=Path(sys.argv[2]).read_text(encoding="ascii").strip(); actual=hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest()
-if actual!=expected: raise SystemExit("OMGRFN5 composite: immutable exact carrier changed")
+for label,source,digest in (("exact",sys.argv[1],sys.argv[3]),("source-api",sys.argv[2],sys.argv[4])):
+ expected=Path(digest).read_text(encoding="ascii").strip(); actual=hashlib.sha256(Path(source).read_bytes()).hexdigest()
+ if actual!=expected: raise SystemExit(f"OMGRFN5 composite: immutable {label} carrier changed")
 PY
 
 for NAME in $CHECKERS; do cat "$T/$NAME.resources"; done > "$T/resources.tsv"
-python3 - "$T/timings.tsv" "$T/resources.tsv" "$T/exact.rfn" "$T/started" <<'PY'
+python3 - "$T/timings.tsv" "$T/resources.tsv" "$T/exact.rfn" "$T/source-api.rfn" "$T/started" <<'PY'
 from collections import defaultdict
 from pathlib import Path
 import sys,time
@@ -483,8 +509,8 @@ for line in Path(sys.argv[1]).read_text(encoding="ascii").splitlines():
 resources=[]
 for line in Path(sys.argv[2]).read_text(encoding="ascii").splitlines():
  name,procs,locals_,tape=line.split("\t"); resources.append(f"{name}={procs}p/{locals_}l/{tape}b")
-slow=sorted(rows,reverse=True)[:4]; wall=time.time()-float(Path(sys.argv[4]).read_text())
+slow=sorted(rows,reverse=True)[:4]; wall=time.time()-float(Path(sys.argv[5]).read_text())
 print("OMGRFN5 same-frame composite timings: "+" ".join(f"{n}=build{builds[n]:.3f}s/run{runs[n]:.3f}s" for n in names)+f" producer={producer:.3f}s command-sum={sum(s for s,_ in rows):.3f}s wall={wall:.3f}s slowest="+",".join(f"{label}:{sec:.3f}s" for sec,label in slow))
 print("OMGRFN5 same-frame composite resources: "+" ".join(resources))
-print(f"OMGRFN5 same-frame composite: all five responsibilities accepted one unchanged {Path(sys.argv[3]).stat().st_size}-byte exact SourceUnit+harness carrier; source/witness, witness/CKIR4, CKIR4/ELF, and result cross-pairs; physical opacity; local mutations; native/self; and 0/251/252 passed")
+print(f"OMGRFN5 same-frame composite: all five responsibilities accepted immutable {Path(sys.argv[3]).stat().st_size}-byte exact SourceUnit+harness and {Path(sys.argv[4]).stat().st_size}-byte complete SourceUnit API carriers; API-specific source/witness, witness/CKIR4, CKIR4/ELF, and result cross-pairs; original-carrier physical opacity, local mutations, and resources; native/self positives; and 0/251/252 passed")
 PY

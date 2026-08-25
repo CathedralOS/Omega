@@ -59,8 +59,11 @@ producer conclusion or another responsibility's process-local state.
    reconstruct complete `OMGCOMP` structure, source extents, tokens, and root
    custody.
 2. **Resolution.** Independently reconstruct source-to-`OMGRSW1` resolution,
-   including every inherited role-3 row. Runtime record construction adds no
-   resolver row and cannot be justified by a producer-supplied field binding.
+   including every inherited role-3 row. Declaration, field, machine,
+   parameter, block, call, binding, selected-root/result-type, and witness-
+   extent facts are derived from the bounded source and carrier rather than
+   fixed to one fixture census. Runtime record construction adds no resolver
+   row and cannot be justified by a producer-supplied field binding.
 3. **Declarations and intrinsic CKIR structure.** Join `OMGRSW1` to CKIR4
    declarations, nominal identity, copyability, recursive layout, types,
    selected entry, dense tables, and intrinsic constant DAG. This owner checks
@@ -86,24 +89,31 @@ producer conclusion or another responsibility's process-local state.
    byte, inherited call ABI byte, constant image, segment, displacement, and
    complete ELF byte.
 
-The composition gate invokes every persisted executable over one immutable
-carrier and retains phase-local opacity, mutation, resource, and valid-but-
-mismatched cross-pair controls. The source-only executable is physically pruned
-of CKIR, ELF, and artifact-evaluator access. The CKIR/ELF executables do not
-read source bodies beyond the explicit frame/table premises owned by their
-responsibilities. This is a conjunction of independently reconstructed claims,
-not one verifier divided into named functions.
+The composition gate invokes every persisted executable over each selected
+immutable exact carrier and retains phase-local opacity, mutation, resource,
+and valid-but-mismatched cross-pair controls. The source-only executable is
+physically pruned of CKIR, ELF, and artifact-evaluator access. The CKIR/ELF
+executables do not read source bodies beyond the explicit frame/table premises
+owned by their responsibilities. This is a conjunction of independently
+reconstructed claims, not one verifier divided into named functions.
 
 ## Required boundary evidence
 
 Before this carrier can close the tranche, the focused responsibilities and
-same-frame composition must cover the exact `source.omg` plus same-module
-harness, renamed and authored-reordered controls, empty and one-through-four
-field records, nested records, every admitted scalar and structural leaf,
-constructor-to-Call and constructor-to-Copy, and the exact result 70. Isolated
-negatives must cover malformed field coverage/type/copyability, every excluded
-field expression, direct constructor-result state-edge use, opcode-13 row/use
-mutations, object/frame/instruction mutations, and valid-but-mismatched joins.
+same-frame composition must cover both exact `source.omg` carriers: the
+original same-module runtime-record opener, and a same-module harness composing
+the complete current `SourceUnit` API through `clear`, `append`, and
+`byte_or_nul`. The latter intentionally varies call count, block-parameter
+count, selected-root result type, binding count, and witness extent so a
+fixture census cannot stand in for reconstruction. Both must yield exact result
+70 through every responsibility. Renamed, count-varied, and authored-reordered
+controls; empty and one-through-four field records; nested records; every
+admitted scalar and structural leaf; constructor-to-Call and constructor-to-
+Copy must also pass. Isolated negatives must cover malformed field coverage/
+type/copyability, every excluded field expression, call-order meaning,
+source/witness, witness/CKIR4, CKIR4/ELF, and result cross-pairs, direct
+constructor-result state-edge use, opcode-13 row/use mutations, and object/
+frame/instruction mutations.
 
 Exact/adjacent evidence includes the four/five field tooth, operation/value/
 operand aggregates, empty anchors, nested alignment, selected frame, complete

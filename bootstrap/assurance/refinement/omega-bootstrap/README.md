@@ -95,10 +95,13 @@ resolution-to-CKIR4 declaration, layout, type, root, intrinsic-constant, and
 opcode-13 nominal-envelope join; exact source-body lowering; physically
 artifact-free source lowering and source-result meaning; complete CKIR4/result
 validation; and exact ELF reconstruction. The same-frame composite feeds every
-executable one unchanged 16,274-byte exact carrier while isolating component
-ownership, mutations, valid-but-mismatched joins, and 0/251/252 boundaries. No
-earlier OMGRFN checker is widened or relabeled, and this selected closure does
-not decide final `Ωself` admission.
+executable immutable 16,274-byte runtime-record-opener and 16,417-byte complete-
+`SourceUnit`-API carriers. The latter varies resolution and body censuses while
+retaining the same schemas, and has its own source/witness, witness/CKIR4,
+CKIR4/ELF, and result cross-pairs. Original-carrier opacity, local mutations,
+resources, and all native/self 0/251/252 controls remain green. No earlier
+OMGRFN checker is widened or relabeled, and this assurance hardening neither
+adds a CKIR4 source form nor decides final `Ωself` admission.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
