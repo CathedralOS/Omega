@@ -162,6 +162,61 @@ def replace_once(source: Path, output: Path, old: str, new: str) -> None:
     output.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def padded_source(source: bytes, length: int) -> bytes:
+    if len(source) > length:
+        raise ValueError(f"source of {len(source)} bytes exceeds padding target {length}")
+    return source + b" " * (length - len(source))
+
+
+def append_final_source_space_unchecked(
+    canonical: bytes, expected_length: int, expected_resource: str,
+) -> bytes:
+    """Construct one adjacent resource overage without weakening production encoding."""
+    compilation.decode(canonical)
+    header = compilation.HEADER.unpack_from(canonical)
+    encoded_length, bundle_length, string_length = header[5:8]
+    package_count, source_count, alias_count = header[9:12]
+    if encoded_length != len(canonical) or source_count < 1:
+        raise ValueError("unchecked source-adjacent base envelope")
+    bundle_at = (compilation.HEADER.size + package_count * compilation.PACKAGE_ROW.size
+                 + source_count * compilation.SOURCE_ROW.size
+                 + alias_count * compilation.ALIAS_ROW.size + string_length)
+    if len(canonical) - bundle_at != bundle_length:
+        raise ValueError("unchecked source-adjacent bundle extent")
+    magic, version, entry_count = bundle.HEADER.unpack_from(canonical, bundle_at)
+    if (magic, version, entry_count) != (bundle.MAGIC, bundle.VERSION, source_count):
+        raise ValueError("unchecked source-adjacent bundle header")
+    cursor = bundle_at + bundle.HEADER.size
+    final_header = -1
+    final_content_length = -1
+    for index in range(entry_count):
+        entry_at = cursor
+        label_length, content_length = bundle.ENTRY_HEADER.unpack_from(canonical, entry_at)
+        cursor += bundle.ENTRY_HEADER.size + label_length + content_length
+        if cursor > len(canonical):
+            raise ValueError("unchecked source-adjacent entry extent")
+        if index == entry_count - 1:
+            final_header = entry_at
+            final_content_length = content_length
+    if cursor != len(canonical) or final_content_length != expected_length:
+        raise ValueError("unchecked source-adjacent final entry")
+    adjacent = bytearray(canonical)
+    struct.pack_into("<I", adjacent, final_header + 4, final_content_length + 1)
+    adjacent.append(32)
+    struct.pack_into("<I", adjacent, 16, encoded_length + 1)
+    struct.pack_into("<I", adjacent, 20, bundle_length + 1)
+    try:
+        compilation.decode(bytes(adjacent))
+    except compilation.CompilationError as error:
+        if error.status != 252 or str(error) != expected_resource:
+            raise ValueError(
+                f"unchecked source-adjacent result {error.status}: {error}"
+            ) from error
+    else:
+        raise ValueError("unchecked source-adjacent envelope passed production limits")
+    return bytes(adjacent)
+
+
 def gate() -> None:
     import os
     import platform
@@ -213,11 +268,9 @@ def gate() -> None:
             result = subprocess.run([str(executable)], input=frame, stdout=subprocess.PIPE)
             return result.returncode, result.stdout, time.perf_counter() - begin
 
-        def prepare(name: str, owner: str, machine: str, sources: list[Path]) -> bytes:
-            envelope = temp / f"{name}.omgc"
+        def frame_envelope(name: str, envelope: Path) -> bytes:
             witness = temp / f"{name}.witness"
             framed = temp / f"{name}.low3"
-            build(envelope, owner, machine, sources)
             result = subprocess.run([str(temp / "resolver")], input=envelope.read_bytes(), stdout=subprocess.PIPE)
             if result.returncode:
                 raise ValueError(f"resolver rejected {name}: {result.returncode}")
@@ -226,6 +279,16 @@ def gate() -> None:
                 subprocess.run([sys.executable, str(frame_tool), "pack", str(envelope), str(witness)],
                                check=True, stdout=output)
             return framed.read_bytes()
+
+        def prepare(name: str, owner: str, machine: str, sources: list[Path]) -> bytes:
+            envelope = temp / f"{name}.omgc"
+            build(envelope, owner, machine, sources)
+            return frame_envelope(name, envelope)
+
+        def prepare_unchecked(name: str, envelope_bytes: bytes) -> bytes:
+            envelope = temp / f"{name}.omgc"
+            envelope.write_bytes(envelope_bytes)
+            return frame_envelope(name, envelope)
 
         def expect(name: str, frame: bytes, status: int) -> bytes:
             native_status, native_output, native_time = lower(temp / "native", frame)
@@ -293,6 +356,19 @@ def gate() -> None:
     }""",
         )
 
+        guardless_source = (fixtures / "guardless-transition.omg").read_bytes()
+        source_unit_exact = temp / "source-unit-131072.omg"
+        source_unit_exact.write_bytes(padded_source(guardless_source, 131_072))
+        aggregate_support = temp / "aggregate-source-support.omg"
+        aggregate_space = temp / "aggregate-source-space.omg"
+        aggregate_root = temp / "aggregate-source-root.omg"
+        aggregate_support.write_bytes(padded_source(b"data AggregatePadding {}\n", 131_072))
+        aggregate_space.write_bytes(b" " * 65_536)
+        aggregate_root.write_bytes(padded_source(guardless_source, 65_536))
+        aggregate_sources = [aggregate_support, aggregate_space, aggregate_root]
+        if sum(path.stat().st_size for path in aggregate_sources) != 262_144:
+            raise ValueError("aggregate source exact fixture length")
+
         positives = [
             ("guardless", "GuardlessProbe", "run", [fixtures / "guardless-transition.omg"]),
             ("authored-true", "GuardlessProbe", "run", [authored_true]),
@@ -302,6 +378,8 @@ def gate() -> None:
             ("renamed", "AggregateProbe", "run", [fixtures / "renamed-reordered-nested.omg"]),
             ("unicode", "UnicodeTables", "bootstrap_constant_aggregate_probe",
              [unicode_source, fixtures / "unicode-harness.omg"]),
+            ("source-unit-131072", "GuardlessProbe", "run", [source_unit_exact]),
+            ("aggregate-source-262144", "GuardlessProbe", "run", aggregate_sources),
         ]
         outputs: dict[str, bytes] = {}
         frames: dict[str, bytes] = {}
@@ -336,6 +414,25 @@ def gate() -> None:
             raise ValueError(f"Unicode exact CKIR3 counts {unicode}")
         if 11 not in unicode["opcodes"] or 12 not in unicode["opcodes"]:
             raise ValueError(f"Unicode CKIR3 opcode coverage {unicode}")
+
+        source_unit_over = append_final_source_space_unchecked(
+            (temp / "source-unit-131072.omgc").read_bytes(), 131_072,
+            "source content bytes exceeds 131072",
+        )
+        expect(
+            "source-unit-131073",
+            prepare_unchecked("source-unit-131073", source_unit_over),
+            252,
+        )
+        aggregate_source_over = append_final_source_space_unchecked(
+            (temp / "aggregate-source-262144.omgc").read_bytes(), 65_536,
+            "aggregate source content bytes exceeds 262144",
+        )
+        expect(
+            "aggregate-source-262145",
+            prepare_unchecked("aggregate-source-262145", aggregate_source_over),
+            252,
+        )
 
         source_negatives = (
             ("negative-wrong-field", "WrongFieldProbe", 251),
@@ -397,11 +494,14 @@ def gate() -> None:
         semantic_251 = sum(status == 251 for _, _, status in source_negatives)
         semantic_252 = sum(status == 252 for _, _, status in source_negatives)
         print("resolved-to-CKIR3 controls: array-1024=0 array-1025=252 record-4=0 record-5=252 "
+              "source-unit-131072=0 source-unit-131073=252 "
+              "aggregate-source-262144=0 aggregate-source-262145=252 "
               f"comp-cap=252 witness-cap=252 source-251={semantic_251} source-252={semantic_252} "
               "interval-custody-251=3 wrong-identity=251 wrong-major=251")
         print("resolved-to-CKIR3 timings: " + " ".join(
             f"{name}={seconds:.3f}s" for name, seconds in sorted(timings.items())
-            if name.startswith("compile-") or name in ("lowermachine-source", "native-unicode", "self-unicode")
+            if (name.startswith("compile-") or name == "lowermachine-source" or name.endswith("-unicode")
+                or "source-unit-" in name or "aggregate-source-" in name)
         ))
 
 

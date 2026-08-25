@@ -293,9 +293,18 @@ on the separately blocked compilation-authority join.
     oversized-layout exhaustion through native and self-built rejection.
   - [x] Complete adversarial interval-custody controls without copying that
     matrix into meaning or backend gates.
-  - [ ] Complete adjacent source, constant-graph, checked-IR, image, frame,
-    text, ELF, and evaluator limits with genuine canonical maxima or greatest-
+  - [x] Close genuine per-unit source `131,072/131,073` and aggregate source
+    `262,144/262,145` boundaries through native and self-built lowerers, with
+    exact positives independently evaluating to 70 and adjacent 252 failures
+    publishing nothing.
+  - [ ] Complete constant-graph, checked-IR, constant-image, selected-machine
+    frame, text, and ELF limits with genuine canonical maxima or greatest-
     realizable boundaries rather than header-only proxy overages.
+  - [ ] Establish the greatest source-realizable `OMGLOW3` input-frame boundary
+    and its adjacent failure; the nominal component preflight ceilings are not
+    permission to manufacture a noncanonical positive.
+  - [ ] Complete the source-only and CKIR-only evaluator active-frame and
+    dynamic-block-entry boundaries at their respective versioned owners.
   - [x] Freeze the distinct `OMGRFN4` lower-rooted carrier, its derived
     4,497,544-byte simultaneous ceiling, and the five-responsibility ownership
     boundary without widening `OMGRFN1`–`OMGRFN3`.
