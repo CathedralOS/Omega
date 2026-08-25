@@ -2,7 +2,8 @@ use super::{
     Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
 };
 use psi_language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionTarget,
 };
 
 #[test]
@@ -25,6 +26,18 @@ fn successful_checking_finalizes_authored_call_occurrences() {
                 AuthoredDeclarationSelectionTarget::Resolved(_)
             )
     }));
+    assert!(
+        selections.iter().any(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                && selection.target()
+                    == AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    )
+        }),
+        "selections={selections:#?}; operators={:#?}",
+        checked.facts.operators
+    );
+    assert!(selections.all_finalized());
 }
 
 #[test]

@@ -1,8 +1,9 @@
-use psi_checked_trees::CheckFacts;
+use psi_checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionLateBinding,
-    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionIntrinsic,
+    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionTarget,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
@@ -11,7 +12,13 @@ use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
 struct CheckedResolution {
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
     binding: AuthoredDeclarationSelectionLateBinding,
-    selected: SymbolHandle,
+    target: CheckedResolutionTarget,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckedResolutionTarget {
+    Declaration(SymbolHandle),
+    Intrinsic(AuthoredDeclarationSelectionIntrinsic),
 }
 
 pub(crate) fn finalize_checked_authored_selections(
@@ -36,66 +43,66 @@ pub(crate) fn finalize_checked_authored_selections(
                 continue;
             };
 
-            let selected = match (binding, node) {
+            let target = match (binding, node) {
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => call.target_symbol,
+                ) => declaration_target(call.target_symbol),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
-                ) => member.member_symbol,
+                ) => declaration_target(member.member_symbol),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
-                ) => expressions
-                    .name_path_member_symbols(path.member_symbols)
-                    .get(late_binding_ordinal(
-                        program,
-                        &occurrences[..occurrence_offset],
-                        binding,
-                    ))
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid),
+                ) => declaration_target(
+                    expressions
+                        .name_path_member_symbols(path.member_symbols)
+                        .get(late_binding_ordinal(
+                            program,
+                            &occurrences[..occurrence_offset],
+                            binding,
+                        ))
+                        .copied()
+                        .unwrap_or_else(SymbolHandle::invalid),
+                ),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
                     ExpressionNode::StructLiteral(literal),
-                ) => literal.type_symbol,
+                ) => declaration_target(literal.type_symbol),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralCase,
                     ExpressionNode::StructLiteral(literal),
-                ) => literal.case_symbol.unwrap_or_else(SymbolHandle::invalid),
+                ) => declaration_target(literal.case_symbol.unwrap_or_else(SymbolHandle::invalid)),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralField,
                     ExpressionNode::StructLiteral(literal),
-                ) => expressions
-                    .struct_fields(literal.fields)
-                    .get(late_binding_ordinal(
-                        program,
-                        &occurrences[..occurrence_offset],
-                        binding,
-                    ))
-                    .map(|field| field.field_symbol)
-                    .unwrap_or_else(SymbolHandle::invalid),
+                ) => declaration_target(
+                    expressions
+                        .struct_fields(literal.fields)
+                        .get(late_binding_ordinal(
+                            program,
+                            &occurrences[..occurrence_offset],
+                            binding,
+                        ))
+                        .map(|field| field.field_symbol)
+                        .unwrap_or_else(SymbolHandle::invalid),
+                ),
                 (AuthoredDeclarationSelectionLateBinding::CheckedOperator, _)
                     if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Unary(_)) =>
                 {
-                    facts
-                        .operators
-                        .expression_use(expression)
-                        .map(|operator_use| operator_use.selected_operator_symbol)
-                        .unwrap_or_else(SymbolHandle::invalid)
+                    checked_operator_target(program, facts, expression, node)
                 }
-                _ => SymbolHandle::invalid(),
+                _ => None,
             };
 
-            if selected.is_valid() {
+            if let Some(target) = target {
                 push_consistent_resolution(
                     &mut resolutions,
                     CheckedResolution {
                         occurrence,
                         binding,
-                        selected,
+                        target,
                     },
                 )?;
             }
@@ -104,16 +111,153 @@ pub(crate) fn finalize_checked_authored_selections(
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
-        selections
-            .finalize_late_bound(
-                resolution.occurrence,
-                resolution.binding,
-                resolution.selected,
-            )
-            .map_err(|error| finalization_diagnostic(resolution, error))?;
+        let result = match resolution.target {
+            CheckedResolutionTarget::Declaration(selected) => {
+                selections.finalize_late_bound(resolution.occurrence, resolution.binding, selected)
+            }
+            CheckedResolutionTarget::Intrinsic(intrinsic) => {
+                selections.finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic)
+            }
+        };
+        result.map_err(|error| finalization_diagnostic(resolution, error))?;
     }
     program.retain_authored_declaration_selections(selections);
     Ok(())
+}
+
+fn declaration_target(symbol: SymbolHandle) -> Option<CheckedResolutionTarget> {
+    symbol
+        .is_valid()
+        .then_some(CheckedResolutionTarget::Declaration(symbol))
+}
+
+fn intrinsic_operator_operand_is_primitive(
+    program: &TypedTrees,
+    node: &ExpressionNode,
+    origin: psi_checked_trees::CheckedValueOrigin,
+) -> bool {
+    let operand = match node {
+        ExpressionNode::Binary(binary) => binary.left,
+        ExpressionNode::Unary(unary) => unary.operand,
+        _ => return false,
+    };
+    crate::operators::expression_type_reference_for_origin(program, operand, origin)
+        .and_then(|type_reference| program.primitive_type_reference(type_reference))
+        .is_some()
+        || expression_primitive_type_without_origin(program, operand).is_some()
+}
+
+fn checked_operator_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    node: &ExpressionNode,
+) -> Option<CheckedResolutionTarget> {
+    let uses = facts
+        .operators
+        .uses
+        .iter()
+        .filter_map(|(_, operator_use)| {
+            (operator_use.expression == expression).then_some(operator_use)
+        })
+        .collect::<Vec<_>>();
+
+    uses.iter()
+        .find_map(|operator_use| {
+            (operator_use.status == CheckedOperatorResolutionStatus::Resolved)
+                .then(|| declaration_target(operator_use.selected_operator_symbol))
+                .flatten()
+        })
+        .or_else(|| {
+            uses.iter()
+                .any(|operator_use| {
+                    operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+                        || (operator_use.status == CheckedOperatorResolutionStatus::Missing
+                            && intrinsic_operator_operand_is_primitive(
+                                program,
+                                node,
+                                operator_use.origin,
+                            ))
+                })
+                .then_some(CheckedResolutionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                ))
+        })
+        .or_else(|| {
+            let operand = match node {
+                ExpressionNode::Binary(binary) => binary.left,
+                ExpressionNode::Unary(unary) => unary.operand,
+                _ => return None,
+            };
+            expression_primitive_type_without_origin(program, operand).map(|_| {
+                CheckedResolutionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                )
+            })
+        })
+}
+
+fn expression_primitive_type_without_origin(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_typed_trees::types::PrimitiveType> {
+    let type_reference = match program.tables.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol),
+        ExpressionNode::Call(call) => program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .find_map(|state| (state.symbol == call.target_symbol).then_some(state.return_type)),
+        ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Borrow(inner) => {
+            return expression_primitive_type_without_origin(program, inner.target);
+        }
+        _ => None,
+    }?;
+    program.primitive_type_reference(type_reference)
+}
+
+fn type_reference_for_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    for machine in program.machines() {
+        if let Some(type_reference) = program
+            .machine_owned_data(machine)
+            .iter()
+            .find_map(|owned| (owned.symbol == symbol).then_some(owned.type_reference))
+        {
+            return Some(type_reference);
+        }
+        for state in program.machine_states(machine) {
+            if let Some(type_reference) =
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find_map(|parameter| {
+                        (parameter.symbol == symbol).then_some(parameter.type_reference)
+                    })
+            {
+                return Some(type_reference);
+            }
+            if let Some(type_reference) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| match statement {
+                    psi_typed_trees::statement::StatementNode::LocalData(local)
+                        if local.symbol == symbol =>
+                    {
+                        Some(local.type_reference)
+                    }
+                    _ => None,
+                })
+            {
+                return Some(type_reference);
+            }
+        }
+    }
+    None
 }
 
 fn late_binding_ordinal(
