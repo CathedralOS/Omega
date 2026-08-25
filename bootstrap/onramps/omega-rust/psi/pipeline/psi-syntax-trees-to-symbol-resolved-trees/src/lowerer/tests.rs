@@ -83,6 +83,50 @@ fn retains_public_machine_visibility_in_symbol_resolved_trees() {
 }
 
 #[test]
+fn resolves_machine_and_trait_const_parameter_carrier_types() {
+    let source = r#"
+        pub machine measure<const Width: u64>() { }
+        pub trait Sized<const Width: u64> { }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const parameters");
+    let syntax = parse_syntax_trees(&tokens).expect("parse const parameters");
+    let program = lower_syntax_trees(&syntax).expect("resolve const parameters");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "measure")
+        .expect("measure machine");
+    let trait_definition = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Sized")
+        .expect("Sized trait");
+    for parameter in [
+        &program.machine_type_parameters(machine)[0],
+        &program.trait_type_parameters(trait_definition)[0],
+    ] {
+        let psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+            &parameter.kind
+        else {
+            panic!("const parameter")
+        };
+        let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+            type_reference
+        else {
+            panic!("named const carrier")
+        };
+        assert_eq!(name.as_str(), "u64");
+        assert!(symbol.is_valid());
+        assert_eq!(
+            program.symbols.get(*symbol).kind,
+            psi_symbols::SymbolKind::BuiltinType
+        );
+    }
+}
+
+#[test]
 fn resolves_provider_selection_type_paths_to_exact_symbols() {
     let source = r#"
         boundary trait Console { machine write(); }

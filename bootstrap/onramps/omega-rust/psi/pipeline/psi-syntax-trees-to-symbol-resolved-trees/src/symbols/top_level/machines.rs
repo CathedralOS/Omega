@@ -109,25 +109,40 @@ pub(super) fn assign_machine_symbols(
                 let parameter = &data_type_parameters.span_or_empty(machine.type_parameters)[index];
                 (parameter.symbol, parameter.kind.clone())
             };
-            let psi_symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } = kind
-            else {
-                continue;
+            let resolved_kind = match kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Const {
+                    mut type_reference,
+                } => {
+                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &local_type_parameters,
+                        machine_symbol,
+                        &mut type_reference,
+                    );
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
+                    if let Some(signature) = contract.structural_mut() {
+                        assign_machine_parameter_signature_symbols(
+                            symbols,
+                            data_type_parameters,
+                            state_parameters,
+                            child_type_references,
+                            type_constraints,
+                            signature,
+                            parameter_symbol,
+                            &local_type_parameters,
+                            machine_symbol,
+                        );
+                    }
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
+                }
+                other => other,
             };
-            if let Some(signature) = contract.structural_mut() {
-                assign_machine_parameter_signature_symbols(
-                    symbols,
-                    data_type_parameters,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
-                    signature,
-                    parameter_symbol,
-                    &local_type_parameters,
-                    machine_symbol,
-                );
-            }
             data_type_parameters.span_mut_or_empty(machine.type_parameters)[index].kind =
-                psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract };
+                resolved_kind;
         }
 
         for _ in 0..inherited_field_count {

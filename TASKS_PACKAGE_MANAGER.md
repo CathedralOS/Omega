@@ -859,6 +859,15 @@ complete.
   lifetime changes canonical evidence. Generic machine/conformance
   applications, unresolved forwarded type/const binders, proposition/evidence
   static arguments, quotient calls, and compiler intrinsics remain fail-closed.
+  Review v48 and canonical row v8 admit contract-call forwarding of caller type
+  and const binders. Each argument is validated against the exact caller and
+  selected-callee telescope categories and encoded by its alpha-normalized
+  caller static-telescope ordinal: binder renames are stable, while selecting a
+  different binder changes canonical evidence. The frontend now resolves
+  const-parameter carrier types on machines and traits. Symbolic const
+  declarations or expressions, proposition/evidence static arguments, true
+  nested machine/conformance applications, quotient calls, and compiler
+  intrinsics remain fail-closed.
   In particular, true nested machine static applications such as
   `consumer<family<Selected>>()` remain fail-closed: checked
   monomorphization has no closed application identity and currently omits
@@ -893,10 +902,10 @@ complete.
   arguments after joining exactly one public-interface declaration-selection
   row. The separate source-consumption commitment pins the helper body; the
   call row does not confuse signature identity with implementation identity.
-  Forwarded or symbolic type/const binders, proposition/evidence static
-  arguments, quotient calls, nested static applications, compiler-intrinsic
-  calls, semantic roles, and domain operators still reject until their exact
-  canonical rows are settled.
+  Symbolic const declarations or expressions, proposition/evidence static
+  arguments, quotient calls, true nested machine/conformance applications,
+  compiler-intrinsic calls, semantic roles, and domain operators still reject
+  until their exact canonical rows are settled.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including
@@ -1426,7 +1435,7 @@ complete.
   certificates, decisions, and explanatory coordinates remain separately bound
   subjects or provenance. Native code and Terminal evidence are additional
   final-realization subjects rather than the ordinary package artifact. Do not
-  create a placeholder `PackageInstance` or bless current incomplete review v47
+  create a placeholder `PackageInstance` or bless current incomplete review v48
   bytes merely because the future artifact reuses their canonical vocabulary.
 
 - **RECHECKABLE-PACKAGE-EVIDENCE.** Add the authority-bearing path that is

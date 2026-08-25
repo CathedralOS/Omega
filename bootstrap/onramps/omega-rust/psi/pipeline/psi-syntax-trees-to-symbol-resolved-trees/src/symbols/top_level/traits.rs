@@ -9,6 +9,7 @@ use crate::symbols::top_level::{
 use crate::symbols::type_references::{
     assign_proposition_family_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
+    assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
 };
 
 pub(super) fn assign_trait_symbols(
@@ -85,24 +86,39 @@ pub(super) fn assign_trait_symbols(
                     &data_type_parameters.span_or_empty(trait_definition.type_parameters)[index];
                 (parameter.symbol, parameter.kind.clone())
             };
-            if let psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
-                mut contract,
-            } = kind
-            {
-                assign_proposition_parameter_signature_symbols(
-                    symbols,
-                    state_parameters,
-                    child_type_references,
-                    type_constraints,
-                    &mut contract,
-                    parameter_symbol,
-                    &local_type_parameters,
-                    trait_symbol,
-                );
-                data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)[index]
-                    .kind =
-                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract };
-            }
+            let resolved_kind = match kind {
+                psi_symbol_resolved_trees::data::TypeParameterKind::Const {
+                    mut type_reference,
+                } => {
+                    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &local_type_parameters,
+                        trait_symbol,
+                        &mut type_reference,
+                    );
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
+                }
+                psi_symbol_resolved_trees::data::TypeParameterKind::Proposition {
+                    mut contract,
+                } => {
+                    assign_proposition_parameter_signature_symbols(
+                        symbols,
+                        state_parameters,
+                        child_type_references,
+                        type_constraints,
+                        &mut contract,
+                        parameter_symbol,
+                        &local_type_parameters,
+                        trait_symbol,
+                    );
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { contract }
+                }
+                other => other,
+            };
+            data_type_parameters.span_mut_or_empty(trait_definition.type_parameters)[index].kind =
+                resolved_kind;
         }
 
         for bound in &mut trait_definition.conformance_bounds {

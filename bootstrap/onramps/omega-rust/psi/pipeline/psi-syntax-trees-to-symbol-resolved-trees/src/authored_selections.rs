@@ -251,7 +251,10 @@ fn collect_statement_static_argument_candidates(
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
-        if argument.path.iter().any(|member| member.is_source_backed()) {
+        if argument.path.iter().any(|member| member.is_source_backed())
+            && (!argument.symbol.is_valid()
+                || is_selectable_declaration_symbol(program, argument.symbol))
+        {
             candidates.push(UnattachedCandidate {
                 source_span: path_span(&argument.path, fallback_span),
                 exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
@@ -437,7 +440,10 @@ fn collect_static_argument_candidates(
     candidates: &mut Vec<Candidate>,
 ) {
     for argument in arguments {
-        if argument.path.iter().any(|member| member.is_source_backed()) {
+        if argument.path.iter().any(|member| member.is_source_backed())
+            && (!argument.symbol.is_valid()
+                || is_selectable_declaration_symbol(program, argument.symbol))
+        {
             candidates.push(Candidate {
                 expression,
                 source_span: path_span(

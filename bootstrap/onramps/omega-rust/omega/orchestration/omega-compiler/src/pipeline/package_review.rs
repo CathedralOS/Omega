@@ -747,10 +747,11 @@ pub enum PackageReviewCastForm {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractStaticArgument {
-    /// One exact concrete type identity. Generic type applications and
-    /// forwarded type binders remain fail-closed until their complete static
-    /// application structure is represented.
+    /// One exact concrete type identity.
     Type(PackageReviewTypeIdentity),
+    /// One type parameter from the containing declaration's canonical static
+    /// telescope. The ordinal spans every static parameter category.
+    GenericTypeBinder(u32),
     /// One exact generic data-family application whose base declaration and
     /// recursively categorized static arguments rejoin the checked data
     /// telescope. Lifetime arguments are caller-binder ordinals.
@@ -761,6 +762,9 @@ pub enum PackageReviewContractStaticArgument {
     },
     /// One parser-canonical integer literal in an exact const-parameter slot.
     ConstInteger(String),
+    /// One const parameter from the containing declaration's canonical static
+    /// telescope. The ordinal spans every static parameter category.
+    GenericConstBinder(u32),
     /// One machine parameter from the containing declaration's canonical
     /// static telescope. The ordinal spans every static parameter category.
     GenericMachineBinder(u32),
@@ -6449,17 +6453,50 @@ fn project_contract_static_argument(
         .iter()
         .position(|(symbol, _)| *symbol == argument.symbol)
     {
-        if parameter_kind != ContractCallStaticParameterKind::Machine
-            || compilation.typed.symbols.get(argument.symbol).kind
-                != psi_symbols::SymbolKind::MachineParameter
-        {
-            return Err(rejected(
-                "whose category differs from its checked telescope slot or is a forwarded type/const binder not yet represented by package review",
-            ));
-        }
-        return Ok(PackageReviewContractStaticArgument::GenericMachineBinder(
-            portable_parameter_position(position)?,
-        ));
+        let position = portable_parameter_position(position)?;
+        return match compilation.typed.symbols.get(argument.symbol).kind {
+            psi_symbols::SymbolKind::MachineParameter
+                if parameter_kind == ContractCallStaticParameterKind::Machine =>
+            {
+                Ok(PackageReviewContractStaticArgument::GenericMachineBinder(
+                    position,
+                ))
+            }
+            psi_symbols::SymbolKind::TypeParameter => {
+                let matching = compilation
+                    .typed
+                    .data_type_parameters
+                    .iter()
+                    .map(|(_, parameter)| parameter)
+                    .filter(|parameter| parameter.symbol == argument.symbol)
+                    .collect::<Vec<_>>();
+                let [parameter] = matching.as_slice() else {
+                    return Err(rejected(
+                        "that does not rejoin exactly one checked caller parameter",
+                    ));
+                };
+                match (&parameter.kind, parameter_kind) {
+                    (
+                        psi_typed_trees::data::TypeParameterKind::Type,
+                        ContractCallStaticParameterKind::Type,
+                    ) => Ok(PackageReviewContractStaticArgument::GenericTypeBinder(
+                        position,
+                    )),
+                    (
+                        psi_typed_trees::data::TypeParameterKind::Const { .. },
+                        ContractCallStaticParameterKind::Const,
+                    ) => Ok(PackageReviewContractStaticArgument::GenericConstBinder(
+                        position,
+                    )),
+                    _ => Err(rejected(
+                        "whose category differs from its checked caller and callee telescope slots",
+                    )),
+                }
+            }
+            _ => Err(rejected(
+                "whose category differs from its checked caller and callee telescope slots",
+            )),
+        };
     }
     if parameter_kind == ContractCallStaticParameterKind::Type {
         if !argument.symbol.is_valid()
