@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperandResolution,
-    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand, FilesystemScalarOperand,
+    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
+    FilesystemRootedPathOperandResolution, FilesystemScalarOperand,
 };
 
 fn checked_observation_evidence_total(current: usize, additional: usize) -> Option<usize> {
@@ -35,7 +36,10 @@ impl<'program> Evaluator<'program> {
             ));
         self.filesystem_operation_attempt_stack.push(attempt_index);
         let mut outcome = match self.prepare_filesystem_call(operation, arguments, frame) {
-            Ok(call) => {
+            Ok(PreparedFilesystemPreparation {
+                call,
+                rooted_path_operand_resolutions,
+            }) => {
                 let logical_handle_plan = call.logical_handle_plan();
                 let (scalar_operands, byte_operands, path_like_operands) =
                     call.operand_observation_plan();
@@ -45,6 +49,7 @@ impl<'program> Evaluator<'program> {
                         scalar_operands,
                         byte_operands,
                         path_like_operands,
+                        &rooted_path_operand_resolutions,
                         &mutable_plan,
                     )?;
                     Ok(mutable_plan)
@@ -161,6 +166,7 @@ impl<'program> Evaluator<'program> {
         scalar_operands: Vec<FilesystemScalarOperand>,
         byte_operands: Vec<FilesystemByteOperand>,
         path_like_operands: Vec<FilesystemPathLikeOperand>,
+        rooted_path_operand_resolutions: &[FilesystemRootedPathOperandResolution],
         mutable_plan: &PreparedFilesystemMutableObservationPlan,
     ) -> EvalResult<()> {
         let attempt = &self.filesystem_operation_attempts[attempt_index];
@@ -170,6 +176,12 @@ impl<'program> Evaluator<'program> {
         {
             return Err(Halt::Trap(
                 "incremental filesystem operand evidence disagrees with the fully prepared call"
+                    .to_owned(),
+            ));
+        }
+        if attempt.rooted_path_operand_resolutions != rooted_path_operand_resolutions {
+            return Err(Halt::Trap(
+                "incremental filesystem rooted-path resolution evidence disagrees with the fully prepared call"
                     .to_owned(),
             ));
         }
@@ -256,6 +268,26 @@ impl<'program> Evaluator<'program> {
         self.filesystem_operation_attempts[attempt_index]
             .path_like_operands
             .push(operand);
+        Ok(())
+    }
+
+    pub(super) fn record_prepared_filesystem_rooted_path_operand_resolution(
+        &mut self,
+        attempt_index: usize,
+        resolution: FilesystemRootedPathOperandResolution,
+    ) -> EvalResult<()> {
+        let Some(next_total) = checked_observation_evidence_total(
+            self.filesystem_observation_evidence_bytes,
+            resolution.relative_path.len(),
+        ) else {
+            return Err(Halt::Resource(format!(
+                "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"
+            )));
+        };
+        self.filesystem_observation_evidence_bytes = next_total;
+        self.filesystem_operation_attempts[attempt_index]
+            .rooted_path_operand_resolutions
+            .push(resolution);
         Ok(())
     }
 
@@ -1865,6 +1897,7 @@ mod tests {
                 scalar_operands,
                 byte_operands,
                 path_like_operands,
+                &[],
                 &plan,
             )
             .unwrap_or_else(|_| panic!("matching resolution roles must validate"));
@@ -1893,6 +1926,92 @@ mod tests {
         assert_eq!(attempt.mutable_byte_operand_resolutions[0].bytes(), &[1, 2]);
         assert_eq!(attempt.mutable_byte_operands[0].pre_bytes(), &[8, 9]);
         assert_eq!(attempt.mutable_byte_operands[0].post_bytes(), &[7, 9]);
+    }
+
+    #[test]
+    fn completed_rooted_path_sidecar_requires_exact_portable_coordinates() {
+        let program = TypedTrees::default();
+        let root = crate::FilesystemGrantRootIdentity::new(1)
+            .unwrap_or_else(|| panic!("fixture root identity is nonzero"));
+        let resolution = FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root,
+            relative_path: b"inputs/table.txt".to_vec(),
+        };
+        let call = PreparedFilesystemCall::Remove {
+            path: b"/physical/source/inputs/table.txt".to_vec(),
+        };
+        let (scalar_operands, byte_operands, path_like_operands) = call.operand_observation_plan();
+        let mutable_plan = call
+            .mutable_observation_plan()
+            .unwrap_or_else(|_| panic!("remove has no mutable observation failure"));
+
+        let mut matching = evaluator_with_pending_attempt(&program);
+        matching
+            .record_prepared_filesystem_rooted_path_operand_resolution(0, resolution.clone())
+            .unwrap_or_else(|_| panic!("rooted fixture fits evidence sponsor"));
+        matching
+            .record_operand_observations(
+                0,
+                scalar_operands.clone(),
+                byte_operands.clone(),
+                path_like_operands.clone(),
+                std::slice::from_ref(&resolution),
+                &mutable_plan,
+            )
+            .unwrap_or_else(|_| panic!("exact rooted sidecar must validate"));
+
+        let mut mismatching = evaluator_with_pending_attempt(&program);
+        mismatching
+            .record_prepared_filesystem_rooted_path_operand_resolution(0, resolution)
+            .unwrap_or_else(|_| panic!("rooted fixture fits evidence sponsor"));
+        let wrong = FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root,
+            relative_path: b"inputs/other.txt".to_vec(),
+        };
+        assert!(
+            mismatching
+                .record_operand_observations(
+                    0,
+                    scalar_operands,
+                    byte_operands,
+                    path_like_operands,
+                    &[wrong],
+                    &mutable_plan,
+                )
+                .is_err(),
+            "physical provider bytes must not substitute for exact portable rooted coordinates"
+        );
+    }
+
+    #[test]
+    fn rooted_path_resolution_budget_failure_is_atomic() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_observation_evidence_bytes =
+            MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 2;
+        let resolution = FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: crate::FilesystemGrantRootIdentity::new(1)
+                .unwrap_or_else(|| panic!("fixture root identity is nonzero")),
+            relative_path: b"abc".to_vec(),
+        };
+
+        assert!(
+            evaluator
+                .record_prepared_filesystem_rooted_path_operand_resolution(0, resolution)
+                .is_err()
+        );
+        assert_eq!(
+            evaluator.filesystem_observation_evidence_bytes,
+            MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 2
+        );
+        assert!(
+            evaluator.filesystem_operation_attempts[0]
+                .rooted_path_operand_resolutions
+                .is_empty()
+        );
     }
 
     #[test]

@@ -1366,8 +1366,8 @@ complete.
   lacking an encoded identity rejects rather than falling through to another
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
-  `final_path_name_by_handle` are unconditionally so. Observation schema v13
-  carries operation-attempt schema v13: an ordered successful-run call-start
+  `final_path_name_by_handle` are unconditionally so. Observation schema v14
+  carries operation-attempt schema v14: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1407,7 +1407,7 @@ complete.
   `open_at`/`unlink_at` names reject before provider/grant access unless they are
   one nonempty portable component, and real-provider path outputs no longer use
   lossy host-string conversion.
-  Operation-attempt schema v13 retains each successfully typed non-handle
+  Operation-attempt schema v14 retains each successfully typed non-handle
   scalar and immutable payload immediately as the argument cursor advances.
   If a later argument or preparation constraint halts, the failed attempt keeps
   that exact ordinal-ordered prefix; byte evidence consumes the same aggregate
@@ -1419,7 +1419,14 @@ complete.
   signedness. Immutable write/FILETIME payloads retain exact authored bytes,
   including trailing bytes beyond the provider's minimum read, while validated
   `open_at`/`unlink_at` components retain their exact portable spelling. Raw
-  rooted/path-alias spellings never enter this payload lane. Each mutable byte
+  rooted/path-alias spellings never enter this payload lane. A distinct rooted-
+  path resolution lane retains each successfully resolved operand's exact
+  ordinal, closed Source/Output identity, and canonical relative bytes before
+  physical provider-path lowering. It survives later preparation failure and
+  is cross-checked exactly against a compiler-private semantic sidecar on a
+  fully prepared call. It is not authorization evidence: later grant checking
+  adds access and may select a different canonical rooted location after
+  symlink or nested-root resolution. Each mutable byte
   or i64 carrier retains a distinct complete resolution-time snapshot as its
   operand is evaluated, so a later preparation failure keeps the prefix.
   Mutable byte carriers separately retain their complete capacity before and
@@ -1429,21 +1436,21 @@ complete.
   may alias and mutate an earlier carrier; the resolution and provider snapshots
   are deliberately not required to match. Post-state follows provider return or
   provider halt. Input-only ABI carriers remain explicit even when unchanged. A
-  separate 256 MiB aggregate operand-evidence sponsor reserves immutable bytes,
-  one resolution copy, and both provider copies of every mutable byte carrier;
+  separate 256 MiB aggregate operand-evidence sponsor reserves immutable,
+  path-like, rooted-resolution bytes, one mutable resolution copy, and both
+  provider copies of every mutable byte carrier;
   exhaustion non-catchably halts that call. Prior or nested
   staging effects remain cleanup-contained rather than being denied
   retroactively. Package review commitments frame scalar tags, ordinals,
-  immutable bytes, and mutable pre/post states exactly and never render payload
-  bytes as text.
+  rooted identities, relative/immutable bytes, and mutable states exactly and
+  never render payload bytes as text.
   Exact directory-entry names, symlink targets, find patterns, and the other
   path-like byte operands not represented by rooted authorization now occupy a
   distinct ordinal-tagged lane. They consume the same aggregate byte sponsor,
   are retained as preparation advances, survive a later preparation halt, and
   are cross-checked against the fully prepared call; they never masquerade as
   rooted grant paths or immutable payloads. This deliberately incomplete trace
-  still omits retained returned-path bytes, preparation-failure prefixes for
-  rooted-path operands, and complete input content custody.
+  still omits retained returned-path bytes and complete input content custody.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

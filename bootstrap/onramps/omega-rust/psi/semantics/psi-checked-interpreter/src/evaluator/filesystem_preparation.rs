@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperand, FilesystemMutableByteOperandResolution,
     FilesystemMutableI64Operand, FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand,
-    FilesystemScalarOperand, FilesystemScalarOperandValue,
+    FilesystemRootedPathOperandResolution, FilesystemScalarOperand, FilesystemScalarOperandValue,
 };
 
 pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
@@ -403,6 +403,11 @@ pub(super) enum PreparedFilesystemCall {
     Errno,
 }
 
+pub(super) struct PreparedFilesystemPreparation {
+    pub(super) call: PreparedFilesystemCall,
+    pub(super) rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct PreparedFilesystemLogicalHandleInput {
     pub(super) operand_ordinal: u8,
@@ -801,10 +806,10 @@ impl PreparedFilesystemCall {
     }
 
     /// Project canonical non-handle scalars, immutable payload bytes, and
-    /// unrooted path-like spellings from a fully prepared call. Rooted path
-    /// spellings remain excluded because scoped path evidence owns their
-    /// portable rooted form and must never be bypassed by a raw absolute
-    /// spelling.
+    /// unrooted path-like spellings from a fully prepared call. Rooted paths
+    /// remain excluded because their separate semantic sidecar owns portable
+    /// input resolution and scoped grant evidence owns authorization; neither
+    /// may be reconstructed from raw physical provider spellings.
     pub(super) fn operand_observation_plan(
         &self,
     ) -> (
@@ -1870,6 +1875,7 @@ struct FilesystemArgumentCursor<'evaluation, 'program, 'arguments, 'frame> {
     arguments: std::slice::Iter<'arguments, ExpressionHandle>,
     frame: &'frame Frame,
     consumed: usize,
+    rooted_path_operand_resolutions: Vec<FilesystemRootedPathOperandResolution>,
 }
 
 impl<'evaluation, 'program, 'arguments, 'frame>
@@ -1887,6 +1893,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             arguments: arguments.iter(),
             frame,
             consumed: 0,
+            rooted_path_operand_resolutions: Vec::new(),
         }
     }
 
@@ -2087,7 +2094,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
     }
 
     fn path(&mut self) -> EvalResult<Vec<u8>> {
-        let (_, value) = self.value()?;
+        let (operand_ordinal, value) = self.value()?;
         let Some((root, relative)) = rooted_build_path_parts(&value)? else {
             if self.evaluator.rooted_build_paths_required
                 && self
@@ -2116,14 +2123,27 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 )),
             };
         };
+        validate_build_relative_path(&relative)?;
         let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
             Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
         })?;
-        filesystem
+        let provider_path = filesystem
             .rooted_path_bytes(root, &relative)
             .ok_or_else(|| {
                 Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
-            })
+            })?;
+        let resolution = FilesystemRootedPathOperandResolution {
+            operand_ordinal,
+            root,
+            relative_path: relative,
+        };
+        self.evaluator
+            .record_prepared_filesystem_rooted_path_operand_resolution(
+                self.attempt_index,
+                resolution.clone(),
+            )?;
+        self.rooted_path_operand_resolutions.push(resolution);
+        Ok(provider_path)
     }
 
     fn mutable_bytes(&mut self) -> EvalResult<PreparedByteOutput> {
@@ -2186,9 +2206,9 @@ impl<'evaluation, 'program, 'arguments, 'frame>
         Ok(PreparedMutableByteInput { output, bytes })
     }
 
-    fn finish(self) -> EvalResult<()> {
+    fn finish(self) -> EvalResult<Vec<FilesystemRootedPathOperandResolution>> {
         if self.arguments.len() == 0 {
-            Ok(())
+            Ok(self.rooted_path_operand_resolutions)
         } else {
             trap("canonical filesystem call has unconsumed authored operands")
         }
@@ -2201,7 +2221,7 @@ impl<'program> Evaluator<'program> {
         operation: FilesystemHostOperation,
         arguments: &[ExpressionHandle],
         frame: &Frame,
-    ) -> EvalResult<PreparedFilesystemCall> {
+    ) -> EvalResult<PreparedFilesystemPreparation> {
         check_filesystem_arity(operation, arguments.len())?;
         if self.rooted_build_paths_required
             && matches!(
@@ -2493,7 +2513,10 @@ impl<'program> Evaluator<'program> {
             },
             FilesystemHostOperation::Errno => PreparedFilesystemCall::Errno,
         };
-        a.finish()?;
-        Ok(call)
+        let rooted_path_operand_resolutions = a.finish()?;
+        Ok(PreparedFilesystemPreparation {
+            call,
+            rooted_path_operand_resolutions,
+        })
     }
 }

@@ -210,7 +210,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 13;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 14;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -367,6 +367,30 @@ impl BuildFilesystemPathLikeOperand {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+}
+
+/// Portable compiler-rooted path retained when its authored operand resolves,
+/// before lowering to provider-specific path bytes. This does not claim that
+/// the later grant check authorized the same rooted location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemRootedPathOperandResolution {
+    operand_ordinal: u8,
+    root: BuildFilesystemRoot,
+    relative_path: Vec<u8>,
+}
+
+impl BuildFilesystemRootedPathOperandResolution {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub const fn root(&self) -> BuildFilesystemRoot {
+        self.root
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
     }
 }
 
@@ -637,6 +661,7 @@ pub struct BuildFilesystemOperationAttempt {
     scalar_operands: Vec<BuildFilesystemScalarOperand>,
     byte_operands: Vec<BuildFilesystemByteOperand>,
     path_like_operands: Vec<BuildFilesystemPathLikeOperand>,
+    rooted_path_operand_resolutions: Vec<BuildFilesystemRootedPathOperandResolution>,
     mutable_byte_operand_resolutions: Vec<BuildFilesystemMutableByteOperandResolution>,
     mutable_i64_operand_resolutions: Vec<BuildFilesystemMutableI64OperandResolution>,
     mutable_byte_operands: Vec<BuildFilesystemMutableByteOperand>,
@@ -675,6 +700,10 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn path_like_operands(&self) -> &[BuildFilesystemPathLikeOperand] {
         &self.path_like_operands
+    }
+
+    pub fn rooted_path_operand_resolutions(&self) -> &[BuildFilesystemRootedPathOperandResolution] {
+        &self.rooted_path_operand_resolutions
     }
 
     pub fn mutable_byte_operand_resolutions(
@@ -1771,8 +1800,12 @@ pub(crate) fn compute_build_config(
                             + attempt.mutable_i64_operand_resolutions().len()
                     })
                     .sum::<usize>();
+                let rooted_path_operands = attempts
+                    .iter()
+                    .map(|attempt| attempt.rooted_path_operand_resolutions().len())
+                    .sum::<usize>();
                 format!(
-                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {logical_handle_operands} logical-handle operand(s), {mutable_carrier_operands} mutable-carrier operand(s)",
+                    "; partial non-admission filesystem evidence: {} call(s), {halted} evaluator-halted, {grant_refusals} grant refusal(s), {scalar_operands} scalar operand(s), {byte_operands} immutable byte operand(s), {path_like_operands} path-like operand(s), {rooted_path_operands} rooted-path operand(s), {logical_handle_operands} logical-handle operand(s), {mutable_carrier_operands} mutable-carrier operand(s)",
                     attempts.len()
                 )
             })
@@ -1867,6 +1900,27 @@ pub(crate) fn compute_build_config(
                     bytes: operand.bytes().to_vec(),
                 })
                 .collect();
+            let rooted_path_operand_resolutions = attempt
+                .rooted_path_operand_resolutions()
+                .iter()
+                .map(|operand| {
+                    let root = if operand.root() == BUILD_SOURCE_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Source
+                    } else if operand.root() == BUILD_OUTPUT_ROOT_IDENTITY {
+                        BuildFilesystemRoot::Output
+                    } else {
+                        return Err(Diagnostic::error(format!(
+                            "build-time evaluation of `{machine_name}` returned unknown rooted-path operand identity `{}`",
+                            operand.root().get()
+                        )));
+                    };
+                    Ok(BuildFilesystemRootedPathOperandResolution {
+                        operand_ordinal: operand.operand_ordinal(),
+                        root,
+                        relative_path: operand.relative_path().to_vec(),
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
             let mutable_byte_operand_resolutions = attempt
                 .mutable_byte_operand_resolutions()
                 .iter()
@@ -1938,6 +1992,7 @@ pub(crate) fn compute_build_config(
                 scalar_operands,
                 byte_operands,
                 path_like_operands,
+                rooted_path_operand_resolutions,
                 mutable_byte_operand_resolutions,
                 mutable_i64_operand_resolutions,
                 mutable_byte_operands,

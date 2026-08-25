@@ -65,8 +65,8 @@ pub use build_config::{
     BuildFilesystemMutableByteOperandResolution, BuildFilesystemMutableI64Operand,
     BuildFilesystemMutableI64OperandResolution, BuildFilesystemOperationAttempt,
     BuildFilesystemOperationResult, BuildFilesystemPathLikeOperand, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, BuildObservationSummary,
+    BuildFilesystemRoot, BuildFilesystemRootedPathOperandResolution, BuildFilesystemScalarOperand,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, BuildObservationSummary,
 };
 pub use build_staged_output::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,

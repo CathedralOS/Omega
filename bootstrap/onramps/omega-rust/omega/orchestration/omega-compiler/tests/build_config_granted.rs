@@ -201,7 +201,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 13);
+    assert_eq!(checked_observations.schema_version(), 14);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -212,7 +212,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        13
+        14
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -1065,6 +1065,66 @@ fn failed_filesystem_preparation_retains_the_completed_path_like_operand_prefix(
 }
 
 #[test]
+fn failed_filesystem_preparation_retains_the_completed_rooted_path_operand_prefix() {
+    let (project, profile) = rooted_build_probe_project(
+        "rooted-path-preparation-prefix",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.code = self.filesystem.read_metadata(path, &mut self.small_buffer);"#,
+    );
+    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("undersized metadata output must reject build evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("filesystem output requires 144 bytes"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("1 rooted-path operand(s)"),
+        "the completed Source-rooted path must survive the later buffer-capacity failure: {rendered}"
+    );
+    assert!(
+        rendered.contains("1 mutable-carrier operand(s)"),
+        "the completed metadata carrier must survive its capacity failure: {rendered}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn rooted_path_prefix_precedes_a_later_resolver_failure() {
+    let (project, profile) = rooted_build_probe_project(
+        "rooted-path-before-resolver-failure",
+        r#"    self.code = self.filesystem.rename(
+        builder.output.resolve("stage/old"),
+        builder.output.resolve("../invalid")
+    );"#,
+    );
+    let diagnostics = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect_err("noncanonical second rooted operand must reject build evaluation");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("canonical relative components"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("1 rooted-path operand(s)"),
+        "only the first successfully resolved rename operand must survive: {rendered}"
+    );
+    assert!(
+        rendered.contains("0 grant refusal(s)"),
+        "preparation failure must not masquerade as grant authorization: {rendered}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn failed_filesystem_preparation_retains_the_completed_logical_handle_prefix() {
     let (project, profile) = rooted_build_probe_project(
         "logical-handle-preparation-prefix",
@@ -1224,6 +1284,12 @@ fn path_like_filesystem_operands_survive_compiler_projection() {
     };
     assert_eq!(target.operand_ordinal(), 0);
     assert_eq!(target.bytes(), b"missing-target");
+    let [link] = symlink.rooted_path_operand_resolutions() else {
+        panic!("symlink retains its compiler-rooted link operand before grant refusal")
+    };
+    assert_eq!(link.operand_ordinal(), 1);
+    assert_eq!(link.root(), BuildFilesystemRoot::Output);
+    assert_eq!(link.relative_path(), b"missing-parent/link");
     assert!(symlink.byte_operands().is_empty());
     let _ = std::fs::remove_dir_all(&project);
 }
