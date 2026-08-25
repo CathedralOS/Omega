@@ -244,6 +244,16 @@ each requires direct authority from the package containing its own source
 token. Root-middle-leaf canaries enforce this even when ordinary type checking
 would otherwise find the transitive conformance.
 
+Void/discarding statement calls are not a second authority model. Resolution
+records an exact statement target when available and otherwise retains a
+checked-call obligation at the authored target span. Checked flow supplies the
+late target and any unique generic conformance inferred for that call. Static
+conformance arguments remain independent rows at their own argument spans.
+Compiler-owned build markers and lowered inline-assembly operations finalize as
+closed intrinsic meanings; they neither invent a package symbol nor disappear
+from the ledger. Ordinary statement calls still require the selected
+declaration's owner as a direct dependency.
+
 ## Authored requests versus accepted lock state
 
 `build.omg` records update intent: source locator, revision selector, explicit

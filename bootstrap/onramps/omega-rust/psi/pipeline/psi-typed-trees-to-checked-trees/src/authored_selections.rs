@@ -77,12 +77,17 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => declaration_target(checked_call_target(
-                    program,
-                    facts,
-                    expression,
-                    call.target_symbol,
-                )),
+                ) => checked_call_intrinsic(call.target.as_str()).map_or_else(
+                    || {
+                        declaration_target(checked_call_target(
+                            program,
+                            facts,
+                            expression,
+                            call.target_symbol,
+                        ))
+                    },
+                    |intrinsic| Some(CheckedResolutionTarget::Intrinsic(intrinsic)),
+                ),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
@@ -143,6 +148,13 @@ pub(crate) fn finalize_checked_authored_selections(
         }
     }
 
+    collect_checked_statement_selections(
+        program,
+        facts,
+        &mut resolutions,
+        &mut inferred_conformances,
+    )?;
+
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
         let result = match resolution.target {
@@ -187,6 +199,108 @@ pub(crate) fn finalize_checked_authored_selections(
     Ok(())
 }
 
+fn collect_checked_statement_selections(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    resolutions: &mut Vec<CheckedResolution>,
+    inferred_conformances: &mut Vec<(
+        psi_source::SourceSpan,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        SymbolHandle,
+    )>,
+) -> Result<(), Diagnostic> {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let psi_typed_trees::statement::StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                if call.operational_acknowledgement.origin
+                    != psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+                    || call.source_span.span.start >= call.source_span.span.end
+                {
+                    continue;
+                }
+                let target = checked_statement_call_target(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    call.target_symbol,
+                );
+                if target.is_valid() {
+                    for selected_symbol in checked_target_conformance_targets(program, target) {
+                        let inferred = (
+                            call.source_span,
+                            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                            selected_symbol,
+                        );
+                        if !inferred_conformances.contains(&inferred) {
+                            inferred_conformances.push(inferred);
+                        }
+                    }
+                }
+
+                let pending = program
+                    .authored_declaration_selections()
+                    .iter()
+                    .filter(|selection| {
+                        selection.source_span() == call.source_span
+                            && selection.kind() == AuthoredDeclarationSelectionKind::Call
+                            && selection.target()
+                                == AuthoredDeclarationSelectionTarget::LateBound(
+                                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                                )
+                    })
+                    .map(|selection| selection.occurrence_id())
+                    .collect::<Vec<_>>();
+                let resolution_target = checked_call_intrinsic(call.target.as_str())
+                    .map(CheckedResolutionTarget::Intrinsic)
+                    .or_else(|| declaration_target(target));
+                if let Some(target) = resolution_target {
+                    for occurrence in pending {
+                        push_consistent_resolution(
+                            resolutions,
+                            CheckedResolution {
+                                occurrence,
+                                binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                                target,
+                            },
+                        )?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn checked_call_intrinsic(
+    target: &str,
+) -> Option<psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    if target == "select_provider" {
+        Some(Intrinsic::BuildProviderSelection)
+    } else if target.starts_with("accept_boundary#") {
+        Some(Intrinsic::BuildBoundaryAcceptance)
+    } else if target.starts_with("wire_compatibility#") {
+        Some(Intrinsic::BuildWireCompatibilityRequest)
+    } else if target.starts_with("bind_root#") {
+        Some(Intrinsic::BuildRootBinding)
+    } else if target.starts_with("asm#") {
+        Some(Intrinsic::InlineAssemblyOperation)
+    } else {
+        None
+    }
+}
+
 fn checked_operator_conformance_targets(
     facts: &CheckFacts,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -215,6 +329,13 @@ fn checked_call_conformance_targets(
     authored_target: SymbolHandle,
 ) -> Vec<SymbolHandle> {
     let target = checked_call_target(program, facts, expression, authored_target);
+    checked_target_conformance_targets(program, target)
+}
+
+fn checked_target_conformance_targets(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Vec<SymbolHandle> {
     let Some(machine_symbol) = program.machines().iter().find_map(|machine| {
         program
             .machine_states(machine)
@@ -237,6 +358,43 @@ fn checked_call_conformance_targets(
         }
     }
     targets
+}
+
+fn checked_statement_call_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    authored_target: SymbolHandle,
+) -> SymbolHandle {
+    if authored_target.is_valid() {
+        return authored_target;
+    }
+    let Some(state) = facts.flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    }) else {
+        return SymbolHandle::invalid();
+    };
+    for call in facts.flow.control.calls.span_or_empty(state.calls) {
+        if call.statement_index != statement_index || !call.target_symbol.is_valid() {
+            continue;
+        }
+        if matches!(
+            crate::semantic_calls::find_call_site(
+                program,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                call.call_ordinal,
+            ),
+            Some(crate::semantic_calls::CallSite::Statement(_))
+        ) {
+            return call.target_symbol;
+        }
+    }
+    SymbolHandle::invalid()
 }
 
 fn checked_call_target(

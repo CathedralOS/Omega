@@ -100,6 +100,11 @@ Must own:
   specialization fingerprint. Finalization attaches that inferred selection to
   the authored call token; trait-backed operators attach their checked selected
   conformance to the operator token.
+- Finalized statement-call custody joined through exact checked flow-call
+  coordinates. Late receiver/result/generic targets resolve at the retained
+  source target span, and inferred generic conformances attach there. Closed
+  compiler-owned build markers and lowered assembly operations finalize as
+  typed intrinsic selections rather than invalid declaration symbols.
 
 Must not own:
 

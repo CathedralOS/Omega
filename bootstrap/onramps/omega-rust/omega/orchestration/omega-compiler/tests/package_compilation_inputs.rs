@@ -219,6 +219,69 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn statement_call_requires_the_declaration_owner_as_a_direct_dependency() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nmachine root_effect() { leaf_effect(); }\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_effect() { leaf_effect(); }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub machine leaf_effect() { }\n");
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("root may not issue a transitive-only statement call");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("`leaf_effect::entry`")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct leaf admission should validate");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the leaf statement call");
+}
+
+#[test]
 fn public_type_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -292,15 +355,14 @@ fn inferred_conformance_requires_the_declaration_owner_as_a_direct_dependency() 
 
     TempTree::write(
         root.join("main.omg"),
-        "use middle::middle;\nmachine root_value() -> bool {\n    let value: Good = Good {};\n    accepts(value)\n}\n",
+        "use middle::middle;\nmachine root_effect() {\n    let value: Good = Good {};\n    accepts(value);\n}\n",
     );
     TempTree::write(
         middle.join("middle.omg"),
         r#"use leaf::leaf;
-pub machine accepts<Element>(value: Element) -> bool
+pub machine accepts<Element>(value: Element)
 where Element satisfies Marker
 {
-    true
 }
 "#,
     );
@@ -874,6 +936,12 @@ machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
 
     let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
         .expect("dependency provider should check");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.target()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
+            )
+    }));
     let [plan] = checked.selected_provider_plans().plans() else {
         panic!("one selected dependency provider plan")
     };

@@ -55,6 +55,10 @@ Must own:
   declaration selection at the argument path's span. Nested static applications
   are walked recursively; this records explicit source choice, not an inferred
   conformance selected later by checking.
+- Recording source-authored statement calls from the state statement tree
+  before table rebuilding consumes that form. Exact targets and static
+  conformance arguments settle here; unresolved call targets retain an explicit
+  checked-call obligation at the target token.
 - Preserving named-transition evidence identifiers separately from runtime
   transition arguments while the target state acquires symbol identity.
 - Preflighting signature-free requirement paths after symbol assignment and

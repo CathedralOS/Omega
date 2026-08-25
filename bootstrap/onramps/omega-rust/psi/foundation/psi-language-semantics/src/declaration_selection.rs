@@ -84,6 +84,11 @@ pub enum AuthoredDeclarationSelectionTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuiltinOperator,
+    BuildProviderSelection,
+    BuildBoundaryAcceptance,
+    BuildWireCompatibilityRequest,
+    BuildRootBinding,
+    InlineAssemblyOperation,
 }
 
 /// Deterministic identity of one authored occurrence within a compilation's

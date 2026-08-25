@@ -1102,6 +1102,16 @@ subsets so an explicit argument is not fabricated again at the call token.
 Package admission therefore rejects an inferred transitive-only conformance
 even when the caller never names the conformance alias.
 
+The same custody applies to statement calls whose result is Unit or explicitly
+discarded. The resolver records the source call before rebuilding statement
+trees into tables, preserving exact targets and explicit static conformance
+arguments. If receiver typing or specialization must settle the target later,
+the checked flow call finalizes that exact source obligation and contributes any
+uniquely inferred conformance. Compiler-owned build markers and lowered
+assembly operations use closed intrinsic ledger variants rather than synthetic
+package declarations. A statement call to ordinary package code remains an
+authored selection and requires direct authority.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type
