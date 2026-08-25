@@ -79,7 +79,10 @@ intrinsic constant DAG for both the Unicode carrier and a compact nested
 positive. Source-body constant correspondence, opcode-11 roots/reachability,
 source lowering and meaning, CKIR/result/artifact reconstruction, and the
 same-frame composition gate remain open. No earlier OMGRFN checker is widened
-to provide CKIR3 evidence.
+to provide CKIR3 evidence. A separate focused, physically artifact-free source
+evaluator now closes responsibility 4's `16/17` active-frame and
+`65,536/65,537` dynamic-block-entry boundaries; it is boundary evidence, not a
+claim that the complete source-lowering/meaning responsibility is closed.
 
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
