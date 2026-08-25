@@ -1,9 +1,9 @@
 //! GR5/GR6 (the chapter-10 carrier's report surface): one trust-report row per
 //! admitted semantic commitment, plus exact provider-requirement and routed
-//! qualification rows copied from normalized provider plans. Domain
-//! introductions, accepted facts, provider plans, and their requirement blast
-//! radius retain root-grant or dev-active provenance; the latter carries a
-//! standing warning.
+//! qualification rows copied from normalized provider plans. Accepted facts,
+//! provider plans, and their requirement blast radius retain root-grant or
+//! dev-active provenance; the latter carries a standing warning. Domains are
+//! semantic declarations, not grantable trust-report subjects.
 
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
@@ -284,34 +284,6 @@ pub(super) fn write_trust_report(
             }
         }
     }
-    for domain in typed.domain_definitions() {
-        if !domain.semantic_id.is_valid() {
-            continue;
-        }
-        // The shared trust ledger resolves exact names first and permits a
-        // short leaf only when it identifies one global grant subject.
-        let granted = non_provider_grants.iter().any(|(_, subject)| {
-            *subject
-                == crate::pipeline::trust_lockfile::NonProviderTrustGrant::Domain(domain.symbol)
-        });
-        report.rows.push(TrustReportRow {
-            commitment: format!("domain introduction: {}", domain.name.as_str()),
-            provenance: if granted {
-                "root grant (build.omg)".to_owned()
-            } else {
-                "own-package (dev-active)".to_owned()
-            },
-            machine_contract_fingerprint: None,
-            machine_template_fingerprint: None,
-            machine_service_reach: None,
-            machine_synchronous_invocations: None,
-            machine_may_suspend: None,
-            machine_may_block: None,
-            machine_terminates_guarantee: None,
-            machine_crash_routes: None,
-            standing_warning: !granted,
-        });
-    }
     // ACCEPTED machines (bodyless boundary axioms, GR6d): one row each --
     // own-package dev-active with the standing warning, or root-granted
     // when build.omg names the machine.
@@ -383,33 +355,6 @@ pub(super) fn write_trust_report(
             machine_crash_routes: Some(machine_crash_routes),
             standing_warning: !granted,
         });
-    }
-    // Grants naming anything other than a declared domain, an accepted
-    // machine, or an already-reported selected provider plan surface as bare
-    // accepted-fact rows (the report shows every grant, private or public).
-    for grant in root_grants {
-        let names_non_provider_subject = non_provider_grants.iter().any(|(selector, subject)| {
-            *selector == grant.as_str()
-                && *subject != crate::pipeline::trust_lockfile::NonProviderTrustGrant::Unmatched
-        });
-        let names_selected_provider = provider_grants
-            .iter()
-            .any(|provider_grant| provider_grant.selector == *grant);
-        if !names_non_provider_subject && !names_selected_provider {
-            report.rows.push(TrustReportRow {
-                commitment: format!("accepted fact: {grant}"),
-                provenance: "root grant (build.omg)".to_owned(),
-                machine_contract_fingerprint: None,
-                machine_template_fingerprint: None,
-                machine_service_reach: None,
-                machine_synchronous_invocations: None,
-                machine_may_suspend: None,
-                machine_may_block: None,
-                machine_terminates_guarantee: None,
-                machine_crash_routes: None,
-                standing_warning: false,
-            });
-        }
     }
     for specialization in &typed.machine_specializations {
         let Some(template_commitment) = specialization.accepted_template_commitment.as_ref() else {

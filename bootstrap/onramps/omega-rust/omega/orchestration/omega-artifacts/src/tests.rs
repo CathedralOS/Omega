@@ -82,7 +82,7 @@ fn accepted_machine_service_reach_distinguishes_public_empty_from_non_machine_ro
                 standing_warning: false,
             },
             TrustReportRow {
-                commitment: "domain introduction: Meters".to_owned(),
+                commitment: "provider plan: console".to_owned(),
                 provenance: "root grant (build.omg)".to_owned(),
                 machine_contract_fingerprint: None,
                 machine_template_fingerprint: None,
@@ -142,10 +142,10 @@ fn accepted_machine_service_reach_distinguishes_public_empty_from_non_machine_ro
         .lines()
         .find(|line| line.contains("accepted fact: quiet_axiom"))
         .expect("accepted fact row");
-    let domain = output
+    let provider = output
         .lines()
-        .find(|line| line.contains("domain introduction: Meters"))
-        .expect("domain row");
+        .find(|line| line.contains("provider plan: console"))
+        .expect("provider row");
     let guarded = output
         .lines()
         .find(|line| line.contains("accepted fact: guarded_axiom"))
@@ -165,12 +165,12 @@ fn accepted_machine_service_reach_distinguishes_public_empty_from_non_machine_ro
     assert!(output.contains("const argument identities: named(name(1))"));
     assert!(output.contains("machine argument contracts: 0000000000003333"));
     assert!(output.contains("conformance arguments: 0000000000004444"));
-    assert!(!domain.contains("service reach:"));
-    assert!(!domain.contains("synchronous invocations:"));
-    assert!(!domain.contains("may suspend:"));
-    assert!(!domain.contains("may block:"));
-    assert!(!domain.contains("termination guarantee:"));
-    assert!(!domain.contains("crash routes:"));
+    assert!(!provider.contains("service reach:"));
+    assert!(!provider.contains("synchronous invocations:"));
+    assert!(!provider.contains("may suspend:"));
+    assert!(!provider.contains("may block:"));
+    assert!(!provider.contains("termination guarantee:"));
+    assert!(!provider.contains("crash routes:"));
     std::fs::remove_dir_all(root).expect("remove test artifact directory");
 }
 

@@ -1,7 +1,6 @@
-//! GR5 (chapter-10 carrier): the trust report writes one row per admitted
-//! semantic commitment. Today's rows are sealed-domain introductions --
-//! own-package declarations are dev-active (grant locality v1) and carry
-//! the standing warning until a root grant (GR3) flips their provenance.
+//! Legacy standalone trust-report coverage. Only exact accepted-machine and
+//! selected-provider grants may create receipts; domains and unmatched strings
+//! are not trust subjects.
 
 use omega_compiler::{CompileOptions, compile_to_checked};
 
@@ -19,7 +18,7 @@ fn compile(
 }
 
 #[test]
-fn trust_report_rows_dev_active_domain_introductions() {
+fn domain_declarations_do_not_create_trust_rows() {
     let project = std::env::temp_dir().join(format!("omega-trust-report-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project dir");
@@ -48,16 +47,12 @@ machine Main::exercise(&mut self) {
     let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("trust report should be written");
     assert!(
-        report.contains("admitted commitments: 1"),
-        "expected one commitment row:\n{report}"
+        report.contains("admitted commitments: 0"),
+        "a domain declaration is semantic structure, not a trust admission:\n{report}"
     );
     assert!(
-        report.contains("domain introduction: u32::Meters -- own-package (dev-active)"),
-        "expected the dev-active domain row:\n{report}"
-    );
-    assert!(
-        report.contains("STANDING WARNING"),
-        "dev-active rows carry the standing warning until granted:\n{report}"
+        !report.contains("domain introduction:") && !report.contains("STANDING WARNING"),
+        "domain declarations must not masquerade as grantable trust rows:\n{report}"
     );
 
     let _ = std::fs::remove_dir_all(&project);
@@ -225,11 +220,7 @@ machine Main::exercise(&mut self) {
 }
 
 #[test]
-fn root_grant_flips_domain_row_and_retires_warning() {
-    // GR3: `b.accept_boundary<Meters>();` in build.omg harvests as a root
-    // grant; the granted domain's trust row flips provenance and drops the
-    // standing warning. A grant naming no declared domain surfaces as an
-    // accepted-fact row (the report sees every grant).
+fn domain_and_unmatched_root_grants_reject_without_receipts() {
     let project = std::env::temp_dir().join(format!("omega-trust-grant-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project dir");
@@ -259,51 +250,24 @@ machine Main::exercise(&mut self) {
     .expect("write main.omg");
 
     let build_dir = project.join("build");
-    compile(CompileOptions {
+    let diagnostics = compile(CompileOptions {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: false,
     })
-    .expect("granted project should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
+    .expect_err("domain and unmatched string grants must reject");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
-        report.contains("domain introduction: u32::Meters -- root grant (build.omg)"),
-        "expected the granted domain row:\n{report}"
+        rendered.contains("domain and arbitrary-string trust grants are unsupported"),
+        "expected the retired legacy-grant diagnostic:\n{rendered}"
     );
-    assert!(
-        report
-            .contains("accepted fact: walker_lib::collatz_cert_checked -- root grant (build.omg)"),
-        "expected the accepted-fact row:\n{report}"
-    );
-    let meters_row = report
-        .lines()
-        .find(|line| line.contains("u32::Meters"))
-        .unwrap_or_default();
-    assert!(
-        !meters_row.contains("STANDING WARNING"),
-        "a root-granted domain drops the standing warning:\n{report}"
-    );
-    assert!(!meters_row.contains("machine contract:"));
-    assert!(!meters_row.contains("service reach:"));
-    assert!(!meters_row.contains("synchronous invocations:"));
-    assert!(!meters_row.contains("may suspend:"));
-    assert!(!meters_row.contains("may block:"));
-    assert!(!meters_row.contains("termination guarantee:"));
-    assert!(!meters_row.contains("crash routes:"));
-    let unmatched_grant_row = report
-        .lines()
-        .find(|line| line.contains("accepted fact: walker_lib::collatz_cert_checked"))
-        .expect("unmatched imported grant row");
-    assert!(!unmatched_grant_row.contains("machine contract:"));
-    assert!(!unmatched_grant_row.contains("service reach:"));
-    assert!(!unmatched_grant_row.contains("synchronous invocations:"));
-    assert!(!unmatched_grant_row.contains("may suspend:"));
-    assert!(!unmatched_grant_row.contains("may block:"));
-    assert!(!unmatched_grant_row.contains("termination guarantee:"));
-    assert!(!unmatched_grant_row.contains("crash routes:"));
+    assert!(!project.join("omega.lock").exists());
+    assert!(!build_dir.join("trust_report.md").exists());
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -316,8 +280,10 @@ fn non_provider_grants_use_one_exact_subject_in_lock_and_report() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Meters;
-domain i32::Meters;
+        r#"data First {}
+data Second {}
+boundary machine First::claim() ensures true;
+boundary machine Second::claim() ensures true;
 data Main {}
 machine Main::exercise(&mut self) {}
 "#,
@@ -342,7 +308,7 @@ machine build(b: &mut Build) {{
         write_output: false,
     };
 
-    std::fs::write(project.join("build.omg"), build_with("Meters")).expect("write ambiguous grant");
+    std::fs::write(project.join("build.omg"), build_with("claim")).expect("write ambiguous grant");
     let diagnostics = compile(options()).expect_err("ambiguous short grant must reject");
     let rendered = diagnostics
         .iter()
@@ -350,29 +316,29 @@ machine build(b: &mut Build) {{
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        rendered.contains("root grant `Meters` is ambiguous across non-provider trust subjects"),
+        rendered.contains("root grant `claim` is ambiguous across non-provider trust subjects"),
         "expected exact grant ambiguity diagnostic:\n{rendered}",
     );
     assert!(!project.join("omega.lock").exists());
     assert!(!build_dir.join("trust_report.md").exists());
 
-    std::fs::write(project.join("build.omg"), build_with("u32::Meters"))
+    std::fs::write(project.join("build.omg"), build_with("First::claim"))
         .expect("write exact grant");
     compile(options()).expect("exact qualified grant should compile");
 
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("trust lock written");
-    assert!(lock.contains("domain introduction: u32::Meters"));
-    assert!(!lock.contains("domain introduction: i32::Meters"));
+    assert!(lock.contains("accepted fact: First::claim"));
+    assert!(!lock.contains("accepted fact: Second::claim"));
     let report =
         std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
     let granted = report
         .lines()
-        .find(|line| line.contains("domain introduction: u32::Meters"))
-        .expect("exact granted domain row");
+        .find(|line| line.contains("accepted fact: First::claim"))
+        .expect("exact granted accepted-machine row");
     let foreign = report
         .lines()
-        .find(|line| line.contains("domain introduction: i32::Meters"))
-        .expect("same-leaf foreign domain row");
+        .find(|line| line.contains("accepted fact: Second::claim"))
+        .expect("same-leaf foreign accepted-machine row");
     assert!(granted.contains("root grant (build.omg)"));
     assert!(!granted.contains("STANDING WARNING"));
     assert!(foreign.contains("own-package (dev-active)"));
@@ -383,9 +349,8 @@ machine build(b: &mut Build) {{
 
 #[test]
 fn lockfile_written_and_drift_fails_until_reapproved() {
-    // GR4: a granted project writes omega.lock beside build.omg (one
-    // receipt row per grant, statement hash recorded automatically); a
-    // granted statement that drifts fails the build until re-approved.
+    // Legacy standalone accepted-machine grants still pin exact checked
+    // contract identity until package-level admission replaces this lane.
     let project = std::env::temp_dir().join(format!("omega-trust-lock-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&project);
     std::fs::create_dir_all(&project).expect("create project dir");
@@ -395,23 +360,22 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
 data Build { subsystem: Subsystem; freestanding: bool; }
 
 machine build(b: &mut Build) {
-    b.accept_boundary<Meters>();
+    b.accept_boundary<admitted>();
 }
 "#,
     )
     .expect("write build.omg");
-    let main_with = |facts: &str| {
-        let domain = if facts.trim().is_empty() {
-            "domain u32::Meters;".to_owned()
+    let main_with = |claim: &str| {
+        let claim = if claim.trim().is_empty() {
+            "true".to_owned()
         } else {
-            format!("domain u32::Meters\nrequires\n    {}", facts.trim())
+            claim.trim().to_owned()
         };
         format!(
-            r#"{domain}
+            r#"boundary machine admitted() ensures {claim};
 boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Console; }}
 machine Main::exercise(&mut self) {{
-    let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
 }}
 "#
@@ -431,12 +395,12 @@ machine Main::exercise(&mut self) {{
     let lock = std::fs::read_to_string(project.join("omega.lock"))
         .expect("omega.lock should be written beside build.omg");
     assert!(
-        lock.contains("domain introduction: u32::Meters"),
-        "expected the domain receipt row:\n{lock}"
+        lock.contains("accepted fact: admitted"),
+        "expected the accepted-machine receipt row:\n{lock}"
     );
 
-    // Drift the granted statement (add a fact) -- the build must refuse.
-    std::fs::write(project.join("main.omg"), main_with(" self >= 1; ")).expect("rewrite main.omg");
+    // Drift the granted statement -- the build must refuse.
+    std::fs::write(project.join("main.omg"), main_with("false")).expect("rewrite main.omg");
     let drifted = compile(options());
     let message = format!("{:?}", drifted.expect_err("drift should refuse"));
     assert!(
@@ -458,8 +422,8 @@ fn trust_lock_requires_reapproval_for_added_removed_and_empty_claim_sets() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Alpha;
-domain u32::Beta;
+        r#"boundary machine Alpha() ensures true;
+boundary machine Beta() ensures true;
 data Main {}
 machine Main::exercise(&mut self) {}
 "#,
@@ -499,7 +463,7 @@ machine build(b: &mut Build) {{
         "{:?}",
         compile(options()).expect_err("adding a grant requires reapproval")
     );
-    assert!(added.contains("added: domain introduction: u32::Beta"));
+    assert!(added.contains("added: accepted fact: Beta"));
     assert_eq!(
         std::fs::read_to_string(&lock_path).expect("read preserved one-row lock"),
         one_receipt
@@ -510,15 +474,15 @@ machine build(b: &mut Build) {{
     let two_receipts = std::fs::read_to_string(&lock_path).expect("read two receipts");
     let rows = two_receipts.lines().collect::<Vec<_>>();
     assert_eq!(rows.len(), 2);
-    assert!(rows[0].ends_with("domain introduction: u32::Alpha"));
-    assert!(rows[1].ends_with("domain introduction: u32::Beta"));
+    assert!(rows[0].ends_with("accepted fact: Alpha"));
+    assert!(rows[1].ends_with("accepted fact: Beta"));
 
     std::fs::write(project.join("build.omg"), build_with(&["Beta"])).expect("remove first grant");
     let removed = format!(
         "{:?}",
         compile(options()).expect_err("removing a grant requires reapproval")
     );
-    assert!(removed.contains("removed: domain introduction: u32::Alpha"));
+    assert!(removed.contains("removed: accepted fact: Alpha"));
     assert_eq!(
         std::fs::read_to_string(&lock_path).expect("read preserved two-row lock"),
         two_receipts
@@ -532,7 +496,7 @@ machine build(b: &mut Build) {{
         "{:?}",
         compile(options()).expect_err("removing the final grant requires reapproval")
     );
-    assert!(empty.contains("removed: domain introduction: u32::Beta"));
+    assert!(empty.contains("removed: accepted fact: Beta"));
     assert_eq!(
         std::fs::read_to_string(&lock_path).expect("read preserved final receipt"),
         beta_receipt
@@ -560,7 +524,7 @@ machine build(b: &mut Build) { b.accept_boundary<Alpha>(); }
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Alpha;
+        r#"boundary machine Alpha() ensures true;
 data Main {}
 machine Main::exercise(&mut self) {}
 "#,

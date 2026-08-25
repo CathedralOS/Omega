@@ -519,6 +519,14 @@ fn compile_to_checked_inner(
             &typed,
             selected_provider_plans,
         )?;
+    if package_inputs.is_some() {
+        crate::pipeline::trust_lockfile::reject_package_non_provider_grants(
+            &typed,
+            &build_config.grants,
+            &provider_plans,
+            &selected_provider_plan_facts,
+        )?;
+    }
     let contract_entailment_stand_downs =
         psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;

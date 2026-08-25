@@ -522,6 +522,13 @@ conformance row as public traits. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 
+The older standalone trust-lock lane cannot admit package claims. Domain names
+and unmatched strings reject rather than becoming FNV receipts or bare accepted-
+fact rows, and domains are absent from trust reports. Exact selected-provider
+grants remain valid. Exact accepted-machine grants remain temporary standalone
+compatibility only; package-aware compilation rejects them because selecting one
+machine cannot admit the package's complete exact accepted-claim inventory.
+
 Public callable `requires` and `ensures` retain exact structural rows for the
 closed boolean/integer expression subset over parameter
 ordinals, `result`, generic binders, and package-qualified nominals. Domain-

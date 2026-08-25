@@ -1273,6 +1273,14 @@ The compiler also emits one distinct blocking accepted-claim row carrying that
 callable's complete published envelope and exact declaration provenance.
 Initial or newly introduced trust requires exact root-policy resolution;
 unchanged accepted evidence does not become a recurring blanket prompt.
+
+The older standalone trust-lock lane cannot supply package claim admission.
+Domain names and unmatched strings are rejected rather than converted into FNV
+receipts or bare accepted-fact rows, and domains are absent from trust reports.
+Exact selected-provider grants remain valid. Exact accepted-machine grants are
+retained only as temporary standalone compatibility; package-aware compilation
+rejects them because admitting one selector is not admitting the complete exact
+accepted-claim inventory.
 The signature includes lifetime arity, alpha-normalized type/const binders,
 ordered parameter names and modes,
 package-qualified lifetime-sensitive parameter types, and result type. This is

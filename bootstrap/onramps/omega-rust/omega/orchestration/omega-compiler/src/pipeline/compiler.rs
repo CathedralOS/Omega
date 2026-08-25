@@ -732,6 +732,7 @@ impl Compiler {
             &build_config.grants,
             &provider_plans,
             &selected_provider_plan_facts,
+            self.package_inputs.is_some(),
         )?;
         let generic_accepted_template_fingerprints =
             crate::pipeline::trust_report::GenericAcceptedTemplateFingerprints::capture(&typed);
