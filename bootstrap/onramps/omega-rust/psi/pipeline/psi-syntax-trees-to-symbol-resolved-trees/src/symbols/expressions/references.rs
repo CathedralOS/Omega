@@ -166,7 +166,7 @@ pub(super) fn assign_call_symbol(
     }
 }
 
-pub(super) fn assign_member_symbol(
+pub(in crate::symbols) fn assign_member_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     state_symbol: SymbolHandle,
@@ -202,7 +202,7 @@ pub(super) fn assign_member_symbol(
     }
 }
 
-pub(super) fn assign_membership_symbol(
+pub(in crate::symbols) fn assign_membership_symbol(
     symbols: &SymbolTable,
     expression_table: &mut psi_symbol_resolved_trees::expression::ExpressionTable,
     domain: psi_arena::HandleSpan<psi_symbol_resolved_trees::name::DiagnosticName>,
@@ -247,7 +247,7 @@ pub(super) fn assign_membership_symbol(
     }
 }
 
-pub(super) fn assign_name_symbol(
+pub(in crate::symbols) fn assign_name_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -292,7 +292,7 @@ pub(super) fn assign_name_symbol(
     }
 }
 
-pub(super) fn assign_struct_literal_symbols(
+pub(in crate::symbols) fn assign_struct_literal_symbols(
     symbols: &SymbolTable,
     expression_table: &mut psi_symbol_resolved_trees::expression::ExpressionTable,
     expression: psi_symbol_resolved_trees::expression::ExpressionHandle,
