@@ -7248,6 +7248,23 @@ reach or trust, and private proof improvements do not change public identity.
   wider structural partial values, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Reject every authored
+  selection of the exact owner-attached `T::drop` hook, including method and
+  qualified calls, static-machine arguments, references, and forwarding. Add
+  the ordinary consuming `omega::core::drop<T>(value)` machine after generic
+  cleanup-row lowering is available. Its empty body is checked once against a
+  symbolic contextual-cleanup row; concrete death edges substitute exact
+  prerequisites, effects, reach, work, guarantees, Type-side eligibility, and
+  authored diagnostic origins without inventing caller requirements.
+
+  Extend owned erased-value descriptors with the exact structural cleanup plan
+  and transfer it with payload/storage custody. Erasure into an auto-cleaned
+  owner must prove the plan eligible under retained invariants or carry the
+  stable facts and authority it needs; borrowed erased views acquire no cleanup
+  responsibility. Linear values admit automatic death only through an exact
+  owner-authorized plan satisfying all cleanup restrictions. Add static,
+  generic, dynamic, foreign-owner, moved-from, double-cleanup, and conditional-
+  premise canaries. Keep executable hook-body widening under CML4.
 - **EXTERNAL-ENTRY-STACK-EPOCHS — finish provenance for the settled root
   realization.** Target-neutral arrival contexts and finite enter/body/exit
   epochs normalize into one validated, fingerprinted realization. The composer

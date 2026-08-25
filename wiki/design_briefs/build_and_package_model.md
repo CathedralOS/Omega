@@ -1101,10 +1101,11 @@ type flows through an already-declared dependency's API. Such a value may be
 moved, borrowed, stored, returned, passed back through the declaring surface,
 and checked for multiplicity without granting access to its owner's methods,
 fields, cases, operators, conformances, or ordinary explicit consuming
-machines. Whether the reserved `T::drop` itself is source-callable remains an
-owner decision; automatic selection of it is carried semantics, not authored
-authority. Compiler-planned layout and automatic cleanup are carried type
-semantics rather than authored declaration selection.
+machines. The reserved owner-attached `T::drop` hook is compiler-only and
+authored selection rejects. An authored `omega::core::drop(value)` is instead
+an ordinary consuming call; the concrete cleanup plan it triggers remains
+carried semantics. Compiler-planned layout and automatic cleanup are carried
+type semantics rather than authored declaration selection.
 
 The transitive closure still retains the type owner's exact package instance.
 Artifact dependency evidence retains the exact foreign declaration when the
@@ -1157,6 +1158,10 @@ checking succeeds. It derives machine-head and exact checked call-result types,
 joins ownership-place types, promotes public-interface exposure, and retains an
 automatic cleanup machine only when its exact attached nominal declaration
 matches. A same-spelled cleanup attached elsewhere cannot satisfy that edge.
+For an owned erased value, the compiler-built descriptor carries the same exact
+movement and cleanup plan with payload custody; this is lifecycle metadata, not
+trait evidence or a source selection. Borrowed erased views never acquire
+cleanup ownership for their referents.
 This sidecar is package-neutral and compiler-private. The compiler's review
 projector qualifies its consumer and dependency declarations by exact package,
 emits versioned blocking rows for each dependency kind and exposure, and keeps

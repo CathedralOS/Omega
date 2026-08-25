@@ -134,10 +134,10 @@ through another declared dependency. Moving, borrowing, storing, returning, or
 passing such a value back through the visible surface does not make its owner
 source-nameable. Selecting an owner-declared field, case, method, operator,
 conformance, or ordinary explicit consuming machine does and requires a direct
-row. Reserved `T::drop` remains automatic carried semantics unless and until
-the language defines an authored invocation and its ownership event.
-Compiler-planned layout, multiplicity, and automatic cleanup remain carried
-type semantics.
+row. Reserved owner-attached `T::drop` is compiler-only; authored early disposal
+instead selects the ordinary consuming `omega::core::drop(value)` machine. The
+exact concrete cleanup plan remains carried semantics. Compiler-planned layout,
+multiplicity, and automatic cleanup do not grant source authority.
 
 There is no `export` item. `pub` exposes only package-owned declarations, and an
 ordinary public wrapper presents dependency behavior without relabeling the
@@ -194,6 +194,11 @@ projection emits one blocking row keyed by exact consumer, exact dependency,
 and dependency kind, with private/public exposure as the compared value and
 source anchors for both declarations. Accepted-lock issuance still requires
 the total admission projection.
+
+Owned erased carriers extend that same row rather than introducing a cleanup
+conformance. Their descriptor transports payload custody, layout, movement, and
+the exact owner-derived cleanup plan together. A borrowed erased view transports
+dispatch only and never becomes responsible for cleanup of its referent.
 
 ## Dependency planning before build execution
 

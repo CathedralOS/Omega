@@ -109,11 +109,18 @@ does not widen the authority recorded in the source or artifact contract.
 
 ## Consumers and cleanup
 
-A linear value must reach an explicit terminal consumer on every exit path.
+A linear value must reach exactly one authorized terminal consumer on every
+exit path. An ordinary owned-receiver machine is the general case. A
+type-owned automatic cleanup plan may also be that consumer when its hook is
+terminating, infallible, nonblocking, nonsuspending, free of abnormal outcomes,
+and needs no runtime authority beyond the receiver. Consumption is derived from
+ordinary ownership flow: the compiler begins consuming before lending
+`&mut self` to the hook. It is never inferred from an authored call to a
+borrowed receiver.
 `move self` is the ordinary transfer into a consuming machine; no terminal
-annotation is added. Consumption is derived from ordinary ownership flow: a
-returned outcome that contains the same obligation transfers it back, while an
-outcome that does not contain it requires the callee to have consumed it.
+annotation is added. A returned outcome that contains the same obligation
+transfers it back, while an outcome that does not contain it requires the
+callee to have consumed it.
 Terminal Psi now represents the first such transfer directly for a root-only,
 whole-parameter result: the structural result signature and `ReturnStructural`
 edge carry one exact live linear value and its ordered whole-root claim set.
@@ -128,23 +135,24 @@ Cancellation and failure paths obey the same conservation law. A `try_*`
 operation that has not completed must therefore return the live linear value
 in its pending/failure case.
 
-Automatic cleanup is for affine ownership. It may execute terminating,
-infallible, non-suspending, nonblocking relinquishment, but it cannot silently
-satisfy a linear protocol. A `Task<T>` is therefore linear: `finish` terminally
-consumes its lifecycle claim, while moving it into another owner transfers the
-obligation. `request_cancel` retains the claim because a request does not prove
-that the activation stopped. Scope exit with a live `Task<T>` is a compile
-error, not an implicit blocking finish or detach. Strict result use does not
-prove this rule: it catches a discarded return, not a bound handle reaching
-scope end.
+Affine ownership permits automatic cleanup by default. Linear ownership permits
+it only when the type owner has declared that exact cleanup plan as a valid
+terminal disposition. This does not silently turn a fallible or coordinating
+protocol into cleanup. A `Task<T>` remains linear without an automatic terminal
+disposition: `finish` consumes its lifecycle claim, while moving it into another
+owner transfers the obligation. `request_cancel` retains the claim because a
+request does not prove that the activation stopped. Scope exit with a live
+`Task<T>` is a compile error, not an implicit blocking finish or detach. Strict
+result use does not prove this rule: it catches a discarded return, not a bound
+handle reaching scope end.
 
 The receiver's type graph retains this distinction directly: `&self` and
 `&mut self` are reference types, while bare `self` is owned. Permission-event
 discovery therefore treats method-form and static-form consuming calls alike
 without guessing ownership from the method name.
 
-Likewise, drop guarantees only that the program relinquishes ownership of an
-affine handle. It does not promise that buffered bytes reached durable storage.
+Likewise, automatic drop guarantees only the owner-authored terminal
+disposition. It does not promise that buffered bytes reached durable storage.
 Fallible or suspending work is an explicit `flush`, `close`, `commit`,
 `finish`, or cancellation/settlement machine with an ordinary result contract.
 If that consumer may suspend or block, its call uses the ordinary `suspend` or
@@ -334,7 +342,8 @@ witness; see `architecture/semantic_taxonomy_representation.md`.
    produces exactly one live obligation.
 2. Implicit zero-fill creates no obligation; explicit construction of a valid
    all-zero linear value creates one.
-3. A live linear value at ordinary scope exit is rejected.
+3. A live linear value at ordinary scope exit is rejected unless its exact
+   owner-authorized automatic plan is a valid terminal disposition there.
 4. Every branch either transfers or consumes the same linear obligation; mixed
    treatment is rejected.
 5. `Empty | Live(Task<T>)` tracks the obligation only in the live case.

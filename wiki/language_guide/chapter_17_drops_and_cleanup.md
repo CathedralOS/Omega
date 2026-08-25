@@ -8,8 +8,10 @@ The core rules are:
 
 - Plain values with no cleanup simply stop being live.
 - Affine values may have automatic cleanup.
-- Linear values require an explicit terminal consumer and reject if they would
-  die on an edge.
+- Linear values require exactly one authorized terminal disposition. A
+  type-owned automatic disposition may serve as that consumer; otherwise the
+  value must reach an explicit consuming machine and rejects if it would die on
+  an edge.
 - Moving a value transfers its obligation.
 - Every ordinary outgoing edge carries a checked cleanup plan.
 - Nuclear abort is not an ownership-graph edge and performs no cleanup.
@@ -17,7 +19,7 @@ The core rules are:
 
 ## Cleanup Machines
 
-Cleanup uses an ordinary reserved machine shape:
+Cleanup uses one reserved, owner-attached machine shape:
 
 ```omega
 data MutexGuard<T> {
@@ -31,14 +33,36 @@ machine MutexGuard::drop(&mut self)
 }
 ```
 
-`drop` receives one whole valid value. It may call ordinary machines and carry
-declared service reach, but automatic cleanup is always:
+Only the data declaration's owning package may declare the exact attached
+`T::drop`. At most one exists. It is a compiler-selected hook, not a trait
+requirement or an authored callable: source selection of that exact declaration
+as a method, qualified call, static-machine argument, or forwarded reference
+rejects. An unrelated ordinary machine named `drop` has no reserved meaning.
+
+At a cleanup edge the compiler has already begun consuming the owning
+occurrence and temporarily lends the whole valid value as `&mut self` to the
+hook. The signature therefore remains honest: the hook borrows during an
+enclosing consumption; it does not turn an ordinary mutable call into a hidden
+move. When the hook returns, structural field cleanup completes the one
+consumption.
+
+The hook may call ordinary machines and carry declared service reach, but
+automatic cleanup is always:
 
 - terminating;
 - infallible;
 - non-suspending;
 - nonblocking; and
 - free of abort, trap, or another abnormal outcome.
+
+These restrictions, not multiplicity alone, determine whether a linear type
+can authorize automatic cleanup. The disposition must be expressible using the
+receiver's owned authority and facts established at the edge, with no extra
+runtime argument, returned custody, failure, blocking, or suspension. Many
+linear protocols therefore remain explicit: unregistering may require
+quiescence evidence, returning storage may need allocator authority, and
+committing may fail. A valid owner-attached hook is nevertheless a legitimate
+exact-once terminal disposition for a linear type.
 
 The implemented terminal subset is deliberately narrower. A root-only Unit
 return may invoke attached `drop` for a finite nonempty list of whole
@@ -55,6 +79,44 @@ only executable cleanup calls while retaining exact edge/action and helper
 operation custody. Wider body shapes and nested or erased receivers remain pending engineering work under
 the rules below.
 
+## Explicit Early Disposal
+
+Authored code ends a value's lifetime early through the ordinary consuming core
+machine, conceptually:
+
+```omega
+pub machine drop<T>(value: T) {
+    // `value` reaches its checked cleanup edge here.
+}
+```
+
+`omega::core::drop(value)` moves the whole value into that machine. The caller's
+occurrence is dead immediately, and the callee's return edge invokes the same
+cleanup plan that scope exit would use. This is not a direct call to
+`T::drop(&mut self)` and does not require a `Drop` or `Disposable` trait.
+
+The core machine is checked once against a symbolic contextual-cleanup row. At
+each application the concrete type supplies its exact structural plan,
+prerequisites, effects, reach, work, and guarantees. A concrete nongeneric
+machine that lets an owned parameter die produces the same row; the mechanism
+belongs to death edges, not to the core helper that first exposes it.
+
+Cleanup is deliberately not a core trait. Ordinary Omega traits permit several
+separately named conformances for the same type and do not authorize dedicated
+syntax to discover one ambiently; automatic cleanup requires one structurally
+unique owner attachment. Static generic code consumes symbolic cleanup rows,
+and dynamic code consumes the type descriptor described below, so neither needs
+a nominal `T: Drop` bound. A future general facility for owner-unique,
+compiler-selected protocols could subsume this hook, but a superficial trait
+would otherwise add nomination and conformance machinery without changing the
+cleanup semantics.
+
+Named consuming machines remain the source surface for protocols with results
+or stronger behavior. `close(self)`, `finish(self)`, `commit(self)`,
+`unregister(self, ...)`, and `abandon(self)` may fail, block, return authority,
+or promise more than the automatic fallback. They are distinct operations, not
+alternative spellings of the hook.
+
 A release that waits, suspends, may fail, or promises protocol completion is an
 explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
 `cancel`. A resource with no valid nonblocking terminal outcome must be linear.
@@ -65,7 +127,9 @@ Sound abandonment does not make silent abandonment appropriate. When forgetting
 a claim permanently withholds external capacity, the claim remains linear and
 the terminal choice is explicit: a potentially failing or blocking `release`,
 or an infallible `abandon` that records the loss. Only resources whose contract
-declares implicit disposal harmless may use affine scope exit for abandonment.
+declares implicit disposal harmless may use automatic scope-exit abandonment.
+Affine ownership permits that disposition by default; linear ownership
+additionally requires the type owner's exact authorization.
 Deployment profiles may reject explicit or implicit abandonment independently
 of memory safety.
 
@@ -292,11 +356,30 @@ available:
 transfer custody or call an explicit consuming operation
 ```
 
-For a generic checked body, cleanup requirements are inferred from its edges
-and enter the normalized generic contract. An instantiation diagnostic points
-both to the failing caller and to the originating cleanup edge; the caller
-should not have to discover a remote implicit drop from a bare unsatisfied
-predicate.
+Every owned occurrence reaching a death edge derives one internal contextual
+cleanup row. Its parts retain their distinct meanings:
+
+- Type-side eligibility checks whether the occurrence and its custody may be
+  discharged by that plan;
+- proposition prerequisites must be proved from local facts or already appear
+  in the machine's authored `requires` contract;
+- effects, reach, and work enter the checked operational summary; and
+- cleanup postconditions may contribute derived guarantees.
+
+Body analysis may derive guarantees and operational dependencies, but it never
+invents a caller-facing demand. This is why an acyclic body may derive a
+termination guarantee while a dying parameter cannot silently add a cleanup
+precondition: the former gives callers a fact, while the latter would make them
+owe an undeclared fact. The rule applies equally to public and private
+machines.
+
+For a generic checked body the row remains symbolic in its type parameters and
+is discharged after substitution; the body is not rechecked as an unrelated
+template. Containers require no nominal `Disposable` bound. Their structural
+plans compose from the plans of their live elements, and an instantiation whose
+elements lack a legal disposition rejects. Diagnostics expand synthesized rows
+back to their authored origin, naming the exact hook clause and cleanup edge
+rather than exposing an internal predicate such as `CleanupEligible<T>`.
 
 ## Reach, Resources, And Cycles
 
@@ -331,8 +414,9 @@ bound for repeated backedges.
 The center of every cleanup artifact is one conservation theorem:
 
 > Every incoming owned obligation is assigned exactly once to transfer,
-> explicit terminal consumption, automatic affine cleanup, or validated
-> no-code affine discard.
+> explicit terminal consumption, automatic cleanup (affine or an
+> owner-authorized linear terminal disposition), or validated no-code affine
+> discard.
 
 Nothing may appear in two categories or in none. The transfer map, ordered
 cleanup actions, contracts, and backend realization are evidence for that
@@ -355,7 +439,7 @@ EdgeCleanupPlan {
     established_during_materialization
     transfer_map
     explicit_consumptions
-    ordered_affine_cleanup_actions
+    ordered_automatic_cleanup_actions
     trivial_affine_discards
     frontier_after
     effects_and_resource_composition
@@ -363,8 +447,10 @@ EdgeCleanupPlan {
 }
 ```
 
-A linear place in the dying set is a compile error. A trivial affine discard is
-an explicit checked no-code action, not evidence that nothing was live.
+A linear place in the dying set is a compile error unless its exact type-owned
+cleanup plan is an authorized terminal disposition and all contextual
+requirements hold. A trivial affine discard is an explicit checked no-code
+action, not evidence that nothing was live.
 
 ## Backend Realization
 
@@ -379,6 +465,25 @@ backend must not rediscover it from lexical scopes:
   state and edge identities; and
 - every cleanup or no-code action maps back to the permission ledger.
 
+An owned erased or dynamic value carries the same obligation after its concrete
+type is hidden. Its compiler-built descriptor therefore retains size,
+alignment, movement, and the exact structural cleanup plan. Moving the erased
+owner transfers payload custody and this disposition together; final
+consumption invokes the descriptor plan exactly once. A borrowed dynamic view
+carries dispatch metadata but never cleanup ownership for its referent.
+Manually destroying a heterogeneous collection remains ordinary:
+`omega::core::drop(collection)` consumes the collection, whose structural plan
+then invokes each owned element's descriptor cleanup.
+
+Erasure into an automatically cleaned owner is legal only when the concrete
+plan is eligible under the erased package's retained invariant, or when the
+package also carries the stable facts and authority needed by that plan. A
+linear value with no such automatic disposition cannot be placed in an
+auto-cleaned heterogeneous container; it needs an explicit consuming owner.
+This descriptor entry is lifecycle metadata, not trait evidence, and third
+parties cannot attach cleanup to a foreign type. They wrap it in a type they
+own when they need a different disposition.
+
 Coalescing is a soundness requirement when a borrow contract promises stable
 address, and a performance acceptance requirement for unchanged loop-carried
 large values. It is never used to make an invalid semantic transfer legal.
@@ -389,7 +494,8 @@ large values. It is never used to make an invalid semantic transfer legal.
    edge.
 2. A moved result or transition argument is committed before remaining cleanup
    runs.
-3. A live linear place in the dying set rejects.
+3. A live linear place in the dying set rejects unless its owner-authorized
+   automatic disposition is valid at that edge.
 4. Failure and success edges use the same cleanup rules.
 5. Nuclear abort emits no cleanup or unwinding.
 6. A partially moved structural aggregate cleans only its live fields.
@@ -402,3 +508,7 @@ large values. It is never used to make an invalid semantic transfer legal.
 11. Bounded cyclic work counts repeated cleanup through the termination
     measure.
 12. Proof/debug artifacts retain the conservation witness and exact edge plan.
+13. Authored selection of the reserved attached hook rejects; explicit early
+    disposal consumes through `omega::core::drop`.
+14. Static generic cleanup rows and dynamic descriptors preserve the same exact
+    concrete disposition without trait or conformance lookup.
