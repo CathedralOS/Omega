@@ -1,0 +1,19 @@
+data ComparedPair [copy] {
+    first: u8;
+    last: u8;
+}
+
+data StructuralLessEqualProbe {
+    left: ComparedPair;
+    right: ComparedPair;
+}
+
+machine StructuralLessEqualProbe::run(&mut self) -> u8 {
+    transition self.left <= self.right {
+        true -> pass()
+        _ -> fail()
+    }
+
+    state pass(&mut self) { 70 }
+    state fail(&mut self) { 71 }
+}

@@ -1,0 +1,11 @@
+data RecursiveNode {
+    next: RecursiveNode;
+}
+
+data RecursiveLayoutProbe {
+    node: RecursiveNode;
+}
+
+machine RecursiveLayoutProbe::run(&mut self) -> u8 {
+    70
+}

@@ -54,12 +54,39 @@ lowering, checked-IR, or artifact bytes.
 | `negative-noncopy-aggregate.omg` | an affine aggregate is explicitly moved into mutable receiver storage rather than copied |
 | `negative-less-equal-type.omg` | scalar `<=` is applied to mismatched operand types |
 | `negative-dynamic-index-no-fact.omg` | a full-interval `u32` indexes a two-element array without a narrowing fact |
+| `negative-missing-field.omg` | a named record literal omits one required field |
+| `negative-duplicate-field.omg` | a named record literal supplies one field twice |
+| `negative-unknown-extra-field.omg` | an otherwise complete named record literal supplies one unknown extra field |
+| `negative-nominal-mismatch.omg` | structurally identical but nominally distinct record types are assigned |
+| `negative-out-of-range-u8.omg` | a scalar constant does not fit its destination `u8` field |
+| `negative-noncopy-constant-root.omg` | a direct aggregate constant root lacks the required `[copy]` capability |
+| `negative-shared-place-mutation.omg` | an aggregate constant assignment mutates through a shared `&self` receiver |
+| `negative-recursive-layout.omg` | a by-value record recursively contains itself and has no finite layout |
+| `negative-less-equal-bool.omg` | `<=` is applied to two nonnumeric Boolean operands |
+| `negative-less-equal-structural.omg` | `<=` is applied to two aggregate operands |
+| `negative-less-equal-mixed-carrier.omg` | `<=` mixes numeric `u8` and `u32` carriers |
+| `negative-less-equal-missing-rhs.omg` | `<=` has no right operand |
+| `negative-less-equal-chain.omg` | a second `<=` follows a completed comparison without an admitted Boolean-comparison form |
 
-The first three, the `<=` mismatch, and the fact-free dynamic index are invalid
-full Omega. The runtime-member and affine-aggregate programs are intentionally
-ordinary full-Omega candidates that lie outside this bounded constant/copy
-tranche; their status-251 expectation applies to the bootstrap profile, not to
-the full product compiler.
+Named record literals have no positional arity form in the admitted source
+grammar. Their arity failures are therefore covered honestly by the isolated
+missing, duplicate, and unknown/extra-field cases rather than by a fabricated
+positional-record fixture. The malformed and carrier-incompatible `<=` cases,
+invalid layouts, out-of-range scalar, shared mutation, nominal mismatch, and
+fact-free dynamic index are invalid full Omega. The runtime-member and affine
+aggregate programs are intentionally ordinary full-Omega candidates that lie
+outside this bounded constant/copy tranche; their status-251 expectation
+applies to the bootstrap profile, not to the full product compiler.
+
+## Source resource negative
+
+| Source | Expected status | Isolated reason |
+| --- | --- | --- |
+| `negative-oversized-layout.omg` | 252 | a finite `[u32; 32769]` owner layout exceeds the producer's admitted 131072-byte layout ceiling |
+
+The oversized layout is a resource exhaustion, not a semantic error, so it
+must reject with status 252 and publish no checked-IR bytes. The recursive
+layout above remains status 251 because no finite layout exists at all.
 
 ## Composition and syntax note
 

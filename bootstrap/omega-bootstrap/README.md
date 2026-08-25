@@ -180,8 +180,11 @@ language, generation, or architectural role; new documentation and work use
   data tranche. The focused
   [`gates/delta-resolved-to-ckir3.sh`](gates/delta-resolved-to-ckir3.sh)
   closes native/Delta-self-built producer identity over the exact Unicode unit,
-  renamed and cyclic positives, semantic negatives, and literal-resource
-  boundaries. Its focused Rust-free
+  renamed and cyclic positives, 20 phase-isolated status-251 source negatives,
+  an adjacent oversized-layout 252, and literal-resource boundaries. Those
+  negatives include a carrier-compatibility regression that previously let
+  mixed typed `u8 <= u32` publish invalid CKIR3; both producer routes now reject
+  before publication. Its focused Rust-free
   [`gates/delta-resolved-to-ckir3-meaning.sh`](gates/delta-resolved-to-ckir3-meaning.sh)
   elaborates the same general lowerer once through persisted Beta and requires
   exact native/Gamma agreement for a compact typed constant DAG, aggregate

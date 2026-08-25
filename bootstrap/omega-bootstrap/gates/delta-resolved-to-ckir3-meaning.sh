@@ -65,7 +65,7 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" || {
   exit 1
 }
 
-# Measured 2026-08-24 baseline: 1,219,982 bytes in about 1.8s. 1,470,464
+# Measured 2026-08-24 baseline: 1,221,183 bytes in about 2.5s. 1,470,464
 # leaves a deliberate 20.5% expansion allowance. Reuse this one elaboration
 # for every observation so translation cost is not multiplied by the matrix.
 python3 - "$T/elaborate.exe" "$LOWERER" "$T/lowerer.gamma" "$T/timings.tsv" <<'PY'

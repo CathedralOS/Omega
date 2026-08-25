@@ -1,0 +1,12 @@
+data ByteBox [copy] {
+    value: u8;
+}
+
+data OutOfRangeProbe {
+    box: ByteBox;
+}
+
+machine OutOfRangeProbe::run(&mut self) -> u8 {
+    self.box = ByteBox { value: 256 };
+    self.box.value
+}
