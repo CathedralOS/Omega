@@ -7321,9 +7321,10 @@ Remaining N6/N8 work:
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
   concrete calls may see the stronger merged row set while requirement calls see
-  the pinned requirement surface. Named witness rows on trait requirements stay
-  deferred to **Should trait requirements admit named witness contracts?**; this
-  task must not settle that separate source surface accidentally.
+  the pinned requirement surface. Outcome-specific implementation must preserve
+  the general contract representation needed by `TRAIT-NAMED-WITNESS-CONTRACTS`
+  but may continue to reject named requirement rows until that complete trait
+  path lands.
 
   Never infer evidence from visible facts or attached state names. Runtime Type
   results retain their own multiplicity independently of the proof lane, and
@@ -7332,6 +7333,43 @@ Remaining N6/N8 work:
   every nonmatching arm; omitted copyable outputs add no runtime work, cleanup,
   or fuel. The complete contract is in
   [`law_bearing_relations_and_quotients.md`](wiki/design_briefs/law_bearing_relations_and_quotients.md).
+- **TRAIT-NAMED-WITNESS-CONTRACTS — preserve complete erased proof-call
+  surfaces through traits.** Trait machine requirements admit the same named
+  `requires` inputs and named `ensures` selectors as concrete machines. The
+  requirement owns ordered proposition applications, evidence interfaces, and
+  public output-selector identities. Incoming aliases remain satisfier-local;
+  outgoing selector names are pinned public proof API. Named rows introduce no
+  hidden value binders: every referenced subject must close over the
+  requirement's parameters, result, static telescope, or declared proposition
+  parameters, and ordinary borrow/revision validity still applies.
+
+  Land the feature in dependency order. First add a source canary proving that
+  the existing concrete lane can introduce a witness-bearing proposition,
+  select its named output after `;`, pass it through a named input, and eliminate
+  it through its declared carrierless evidence interface. Then extend trait
+  requirement checking, conformance inheritance, defaults, static calls, and
+  runtime trait dispatch. A satisfying machine must assign every inherited
+  output on each applicable ordinary exit and may not omit, rename, weaken, or
+  replace it. Direct concrete calls may retain authored strengthening; calls
+  through the requirement expose only the pinned requirement surface.
+
+  Dynamic dispatch produces an opaque requirement-level witness. Its declared
+  proposition and evidence interface are available, while the selected
+  satisfier's private producer conformance, term identity, and varying
+  projections never escape. If the current erased evidence representation
+  cannot express that abstraction, dynamic named-witness calls reject until it
+  can; do not synthesize implementation evidence after checking or add runtime
+  dictionary fields.
+
+  Extend checked state signatures, Terminal proof lanes, canonical codecs,
+  package review, compatibility comparison, and diagnostics together. Renaming
+  an incoming alias is stable; changing lane order, proposition/interface, or an
+  outgoing selector is breaking. Add pass/fail canaries for static and dynamic
+  calls, missing/duplicate producer assignment, fact-only named rows, unbound
+  subjects, selector rename, satisfier-private leakage, tampered lane identity,
+  and zero runtime ABI/fuel/storage impact. Until every layer lands, retain the
+  current fail-closed package-review rejection rather than publishing a partial
+  trait contract.
 - **QUOTIENT-THEOREM-LIFT — admit explicit lifted operations.** The settled source
   form is an ordinary quotient-owner body containing
   `Quotient::lift<F, Theorem>(...)` or `Quotient::define<F, Theorem>(...)`.

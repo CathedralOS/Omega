@@ -149,6 +149,15 @@ proposition. An unnamed `requires P` imports only the fact; a named
 Naming changes the caller-facing proof lane and is therefore a breaking API
 revision even though the required proposition is unchanged.
 
+Trait machine requirements admit the same named lanes. The requirement owns the
+ordered input proposition/interface rows and public output selectors; a
+satisfier proves that exact surface and keeps its producer conformance private.
+Incoming aliases are implementation-local, while changing an outgoing selector
+is a breaking proof-API revision. Static and dynamic calls expose only the
+opaque requirement-level witness declared by the trait, never a satisfier-
+private proof identity or projection. This preservation is semantic only: no
+evidence lane contributes runtime ABI storage or dispatch fields.
+
 The initial forwarding form is a bare-name assignment from a current machine's
 named `requires` term to one of its named `ensures` terms. It erases before the
 runtime statement stream and records an exact checked source-to-output binding;

@@ -452,6 +452,12 @@ Unselected guarantees still enter the caller's fact catalog but mint no local
 witness term. Outcome-guarded selectors exist only in the matching outcome arm.
 Chapter 10 defines evidence projection, assignment, call passing, output-lane
 binding, and the separate proposition, evidence-term, and derivation identities.
+Trait machine requirements admit the same named proof lanes. The requirement
+owns their normalized propositions, ordered input positions, evidence
+interfaces, and public output selectors; a satisfying machine supplies those
+proofs without replacing the published interface. This preserves the complete
+callable contract when a concrete certified operation is abstracted behind a
+trait and adds no runtime ABI fields.
 
 A result-case group makes postconditions conditional on one exact nominal case
 of the declared result sum:

@@ -341,16 +341,20 @@ explicitly binder-free rather than fabricating evidence. A non-generic selected
 conformance retains exact package-qualified conformance, carrier, and
 underlying public-trait identities plus its carrier and trait applications; the
 semantic declaration owns exact carrier/trait symbols rather than report code
-reselecting names. Public trait requirements retain unnamed `requires` and
-`ensures` through the same closed structural fact/expression vocabulary as
-public callables, joined to their exact checked state-signature owner. Their
+reselecting names. Public trait requirements retain named and unnamed
+`requires` and `ensures` through the same closed structural fact/expression and
+evidence vocabulary as public callables, joined to their exact checked
+state-signature owner. Named inputs retain ordered proposition and evidence-
+interface identity while treating their source aliases as local. Named outputs
+also retain their public selector identity. Their
 abstract published crash ceilings are projected from exactly one checked
 trait/requirement capsule into canonical cause-and-guard routes; no realized
-body sites or calls are fabricated. Generic selected-conformance telescopes,
-named evidence contracts, and unsupported expression forms reject until
-complete canonical rows land. Trailing `boundary host` / `boundary Name`
+body sites or calls are fabricated. Generic selected-conformance telescopes and
+unsupported expression forms reject until complete canonical rows land.
+Trailing `boundary host` / `boundary Name`
 clauses and trait `invariant` clauses are retired rather than awaiting package
-rows; trait requirements publish facts only through their explicit contracts.
+rows. Trait requirement witnesses remain ordinary explicit contracts rather
+than package-only evidence syntax.
 Requirements also retain whether their checked declaration supplies a default
 realization; the implementation body remains source subject to universal update
 triage, while its checked operational behavior must fit the requirement

@@ -227,6 +227,13 @@ influence runtime computation belongs in an ordinary `Type`-level dependent
 pair whose relevance is tracked explicitly; erasure alone does not authorize
 eliminating a `Prop` inhabitant into runtime `Type`.
 
+Trait machine requirements admit those same lanes. The requirement, rather than
+any satisfier, owns the ordered propositions, evidence interfaces, and public
+output selectors. A static or dynamic requirement call may therefore return an
+opaque requirement-level witness, while satisfier-private producer identity and
+projections remain hidden. Abstracting a concrete machine behind a trait never
+erases part of its published proof-call contract.
+
 The kernel and artifact keep three identities separate: the nominal
 proposition application, the retained evidence term that determines stable
 opaque projections, and the derivation provenance that records trust. Two

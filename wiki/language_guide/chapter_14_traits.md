@@ -968,6 +968,47 @@ field namespace, so `self.value` in a trait requirement contract rejects.
 Representation-independent traits use proposition parameters or declared
 accessor requirements instead.
 
+Trait requirements preserve the complete erased proof-call surface of the
+operations they abstract. A witness-bearing proposition may therefore be named
+as an incoming or outgoing lane:
+
+```omega
+proposition ValidPacket(packet: Packet) evidence ValidPacketEvidence;
+
+trait Decoder {
+    machine decode(bytes: &[u8]) -> Packet
+        ensures validation: ValidPacket(result);
+
+    machine consume(value: Packet)
+        requires validation: ValidPacket(value);
+}
+```
+
+`validation` on `decode` is a public proof-output selector. The binding on
+`consume` is a callee-local alias for its positional erased input; callers pass
+the term after `;` and do not select that alias by name. Both lanes require a
+witness-bearing proposition with one declared evidence interface. An unnamed
+contract remains fact-only and creates no selectable term.
+
+The trait owns the normalized proposition application, lane position, evidence
+interface, and output-selector identity. A satisfying machine must establish
+that exact surface on every applicable ordinary exit. It may add stronger facts
+for direct calls but may not weaken, rename, or substitute the inherited witness
+contract. Default realizations obey the same rule. Renaming an input alias is
+local; renaming an output selector is a breaking proof-API change.
+
+Every subject mentioned by a lane must already be bound by the requirement's
+signature, result, static telescope, or declared proposition parameters. The
+lane does not introduce an existential value binder. Evidence about a prior
+borrow must therefore name a still-valid occurrence explicitly, or the API must
+publish a separate proposition whose declared subject is an ordinary retained
+value.
+
+Static and dynamic requirement calls expose one opaque requirement-level
+witness. Satisfier-private producer conformances and proof identities remain
+hidden behind the declared evidence interface. This abstraction adds no runtime
+field, dictionary entry, calling-plan argument, allocation, cleanup, or fuel.
+
 Value-wide facts belong to the carrier's default domain: field constraints and
 the data signature's `where` facts. Algebraic laws remain resultless theorem
 requirements with `ensures`. Invariant windows remain compiler-derived proof

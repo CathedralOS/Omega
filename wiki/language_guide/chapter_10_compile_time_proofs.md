@@ -331,9 +331,32 @@ authored case group adds rows; omission never removes or weakens inherited rows,
 and an exact restatement rejects as redundant. The effective concrete contract
 merges the pinned requirement rows with the additions. Calls through the
 requirement see its published surface, while direct calls may use the stronger
-concrete surface. This rule applies to ordinary fact guarantees now; whether a
-trait requirement may itself publish named witness selectors remains a separate
-owner decision.
+concrete surface.
+
+Trait machine requirements may publish named `requires` and `ensures` lanes.
+They use the same syntax and call separator as concrete machines; there is no
+trait-specific proof package or forwarding form. The requirement owns the
+ordered input propositions, evidence interfaces, and public output selectors.
+Incoming binding names remain callee-local aliases and a satisfier may rename
+them without changing the requirement application. Outgoing selector names are
+part of the requirement's public proof API; a satisfier cannot rename, omit, or
+replace them, and changing one is a breaking revision.
+
+Every proposition application in a requirement lane must close over subjects
+bound by that requirement's ordinary parameters, result, static telescope, or
+declared proposition parameters. A named lane does not bind a hidden runtime
+subject or carry an otherwise expired occurrence between calls. Evidence over a
+borrowed or revisioned subject retains the ordinary intersection of validity
+scopes.
+
+A satisfying machine proves and assigns the inherited lanes under the same path
+coverage rules as a concrete declaration. Its private producer conformance and
+additional direct-call guarantees remain implementation content. A default
+realization obeys the same rule. Static and dynamic requirement calls expose
+only the requirement-owned witness: dynamic selection may establish the opaque
+witness promised by the requirement, but no satisfier-private evidence term,
+producer identity, or varying projection becomes public. The proposition's
+declared evidence interface is the complete elimination surface.
 
 The artifact keeps proposition identity, evidence-term identity, and
 derivation provenance separate. The first names the claim, the second preserves
