@@ -829,10 +829,10 @@ public callables, joined to their exact checked state-signature owner. Their
 abstract published crash ceilings come from exactly one checked capsule keyed
 by the trait and requirement symbols and retain canonical causes and guards;
 they do not fabricate realized body sites or calls. Generic selected-conformance
-telescopes, named evidence contracts, boundary clauses, and unsupported
-expression forms reject until complete canonical rows exist. Trait `invariant`
-clauses are retired rather than awaiting a package row; trait requirements
-publish facts only through their explicit contracts.
+telescopes, named evidence contracts, and unsupported expression forms reject
+until complete canonical rows exist. Trailing `boundary host` / `boundary Name`
+clauses and trait `invariant` clauses are retired rather than awaiting package
+rows; trait requirements publish facts only through their explicit contracts.
 Requirements also retain whether their checked declaration supplies a default
 realization; implementation bodies remain checked source subject to universal
 update triage rather than entering the evidence format as compiler-private IR.
@@ -1009,8 +1009,8 @@ binders, and non-generic selected conformances use the same canonical row as
 public traits. Checked
 realizations of public, ordinary, lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
-Public callable `requires`, `ensures`, and boundary clauses retain exact
-structural rows for the closed boolean/integer expression subset over parameter
+Public callable `requires` and `ensures` retain exact structural rows for the
+closed boolean/integer expression subset over parameter
 ordinals, `result`, generic binders, and package-qualified nominals. Domain-
 membership rows retain the exact value expression and package-qualified public
 domain; a private package domain cannot leak through a public callable.

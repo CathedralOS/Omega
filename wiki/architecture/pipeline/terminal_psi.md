@@ -416,8 +416,9 @@ projected exits and content-bearing returned results, fail closed.
 A qualified whole structural parameter whose domain owns a checked `Content<A>`
 projection carries that content catalog into terminal Psi on both Unit and
 primitive-result bodyless exits. Lowering reuses the structural claim identity
-and records the entry-version subject plus the owner-unique projection and
-algebra; it does not infer content from carrier bytes or from the domain name.
+and records the subject at its callable-entry revision plus the owner-unique
+projection and algebra; it does not infer content from carrier bytes or from
+the domain name.
 Vocabulary 27 retains that normalized projection on the owning structural
 domain independently from any route, claim, or producer schema. Validation
 replays its algebra, expression, carrier paths, and fingerprint before checking

@@ -63,9 +63,10 @@ machine Buffer::get(items: &[u8], index: u64 [0..items.len]) -> u8 {
 callee indexes without a guard; the obligation is the caller's, discharged by
 a fact in the caller's scope or established with a dominating guard.
 
-Entry values: there is no implicit `old` (chapter 10). A name bound in
-`requires` denotes the value at machine entry, because requires is evaluated
-at entry; `ensures` may use it:
+Entry values are not selected implicitly. `old(place)` explicitly denotes a
+structural place at the callable-entry revision (chapter 10). A name bound in
+`requires` denotes the value at machine entry, because `requires` is evaluated
+there; `ensures` may use it:
 
 ```omega
 machine Counter::bump(&mut self)

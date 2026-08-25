@@ -1,9 +1,11 @@
 # Host Package Status
 
-The old `capability` / `entry` host scaffold was retired in July 2026. It was
-not imported by the compiler or standard library and encoded the superseded
-model in which host contracts, target bindings, calling conventions, and trust
-were fused into one declaration.
+The old `capability` / `entry` host scaffold and
+`library "..." calling_convention ... { entry ... }` import block are retired.
+They were not imported by the compiler or standard library and encoded the
+superseded model in which host contracts, target bindings, calling conventions,
+and trust were fused into one declaration. Trailing `boundary host` /
+`boundary Name` levels are retired with them.
 
 Current surfaces live in these places:
 

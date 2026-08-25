@@ -86,7 +86,10 @@ The Psi product role owns this stage; its eventual hosted source belongs under
   non-return exits, distinct from an ordinary terminal transition. The retired
   `trap;` spelling diagnoses the replacement rather than silently producing a
   successful terminal edge.
-- `parser/capability.rs` owns unresolved capability/authority contract syntax.
+- The retired `capability { entry ... }` host scaffold, `library { entry ... }`
+  import block, explicit machine-member `entry`, and trailing
+  `boundary host` / `boundary Name` clauses are not accepted grammar. The
+  migration on-ramps must diagnose them rather than preserve syntax nodes.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
 - `parser/tests.rs` owns broad parser coverage; tests should not live in the entrypoint file.
 
@@ -107,7 +110,7 @@ name denotes.
 | Calls | Syntactic call expressions/statements plus ordered `suspend` / `block` acknowledgements. |
 | Transitions | Syntactic transition statements and targets. |
 | Reach | Reach clauses and synchronous invocation ceilings as unresolved names. |
-| Boundary edges | Parsed `boundary` traits, operators, authority contracts, library entries, and target policies. |
+| Boundary edges | Parsed `boundary` traits and operators, exact `satisfies ... via` realizations, and target policies. |
 
 ## Ownership Rules
 

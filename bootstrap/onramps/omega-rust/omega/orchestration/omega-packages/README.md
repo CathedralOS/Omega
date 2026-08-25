@@ -461,8 +461,8 @@ arguments, and aliases. Callable conformance bounds, static machine/proposition
 parameters, and non-public, external, operator, or lifetime-parameterized
 realizations fail closed until complete rows land, except that binder-free
 generic requirements, explicit evidence binders, and non-generic selected
-conformances use the canonical public-trait row. Public callable `requires`,
-`ensures`, and boundary clauses retain exact structural rows for the closed
+conformances use the canonical public-trait row. Public callable `requires`
+and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
 value and package-qualified public domain; private package domains reject.

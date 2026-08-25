@@ -48,6 +48,9 @@ machine Game::run(&mut self) {
 ## Working Rules
 
 - Calling `Game::run` enters the machine body at the top.
+- The machine head and top-level body are its only source entry surface. There
+  is no nested `entry` or `pub entry` member; the compiler's internal entry
+  block is generated from that ordinary body.
 - The machine body may do setup work first, but the entry path must end in one
   explicit tail `transition { ... }` before any `state` declarations.
 - `prompt`, `look`, `invalid_command`, and `finished` are internal state labels.

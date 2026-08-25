@@ -278,8 +278,8 @@ data ReadOutcome {
 The boundary contract decides whether a given failure is data (a case in the
 returned sum), a blocking wait, or a declared non-returning outcome. Host
 boundaries must document whether resources remain valid after a failure case.
-The selected host provider and calling plan realize the ABI; `boundary host`
-is not a separate machine-body form.
+The selected provider and calling plan realize the ABI. The retired trailing
+`boundary host` / `boundary Name` clause contributes no contract surface.
 
 ## Cancellation
 

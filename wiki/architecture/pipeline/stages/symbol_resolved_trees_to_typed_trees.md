@@ -34,7 +34,7 @@ whether facts discharge runtime proof obligations.
 | Calls | Typed call signatures, argument expectations, and return expectations. |
 | Transitions | Typed transition arguments and return/exit expectations. |
 | Reach | Typed reach declarations, invocation ceilings, and call surfaces. |
-| Boundary edges | Typed boundary contracts and operator signatures. |
+| Boundary edges | Typed boundary declarations, requirement contracts, exact realization bindings, and operator signatures. |
 
 ## Ownership Rules
 

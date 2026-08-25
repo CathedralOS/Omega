@@ -860,6 +860,15 @@ derived `ProviderPlan` for a boundary trait, not a different user-facing
 callable concept. There is no `provides` declaration keyword and no authored
 row-builder API.
 
+The legacy `library "..." calling_convention ... { entry ... }` block and its
+trailing `boundary host` / `boundary Name` levels are retired. So are trailing
+boundary-level clauses on machines, capabilities, or requirements. Portable
+identity belongs to the exact boundary trait requirement; realization and ABI
+belong to the selected provider, evaluated `Binding`, and calling plan; build
+admission approves that exact closure. Accepting a boundary-level word and then
+discarding its host/name distinction during lowering is never a compatibility
+strategy.
+
 The target's core/std package declares leaf machines satisfying the raw syscall
 requirements `via Binding::Syscall { ... }` and ordinary checked adapter
 machines satisfying Console. The compiler derives their normalized plan from
@@ -1243,17 +1252,18 @@ unreduced so system policy can calculate a deployment-specific coexistence
 peak without Omega inventing arithmetic between unlike content algebras.
 
 Contracts call the exact owner-unique projection machine. Proof-only
-`entry(place)` selects an entry-version structural place, while compiler-owned
-`separate(...)` performs the closed algebra's partial n-ary composition. Neither
-has runtime representation. Identity-preserving claim reshuffles infer;
-partition-changing primitives author their theorem and checked wrappers compose
-it. Terminal Psi carries each exact preserved-claim mapping, reconstructs its
-projection equality, and retains active sum payloads as distinct case-plus-field
-paths. It never infers separated composition across independent claims.
+`old(place)` selects a structural place at its callable-entry revision, while
+compiler-owned `separate(...)` performs the closed algebra's partial n-ary
+composition. Neither has runtime representation. Identity-preserving claim
+reshuffles infer; partition-changing primitives author their theorem and
+checked wrappers compose it. Terminal Psi carries each exact preserved-claim
+mapping, reconstructs its projection equality, and retains active sum payloads
+as distinct case-plus-field paths. It never infers separated composition across
+independent claims.
 
 Content equations resolve every projection to the exact owner-unique
 `Content<A>::project` machine and normalize once per callable outcome and
-algebra. `entry` cannot select `result` or an arbitrary expression; projection
+algebra. `old` cannot select `result` or an arbitrary expression; projection
 subjects are shared borrows of qualified structural places. Mixed algebras,
 duplicate equations, and executable uses reject. `TASKS.md` owns expansion
 beyond the source positions accepted by the compiler.
@@ -1379,8 +1389,9 @@ Typical layering:
 ```text
 application code
   -> standard-library Omega machines
-    -> boundary host trait/provider
-      -> syscall / imported symbol / firmware jump / loader hook
+    -> boundary trait requirement
+      -> selected provider and calling plan
+        -> syscall / imported symbol / firmware jump / loader hook
 ```
 
 Static vs dynamic linkage is not the same question as boundary vs normal code.
