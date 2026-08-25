@@ -192,10 +192,18 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         return SymbolHandle::invalid();
     };
     if owner.is_empty() {
-        // A generic machine may forward one of its own compile-time machine
-        // parameters (`map<F>(tail)`). Keep that lexical binding distinct
-        // from a same-named free machine; specialization substitutes it with
-        // the concrete selected entry before checked lowering.
+        // A generic machine may forward one of its own compile-time static
+        // parameters. Keep lexical bindings distinct from same-named concrete
+        // declarations; the selected callee telescope validates the category.
+        let type_or_const_parameter = child_symbol_by_kinds(
+            symbols,
+            machine_symbol,
+            &[SymbolKind::TypeParameter],
+            target.as_str(),
+        );
+        if type_or_const_parameter.is_valid() {
+            return type_or_const_parameter;
+        }
         let parameter = child_symbol_by_kinds(
             symbols,
             machine_symbol,

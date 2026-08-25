@@ -1049,8 +1049,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 47);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 7);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 48);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 8);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -2299,41 +2299,129 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
-fn package_compilation_rejects_forwarded_type_binders_before_package_review() {
+fn review_alpha_normalizes_forwarded_type_and_const_binders() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"machine tag<Value>() -> u64 { 0 }
-pub machine generic_tag<Value>() -> u64
-requires tag<Value>() == tag<Value>()
-{
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed_type = TempPackage::new();
+    let changed_const = TempPackage::new();
+    let source = |first: &str,
+                  second: &str,
+                  left: &str,
+                  right: &str,
+                  selected_type: &str,
+                  selected_const: &str| {
+        format!(
+            r#"machine tag<Value>() -> u64 {{ 0 }}
+machine constant<const Value: u64>() -> u64 {{ 0 }}
+pub machine generic_type<{first}, {second}>() -> u64
+requires tag<{selected_type}>() == tag<{selected_type}>()
+{{
     0
-}
+}}
+pub machine generic_const<const {left}: u64, const {right}: u64>() -> u64
+requires constant<{selected_const}>() == constant<{selected_const}>()
+{{
+    0
+}}
 "#,
+        )
+    };
+    original.write(
+        "main.omg",
+        &source("First", "Second", "Left", "Right", "First", "Left"),
     );
-    package.write(
-        "build.omg",
-        r#"target windows_x64 { }
+    renamed.write(
+        "main.omg",
+        &source(
+            "Primary",
+            "Secondary",
+            "Minimum",
+            "Maximum",
+            "Primary",
+            "Minimum",
+        ),
+    );
+    changed_type.write(
+        "main.omg",
+        &source("First", "Second", "Left", "Right", "Second", "Left"),
+    );
+    changed_const.write(
+        "main.omg",
+        &source("First", "Second", "Left", "Right", "First", "Right"),
+    );
+    let build = r#"target windows_x64 { }
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { }
-"#,
+"#;
+    for package in [&original, &renamed, &changed_type, &changed_const] {
+        package.write("build.omg", build);
+    }
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("forwarded type and const contract arguments should check");
+        project_checked_package_review(&checked)
+            .expect("forwarded type and const binders have canonical review rows")
+    };
+    let original = project(&original);
+    let renamed = project(&renamed);
+    let changed_type = project(&changed_type);
+    let changed_const = project(&changed_const);
+    let static_arguments = |name: &str| {
+        let callable = original
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == name)
+            .expect("generic callable");
+        let [contract] = callable.contracts() else {
+            panic!("one generic callable contract")
+        };
+        let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            right,
+            ..
+        }) = contract.fact()
+        else {
+            panic!("generic callable equality contract")
+        };
+        let PackageReviewContractExpression::Call {
+            static_arguments, ..
+        } = right.as_ref()
+        else {
+            panic!("generic callable contract call")
+        };
+        static_arguments.clone()
+    };
+    assert_eq!(
+        static_arguments("generic_type"),
+        [PackageReviewContractStaticArgument::GenericTypeBinder(0)]
     );
-    let diagnostics = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
-    .expect_err("forwarded type binders without exact selections must fail closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("StaticArgument (CheckedStaticArgument)")
-    }));
+    assert_eq!(
+        static_arguments("generic_const"),
+        [PackageReviewContractStaticArgument::GenericConstBinder(0)]
+    );
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming forwarded type and const binders must preserve review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_type.canonical_review_bytes().unwrap(),
+        "selecting a different forwarded type binder must change review identity",
+    );
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_const.canonical_review_bytes().unwrap(),
+        "selecting a different forwarded const binder must change review identity",
+    );
 }
 
 #[test]

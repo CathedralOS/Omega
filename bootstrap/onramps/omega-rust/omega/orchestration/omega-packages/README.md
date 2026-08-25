@@ -530,6 +530,15 @@ ordinals: renames are stable, while selecting a different lifetime changes
 canonical evidence. Generic machine/conformance applications, unresolved
 forwarded type/const binders, proposition/evidence static arguments, quotient
 calls, and compiler intrinsics remain fail-closed.
+Review v48 and canonical row v8 admit contract-call forwarding of caller type
+and const binders. Each argument is validated against the exact caller and
+selected-callee telescope categories and encoded by its alpha-normalized caller
+static-telescope ordinal: binder renames are stable, while selecting a different
+binder changes canonical evidence. The frontend now resolves const-parameter
+carrier types on machines and traits. Symbolic const declarations or
+expressions, proposition/evidence static arguments, true nested
+machine/conformance applications, quotient calls, and compiler intrinsics
+remain fail-closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` remain fail-closed: checked monomorphization has
 no closed application identity and currently omits recursive arguments and
@@ -622,7 +631,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v47 projection therefore
+remain separately bound. The current incomplete review-v48 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface

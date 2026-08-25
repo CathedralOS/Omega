@@ -800,7 +800,7 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v47 rows are not promoted
+subjects or provenance. The current incomplete review-v48 rows are not promoted
 by terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -1356,6 +1356,15 @@ ordinals: renames are stable, while selecting a different lifetime changes
 canonical evidence. Generic machine/conformance applications, unresolved
 forwarded type/const binders, proposition/evidence static arguments, quotient
 calls, and compiler intrinsics remain fail-closed.
+Review v48 and canonical row v8 admit contract-call forwarding of caller type
+and const binders. Each argument is validated against the exact caller and
+selected-callee telescope categories and encoded by its alpha-normalized caller
+static-telescope ordinal: binder renames are stable, while selecting a different
+binder changes canonical evidence. The frontend now resolves const-parameter
+carrier types on machines and traits. Symbolic const declarations or
+expressions, proposition/evidence static arguments, true nested
+machine/conformance applications, quotient calls, and compiler intrinsics
+remain fail-closed.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` remain fail-closed: checked monomorphization has
 no closed application identity and currently omits recursive arguments and
@@ -1395,8 +1404,8 @@ place join. Simple total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with
-signature identity. Forwarded or symbolic type/const binders,
-proposition/evidence static arguments, quotient calls, generic
+signature identity. Symbolic const declarations or expressions,
+proposition/evidence static arguments, quotient calls, true nested
 machine/conformance applications, compiler-intrinsic
 calls, computed members, proposition-argument members without their checked
 join, and aggregate expression forms fail closed.
