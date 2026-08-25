@@ -42,10 +42,15 @@ The production-path lineage-spoofing canary constructs two byte-identical
 external-local lineages. Both remain separate graph/review identities, and a
 root provider selection imported from one cannot be captured by the other.
 
+The fixture-derived provider-selection update changes `provider-switchboard`
+from `MonotonicClock` to `WallClock` under immutable baseline/candidate custody.
+It produces one compiler-owned, opaque-blocking selected-provider-set conflict
+and blocks triage.
+
 The admission matrix must additionally cover remote compiler-backed
-transport-normalized lineage, provider-selection updates, retained dangerous
-authority, missing accepted-lock state, and conflicting instance requests for
-one `PackageKey`. Missing old source is already covered with both live and
-reopened review-only baselines. `remote-journal` provides the local and remote
-source-custody retained-dangerous-authority case; sealed remote admission still
-depends on the accepted-lock pipeline.
+transport-normalized lineage, retained dangerous authority, missing
+accepted-lock state, and conflicting instance requests for one `PackageKey`.
+Missing old source is already covered with both live and reopened review-only
+baselines. `remote-journal` provides the local and remote source-custody
+retained-dangerous-authority case; sealed remote admission still depends on the
+accepted-lock pipeline.
