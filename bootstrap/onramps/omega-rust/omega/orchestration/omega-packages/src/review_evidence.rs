@@ -258,6 +258,15 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
             hash_bytes(&mut digest, operand.bytes());
         }
         digest.update(
+            u64::try_from(attempt.path_like_operands().len())
+                .expect("build observation path-like-operand count fits u64")
+                .to_le_bytes(),
+        );
+        for operand in attempt.path_like_operands() {
+            digest.update([operand.operand_ordinal()]);
+            hash_bytes(&mut digest, operand.bytes());
+        }
+        digest.update(
             u64::try_from(attempt.mutable_byte_operands().len())
                 .expect("build observation mutable-byte-operand count fits u64")
                 .to_le_bytes(),
@@ -545,6 +554,43 @@ reaches FilesystemHost
         summary
     }
 
+    fn compiled_path_like_observation(target: &str) -> BuildObservationSummary {
+        let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
+        let project = std::env::temp_dir().join(format!(
+            "omega-review-path-like-observation-{}-{sequence}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&project);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target windows_x64 {{}}
+
+data SymlinkProbe {{ filesystem: FilesystemHost; result: i32; }}
+
+machine SymlinkProbe::build(&mut self, builder: &mut Build)
+reaches FilesystemHost
+{{
+    let link: &[u8] in Path = builder.output.resolve("missing-parent/link");
+    self.result = self.filesystem.symlink("{target}", link);
+}}
+"#,
+            ),
+        )
+        .unwrap();
+        std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").unwrap();
+        let summary = compile_to_checked(&project.join("main.omg"), Some("windows_x64"))
+            .unwrap()
+            .build_observation_summary()
+            .expect("filesystem build publishes observations")
+            .clone();
+        std::fs::remove_dir_all(project).unwrap();
+        summary
+    }
+
     #[test]
     fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
         let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
@@ -573,8 +619,8 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 10);
-        assert_eq!(first.filesystem_operation_schema_version(), 10);
+        assert_eq!(first.schema_version(), 11);
+        assert_eq!(first.filesystem_operation_schema_version(), 11);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
         assert!(bytes_changed.staged_output_tree().is_none());
@@ -681,6 +727,41 @@ reaches FilesystemHost
             build_observation_commitment(&first),
             build_observation_commitment(&changed),
             "one changed mutable post-state changes observation identity"
+        );
+    }
+
+    #[test]
+    fn observation_commitment_binds_path_like_operands() {
+        let first = compiled_path_like_observation("missing-alpha");
+        let changed = compiled_path_like_observation("missing-bravo");
+        let [first_symlink] = first.filesystem_operation_attempts() else {
+            panic!("fixture performs one symlink operation")
+        };
+        let [changed_symlink] = changed.filesystem_operation_attempts() else {
+            panic!("fixture performs one symlink operation")
+        };
+        assert_eq!(first_symlink.result(), changed_symlink.result());
+        assert_eq!(first_symlink.post_error(), changed_symlink.post_error());
+        assert_eq!(
+            first_symlink.authorized_paths(),
+            changed_symlink.authorized_paths()
+        );
+        assert_eq!(
+            first_symlink.grant_refusals(),
+            changed_symlink.grant_refusals()
+        );
+        assert_eq!(
+            first_symlink.path_like_operands()[0].bytes(),
+            b"missing-alpha"
+        );
+        assert_eq!(
+            changed_symlink.path_like_operands()[0].bytes(),
+            b"missing-bravo"
+        );
+        assert_ne!(
+            build_observation_commitment(&first),
+            build_observation_commitment(&changed),
+            "one changed path-like operand changes observation identity"
         );
     }
 }

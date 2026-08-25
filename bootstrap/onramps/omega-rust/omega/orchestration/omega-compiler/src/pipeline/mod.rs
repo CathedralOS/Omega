@@ -63,9 +63,9 @@ pub use build_config::{
     BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutput,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMutableByteOperand,
     BuildFilesystemMutableI64Operand, BuildFilesystemOperationAttempt,
-    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemRoot,
-    BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue, BuildObservationClass,
-    BuildObservationSummary,
+    BuildFilesystemOperationResult, BuildFilesystemPathLikeOperand, BuildFilesystemProvider,
+    BuildFilesystemRoot, BuildFilesystemScalarOperand, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, BuildObservationSummary,
 };
 pub use build_staged_output::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,

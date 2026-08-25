@@ -152,10 +152,10 @@ pub struct EvaluationUsage {
 ///
 /// This records call-start order, exact provider, every successfully authorized
 /// scoped path as a grant-root identity plus canonical relative UTF-8 bytes,
-/// and a typed returned or evaluator-halted outcome. It is not the canonical
-/// replay transcript: path-like byte operands beyond rooted grant evidence,
-/// complete returned content, and complete content custody are not present yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 10;
+/// exact path-like byte operands, and a typed returned or evaluator-halted
+/// outcome. It is not the canonical replay transcript: complete returned
+/// content and complete content custody are not present yet.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 11;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemObservationProvider {
@@ -282,6 +282,25 @@ pub struct FilesystemByteOperand {
 }
 
 impl FilesystemByteOperand {
+    pub const fn operand_ordinal(&self) -> u8 {
+        self.operand_ordinal
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+/// Exact bytes consumed where an operation assigns path-like meaning without
+/// consuming a rooted path grant. Keeping this distinct from immutable payload
+/// bytes and authorized rooted paths preserves the operation's operand roles.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemPathLikeOperand {
+    operand_ordinal: u8,
+    bytes: Vec<u8>,
+}
+
+impl FilesystemPathLikeOperand {
     pub const fn operand_ordinal(&self) -> u8 {
         self.operand_ordinal
     }
@@ -502,6 +521,7 @@ pub struct FilesystemOperationAttempt {
     outcome: Option<FilesystemOperationAttemptOutcome>,
     scalar_operands: Vec<FilesystemScalarOperand>,
     byte_operands: Vec<FilesystemByteOperand>,
+    path_like_operands: Vec<FilesystemPathLikeOperand>,
     mutable_byte_operands: Vec<FilesystemMutableByteOperand>,
     mutable_i64_operands: Vec<FilesystemMutableI64Operand>,
     authorized_paths: Vec<FilesystemAuthorizedPath>,
@@ -519,6 +539,7 @@ impl FilesystemOperationAttempt {
             outcome: None,
             scalar_operands: Vec::new(),
             byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
             mutable_byte_operands: Vec::new(),
             mutable_i64_operands: Vec::new(),
             authorized_paths: Vec::new(),
@@ -563,6 +584,10 @@ impl FilesystemOperationAttempt {
 
     pub fn byte_operands(&self) -> &[FilesystemByteOperand] {
         &self.byte_operands
+    }
+
+    pub fn path_like_operands(&self) -> &[FilesystemPathLikeOperand] {
+        &self.path_like_operands
     }
 
     pub fn mutable_byte_operands(&self) -> &[FilesystemMutableByteOperand] {

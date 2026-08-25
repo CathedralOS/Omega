@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v10 carries operation-attempt schema v9, retaining exact
+Observation schema v11 carries operation-attempt schema v11, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -323,12 +323,14 @@ pre/post values. Pre-state follows evaluation of every authored argument;
 post-state follows provider return or halt, and input-only mutable ABI carriers
 remain explicit even when unchanged. Rooted/path-alias spellings stay out of
 the payload lane. A separate 256 MiB aggregate operand-evidence sponsor
-reserves immutable bytes and both mutable copies before that call's provider
-access; prior or nested staging effects remain cleanup-contained. The package
-commitment frames exact tags, ordinals, bytes, and pre/post values without
-rendering payloads as text. Path-like bytes not represented by rooted evidence,
-preparation-failure operand prefixes, retained returned-path bytes, and complete
-content remain absent, so this is an
+reserves immutable bytes, exact path-like bytes, and both mutable copies before
+that call's provider access; prior or nested staging effects remain cleanup-
+contained. Directory-entry names, symlink targets, find patterns, and other
+non-rooted path-like operands occupy a distinct ordinal-tagged lane, are
+retained incrementally across later preparation failure, and are bound by the
+package commitment without rendering bytes as text. Preparation-failure
+rooted-path/logical-handle/mutable prefixes, retained returned-path bytes, and
+complete observed-input content remain absent, so this is an
 incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
