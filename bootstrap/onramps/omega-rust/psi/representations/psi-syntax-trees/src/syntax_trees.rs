@@ -107,7 +107,6 @@ impl SyntaxTrees {
             | Item::Const(_)
             | Item::Data(_)
             | Item::Domain(_)
-            | Item::Export(_)
             | Item::Invariant(_)
             | Item::Library(_)
             | Item::Measure(_)
@@ -330,10 +329,6 @@ impl SyntaxTrees {
                     },
                 })
             }
-            Item::Export(export_item) => Item::Export(crate::item::ExportItem {
-                path: self.copy_item_identifier_span(other, export_item.path),
-                alias: export_item.alias.clone(),
-            }),
             Item::Use(use_item) => Item::Use(UseItem {
                 path: self.copy_item_identifier_span(other, use_item.path),
             }),

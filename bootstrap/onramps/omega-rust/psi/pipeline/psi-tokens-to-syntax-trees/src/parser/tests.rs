@@ -96,15 +96,15 @@ fn provider_selection_retains_two_structural_type_paths() {
 
 #[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
-    for source in ["pub export Shape;"] {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize declaration");
-        let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
-        assert!(
-            error.message.contains("silently private API"),
-            "{}",
-            error.message
-        );
-    }
+    let tokens = Lexer::new("pub const Counter::ZERO: i32 = 0;")
+        .tokenize()
+        .expect("tokenize declaration");
+    let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
+    assert!(
+        error.message.contains("silently private API"),
+        "{}",
+        error.message
+    );
 }
 
 #[test]
@@ -3777,38 +3777,22 @@ fn parses_executable_domain_membership_union_expression() {
 }
 
 #[test]
-fn parses_export_items_with_optional_alias() {
-    let source = r#"
-        export internal_regex::Match as Match;
-        export Grep::search;
-        "#;
-
-    let tokens = Lexer::new(source)
+fn rejects_retired_export_items_with_direction() {
+    let tokens = Lexer::new("export internal_regex::Match as Match;")
         .tokenize()
         .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let exports = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            psi_syntax_trees::item::Item::Export(export) => Some(export),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let error = parse_syntax_trees(&tokens).expect_err("retired export item must reject");
 
-    assert_eq!(exports.len(), 2);
-    let first_path = parsed.items.identifier_path_members(exports[0].path);
-    assert_eq!(first_path.len(), 2);
-    assert_eq!(first_path[0].as_str(), "internal_regex");
-    assert_eq!(first_path[1].as_str(), "Match");
-    assert_eq!(
-        exports[0].alias.as_ref().map(|alias| alias.as_str()),
-        Some("Match")
+    assert!(
+        error.message.contains("the `export` item is retired"),
+        "got: {}",
+        error.message
     );
-    let second_path = parsed.items.identifier_path_members(exports[1].path);
-    assert_eq!(second_path.len(), 2);
-    assert_eq!(second_path[0].as_str(), "Grep");
-    assert_eq!(second_path[1].as_str(), "search");
-    assert!(exports[1].alias.is_none());
+
+    let tokens = Lexer::new("machine export() { }")
+        .tokenize()
+        .expect("tokenize ordinary identifier");
+    parse_syntax_trees(&tokens).expect("export remains available as an ordinary identifier");
 }
 
 #[test]

@@ -117,7 +117,7 @@ than a per-trait opt-in, decides which entries are critical.
 `boundary` is not a synonym for "reaches a service." These are separate axes:
 
 - `reaches` names what externally visible behavior class can happen.
-- `export` names what symbols belong to an artifact/API surface.
+- `pub` names what package-owned declarations belong to its API surface.
 - `boundary` names the crossing whose supply, contracts, and receipts are
   represented explicitly.
 

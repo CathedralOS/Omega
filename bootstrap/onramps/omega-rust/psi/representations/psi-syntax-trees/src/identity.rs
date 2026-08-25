@@ -252,15 +252,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             syntax_trees.items.identifier_path_members(use_item.path),
             counts,
         ),
-        Item::Export(export_item) => {
-            count_identifier_members(
-                syntax_trees.items.identifier_path_members(export_item.path),
-                counts,
-            );
-            if let Some(alias) = &export_item.alias {
-                count_identifier(alias, counts);
-            }
-        }
         Item::Machine(machine) => count_machine(syntax_trees, machine, counts),
 
         Item::Trait(trait_definition) => {

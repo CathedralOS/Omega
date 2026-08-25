@@ -150,10 +150,6 @@ pub enum ItemSnapshot {
         parameters: Vec<StateParameterSnapshot>,
         body: PropositionBodySnapshot,
     },
-    Export {
-        path: Vec<IdentifierSnapshot>,
-        alias: Option<IdentifierSnapshot>,
-    },
     Use {
         path: Vec<IdentifierSnapshot>,
     },
@@ -1070,10 +1066,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     }
                 }
             },
-        },
-        Item::Export(value) => ItemSnapshot::Export {
-            path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
-            alias: value.alias.as_ref().map(snapshot_identifier),
         },
         Item::Use(value) => ItemSnapshot::Use {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),

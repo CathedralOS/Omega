@@ -103,7 +103,6 @@ pub const SOURCE_FEATURE_IDS: &[&str] = &[
     "item.const",
     "item.data",
     "item.domain",
-    "item.export",
     "item.invariant",
     "item.library",
     "item.machine",

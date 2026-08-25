@@ -23,7 +23,6 @@ pub enum Item {
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
     Proposition(PropositionDefinition),
-    Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
     Trait(TraitDefinition),
@@ -183,21 +182,6 @@ pub enum PropositionBody {
     Transparent {
         proposition: crate::expression::ExpressionHandle,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExportItem {
-    pub path: HandleSpan<Identifier>,
-    pub alias: Option<Identifier>,
-}
-
-impl Default for ExportItem {
-    fn default() -> Self {
-        Self {
-            path: HandleSpan::empty(),
-            alias: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -670,8 +654,7 @@ pub struct DomainDefinition {
     pub target_type: crate::types::TypeReferenceHandle,
     /// Const binders selected into family identity (`Quantity<U>`).
     pub index_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-    /// Retained for transparent-alias publication legality. General module
-    /// export semantics remain owned by explicit `export` items.
+    /// Retained for transparent-alias publication legality.
     pub is_public: bool,
     /// An authored transparent predicate alias. Kept independently from
     /// predicate facts so an alias can never be mistaken for a bodyless

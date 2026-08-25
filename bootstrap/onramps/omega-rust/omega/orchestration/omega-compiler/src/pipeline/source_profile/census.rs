@@ -451,13 +451,6 @@ impl Census {
                     }
                 }
             }
-            ItemSnapshot::Export { path, alias } => {
-                self.bump("item.export");
-                self.path(path);
-                if let Some(alias) = alias {
-                    self.identifier(alias);
-                }
-            }
             ItemSnapshot::Use { path } => {
                 self.bump("item.use");
                 self.path(path);
