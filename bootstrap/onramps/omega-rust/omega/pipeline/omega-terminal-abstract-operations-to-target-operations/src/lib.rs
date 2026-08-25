@@ -34,6 +34,7 @@ use psi_terminal::{
 
 mod conditional_control;
 mod conditional_scalar;
+mod structural_result;
 mod structural_scalar;
 
 use conditional_control::{
@@ -241,6 +242,11 @@ fn lower_function(
         );
     }
     if let Some(result) = function.result.structural() {
+        if let Some(lowered) =
+            structural_result::lower_direct_return(function, target, functions, structural_types)?
+        {
+            return Ok(lowered);
+        }
         return lower_structural_return_function(function, result, target, structural_types);
     }
     let Some(function_result) = function.result.scalar() else {
@@ -623,7 +629,8 @@ fn lower_function(
                     operation: *psi_operation,
                 });
             }
-            TerminalAbstractOperation::CallStructuralScalar { .. } => {
+            TerminalAbstractOperation::CallStructuralScalar { .. }
+            | TerminalAbstractOperation::CallStructural { .. } => {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,
                 ));
@@ -2916,6 +2923,7 @@ fn lower_unit_function(
             TerminalAbstractOperation::Crash { .. }
             | TerminalAbstractOperation::Call { .. }
             | TerminalAbstractOperation::CallStructuralScalar { .. }
+            | TerminalAbstractOperation::CallStructural { .. }
             | TerminalAbstractOperation::IntegerConstant { .. }
             | TerminalAbstractOperation::BooleanConstant { .. }
             | TerminalAbstractOperation::BooleanStructuralField { .. }
@@ -3960,6 +3968,7 @@ fn conditional_provenance(
             | TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
             | TerminalAbstractOperation::CallStructuralScalar { psi_operation, .. }
+            | TerminalAbstractOperation::CallStructural { psi_operation, .. }
             | TerminalAbstractOperation::BoundaryCall { psi_operation, .. }
             | TerminalAbstractOperation::PortWrite { psi_operation, .. }
             | TerminalAbstractOperation::Call { psi_operation, .. }

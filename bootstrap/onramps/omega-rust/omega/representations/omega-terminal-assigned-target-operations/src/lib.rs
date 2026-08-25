@@ -17,9 +17,9 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +52,21 @@ pub enum TerminalAssignedOperation {
         structural_parameters: Vec<TerminalTargetStructuralParameter>,
         copies: Vec<TerminalAssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    ReturnStructuralCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        operation_result: StructuralOperationResult,
+        result: StructuralResultDeclaration,
+        callee: MachineId,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        callee_call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        copies: Vec<TerminalAssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        returned_claims: Vec<ClaimId>,
     },
     ScalarReturnWithCleanup {
         scalar: Box<TerminalAssignedOperation>,

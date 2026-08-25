@@ -1,14 +1,18 @@
-//! Canonical format-36 codec for one installed internal Unit-call row.
+//! Canonical format-37 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
 
 use omega_terminal_machine_code::{
-    TerminalInternalUnitCallArgumentRecord, TerminalInternalUnitCallRecord,
+    TerminalInternalStructuralCallResult, TerminalInternalUnitCallArgumentRecord,
+    TerminalInternalUnitCallRecord,
 };
 use omega_terminal_target_operations::TerminalCallSiteOwner;
-use psi_core::{ClaimId, EdgeId, MachineId, OperationId, StructuralTypeId};
-use psi_terminal::{ClaimTransfer, StructuralArgument};
+use psi_core::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+use psi_terminal::{
+    ClaimTransfer, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralResultClaimTransfer, StructuralResultDeclaration,
+};
 
 use super::{
     Reader, TerminalInstallationError, TerminalInstalledInternalUnitCall, decode_boolean, push_u16,
@@ -156,6 +160,58 @@ fn encode_internal_unit_call(
         push_u64(bytes, transfer.claim.get());
         push_u32(bytes, transfer.argument_index);
     }
+    encode_structural_result(bytes, installed.machine, custody.structural_result.as_ref())?;
+    Ok(())
+}
+
+fn encode_structural_result(
+    bytes: &mut Vec<u8>,
+    machine: MachineId,
+    result: Option<&TerminalInternalStructuralCallResult>,
+) -> Result<(), TerminalInstallationError> {
+    let Some(result) = result else {
+        bytes.extend_from_slice(&[0; 4]);
+        return Ok(());
+    };
+    if result.operation_result.multiplicity != StructuralMultiplicity::Linear
+        || result.function_result.multiplicity != StructuralMultiplicity::Linear
+        || result.operation_result.structural_type != result.function_result.structural_type
+        || result.operation_result.qualifications != result.function_result.qualifications
+        || result.operation_result.claims.len() != 1
+        || !result.operation_result.claims[0].path.is_empty()
+        || result.returned_claim_transfers.len() != 1
+        || result.returned_claims.len() != 1
+        || result.caller_result_placement != result.callee_result_placement
+    {
+        return Err(TerminalInstallationError::InvalidInternalUnitCall(machine));
+    }
+    bytes.extend_from_slice(&[1, 0, 0, 0]);
+    push_u64(bytes, result.operation_result.place.get());
+    push_u64(bytes, result.operation_result.structural_type.get());
+    push_u32(
+        bytes,
+        u32::try_from(result.operation_result.qualifications.len())
+            .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for qualification in &result.operation_result.qualifications {
+        push_u64(bytes, qualification.get());
+    }
+    push_u64(bytes, result.operation_result.claims[0].claim.get());
+    push_u64(bytes, result.function_result.place.get());
+    push_u64(bytes, result.function_result.structural_type.get());
+    push_u32(
+        bytes,
+        u32::try_from(result.function_result.qualifications.len())
+            .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?,
+    );
+    for qualification in &result.function_result.qualifications {
+        push_u64(bytes, qualification.get());
+    }
+    push_u64(bytes, result.returned_claim_transfers[0].callee_claim.get());
+    push_u64(bytes, result.returned_claim_transfers[0].caller_claim.get());
+    push_u64(bytes, result.returned_claims[0].get());
+    encode_direct_placement(bytes, &result.caller_result_placement)?;
+    encode_direct_placement(bytes, &result.callee_result_placement)?;
     Ok(())
 }
 
@@ -308,6 +364,7 @@ fn decode_internal_unit_call(
             argument_index: reader.u32()?,
         });
     }
+    let structural_result = decode_structural_result(reader, machine)?;
     Ok(TerminalInstalledInternalUnitCall {
         machine,
         text_offset,
@@ -315,6 +372,7 @@ fn decode_internal_unit_call(
             owner,
             target,
             result,
+            structural_result,
             arguments,
             claim_transfers,
             operation_ordinal,
@@ -322,4 +380,94 @@ fn decode_internal_unit_call(
             byte_count,
         },
     })
+}
+
+fn decode_structural_result(
+    reader: &mut Reader<'_>,
+    machine: MachineId,
+) -> Result<Option<TerminalInternalStructuralCallResult>, TerminalInstallationError> {
+    let present = decode_boolean(reader.u8()?)?;
+    if reader.take(3)? != [0; 3] {
+        return Err(TerminalInstallationError::NonzeroReservedField);
+    }
+    if !present {
+        return Ok(None);
+    }
+    let operation_place = PlaceId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let structural_type = StructuralTypeId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let qualification_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?;
+    if qualification_count > reader.remaining() / 8 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut qualifications = Vec::with_capacity(qualification_count);
+    for _ in 0..qualification_count {
+        qualifications.push(
+            psi_core::StructuralDomainId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+        );
+    }
+    let claim = ClaimId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_place = PlaceId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_type = StructuralTypeId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let function_qualification_count = usize::try_from(reader.u32()?)
+        .map_err(|_| TerminalInstallationError::TooManyInternalUnitCallClaims)?;
+    if function_qualification_count > reader.remaining() / 8 {
+        return Err(TerminalInstallationError::UnexpectedEnd);
+    }
+    let mut function_qualifications = Vec::with_capacity(function_qualification_count);
+    for _ in 0..function_qualification_count {
+        function_qualifications.push(
+            psi_core::StructuralDomainId::new(reader.u64()?)
+                .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?,
+        );
+    }
+    let callee_claim = ClaimId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let caller_claim = ClaimId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let returned_claim = ClaimId::new(reader.u64()?)
+        .ok_or(TerminalInstallationError::ZeroInternalUnitCallIdentity)?;
+    let caller_result_placement = decode_direct_placement(reader)?;
+    let callee_result_placement = decode_direct_placement(reader)?;
+    let result = TerminalInternalStructuralCallResult {
+        operation_result: StructuralOperationResult {
+            place: operation_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications,
+            claims: vec![StructuralResultClaimBinding {
+                claim,
+                path: Vec::new(),
+            }],
+        },
+        function_result: StructuralResultDeclaration {
+            place: function_place,
+            structural_type: function_type,
+            multiplicity: StructuralMultiplicity::Linear,
+            qualifications: function_qualifications,
+        },
+        returned_claim_transfers: vec![StructuralResultClaimTransfer {
+            callee_claim,
+            caller_claim,
+        }],
+        returned_claims: vec![returned_claim],
+        caller_result_placement,
+        callee_result_placement,
+    };
+    if result.operation_result.structural_type != result.function_result.structural_type
+        || result.operation_result.qualifications != result.function_result.qualifications
+        || result.operation_result.claims[0].claim
+            != result.returned_claim_transfers[0].caller_claim
+        || result.returned_claims[0] != result.returned_claim_transfers[0].caller_claim
+        || result.caller_result_placement != result.callee_result_placement
+    {
+        return Err(TerminalInstallationError::InvalidInternalUnitCall(machine));
+    }
+    Ok(Some(result))
 }

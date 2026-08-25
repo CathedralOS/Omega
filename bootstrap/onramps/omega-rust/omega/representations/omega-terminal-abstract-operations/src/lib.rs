@@ -13,9 +13,10 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
-    EntryClaim, ProviderCandidateConformance, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalPsiIdentity,
+    EntryClaim, ProviderCandidateConformance, StructuralArgument, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -157,6 +158,17 @@ pub enum TerminalAbstractOperation {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    /// One verifier-approved structural-result call. The result place and
+    /// returned-claim correspondence remain semantic custody; target lowering
+    /// may realize only a deliberately bounded ABI subset.
+    CallStructural {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     },
     BoundaryCall {
         psi_operation: OperationId,

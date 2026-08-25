@@ -5853,6 +5853,115 @@ fn source_structural_return_preserves_opaque_value_and_claim_after_frontend_drop
     assert_source_structural_return("Main::forward_with_local_and_drop", 1, 1);
 }
 
+#[test]
+fn direct_structural_result_call_reaches_every_native_artifact() {
+    let checked = checked_source();
+    let lowered = lower_machine(&checked, "Main::through_call")
+        .expect("bounded structural-result call reaches terminal Psi");
+    let semantic = encode_module(&lowered.semantic_module).expect("semantic artifact");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
+    let entry = lowered.semantic_module.entry;
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("structural-result call crosses the Omega boundary");
+    let abstract_entry = abstract_plan
+        .functions
+        .iter()
+        .find(|function| function.machine == entry)
+        .expect("abstract structural caller");
+    assert!(matches!(
+        abstract_entry.operations.as_slice(),
+        [
+            TerminalAbstractOperation::CallStructural { .. },
+            TerminalAbstractOperation::ReturnStructural { .. }
+        ]
+    ));
+
+    for case in target_cases() {
+        let target_plan = lower_to_target_operations(&abstract_plan, case.target)
+            .unwrap_or_else(|error| panic!("{:?} target lowering failed: {error:?}", case.target));
+        assert!(matches!(
+            target_plan
+                .functions
+                .iter()
+                .find(|function| function.machine == entry)
+                .map(|function| &function.operation),
+            Some(TerminalTargetOperation::ReturnStructuralCall { .. })
+        ));
+        let assigned = assign_registers(&target_plan)
+            .unwrap_or_else(|error| panic!("{:?} assignment failed: {error:?}", case.target));
+        assert!(matches!(
+            assigned
+                .functions
+                .iter()
+                .find(|function| function.machine == entry)
+                .map(|function| &function.operation),
+            Some(TerminalAssignedOperation::ReturnStructuralCall { .. })
+        ));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("{:?} emission failed: {error:?}", case.target));
+        let caller = machine_code
+            .functions
+            .iter()
+            .find(|function| function.machine == entry)
+            .expect("emitted structural caller");
+        let [call] = caller.internal_unit_calls.as_slice() else {
+            panic!("one exact structural call custody row")
+        };
+        let result = call
+            .structural_result
+            .as_ref()
+            .expect("call retains structural result custody");
+        assert!(call.result.is_none());
+        assert_eq!(call.arguments.len(), 1);
+        assert!(call.arguments[0].path.is_empty());
+        assert_eq!(call.claim_transfers.len(), 1);
+        assert_eq!(result.returned_claim_transfers.len(), 1);
+        assert_eq!(result.returned_claims.len(), 1);
+        assert_eq!(
+            result.returned_claim_transfers[0].caller_claim,
+            call.claim_transfers[0].claim
+        );
+        assert_eq!(result.returned_claims, vec![call.claim_transfers[0].claim]);
+
+        let mut changed_machine_code = machine_code.clone();
+        changed_machine_code
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == entry)
+            .and_then(|function| function.internal_unit_calls[0].structural_result.as_mut())
+            .expect("mutable emitted structural result")
+            .returned_claims[0] = psi_core::ClaimId::new(99).unwrap();
+        assert!(
+            build_terminal_object_artifact(&changed_machine_code).is_err(),
+            "object validation rejects returned-claim substitution"
+        );
+
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("{:?} object failed: {error:?}", case.target));
+        let image = emit_terminal_executable_image(&object, 3)
+            .unwrap_or_else(|error| panic!("{:?} image failed: {error:?}", case.target));
+        let installation = build_terminal_installation_record(
+            &image,
+            ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .unwrap_or_else(|error| panic!("{:?} installation failed: {error:?}", case.target));
+        let installed = installation
+            .internal_unit_calls()
+            .iter()
+            .find(|call| call.machine == entry)
+            .expect("installed structural call custody");
+        assert_eq!(installed.custody.structural_result.as_ref(), Some(result));
+        let encoded = encode_terminal_installation_record(&installation)
+            .expect("canonical structural-call installation");
+        assert_eq!(
+            decode_terminal_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        validate_terminal_installation_record(&installation, &image)
+            .expect("installed structural call binds its exact image");
+    }
+}
+
 #[cfg(unix)]
 fn host_structural_round_trip(bytes: &[u8], value: u64, cleanup_count: usize) -> bool {
     let nonce = SystemTime::now()

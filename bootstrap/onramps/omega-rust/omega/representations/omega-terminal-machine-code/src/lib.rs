@@ -395,11 +395,24 @@ pub struct TerminalInternalUnitCallRecord {
     /// `None` for a value-less structural call; otherwise the exact scalar
     /// result returned through the ordinary target ABI.
     pub result: Option<ScalarType>,
+    /// Exact structural result custody for the bounded direct-return call
+    /// family. Mutually exclusive with `result`; absent on Unit/scalar calls.
+    pub structural_result: Option<TerminalInternalStructuralCallResult>,
     pub arguments: Vec<TerminalInternalUnitCallArgumentRecord>,
     pub claim_transfers: Vec<ClaimTransfer>,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInternalStructuralCallResult {
+    pub operation_result: psi_terminal::StructuralOperationResult,
+    pub function_result: StructuralResultDeclaration,
+    pub returned_claim_transfers: Vec<psi_terminal::StructuralResultClaimTransfer>,
+    pub returned_claims: Vec<ClaimId>,
+    pub caller_result_placement: ValuePlacement,
+    pub callee_result_placement: ValuePlacement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

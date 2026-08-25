@@ -12,9 +12,9 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -350,6 +350,23 @@ pub enum TerminalTargetOperation {
         structural_parameters: Vec<TerminalTargetStructuralParameter>,
         arguments: Vec<TerminalTargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    /// One exact whole-root structural call whose direct ABI result is returned
+    /// unchanged by the caller.
+    ReturnStructuralCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        operation_result: StructuralOperationResult,
+        result: StructuralResultDeclaration,
+        callee: MachineId,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        callee_call_plan: CallPlan,
+        structural_parameters: Vec<TerminalTargetStructuralParameter>,
+        arguments: Vec<TerminalTargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        returned_claims: Vec<ClaimId>,
     },
     /// A scalar return plus the exact structural cleanup frontier that runs
     /// after result materialization and before native return teardown.

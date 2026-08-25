@@ -671,11 +671,14 @@ Remaining:
   Canonical format 27/vocabulary 29, independent verification, interpretation,
   and fixed-fuel derivation preserve that transfer; the result and its claims
   become live only after successful callee return, and crash produces neither.
-  Bodyless results, projections, local staging, multiple claims, and native
-  aggregate ABI lowering remain fenced. Before admitting projected linear
-  calls, replace the verifier's affine-only moved-field bookkeeping with one
-  multiplicity-independent partial-custody frontier so a projected linear move
-  cannot leave an untracked sibling debt or permit a duplicate move. The exact
+  Bodyless results, projections, local staging, multiple claims, and wider
+  native aggregate ABI lowering remain fenced. The verifier now uses one
+  multiplicity-independent partial-custody frontier: a projected owned move
+  blocks whole-root use and return, overlapping moves reject, and the bounded
+  dense linear-array slice closes only after every sibling has transferred.
+  This closes the sibling-debt hole without admitting projected
+  `CallStructural`; reconstruction and wider aggregate shapes remain fenced.
+  The exact
   root-only source passthrough now produces a
   structural result/return carrier with claim transfer, exit-time content
   replay, interpretation, and fuel. Omega preserves that carrier through the
