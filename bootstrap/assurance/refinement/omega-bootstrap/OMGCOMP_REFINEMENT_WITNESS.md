@@ -333,17 +333,23 @@ Implementation status:
   [`omgrfn2-source-witness-independent.beta`](omgrfn2-source-witness-independent.beta);
 - layer 3 reconstructs layout, interning, declarations, blocks, and the selected
   root in
-  [`omgrfn2-witness-ckir-tables.beta`](omgrfn2-witness-ckir-tables.beta); and
+  [`omgrfn2-witness-ckir-tables.beta`](omgrfn2-witness-ckir-tables.beta);
+- layer 4 reconstructs resolved bodies and every operation/operand/terminator
+  row, while a physically artifact-free companion independently computes the
+  full source result, through
+  [`omgrfn2-resolved-body-result.sh`](omgrfn2-resolved-body-result.sh); and
 - layer 5 reuses the complete CKIR and CKIR-to-ELF relations at the v2 frame
   offsets through
   [`omgrfn2-ckir-elf-refinement.sh`](omgrfn2-ckir-elf-refinement.sh).
 
-Layer 4, resolved bodies→CKIR plus the independent source-only result, remains
-the open semantic layer. The final conjunction and lattice orchestration remain
-open until that layer joins the four closed responsibilities. Mechanically
+All five responsibilities are executable and joined by the lattice
+orchestrator after the producer's native/self-built and Rust-free two-package
+composition gates. The join closes the selected public two-package, finite,
+acyclic, returning artifact; it does not grant resolver-receipt or digest
+authority and does not generalize this fixture into `Ωself`. Mechanically
 translating the Delta resolver into Beta would preserve the same common-mode
-mistakes and does not satisfy source-to-witness reconstruction; the closed
-layer 2 is independently authored.
+mistakes and would not satisfy source-to-witness reconstruction; layer 2 is
+independently authored.
 
 ## Authority separation
 

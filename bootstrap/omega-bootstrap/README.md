@@ -156,13 +156,17 @@ language, generation, or architectural role; new documentation and work use
   [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/):
   layer 1 checks exact framing and OMGCOMP/source custody; layer 2 independently
   reconstructs source→witness resolution; layer 3 reconstructs witness→CKIR
-  declaration, layout, and root tables; and layer 5 adapts the complete
-  CKIR/result and CKIR→ELF relations to the v2 frame. These focused layers are
-  closed. Resolved bodies→CKIR plus the independent source-only result is the
-  remaining layer before the exact conjunction can close. This split is
-  deliberate: transport, resolution, table/layout, body/result, and artifact
-  claims share versioned bytes without becoming one verifier or a Cartesian
-  product of fixture permutations.
+  declaration, layout, and root tables; layer 4 reconstructs resolved
+  bodies→CKIR and computes the full source result in a companion executable
+  from which CKIR and ELF readers are physically absent; and layer 5 adapts the
+  complete CKIR/result and CKIR→ELF relations to the v2 frame. The lattice
+  driver composes all five gates after the
+  native/self-built and Rust-free producer composition. This closes the
+  selected public two-package, finite, acyclic, returning artifact relation.
+  It does not grant resolver/digest authority or admit a general source family
+  to `Ωself`. The split is deliberate: transport, resolution, table/layout,
+  body/result, and artifact claims share versioned bytes without becoming one
+  verifier or a Cartesian product of fixture permutations.
 
 These are seed pieces for `omega-bootstrap`, not that compiler itself. The first
 checkpoint-driven compositional frontend/typechecker cost probe over

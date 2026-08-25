@@ -30,14 +30,25 @@ EOF, and retains direct access to every raw byte.
 `checked-ir-refinement-envelope.sh` gates that fragment through the persisted
 Beta compiler and Alpha seed. Envelope acceptance alone does not close §10.6.
 
-The planned two-unit `OMGCOMP` successor is pinned in
+The two-unit `OMGCOMP` successor is pinned in
 [`OMGCOMP_REFINEMENT_WITNESS.md`](OMGCOMP_REFINEMENT_WITNESS.md). Its version-2
 frame carries one untrusted normalized-resolution witness so source resolution,
 CKIR tables, body lowering, and result checking remain separate persisted-Beta
 conjuncts under the 128-procedure ceiling. The witness contains no operations
 and carries neither resolver-receipt nor digest authority.
 
-The next source-side layer is
+Five focused `OMGRFN2` gates now close the selected public two-package,
+finite, acyclic, returning source-to-limited-ELF relation. They independently
+own frame/OMGCOMP/source custody, source→witness resolution, witness→CKIR
+tables/layout/root, resolved bodies→CKIR plus an artifact-free full source
+result, and complete CKIR/result→ELF reconstruction at the v2 offsets. The
+lattice driver runs those five conjuncts after the native/self-built and
+Rust-free producer composition. This modular conjunction is artifact
+refinement, not compilation authority: accepted resolver receipt bytes and a
+lower-rooted comparison of their expected envelope SHA-256 remain separate and
+open.
+
+For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical
 label and exact content extent, and lexes the complete source with nested
