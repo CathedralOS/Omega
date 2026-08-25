@@ -1090,6 +1090,18 @@ provenance. These authored rows enforce direct source authority; they do not
 replace the separate carried-type dependency rows needed for artifact and API
 compatibility identity.
 
+Conformance custody follows the same earliest-coherent-owner rule. Resolution
+records each exact source-backed static conformance argument at its own token.
+Checked operator selection records the exact trait conformance selected for an
+authored operator token. When an unbound generic conformance requirement is
+satisfied by exactly one declaration, specialization validation retains that
+declaration as an inferred conformance argument and fingerprints its package-
+qualified identity; checked finalization attaches it to the authored call
+occurrence. Explicit evidence arguments and inferred selections remain separate
+subsets so an explicit argument is not fabricated again at the call token.
+Package admission therefore rejects an inferred transitive-only conformance
+even when the caller never names the conformance alias.
+
 The same authoritative build surface owns concrete channel/store compatibility
 demands. `builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
 requests only the directional wire facts named after the first four type

@@ -93,6 +93,13 @@ Must own:
   bitwise, and shifts—finalize as compiler intrinsics after ordinary type
   checking, including when their operands are nested expressions without an
   independent value-origin type reference.
+- Exact inferred-conformance custody for generic specialization and trait-backed
+  operators. Unique unbound generic-bound validation retains the selected
+  package-scoped symbol in the machine specialization, separately from explicit
+  evidence arguments, and includes its package-qualified identity in the
+  specialization fingerprint. Finalization attaches that inferred selection to
+  the authored call token; trait-backed operators attach their checked selected
+  conformance to the operator token.
 
 Must not own:
 

@@ -513,6 +513,7 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
             const_argument_identities: vec!["named(name(1))".to_owned()],
             machine_arguments: vec![SymbolHandle::from_arena_index(8)],
             conformance_arguments: Vec::new(),
+            inferred_conformance_arguments: Vec::new(),
             conformance_applications: Vec::new(),
             template_contract_fingerprint: 0x1111,
             accepted_template_commitment: Some("accepted_map".to_owned()),

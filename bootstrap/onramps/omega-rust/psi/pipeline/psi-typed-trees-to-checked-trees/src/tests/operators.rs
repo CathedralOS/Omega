@@ -600,6 +600,29 @@ fn trait_operator_use_consumes_only_the_selected_conformance_application() {
     assert!(candidate.realization_machine_symbol.is_valid());
     assert!(candidate.realization_state_symbol.is_valid());
     assert_ne!(candidate.conformance_application_fingerprint, 0);
+    let conformance_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+                && matches!(
+                    selection.target(),
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == selected
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        conformance_selections.len(),
+        2,
+        "the explicit `Ascending` argument and inferred trait-token use retain distinct authored selections: {:#?}",
+        checked.authored_declaration_selections(),
+    );
+    assert_ne!(
+        conformance_selections[0].source_span(),
+        conformance_selections[1].source_span()
+    );
 }
 
 #[test]

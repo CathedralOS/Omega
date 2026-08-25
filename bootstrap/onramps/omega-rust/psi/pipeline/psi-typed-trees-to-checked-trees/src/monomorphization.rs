@@ -36,6 +36,7 @@ struct Candidate {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_parameters: Vec<psi_typed_trees::machine::GenericConformanceBound>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
+    inferred_conformance_arguments: Vec<SymbolHandle>,
     conflicted: bool,
 }
 
@@ -175,6 +176,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             const_parameters,
             machine_parameters,
             evidence_parameters,
+            inferred_conformance_arguments: Vec::new(),
             conflicted: false,
         });
     }
@@ -369,7 +371,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     let mut diagnostics = Vec::new();
     let approved = approved_type_bounds(program, &candidates);
     let conformance_approved = candidates
-        .iter()
+        .iter_mut()
         .map(
             |candidate| match validate_candidate_conformance_bounds(program, candidate) {
                 Ok(()) => true,
@@ -1563,8 +1565,9 @@ fn approved_type_bounds(program: &TypedTrees, candidates: &[Candidate]) -> Vec<b
 
 fn validate_candidate_conformance_bounds(
     program: &TypedTrees,
-    candidate: &Candidate,
+    candidate: &mut Candidate,
 ) -> Result<(), Vec<Diagnostic>> {
+    candidate.inferred_conformance_arguments.clear();
     let mut diagnostics = Vec::new();
     for bound in &candidate.conformance_bounds {
         let Some(parameter_index) = candidate
@@ -1712,19 +1715,21 @@ fn validate_candidate_conformance_bounds(
                     && conformance.trait_name == bound.carrier_name
                     && conformance_arguments_match_candidate(program, candidate, bound, conformance)
             })
-            .count();
-        match matches {
-            1 => {}
-            0 => diagnostics.push(Diagnostic::error(format!(
+            .map(|conformance| conformance.symbol)
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [selected] => candidate.inferred_conformance_arguments.push(*selected),
+            [] => diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` binds `{}` to `{type_name}`, which has no nominal conformance to `{}`",
                 candidate.template_name, bound.subject_name, bound.carrier_name,
             ))),
-            count => diagnostics.push(Diagnostic::error(format!(
+            matches => diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` binds `{}` to `{type_name}`, which has {count} conformances to `{}`; select one with `where {} satisfies {type_name}::Name`",
                 candidate.template_name,
                 bound.subject_name,
                 bound.carrier_name,
                 bound.subject_name,
+                count = matches.len(),
             ))),
         }
     }
@@ -1862,7 +1867,7 @@ fn apply_multiple_specializations(
         return Ok(());
     }
 
-    let concrete_candidates: Vec<Candidate> = groups
+    let mut concrete_candidates: Vec<Candidate> = groups
         .iter()
         .map(|(_, members)| candidate_for_selection(template, &selections[members[0]]))
         .collect();
@@ -1876,7 +1881,7 @@ fn apply_multiple_specializations(
         ))]);
     }
     let mut conformance_diagnostics = Vec::new();
-    for candidate in &concrete_candidates {
+    for candidate in &mut concrete_candidates {
         if let Err(mut errors) = validate_candidate_conformance_bounds(program, candidate) {
             conformance_diagnostics.append(&mut errors);
         }
@@ -1947,6 +1952,44 @@ fn candidate_for_selection(template: &Candidate, selection: &CallSelection) -> C
     candidate.evidence_bindings = selection.evidence_bindings.clone();
     candidate.conflicted = selection.conflicted;
     candidate
+}
+
+fn candidate_conformance_fingerprint_arguments(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Vec<String> {
+    let mut arguments = candidate
+        .evidence_bindings
+        .iter()
+        .map(|binding| {
+            binding
+                .as_ref()
+                .expect("complete specialization")
+                .display_name()
+        })
+        .collect::<Vec<_>>();
+    arguments.extend(
+        candidate
+            .inferred_conformance_arguments
+            .iter()
+            .map(|symbol| conformance_symbol_identity(program, *symbol)),
+    );
+    arguments
+}
+
+fn conformance_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
+    let path = program.symbols.display_path(symbol, "::");
+    let Some(package) = program.symbols.symbol_package_identity(symbol) else {
+        return format!("unmanaged::{path}");
+    };
+    let digest = package.digest();
+    let mut owner = String::with_capacity(digest.len() * 2);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in digest {
+        owner.push(char::from(HEX[usize::from(byte >> 4)]));
+        owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    format!("package:{owner}::{path}")
 }
 
 fn rewrite_selected_call(program: &mut TypedTrees, site: CallSite, target: SymbolHandle) {
@@ -2046,16 +2089,7 @@ fn clone_specialized_machine(
                 .join("::")
         })
         .collect();
-    let evidence_paths: Vec<String> = candidate
-        .evidence_bindings
-        .iter()
-        .map(|binding| {
-            binding
-                .as_ref()
-                .expect("complete specialization")
-                .display_name()
-        })
-        .collect();
+    let evidence_paths = candidate_conformance_fingerprint_arguments(source, candidate);
     let fingerprint = specialization_fingerprint(
         &candidate.template_name,
         &type_identities,
@@ -2287,6 +2321,7 @@ fn clone_specialized_machine(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
+            inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
             conformance_applications: candidate
                 .evidence_bindings
                 .iter()
@@ -3509,16 +3544,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .join("::")
         })
         .collect();
-    let evidence_paths: Vec<String> = candidate
-        .evidence_bindings
-        .iter()
-        .map(|binding| {
-            binding
-                .as_ref()
-                .expect("complete specialization")
-                .display_name()
-        })
-        .collect();
+    let evidence_paths = candidate_conformance_fingerprint_arguments(program, candidate);
     let conformance_applications = candidate
         .evidence_bindings
         .iter()
@@ -3552,6 +3578,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
+            inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
             conformance_applications,
             template_contract_fingerprint,
             accepted_template_commitment,

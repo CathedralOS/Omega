@@ -230,6 +230,20 @@ source-free compiler nodes are not package selections. This closes explicit
 nominal type custody, including a public API's direct-dependency gate, without
 claiming the separate carried-semantic-dependency projection is complete.
 
+Source-backed static conformance arguments are likewise authored selections:
+`choose<Card, Ascending>(...)` records `Ascending` at that argument's token,
+including when the argument is a nested static application. If a generic
+`where Element satisfies Trait` bound has no explicit evidence argument, the
+checker must retain the exact unique conformance it selected while validating
+the specialization; counting candidates and discarding the winner is
+insufficient. That inferred declaration is fingerprinted with package-qualified
+identity and attached to the authored call occurrence. Trait-backed operator
+tokens retain their checked selected conformance independently. Thus explicit,
+inferred-call, and operator selections remain distinguishable review rows, and
+each requires direct authority from the package containing its own source
+token. Root-middle-leaf canaries enforce this even when ordinary type checking
+would otherwise find the transitive conformance.
+
 ## Authored requests versus accepted lock state
 
 `build.omg` records update intent: source locator, revision selector, explicit
