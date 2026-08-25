@@ -54,6 +54,9 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
         let DomainConstraint {
             name: _,
             arguments: _,
+            // Compiler pseudo-domains retain closed semantic identity; the
+            // diagnostic name is never their authority.
+            subject: _,
             symbol: _,
             semantic_id: _,
             predicate_body: _,
@@ -81,6 +84,7 @@ fn machine_record_carries_one_public_termination_interface() {
             symbol: _,
             name: _,
             attached_data: _,
+            attached_data_symbol: _,
             // Package visibility survives semantic lowering independently of
             // the normalized supply classification.
             is_public: _,

@@ -3788,6 +3788,7 @@ fn review_type_identity_with_binders(
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    validate_package_type_identity_input(&compilation.typed, type_reference)?;
     let identity = compilation
         .package_qualified_type_identity_with_binders_and_toolchain_sources(
             type_reference,
@@ -3806,6 +3807,7 @@ fn review_type_identity_with_binders_and_substitutions(
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    validate_package_type_identity_input(&compilation.typed, type_reference)?;
     let identity = compilation
         .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
             type_reference,
@@ -3817,6 +3819,159 @@ fn review_type_identity_with_binders_and_substitutions(
     Ok(PackageReviewTypeIdentity {
         canonical: identity.into_string(),
     })
+}
+
+fn validate_package_type_identity_input(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_typed_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            validate_package_type_identity_input(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            validate_package_type_identity_input(program, *base_type)?;
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::Range { minimum, maximum } => {
+                        validate_package_index_expression(program, *minimum)?;
+                        validate_package_index_expression(program, *maximum)?;
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        use psi_typed_trees::types::DomainConstraintSubject;
+
+                        match domain.subject {
+                            DomainConstraintSubject::Declared => {
+                                if domain.name.as_str() == "OmegaLayout"
+                                    || psi_typed_trees::wire::is_layout_domain_name(
+                                        domain.name.as_str(),
+                                    )
+                                {
+                                    return Err(vec![Diagnostic::error(
+                                        "package review rejects an unclassified or legacy flattened OmegaLayout constraint",
+                                    )]);
+                                }
+                                if !domain.symbol.is_valid() {
+                                    return Err(vec![Diagnostic::error(
+                                        "package review rejects a declared domain without an exact symbol",
+                                    )]);
+                                }
+                            }
+                            DomainConstraintSubject::Carry(_)
+                            | DomainConstraintSubject::Value(_) => {
+                                if domain.symbol.is_valid() || !domain.arguments.is_empty() {
+                                    return Err(vec![Diagnostic::error(
+                                        "package review rejects a malformed compiler-owned scalar domain constraint",
+                                    )]);
+                                }
+                            }
+                            DomainConstraintSubject::OmegaLayout { .. } => {
+                                if domain.symbol.is_valid() || domain.arguments.len() != 1 {
+                                    return Err(vec![Diagnostic::error(
+                                        "package review rejects a malformed compiler-owned OmegaLayout constraint",
+                                    )]);
+                                }
+                            }
+                        }
+                        for argument in &domain.arguments {
+                            validate_package_type_identity_input(program, *argument)?;
+                        }
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                }
+            }
+            Ok(())
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            validate_package_type_identity_input(program, *element_type)?;
+            match length {
+                FixedArrayLength::Literal(_) | FixedArrayLength::ConstParameter { .. } => Ok(()),
+                FixedArrayLength::ConstCall { .. } => Err(vec![Diagnostic::error(
+                    "package review rejects an unevaluated const call in structural type identity",
+                )]),
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            validate_package_type_identity_input(program, *element_type)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                validate_package_type_identity_input(program, *argument)?;
+            }
+            Ok(())
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            validate_package_index_expression(program, *expression)
+        }
+        TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => Ok(()),
+    }
+}
+
+fn validate_package_index_expression(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Integer(_) => Ok(()),
+        ExpressionNode::Unary(unary) => validate_package_index_expression(program, unary.operand),
+        ExpressionNode::Binary(binary) => {
+            let mut selections = program
+                .open_index_normalizations
+                .iter()
+                .flat_map(|normalization| &normalization.operations)
+                .filter(|selection| selection.expression == expression);
+            let Some(selection) = selections.next() else {
+                return Err(vec![Diagnostic::error(
+                    "package review rejects an open index operation without exact checked selection",
+                )]);
+            };
+            if selections.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "package review rejects an open index operation with duplicate checked selections",
+                )]);
+            }
+            if !selection.operator.is_valid()
+                || !selection.provider.is_valid()
+                || !selection.algebra_trait.is_valid()
+            {
+                return Err(vec![Diagnostic::error(
+                    "package review rejects an open index operation with incomplete semantic authority",
+                )]);
+            }
+            validate_package_index_expression(program, binary.left)?;
+            validate_package_index_expression(program, binary.right)
+        }
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Borrow(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => Err(vec![Diagnostic::error(
+            "package review rejects an unsupported structural index expression",
+        )]),
+    }
 }
 
 fn missing_exact_toolchain_type_owner() -> Vec<Diagnostic> {
@@ -3836,6 +3991,7 @@ fn review_signature_type_identity_with_binders(
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    validate_package_type_identity_input(&compilation.typed, type_reference)?;
     let runtime = compilation
         .package_qualified_type_identity_with_binders_and_toolchain_sources(
             type_reference,
@@ -3848,6 +4004,78 @@ fn review_signature_type_identity_with_binders(
     Ok(PackageReviewTypeIdentity {
         canonical: framed_identity("signature-type", &[runtime, lifetime]),
     })
+}
+
+fn review_domain_lifetime_label(
+    compilation: &CheckedCompilation,
+    domain: &psi_typed_trees::types::DomainConstraint,
+) -> Result<String, Vec<Diagnostic>> {
+    use psi_typed_trees::types::{DomainConstraintSubject, OmegaLayoutGrammar};
+
+    match domain.subject {
+        DomainConstraintSubject::Declared => {
+            let identity = nominal_identity(compilation, domain.symbol)?;
+            let owner = match identity.owner {
+                PackageReviewNominalOwner::Package(package) => {
+                    canonical_digest_label("package", package.digest())
+                }
+                PackageReviewNominalOwner::ToolchainSource(source) => {
+                    canonical_digest_label("toolchain-source", source.digest())
+                }
+                PackageReviewNominalOwner::Unresolved => {
+                    return Err(vec![Diagnostic::error(
+                        "package review rejects a declared domain without exact nominal ownership",
+                    )]);
+                }
+            };
+            Ok(framed_identity("declared-domain", &[owner, identity.path]))
+        }
+        DomainConstraintSubject::Carry(permission) => Ok(framed_identity(
+            "compiler-domain",
+            &[
+                "carry".to_owned(),
+                match permission {
+                    psi_language_semantics::CarryPermission::AcrossSuspend => "across-suspend",
+                    psi_language_semantics::CarryPermission::AnyCpu => "any-cpu",
+                    psi_language_semantics::CarryPermission::AnyThread => "any-thread",
+                    psi_language_semantics::CarryPermission::MovableAddress => "movable-address",
+                }
+                .to_owned(),
+            ],
+        )),
+        DomainConstraintSubject::Value(value_domain) => Ok(framed_identity(
+            "compiler-domain",
+            &[
+                "value".to_owned(),
+                match value_domain {
+                    psi_language_semantics::value_domain::ValueDomain::Finite => "finite",
+                }
+                .to_owned(),
+            ],
+        )),
+        DomainConstraintSubject::OmegaLayout { grammar } => Ok(framed_identity(
+            "compiler-domain",
+            &[
+                "omega-layout".to_owned(),
+                match grammar {
+                    OmegaLayoutGrammar::Derived => "derived",
+                }
+                .to_owned(),
+            ],
+        )),
+    }
+}
+
+fn canonical_digest_label(kind: &str, digest: [u8; 32]) -> String {
+    use std::fmt::Write as _;
+
+    let mut label = String::with_capacity(kind.len() + 1 + digest.len() * 2);
+    label.push_str(kind);
+    label.push(':');
+    for byte in digest {
+        let _ = write!(label, "{byte:02x}");
+    }
+    label
 }
 
 fn review_lifetime_topology(
@@ -3888,16 +4116,23 @@ fn review_lifetime_topology(
                 .constraints(*constraints)
                 .iter()
                 .filter_map(|constraint| match constraint {
-                    TypeConstraintNode::Domain(domain) if !domain.arguments.is_empty() => Some(
-                        domain
-                            .arguments
-                            .iter()
-                            .map(|argument| {
-                                review_lifetime_topology(compilation, *argument, lifetime_binders)
-                            })
-                            .collect::<Result<Vec<_>, _>>()
-                            .map(|arguments| framed_identity(domain.as_str(), &arguments)),
-                    ),
+                    TypeConstraintNode::Domain(domain) if !domain.arguments.is_empty() => {
+                        Some((|| {
+                            let label = review_domain_lifetime_label(compilation, domain)?;
+                            let arguments = domain
+                                .arguments
+                                .iter()
+                                .map(|argument| {
+                                    review_lifetime_topology(
+                                        compilation,
+                                        *argument,
+                                        lifetime_binders,
+                                    )
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                            Ok::<String, Vec<Diagnostic>>(framed_identity(&label, &arguments))
+                        })())
+                    }
                     _ => None,
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -6386,12 +6621,109 @@ fn exactly_one<'item, Item>(
 
 #[cfg(test)]
 mod tests {
-    use super::{PackageReviewNominalOwner, nominal_owner_from_symbols, toolchain_source_identity};
+    use super::{
+        PackageReviewNominalOwner, nominal_owner_from_symbols, toolchain_source_identity,
+        validate_package_type_identity_input,
+    };
     use psi_core::PackageKeyIdentity;
     use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};
     use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    #[test]
+    fn package_type_identity_rejects_textual_and_unselected_fallbacks() {
+        use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+        use psi_typed_trees::name::Identifier;
+        use psi_typed_trees::types::{
+            DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
+            TypeReferenceNode,
+        };
+
+        let mut program = psi_typed_trees::TypedTrees::default();
+        let element_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let residual = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::ConstCall {
+                    name: Identifier::generated("length"),
+                    source_span: SourceSpan::default(),
+                },
+            });
+        let error = validate_package_type_identity_input(&program, residual)
+            .expect_err("residual const call must reject package evidence");
+        assert!(error[0].message.contains("unevaluated const call"));
+
+        let left = program.expression_table.insert(ExpressionNode::Integer(
+            psi_numerics::literals::IntegerLiteral::zero(),
+        ));
+        let right = program.expression_table.insert(ExpressionNode::Integer(
+            psi_numerics::literals::IntegerLiteral::zero(),
+        ));
+        let binary =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Add,
+                    right,
+                }));
+        let open_index = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(binary));
+        let error = validate_package_type_identity_input(&program, open_index)
+            .expect_err("unselected open index operation must reject package evidence");
+        assert!(error[0].message.contains("without exact checked selection"));
+
+        let unsupported = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let unsupported = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(unsupported));
+        let error = validate_package_type_identity_input(&program, unsupported)
+            .expect_err("unsupported index shape must reject package evidence");
+        assert!(error[0].message.contains("unsupported structural index"));
+
+        let legacy_layout =
+            program
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    name: Identifier::generated("OmegaLayout<Save>"),
+                    ..DomainConstraint::default()
+                })]);
+        let legacy_layout = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: element_type,
+                constraints: legacy_layout,
+            });
+        let error = validate_package_type_identity_input(&program, legacy_layout)
+            .expect_err("flattened layout spelling must reject package evidence");
+        assert!(error[0].message.contains("legacy flattened OmegaLayout"));
+
+        let malformed_carry =
+            program
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    name: Identifier::generated("diagnostic-only"),
+                    arguments: vec![element_type],
+                    subject: DomainConstraintSubject::Carry(
+                        psi_language_semantics::CarryPermission::AnyCpu,
+                    ),
+                    ..DomainConstraint::default()
+                })]);
+        let malformed_carry = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: element_type,
+                constraints: malformed_carry,
+            });
+        let error = validate_package_type_identity_input(&program, malformed_carry)
+            .expect_err("malformed closed domain must reject package evidence");
+        assert!(error[0].message.contains("malformed compiler-owned scalar"));
+    }
 
     fn toolchain_source(relative_path: &str, source: &str) -> SourceFile {
         namespaced_toolchain_source("std", relative_path, source)

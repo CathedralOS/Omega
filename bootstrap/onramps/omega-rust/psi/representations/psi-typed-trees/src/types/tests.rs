@@ -1,6 +1,6 @@
 use super::{
-    DomainConstraint, FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceNode,
-    TypeReferenceTable,
+    DomainConstraint, DomainConstraintSubject, FixedArrayLength, OmegaLayoutGrammar, PrimitiveType,
+    TypeConstraintNode, TypeReferenceNode, TypeReferenceTable,
 };
 use crate::expression::{ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
@@ -114,6 +114,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated("Utf8"),
             arguments: Vec::new(),
+            subject: DomainConstraintSubject::Declared,
             symbol: domain_symbol,
             semantic_id,
             classification: None,
@@ -158,10 +159,72 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         panic!("copied normalized domain constraint")
     };
     assert_eq!(copied_domain.symbol, domain_symbol);
+    assert_eq!(copied_domain.subject, DomainConstraintSubject::Declared);
     assert_eq!(copied_domain.semantic_id, semantic_id);
     assert_eq!(copied_domain.predicate_body, predicate_body);
     assert_eq!(copied_domain.semantic_roles, semantic_roles);
     assert_eq!(copied_domain.establishment_routes, establishment_routes);
+}
+
+#[test]
+fn type_reference_table_copy_preserves_closed_domain_subjects_and_arguments() {
+    let source_expressions = ExpressionTable::new();
+    let mut source_types = TypeReferenceTable::new();
+    let byte = source_types.insert(TypeReferenceNode::Named {
+        symbol: SymbolHandle::invalid(),
+        name: Identifier::generated("u8"),
+    });
+    let carrier = source_types.insert(TypeReferenceNode::Slice { element_type: byte });
+    let schema_symbol = SymbolHandle::from_arena_index(21);
+    let schema = source_types.insert(TypeReferenceNode::Named {
+        symbol: schema_symbol,
+        name: Identifier::generated("Save"),
+    });
+    let constraints =
+        source_types.insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+            name: Identifier::generated("display only"),
+            arguments: vec![schema],
+            subject: DomainConstraintSubject::OmegaLayout {
+                grammar: OmegaLayoutGrammar::Derived,
+            },
+            ..DomainConstraint::default()
+        })]);
+    let source_root = source_types.insert(TypeReferenceNode::Constrained {
+        base_type: carrier,
+        constraints,
+    });
+
+    let mut copied_expressions = ExpressionTable::new();
+    let mut copied_types = TypeReferenceTable::new();
+    let copied_root = copied_types.copy_from(
+        &source_types,
+        &source_expressions,
+        &mut copied_expressions,
+        source_root,
+    );
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        copied_types.type_reference(copied_root)
+    else {
+        panic!("copied constrained type")
+    };
+    let [TypeConstraintNode::Domain(copied)] = copied_types.constraints(*constraints) else {
+        panic!("copied layout constraint")
+    };
+
+    assert_eq!(
+        copied.subject,
+        DomainConstraintSubject::OmegaLayout {
+            grammar: OmegaLayoutGrammar::Derived,
+        }
+    );
+    let [copied_schema] = copied.arguments.as_slice() else {
+        panic!("copied schema argument")
+    };
+    assert!(matches!(
+        copied_types.type_reference(*copied_schema),
+        TypeReferenceNode::Named { symbol, name }
+            if *symbol == schema_symbol && name.as_str() == "Save"
+    ));
 }
 
 #[test]

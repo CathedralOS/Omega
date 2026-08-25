@@ -9,7 +9,8 @@
 use crate::TypedTrees;
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::types::{
-    DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
+    TypeReferenceHandle, TypeReferenceNode,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -94,6 +95,7 @@ impl NormalizedResultDispatchSet {
             .iter()
             .map(|term| match term {
                 NormalizedDomainTerm::Arithmetic(name) => format!("arithmetic:{name}"),
+                NormalizedDomainTerm::Compiler(identity) => format!("compiler:{identity}"),
                 NormalizedDomainTerm::Declared(name) => format!("declared:{name}"),
             })
             .collect::<Vec<_>>()
@@ -140,6 +142,7 @@ impl NormalizedNamedCallableIdentity {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NormalizedDomainTerm {
     Arithmetic(String),
+    Compiler(String),
     Declared(String),
 }
 
@@ -513,7 +516,22 @@ fn collect_result_dispatch_terms(
                         terms.push(NormalizedDomainTerm::Arithmetic(domain.name().to_owned()))
                     }
                     TypeConstraintNode::Domain(domain) => {
-                        collect_declared_result_dispatch_terms(program, domain, terms, alias_stack);
+                        if domain.subject == DomainConstraintSubject::Declared {
+                            collect_declared_result_dispatch_terms(
+                                program,
+                                domain,
+                                terms,
+                                alias_stack,
+                            );
+                        } else {
+                            terms.push(NormalizedDomainTerm::Compiler(
+                                normalized_compiler_domain_identity(
+                                    program,
+                                    domain,
+                                    &TypeIdentityContext::default(),
+                                ),
+                            ));
+                        }
                     }
                     TypeConstraintNode::Named(_) | TypeConstraintNode::Range { .. } => {}
                 }
@@ -558,6 +576,7 @@ fn collect_declared_result_dispatch_terms(
                 let constituent_constraint = DomainConstraint {
                     name: constituent_definition.name.clone(),
                     arguments: Vec::new(),
+                    subject: crate::types::DomainConstraintSubject::Declared,
                     symbol: constituent_definition.symbol,
                     semantic_id: constituent_definition.semantic_id,
                     classification: constituent_definition.classification,
@@ -1116,9 +1135,18 @@ fn normalized_constraints(
             TypeConstraintNode::ArithmeticDomain(domain) => {
                 NormalizedConstraint::Arithmetic(domain.name().to_owned())
             }
-            TypeConstraintNode::Domain(domain) => NormalizedConstraint::DeclaredDomain(
-                normalized_declared_domain_identity(program, domain, context),
-            ),
+            TypeConstraintNode::Domain(domain) => match domain.subject {
+                DomainConstraintSubject::Declared => NormalizedConstraint::DeclaredDomain(
+                    normalized_declared_domain_identity(program, domain, context),
+                ),
+                DomainConstraintSubject::Carry(_)
+                | DomainConstraintSubject::Value(_)
+                | DomainConstraintSubject::OmegaLayout { .. } => {
+                    NormalizedConstraint::CompilerDomain(normalized_compiler_domain_identity(
+                        program, domain, context,
+                    ))
+                }
+            },
         })
         .collect()
 }
@@ -1147,6 +1175,66 @@ fn normalized_declared_domain_identity(
     )
 }
 
+fn normalized_compiler_domain_identity(
+    program: &TypedTrees,
+    domain: &DomainConstraint,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    match domain.subject {
+        DomainConstraintSubject::Declared => {
+            normalized_declared_domain_identity(program, domain, context)
+        }
+        DomainConstraintSubject::Carry(permission) => compound(
+            "compiler-domain",
+            [
+                atom("family", "carry"),
+                atom(
+                    "permission",
+                    match permission {
+                        psi_language_semantics::CarryPermission::AcrossSuspend => "across-suspend",
+                        psi_language_semantics::CarryPermission::AnyCpu => "any-cpu",
+                        psi_language_semantics::CarryPermission::AnyThread => "any-thread",
+                        psi_language_semantics::CarryPermission::MovableAddress => {
+                            "movable-address"
+                        }
+                    },
+                ),
+            ],
+        ),
+        DomainConstraintSubject::Value(value_domain) => compound(
+            "compiler-domain",
+            [
+                atom("family", "value"),
+                atom(
+                    "domain",
+                    match value_domain {
+                        psi_language_semantics::value_domain::ValueDomain::Finite => "finite",
+                    },
+                ),
+            ],
+        ),
+        DomainConstraintSubject::OmegaLayout { grammar } => compound(
+            "compiler-domain",
+            [
+                atom("family", "omega-layout"),
+                atom(
+                    "grammar",
+                    match grammar {
+                        crate::types::OmegaLayoutGrammar::Derived => "derived",
+                    },
+                ),
+            ]
+            .into_iter()
+            .chain(domain.arguments.iter().map(|argument| {
+                compound(
+                    "schema",
+                    [normalize_type_reference(program, *argument, context)],
+                )
+            })),
+        ),
+    }
+}
+
 fn normalized_domain_term(
     program: &TypedTrees,
     constraint: &TypeConstraintNode,
@@ -1155,9 +1243,20 @@ fn normalized_domain_term(
         TypeConstraintNode::ArithmeticDomain(domain) => {
             Some(NormalizedDomainTerm::Arithmetic(domain.name().to_owned()))
         }
-        TypeConstraintNode::Domain(domain) => Some(NormalizedDomainTerm::Declared(
-            declared_domain_identity(program, domain),
-        )),
+        TypeConstraintNode::Domain(domain) => Some(match domain.subject {
+            DomainConstraintSubject::Declared => {
+                NormalizedDomainTerm::Declared(declared_domain_identity(program, domain))
+            }
+            DomainConstraintSubject::Carry(_)
+            | DomainConstraintSubject::Value(_)
+            | DomainConstraintSubject::OmegaLayout { .. } => {
+                NormalizedDomainTerm::Compiler(normalized_compiler_domain_identity(
+                    program,
+                    domain,
+                    &TypeIdentityContext::default(),
+                ))
+            }
+        }),
         TypeConstraintNode::Named(_) | TypeConstraintNode::Range { .. } => None,
     }
 }
@@ -1174,6 +1273,7 @@ fn declared_domain_identity(program: &TypedTrees, domain: &DomainConstraint) -> 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum NormalizedConstraint {
     Arithmetic(String),
+    CompilerDomain(String),
     DeclaredDomain(String),
     Named(String),
     Range { minimum: String, maximum: String },
@@ -1183,6 +1283,7 @@ impl NormalizedConstraint {
     fn encode(self) -> String {
         match self {
             Self::Arithmetic(name) => compound("arithmetic-domain", [atom("name", &name)]),
+            Self::CompilerDomain(identity) => identity,
             Self::DeclaredDomain(name) => compound("declared-domain", [atom("name", &name)]),
             Self::Named(name) => compound("named-constraint", [atom("name", &name)]),
             Self::Range { minimum, maximum } => compound(
@@ -1664,6 +1765,7 @@ mod tests {
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated(name),
             arguments: Vec::new(),
+            subject: crate::types::DomainConstraintSubject::Declared,
             symbol: SymbolHandle::invalid(),
             semantic_id,
             classification: None,
@@ -1684,6 +1786,7 @@ mod tests {
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated(name),
             arguments: Vec::new(),
+            subject: crate::types::DomainConstraintSubject::Declared,
             symbol,
             semantic_id,
             classification: None,
