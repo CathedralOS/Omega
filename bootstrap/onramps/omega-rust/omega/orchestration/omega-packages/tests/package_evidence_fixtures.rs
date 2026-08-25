@@ -106,7 +106,7 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
     }
     assert_eq!(
         review.dangerous_authority_slack().len(),
-        usize::from(package == "generated-table"),
+        0,
         "{package} dangerous authority slack"
     );
 
@@ -126,17 +126,9 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                 PackageReviewCheckedServiceReach::CheckedBody {
                     realized,
                     concrete,
-                } if realized.is_empty() && concrete.is_empty()
+                } if realized.as_slice() == [service.clone()]
+                    && concrete.as_slice() == [service.clone()]
             ));
-            let [slack] = review.dangerous_authority_slack() else {
-                panic!("generated-table exact dangerous slack")
-            };
-            assert_eq!(
-                slack.class(),
-                PackageReviewDangerousAuthorityClass::Filesystem
-            );
-            assert_eq!(slack.callable().path(), "build");
-            assert_eq!(slack.service(), service);
             let invocations = build
                 .declared_synchronous_invocations()
                 .expect("build invocation ceiling");
@@ -148,7 +140,17 @@ fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjectio
                     .path(),
                 "FilesystemHost"
             );
-            assert!(build.realized_synchronous_invocations().is_empty());
+            assert_eq!(build.realized_synchronous_invocations().len(), 1);
+            assert!(
+                build
+                    .realized_synchronous_invocations()
+                    .iter()
+                    .all(|invocation| {
+                        invocation
+                            .service()
+                            .is_some_and(|realized| realized == service)
+                    })
+            );
         }
         "file-journal" => {
             let [service] = callable.declared_service_reach().expect("published reach") else {
@@ -462,17 +464,31 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             let observations = issued
                 .build_observation_summary()
                 .expect("fixture package build machine publishes observation evidence");
-            assert_eq!(observations.ceiling(), BuildObservationClass::Hermetic);
-            assert_eq!(observations.realized(), BuildObservationClass::Hermetic);
-            assert!(
-                observations.filesystem_operation_attempts().is_empty(),
-                "hermetic fixture review cannot fabricate rooted filesystem accesses"
+            let executes_filesystem_build =
+                node.source().key().name().as_str() == "generated-table";
+            let expected_class = if executes_filesystem_build {
+                BuildObservationClass::Volatile
+            } else {
+                BuildObservationClass::Hermetic
+            };
+            assert_eq!(observations.ceiling(), expected_class);
+            assert_eq!(observations.realized(), expected_class);
+            assert_eq!(
+                observations.filesystem_operation_attempts().len(),
+                if executes_filesystem_build { 6 } else { 0 },
+                "only generated-table executes its declared filesystem build"
             );
             let staged_output = observations
                 .staged_output_tree()
                 .expect("sponsored package review commits even an empty staged-output tree");
-            assert_eq!(staged_output.entry_count(), 0);
-            assert_eq!(staged_output.file_bytes(), 0);
+            assert_eq!(
+                staged_output.entry_count(),
+                usize::from(executes_filesystem_build) as u64
+            );
+            assert_eq!(
+                staged_output.file_bytes(),
+                if executes_filesystem_build { 42 } else { 0 }
+            );
             let replay_root = cache.join(format!("review-output-replay-{package_index}"));
             std::fs::create_dir(&replay_root).expect("create fresh retained-output replay root");
             assert_eq!(
@@ -481,8 +497,14 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     .expect("retained output must replay after review-session disposal"),
                 staged_output.commitment()
             );
-            std::fs::remove_dir(&replay_root)
-                .expect("empty retained-output replay root remains removable");
+            if executes_filesystem_build {
+                assert_eq!(
+                    std::fs::read_to_string(replay_root.join("table.generated.omg")).unwrap(),
+                    "pub machine table_size() -> u64 {\n    3\n}\n"
+                );
+            }
+            std::fs::remove_dir_all(&replay_root)
+                .expect("retained-output replay root remains removable");
             assert!(
                 !issued.canonical_review_bytes().is_empty(),
                 "{} review encoding must be nonempty",

@@ -1,4 +1,7 @@
-// package-manager fixture: build should read inputs/table.txt and write only under build/.
+// package-manager fixture: build reads inputs/table.txt and publishes generated
+// Omega source only through its scoped output root.
+use omega::language::std::filesystem_host;
+
 const PACKAGE: Package = Package {
     name: "generated-table"
 };
@@ -12,4 +15,18 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {
+    let input_bytes: [u8; 64];
+    let input: &[u8] in Path = builder.source.resolve("inputs/table.txt");
+    let input_descriptor: i32 = builder.filesystem.open(input, 0);
+    let input_count: i64 = builder.filesystem.read(input_descriptor, &mut input_bytes, 64);
+    let input_close: i32 = builder.filesystem.close(input_descriptor);
+
+    let generated: &[u8] in Path = builder.output.resolve("table.generated.omg");
+    let output_descriptor: i32 = builder.filesystem.create(generated, 438);
+    let output_count: i64 = builder.filesystem.write(
+        output_descriptor,
+        "pub machine table_size() -> u64 {\n    3\n}\n"
+    );
+    let output_close: i32 = builder.filesystem.close(output_descriptor);
+    builder.output.include_source(generated);
 }

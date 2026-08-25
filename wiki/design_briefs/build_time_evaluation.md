@@ -382,8 +382,11 @@ precursor count rather than being inferred from it.
 
 Package build filesystem authority enters through the one `Build` activation,
 which exposes an immutable source-root capability and a fresh writable
-staging-root capability. `Path` remains the ordinary NUL-free byte domain; its
-bytes alone confer no authority. A checked resolver joins one exact root
+staging-root capability. When its exact checked ceiling admits the toolchain
+filesystem service, that activation exposes it as `builder.filesystem`; the
+service is not ambient and does not enter the durable build result. `Path`
+remains the ordinary NUL-free byte domain; its bytes alone confer no authority.
+A checked resolver joins one exact root
 occurrence to canonical relative bytes before provider access. No compiler-host
 absolute path, process working directory, or virtual-prefix test participates
 in authorization.
@@ -402,6 +405,14 @@ explicit `Build` handoff may then introduce selected staged content into
 compilation. Failure discards the staging occurrence. Root capabilities,
 root-bound paths, and open handles are activation-scoped and never enter the
 durable build value or runtime package data.
+
+The package-aware checked path now freezes the ordinary source closure before
+execution, runs the selected build once, and admits only explicitly handed-off
+ordinary non-executable `.omg` files from the retained staged tree. Their exact
+bytes are parsed under compiler-owned logical paths and pass through the full
+final frontend/checker as ordinary candidate code. Generated imports cannot
+expand the frozen dependency/source closure, and a staged `.omg` file without
+an explicit handoff rejects instead of entering compilation by filename.
 
 Host observation is retained separately from this meter. The granted evaluator
 reports whether the filesystem host family was actually invoked; the compiler

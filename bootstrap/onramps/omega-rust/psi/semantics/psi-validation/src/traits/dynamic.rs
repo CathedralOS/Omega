@@ -642,7 +642,7 @@ fn resolved_dynamic_requirement_symbol(
     target: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<psi_symbols::SymbolHandle> {
-    let trait_symbol = dynamic_trait_symbol(program, receiver_type)?;
+    let trait_symbol = receiver_trait_symbol(program, receiver_type)?;
     let trait_definition = program
         .traits()
         .iter()
@@ -682,6 +682,28 @@ fn resolved_dynamic_requirement_symbol(
             )));
             None
         }
+    }
+}
+
+fn receiver_trait_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => receiver_trait_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            receiver_trait_symbol(program, *base_type)
+        }
+        TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Named { symbol, .. }
+            if program
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == *symbol) =>
+        {
+            Some(*symbol)
+        }
+        _ => None,
     }
 }
 

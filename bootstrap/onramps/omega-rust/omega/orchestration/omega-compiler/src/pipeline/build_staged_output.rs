@@ -193,6 +193,22 @@ pub(super) fn select_included_sources(
     tree: &BuildStagedOutputTree,
     relative_paths: &[Vec<u8>],
 ) -> Result<Vec<BuildStagedSource>, Vec<Diagnostic>> {
+    for entry in &tree.entries {
+        let RetainedStagedOutputEntryKind::File { .. } = &entry.kind else {
+            continue;
+        };
+        let is_omega_source = entry
+            .relative_path
+            .rsplit(|byte| *byte == b'/')
+            .next()
+            .is_some_and(|name| name.ends_with(b".omg") && name.len() > 4);
+        if is_omega_source && !relative_paths.contains(&entry.relative_path) {
+            return Err(diagnostics(format!(
+                "captured staged Omega source `{}` has no explicit include_source handoff",
+                String::from_utf8_lossy(&entry.relative_path)
+            )));
+        }
+    }
     let mut selected = Vec::with_capacity(relative_paths.len());
     for relative_path in relative_paths {
         let is_omega_source = relative_path
@@ -202,6 +218,16 @@ pub(super) fn select_included_sources(
         if !is_omega_source {
             return Err(diagnostics(format!(
                 "included build source `{}` must name a regular .omg file",
+                String::from_utf8_lossy(relative_path)
+            )));
+        }
+        if relative_path
+            .rsplit(|byte| *byte == b'/')
+            .next()
+            .is_some_and(|name| matches!(name, b"build.omg" | b"main.omg"))
+        {
+            return Err(diagnostics(format!(
+                "included build source `{}` uses a reserved source-discovery filename",
                 String::from_utf8_lossy(relative_path)
             )));
         }
@@ -1602,6 +1628,11 @@ mod tests {
         fixture.create_directory(Path::new("directory.omg"));
         let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
 
+        assert!(
+            select_included_sources(&retained, &[]).is_err(),
+            "an Omega-looking output does not become source implicitly"
+        );
+
         let selected = select_included_sources(&retained, &[b"generated.omg".to_vec()]).unwrap();
         let [selected] = selected.as_slice() else {
             panic!("one explicit handoff retains one source")
@@ -1617,6 +1648,26 @@ mod tests {
             assert!(
                 select_included_sources(&retained, &[rejected.as_bytes().to_vec()]).is_err(),
                 "{rejected} must not enter generated-source custody"
+            );
+        }
+    }
+
+    #[test]
+    fn included_sources_reject_reserved_discovery_filenames() {
+        for relative in ["build.omg", "nested/main.omg"] {
+            let fixture = Fixture::new("reserved-source-name");
+            if relative.contains('/') {
+                fixture.create_directory(Path::new("nested"));
+            }
+            fixture.create_file(Path::new(relative), b"data Generated {}\n");
+            let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
+            let diagnostics = select_included_sources(&retained, &[relative.as_bytes().to_vec()])
+                .expect_err("generated source must not impersonate discovery roots");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("reserved source-discovery filename")),
+                "{relative}: {diagnostics:#?}"
             );
         }
     }

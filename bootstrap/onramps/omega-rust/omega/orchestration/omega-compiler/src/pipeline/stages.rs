@@ -28,10 +28,95 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
     pub(super) files: Vec<crate::pipeline::source::SourceFile>,
     pub(super) sources: Arc<psi_source::SourceMap>,
+}
+
+pub(super) fn append_retained_generated_sources(
+    assembled: &mut AssembledSyntax,
+    package_root: &Path,
+    package_identity: Option<psi_core::PackageKeyIdentity>,
+    generated_sources: &[crate::pipeline::build_staged_output::BuildStagedSource],
+) -> Result<
+    Vec<(
+        psi_source::SourceId,
+        crate::pipeline::build_staged_output::BuildStagedSource,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let mut retained = Vec::with_capacity(generated_sources.len());
+    for generated in generated_sources {
+        let source = std::str::from_utf8(generated.bytes()).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "included generated source `{}` is not UTF-8 Omega source",
+                String::from_utf8_lossy(generated.relative_path())
+            ))]
+        })?;
+        let mut logical_path = package_root.join(".omega/generated");
+        for component in generated.relative_path().split(|byte| *byte == b'/') {
+            logical_path.push(
+                std::str::from_utf8(component)
+                    .expect("validated generated source paths retain UTF-8 components"),
+            );
+        }
+        if assembled
+            .sources
+            .files()
+            .any(|existing| existing.path == logical_path)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "generated source logical path `{}` collides with an existing source",
+                logical_path.display()
+            ))]);
+        }
+
+        let source_id = psi_source::SourceId(assembled.sources.len());
+        let tokens = crate::lexer::Lexer::new(source)
+            .tokenize()
+            .map_err(|error| {
+                let position = psi_source::SourcePosition::of(source, error.span.start);
+                vec![Diagnostic::error(format!(
+                    "{}:{}:{}: {}",
+                    logical_path.display(),
+                    position.line,
+                    position.column,
+                    error.message
+                ))]
+            })?;
+        let root_items = crate::parser::parse_syntax_trees_into_with_id(
+            &mut assembled.syntax_trees,
+            source_id,
+            &tokens,
+        )
+        .map_err(|error| {
+            let position = psi_source::SourcePosition::of(source, error.source_span.span.start);
+            vec![Diagnostic::error(format!(
+                "{}:{}:{}: {}",
+                logical_path.display(),
+                position.line,
+                position.column,
+                error.message
+            ))]
+        })?;
+        let added = Arc::make_mut(&mut assembled.sources).add_with_metadata(
+            logical_path.clone(),
+            source.to_owned(),
+            package_root.to_path_buf(),
+            package_identity,
+            psi_source::SourceOrigin::User,
+        );
+        debug_assert_eq!(added.source_id, source_id);
+        assembled.files.push(crate::pipeline::source::SourceFile {
+            source_id,
+            path: logical_path,
+            root_items,
+        });
+        retained.push((source_id, generated.clone()));
+    }
+    Ok(retained)
 }
 
 pub(super) struct CheckedProgramSurface {
@@ -305,6 +390,7 @@ data Build {
     freestanding: bool;
     source: BuildSource;
     output: BuildOutput;
+    filesystem: FilesystemHost;
 }
 data Source {
     case Path(location: &[u8]);

@@ -112,21 +112,37 @@ invokes FilesystemHost;
     );
 
     let input: &[u8] in Path = builder.source.resolve("assets/font.bin");
+    let input_bytes: [u8; 4096];
+    let input_descriptor: i32 = builder.filesystem.open(input, 0);
+    let input_count: i64 = builder.filesystem.read(
+        input_descriptor,
+        &mut input_bytes,
+        4096
+    );
+    let input_close: i32 = builder.filesystem.close(input_descriptor);
+
     let generated: &[u8] in Path = builder.output.resolve("font.generated.omg");
-    let filesystem: Filesystem;
-    let scratch: [u8; 4096];
-    let copied: IoResult = filesystem.copy(input, generated, &mut scratch, 4096);
+    let output_descriptor: i32 = builder.filesystem.create(generated, 438);
+    let output_count: i64 = builder.filesystem.write(
+        output_descriptor,
+        "data GeneratedFont {}\n"
+    );
+    let output_close: i32 = builder.filesystem.close(output_descriptor);
     builder.output.include_source(generated);
 }
 ```
 
-`BuildSource::resolve`, `BuildOutput::resolve`, the ordinary `Filesystem`
+`BuildSource::resolve`, `BuildOutput::resolve`, the ordinary `FilesystemHost`
 surface, and the exact `BuildOutput::include_source` handoff are implemented.
 The handoff accepts only an interpreter-retained Output-rooted path and becomes
-usable only after matching sponsored staged-tree custody. Feeding those
-retained bytes into the frozen final compilation pass remains implementation
-work. Resolving a path and publishing a generated output remain separate
-operations.
+usable only after matching sponsored staged-tree custody. In package-aware
+checked compilation, Omega executes the frozen build prepass once, appends the
+exact retained UTF-8 bytes under a compiler-owned `.omega/generated/...`
+logical source path, and runs one final ordinary frontend/check pass without
+rerunning dependency discovery or `build`. The final source-consumption
+commitment includes those bytes and verifies them against retained staged-tree
+custody rather than rereading an output path. Resolving a path, writing output,
+and publishing generated source remain three separate operations.
 
 The dependency's own `PACKAGE` supplies its name. Its default local import
 alias is derived mechanically from kebab-case to snake_case; only a real local
@@ -157,6 +173,11 @@ The build executor supplies two facets through the `Build` activation:
 
 - one immutable root for the exact package source occurrence; and
 - one fresh writable staging root for that build occurrence.
+
+When the checked build ceiling admits the exact toolchain filesystem service,
+the same activation also supplies it as `builder.filesystem`; no second
+receiver object or ambient local provider is involved. The service and both
+root facets disappear with the activation.
 
 These are authority-bearing root capabilities, not path strings and not fields
 of the durable build result. A source relative name becomes usable only after a
@@ -201,7 +222,8 @@ data Build {
 
 This is the durable projection, not a claim that the source-visible activation
 handle serializes every ephemeral facet it exposes. In particular, its source
-and staging roots are absent from this schema.
+and staging roots and admitted `filesystem` service are absent from this
+schema.
 
 Hosted versus freestanding, subsystem/image format, default providers, calling
 policies, fault supply, and resource supply belong to the selected target
@@ -1322,10 +1344,11 @@ package-aware compilation never consults it, and no admission path may treat it
 as authoritative dependency projection. This seam must be removed before
 install/update mutation.
 The package-facing source/staging root capabilities, checked relative resolver,
-and explicit generated-tree handoff are settled but not yet implemented. The
-existing physical grants and rooted observation precursor are their backend
-foundation; `TASKS_PACKAGE_MANAGER.md` owns the remaining surface and fixture
-work as well as that compatibility-scanner migration.
+explicit generated-source handoff, and frozen package-review final pass are
+implemented. The native-image entry still rejects generated-source builds
+until it runs inside the same sponsored package transaction; it must not invent
+ambient staging custody. `TASKS_PACKAGE_MANAGER.md` owns that integration and
+the compatibility-scanner migration.
 
 ## Still open
 

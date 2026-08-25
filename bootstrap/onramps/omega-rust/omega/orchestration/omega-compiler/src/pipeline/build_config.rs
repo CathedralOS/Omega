@@ -1621,6 +1621,13 @@ pub(crate) fn compute_build_config(
                 "output".to_owned(),
                 root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
             ),
+            (
+                "filesystem".to_owned(),
+                BuildTimeValue::Struct {
+                    type_name: "FilesystemHost".to_owned(),
+                    fields: Vec::new(),
+                },
+            ),
         ]);
     }
     let zero_build = BuildTimeValue::Struct {
@@ -1880,15 +1887,14 @@ pub(crate) fn compute_build_config(
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
     let staged_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
-    let generated_sources = if included_source_paths.is_empty() {
-        Vec::new()
-    } else {
-        let tree = staged_output_tree.as_ref().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
+    let generated_sources = match staged_output_tree.as_ref() {
+        Some(tree) => select_included_sources(tree, &included_source_paths)?,
+        None if included_source_paths.is_empty() => Vec::new(),
+        None => {
+            return Err(vec![Diagnostic::error(format!(
                 "build-time evaluation of `{machine_name}` handed off generated source without sponsored staged-output custody"
-            ))]
-        })?;
-        select_included_sources(tree, &included_source_paths)?
+            ))]);
+        }
     };
     Ok(ComputedBuildConfig {
         config,
