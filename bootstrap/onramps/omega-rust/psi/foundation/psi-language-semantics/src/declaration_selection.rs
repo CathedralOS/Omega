@@ -104,6 +104,14 @@ pub enum AuthoredDeclarationSelectionRecordError {
     OccurrenceCapacityExceeded,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionFinalizationError {
+    UnknownOccurrence,
+    AlreadyResolved,
+    LateBindingMismatch,
+    InvalidSelectedSymbol,
+}
+
 /// One authored occurrence retained while its source location and exposure are
 /// still exact. Package ownership is intentionally absent and is joined by a
 /// later compiler integration.
@@ -244,6 +252,45 @@ impl AuthoredDeclarationSelections {
         self.rows.is_empty()
     }
 
+    /// Replace one exact late-binding obligation with the checked declaration
+    /// which discharged it. Failure is transactional: no row changes unless
+    /// the occurrence exists, its expected fact family matches, and the
+    /// selected symbol is valid.
+    pub fn finalize_late_bound(
+        &mut self,
+        occurrence_id: AuthoredDeclarationSelectionOccurrenceId,
+        expected_binding: AuthoredDeclarationSelectionLateBinding,
+        selected_symbol: SymbolHandle,
+    ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
+        let selected = ResolvedAuthoredDeclarationSelection::new(selected_symbol)
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::InvalidSelectedSymbol)?;
+        let index = usize::try_from(occurrence_id.0)
+            .map_err(|_| AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        let row = self
+            .rows
+            .get_mut(index)
+            .filter(|row| row.occurrence_id == occurrence_id)
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        match row.target {
+            AuthoredDeclarationSelectionTarget::Resolved(_) => {
+                Err(AuthoredDeclarationSelectionFinalizationError::AlreadyResolved)
+            }
+            AuthoredDeclarationSelectionTarget::LateBound(actual) if actual != expected_binding => {
+                Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
+            }
+            AuthoredDeclarationSelectionTarget::LateBound(_) => {
+                row.target = AuthoredDeclarationSelectionTarget::Resolved(selected);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn all_finalized(&self) -> bool {
+        self.rows
+            .iter()
+            .all(|row| matches!(row.target, AuthoredDeclarationSelectionTarget::Resolved(_)))
+    }
+
     fn next_occurrence_id(
         &self,
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
@@ -344,5 +391,47 @@ mod tests {
             )
             .expect("ledger capacity");
         assert_eq!(first_valid.ordinal(), 0);
+    }
+
+    #[test]
+    fn late_finalization_is_exact_and_transactional() {
+        let mut selections = AuthoredDeclarationSelections::default();
+        let occurrence = selections
+            .record_late_bound(
+                source_span(9, 12),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Operator,
+                AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+            )
+            .expect("record late operator");
+        let before = selections.clone();
+
+        assert_eq!(
+            selections.finalize_late_bound(
+                occurrence,
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                SymbolHandle::from_arena_index(7),
+            ),
+            Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
+        );
+        assert_eq!(selections, before);
+        assert!(!selections.all_finalized());
+
+        selections
+            .finalize_late_bound(
+                occurrence,
+                AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                SymbolHandle::from_arena_index(7),
+            )
+            .expect("finalize exact operator occurrence");
+        assert!(selections.all_finalized());
+        assert_eq!(
+            selections.finalize_late_bound(
+                occurrence,
+                AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                SymbolHandle::from_arena_index(8),
+            ),
+            Err(AuthoredDeclarationSelectionFinalizationError::AlreadyResolved)
+        );
     }
 }
