@@ -436,12 +436,13 @@ data RootedWriter {{ filesystem: FilesystemHost; descriptor: i32; written: i64; 
 machine RootedWriter::build(&mut self, builder: &mut Build)
 reaches FilesystemHost
 {{
-    self.descriptor = self.filesystem.create("{output}", {mode});
+    let output: &[u8] in Path = builder.output.resolve("{relative_output}");
+    self.descriptor = self.filesystem.create(output, {mode});
     self.written = self.filesystem.write(self.descriptor, "{payload}");
     self.result = self.filesystem.close(self.descriptor);
 }}
 "#,
-                output = output.display().to_string().replace('\\', "/"),
+                relative_output = relative_output,
                 mode = mode,
                 payload = payload,
             ),
@@ -484,12 +485,12 @@ data HandleOrder {{ filesystem: FilesystemHost; first: i32; second: i32; result:
 machine HandleOrder::build(&mut self, builder: &mut Build)
 reaches FilesystemHost
 {{
-    self.first = self.filesystem.open("{input}", 0);
-    self.second = self.filesystem.open("{input}", 0);
+    let input: &[u8] in Path = builder.source.resolve("input.txt");
+    self.first = self.filesystem.open(input, 0);
+    self.second = self.filesystem.open(input, 0);
     {close_order}
 }}
 "#,
-                input = input.display().to_string().replace('\\', "/"),
             ),
         )
         .unwrap();
@@ -525,12 +526,12 @@ data RootedReader {{ filesystem: FilesystemHost; descriptor: i32; buffer: [u8; 6
 machine RootedReader::build(&mut self, builder: &mut Build)
 reaches FilesystemHost
 {{
-    self.descriptor = self.filesystem.open("{input}", 0);
+    let input: &[u8] in Path = builder.source.resolve("input.txt");
+    self.descriptor = self.filesystem.open(input, 0);
     self.read = self.filesystem.read(self.descriptor, &mut self.buffer, 6);
     self.result = self.filesystem.close(self.descriptor);
 }}
 "#,
-                input = input.display().to_string().replace('\\', "/"),
             ),
         )
         .unwrap();
