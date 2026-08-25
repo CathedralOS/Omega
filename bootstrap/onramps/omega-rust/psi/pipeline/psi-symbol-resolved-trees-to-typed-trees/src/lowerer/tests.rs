@@ -346,6 +346,138 @@ fn retains_typed_evidence_forwarding_owner_identity() {
 }
 
 #[test]
+fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
+    let source = r#"
+        data Token {
+            value: u32;
+            case Issued(code: u32);
+        }
+        machine path() -> u32 { Token::Issued::code }
+        machine record() -> Token { Token { value: 1 } }
+        machine issue() -> Token { Token::Issued { code: 2 } }
+        machine is_issued(token: Token) -> bool { token in Token::Issued }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize exact selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse exact selections");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve exact selections");
+    let expected_type = resolved
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Token")
+        .expect("Token data")
+        .symbol;
+    let expected_case = resolved
+        .data_members(resolved.data_definitions[0].members)
+        .iter()
+        .find_map(|member| match member {
+            psi_symbol_resolved_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+            _ => None,
+        })
+        .expect("Issued case");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type exact selections");
+
+    let authored_path = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::Name(path)
+                if typed.expression_table.name_path_members(path.members).len() == 3 =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .expect("three-segment typed path");
+    let authored_path_symbols = typed
+        .expression_table
+        .name_path_member_symbols(authored_path.member_symbols);
+    assert_eq!(authored_path_symbols.len(), 3);
+    assert!(authored_path_symbols.iter().all(|symbol| symbol.is_valid()));
+
+    let literals = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::StructLiteral(literal) => Some(literal),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(literals.len(), 2);
+    for literal in literals {
+        assert_eq!(literal.type_symbol, expected_type);
+        assert_eq!(literal.case_name.is_some(), literal.case_symbol.is_some());
+        assert!(
+            typed
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .all(|field| field.field_symbol.is_valid())
+        );
+    }
+
+    let case_path = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::Name(path)
+                if typed
+                    .expression_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["Token", "Issued"]) =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .expect("lowered exact case path");
+    assert_eq!(
+        typed
+            .expression_table
+            .name_path_member_symbols(case_path.member_symbols),
+        [expected_type, expected_case]
+    );
+}
+
+#[test]
+fn rejects_struct_literal_when_exact_identity_is_missing() {
+    let source = "data Item { value: u32; } machine make() -> Item { Item { value: 1 } }";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize literal");
+    let syntax = parse_syntax_trees(&tokens).expect("parse literal");
+    let mut resolved = lower_syntax_trees(&syntax).expect("resolve literal");
+    let literal = resolved
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(handle, expression)| {
+            matches!(
+                expression,
+                psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(_)
+            )
+            .then_some(handle)
+        })
+        .expect("struct literal");
+    let psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
+        resolved.tables.bodies.expressions.expression_mut(literal)
+    else {
+        unreachable!();
+    };
+    literal.type_symbol = psi_symbols::SymbolHandle::invalid();
+
+    let diagnostic = lower_symbol_resolved_trees(&resolved)
+        .expect_err("missing exact literal identity must fail closed");
+    assert!(
+        diagnostic
+            .message
+            .contains("without exact declaration identity")
+    );
+}
+
+#[test]
 fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
     let source = r#"
         data Evidence {

@@ -47,8 +47,20 @@ fn expression_table_stores_name_paths_as_member_spans() {
     let members = table.reserve_name_path_members(2);
     table.set_name_path_member_at_offset(members, 0, DiagnosticName::generated("player"));
     table.set_name_path_member_at_offset(members, 1, DiagnosticName::generated("inventory"));
+    let member_symbols = table.reserve_name_path_member_symbols(2);
+    table.set_name_path_member_symbol_at_offset(
+        member_symbols,
+        0,
+        SymbolHandle::from_arena_index(1),
+    );
+    table.set_name_path_member_symbol_at_offset(
+        member_symbols,
+        1,
+        SymbolHandle::from_arena_index(2),
+    );
     let root = table.insert(ExpressionNode::Name(TableNamePath {
         members,
+        member_symbols,
         is_self_value: false,
         head_symbol: SymbolHandle::from_arena_index(1),
         symbol: SymbolHandle::from_arena_index(2),
@@ -60,6 +72,13 @@ fn expression_table_stores_name_paths_as_member_spans() {
     assert_eq!(path.members.count(), 2);
     assert_eq!(path.head_symbol, SymbolHandle::from_arena_index(1));
     assert_eq!(path.symbol, SymbolHandle::from_arena_index(2));
+    assert_eq!(
+        table.name_path_member_symbols(path.member_symbols),
+        [
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2)
+        ]
+    );
     assert_eq!(table.display_name(root), "player::inventory");
 }
 
@@ -71,8 +90,11 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     let mut source = ExpressionTable::new();
     let room_members = source.reserve_name_path_members(1);
     source.set_name_path_member_at_offset(room_members, 0, DiagnosticName::generated("room"));
+    let room_member_symbols = source.reserve_name_path_member_symbols(1);
+    source.set_name_path_member_symbol_at_offset(room_member_symbols, 0, room_symbol);
     let room = source.insert(ExpressionNode::Name(TableNamePath {
         members: room_members,
+        member_symbols: room_member_symbols,
         is_self_value: false,
         head_symbol: room_symbol,
         symbol: room_symbol,
@@ -81,8 +103,12 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     let field_members = source.reserve_name_path_members(2);
     source.set_name_path_member_at_offset(field_members, 0, DiagnosticName::generated("room"));
     source.set_name_path_member_at_offset(field_members, 1, DiagnosticName::generated("field"));
+    let field_member_symbols = source.reserve_name_path_member_symbols(2);
+    source.set_name_path_member_symbol_at_offset(field_member_symbols, 0, room_symbol);
+    source.set_name_path_member_symbol_at_offset(field_member_symbols, 1, field_symbol);
     let field = source.insert(ExpressionNode::Name(TableNamePath {
         members: field_members,
+        member_symbols: field_member_symbols,
         is_self_value: false,
         head_symbol: room_symbol,
         symbol: field_symbol,
@@ -97,16 +123,20 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     let fields = source.insert_struct_fields([
         TableStructLiteralField {
             name: DiagnosticName::generated("name"),
+            field_symbol: SymbolHandle::from_arena_index(6),
             value: hall,
         },
         TableStructLiteralField {
             name: DiagnosticName::generated("open"),
+            field_symbol: SymbolHandle::from_arena_index(7),
             value: open,
         },
     ]);
     let root = source.insert(ExpressionNode::StructLiteral(TableStructLiteral {
         type_name: DiagnosticName::generated("Room"),
+        type_symbol: SymbolHandle::from_arena_index(5),
         case_name: None,
+        case_symbol: None,
         fields,
     }));
 
@@ -119,6 +149,14 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
         panic!("copied root should remain a struct literal");
     };
     assert_eq!(copied.struct_fields(struct_literal.fields).len(), 2);
+    assert_eq!(
+        struct_literal.type_symbol,
+        SymbolHandle::from_arena_index(5)
+    );
+    assert_eq!(
+        copied.struct_fields(struct_literal.fields)[0].field_symbol,
+        SymbolHandle::from_arena_index(6)
+    );
 
     let open_field = &copied.struct_fields(struct_literal.fields)[1];
     let ExpressionNode::Binary(binary) = copied.expression(open_field.value) else {
@@ -137,4 +175,11 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     assert_eq!(*head_symbol, room_symbol);
     assert_eq!(*symbol, field_symbol);
     assert_eq!(copied.name_path_members(*members).len(), 2);
+    assert_eq!(
+        copied.name_path_member_symbols(match copied.expression(binary.right) {
+            ExpressionNode::Name(path) => path.member_symbols,
+            _ => unreachable!(),
+        }),
+        [room_symbol, field_symbol]
+    );
 }

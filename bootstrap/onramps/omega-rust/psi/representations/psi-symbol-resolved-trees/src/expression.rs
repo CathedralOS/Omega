@@ -29,6 +29,7 @@ struct ExpressionNodeStorage {
 struct ExpressionSpanStorage {
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<DiagnosticName>,
+    name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
 }
 
@@ -42,6 +43,7 @@ impl ExpressionTable {
             spans: ExpressionSpanStorage {
                 expression_handles: Arena::new(),
                 name_path_members: Arena::new(),
+                name_path_member_symbols: Arena::new(),
                 struct_fields: Arena::new(),
             },
         }
@@ -52,6 +54,7 @@ impl ExpressionTable {
         self.nodes.source_spans.clear();
         self.spans.expression_handles.reset_retain_capacity();
         self.spans.name_path_members.reset_retain_capacity();
+        self.spans.name_path_member_symbols.reset_retain_capacity();
         self.spans.struct_fields.reset_retain_capacity();
     }
 
@@ -179,6 +182,32 @@ impl ExpressionTable {
         )) = member;
     }
 
+    pub fn reserve_name_path_member_symbols(&mut self, count: u32) -> HandleSpan<SymbolHandle> {
+        self.spans.name_path_member_symbols.insert_many(
+            std::iter::repeat_with(SymbolHandle::invalid)
+                .take(usize::try_from(count).expect("name path member symbol span count overflow")),
+        )
+    }
+
+    pub fn set_name_path_member_symbol_at_offset(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+        offset: u32,
+        member_symbol: SymbolHandle,
+    ) {
+        *self
+            .spans
+            .name_path_member_symbols
+            .get_mut(Handle::from_parts(
+                member_symbols
+                    .start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("name path member symbol index overflow"),
+                member_symbols.start().generation(),
+            )) = member_symbol;
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
@@ -270,6 +299,8 @@ impl ExpressionTable {
                     value,
                     domain,
                     domain_symbol: membership.domain_symbol,
+                    case_type_symbol: membership.case_type_symbol,
+                    case_symbol: membership.case_symbol,
                 }))
             }
             ExpressionNode::Member(member) => {
@@ -290,8 +321,11 @@ impl ExpressionTable {
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members(source, path.members);
+                let member_symbols =
+                    self.copy_name_path_member_symbols(source, path.member_symbols);
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: path.symbol,
@@ -318,7 +352,9 @@ impl ExpressionTable {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name.clone(),
+                    case_symbol: struct_literal.case_symbol,
                     fields,
                 }))
             }
@@ -382,6 +418,19 @@ impl ExpressionTable {
             .insert_many(source.name_path_members(members).iter().cloned())
     }
 
+    fn copy_name_path_member_symbols(
+        &mut self,
+        source: &ExpressionTable,
+        member_symbols: HandleSpan<SymbolHandle>,
+    ) -> HandleSpan<SymbolHandle> {
+        self.spans.name_path_member_symbols.insert_many(
+            source
+                .name_path_member_symbols(member_symbols)
+                .iter()
+                .copied(),
+        )
+    }
+
     fn copy_struct_literal_fields(
         &mut self,
         source: &ExpressionTable,
@@ -397,6 +446,7 @@ impl ExpressionTable {
                 offset,
                 TableStructLiteralField {
                     name: field.name.clone(),
+                    field_symbol: field.field_symbol,
                     value,
                 },
             );
@@ -411,6 +461,10 @@ impl ExpressionTable {
 
     pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
         self.nodes.expressions.get_mut(handle)
+    }
+
+    pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.nodes.expressions.iter()
     }
 
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
@@ -456,6 +510,10 @@ impl ExpressionTable {
 
     pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.spans.name_path_members.span_or_empty(span)
+    }
+
+    pub fn name_path_member_symbols(&self, span: HandleSpan<SymbolHandle>) -> &[SymbolHandle] {
+        self.spans.name_path_member_symbols.span_or_empty(span)
     }
 
     pub fn name_path_member_at_offset(
@@ -563,8 +621,10 @@ impl ExpressionTable {
                     suffix_members,
                     suffix_start_offset,
                 );
+                let member_symbols = self.reserve_name_path_member_symbols(members.count());
                 self.insert(ExpressionNode::Name(TableNamePath {
                     members,
+                    member_symbols,
                     is_self_value: path.is_self_value,
                     head_symbol: path.head_symbol,
                     symbol: SymbolHandle::invalid(),
@@ -679,6 +739,8 @@ impl ExpressionTable {
                     value,
                     domain,
                     domain_symbol: membership.domain_symbol,
+                    case_type_symbol: membership.case_type_symbol,
+                    case_symbol: membership.case_symbol,
                 }))
             }
             ExpressionNode::Member(member) => {
@@ -699,7 +761,13 @@ impl ExpressionTable {
             }
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members_from_self(path.members);
-                self.insert(ExpressionNode::Name(TableNamePath { members, ..path }))
+                let member_symbols =
+                    self.copy_name_path_member_symbols_from_self(path.member_symbols);
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    member_symbols,
+                    ..path
+                }))
             }
             ExpressionNode::Range(range) => {
                 let start = range
@@ -722,7 +790,9 @@ impl ExpressionTable {
                 let fields = self.copy_struct_literal_fields_from_self(struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name,
+                    case_symbol: struct_literal.case_symbol,
                     fields,
                 }))
             }
@@ -769,6 +839,18 @@ impl ExpressionTable {
         copied
     }
 
+    fn copy_name_path_member_symbols_from_self(
+        &mut self,
+        member_symbols: HandleSpan<SymbolHandle>,
+    ) -> HandleSpan<SymbolHandle> {
+        let copied = self.reserve_name_path_member_symbols(member_symbols.count());
+        for offset in 0..member_symbols.count() {
+            let symbol = self.name_path_member_symbols(member_symbols)[offset as usize];
+            self.set_name_path_member_symbol_at_offset(copied, offset, symbol);
+        }
+        copied
+    }
+
     fn copy_struct_literal_fields_from_self(
         &mut self,
         fields: HandleSpan<TableStructLiteralField>,
@@ -783,6 +865,7 @@ impl ExpressionTable {
                 offset,
                 TableStructLiteralField {
                     name: field.name,
+                    field_symbol: field.field_symbol,
                     value,
                 },
             );
@@ -823,8 +906,10 @@ impl ExpressionTable {
             );
         }
 
+        let member_symbols = self.reserve_name_path_member_symbols(members.count());
         Some(self.insert(ExpressionNode::Name(TableNamePath {
             members,
+            member_symbols,
             is_self_value: false,
             head_symbol: self.storage_path_head_symbol(indexed.collection),
             symbol: SymbolHandle::invalid(),
@@ -1022,7 +1107,12 @@ pub struct TableRangeExpression {
 pub struct TableMembershipExpression {
     pub value: ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
+    /// Exact declared-domain identity. Invalid for implicit `Type::Case` domains.
     pub domain_symbol: SymbolHandle,
+    /// Exact data identity for an implicit `Type::Case` domain.
+    pub case_type_symbol: SymbolHandle,
+    /// Exact variant identity for an implicit `Type::Case` domain.
+    pub case_symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1077,6 +1167,8 @@ pub struct EvidenceProjection {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
     pub members: HandleSpan<DiagnosticName>,
+    /// One exact declaration identity per authored path segment.
+    pub member_symbols: HandleSpan<SymbolHandle>,
     pub is_self_value: bool,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
@@ -1085,9 +1177,11 @@ pub struct TableNamePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: DiagnosticName,
+    pub type_symbol: SymbolHandle,
     /// `Some` when the literal constructs a CASE of `type_name`
     /// (`Command::Say { text: ... }`); `None` for a plain record literal.
     pub case_name: Option<DiagnosticName>,
+    pub case_symbol: Option<SymbolHandle>,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
@@ -1095,7 +1189,9 @@ impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
             type_name: DiagnosticName::default(),
+            type_symbol: SymbolHandle::invalid(),
             case_name: None,
+            case_symbol: None,
             fields: HandleSpan::empty(),
         }
     }
@@ -1104,6 +1200,7 @@ impl Default for TableStructLiteral {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteralField {
     pub name: DiagnosticName,
+    pub field_symbol: SymbolHandle,
     pub value: ExpressionHandle,
 }
 
@@ -1111,6 +1208,7 @@ impl Default for TableStructLiteralField {
     fn default() -> Self {
         Self {
             name: DiagnosticName::default(),
+            field_symbol: SymbolHandle::invalid(),
             value: ExpressionHandle::invalid(),
         }
     }

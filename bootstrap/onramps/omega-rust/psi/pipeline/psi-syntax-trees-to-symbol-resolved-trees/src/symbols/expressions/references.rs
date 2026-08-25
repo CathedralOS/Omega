@@ -8,7 +8,9 @@ use super::super::lookup::{
     call_target_for_attached_data, child_symbol_by_kinds, top_level_symbol,
 };
 use super::super::scope::MachineScope;
-use super::super::scoped_paths::resolve_state_scoped_table_path;
+use super::super::scoped_paths::{
+    resolve_state_scoped_table_path, resolve_state_scoped_table_path_member_symbols,
+};
 use super::super::targets::{
     assign_provider_selection_argument_symbol, assign_static_argument_symbols,
 };
@@ -212,12 +214,36 @@ pub(super) fn assign_membership_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
+    let domain_symbol = symbols
+        .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
+        .unwrap_or_else(SymbolHandle::invalid);
+    let (case_type_symbol, case_symbol) = if domain_symbol.is_valid() {
+        (SymbolHandle::invalid(), SymbolHandle::invalid())
+    } else {
+        let members = expression_table.name_path_members(domain);
+        let [type_name, case_name] = members else {
+            return;
+        };
+        let type_symbol = top_level_symbol(symbols, SymbolKind::Data, type_name.as_str());
+        let case_symbol = type_symbol
+            .is_valid()
+            .then(|| {
+                child_symbol_by_kinds(
+                    symbols,
+                    type_symbol,
+                    &[SymbolKind::Variant],
+                    case_name.as_str(),
+                )
+            })
+            .unwrap_or_else(SymbolHandle::invalid);
+        (type_symbol, case_symbol)
+    };
     if let psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
         expression_table.expression_mut(expression)
     {
-        membership.domain_symbol = symbols
-            .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
-            .unwrap_or_else(SymbolHandle::invalid);
+        membership.domain_symbol = domain_symbol;
+        membership.case_type_symbol = case_type_symbol;
+        membership.case_symbol = case_symbol;
     }
 }
 
@@ -229,6 +255,13 @@ pub(super) fn assign_name_symbol(
     path: &psi_symbol_resolved_trees::expression::TableNamePath,
     expression: psi_symbol_resolved_trees::expression::ExpressionHandle,
 ) {
+    let member_symbols = resolve_state_scoped_table_path_member_symbols(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        expression_table,
+        path,
+    );
     let (head_symbol, symbol) = resolve_state_scoped_table_path(
         symbols,
         machine_symbol,
@@ -237,10 +270,86 @@ pub(super) fn assign_name_symbol(
         path,
     );
     if symbol.is_valid()
+        && member_symbols.len() == path.members.count() as usize
+        && member_symbols.iter().all(|symbol| symbol.is_valid())
+    {
+        for (offset, member_symbol) in member_symbols.into_iter().enumerate() {
+            expression_table.set_name_path_member_symbol_at_offset(
+                path.member_symbols,
+                offset
+                    .try_into()
+                    .expect("name path member symbol count overflow"),
+                member_symbol,
+            );
+        }
+    }
+    if symbol.is_valid()
         && let psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
             expression_table.expression_mut(expression)
     {
         path.head_symbol = head_symbol;
         path.symbol = symbol;
+    }
+}
+
+pub(super) fn assign_struct_literal_symbols(
+    symbols: &SymbolTable,
+    expression_table: &mut psi_symbol_resolved_trees::expression::ExpressionTable,
+    expression: psi_symbol_resolved_trees::expression::ExpressionHandle,
+) {
+    let psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
+        expression_table.expression(expression).clone()
+    else {
+        return;
+    };
+    let type_symbol = top_level_symbol(symbols, SymbolKind::Data, literal.type_name.as_str());
+    let case_symbol = literal.case_name.as_ref().map(|case_name| {
+        if type_symbol.is_valid() {
+            child_symbol_by_kinds(
+                symbols,
+                type_symbol,
+                &[SymbolKind::Variant],
+                case_name.as_str(),
+            )
+        } else {
+            SymbolHandle::invalid()
+        }
+    });
+    let field_owner = case_symbol.unwrap_or(type_symbol);
+    let field_symbols = expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .map(|field| {
+            if field_owner.is_valid() {
+                child_symbol_by_kinds(
+                    symbols,
+                    field_owner,
+                    &[SymbolKind::Field],
+                    field.name.as_str(),
+                )
+            } else {
+                SymbolHandle::invalid()
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for (offset, field_symbol) in field_symbols.into_iter().enumerate() {
+        let field = expression_table.struct_fields(literal.fields)[offset].clone();
+        expression_table.set_struct_field_at_offset(
+            literal.fields,
+            offset
+                .try_into()
+                .expect("struct literal field count overflow"),
+            psi_symbol_resolved_trees::expression::TableStructLiteralField {
+                field_symbol,
+                ..field
+            },
+        );
+    }
+    if let psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) =
+        expression_table.expression_mut(expression)
+    {
+        literal.type_symbol = type_symbol;
+        literal.case_symbol = case_symbol;
     }
 }

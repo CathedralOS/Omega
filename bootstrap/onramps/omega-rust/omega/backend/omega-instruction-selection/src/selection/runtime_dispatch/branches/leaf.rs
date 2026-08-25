@@ -1249,6 +1249,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     offset,
                     psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
+                        field_symbol: field.field_symbol,
                         value: resolved,
                     },
                 );
@@ -1259,7 +1260,9 @@ fn resolve_leaf_caller_local_initializer_names(
             expressions.insert(ExpressionNode::StructLiteral(
                 psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name,
+                    case_symbol: struct_literal.case_symbol,
                     fields: copied_fields,
                 },
             ))

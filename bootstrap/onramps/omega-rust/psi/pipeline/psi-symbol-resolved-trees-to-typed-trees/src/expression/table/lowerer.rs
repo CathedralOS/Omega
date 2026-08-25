@@ -14,6 +14,7 @@ use psi_typed_trees as typed;
 #[derive(Clone)]
 struct NullaryErasedInitializer {
     field_name: resolved::name::DiagnosticName,
+    field_symbol: psi_symbols::SymbolHandle,
     type_name: resolved::name::DiagnosticName,
     type_symbol: psi_symbols::SymbolHandle,
     variant_name: resolved::name::DiagnosticName,
@@ -295,6 +296,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
+                self.require_exact_struct_literal_symbols(expression, struct_literal)?;
                 let omitted = self.nullary_erased_initializers(struct_literal);
                 let mut fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
                 for initializer in omitted {
@@ -303,6 +305,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         &mut fields,
                         typed::expression::TableStructLiteralField {
                             name: lower_name(&initializer.field_name),
+                            field_symbol: initializer.field_symbol,
                             value,
                         },
                     );
@@ -312,7 +315,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .insert(typed::expression::ExpressionNode::StructLiteral(
                         typed::expression::TableStructLiteral {
                             type_name: lower_name(&struct_literal.type_name),
+                            type_symbol: struct_literal.type_symbol,
                             case_name: struct_literal.case_name.as_ref().map(lower_name),
+                            case_symbol: struct_literal.case_symbol,
                             fields,
                         },
                     )))
@@ -477,6 +482,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let value = self.lower(field.value)?;
                 Ok(typed::expression::TableStructLiteralField {
                     name: lower_name(&field.name),
+                    field_symbol: field.field_symbol,
                     value,
                 })
             })
@@ -497,8 +503,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Vec::new();
         };
         let Some(holder) = program.data_definitions.iter().find(|definition| {
-            definition.name == literal.type_name
-                && definition.symbol.is_valid()
+            definition.symbol == literal.type_symbol
                 && definition.type_parameters.is_empty()
                 && definition.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
         }) else {
@@ -510,10 +515,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             match member {
                 resolved::data::DataMember::Field(field) => selected_fields.push(field),
                 resolved::data::DataMember::Variant(variant)
-                    if literal
-                        .case_name
-                        .as_ref()
-                        .is_some_and(|case_name| *case_name == variant.name) =>
+                    if literal.case_symbol == Some(variant.symbol) =>
                 {
                     selected_fields.extend(program.data_payload_fields(variant.payload));
                 }
@@ -559,6 +561,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 Some(NullaryErasedInitializer {
                     field_name: field.name.clone(),
+                    field_symbol: field.symbol,
                     type_name: evidence.name.clone(),
                     type_symbol: evidence.symbol,
                     variant_name: variant.name.clone(),
@@ -566,6 +569,52 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 })
             })
             .collect()
+    }
+
+    fn require_exact_struct_literal_symbols(
+        &self,
+        expression: resolved::expression::ExpressionHandle,
+        literal: &resolved::expression::TableStructLiteral,
+    ) -> Result<(), Diagnostic> {
+        let unresolved_case = literal.case_name.is_some()
+            && literal
+                .case_symbol
+                .is_none_or(|case_symbol| !case_symbol.is_valid());
+        let unresolved_field = self
+            .source
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| !field.field_symbol.is_valid());
+        if literal.type_symbol.is_valid() && !unresolved_case && unresolved_field.is_none() {
+            return Ok(());
+        }
+
+        let detail = if !literal.type_symbol.is_valid() {
+            format!(
+                "unknown struct-literal type `{}`",
+                literal.type_name.as_str()
+            )
+        } else if unresolved_case {
+            format!(
+                "unknown case `{}` for struct-literal type `{}`",
+                literal
+                    .case_name
+                    .as_ref()
+                    .map_or("<missing>", |name| name.as_str()),
+                literal.type_name.as_str()
+            )
+        } else {
+            let field = unresolved_field.expect("unresolved field checked above");
+            format!(
+                "unknown field `{}` for struct-literal selection `{}`",
+                field.name.as_str(),
+                literal.type_name.as_str()
+            )
+        };
+        Err(Diagnostic::error(format!(
+            "cannot lower struct literal without exact declaration identity: {detail}"
+        ))
+        .with_source_span(self.source.source_span(expression)))
     }
 
     fn synthesize_nullary_initializer(
@@ -625,6 +674,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             self.target_trees,
             value,
             membership.domain,
+            membership.case_type_symbol,
+            membership.case_symbol,
         ) {
             return Ok(lowered);
         }

@@ -454,7 +454,9 @@ impl ExpressionTable {
                     self.copy_struct_literal_fields_filtering(source, struct_literal, retain);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name.clone(),
+                    case_symbol: struct_literal.case_symbol,
                     fields,
                 }))
             }
@@ -818,6 +820,7 @@ impl ExpressionTable {
                     .expect("struct literal field span count overflow"),
                 TableStructLiteralField {
                     name: field.name.clone(),
+                    field_symbol: field.field_symbol,
                     value,
                 },
             );
@@ -855,6 +858,7 @@ impl ExpressionTable {
                 offset,
                 TableStructLiteralField {
                     name: field.name,
+                    field_symbol: field.field_symbol,
                     value,
                 },
             );
@@ -938,6 +942,7 @@ impl ExpressionTable {
                     .expect("struct literal field span count overflow"),
                 TableStructLiteralField {
                     name: field.name.clone(),
+                    field_symbol: SymbolHandle::invalid(),
                     value,
                 },
             );
@@ -1420,7 +1425,9 @@ impl ExpressionTable {
                 let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    type_symbol: struct_literal.type_symbol,
                     case_name: struct_literal.case_name,
+                    case_symbol: struct_literal.case_symbol,
                     fields,
                 }))
             }
@@ -1630,7 +1637,9 @@ impl ExpressionTable {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    type_symbol: SymbolHandle::invalid(),
                     case_name: struct_literal.case_name.clone(),
+                    case_symbol: None,
                     fields,
                 }))
             }
@@ -2113,9 +2122,11 @@ pub struct TableNamePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: Identifier,
+    pub type_symbol: SymbolHandle,
     /// `Some` when the literal constructs a CASE of `type_name`
     /// (`Command::Say { text: ... }`); `None` for a plain record literal.
     pub case_name: Option<Identifier>,
+    pub case_symbol: Option<SymbolHandle>,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
@@ -2123,7 +2134,9 @@ impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
             type_name: Identifier::default(),
+            type_symbol: SymbolHandle::invalid(),
             case_name: None,
+            case_symbol: None,
             fields: HandleSpan::empty(),
         }
     }
@@ -2132,6 +2145,7 @@ impl Default for TableStructLiteral {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteralField {
     pub name: Identifier,
+    pub field_symbol: SymbolHandle,
     pub value: ExpressionHandle,
 }
 
@@ -2139,6 +2153,7 @@ impl Default for TableStructLiteralField {
     fn default() -> Self {
         Self {
             name: Identifier::default(),
+            field_symbol: SymbolHandle::invalid(),
             value: ExpressionHandle::invalid(),
         }
     }
