@@ -12,4 +12,5 @@ path = "src/lib.rs"
 psi-core = { path = "../psi-core" }
 psi-language-core = { path = "../psi-language-core" }
 psi-numerics = { path = "../psi-numerics" }
+psi-source = { path = "../psi-source" }
 psi-symbols = { path = "../psi-symbols" }

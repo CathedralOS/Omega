@@ -337,6 +337,11 @@ pub struct PlanLaidBitFragment {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTreeTables {
+    /// Package-agnostic authored-selection custody carried verbatim from
+    /// symbol resolution. Checked facts join late selections through the
+    /// opaque occurrence identities in this ledger, never source rendering.
+    authored_declaration_selections:
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
@@ -432,6 +437,19 @@ impl TypedTrees {
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
         }
+    }
+
+    pub fn retain_authored_declaration_selections(
+        &mut self,
+        selections: psi_language_semantics::declaration_selection::AuthoredDeclarationSelections,
+    ) {
+        self.tables.authored_declaration_selections = selections;
+    }
+
+    pub fn authored_declaration_selections(
+        &self,
+    ) -> &psi_language_semantics::declaration_selection::AuthoredDeclarationSelections {
+        &self.tables.authored_declaration_selections
     }
 
     /// Record a schema's derived wire plan: placements land contiguously in

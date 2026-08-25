@@ -1658,6 +1658,7 @@ dependencies = [
  "psi-core",
  "psi-language-core",
  "psi-numerics",
+ "psi-source",
  "psi-symbols",
 ]
 
@@ -1734,10 +1735,12 @@ name = "psi-symbol-resolved-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "psi-arena",
+ "psi-checked-trees",
  "psi-diagnostics",
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees",
  "psi-symbols",

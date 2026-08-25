@@ -18,7 +18,9 @@ psi-symbol-resolved-trees = { path = "../../representations/psi-symbol-resolved-
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 
 [dev-dependencies]
+psi-checked-trees = { path = "../../representations/psi-checked-trees" }
 psi-language-core = { path = "../../foundation/psi-language-core" }
+psi-source = { path = "../../foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../psi-tokens-to-syntax-trees" }
