@@ -1,0 +1,12 @@
+data AffineRoot {
+    code: u8;
+}
+
+data NoncopyRootProbe {
+    parcel: AffineRoot;
+}
+
+machine NoncopyRootProbe::run(&mut self) -> u8 {
+    self.parcel = AffineRoot { code: 70 };
+    self.parcel.code
+}

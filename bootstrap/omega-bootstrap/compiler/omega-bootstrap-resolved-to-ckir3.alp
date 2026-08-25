@@ -2262,8 +2262,10 @@ machine Main::parse_expression(&mut self) {
     state left_u32() { transition self.i32_backing0[363080 + self.left_type] == 2 { true -> right_numeric() _ -> bad() } }
     state right_numeric() { transition self.expr_type == 0 - 2 { true -> operand_type() _ -> right_typed() } }
     state right_typed() { transition self.expr_type >= 0 { true -> right_kind() _ -> bad() } }
-    state right_kind() { transition self.i32_backing0[363080 + self.expr_type] == 1 { true -> operand_type() _ -> right_u32() } }
-    state right_u32() { transition self.i32_backing0[363080 + self.expr_type] == 2 { true -> operand_type() _ -> bad() } }
+    state right_kind() { transition self.i32_backing0[363080 + self.expr_type] == 1 { true -> carrier_compatibility() _ -> right_u32() } }
+    state right_u32() { transition self.i32_backing0[363080 + self.expr_type] == 2 { true -> carrier_compatibility() _ -> bad() } }
+    state carrier_compatibility() { transition self.left_type >= 0 { true -> same_carrier() _ -> operand_type() } }
+    state same_carrier() { transition self.i32_backing0[363080 + self.left_type] == self.i32_backing0[363080 + self.expr_type] { true -> operand_type() _ -> bad() } }
     state operand_type() { transition self.left_type >= 0 { true -> operand_left() _ -> operand_right_check() } }
     state operand_left() { self.target_type = self.left_type; transition 0 { _ -> comparison_emit_check() } }
     state operand_right_check() { transition self.expr_type >= 0 { true -> operand_right() _ -> operand_literal() } }

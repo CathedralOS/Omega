@@ -267,21 +267,32 @@ def gate() -> None:
         if 11 not in unicode["opcodes"] or 12 not in unicode["opcodes"]:
             raise ValueError(f"Unicode CKIR3 opcode coverage {unicode}")
 
-        for fixture in (
-            "negative-wrong-field", "negative-wrong-type", "negative-array-arity",
-            "negative-nonconstant-member", "negative-noncopy-aggregate",
-            "negative-less-equal-type", "negative-dynamic-index-no-fact",
-        ):
-            frame = prepare(fixture, {
-                "negative-wrong-field": "WrongFieldProbe",
-                "negative-wrong-type": "WrongTypeProbe",
-                "negative-array-arity": "WrongArityProbe",
-                "negative-nonconstant-member": "RuntimeMemberProbe",
-                "negative-noncopy-aggregate": "NoncopyAggregateProbe",
-                "negative-less-equal-type": "LessEqualTypeProbe",
-                "negative-dynamic-index-no-fact": "UnsafeIndexProbe",
-            }[fixture], "run", [fixtures / f"{fixture}.omg"])
-            expect(fixture, frame, 251)
+        source_negatives = (
+            ("negative-wrong-field", "WrongFieldProbe", 251),
+            ("negative-wrong-type", "WrongTypeProbe", 251),
+            ("negative-array-arity", "WrongArityProbe", 251),
+            ("negative-nonconstant-member", "RuntimeMemberProbe", 251),
+            ("negative-noncopy-aggregate", "NoncopyAggregateProbe", 251),
+            ("negative-less-equal-type", "LessEqualTypeProbe", 251),
+            ("negative-dynamic-index-no-fact", "UnsafeIndexProbe", 251),
+            ("negative-missing-field", "MissingFieldProbe", 251),
+            ("negative-duplicate-field", "DuplicateFieldProbe", 251),
+            ("negative-unknown-extra-field", "UnknownExtraFieldProbe", 251),
+            ("negative-nominal-mismatch", "NominalMismatchProbe", 251),
+            ("negative-out-of-range-u8", "OutOfRangeProbe", 251),
+            ("negative-noncopy-constant-root", "NoncopyRootProbe", 251),
+            ("negative-shared-place-mutation", "SharedMutationProbe", 251),
+            ("negative-recursive-layout", "RecursiveLayoutProbe", 251),
+            ("negative-oversized-layout", "OversizedLayoutProbe", 252),
+            ("negative-less-equal-bool", "BoolLessEqualProbe", 251),
+            ("negative-less-equal-structural", "StructuralLessEqualProbe", 251),
+            ("negative-less-equal-mixed-carrier", "MixedCarrierProbe", 251),
+            ("negative-less-equal-missing-rhs", "MissingRhsProbe", 251),
+            ("negative-less-equal-chain", "ChainedLessEqualProbe", 251),
+        )
+        for fixture, owner, status in source_negatives:
+            frame = prepare(fixture, owner, "run", [fixtures / f"{fixture}.omg"])
+            expect(fixture, frame, status)
 
         for kind, status in (("array-1024", 0), ("array-1025", 252), ("record-4", 0), ("record-5", 252)):
             source = temp / f"{kind}.omg"
@@ -303,8 +314,11 @@ def gate() -> None:
 
         print(f"resolved-to-CKIR3: fields={fields}/255 locals={locals_used}/32 "
               f"unicode={len(outputs['unicode'])}B nodes=2740 children=3537")
+        semantic_251 = sum(status == 251 for _, _, status in source_negatives)
+        semantic_252 = sum(status == 252 for _, _, status in source_negatives)
         print("resolved-to-CKIR3 controls: array-1024=0 array-1025=252 record-4=0 record-5=252 "
-              "comp-cap=252 witness-cap=252 semantic-negatives=251 wrong-identity=251 wrong-major=251")
+              f"comp-cap=252 witness-cap=252 source-251={semantic_251} source-252={semantic_252} "
+              "wrong-identity=251 wrong-major=251")
         print("resolved-to-CKIR3 timings: " + " ".join(
             f"{name}={seconds:.3f}s" for name, seconds in sorted(timings.items())
             if name.startswith("compile-") or name in ("lowermachine-source", "native-unicode", "self-unicode")

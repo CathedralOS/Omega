@@ -1,0 +1,13 @@
+data KnownPair [copy] {
+    first: u8;
+    last: u8;
+}
+
+data UnknownExtraFieldProbe {
+    pair: KnownPair;
+}
+
+machine UnknownExtraFieldProbe::run(&mut self) -> u8 {
+    self.pair = KnownPair { first: 35, last: 70, other: 71 };
+    self.pair.last
+}

@@ -1,0 +1,14 @@
+data MixedCarrierProbe {
+    byte: u8;
+    word: u32;
+}
+
+machine MixedCarrierProbe::run(&mut self) -> u8 {
+    transition self.byte <= self.word {
+        true -> pass()
+        _ -> fail()
+    }
+
+    state pass(&mut self) { 70 }
+    state fail(&mut self) { 71 }
+}

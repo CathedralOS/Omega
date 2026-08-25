@@ -287,9 +287,12 @@ on the separately blocked compilation-authority join.
   - [x] Carry the renamed/declaration-reordered/authored-field-reordered/nested
     positive through independent result evaluation plus every native/self/mixed
     backend pairing and exact ELF reconstruction.
-  - [ ] Complete the remaining phase-isolated source negatives and adversarial
-    interval-custody controls without copying that matrix into meaning or
-    backend gates.
+  - [x] Complete phase-isolated source negatives for named-record membership,
+    nominal/scalar/structural type errors, direct copyability, mutability,
+    recursive layout, malformed and carrier-incompatible `<=`, and adjacent
+    oversized-layout exhaustion through native and self-built rejection.
+  - [ ] Complete adversarial interval-custody controls without copying that
+    matrix into meaning or backend gates.
   - [ ] Complete adjacent source, constant-graph, checked-IR, image, frame,
     text, ELF, and evaluator limits with genuine canonical maxima or greatest-
     realizable boundaries rather than header-only proxy overages.
