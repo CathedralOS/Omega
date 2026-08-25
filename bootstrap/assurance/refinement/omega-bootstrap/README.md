@@ -133,6 +133,18 @@ cross-pairs, mutations, and resource teeth. This closes the selected bounded
 payload-sum relation, not general payload-sum coverage or final `Ωself`
 admission.
 
+Bool-only logical negation is the next open successor, `OMGRFN8`. Its exact
+pair is OMGLOW7-produced CKIR6 with the least canonical OMGRSW1, OMGRSW2, or
+OMGRSW3 selected by the source; there is no OMGRSW4 because `!` creates no
+resolution identity. R1 retains outer-frame/source custody, R2 reconstructs the
+unchanged least resolution relation, R3 joins inherited declarations/root to
+CKIR6 without taking ownership of unary semantics, R4 owns exact recursive
+source lowering plus artifact-free Boolean meaning, and R5 owns complete CKIR6
+structure/result and exact load/XOR-one/store ELF reconstruction. The focused
+producer/reference/backend gates exist, but no OMGRFN8 checker or composite is
+claimed here yet; the logical-negation vertical slice remains open until those
+responsibilities consume one immutable carrier with cross-pairs and resources.
+
 For the earlier one-unit `OMGRFN1` tranche, the first source-side layer is
 `ckir-refinement-source-input.beta`. It independently decodes the exact
 one-unit `OMG0BNDL` input retained by the envelope, validates the canonical

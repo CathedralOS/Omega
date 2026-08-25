@@ -103,13 +103,17 @@ def _project_declarations(
     v4._declaration_projection(entry, flags, projected)
 
 
-def decode(contents: bytes) -> Module:
-    require(len(contents) >= HEADER.size, "truncated CKIR5 header")
+def decode(contents: bytes, *, expected_major: int = 5,
+           allow_logical_not: bool = False) -> Module:
+    require(expected_major in (5, 6), "internal CKIR schema selection")
+    require(allow_logical_not == (expected_major == 6),
+            "internal CKIR feature selection")
+    require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
-    require(magic == b"OMGCKIR\0" and (major, minor, target) == (5, 0, 1),
-            "bad CKIR5 schema or target")
+    require(magic == b"OMGCKIR\0" and (major, minor, target) == (expected_major, 0, 1),
+            "bad CKIR schema or target")
     require(flags in (0, 1) and (entry != NO_ID) == bool(flags & 1), "bad entry flags")
-    require(total == len(contents), "CKIR5 length mismatch")
+    require(total == len(contents), "CKIR length mismatch")
     if len(contents) > 2_522_192:
         raise Ckir5ResourceError("CKIR5 byte exhaustion")
     require(len(raw_counts) == len(COUNT_NAMES), "internal CKIR5 count schema")
@@ -430,6 +434,7 @@ def decode(contents: bytes) -> Module:
                 and place_operations[place_id] < operation)
 
     next_operand = 0
+    logical_not_count = 0
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
          result_type, operand_start, operand_count, imm0, imm1) = operation
@@ -441,7 +446,7 @@ def decode(contents: bytes) -> Module:
         op_values = operands[operand_start:operand_start + operand_count]
         require(len(op_values) == operand_count, "operation operand extent")
         next_operand += operand_count
-        require(opcode in range(1, 15), "opcode")
+        require(opcode in range(1, 16 if allow_logical_not else 15), "opcode")
         if opcode == 10:
             require(imm0 < len(machines), "call target")
             expected_kind = 0 if machines[imm0][5] == NO_ID else 1
@@ -467,7 +472,7 @@ def decode(contents: bytes) -> Module:
 
         expected_operands = (1 + machines[imm0][7] if opcode == 10 else {
             1: 0, 2: 0, 3: 1, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2,
-            11: 1, 12: 2,
+            11: 1, 12: 2, 15: 1,
         }.get(opcode))
         if opcode not in (13, 14):
             require(operand_count == expected_operands, "operation arity")
@@ -526,6 +531,14 @@ def decode(contents: bytes) -> Module:
                         "add result")
             else:
                 require(types[result_type][1] == 3, "comparison result")
+        elif opcode == 15:
+            require(imm0 == imm1 == 0
+                    and visible_value(op_values[0], owner, block, op_id),
+                    "LogicalNot operand")
+            require(value_types[op_values[0]] == result_type
+                    and result_type < len(types) and types[result_type][1] == 3,
+                    "LogicalNot bool type")
+            logical_not_count += 1
         elif opcode == 10:
             callee = machines[imm0]
             require(imm1 == 0 and visible_place(op_values[0], block, op_id), "call receiver")
@@ -570,7 +583,7 @@ def decode(contents: bytes) -> Module:
                         and types[actual][7] <= types[wanted][7],
                         "ConstructRecord operand type")
             constructor_results.add(result_id)
-        else:
+        elif opcode == 14:
             require(imm1 == 0 and types[result_type][1] == 6 and imm0 < len(cases),
                     "ConstructCase result")
             case = cases[imm0]
@@ -590,9 +603,13 @@ def decode(contents: bytes) -> Module:
                         and types[actual][7] <= types[wanted][7],
                         "ConstructCase operand type")
             constructor_results.add(result_id)
+        else:
+            raise Ckir5Error("unhandled opcode")
 
     require(len(value_types) == counts["values"] and len(place_types) == counts["places"],
             "reconstructed result counts")
+    if allow_logical_not:
+        require(logical_not_count > 0, "CKIR6 requires LogicalNot")
 
     next_arm = next_arm_arg = 0
     for term in terminators:
@@ -850,6 +867,8 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     left, right = int(values[args[0]][1]), int(values[args[1]][1])
                     values[result_id] = (result_type,
                         int(left < right if opcode == 9 else left <= right))
+                elif opcode == 15:
+                    values[result_id] = (result_type, 1 - int(values[args[0]][1]))
                 elif opcode == 10:
                     _, callee_receiver = places[args[0]]
                     result = run_machine(op[10], callee_receiver,
