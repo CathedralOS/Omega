@@ -1079,9 +1079,12 @@ checking succeeds. It derives machine-head and exact checked call-result types,
 joins ownership-place types, promotes public-interface exposure, and retains an
 automatic cleanup machine only when its exact attached nominal declaration
 matches. A same-spelled cleanup attached elsewhere cannot satisfy that edge.
-This sidecar is package-neutral and compiler-private; the admission projector
-must still qualify its declarations by package and emit versioned canonical
-rows. It is not a lock schema or a reason for nominal Chi.
+This sidecar is package-neutral and compiler-private. The compiler's review
+projector qualifies its consumer and dependency declarations by exact package,
+emits versioned blocking rows for each dependency kind and exposure, and keeps
+exact source anchors for both sides. It is comparison evidence, not an accepted
+lock schema or a reason for nominal Chi; total admission coverage remains a
+separate requirement.
 
 Earlier effect-free compiler evaluation uses that split directly. Const-
 generic calls, fixed-array const calls, const-domain facts, laid/placed layout

@@ -288,6 +288,13 @@ automatic cleanup produce semantic dependency evidence but never manufacture
 authored selection authority. No package or build-time code selected by such an
 occurrence may execute before the finalized selection gate succeeds.
 
+Package review qualifies each carried dependency by the exact package owning
+the consuming machine and the exact package owning the declaration. Nominal,
+layout, ownership, and automatic-cleanup dependencies are blocking comparison
+rows; whether the occurrence is private implementation or public interface is
+part of the compared row. This records artifact/API consequences without
+making a transitive package source-nameable.
+
 The checked carrier retains an automatic cleanup machine by its exact
 attachment to the nominal declaration. A package-controlled machine with the
 same trailing `drop` spelling on another type cannot become that dependency.

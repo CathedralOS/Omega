@@ -927,6 +927,49 @@ impl PackageReviewNominalIdentity {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewSemanticDependencyExposure {
+    PrivateImplementation,
+    PublicInterface,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewSemanticDependencyKind {
+    NominalIdentity,
+    Layout,
+    OwnershipBehavior,
+    AutomaticCleanup,
+    AutomaticCleanupMachine,
+}
+
+/// One exact declaration whose semantics are carried by a reviewed package's
+/// machine without granting that machine authored source authority.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewSemanticDependency {
+    consumer: PackageReviewNominalIdentity,
+    dependency: PackageReviewNominalIdentity,
+    exposure: PackageReviewSemanticDependencyExposure,
+    kind: PackageReviewSemanticDependencyKind,
+}
+
+impl PackageReviewSemanticDependency {
+    pub const fn consumer(&self) -> &PackageReviewNominalIdentity {
+        &self.consumer
+    }
+
+    pub const fn dependency(&self) -> &PackageReviewNominalIdentity {
+        &self.dependency
+    }
+
+    pub const fn exposure(&self) -> PackageReviewSemanticDependencyExposure {
+        self.exposure
+    }
+
+    pub const fn kind(&self) -> PackageReviewSemanticDependencyKind {
+        self.kind
+    }
+}
+
 /// A compiler-owned risk class for authority exposed by a reviewed package.
 ///
 /// The class is attached only after an exact service declaration rejoins its
@@ -1539,6 +1582,7 @@ pub struct CheckedPackageReviewProjection {
     public_domains: Vec<PackageReviewDomainShape>,
     public_data: Vec<PackageReviewDataShape>,
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
+    semantic_dependencies: Vec<PackageReviewSemanticDependency>,
     callables: Vec<CheckedPackageCallableReview>,
     dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
@@ -1554,6 +1598,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.public_domains == other.public_domains
             && self.public_data == other.public_data
             && self.representation_tcb == other.representation_tcb
+            && self.semantic_dependencies == other.semantic_dependencies
             && self.callables == other.callables
             && self.dangerous_authorities == other.dangerous_authorities
             && self.dangerous_authority_slack == other.dangerous_authority_slack
@@ -1569,6 +1614,7 @@ struct PackageReviewCanonicalRowSources {
     public_domains: Vec<PackageReviewCanonicalRowSource>,
     public_data: Vec<PackageReviewCanonicalRowSource>,
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
+    semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
     callables: Vec<PackageReviewCanonicalRowSource>,
     dangerous_authorities: Vec<PackageReviewCanonicalRowSource>,
     dangerous_authority_slack: Vec<PackageReviewCanonicalRowSource>,
@@ -1599,6 +1645,13 @@ struct ProjectedDangerousAuthoritySlackRow {
     callable_declaration: SymbolHandle,
 }
 
+#[derive(Debug, Clone)]
+struct ProjectedSemanticDependencyRow {
+    row: PackageReviewSemanticDependency,
+    consumer_declarations: Vec<SymbolHandle>,
+    dependency_declarations: Vec<SymbolHandle>,
+}
+
 /// Compiler-owned granularity for review-only capability/API comparison.
 ///
 /// Callable rows currently retain the complete callable envelope. Nested
@@ -1621,6 +1674,7 @@ pub enum PackageReviewCanonicalRowKind {
     /// A compiler-classified dangerous service is declared by a checked body
     /// but absent from its exact inferred transitive reach.
     DangerousAuthoritySlack,
+    SemanticDependency,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1640,6 +1694,8 @@ pub enum PackageReviewSourceLocationRole {
     ProviderSchemaDeclaration,
     ProviderTypeDeclaration,
     ProviderRealization,
+    SemanticDependencyConsumer,
+    SemanticDependencyDeclaration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1801,6 +1857,10 @@ impl CheckedPackageReviewProjection {
         &self.representation_tcb
     }
 
+    pub fn semantic_dependencies(&self) -> &[PackageReviewSemanticDependency] {
+        &self.semantic_dependencies
+    }
+
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
         &self.callables
     }
@@ -1877,6 +1937,7 @@ pub fn project_checked_package_review(
     let public_domains = project_public_domains(compilation, package)?;
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
+    let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
     let mut projected_build_machine = false;
@@ -1967,6 +2028,8 @@ pub fn project_checked_package_review(
         representation_tcb,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (semantic_dependencies, semantic_dependency_sources) =
+        finalize_semantic_dependency_rows(compilation, semantic_dependencies)?;
     let (callables, callable_sources) = finalize_projected_rows(
         compilation,
         callables,
@@ -1981,6 +2044,7 @@ pub fn project_checked_package_review(
         public_domains: public_domain_sources,
         public_data: public_data_sources,
         representation_tcb: representation_tcb_sources,
+        semantic_dependencies: semantic_dependency_sources,
         callables: callable_sources,
         dangerous_authorities: dangerous_authority_sources,
         dangerous_authority_slack: dangerous_authority_slack_sources,
@@ -1995,12 +2059,85 @@ pub fn project_checked_package_review(
         public_domains,
         public_data,
         representation_tcb,
+        semantic_dependencies,
         callables,
         dangerous_authorities,
         dangerous_authority_slack,
         selected_providers,
         row_sources,
     })
+}
+
+fn project_semantic_dependencies(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+) -> Result<Vec<ProjectedSemanticDependencyRow>, Vec<Diagnostic>> {
+    let mut projected: Vec<ProjectedSemanticDependencyRow> = Vec::new();
+    for checked in &compilation.facts.flow.semantic_dependencies.rows {
+        let consumer = nominal_identity(compilation, checked.consumer_machine)?;
+        if !reviewed_package_owns(&consumer, package)? {
+            continue;
+        }
+        let row = PackageReviewSemanticDependency {
+            consumer,
+            dependency: nominal_identity(compilation, checked.dependency)?,
+            exposure: match checked.exposure {
+                psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+                    PackageReviewSemanticDependencyExposure::PrivateImplementation
+                }
+                psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+                    PackageReviewSemanticDependencyExposure::PublicInterface
+                }
+            },
+            kind: match checked.kind {
+                psi_checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
+                    PackageReviewSemanticDependencyKind::NominalIdentity
+                }
+                psi_checked_trees::CheckedSemanticDependencyKind::Layout => {
+                    PackageReviewSemanticDependencyKind::Layout
+                }
+                psi_checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
+                    PackageReviewSemanticDependencyKind::OwnershipBehavior
+                }
+                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
+                    PackageReviewSemanticDependencyKind::AutomaticCleanup
+                }
+                psi_checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
+                    PackageReviewSemanticDependencyKind::AutomaticCleanupMachine
+                }
+            },
+        };
+        if let Some(existing) = projected.iter_mut().find(|existing| existing.row == row) {
+            if !existing
+                .consumer_declarations
+                .contains(&checked.consumer_machine)
+            {
+                existing
+                    .consumer_declarations
+                    .push(checked.consumer_machine);
+            }
+            if !existing
+                .dependency_declarations
+                .contains(&checked.dependency)
+            {
+                existing.dependency_declarations.push(checked.dependency);
+            }
+        } else {
+            projected.push(ProjectedSemanticDependencyRow {
+                row,
+                consumer_declarations: vec![checked.consumer_machine],
+                dependency_declarations: vec![checked.dependency],
+            });
+        }
+    }
+    projected.sort_by(|left, right| left.row.cmp(&right.row));
+    for row in &mut projected {
+        row.consumer_declarations
+            .sort_by_key(|symbol| symbol.arena_index());
+        row.dependency_declarations
+            .sort_by_key(|symbol| symbol.arena_index());
+    }
+    Ok(projected)
 }
 
 fn project_representation_tcb(
@@ -2157,6 +2294,42 @@ fn finalize_projected_rows<Row>(
         sources.push(PackageReviewCanonicalRowSource::authored(vec![
             canonical_source_location(compilation, projected.declaration, role)?,
         ]));
+        rows.push(projected.row);
+    }
+    Ok((rows, sources))
+}
+
+fn finalize_semantic_dependency_rows(
+    compilation: &CheckedCompilation,
+    projected: Vec<ProjectedSemanticDependencyRow>,
+) -> Result<
+    (
+        Vec<PackageReviewSemanticDependency>,
+        Vec<PackageReviewCanonicalRowSource>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut rows = Vec::with_capacity(projected.len());
+    let mut sources = Vec::with_capacity(projected.len());
+    for projected in projected {
+        let mut locations = Vec::new();
+        for declaration in projected.consumer_declarations {
+            locations.push(canonical_source_location(
+                compilation,
+                declaration,
+                PackageReviewSourceLocationRole::SemanticDependencyConsumer,
+            )?);
+        }
+        for declaration in projected.dependency_declarations {
+            locations.push(canonical_source_location(
+                compilation,
+                declaration,
+                PackageReviewSourceLocationRole::SemanticDependencyDeclaration,
+            )?);
+        }
+        locations.sort();
+        locations.dedup();
+        sources.push(PackageReviewCanonicalRowSource::authored(locations));
         rows.push(projected.row);
     }
     Ok((rows, sources))
@@ -2320,6 +2493,7 @@ fn validate_canonical_row_source_limits(
         .chain(&sources.public_domains)
         .chain(&sources.public_data)
         .chain(&sources.representation_tcb)
+        .chain(&sources.semantic_dependencies)
         .chain(&sources.callables)
         .chain(&sources.dangerous_authorities)
         .chain(&sources.dangerous_authority_slack)

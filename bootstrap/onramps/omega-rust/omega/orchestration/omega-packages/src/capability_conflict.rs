@@ -1541,6 +1541,7 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::SelectedProviderSet => "selected_provider_set",
         PackageReviewCanonicalRowKind::AcceptedClaim => "accepted_claim",
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => "dangerous_authority_slack",
+        PackageReviewCanonicalRowKind::SemanticDependency => "semantic_dependency",
     }
 }
 
@@ -1556,6 +1557,7 @@ const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::SelectedProviderSet => 7,
         PackageReviewCanonicalRowKind::AcceptedClaim => 8,
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => 9,
+        PackageReviewCanonicalRowKind::SemanticDependency => 10,
     }
 }
 
@@ -1593,6 +1595,8 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::ProviderSchemaDeclaration => 5,
         PackageReviewSourceLocationRole::ProviderTypeDeclaration => 6,
         PackageReviewSourceLocationRole::ProviderRealization => 7,
+        PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
+        PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
     }
 }
 
@@ -1606,5 +1610,11 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::ProviderSchemaDeclaration => "provider_schema_declaration",
         PackageReviewSourceLocationRole::ProviderTypeDeclaration => "provider_type_declaration",
         PackageReviewSourceLocationRole::ProviderRealization => "provider_realization",
+        PackageReviewSourceLocationRole::SemanticDependencyConsumer => {
+            "semantic_dependency_consumer"
+        }
+        PackageReviewSourceLocationRole::SemanticDependencyDeclaration => {
+            "semantic_dependency_declaration"
+        }
     }
 }

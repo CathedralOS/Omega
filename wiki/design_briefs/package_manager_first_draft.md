@@ -185,7 +185,11 @@ promote an otherwise private row. A root-middle-leaf canary confirms that this
 evidence does not turn transitive carried identity into authored source
 authority. The carrier remains package-neutral compiler state; canonical owner
 qualification and evidence encoding occur in the package projection, not by
-persisting checked-tree handles or introducing Chi.
+persisting checked-tree handles or introducing Chi. The current review
+projection emits one blocking row keyed by exact consumer, exact dependency,
+and dependency kind, with private/public exposure as the compared value and
+source anchors for both declarations. Accepted-lock issuance still requires
+the total admission projection.
 
 ## Dependency planning before build execution
 
