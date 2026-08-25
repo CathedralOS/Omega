@@ -37,6 +37,8 @@ input bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-backend-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-frame.py
+input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-meaning.sh
+input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir5-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-ckir4-meaning-runner.py
 input bootstrap/omega-bootstrap/gates/resolution_handoff_reference.py
 input bootstrap/omega-bootstrap/gates/resolved_to_ckir_mutations.py

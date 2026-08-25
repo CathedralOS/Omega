@@ -418,6 +418,8 @@ proc ckir_interpret_selected() {
         to logical_and when (opcode == 16)
         to logical_or when (opcode == 17)
         to scalar_equal when (opcode == 18)
+        to greater when (opcode == 19)
+        to greater_equal when (opcode == 20)
         to less
     }
     state constant { word[8800000 + result * 8] = ckir_op_word(op, 32)  to op_next }
@@ -587,6 +589,16 @@ proc ckir_interpret_selected() {
         to op_next
     }
     state scalar_equal_true { word[8800000+result*8]=1 to op_next }
+    state greater {
+        a=ckir_operand(start) b=ckir_operand(start+1) word[8800000+result*8]=0
+        to greater_true when (word[8800000+a*8]>word[8800000+b*8]) to op_next
+    }
+    state greater_true { word[8800000+result*8]=1 to op_next }
+    state greater_equal {
+        a=ckir_operand(start) b=ckir_operand(start+1) word[8800000+result*8]=0
+        to greater_equal_true when (word[8800000+a*8]>=word[8800000+b*8]) to op_next
+    }
+    state greater_equal_true { word[8800000+result*8]=1 to op_next }
     state call {
         ; The selected root is active at depth zero. Entering a call while 63
         ; continuations are retained would create the forbidden 65th frame.

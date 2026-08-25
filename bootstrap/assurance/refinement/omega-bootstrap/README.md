@@ -1,10 +1,16 @@
 # Bridge refinement reconstruction
 
-The current additive carrier is [`OMGRFN10`](OMGCOMP_REFINEMENT_WITNESS_V10.md):
+The current additive carrier is [`OMGRFN11`](OMGCOMP_REFINEMENT_WITNESS_V11.md):
+`OMGRFNB\0` / version 11 binds exact OMGCOMP and least OMGRSW1/2/3 to CKIR9
+unsigned same-carrier `>`/`>=` and its exact artifact. Shared materializers keep
+OMGRFN7–10 live while the `omgrfn11-*` wrappers pin the new identity.
+
+The immediately preceding equality carrier remains
+[`OMGRFN10`](OMGCOMP_REFINEMENT_WITNESS_V10.md):
 `OMGRFNA\0` / version 10 binds exact OMGCOMP and least OMGRSW1/2/3 to CKIR8
-opcode 18 same-carrier scalar equality and its exact artifact. The V8/V9/V10
-materializers share parameterized owner sources; the `omgrfn10-*` wrappers pin
-the new outer identity without duplicating checker implementations.
+opcode 18 same-carrier scalar equality and its exact artifact. The shared
+materializers keep that identity live without duplicating checker
+implementations.
 
 This directory owns cross-rung reconstruction and checking of claims that join
 the bridge's Omega meaning or produced artifacts to lower-rung evidence:

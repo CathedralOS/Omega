@@ -1,7 +1,7 @@
-; Bounded OMGRFN7/8/9/10 responsibility-5 component framing.
+; Bounded OMGRFN7/8/9/10/11 responsibility-5 component framing.
 ;
 ; This decoder deliberately treats OMGCOMP and the selected OMGRSW as opaque. It reads
-; enough of the exact version-7/8/9/10 frame locally to make CKIR5/6/7/8 and ELF
+; enough of the exact version-7/8/9/10/11 frame locally to make CKIR5/6/7/8/9 and ELF
 ; accesses safe,
 ; then projects those component offsets and claims into the stable private
 ; interface consumed by the shared CKIR artifact and ELF checkers. It performs no
@@ -76,12 +76,14 @@ proc omgrfn5_component_read() {
         to version8_magic when (omgrfn5_component_byte(6) == '8')
         to version9_magic when (omgrfn5_component_byte(6) == '9')
         to version10_magic when (omgrfn5_component_byte(6) == 'A')
+        to version11_magic when (omgrfn5_component_byte(6) == 'B')
         to malformed
     }
     state version7_magic { word[524376] = 7  to magic7 }
     state version8_magic { word[524376] = 8  to magic7 }
     state version9_magic { word[524376] = 9  to magic7 }
     state version10_magic { word[524376] = 10  to magic7 }
+    state version11_magic { word[524376] = 11  to magic7 }
     state magic7 { to version when (omgrfn5_component_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_component_u32(8) == word[524376])  to malformed }
     state fields {

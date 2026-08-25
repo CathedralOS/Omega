@@ -1,7 +1,7 @@
-// Delta-written shared OMGLOW4/5/6/7/8/9 resolved-source lowerer. This component
+// Delta-written shared OMGLOW4/5/6/7/8/9/A resolved-source lowerer. This component
 // consumes exact OMGCOMP plus the paired canonical OMGRSW1/2/3, validates only the framing and
 // relations it uses, reparses body spans through witness identities, recomputes
-// copy/layout/zero properties, and emits paired CKIR schema-major 4 through 8 only after
+// copy/layout/zero properties, and emits paired CKIR schema-major 4 through 9 only after
 // complete preflight.  The selected root is projected from OMGRSW1 and typed
 // attached calls consume exact role-3 bindings; this file does no name lookup.
 // It performs no package/name resolution, receipt/digest, ELF, or assurance work.
@@ -62,7 +62,7 @@ data Main {
     bundle_mode: i32; input_n: i32; decoded: i32;
     label_start: i32; label_len: i32; label_segment_start: i32;
     label_segment_len: i32; content_start: i32; content_len: i32;
-    // OMGLOW4/5/6/7/8/9 keep their two components in separate bounded arrays.
+    // OMGLOW4/5/6/7/8/9/A keep their two components in separate bounded arrays.
     frame_header: [u8; 32];
     witness: [u8; 524288];
     source: [u8; 267280];
@@ -676,12 +676,14 @@ machine Main::read_frame(&mut self) {
     state relation4() { self.resolution_version = 0; self.ck3[39] = 6; transition 0 { _ -> fixed7() } }
     state relation5_check() { transition self.frame_header[6] == 56 { true -> relation5() _ -> relation6_check() } }
     state relation5() { self.resolution_version = 0; self.ck3[39] = 7; transition 0 { _ -> fixed7() } }
-    state relation6_check() { transition self.frame_header[6] == 57 { true -> relation6() _ -> bad() } }
+    state relation6_check() { transition self.frame_header[6] == 57 { true -> relation6() _ -> relation7_check() } }
     state relation6() { self.resolution_version = 0; self.ck3[39] = 8; transition 0 { _ -> fixed7() } }
+    state relation7_check() { transition self.frame_header[6] == 65 { true -> relation7() _ -> bad() } }
+    state relation7() { self.resolution_version = 0; self.ck3[39] = 9; transition 0 { _ -> fixed7() } }
     state fixed7() { transition self.frame_header[7] == 0 { true -> version() _ -> bad() } }
-    state version() {
-        transition self.frame_header[8] + 48 == self.frame_header[6] { true -> version1() _ -> bad() }
-    }
+    state version() { transition self.ck3[39] == 9 { true -> version10() _ -> version_digit() } }
+    state version_digit() { transition self.frame_header[8] + 48 == self.frame_header[6] { true -> version1() _ -> bad() } }
+    state version10() { transition self.frame_header[8] == 10 { true -> version1() _ -> bad() } }
     state version1() { transition self.frame_header[9] == 0 { true -> version2() _ -> bad() } }
     state version2() { transition self.frame_header[10] == 0 { true -> version3() _ -> bad() } }
     state version3() { transition self.frame_header[11] == 0 { true -> fixed_fields() _ -> bad() } }
@@ -2693,11 +2695,18 @@ machine Main::parse_add(&mut self) {
 machine Main::parse_comparison(&mut self) {
     self.parse_add();
     transition self.status == 0 { true -> compare() _ -> done() }
-    state compare() { transition self.tok == 60 { true -> less() _ -> done() } }
-    state less() { self.push_expression(); transition self.status == 0 { true -> comparison_token() _ -> done() } }
+    state compare() { transition self.tok == 60 { true -> less() _ -> greater_check() } }
+    state greater_check() { transition self.tok == 62 { true -> greater_version() _ -> done() } }
+    state greater_version() { transition self.ck3[39] == 9 { true -> greater() _ -> bad() } }
+    state less() { self.comparison_opcode = 9; transition 0 { _ -> save_left() } }
+    state greater() { self.comparison_opcode = 19; transition 0 { _ -> save_left() } }
+    state save_left() { self.push_expression(); transition self.status == 0 { true -> comparison_token() _ -> done() } }
     state comparison_token() { self.next_token(); transition self.tok == 61 { true -> inclusive() _ -> exclusive() } }
-    state inclusive() { self.comparison_opcode = 12; self.next_token(); self.parse_add(); transition self.status == 0 { true -> restore() _ -> done() } }
-    state exclusive() { self.comparison_opcode = 9; self.parse_add(); transition self.status == 0 { true -> restore() _ -> done() } }
+    state inclusive() { transition self.comparison_opcode == 9 { true -> inclusive_less() _ -> inclusive_greater() } }
+    state inclusive_less() { self.comparison_opcode = 12; transition 0 { _ -> inclusive_right() } }
+    state inclusive_greater() { self.comparison_opcode = 20; transition 0 { _ -> inclusive_right() } }
+    state inclusive_right() { self.next_token(); self.parse_add(); transition self.status == 0 { true -> restore() _ -> done() } }
+    state exclusive() { self.parse_add(); transition self.status == 0 { true -> restore() _ -> done() } }
     state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); transition self.status == 0 { true -> numeric() _ -> done() } }
     state numeric() { transition self.left_type == 0 - 2 { true -> right_numeric() _ -> left_typed() } }
     state left_typed() { transition self.left_type >= 0 { true -> left_kind() _ -> bad() } }
@@ -2714,15 +2723,19 @@ machine Main::parse_comparison(&mut self) {
     state operand_right_check() { transition self.expr_type >= 0 { true -> operand_right() _ -> operand_literal() } }
     state operand_right() { self.target_type = self.expr_type; transition 0 { _ -> comparison_emit_check() } }
     state operand_literal() { self.target_type = 0 - 1; transition 0 { _ -> comparison_emit_check() } }
-    state comparison_emit_check() { transition self.bundle_mode == 1 { true -> comparison_emit() _ -> fact() } }
+    state comparison_emit_check() { transition self.comparison_opcode >= 19 { true -> greater_pure_left() _ -> comparison_emit_select() } }
+    state greater_pure_left() { transition self.ck3[46] == 1 { true -> greater_pure_right() _ -> bad() } }
+    state greater_pure_right() { transition self.ck3[45] == 1 { true -> comparison_emit_select() _ -> bad() } }
+    state comparison_emit_select() { transition self.bundle_mode == 1 { true -> comparison_emit() _ -> fact() } }
     state comparison_emit() {
         self.record_binary_expression(self.comparison_opcode, self.target_type, self.ck_bool_type);
         transition self.status == 0 { true -> fact() _ -> done() }
     }
     state fact() {
         self.guard_fact_valid = 0;
-        transition self.left_subject_kind > 0 { true -> fact_bound() _ -> boolean() }
+        transition self.comparison_opcode >= 19 { true -> boolean() _ -> fact_subject() }
     }
+    state fact_subject() { transition self.left_subject_kind > 0 { true -> fact_bound() _ -> boolean() } }
     state fact_bound() { transition self.comparison_opcode == 12 { true -> fact_save_inclusive() _ -> fact_bound_exclusive() } }
     state fact_bound_exclusive() { transition self.expr_hi > 0 { true -> fact_save() _ -> boolean() } }
     state fact_save_inclusive() {
@@ -2746,7 +2759,10 @@ machine Main::parse_comparison(&mut self) {
         self.expr_tree_depth = self.depth; transition self.saved_pos > self.expr_tree_depth { true -> right_depth() _ -> depth_add() }
     }
     state right_depth() { self.expr_tree_depth = self.saved_pos; transition 0 { _ -> depth_add() } }
-    state depth_add() { self.expr_tree_depth = self.expr_tree_depth + 1; transition self.expr_tree_depth <= 8 { true -> done() _ -> exhausted() } }
+    state depth_add() { self.expr_tree_depth = self.expr_tree_depth + 1; transition self.expr_tree_depth <= 8 { true -> comparison_continue() _ -> exhausted() } }
+    state comparison_continue() { transition self.ck3[39] == 9 { true -> new_feature_count() _ -> done() } }
+    state new_feature_count() { transition self.comparison_opcode >= 19 { true -> count_new() _ -> compare() } }
+    state count_new() { self.ck3[22] = self.ck3[22] + 1; transition 0 { _ -> compare() } }
     state exhausted() { self.status = 252; transition 0 { _ -> done() } }
     state bad() { self.reject(); }
     state done() { }
@@ -2815,7 +2831,7 @@ machine Main::parse_equality(&mut self) {
     // adjacent, so inspect the raw next byte without consuming assignment.
     state adjacent() { transition self.pos < self.limit { true -> second() _ -> done() } }
     state second() { transition self.source[self.pos] == 61 { true -> version() _ -> done() } }
-    state version() { transition self.ck3[39] == 8 { true -> left() _ -> bad() } }
+    state version() { transition self.ck3[39] >= 8 { true -> left() _ -> bad() } }
     state left() { self.push_expression(); transition self.status == 0 { true -> consume_first() _ -> done() } }
     state consume_first() { self.next_token(); self.expect_token(61); transition self.status == 0 { true -> right() _ -> done() } }
     state right() { self.parse_comparison(); transition self.status == 0 { true -> restore() _ -> done() } }
@@ -4381,8 +4397,9 @@ machine Main::publish_ckir(&mut self) {
     state pub_magic() {
         write_byte(79); write_byte(77); write_byte(71); write_byte(67);
         write_byte(75); write_byte(73); write_byte(82); write_byte(0);
-        transition self.ck3[39] == 8 { true -> pub_magic_v8() _ -> pub_magic_v7_check() }
+        transition self.ck3[39] == 9 { true -> pub_magic_v9() _ -> pub_magic_v8_check() }
     }
+    state pub_magic_v8_check() { transition self.ck3[39] == 8 { true -> pub_magic_v8() _ -> pub_magic_v7_check() } }
     state pub_magic_v7_check() { transition self.ck3[39] == 7 { true -> pub_magic_v7() _ -> pub_magic_v6_check() } }
     state pub_magic_v6_check() { transition self.ck3[39] == 6 { true -> pub_magic_v6() _ -> pub_magic_v5_check() } }
     state pub_magic_v5_check() { transition self.ck3[39] == 5 { true -> pub_magic_v5() _ -> pub_magic_v4() } }
@@ -4391,6 +4408,7 @@ machine Main::publish_ckir(&mut self) {
     state pub_magic_v6() { write_byte(6); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_magic_v7() { write_byte(7); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_magic_v8() { write_byte(8); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
+    state pub_magic_v9() { write_byte(9); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_target() {
         write_byte(1); write_byte(0);
         transition self.conformance_entry >= 0 { true -> pub_flags_entry() _ -> pub_flags_library() }
@@ -4836,7 +4854,7 @@ machine Main::main(&mut self) {
         self.value_count = self.param_count; self.field_receiver_count = 0;
         self.ck3[38] = 0; self.ck3[40] = 0; self.ck3[41] = 0;
         self.ck3[42] = 0; self.ck3[43] = 0; self.ck3[44] = 0;
-        self.ck3[35] = 0; self.i = 0;
+        self.ck3[35] = 0; self.ck3[22] = 0; self.i = 0;
         transition 0 { _ -> operation_blocks() }
     }
     state operation_blocks() { transition self.i < self.block_count { true -> operation_block() _ -> bodies() } }
@@ -4851,7 +4869,9 @@ machine Main::main(&mut self) {
         self.i = self.i + 1; transition 0 { _ -> operation_blocks() }
     }
     state bodies() { self.check_all_bodies(); transition self.status == 0 { true -> feature_relation() _ -> finish() } }
-    state feature_relation() { transition self.ck3[39] == 8 { true -> scalar_equal_required() _ -> logical_binary_relation() } }
+    state feature_relation() { transition self.ck3[39] == 9 { true -> greater_required() _ -> scalar_equal_relation() } }
+    state greater_required() { transition self.ck3[22] > 0 { true -> constants() _ -> rejected() } }
+    state scalar_equal_relation() { transition self.ck3[39] == 8 { true -> scalar_equal_required() _ -> logical_binary_relation() } }
     state scalar_equal_required() { transition self.ck3[35] > 0 { true -> constants() _ -> rejected() } }
     state logical_binary_relation() { transition self.ck3[39] == 7 { true -> logical_binary_required() _ -> logical_not_relation() } }
     state logical_binary_required() { transition self.ck3[42] > 0 { true -> constants() _ -> rejected() } }

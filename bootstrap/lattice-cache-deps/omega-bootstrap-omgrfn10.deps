@@ -32,6 +32,7 @@ input bootstrap/assurance/refinement/omega-bootstrap/ckir5-refinement-result.bet
 input bootstrap/assurance/refinement/omega-bootstrap/ckir5-refinement-elf.beta
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn8-materialize-r1-r2.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn8-materialize-r3-r5.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn6_bundle.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10-materialize-r1-r2.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10-materialize-r3-r5.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10_bundle.py

@@ -8,7 +8,8 @@ case "$MODE" in
   v6) SCHEMA_LABEL=CKIR6; FRAME_COMMAND=pack-v7 ;;
   v7) SCHEMA_LABEL=CKIR7; FRAME_COMMAND=pack-v8 ;;
   v8) SCHEMA_LABEL=CKIR8; FRAME_COMMAND=pack-v9 ;;
-  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8]" >&2; exit 2 ;;
+  v9) SCHEMA_LABEL=CKIR9; FRAME_COMMAND=pack-v10 ;;
+  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8|v9]" >&2; exit 2 ;;
 esac
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -46,8 +47,10 @@ elif [ "$MODE" = v6 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v6_reference.py"
 elif [ "$MODE" = v7 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v7_reference.py"
-else
+elif [ "$MODE" = v8 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v8_reference.py"
+else
+  REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v9_reference.py"
 fi
 RUNNER="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/delta-ckir4-meaning-runner.py"
 DECODER="$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/decode-gamma-output.py"
@@ -163,7 +166,7 @@ machine LogicalBinaryMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
-else
+elif [ "$MODE" = v8 ]; then
 python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
 from pathlib import Path
 import sys
@@ -202,6 +205,45 @@ machine ScalarEqualMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
+else
+python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
+from pathlib import Path
+import sys
+
+canonical = '''data OrderedGreaterMeaning {}
+machine OrderedGreaterMeaning::run(&mut self) -> u8 {
+    transition 3 > 2 == true && 2 >= 2 && 70 == 70 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+semantic = '''data OrderedGreaterMeaning {}
+machine OrderedGreaterMeaning::probe(&self) -> u32 { 70 }
+machine OrderedGreaterMeaning::run(&mut self) -> u8 {
+    transition self.probe() > 69 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+resource = '''data OrderedGreaterMeaning {}
+machine OrderedGreaterMeaning::run(&mut self) -> u8 {
+    transition 9 > 8 == true == true == true == true == true == true == true {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+'''
+for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
+    Path(path).write_text(source, encoding="ascii")
+PY
 fi
 
 prepare() { # label owner machine source...
@@ -209,7 +251,7 @@ prepare() { # label owner machine source...
   shift 3
   python3 -B "$FIXTURE" build "$T/$LABEL.omgc" "$OWNER" "$MACHINE" "$@"
   "$T/resolver.native" < "$T/$LABEL.omgc" > "$T/$LABEL.omgrsw"
-  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ]; then
+  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ] || [ "$MODE" = v9 ]; then
     python3 - "$T/$LABEL.omgrsw" <<'PY'
 from pathlib import Path
 import struct, sys
@@ -233,10 +275,14 @@ elif [ "$MODE" = v7 ]; then
 prepare canonical LogicalBinaryMeaning run "$T/canonical.omg"
 prepare semantic-251 LogicalBinaryMeaning run "$T/semantic.omg"
 prepare resource-252 LogicalBinaryMeaning run "$T/resource.omg"
-else
+elif [ "$MODE" = v8 ]; then
 prepare canonical ScalarEqualMeaning run "$T/canonical.omg"
 prepare semantic-251 ScalarEqualMeaning run "$T/semantic.omg"
 prepare resource-252 ScalarEqualMeaning run "$T/resource.omg"
+else
+prepare canonical OrderedGreaterMeaning run "$T/canonical.omg"
+prepare semantic-251 OrderedGreaterMeaning run "$T/semantic.omg"
+prepare resource-252 OrderedGreaterMeaning run "$T/resource.omg"
 fi
 : > "$T/empty.expected"
 
@@ -319,9 +365,13 @@ elif sys.argv[3] == "v6":
 elif sys.argv[3] == "v7":
     summary = ("pure LogicalNot/LogicalAnd/LogicalOr result 70 with && precedence; "
                "effectful short-circuit operand=251 and expression-depth-9=252")
-else:
+elif sys.argv[3] == "v8":
     summary = ("pure same-carrier ScalarEqual result 70 with ordering/equality/logical "
                "precedence; effectful operand=251 and expression-depth-9=252")
+else:
+    summary = ("pure same-carrier Greater/GreaterEqual result 70 with authored order and "
+               "ordering/equality/logical precedence; effectful operand=251 and "
+               "expression-depth-9=252")
 print(f"resolved-to-{sys.argv[4]} meaning: {summary}; exact publication through "
       "canonical Gamma; " + " ".join(rows)
       + f" {sys.argv[4]}={Path(sys.argv[2]).stat().st_size}B")

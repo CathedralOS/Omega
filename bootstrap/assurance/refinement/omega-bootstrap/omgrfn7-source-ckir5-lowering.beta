@@ -366,11 +366,12 @@ proc r47_transition_join() {
 proc r49_transition_has_logical(source,token) {
     let count=word[880000+source*8]
     state next { token=token+1 to loop }
-    state loop { to no when (token>=count) to no when (omgrfn4_r2_tkind(source,token)==123) to yes when (omgrfn4_r2_tkind(source,token)==33) to amp when (omgrfn4_r2_tkind(source,token)==38) to bar when (omgrfn4_r2_tkind(source,token)==124) to equal when (omgrfn4_r2_tkind(source,token)==61) token=token+1 to loop }
+    state loop { to no when (token>=count) to no when (omgrfn4_r2_tkind(source,token)==123) to yes when (omgrfn4_r2_tkind(source,token)==33) to amp when (omgrfn4_r2_tkind(source,token)==38) to bar when (omgrfn4_r2_tkind(source,token)==124) to equal when (omgrfn4_r2_tkind(source,token)==61) to greater when (omgrfn4_r2_tkind(source,token)==62) token=token+1 to loop }
     state amp { to yes when (token+1<count) to no }
     state bar { to yes when (token+1<count) to no }
     state equal { to next_equal when (word[879088]>=10) token=token+1 to loop }
     state next_equal { to yes when (token<count) to no }
+    state greater { to yes when (word[879088]>=11) token=token+1 to loop }
     state yes { return 1 }
     state no { return 0 }
 }
@@ -551,6 +552,36 @@ proc r410_scalar_equal_join() {
     state bad { return omgrfn4_l2_reject() }
 }
 
+; Exact isolated ordered-comparison token/opcode correspondence. Transition
+; arrows are excluded, and `>=` is consumed once rather than as `>` plus `=`.
+proc r411_value_is_constant(value,expected) {
+    let op=0
+    state operations { to one when (op<word[950096]) return 0 }
+    state one { to next when (r47_ckir_byte(word[950296]+op*40+13)!=1) to next when (r47_row_word(12,op,16)!=value) to no when (r47_ckir_byte(word[950296]+op*40+12)!=1) to no when (r47_row_word(12,op,32)!=expected) return 1 }
+    state next { op=op+1 to operations }
+    state no { return 0 }
+}
+
+proc r411_ordered_join() {
+    let source=0 let token=0 let expected=0 let rhs=0 let op=0 let actual=0 let code=0 let start=0 let right=0
+    state sources { to source_one when (source<word[500320]) to operations }
+    state source_one { token=0 to tokens }
+    state tokens { to token_one when (token<word[880000+source*8]) source=source+1 to sources }
+    state token_one { to greater when (omgrfn4_r2_tkind(source,token)==62) token=token+1 to tokens }
+    state greater { to previous when (token>0) to suffix }
+    state previous { to arrow when (omgrfn4_r2_tkind(source,token-1)==45) to suffix }
+    state arrow { token=token+1 to tokens }
+    state suffix { code=19 rhs=token+1 to suffix_one when (rhs<word[880000+source*8]) token=token+1 to tokens }
+    state suffix_one { to ge when (omgrfn4_r2_tkind(source,rhs)==61) to rhs_ready }
+    state ge { code=20 rhs=rhs+1 to rhs_ready }
+    state rhs_ready { to bad when (rhs>=word[880000+source*8]) to bad when (omgrfn4_r2_tkind(source,rhs)!=257) omgrfn4_r2_number(source,rhs) to bad when (word[700000]!=0) word[958000+expected*16]=code word[958008+expected*16]=word[879000] expected=expected+1 token=rhs+1 to tokens }
+    state operations { to operation when (op<word[950096]) to exact }
+    state operation { code=r47_ckir_byte(word[950296]+op*40+12) to ordered when (code==19) to ordered when (code==20) op=op+1 to operations }
+    state ordered { to bad when (actual>=expected) to bad when (word[958000+actual*16]!=code) start=r47_row_word(12,op,24) to bad when (r47_row_word(12,op,28)!=2) right=r47_row_word(13,start+1,0) to bad when (r411_value_is_constant(right,word[958008+actual*16])==0) actual=actual+1 op=op+1 to operations }
+    state exact { to bad when (expected<8) to bad when (actual!=expected) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
 proc omgrfn7_r4_lowering_check() {
     let status=r47_prepare_source()
     state source { to done when (status!=0) to bad when (word[879088]!=7) status=r47_ckir_prepare() to literals }
@@ -594,6 +625,18 @@ proc omgrfn10_r4_lowering_check() {
     state calls { to done when (status!=0) status=r47_call_join() to transitions }
     state transitions { to done when (status!=0) status=r47_transition_join() to logical }
     state logical { to done when (status!=0) status=r410_scalar_equal_join() to done }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc omgrfn11_r4_lowering_check() {
+    let status=r47_prepare_source()
+    state source { to done when (status!=0) to bad when (word[879088]!=11) status=r47_ckir_prepare() to literals }
+    state literals { to done when (status!=0) status=r47_literal_join() to constructors }
+    state constructors { to done when (status!=0) status=r47_constructor_join() to calls }
+    state calls { to done when (status!=0) status=r47_call_join() to transitions }
+    state transitions { to done when (status!=0) status=r47_transition_join() to ordered }
+    state ordered { to done when (status!=0) status=r411_ordered_join() to done }
     state bad { return omgrfn4_l2_reject() }
     state done { return status }
 }

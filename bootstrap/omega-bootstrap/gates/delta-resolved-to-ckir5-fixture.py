@@ -29,6 +29,10 @@ try:
     import checked_ir_v8_reference as ir8  # noqa: E402
 except ImportError:
     ir8 = None
+try:
+    import checked_ir_v9_reference as ir9  # noqa: E402
+except ImportError:
+    ir9 = None
 import omega_bootstrap_bundle as bundle  # noqa: E402
 import omega_bootstrap_compilation as compilation  # noqa: E402
 
@@ -39,7 +43,8 @@ GATE_ERRORS = (
     OSError, ValueError, compilation.CompilationError, bundle.BundleError,
     ir5.Ckir5Error, ir6.Ckir6Error, subprocess.CalledProcessError,
 ) + (() if ir7 is None else (ir7.Ckir7Error,)) \
-    + (() if ir8 is None else (ir8.Ckir8Error,))
+    + (() if ir8 is None else (ir8.Ckir8Error,)) \
+    + (() if ir9 is None else (ir9.Ckir9Error,))
 
 
 def require(condition: bool, message: str) -> None:
@@ -67,13 +72,14 @@ def encode_source(source: str, owner: str = "SumProducer", machine: str = "run")
 def pack_lowering(comp: bytes, witness: bytes, version: int = 6,
                   resolution: int = 0) -> bytes:
     require(len(comp) <= 267_280 and len(witness) <= 524_288, "OMGLOW component capacity")
-    require(version in (4, 5, 6, 7, 8, 9), "test lowering version")
-    require((version in (7, 8, 9) and resolution in (1, 2, 3))
-            or (version not in (7, 8, 9) and resolution == 0), "test resolution selector")
+    require(version in (4, 5, 6, 7, 8, 9, 10), "test lowering version")
+    require((version in (7, 8, 9, 10) and resolution in (1, 2, 3))
+            or (version not in (7, 8, 9, 10) and resolution == 0), "test resolution selector")
     total = LOWER_HEADER.size + len(comp) + len(witness)
     require(total <= 791_600, "OMGLOW frame capacity")
+    magic = b"OMGLOWA\0" if version == 10 else f"OMGLOW{version}".encode("ascii") + b"\0"
     return LOWER_HEADER.pack(
-        f"OMGLOW{version}".encode("ascii") + b"\0", version, 0, 0,
+        magic, version, 0, 0,
         LOWER_HEADER.size, total, len(comp), len(witness), resolution,
     ) + comp + witness
 
@@ -213,9 +219,10 @@ def inspect_positive(contents: bytes) -> ir5.Module:
 
 
 def run_gate(mode: str = "v5") -> None:
-    include_v6 = mode in ("v6", "v7", "v8")
-    include_v7 = mode in ("v7", "v8")
-    include_v8 = mode == "v8"
+    include_v6 = mode in ("v6", "v7", "v8", "v9")
+    include_v7 = mode in ("v7", "v8", "v9")
+    include_v8 = mode in ("v8", "v9")
+    include_v9 = mode == "v9"
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         print("resolved-to-CKIR5: skipped (requires Darwin arm64)")
         return
@@ -228,8 +235,9 @@ def run_gate(mode: str = "v5") -> None:
     delta = repo / "bootstrap/onramps/delta-rust/target/debug/delta"
     general_path = HERE / "fixtures/ckir5-payload-sums/general.omg"
     equality_general_path = HERE / "fixtures/ckir8-scalar-equality/general.omg"
+    greater_general_path = HERE / "fixtures/ckir9-ordered-comparison/general.omg"
     for path in (resolver_source, lowerer_source, lowermachine_source, general_path,
-                 equality_general_path):
+                 equality_general_path, greater_general_path):
         require(path.is_file(), f"missing {path}")
 
     fields, locals_used, procedures = producer_metadata(lowerer_source)
@@ -828,11 +836,223 @@ machine SumProducer::run(&mut self) -> u8 {
                   "native/self exact result 70; type/purity/old-new/selector/depth controls passed; "
                   + " ".join(f"{name}={len(value)}B" for name, value in outputs8.items()))
 
+        if include_v9:
+            require(ir9 is not None, "missing CKIR9 independent reference")
+            greater_sw1 = """data SumProducer { word: u32; byte: u8; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.word = 70;
+    self.byte = 70;
+    transition self.word > 69 && self.byte >= 70 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            greater_sw2 = """data Cell { word: u32; }
+machine Cell::read(&self) -> u32 { self.word }
+data SumProducer { cell: Cell; word: u32; }
+machine SumProducer::run(&mut self) -> u8 {
+    self.word = self.cell.read();
+    self.word = 70;
+    transition self.word >= 70 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            greater_sw3 = greater_general_path.read_text(encoding="ascii")
+
+            def resolve_and_lower_v10(name: str, source: str,
+                                      witness_major: int) -> bytes:
+                envelope, witness = resolve(name, source, 0, witness_major)
+                require(witness[8] == witness_major,
+                        f"{name} selected OMGRSW{witness[8]}, expected {witness_major}")
+                output9 = lower(name, pack_lowering(
+                    envelope, witness, 10, witness_major
+                ), 0)
+                module9 = ir9.decode(output9)
+                require(ir9.interpret(module9) == 70, f"{name} CKIR9 result")
+                opcodes = [row[3] for row in module9.tables["operations"]]
+                authored_greater = len(re.findall(r"(?<!-)>(?!=)", source))
+                authored_greater_equal = len(re.findall(r"(?<!-)>=", source))
+                require(opcodes.count(19) == authored_greater,
+                        f"{name} Greater token/operation correspondence")
+                require(opcodes.count(20) == authored_greater_equal,
+                        f"{name} GreaterEqual token/operation correspondence")
+                return output9
+
+            outputs9 = {
+                "ordered-greater-sw1": resolve_and_lower_v10(
+                    "ordered-greater-sw1", greater_sw1, 1
+                ),
+                "ordered-greater-sw2": resolve_and_lower_v10(
+                    "ordered-greater-sw2", greater_sw2, 2
+                ),
+                "ordered-greater-sw3": resolve_and_lower_v10(
+                    "ordered-greater-sw3", greater_sw3, 3
+                ),
+            }
+
+            precedence = """data SumProducer {}
+machine SumProducer::run(&mut self) -> u8 {
+    transition 3 > 2 == true && 2 >= 2 || false {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            precedence_envelope, precedence_witness = resolve(
+                "ordered-greater-precedence", precedence, 0, 1
+            )
+            precedence_output = lower(
+                "ordered-greater-precedence",
+                pack_lowering(precedence_envelope, precedence_witness, 10, 1), 0,
+            )
+            precedence_module = ir9.decode(precedence_output)
+            selected = [
+                row[3] for row in precedence_module.tables["operations"]
+                if row[3] in (16, 17, 18, 19, 20)
+            ]
+            require(selected == [19, 18, 20, 16, 17],
+                    f"ordered greater precedence operation order {selected}")
+            greater_row = next(
+                row for row in precedence_module.tables["operations"] if row[3] == 19
+            )
+            greater_operands = precedence_module.tables["operands"][
+                greater_row[8]:greater_row[8] + greater_row[9]
+            ]
+            producers = {
+                row[6]: row for row in precedence_module.tables["operations"]
+                if row[4] == 1
+            }
+            require([producers[item[0]][10] for item in greater_operands] == [3, 2],
+                    "ordered Greater did not preserve authored left/right order")
+            require(ir9.interpret(precedence_module) == 70,
+                    "ordered greater precedence result")
+
+            sw1_envelope, sw1_witness = resolve(
+                "ordered-greater-old-frame", greater_sw1, 0, 1
+            )
+            lower("ordered-greater-old-frame",
+                  pack_lowering(sw1_envelope, sw1_witness, 9, 1), 251)
+            inherited_only = greater_sw1.replace(
+                "self.word > 69 && self.byte >= 70",
+                "self.word == 70 && true", 1,
+            )
+            inherited_envelope, inherited_witness = resolve(
+                "ordered-greater-missing", inherited_only, 0, 1
+            )
+            lower("ordered-greater-missing",
+                  pack_lowering(inherited_envelope, inherited_witness, 10, 1), 251)
+            lower("ordered-greater-selector-cross",
+                  pack_lowering(sw1_envelope, sw1_witness, 10, 2), 251)
+
+            depth_base = precedence.replace(
+                "3 > 2 == true && 2 >= 2 || false", "9 > 8", 1
+            )
+            for equal_count, expected in ((6, 0), (7, 252)):
+                expression = "9 > 8" + " == true" * equal_count
+                nested = depth_base.replace("9 > 8", expression, 1)
+                envelope, witness = resolve(
+                    f"ordered-greater-depth-{equal_count}", nested, 0, 1
+                )
+                result = lower(
+                    f"ordered-greater-depth-{equal_count}",
+                    pack_lowering(envelope, witness, 10, 1), expected,
+                )
+                if expected == 0:
+                    require(ir9.interpret(ir9.decode(result)) == 70,
+                            "ordered greater expression-depth-8 result")
+
+            call_operand = """data SumProducer {}
+machine SumProducer::probe(&self) -> u32 { 70 }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.probe() > 69 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            index_operand = """data SumProducer { words: [u32; 1]; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.words[0] > 69 { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            mixed_carrier = """data SumProducer { byte: u8; word: u32; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.byte > self.word { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            record_operand = """data Pair [copy] { value: u32; }
+data SumProducer { pair: Pair; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.pair > self.pair { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            sum_operand = """data Base [copy] { case A; case B; }
+data SumProducer { base: Base; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.base > Base::A { true -> passed() false -> failed() }
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}
+"""
+            guard_fact_leak = """data SumProducer { index: u32; words: [u8; 1]; }
+machine SumProducer::run(&mut self) -> u8 {
+    transition self.index > 1 { true -> indexed() false -> failed() }
+    state indexed(&mut self) { self.words[self.index] }
+    state failed(&mut self) { 70 }
+}
+"""
+            for name, (source, witness_major) in {
+                "ordered-greater-bool": (precedence.replace(
+                    "3 > 2 == true && 2 >= 2 || false", "true > false", 1
+                ), 1),
+                "ordered-greater-mixed-carrier": (mixed_carrier, 1),
+                "ordered-greater-record": (record_operand, 1),
+                "ordered-greater-sum": (sum_operand, 3),
+                "ordered-greater-missing-rhs": (precedence.replace(
+                    "3 > 2 == true && 2 >= 2 || false", "1 >", 1
+                ), 1),
+                "ordered-greater-left-associated-chain": (precedence.replace(
+                    "3 > 2 == true && 2 >= 2 || false", "3 > 2 > 1", 1
+                ), 1),
+                "ordered-greater-call-operand": (call_operand, 1),
+                "ordered-greater-index-operand": (index_operand, 1),
+                "ordered-greater-trapping-operand": (precedence.replace(
+                    "3 > 2 == true && 2 >= 2 || false", "1 + 1 > 1", 1
+                ), 1),
+                "ordered-greater-no-upper-fact": (guard_fact_leak, 1),
+            }.items():
+                envelope, witness = resolve(name, source, 0, witness_major)
+                lower(name, pack_lowering(envelope, witness, 10, witness[8]), 251)
+
+            print("resolved-to-CKIR9: OMGLOWA independently pairs least OMGRSW1/2/3; "
+                  "pure/nontrapping same-carrier u8/u32 Greater/GreaterEqual with authored "
+                  "operand order, ordering/equality/logical precedence, inherited equality/"
+                  "logical/sum/call composition, and no upper-bound guard fact; native/self "
+                  "exact result 70; type/purity/old-new/selector/depth controls passed; "
+                  + " ".join(f"{name}={len(value)}B" for name, value in outputs9.items()))
+
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("gate", "gate-v6", "gate-v7", "gate-v8"):
-        raise ValueError("usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8")
-    run_gate({"gate": "v5", "gate-v6": "v6", "gate-v7": "v7", "gate-v8": "v8"}[sys.argv[1]])
+    if len(sys.argv) != 2 or sys.argv[1] not in (
+            "gate", "gate-v6", "gate-v7", "gate-v8", "gate-v9"):
+        raise ValueError(
+            "usage: delta-resolved-to-ckir5-fixture.py gate|gate-v6|gate-v7|gate-v8|gate-v9"
+        )
+    run_gate({
+        "gate": "v5", "gate-v6": "v6", "gate-v7": "v7",
+        "gate-v8": "v8", "gate-v9": "v9",
+    }[sys.argv[1]])
 
 
 if __name__ == "__main__":

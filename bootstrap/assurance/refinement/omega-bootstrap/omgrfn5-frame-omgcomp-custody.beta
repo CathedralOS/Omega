@@ -74,6 +74,7 @@ proc omgrfn5_read() {
         to version8_magic when (omgrfn5_byte(6) == '8')
         to version9_magic when (omgrfn5_byte(6) == '9')
         to version10_magic when (omgrfn5_byte(6) == 'A')
+        to version11_magic when (omgrfn5_byte(6) == 'B')
         to malformed
     }
     state version5_magic { word[500104] = 5  to magic7 }
@@ -82,6 +83,7 @@ proc omgrfn5_read() {
     state version8_magic { word[500104] = 8  to magic7 }
     state version9_magic { word[500104] = 9  to magic7 }
     state version10_magic { word[500104] = 10  to magic7 }
+    state version11_magic { word[500104] = 11  to magic7 }
     state magic7 { to version when (omgrfn5_byte(7) == 0)  to malformed }
     state version { to fields when (omgrfn5_u32(8) == word[500104])  to malformed }
     state fields {
@@ -195,6 +197,12 @@ proc omgrfn9_layer1_check() {
 proc omgrfn10_layer1_check() {
     let status=omgrfn5_layer1_check()
     state checked { to done when (status!=0) to exact when (word[500104]==10) return 251 }
+    state exact { return 0 }
+    state done { return status }
+}
+proc omgrfn11_layer1_check() {
+    let status=omgrfn5_layer1_check()
+    state checked { to done when (status!=0) to exact when (word[500104]==11) return 251 }
     state exact { return 0 }
     state done { return status }
 }
