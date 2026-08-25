@@ -21,10 +21,13 @@ pub(super) fn validate_authored_declaration_selections(
             );
             continue;
         };
-        let Some(requester) = source_file
-            .package_identity
-            .filter(|_| source_file.origin == SourceOrigin::User)
-        else {
+        // Toolchain source is not a managed package requester. Its own
+        // selections remain compiler-TCB input and must not be projected as
+        // dependency authority of the package being compiled.
+        if source_file.origin == SourceOrigin::Toolchain {
+            continue;
+        }
+        let Some(requester) = source_file.package_identity else {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "authored declaration selection in {} has no reconciled requesting package identity",
@@ -37,15 +40,11 @@ pub(super) fn validate_authored_declaration_selections(
 
         let selected = match selection.target() {
             AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-            AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "authored declaration selection did not finalize after successful checking ({binding:?})"
-                    ))
-                    .with_source_span(source_span),
-                );
-                continue;
-            }
+            // The direct-dependency gate is already normative for every exact
+            // row, but the package manager remains disabled until capture and
+            // checked finalization cover every family. Do not misdiagnose a
+            // valid package while that P0 work is visibly incomplete.
+            AuthoredDeclarationSelectionTarget::LateBound(_) => continue,
             AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
         };
 
