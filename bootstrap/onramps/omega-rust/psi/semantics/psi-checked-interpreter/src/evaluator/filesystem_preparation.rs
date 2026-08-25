@@ -605,6 +605,36 @@ impl PreparedFilesystemMutableObservationPlan {
             .collect::<EvalResult<Vec<_>>>()?;
         Ok((byte_operands, i64_operands))
     }
+
+    pub(super) fn apply_replay_post_state(
+        &self,
+        byte_operands: &[FilesystemMutableByteOperand],
+        i64_operands: &[FilesystemMutableI64Operand],
+    ) -> EvalResult<()> {
+        if byte_operands.len() != self.byte_operands.len()
+            || i64_operands.len() != self.i64_operands.len()
+        {
+            return trap("filesystem replay mutable operand count changed");
+        }
+        for (prepared, recorded) in self.byte_operands.iter().zip(byte_operands) {
+            if prepared.operand_ordinal != recorded.operand_ordinal
+                || prepared.pre_bytes != recorded.pre_bytes
+                || prepared.output.capacity() != recorded.post_bytes.len()
+            {
+                return trap("filesystem replay mutable byte operand changed");
+            }
+            prepared.output.write(&recorded.post_bytes)?;
+        }
+        for (prepared, recorded) in self.i64_operands.iter().zip(i64_operands) {
+            if prepared.operand_ordinal != recorded.operand_ordinal
+                || prepared.pre_value != recorded.pre_value
+            {
+                return trap("filesystem replay mutable scalar operand changed");
+            }
+            prepared.output.write(recorded.post_value)?;
+        }
+        Ok(())
+    }
 }
 
 fn mutable_byte_observation(
@@ -2116,14 +2146,23 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             };
         };
         validate_build_relative_path(&relative)?;
-        let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
-            Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
-        })?;
-        let provider_path = filesystem
-            .rooted_path_bytes(root, &relative)
-            .ok_or_else(|| {
-                Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
+        let provider_path = if self.evaluator.filesystem_replay.is_some() {
+            let mut stable = format!("/root/{}", root.get()).into_bytes();
+            if !relative.is_empty() {
+                stable.push(b'/');
+                stable.extend_from_slice(&relative);
+            }
+            stable
+        } else {
+            let filesystem = self.evaluator.real_fs.as_ref().ok_or_else(|| {
+                Halt::Trap("rooted build path requires a scoped real filesystem".to_owned())
             })?;
+            filesystem
+                .rooted_path_bytes(root, &relative)
+                .ok_or_else(|| {
+                    Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
+                })?
+        };
         let resolution = FilesystemRootedPathOperandResolution {
             operand_ordinal,
             root,

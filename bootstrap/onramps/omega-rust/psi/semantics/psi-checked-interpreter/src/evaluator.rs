@@ -337,6 +337,10 @@ pub(crate) fn run_granted_build_machine_arguments(
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
+                let replaying = matches!(
+                    &options.filesystem,
+                    FilesystemAccess::ReplayOpenReadClose(_)
+                );
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
                     FilesystemAccess::RealUnscoped => {
@@ -367,21 +371,27 @@ pub(crate) fn run_granted_build_machine_arguments(
                             )?,
                         );
                     }
+                    FilesystemAccess::ReplayOpenReadClose(replay) => {
+                        evaluator.filesystem_replay = Some(replay);
+                    }
                 }
                 let result = evaluator.run_build_machine_arguments_with_policy(
                     machine_name,
                     arguments,
                     true,
-                );
+                ).and_then(|values| {
+                    evaluator.finish_filesystem_replay()?;
+                    Ok(values)
+                });
                 // Build logging reaches the REAL streams (owner answer #5:
                 // "the interpreter should never just catch it") -- including
                 // on failure, where the partial log is the diagnostic.
                 use std::io::Write as _;
-                if !evaluator.stdout.is_empty() {
+                if !replaying && !evaluator.stdout.is_empty() {
                     let _ = std::io::stdout().write_all(&evaluator.stdout);
                     let _ = std::io::stdout().flush();
                 }
-                if !evaluator.stderr.is_empty() {
+                if !replaying && !evaluator.stderr.is_empty() {
                     let _ = std::io::stderr().write_all(&evaluator.stderr);
                     let _ = std::io::stderr().flush();
                 }
@@ -502,8 +512,13 @@ fn run_on_current_thread(
             };
             evaluator.real_fs = Some(filesystem);
         }
+        FilesystemAccess::ReplayOpenReadClose(replay) => {
+            evaluator.filesystem_replay = Some(replay);
+        }
     }
-    let result = evaluator.run_entry(entry_machine_name);
+    let result = evaluator
+        .run_entry(entry_machine_name)
+        .and_then(|()| evaluator.finish_filesystem_replay());
     let usage = evaluator.usage;
     match result {
         Ok(()) => {
@@ -768,6 +783,9 @@ struct Evaluator<'program> {
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
     real_fs: Option<real_fs::RealFs>,
+    /// Expected compiler-produced events for the bounded no-host
+    /// `open`/`read`/`close` replay rung.
+    filesystem_replay: Option<crate::FilesystemReplay>,
     /// The canonical Build activation carried Source/Output facets. In this
     /// mode path-taking host operations require interpreter-retained rooted
     /// provenance; bare byte spellings cannot select a grant root.

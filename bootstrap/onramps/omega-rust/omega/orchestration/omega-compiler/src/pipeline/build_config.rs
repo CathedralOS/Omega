@@ -213,7 +213,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 18;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 19;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -932,6 +932,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
+    open_read_close_replay_verified: bool,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
@@ -954,6 +955,13 @@ impl BuildObservationSummary {
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {
         self.staged_output_tree.as_ref()
+    }
+
+    /// Whether the compiler reran this build with no filesystem provider and
+    /// consumed the complete record using the bounded open/read/close replay
+    /// executor. This is a partial replay fact, never a `Receipted` verdict.
+    pub const fn open_read_close_replay_verified(&self) -> bool {
+        self.open_read_close_replay_verified
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
@@ -1887,6 +1895,69 @@ fn selected_filesystem_metadata_layout(
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
+fn is_source_open_read_close_replay_record(
+    observations: &psi_checked_interpreter::EvaluationObservations,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind,
+        FilesystemLogicalHandleOutputSource as OutputSource,
+        FilesystemOperationResult as ResultValue, FilesystemScalarOperandValue as ScalarValue,
+    };
+
+    let [open, read, close] = observations.filesystem_operation_attempts() else {
+        return false;
+    };
+    if [
+        open.operation_tag(),
+        read.operation_tag(),
+        close.operation_tag(),
+    ] != [2, 4, 8]
+        || [open.provider(), read.provider(), close.provider()]
+            != [
+                psi_checked_interpreter::FilesystemObservationProvider::RealScoped,
+                psi_checked_interpreter::FilesystemObservationProvider::RealScoped,
+                psi_checked_interpreter::FilesystemObservationProvider::RealScoped,
+            ]
+    {
+        return false;
+    }
+    let [rooted] = open.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [flags] = open.scalar_operands() else {
+        return false;
+    };
+    let Some(output) = open.logical_handle_output() else {
+        return false;
+    };
+    let identity = output.identity();
+    if rooted.operand_ordinal() != 0
+        || rooted.root() != BUILD_SOURCE_ROOT_IDENTITY
+        || flags.operand_ordinal() != 1
+        || flags.value() != ScalarValue::I32(0)
+        || output.kind() != HandleKind::Descriptor
+        || output.source() != OutputSource::Created
+        || open.result() != Some(ResultValue::LogicalHandle(identity))
+    {
+        return false;
+    }
+    let [read_input] = read.logical_handle_inputs() else {
+        return false;
+    };
+    let [close_input] = close.logical_handle_inputs() else {
+        return false;
+    };
+    read_input.operand_ordinal() == 0
+        && read_input.kind() == HandleKind::Descriptor
+        && read_input.resolution() == InputResolution::Resolved(identity)
+        && close_input.operand_ordinal() == 0
+        && close_input.kind() == HandleKind::Descriptor
+        && close_input.resolution() == InputResolution::Resolved(identity)
+        && close.result() == Some(ResultValue::Scalar(0))
+        && close.retired_logical_handles() == [identity]
+}
+
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(
@@ -2083,10 +2154,11 @@ pub(crate) fn compute_build_config(
             filesystem_metadata_layout,
         }
     };
+    let initial_arguments = vec![zero_build];
     let measured = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
         &prepared,
         machine_name,
-        vec![zero_build],
+        initial_arguments.clone(),
         execution_mode,
     )
     .map_err(|reason| {
@@ -2146,6 +2218,42 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
     let usage = measured.usage();
+    let replayable_first_rung =
+        filesystem_reachable && is_source_open_read_close_replay_record(measured.observations());
+    let open_read_close_replay_verified = if replayable_first_rung {
+        let replay = psi_checked_interpreter::FilesystemReplay::from_open_read_close_observations(
+            measured.observations(),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` produced an invalid bounded replay record: {reason}"
+            ))]
+        })?;
+        let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+            &prepared,
+            machine_name,
+            initial_arguments,
+            BuildMachineExecutionMode::Granted {
+                filesystem: BuildMachineFilesystemAccess::ReplayOpenReadClose(replay),
+                filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
+            },
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "build-time replay of `{machine_name}` failed: {reason}"
+            ))]
+        })?;
+        if replayed.value() != measured.value()
+            || replayed.observations() != measured.observations()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time replay of `{machine_name}` changed its result or operation record"
+            ))]);
+        }
+        true
+    } else {
+        false
+    };
     let observation_ceiling = if filesystem_reachable {
         BuildObservationClass::Volatile
     } else {
@@ -2514,6 +2622,7 @@ pub(crate) fn compute_build_config(
             realized: realized_observation,
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
+            open_read_close_replay_verified,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),

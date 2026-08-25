@@ -1236,6 +1236,53 @@ pub struct EvaluationObservations {
     build_included_sources: Vec<BuildIncludedSource>,
 }
 
+/// Opaque, compiler-produced operation record for the first filesystem replay
+/// rung. The bounded rung accepts only `open`, `read`, and `close`; broadening
+/// that set requires explicit replay semantics for the added operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemReplay {
+    attempts: Vec<FilesystemOperationAttempt>,
+}
+
+impl FilesystemReplay {
+    pub fn from_open_read_close_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        if observations.filesystem_operation_schema_version()
+            != FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
+        {
+            return Err("filesystem replay observation schema is not current".to_owned());
+        }
+        let attempts = observations.filesystem_operation_attempts();
+        if attempts
+            .iter()
+            .map(FilesystemOperationAttempt::operation_tag)
+            .ne([2, 4, 8])
+        {
+            return Err(
+                "bounded filesystem replay requires exactly one open/read/close chain".to_owned(),
+            );
+        }
+        for (index, attempt) in attempts.iter().enumerate() {
+            if !matches!(
+                attempt.outcome,
+                Some(FilesystemOperationAttemptOutcome::Returned { .. })
+            ) {
+                return Err(format!(
+                    "filesystem replay event {index} did not return normally"
+                ));
+            }
+        }
+        Ok(Self {
+            attempts: attempts.to_vec(),
+        })
+    }
+
+    pub fn attempts(&self) -> &[FilesystemOperationAttempt] {
+        &self.attempts
+    }
+}
+
 impl Default for EvaluationObservations {
     fn default() -> Self {
         Self {
@@ -1581,6 +1628,10 @@ pub enum FilesystemAccess {
         grants: FsGrants,
         sponsor: FilesystemSponsor,
     },
+    /// Consume one compiler-produced `open`/`read`/`close` record without
+    /// installing virtual or real filesystem authority. Every event and lane
+    /// must match exactly and the record must be exhausted.
+    ReplayOpenReadClose(FilesystemReplay),
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

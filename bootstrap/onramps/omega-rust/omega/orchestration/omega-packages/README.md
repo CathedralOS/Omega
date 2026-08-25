@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v18 carries operation-attempt schema v18, retaining exact
+Observation-summary schema v19 carries operation-attempt schema v18, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -363,10 +363,16 @@ operations retain one target-neutral canonical row containing all 14
 closed descriptor to the Psi evaluator. The evaluator zeroes and fills the
 complete authored ABI carrier (whose API minimum is 144 bytes) through the
 descriptor and cross-checks it against the semantic row. Package commitments
-bind both representations. This creates
-neither a public internal-IR contract nor nominal Chi. Replay execution remains
-absent, so this is still an incomplete trace rather than a transcript or
-receipt.
+bind both representations. This creates neither a public internal-IR contract
+nor nominal Chi. Complete replay remains absent, so this is still an incomplete
+trace rather than a transcript or receipt.
+Exactly one successful Source-rooted, flags-zero `open` -> `read` -> `close`
+chain receives one bounded compiler replay with no filesystem provider. It
+supplies recorded results and read bytes, reconstructs logical descriptors, and
+requires exact event order, inputs, outputs, exhaustion, and final result. The
+package commitment binds this partial replay fact. It does not make the build
+`Receipted`; full operation coverage, durable record custody, and staged-output
+reproduction remain open.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

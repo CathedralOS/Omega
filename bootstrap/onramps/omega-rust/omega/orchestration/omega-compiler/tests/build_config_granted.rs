@@ -203,7 +203,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 18);
+    assert_eq!(checked_observations.schema_version(), 19);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1332,6 +1332,57 @@ invokes FilesystemHost;
         );
         let _ = std::fs::remove_dir_all(&project);
     }
+}
+
+#[test]
+fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
+    let (project, profile) = rooted_build_probe_project(
+        "open-read-close-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("open/read/close source build should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("filesystem build retains observations");
+    assert!(summary.open_read_close_replay_verified());
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8]
+    );
+    let [_, read, _] = summary.filesystem_operation_attempts() else {
+        panic!("open/read/close replay fixture has three events")
+    };
+    assert_eq!(
+        read.observed_bytes(&read.observed_byte_regions()[0]),
+        Some(&b"data Main { value: u8; "[..])
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn write_like_source_open_does_not_claim_bounded_replay() {
+    let (project, profile) = rooted_build_probe_project(
+        "write-like-open-no-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 1);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 1);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("denied write-like open remains an ordinary observed build result");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("filesystem build retains observations");
+    assert!(!summary.open_read_close_replay_verified());
+    let _ = std::fs::remove_dir_all(&project);
 }
 
 #[test]
