@@ -1,6 +1,6 @@
-# Precise cache profile for the OMGRFN10 immutable-frame scalar-equality
+# Precise cache profile for the OMGRFN11 immutable-frame ordered-comparison
 # composition. Rung compiler/assembler inputs remain covered by CORE.
-script bootstrap/assurance/refinement/omega-bootstrap/omgrfn10-same-frame-composite.sh
+script bootstrap/assurance/refinement/omega-bootstrap/omgrfn11-same-frame-composite.sh
 
 input bootstrap/onramps/delta-rust
 
@@ -16,6 +16,7 @@ input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v6_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v7_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v8_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v9_reference.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir5-fixture.py
 input bootstrap/omega-bootstrap/gates/fixtures/ckir5-payload-sums
 
@@ -33,6 +34,6 @@ input bootstrap/assurance/refinement/omega-bootstrap/ckir5-refinement-elf.beta
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn8-materialize-r1-r2.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn8-materialize-r3-r5.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn6_bundle.py
-input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10-materialize-r1-r2.py
-input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10-materialize-r3-r5.py
-input bootstrap/assurance/refinement/omega-bootstrap/omgrfn10_bundle.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn11-materialize-r1-r2.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn11-materialize-r3-r5.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn11_bundle.py

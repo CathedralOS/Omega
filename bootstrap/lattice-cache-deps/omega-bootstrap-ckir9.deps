@@ -1,10 +1,10 @@
-# Precise cache profile for the CKIR8 primitive-equality producer, meaning,
+# Precise cache profile for the CKIR9 ordered-comparison producer, meaning,
 # independent-reference, and backend gates. The producer deliberately reruns
-# the inherited CKIR5--7 slices, so their exact fixtures remain dependencies.
-script bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir8.sh
-script bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir8-meaning.sh
-script bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-reference.sh
-script bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-backend.sh
+# the inherited CKIR5--8 slices, so their exact fixtures remain dependencies.
+script bootstrap/omega-bootstrap/gates/delta-checked-ir-v9-reference.sh
+script bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir9.sh
+script bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir9-meaning.sh
+script bootstrap/omega-bootstrap/gates/delta-checked-ir-v9-backend.sh
 
 input bootstrap/onramps/delta-rust
 
@@ -24,6 +24,7 @@ input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v6_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v7_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v8_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v9_reference.py
 input bootstrap/omega-bootstrap/gates/checked_elf_v2_reference.py
 input bootstrap/omega-bootstrap/gates/checked_elf_v3_reference.py
 input bootstrap/omega-bootstrap/gates/checked_elf_v4_reference.py
@@ -35,6 +36,8 @@ input bootstrap/omega-bootstrap/gates/delta-checked-ir-v7-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-checked-ir-v7-backend-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-checked-ir-v8-backend-fixture.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v9-fixture.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v9-backend-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-fixture.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-frame.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir4-meaning.sh
@@ -47,4 +50,5 @@ input bootstrap/omega-bootstrap/gates/fixtures/ckir5-payload-sums
 input bootstrap/omega-bootstrap/gates/fixtures/ckir6-logical-not
 input bootstrap/omega-bootstrap/gates/fixtures/ckir7-logical-binary
 input bootstrap/omega-bootstrap/gates/fixtures/ckir8-scalar-equality
+input bootstrap/omega-bootstrap/gates/fixtures/ckir9-ordered-comparison
 input compiler/psi/source/source.omg

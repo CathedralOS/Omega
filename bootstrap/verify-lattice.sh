@@ -231,11 +231,23 @@ precise_step() { # label dir script cache-profile
       fi
       s_profile_hash=$CACHE_HASH_CKIR8
       ;;
+    omega-bootstrap-ckir9)
+      if [ -z "${CACHE_HASH_CKIR9+x}" ]; then
+        CACHE_HASH_CKIR9=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_CKIR9
+      ;;
     omega-bootstrap-omgrfn10)
       if [ -z "${CACHE_HASH_OMGRFN10+x}" ]; then
         CACHE_HASH_OMGRFN10=$(hash_cache_profile "$s_profile") || exit $?
       fi
       s_profile_hash=$CACHE_HASH_OMGRFN10
+      ;;
+    omega-bootstrap-omgrfn11)
+      if [ -z "${CACHE_HASH_OMGRFN11+x}" ]; then
+        CACHE_HASH_OMGRFN11=$(hash_cache_profile "$s_profile") || exit $?
+      fi
+      s_profile_hash=$CACHE_HASH_OMGRFN11
       ;;
     *)
       s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
@@ -374,6 +386,10 @@ precise_step "omega-bootstrap CKIR8 independent reference — primitive bool/u8/
 precise_step "omega-bootstrap CKIR8 resolved-source lowerer — OMGLOW9 pure/nontrapping same-carrier equality" omega-bootstrap-gates delta-resolved-to-ckir8.sh omega-bootstrap-ckir8
 precise_step "omega-bootstrap CKIR8 lowering meaning (RUST-FREE) — scalar equality 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir8-meaning.sh omega-bootstrap-ckir8
 precise_step "omega-bootstrap CKIR8 backend — exact CMP/SETE/MOVZX template and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v8-backend.sh omega-bootstrap-ckir8
+precise_step "omega-bootstrap CKIR9 independent reference — same-carrier u8/u32 Greater/GreaterEqual meaning, identity, and resource teeth" omega-bootstrap-gates delta-checked-ir-v9-reference.sh omega-bootstrap-ckir9
+precise_step "omega-bootstrap CKIR9 resolved-source lowerer — OMGLOWA pure/nontrapping same-carrier >/>=" omega-bootstrap-gates delta-resolved-to-ckir9.sh omega-bootstrap-ckir9
+precise_step "omega-bootstrap CKIR9 lowering meaning (RUST-FREE) — ordered scalar comparison 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir9-meaning.sh omega-bootstrap-ckir9
+precise_step "omega-bootstrap CKIR9 backend — exact CMP/SETA/SETAE/MOVZX templates and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v9-backend.sh omega-bootstrap-ckir9
 step "omega-bootstrap OMGRFN5/6/7 layer 1 — exact successor frame, OMGCOMP graph, and source custody" omega-bootstrap-refinement omgrfn5-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 2 — independent runtime-record source resolution below Delta" omega-bootstrap-refinement omgrfn5-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN5 layer 3 — independent witness-to-CKIR4 declarations, layout, root, and intrinsic envelope" omega-bootstrap-refinement omgrfn5-witness-ckir4-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -392,6 +408,7 @@ precise_step "omega-bootstrap OMGRFN7 composite — all five independent respons
 precise_step "omega-bootstrap OMGRFN8 composite — all five independent responsibilities consume one exact logical-negation frame" omega-bootstrap-refinement omgrfn8-same-frame-composite.sh omega-bootstrap-omgrfn7-9
 precise_step "omega-bootstrap OMGRFN9 composite — all five independent responsibilities consume one exact logical-binary frame" omega-bootstrap-refinement omgrfn9-same-frame-composite.sh omega-bootstrap-omgrfn7-9
 precise_step "omega-bootstrap OMGRFN10 composite — all five independent responsibilities consume one exact primitive-equality frame" omega-bootstrap-refinement omgrfn10-same-frame-composite.sh omega-bootstrap-omgrfn10
+precise_step "omega-bootstrap OMGRFN11 composite — all five independent responsibilities consume one exact primitive-ordered-comparison frame" omega-bootstrap-refinement omgrfn11-same-frame-composite.sh omega-bootstrap-omgrfn11
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
