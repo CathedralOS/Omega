@@ -17,9 +17,9 @@ use psi_terminal::{
     StructuralArgument, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, ServiceCeilingOwner,
@@ -1735,6 +1735,58 @@ fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
 }
 
 #[test]
+fn projected_linear_move_cannot_return_its_partial_ancestor() {
+    let mut module = two_element_projected_unit_call_module();
+    let result_place = place_id(4);
+    module.machines[0].result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type: structural_type_id(3),
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+    });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: result_place,
+            kind: StructuralPlaceKind::Result,
+        });
+    module.machines[0].blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(1),
+        source: place_id(1),
+        returned_claims: vec![claim_id(2)],
+        trivial_affine_discards: Vec::new(),
+    };
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::ProjectedUnitCallOutsideBoundedSlice {
+            operation: operation_id(1),
+        }
+    );
+}
+
+#[test]
+fn complete_dense_projected_linear_consumption_closes_the_partial_frontier() {
+    let mut module = two_element_projected_unit_call_module();
+    let mut second = module.machines[0].blocks[0].operations[0].clone();
+    second.id = operation_id(4);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut second.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    claim_transfers[0].claim = claim_id(2);
+    module.machines[0].blocks[0].operations.push(second);
+
+    validate_module(&module)
+        .expect("moving the complete dense sibling set should exhaust the linear array root");
+}
+
+#[test]
 fn projected_unit_calls_reject_signatures_outside_the_bounded_slice() {
     let mut scalar_caller = projected_unit_call_module();
     scalar_caller.machines[0].parameters.push(ValueDeclaration {
@@ -1986,6 +2038,81 @@ fn direct_field_partial_affine_return_validates_and_verifies() {
         &AdmissionProfile::default(),
     )
     .expect("partial affine cleanup introduces no producer-authored proposition");
+}
+
+#[test]
+fn projected_move_blocks_later_whole_root_use() {
+    let mut module = two_element_projected_unit_call_module();
+    let mut whole_callee = module.machines[0].clone();
+    whole_callee.id = machine_id(3);
+    whole_callee.structural_parameters[0].place = place_id(4);
+    whole_callee.structural_places[0].id = place_id(4);
+    for claim in &mut whole_callee.entry_claims {
+        claim.input = place_id(4);
+    }
+    whole_callee.entry = block_id(3);
+    whole_callee.blocks[0].id = block_id(3);
+    whole_callee.contract.id = contract_id(3);
+    let mut first = whole_callee.blocks[0].operations[0].clone();
+    first.id = operation_id(4);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut first.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = place_id(4);
+    let mut second = first.clone();
+    second.id = operation_id(5);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut second.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    claim_transfers[0].claim = claim_id(2);
+    whole_callee.blocks[0].operations = vec![first, second];
+    whole_callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines.push(whole_callee);
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(6),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: machine_id(3),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(1),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            claim_transfers: vec![
+                ClaimTransfer {
+                    claim: claim_id(1),
+                    argument_index: 0,
+                },
+                ClaimTransfer {
+                    claim: claim_id(2),
+                    argument_index: 0,
+                },
+            ],
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+            operation: operation_id(6),
+            place: place_id(1),
+        }
+    );
 }
 
 #[test]
@@ -3556,6 +3683,21 @@ fn projected_unit_call_module() -> TerminalModule {
         unreachable!()
     };
     structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::FixedIndex(0)];
+    module
+}
+
+fn two_element_projected_unit_call_module() -> TerminalModule {
+    let mut module = projected_unit_call_module();
+    let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape
+    else {
+        unreachable!()
+    };
+    *length = 2;
+    module.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(2),
+        input: place_id(1),
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+    });
     module
 }
 

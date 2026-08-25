@@ -477,12 +477,25 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    OverlappingProjectedStructuralMove {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+        operation: OperationId,
+        place: PlaceId,
+    },
     ClaimFrontierJoinMismatch(BlockId),
     OwnedStructuralFrontierJoinMismatch(BlockId),
     LiveLinearClaimAtUnitReturn {
         machine: MachineId,
         block: BlockId,
         claim: ClaimId,
+    },
+    PartialStructuralCustodyAtUnitReturn {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
     },
     UnitReturnAffineDiscardsMismatch {
         machine: MachineId,
@@ -510,6 +523,11 @@ pub enum ModuleError {
         place: PlaceId,
     },
     StructuralReturnSourceNotLive {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
+    StructuralReturnSourcePartiallyMoved {
         machine: MachineId,
         block: BlockId,
         place: PlaceId,
