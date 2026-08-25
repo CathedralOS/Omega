@@ -530,6 +530,13 @@ example, neither policy makes division by zero a result. Direct Trapping
 arithmetic is not a proposition term: its failure transfers runtime control,
 and contracts do not execute.
 
+A domain `requires` row must resolve to `Prop`. A machine returning `bool` is a
+value term, not an implicit proposition and not a validator invocation hidden
+inside qualification. Transparent proposition bodies may contain eligible total
+pure machine calls as denotational terms under the fact-call rule above; their
+contracts and validity scopes remain in the proof, while no runtime call is
+emitted merely because the proposition is used.
+
 Use an explicit proof view when a contract needs unbounded mathematics:
 
 ```omega

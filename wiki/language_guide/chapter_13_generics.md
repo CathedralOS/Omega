@@ -121,6 +121,17 @@ Working rules:
 - Const parameters may appear in array lengths, value constraints, and proof
   obligations.
 - The compiler must prove const constraints at each instantiation.
+- A canonical target-semantic observation may supply a const argument under the
+  same rules as any other constant. Its application remains symbolic before
+  target closure and enters the generic application's compatibility identity;
+  target dependence is not a separate reason to reject it.
+
+This does not introduce a target-native count or index type. Length APIs retain
+their explicit target-independent count carrier, while indexing accepts any
+eligible integer that proves `0 <= index < len`. A hypothetical
+`UInt<const Bits>` is a separate carrier-family decision: it must define which
+widths exist and whether applications coincide with the named primitives before
+`UInt<7>` or `UInt<address_bits>` means anything.
 
 ### Structured values and indexed domains
 

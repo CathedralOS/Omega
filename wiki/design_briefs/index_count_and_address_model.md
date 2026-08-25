@@ -10,8 +10,9 @@
 ## 1. Bottom line up front
 
 1. **`usize` is retired.** It conflated four roles (pointer width, address bits,
-   count, index). Split into two honest axes: a **count** type and an **address**
-   type, with `width(count) <= width(address)`.
+   count, index). Split into an explicit **count** carrier, a distinct
+   **address** carrier, and carrier-agnostic proof-bounded indexing. No global
+   width equality or ordering connects those roles.
 2. **Indexing is untyped.** `arr[i]` carries one obligation — `0 <= i < len` —
    and accepts *any* integer type that can discharge it. The proof is erased at
    codegen; there is no `Fin`-style index value and no index width in the surface.
@@ -51,8 +52,19 @@ them (`width(size) <= width(uintptr)`).
   genuinely signed offsets/addends or an explicitly documented sentinel.
   Existing `i64` count fields in layout/calling policy records are migration
   debt, not a competing design.
-- **Invariant:** `width(count) <= width(addr)`, so the model survives CHERI-class
-  ISAs (count stays 64 while addr widens to 128, independently).
+- **No global carrier-width relation exists.** A `u64` count may exceed a
+  32-bit address space, while a CHERI-class address representation may exceed
+  the count carrier. An operation interpreting a particular count as address
+  geometry proves that occurrence fits the selected address bound. Unrelated
+  counts remain ordinary magnitudes and need no address interpretation.
+
+A package may explicitly form a native-width integer if a future admitted
+`UInt<const Bits>` carrier family and a canonical target-width observation make
+that expression meaningful. It still cannot become Omega's `usize`: `.len`,
+`Extent.length`, and general count APIs retain the target-independent count
+carrier, while indexing has no privileged carrier at all. A package alias does
+not rewrite those contracts or create implicit conversions among address,
+count, and index roles.
 
 ## 3. Indexing is untyped — the obligation is everything (model "C")
 
@@ -90,6 +102,12 @@ them (`width(size) <= width(uintptr)`).
   holds its bound** (Dafny's `newtype`-picks-narrowest pattern), `u64` as the
   fallback when the bound is unknown. A `[T; 4]` index can lower to a byte; a
   dynamic vec index stays `u64` unless a capacity bound is proven.
+- The inclusive bound must fit. On a target whose exclusive address bound is
+  `2^32`, `no_wrap(base, length)` proves only `length <= 2^32`; it does not prove
+  that `length` fits `u32`. A separate fact such as `base > 0` yields
+  `length <= 2^32 - 1` and licenses narrowing. The whole-space value at
+  `base == 0, length == 2^32` remains representable by the source count but not
+  by `u32`. Lowering must never turn `<= addr::Bound` into `< addr::Bound`.
 
 ## 5. Narrowing conversions are proof-gated (closed-world)
 

@@ -50,6 +50,15 @@ an ordinary machine; the constant position requests semantic evaluation, and
 the concrete invocation contract decides whether it is legal. No parallel
 `const machine` species exists.
 
+A target-semantic observation is an ordinary canonical constant input. It may
+flow through normal constant computation and may occupy any existing const
+position, including fixed-array length and const-generic application. A target-
+neutral intermediate retains the symbolic observation; target closure supplies
+the value and retains exact observation plus selected-realization identity even
+after folding. This does not add type-structure metaprogramming: constants still
+cannot add fields, cases, multiplicity, or declarations. Acquiring or changing
+such a dependency in a published signature is a breaking semantic-API change.
+
 Evaluation and runtime materialization are separate judgments. A compile-time
 value may be used by proofs, layouts, or further evaluation without ever
 occupying bytes. If a runtime use demands representation, the selected layout

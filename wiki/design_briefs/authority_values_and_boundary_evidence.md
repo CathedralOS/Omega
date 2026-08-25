@@ -273,6 +273,20 @@ that predicate. Separated interval-set composition requires the same coordinate
 space and nonoverlap. Exact equality with a parent rejects omitted gaps; equal
 numbers in different spaces never compose.
 
+The proposition is transparent source mathematics:
+
+```omega
+proposition no_wrap(base: addr, length: u64) =
+    embed(base) + embed(length) <= addr::Bound;
+```
+
+`addr::Bound` is the selected target's exclusive one-past address bound as
+proof `Int`. Proving this formula establishes geometry only. `Granted` also has
+`established by` routes, so the same proof cannot create range authority or
+provider lineage. Core's current `boundary machine no_wrap(...) -> bool`
+declaration is transitional bootstrap spelling until the typed target-capsule
+projection lands; it has no executable meaning.
+
 `CountedQuantity` has its first concrete customer in bounded bump/arena
 residual capacity. Allocation consumes normalized payload size, alignment
 padding, and allocator metadata, while split and return conserve the quantity.

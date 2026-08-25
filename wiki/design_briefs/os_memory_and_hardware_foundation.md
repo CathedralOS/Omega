@@ -115,6 +115,13 @@ not exceed the target address-space bound; it does not perform wrapping `addr`
 addition. Content projection then converts those nonnegative coordinates into
 the `IntervalSet<Nat>` algebra explicitly.
 
+The settled transparent form is
+`embed(base) + embed(length) <= addr::Bound`, where `addr::Bound` is a typed
+observation from the sealed selected-target capsule. The formula is a
+proposition, never an executable Boolean validator. Proving it cannot establish
+the routed `Granted` authority; an exact `established by` occurrence and its
+lineage remain independently necessary.
+
 An admitted platform provider originates a root only by satisfying the
 owner-authored `ExtentRootProvider::grant` requirement. The caller supplies the
 ordinary geometry; the selected provider and its admission receipt establish
