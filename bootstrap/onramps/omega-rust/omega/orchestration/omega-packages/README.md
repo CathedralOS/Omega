@@ -142,6 +142,12 @@ materialization remains an exact selected-tree check. Git fetch requests only
 the selected revision at depth one and disables automatic maintenance/GC;
 strict transferred-byte and object-store quotas still require a hardened
 execution backend.
+Selected Git objects are not trusted merely because Git named them. Before any
+snapshot stage exists, the parent recomputes SHA-1/SHA-256 commit and blob IDs,
+checks the commit's root-tree edge, reconstructs the canonical recursive tree
+from authenticated leaves, compares its Merkle root, and preflights every
+materialization destination. This strengthens source custody; it does not turn
+the still-unisolated resolver into an admission boundary.
 The Git parent executable is selected from closed absolute concrete platform
 paths, not ambient `PATH`; macOS excludes Apple's dispatcher. Its canonical
 bytes are retained as a diagnostic observation, guarded by stable file identity

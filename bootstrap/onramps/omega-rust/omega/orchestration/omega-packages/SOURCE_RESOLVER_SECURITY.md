@@ -85,14 +85,20 @@ lock.
 
 ## Current engineering delta
 
-Git resolution now validates helper-reported tree/blob spelling, type, size,
-ordering, framing, and materialized snapshot equality. It materializes those
-bytes into a staged, read-only, atomically published snapshot without invoking
-checkout, filters, hooks, submodules, or package code, then re-hashes the
-published source and revalidates it before reuse. The parent does not yet
-recompute Git SHA-1/SHA-256 object IDs or independently prove commit-to-tree and
-tree-to-child relationships. This establishes the object-to-snapshot shape,
-not the complete production boundary.
+Git resolution now treats helper-reported IDs, listings, and framing only as
+inputs to parent-owned verification. The parent hashes the raw selected commit,
+parses and compares its root-tree edge, hashes every returned blob, reconstructs
+the canonical recursive Git tree objects from those authenticated leaves, and
+compares the resulting Merkle root with the selected tree. Both SHA-1 and
+SHA-256 exact revisions are supported. Fixed object vectors, real repositories,
+and mismatch tests cover object bytes, commit identity, commit-to-tree and
+tree-to-child edges, canonical Git ordering, and destination containment. All
+authentication and destination preflight completes before a snapshot staging
+path can be created. The authenticated bytes are then materialized into a
+staged, read-only, atomically published snapshot without invoking checkout,
+filters, hooks, submodules, or package code; the published source is re-hashed
+and revalidated before reuse. This establishes the selected-object-graph to
+snapshot shape, not the complete production boundary.
 
 Local sources now use a bounded in-memory capture, content-addressed staging,
 read-only atomic publication, and revalidation before reuse. Physical
@@ -179,9 +185,9 @@ custody remain ambient and unsuitable for strict admission. Those conditions
 keep the resolver diagnostic-only until native helper confinement, hostile-
 process custody, remaining resource ceilings, and opaque-receipt work land.
 
-The next bounded hardening milestone is parent-owned authentication of the
-selected Git object graph before any snapshot stage exists: recompute commit,
-tree, and blob IDs for SHA-1 and SHA-256 repositories, verify every graph edge,
-and reject mismatches before materialization. Destination containment is
-rechecked in the same preflight. This milestone supplies real evidence for a
-later strict receipt but does not itself make the resolver admissible.
+Parent-owned selected-object-graph authentication supplies real evidence for a
+later strict receipt but does not itself make the resolver admissible. SHA-256
+cache initialization currently requires an exact 64-digit revision; symbolic
+SHA-256 selectors still need bounded remote object-format discovery before
+fetch. Native isolation, independent cache ownership, resource ceilings,
+explicit SSH trust/credential custody, and the opaque receipt remain open.

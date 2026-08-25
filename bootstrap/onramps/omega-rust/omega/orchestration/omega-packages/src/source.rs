@@ -1,8 +1,9 @@
-use crate::identity::SourceContentDigest;
+use crate::identity::{GitObjectIdAlgorithm, SourceContentDigest};
 use command_group::{CommandGroup, GroupChild};
+use sha1::Sha1;
 use sha2::{Digest, Sha256};
 use std::cell::Cell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs::{File, OpenOptions};
@@ -215,6 +216,10 @@ pub enum SourceResolveError {
     GitSubmodulesUnsupported {
         path: PathBuf,
     },
+    GitObjectInvalid {
+        oid: String,
+        message: String,
+    },
     GitTreeInvalid {
         path: Vec<u8>,
         message: String,
@@ -346,6 +351,9 @@ impl fmt::Display for SourceResolveError {
                 "git source `{}` declares submodules; submodules must become explicit package edges before they are supported",
                 path.display()
             ),
+            Self::GitObjectInvalid { oid, message } => {
+                write!(output, "Git object `{oid}` failed authentication: {message}")
+            }
             Self::GitTreeInvalid { path, message } => write!(
                 output,
                 "git tree path `{}` is invalid: {message}",
@@ -573,6 +581,7 @@ fn resolve_verified_git_cache_entry(
     )?;
     let tree = tree.trim().to_owned();
     verify_git_cache_entry(executor, entry_root, url, requested_rev)?;
+    authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
@@ -630,6 +639,17 @@ impl GitBlobBytes {
     }
 }
 
+#[derive(Debug)]
+enum AuthenticatedGitTreeNode {
+    Blob { mode: &'static [u8], oid: String },
+    Tree(AuthenticatedGitDirectory),
+}
+
+#[derive(Debug, Default)]
+struct AuthenticatedGitDirectory {
+    entries: BTreeMap<Vec<u8>, AuthenticatedGitTreeNode>,
+}
+
 fn inspect_git_tree(
     executor: &GitExecutor,
     repository: &Path,
@@ -657,6 +677,290 @@ fn inspect_git_tree(
     let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
     read_git_blobs_batch(executor, repository, &mut entries, limits)?;
     Ok(entries)
+}
+
+fn authenticate_git_commit(
+    executor: &GitExecutor,
+    repository: &Path,
+    commit: &str,
+    tree: &str,
+) -> Result<(), SourceResolveError> {
+    let payload = run_git_bytes_stdout(
+        executor,
+        repository,
+        [
+            OsStr::new("cat-file"),
+            OsStr::new("commit"),
+            OsStr::new(commit),
+        ],
+    )?;
+    authenticate_git_commit_payload(commit, tree, &payload)
+}
+
+fn authenticate_git_commit_payload(
+    commit: &str,
+    reported_tree: &str,
+    payload: &[u8],
+) -> Result<(), SourceResolveError> {
+    let algorithm = git_object_algorithm(commit)?;
+    if git_object_algorithm(reported_tree)? != algorithm {
+        return Err(git_object_invalid(
+            commit,
+            "commit and root tree use different object formats",
+        ));
+    }
+    verify_git_object_identity(commit, b"commit", payload, algorithm)?;
+
+    let first_line = payload
+        .split(|byte| *byte == b'\n')
+        .next()
+        .unwrap_or(payload);
+    let Some(commit_tree) = first_line.strip_prefix(b"tree ") else {
+        return Err(git_object_invalid(
+            commit,
+            "commit payload does not begin with one root tree edge",
+        ));
+    };
+    let commit_tree = std::str::from_utf8(commit_tree)
+        .map_err(|_| git_object_invalid(commit, "commit tree ID is not ASCII"))?;
+    if git_object_algorithm(commit_tree)? != algorithm || commit_tree != reported_tree {
+        return Err(git_object_invalid(
+            commit,
+            "commit root tree edge does not match the selected tree",
+        ));
+    }
+    Ok(())
+}
+
+fn authenticate_git_tree(
+    expected_tree: &str,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
+    let algorithm = git_object_algorithm(expected_tree)?;
+    let mut root = AuthenticatedGitDirectory::default();
+    for entry in entries {
+        let payload = match &entry.kind {
+            GitTreeEntryKind::File { bytes, .. } => bytes.as_slice(),
+            GitTreeEntryKind::Symlink { target_bytes } => target_bytes.as_slice(),
+        };
+        verify_git_object_identity(&entry.oid, b"blob", payload, algorithm)?;
+        insert_authenticated_git_entry(&mut root, entry)?;
+    }
+    let actual_tree = authenticate_git_directory(&root, algorithm)?;
+    if actual_tree != expected_tree {
+        return Err(git_object_invalid(
+            expected_tree,
+            "authenticated tree graph does not reconstruct the selected root tree",
+        ));
+    }
+    Ok(())
+}
+
+fn insert_authenticated_git_entry(
+    directory: &mut AuthenticatedGitDirectory,
+    entry: &GitTreeEntry,
+) -> Result<(), SourceResolveError> {
+    let components = entry
+        .relative_bytes
+        .split(|byte| *byte == b'/')
+        .collect::<Vec<_>>();
+    insert_authenticated_git_components(directory, &components, entry)
+}
+
+fn insert_authenticated_git_components(
+    directory: &mut AuthenticatedGitDirectory,
+    components: &[&[u8]],
+    entry: &GitTreeEntry,
+) -> Result<(), SourceResolveError> {
+    let Some((name, rest)) = components.split_first() else {
+        return Err(git_tree_invalid(
+            &entry.relative_bytes,
+            "authenticated tree entry has no path component",
+        ));
+    };
+    if rest.is_empty() {
+        let mode = match entry.kind {
+            GitTreeEntryKind::File {
+                executable: false, ..
+            } => b"100644".as_slice(),
+            GitTreeEntryKind::File {
+                executable: true, ..
+            } => b"100755".as_slice(),
+            GitTreeEntryKind::Symlink { .. } => b"120000".as_slice(),
+        };
+        if directory
+            .entries
+            .insert(
+                name.to_vec(),
+                AuthenticatedGitTreeNode::Blob {
+                    mode,
+                    oid: entry.oid.clone(),
+                },
+            )
+            .is_some()
+        {
+            return Err(git_tree_invalid(
+                &entry.relative_bytes,
+                "authenticated tree contains a duplicate path",
+            ));
+        }
+        return Ok(());
+    }
+
+    let node = directory
+        .entries
+        .entry(name.to_vec())
+        .or_insert_with(|| AuthenticatedGitTreeNode::Tree(AuthenticatedGitDirectory::default()));
+    let AuthenticatedGitTreeNode::Tree(child) = node else {
+        return Err(git_tree_invalid(
+            &entry.relative_bytes,
+            "authenticated tree path traverses a blob",
+        ));
+    };
+    insert_authenticated_git_components(child, rest, entry)
+}
+
+fn authenticate_git_directory(
+    directory: &AuthenticatedGitDirectory,
+    algorithm: GitObjectIdAlgorithm,
+) -> Result<String, SourceResolveError> {
+    let mut ordered = directory.entries.iter().collect::<Vec<_>>();
+    ordered.sort_by(git_tree_entry_order);
+    let mut payload = Vec::new();
+    for (name, node) in ordered {
+        let (mode, oid) = match node {
+            AuthenticatedGitTreeNode::Blob { mode, oid } => (*mode, oid.clone()),
+            AuthenticatedGitTreeNode::Tree(child) => (
+                b"40000".as_slice(),
+                authenticate_git_directory(child, algorithm)?,
+            ),
+        };
+        payload.extend_from_slice(mode);
+        payload.push(b' ');
+        payload.extend_from_slice(name);
+        payload.push(0);
+        payload.extend_from_slice(&decode_git_object_id(&oid, algorithm)?);
+    }
+    Ok(git_object_identity(b"tree", &payload, algorithm))
+}
+
+fn git_tree_entry_order(
+    left: &(&Vec<u8>, &AuthenticatedGitTreeNode),
+    right: &(&Vec<u8>, &AuthenticatedGitTreeNode),
+) -> std::cmp::Ordering {
+    let common = left.0.len().min(right.0.len());
+    let prefix = left.0[..common].cmp(&right.0[..common]);
+    if prefix != std::cmp::Ordering::Equal {
+        return prefix;
+    }
+    let left_next = left.0.get(common).copied().unwrap_or({
+        if matches!(left.1, AuthenticatedGitTreeNode::Tree(_)) {
+            b'/'
+        } else {
+            0
+        }
+    });
+    let right_next = right.0.get(common).copied().unwrap_or({
+        if matches!(right.1, AuthenticatedGitTreeNode::Tree(_)) {
+            b'/'
+        } else {
+            0
+        }
+    });
+    left_next.cmp(&right_next)
+}
+
+fn verify_git_object_identity(
+    expected: &str,
+    kind: &[u8],
+    payload: &[u8],
+    algorithm: GitObjectIdAlgorithm,
+) -> Result<(), SourceResolveError> {
+    if git_object_algorithm(expected)? != algorithm {
+        return Err(git_object_invalid(
+            expected,
+            "object ID uses a different hash algorithm than its graph",
+        ));
+    }
+    if git_object_identity(kind, payload, algorithm) != expected {
+        return Err(git_object_invalid(
+            expected,
+            "object bytes do not match the declared object ID",
+        ));
+    }
+    Ok(())
+}
+
+fn git_object_identity(kind: &[u8], payload: &[u8], algorithm: GitObjectIdAlgorithm) -> String {
+    let length = payload.len().to_string();
+    match algorithm {
+        GitObjectIdAlgorithm::Sha1 => {
+            let mut hasher = Sha1::new();
+            hasher.update(kind);
+            hasher.update(b" ");
+            hasher.update(length.as_bytes());
+            hasher.update([0]);
+            hasher.update(payload);
+            format_hex(&hasher.finalize())
+        }
+        GitObjectIdAlgorithm::Sha256 => {
+            let mut hasher = Sha256::new();
+            hasher.update(kind);
+            hasher.update(b" ");
+            hasher.update(length.as_bytes());
+            hasher.update([0]);
+            hasher.update(payload);
+            format_hex(&hasher.finalize())
+        }
+    }
+}
+
+fn git_object_algorithm(oid: &str) -> Result<GitObjectIdAlgorithm, SourceResolveError> {
+    if !is_object_id(oid) {
+        return Err(git_object_invalid(oid, "object ID has an invalid spelling"));
+    }
+    Ok(if oid.len() == 40 {
+        GitObjectIdAlgorithm::Sha1
+    } else {
+        GitObjectIdAlgorithm::Sha256
+    })
+}
+
+fn decode_git_object_id(
+    oid: &str,
+    algorithm: GitObjectIdAlgorithm,
+) -> Result<Vec<u8>, SourceResolveError> {
+    if git_object_algorithm(oid)? != algorithm {
+        return Err(git_object_invalid(
+            oid,
+            "child object uses a different hash algorithm than its tree",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(oid.len() / 2);
+    for pair in oid.as_bytes().chunks_exact(2) {
+        let high = hex_digit(pair[0])
+            .ok_or_else(|| git_object_invalid(oid, "object ID contains a non-hexadecimal digit"))?;
+        let low = hex_digit(pair[1])
+            .ok_or_else(|| git_object_invalid(oid, "object ID contains a non-hexadecimal digit"))?;
+        bytes.push((high << 4) | low);
+    }
+    Ok(bytes)
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn git_object_invalid(oid: impl Into<String>, message: impl Into<String>) -> SourceResolveError {
+    SourceResolveError::GitObjectInvalid {
+        oid: oid.into(),
+        message: message.into(),
+    }
 }
 
 fn parse_git_tree_entries(
@@ -893,6 +1197,8 @@ fn resolve_git_snapshot(
     mut entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
+    authenticate_git_tree(tree, &entries)?;
+    verify_git_destination_containment(Path::new("omega-verified-snapshot-root"), &entries)?;
     let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
     std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
     require_real_directory(&snapshots, "snapshot cache is not a real directory")?;
@@ -925,7 +1231,7 @@ fn resolve_git_snapshot(
                 CANONICAL_DIRECTORY_MODE,
             );
         }
-        let destination = source.join(&entry.relative_path);
+        let destination = checked_git_destination(&source, entry)?;
         let parent = destination
             .parent()
             .expect("validated Git paths always have a snapshot parent");
@@ -995,6 +1301,40 @@ fn resolve_git_snapshot(
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
     verify_git_snapshot(&publication, tree, &entries, limits)
+}
+
+fn verify_git_destination_containment(
+    source: &Path,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
+    for entry in entries {
+        checked_git_destination(source, entry)?;
+    }
+    Ok(())
+}
+
+fn checked_git_destination(
+    source: &Path,
+    entry: &GitTreeEntry,
+) -> Result<PathBuf, SourceResolveError> {
+    if entry
+        .relative_path
+        .components()
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(git_tree_invalid(
+            &entry.relative_bytes,
+            "materialization path is not strictly relative",
+        ));
+    }
+    let destination = source.join(&entry.relative_path);
+    if !destination.starts_with(source) {
+        return Err(git_tree_invalid(
+            &entry.relative_bytes,
+            "materialization path escapes the snapshot root",
+        ));
+    }
+    Ok(destination)
 }
 
 fn release_git_blob_payloads(entries: &mut [GitTreeEntry]) {
@@ -1898,18 +2238,18 @@ fn create_git_cache_entry(
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
     std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
-    run_git(
-        executor,
-        &pending.root,
-        [
-            OsStr::new("init"),
-            OsStr::new("--quiet"),
-            OsStr::new("--bare"),
-            OsStr::new("--template"),
-            empty_template.as_os_str(),
-            repository.as_os_str(),
-        ],
-    )?;
+    let mut init_arguments = vec![
+        OsString::from("init"),
+        OsString::from("--quiet"),
+        OsString::from("--bare"),
+    ];
+    if requested_rev.len() == 64 && is_object_id(requested_rev) {
+        init_arguments.push(OsString::from("--object-format=sha256"));
+    }
+    init_arguments.push(OsString::from("--template"));
+    init_arguments.push(empty_template.as_os_str().to_owned());
+    init_arguments.push(repository.as_os_str().to_owned());
+    run_git(executor, &pending.root, init_arguments.iter())?;
     run_git(
         executor,
         &repository,
@@ -2055,6 +2395,8 @@ fn verify_local_git_config(
     bytes: &[u8],
 ) -> Result<(), SourceResolveError> {
     let mut seen = BTreeSet::new();
+    let mut repository_format = None;
+    let mut object_format = None;
     for record in bytes
         .split(|byte| *byte == 0)
         .filter(|record| !record.is_empty())
@@ -2074,7 +2416,14 @@ fn verify_local_git_config(
             ));
         }
         let allowed = match key {
-            b"core.repositoryformatversion" => value == b"0",
+            b"core.repositoryformatversion" => {
+                repository_format = Some(value);
+                value == b"0" || value == b"1"
+            }
+            b"extensions.objectformat" => {
+                object_format = Some(value);
+                value == b"sha256"
+            }
             b"core.filemode" | b"core.ignorecase" | b"core.precomposeunicode" => {
                 value == b"true" || value == b"false"
             }
@@ -2103,6 +2452,15 @@ fn verify_local_git_config(
                 "local Git configuration is missing a resolver-owned setting",
             ));
         }
+    }
+    if !matches!(
+        (repository_format, object_format),
+        (Some(b"0"), None) | (Some(b"1"), Some(b"sha256"))
+    ) {
+        return Err(cache_invalid(
+            entry_root,
+            "local Git object format is incomplete or inconsistent",
+        ));
     }
     Ok(())
 }
@@ -3709,7 +4067,11 @@ fn null_device() -> &'static str {
 }
 
 fn format_sha256(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(64);
+    format_hex(bytes)
+}
+
+fn format_hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         out.push_str(&format!("{byte:02x}"));
     }
@@ -3764,9 +4126,19 @@ mod tests {
     }
 
     fn create_git_source(name: &str) -> (PathBuf, String) {
+        create_git_source_with_format(name, None)
+    }
+
+    fn create_git_source_with_format(name: &str, object_format: Option<&str>) -> (PathBuf, String) {
         let root = temp_root(name);
         std::fs::create_dir_all(&root).expect("create git source");
-        run_test_git(&root, ["init", "--quiet"]);
+        let mut init_arguments = vec!["init", "--quiet"];
+        let object_format_argument =
+            object_format.map(|format| format!("--object-format={format}"));
+        if let Some(argument) = object_format_argument.as_deref() {
+            init_arguments.push(argument);
+        }
+        run_test_git(&root, init_arguments);
         run_test_git(&root, ["config", "user.email", "omega@example.invalid"]);
         run_test_git(&root, ["config", "user.name", "Omega Tests"]);
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
@@ -4089,6 +4461,137 @@ mod tests {
             assign_git_batch_output(&mut escaping_link, response.into_bytes()),
             Err(SourceResolveError::GitTreeInvalid { .. })
         ));
+    }
+
+    fn authenticated_file_entry(oid: &str, path: &str, payload: &[u8]) -> GitTreeEntry {
+        GitTreeEntry {
+            relative_bytes: path.as_bytes().to_vec(),
+            relative_path: PathBuf::from(path),
+            oid: oid.to_owned(),
+            size: payload.len() as u64,
+            kind: GitTreeEntryKind::File {
+                executable: false,
+                bytes: GitBlobBytes {
+                    batch: Arc::new(payload.to_vec()),
+                    start: 0,
+                    end: payload.len(),
+                },
+            },
+        }
+    }
+
+    #[test]
+    fn git_object_authentication_accepts_fixed_sha1_and_sha256_graphs() {
+        for (algorithm, blob, tree, commit) in [
+            (
+                GitObjectIdAlgorithm::Sha1,
+                "ce013625030ba8dba906f756967f9e9ca394464a",
+                "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
+                "63338d8e114523a7087c391b234d776baae7af51",
+            ),
+            (
+                GitObjectIdAlgorithm::Sha256,
+                "2cf8d83d9ee29543b34a87727421fdecb7e3f3a183d337639025de576db9ebb4",
+                "2ff2fdf5e33d610f8013a2eba140fd1660dac0491d9cac96ac024c5789c44e07",
+                "5145c89465c4d7f1ab705bb9e032ef1a9ac879a5e137733bdab3b1d6cd354ff7",
+            ),
+        ] {
+            assert_eq!(git_object_identity(b"blob", b"hello\n", algorithm), blob);
+            authenticate_git_tree(
+                tree,
+                &[authenticated_file_entry(blob, "main.omg", b"hello\n")],
+            )
+            .expect("fixed authenticated tree graph");
+            let commit_payload = format!("tree {tree}\n\n");
+            authenticate_git_commit_payload(commit, tree, commit_payload.as_bytes())
+                .expect("fixed authenticated commit graph");
+        }
+    }
+
+    #[test]
+    fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
+        let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
+        let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
+        let commit = "63338d8e114523a7087c391b234d776baae7af51";
+        assert!(matches!(
+            verify_git_object_identity(blob, b"blob", b"tampered\n", GitObjectIdAlgorithm::Sha1),
+            Err(SourceResolveError::GitObjectInvalid { .. })
+        ));
+
+        let commit_payload = format!("tree {tree}\n\n");
+        assert!(matches!(
+            authenticate_git_commit_payload(
+                "0000000000000000000000000000000000000000",
+                tree,
+                commit_payload.as_bytes()
+            ),
+            Err(SourceResolveError::GitObjectInvalid { .. })
+        ));
+        assert!(matches!(
+            authenticate_git_commit_payload(
+                commit,
+                "1111111111111111111111111111111111111111",
+                commit_payload.as_bytes()
+            ),
+            Err(SourceResolveError::GitObjectInvalid { .. })
+        ));
+
+        let replacement = b"replacement\n";
+        let replacement_oid = git_object_identity(b"blob", replacement, GitObjectIdAlgorithm::Sha1);
+        assert!(matches!(
+            authenticate_git_tree(
+                tree,
+                &[authenticated_file_entry(
+                    &replacement_oid,
+                    "main.omg",
+                    replacement
+                )]
+            ),
+            Err(SourceResolveError::GitObjectInvalid { .. })
+        ));
+    }
+
+    #[test]
+    fn git_object_rejection_precedes_snapshot_staging() {
+        let entry_root = temp_root("git-object-rejection-before-stage");
+        let executor = GitExecutor::system().expect("system Git executor");
+        let error = resolve_git_snapshot(
+            &executor,
+            &entry_root,
+            "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
+            vec![authenticated_file_entry(
+                "ce013625030ba8dba906f756967f9e9ca394464a",
+                "main.omg",
+                b"tampered\n",
+            )],
+            LocalSourceLimits::default(),
+        )
+        .expect_err("mismatched object bytes must reject before staging");
+        assert!(matches!(error, SourceResolveError::GitObjectInvalid { .. }));
+        assert!(
+            !entry_root.exists(),
+            "object authentication failure must not create a cache or snapshot path"
+        );
+
+        let mut escaping = authenticated_file_entry(
+            "ce013625030ba8dba906f756967f9e9ca394464a",
+            "main.omg",
+            b"hello\n",
+        );
+        escaping.relative_path = std::env::temp_dir().join("omega-escaped-snapshot.omg");
+        let error = resolve_git_snapshot(
+            &executor,
+            &entry_root,
+            "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
+            vec![escaping],
+            LocalSourceLimits::default(),
+        )
+        .expect_err("destination escape must reject before staging");
+        assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
+        assert!(
+            !entry_root.exists(),
+            "destination preflight failure must not create a cache or snapshot path"
+        );
     }
 
     #[test]
@@ -4776,6 +5279,57 @@ mod tests {
         assert!(!resolved.tree.is_empty());
 
         let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_source_authenticates_sha256_object_graph() {
+        let (repo, commit) = create_git_source_with_format("git-sha256", Some("sha256"));
+        let cache = temp_root("git-sha256-cache");
+
+        let resolved = resolve_git_source(
+            &GitSourceSpec {
+                url: repo.display().to_string(),
+                rev: Some(commit.clone()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve SHA-256 git source");
+
+        assert_eq!(resolved.commit, commit);
+        assert_eq!(resolved.commit.len(), 64);
+        assert_eq!(resolved.tree.len(), 64);
+        assert_eq!(resolved.local.file_count, 1);
+
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_tree_authentication_matches_git_prefix_ordering() {
+        let (repo, _) = create_git_source("git-prefix-ordering");
+        std::fs::create_dir(repo.join("name")).expect("create prefix directory");
+        std::fs::write(repo.join("name/child.omg"), "// child\n").expect("write child");
+        std::fs::write(repo.join("name.ext"), "// sibling\n").expect("write sibling");
+        run_test_git(&repo, ["add", "."]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "exercise tree ordering"]);
+        let cache = temp_root("git-prefix-ordering-cache");
+
+        let resolved = resolve_git_source(
+            &GitSourceSpec {
+                url: repo.display().to_string(),
+                rev: Some("HEAD".to_owned()),
+            },
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("Git tree reconstruction must use canonical directory ordering");
+
+        assert!(resolved.snapshot_root.join("name/child.omg").is_file());
+        assert!(resolved.snapshot_root.join("name.ext").is_file());
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&cache);
     }
 
