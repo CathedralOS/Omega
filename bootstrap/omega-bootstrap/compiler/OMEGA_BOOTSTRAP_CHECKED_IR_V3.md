@@ -40,6 +40,26 @@ type identities, fields, machines, types, and static bindings; constant-body
 meaning belongs in the lowerer rather than a producer-selected resolution row.
 All three OMGLOW versions reject one another.
 
+The nominal 791,600-byte component sum is not source-realizable. The greatest
+canonical `OMGCOMP` is 267,224 bytes. Although the witness row ceilings alone
+suggest a 482,784-byte `OMGRSW1`, the resolver's 8,192 raw-type ceiling also
+binds every field, machine parameter, block parameter, and typed result. With
+4,096 fields, the greatest 889 machine parameters (`127 * 7`, because the
+selected entry has none), and one typed selected result, at most 3,206 block
+parameters remain. The resulting greatest witness is 461,424 bytes, and all
+of these relations are simultaneously realizable:
+
+```text
+32 + 267,224 + 461,424 = 728,680 bytes
+```
+
+The exact construction fills 16 packages/sources, 32 aliases, 50 used strings,
+4,096 bindings and fields, 128 machines, 2,048 blocks, 2,048 normalized types,
+and all 8,192 raw types. Adding one trailing source space produces the first
+728,681-byte failure. It exceeds both the already-maximal nested bundle and
+aggregate source content; canonical preflight selects the nested-bundle extent
+first and returns 252 without CKIR publication.
+
 The CKIR magic remains `OMGCKIR\0`; schema major is 3, schema minor is 0, and
 target remains 1 (`linux_x86_64`). CKIR consumers reject every other major or
 minor. The header grows from 72 to 80 bytes:
