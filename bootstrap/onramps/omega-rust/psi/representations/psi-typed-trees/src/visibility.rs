@@ -100,7 +100,17 @@ pub fn declaration_visibility(
         kind,
         SymbolKind::Field | SymbolKind::Variant | SymbolKind::State
     ) {
-        let parent = program.symbols.get(symbol).parent;
+        let mut parent = program.symbols.get(symbol).parent;
+        while parent.is_valid()
+            && matches!(
+                program.symbols.get(parent).kind,
+                SymbolKind::ConformanceParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::PropositionMachineParameter
+            )
+        {
+            parent = program.symbols.get(parent).parent;
+        }
         if parent.is_valid() {
             return declaration_visibility(program, parent);
         }

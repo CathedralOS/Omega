@@ -2545,6 +2545,29 @@ fn generic_conformance_bound_rejects_unknown_named_selection() {
 }
 
 #[test]
+fn exact_requirement_edge_label_does_not_create_a_named_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker { machine Self::mark(&self); }
+        data Item {}
+        machine Item::mark(&self) satisfies Marker::mark as LocalMarker {}
+        machine inspect<T>(value: &T)
+        where T satisfies Item::LocalMarker
+        {}
+        "#,
+    );
+
+    assert!(typed.conformances().is_empty());
+    let diagnostics = validate_program(&typed)
+        .expect_err("an exact-edge grouping label cannot satisfy a whole-trait bound");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("conformance bound selects unknown conformance `Item::LocalMarker`")
+    }));
+}
+
+#[test]
 fn generic_trait_header_conformance_bound_survives_typing() {
     let typed = typed_program_from_source(
         r#"

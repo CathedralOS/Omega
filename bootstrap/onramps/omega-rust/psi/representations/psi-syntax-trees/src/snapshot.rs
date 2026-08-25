@@ -67,6 +67,7 @@ pub enum ItemSnapshot {
         members: Vec<CapabilityMemberSnapshot>,
     },
     Conformance {
+        #[serde(skip_serializing_if = "is_false")]
         is_public: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         lifetime_parameters: Vec<IdentifierSnapshot>,

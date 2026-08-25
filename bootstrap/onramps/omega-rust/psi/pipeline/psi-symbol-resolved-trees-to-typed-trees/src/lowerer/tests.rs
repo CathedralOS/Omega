@@ -4,6 +4,44 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn retains_public_conformance_visibility_snapshot_and_header_selections() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionTarget,
+    };
+
+    let source = "pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize conformance");
+    let syntax = parse_syntax_trees(&tokens).expect("parse conformance");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve conformance");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type conformance");
+    let conformance = typed.conformances().first().expect("typed conformance");
+
+    assert!(conformance.is_public);
+    let snapshot = typed.snapshot();
+    assert_eq!(snapshot.roots.conformances.len(), 1);
+    assert!(snapshot.roots.conformances[0].is_public);
+    assert_eq!(snapshot.tables.conformance_count, 1);
+
+    let public_header_targets = typed
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+        .filter_map(|selection| match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                Some(typed.symbols.display_path(target.selected_symbol(), "::"))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(public_header_targets.iter().any(|target| target == "Card"));
+    assert!(
+        public_header_targets
+            .iter()
+            .any(|target| target == "Ranked")
+    );
+}
+
+#[test]
 fn retains_exact_nominal_type_selections_with_declaration_exposure() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,

@@ -694,6 +694,288 @@ fn ordinary_declaration_visibility_gates_cross_package_selection() {
 }
 
 #[test]
+fn named_conformance_visibility_gates_cross_package_selection() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use leaf::leaf;
+machine inspect(left: &Card, right: &Card) -> bool {
+    choose<Card, PowerOrder>(left, right)
+}
+"#,
+    );
+    let leaf_source = |visibility: &str| {
+        format!(
+            r#"pub data Card {{ rank: i32; }}
+pub trait Ranked {{
+    machine Self::before(&self, other: &Self) -> bool;
+}}
+{visibility}PowerOrder: Card satisfies Ranked {{
+    machine before(&self, other: &Card) -> bool {{ self.rank < other.rank }}
+}}
+pub machine choose<Element, Order: Element satisfies Ranked>(
+    left: &Element,
+    right: &Element
+) -> bool {{
+    Order::before(left, right)
+}}
+"#,
+        )
+    };
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source(""));
+
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct conformance dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a direct dependency does not publish a private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("PowerOrder")
+        }),
+        "unexpected private-conformance diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
+        |diagnostics| panic!("public conformance should be selectable: {diagnostics:#?}"),
+    );
+}
+
+#[test]
+fn named_conformance_visibility_gates_public_interface_citation() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only conformance graph should validate")
+    };
+    let source = |conformance_visibility: &str, machine_visibility: &str| {
+        format!(
+            r#"pub data Card {{}}
+pub trait Ranked {{}}
+{conformance_visibility}PowerOrder: Card satisfies Ranked {{}}
+{machine_visibility}machine inspect<Element>(value: &Element)
+where Element satisfies Card::PowerOrder
+{{}}
+"#,
+        )
+    };
+
+    TempTree::write(root.join("main.omg"), &source("", "pub "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public interface cannot cite its package-private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private conformance")
+                && diagnostic.message.contains("PowerOrder")
+        }),
+        "unexpected public-conformance diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(root.join("main.omg"), &source("pub ", "pub "));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("a public interface may cite its public conformance");
+
+    TempTree::write(root.join("main.omg"), &source("", ""));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("a private implementation may cite its package-private conformance");
+}
+
+#[test]
+fn public_dynamic_return_may_carry_private_producer_selected_evidence() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use leaf::leaf;
+machine inspect<'item>(item: &'item Item) -> i32 {
+    let value: &'item dyn Shape = erased(item);
+    value.code()
+}
+"#,
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait Shape {
+    machine Self::code(&self) -> i32;
+}
+pub data Item { code: i32; }
+Primary: Item satisfies Shape {
+    machine code(&self) -> i32 { self.code }
+}
+pub machine erased<'item>(item: &'item Item) -> &'item dyn Shape {
+    let value: &'item dyn Shape = item as &dyn Item::Primary;
+    value
+}
+"#,
+    );
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct dynamic producer dependency graph should validate")
+    };
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
+        |diagnostics| {
+            panic!(
+                "a public bare-dynamic return may carry private producer evidence: {diagnostics:#?}"
+            )
+        },
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use leaf::leaf;
+machine inspect<'item>(item: &'item Item) -> i32 {
+    let erased: &'item dyn Item::Primary = erased(item);
+    erased.code()
+}
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("the receiver may not name the producer's private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("Primary")
+        }),
+        "unexpected private dynamic-evidence diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn public_conformance_header_cannot_hide_private_carrier_or_trait() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only public-conformance graph should validate")
+    };
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data Card {} pub trait Ranked {} pub PowerOrder: Card satisfies Ranked {}",
+    );
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public conformance cannot hide its private carrier");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("public interface selects private data `Card`")),
+        "unexpected private-carrier diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        "pub data Card {} trait Ranked {} pub PowerOrder: Card satisfies Ranked {}",
+    );
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public conformance cannot hide its private trait");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("public interface selects private trait `Ranked`")),
+        "unexpected private-trait diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn explicit_conformance_member_reference_obeys_package_visibility() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use leaf::leaf;
+pub PowerOrder: Card satisfies Ranked {
+    Ranked::before = Card::external_before;
+}
+"#,
+    );
+    let leaf_source = |visibility: &str| {
+        format!(
+            r#"pub data Card {{ rank: i32; }}
+pub trait Ranked {{
+    machine Self::before(&self, other: &Self) -> bool;
+}}
+{visibility}machine Card::external_before(&self, other: &Card) -> bool {{
+    self.rank < other.rank
+}}
+"#,
+        )
+    };
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source(""));
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct realization dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a conformance row cannot reference a dependency's private machine");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private machine")
+                && diagnostic.message.contains("external_before")
+        }),
+        "unexpected private-realization diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
+        |diagnostics| panic!("public referenced realization should validate: {diagnostics:#?}"),
+    );
+}
+
+#[test]
 fn carrier_qualified_declarations_own_visibility_independently() {
     let tree = TempTree::new();
     let root = tree.package("root");

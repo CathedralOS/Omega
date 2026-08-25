@@ -681,6 +681,7 @@ fn normalize_one(
                 "{}::{}#default",
                 requirement.declaring_trait_name, requirement.requirement_name
             )),
+            authored_realization_source_span: None,
             provisional_realization_ordinal: None,
             source: ConformanceRowSource::TraitDefault,
         });

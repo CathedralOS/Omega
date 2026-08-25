@@ -12,9 +12,7 @@ use crate::proposition::{
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use crate::trait_definition::{
-    Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
-};
+use crate::trait_definition::TraitDefinition;
 use crate::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -150,6 +148,7 @@ impl TypedTreesSnapshot {
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
                 trait_count: program.traits.len(),
+                conformance_count: program.conformances.len(),
                 trait_requirement_count: program.trait_requirements.len(),
                 trait_machine_signature_count: program.trait_machine_signatures.len(),
                 expression_count: program.expression_table.expression_count(),
@@ -278,38 +277,30 @@ pub struct TypedRootsSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConformanceSnapshot {
+    pub has_symbol: bool,
     pub name: String,
     pub is_public: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_parameters: Vec<String>,
+    pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_symbol: Option<u32>,
     pub trait_name: String,
-    pub argument_count: usize,
+    pub trait_symbol: u32,
+    pub arguments: Vec<TypeReferenceSnapshot>,
     pub implementation: &'static str,
-    pub row_count: usize,
+    pub rows: Vec<ConformanceRowSnapshot>,
 }
 
-fn conformance_snapshot(program: &TypedTrees, conformance: &Conformance) -> ConformanceSnapshot {
-    let (implementation, row_count) = match &conformance.implementation {
-        ConformanceImplementation::AttachedRequirementMachines => {
-            ("attached_requirement_machines", 0)
-        }
-        ConformanceImplementation::Closed { rows } => ("closed", rows.len()),
-    };
-    ConformanceSnapshot {
-        name: program.symbols.display_path(conformance.symbol, "::"),
-        is_public: conformance.is_public,
-        subject: match &conformance.subject {
-            ConformanceSubject::Carrier(name) => Some(name.to_string()),
-            ConformanceSubject::Subjectless => None,
-        },
-        trait_name: conformance.trait_name.to_string(),
-        argument_count: program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-            .len(),
-        implementation,
-        row_count,
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConformanceRowSnapshot {
+    pub declaring_trait: u32,
+    pub requirement: u32,
+    pub realization_machine: u32,
+    pub realization_state: u32,
+    pub source: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -364,6 +355,7 @@ pub struct TypedTableSnapshot {
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
     pub trait_count: usize,
+    pub conformance_count: usize,
     pub trait_requirement_count: usize,
     pub trait_machine_signature_count: usize,
     pub expression_count: usize,
@@ -1534,6 +1526,68 @@ fn trait_definition_snapshot(
             .iter()
             .map(|signature| state_signature_snapshot(program, signature))
             .collect(),
+    }
+}
+
+fn conformance_snapshot(
+    program: &TypedTrees,
+    conformance: &crate::trait_definition::Conformance,
+) -> ConformanceSnapshot {
+    let (implementation, rows) = match &conformance.implementation {
+        crate::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+            ("attached_requirement_machines", Vec::new())
+        }
+        crate::trait_definition::ConformanceImplementation::Closed { rows } => (
+            "closed",
+            rows.iter()
+                .map(|row| ConformanceRowSnapshot {
+                    declaring_trait: row.declaring_trait.arena_index(),
+                    requirement: row.requirement.arena_index(),
+                    realization_machine: row.realization_machine.arena_index(),
+                    realization_state: row.realization_state.arena_index(),
+                    source: match row.source {
+                        crate::trait_definition::ConformanceRowSource::Inline => "inline",
+                        crate::trait_definition::ConformanceRowSource::Reference => "reference",
+                        crate::trait_definition::ConformanceRowSource::TraitDefault => {
+                            "trait_default"
+                        }
+                    },
+                })
+                .collect(),
+        ),
+    };
+    ConformanceSnapshot {
+        has_symbol: conformance.symbol.is_valid(),
+        name: conformance.alias.as_ref().map_or_else(
+            || program.symbols.display_path(conformance.symbol, "::"),
+            ToString::to_string,
+        ),
+        is_public: conformance.is_public,
+        lifetime_parameters: conformance
+            .lifetime_parameters
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        type_parameters: program
+            .conformance_type_parameters(conformance)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
+        subject: conformance.carrier_name().map(ToString::to_string),
+        subject_symbol: conformance
+            .carrier_symbol
+            .is_valid()
+            .then(|| conformance.carrier_symbol.arena_index()),
+        trait_name: conformance.trait_name.to_string(),
+        trait_symbol: conformance.trait_symbol.arena_index(),
+        arguments: program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .iter()
+            .map(|argument| type_reference_snapshot(program, *argument))
+            .collect(),
+        implementation,
+        rows,
     }
 }
 

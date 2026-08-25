@@ -115,6 +115,52 @@ pub(crate) fn finalize_authored_expression_selections(
     Ok(())
 }
 
+/// Retain explicit realization-machine references only after closed
+/// conformance normalization has resolved each target to one exact machine.
+/// The referenced member remains private implementation even when the complete
+/// conformance itself is public.
+pub(crate) fn finalize_conformance_reference_selections(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+
+    let selections = program
+        .conformances
+        .iter()
+        .flat_map(|conformance| match &conformance.implementation {
+            psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+                rows,
+            } => rows
+                .iter()
+                .filter_map(|row| {
+                    row.authored_realization_source_span
+                        .map(|source_span| (source_span, row.realization_machine))
+                })
+                .collect::<Vec<_>>(),
+            psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {
+                Vec::new()
+            }
+        })
+        .collect::<Vec<_>>();
+    for (source_span, realization_machine) in selections {
+        if !realization_machine.is_valid() {
+            return Err(Diagnostic::error(
+                "explicit conformance realization remained unresolved after normalization",
+            )
+            .with_source_span(source_span));
+        }
+        program
+            .record_resolved_authored_declaration_selection(
+                source_span,
+                Exposure::PrivateImplementation,
+                Kind::StaticPathSegment,
+                realization_machine,
+            )
+            .map_err(record_diagnostic)?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy)]
 struct UnattachedCandidate {
     source_span: SourceSpan,
