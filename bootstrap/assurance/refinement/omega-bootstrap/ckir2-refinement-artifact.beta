@@ -1,0 +1,1489 @@
+; Lower-rooted CKIR2 decoder, relation checker, and selected-result evaluator.
+; Concatenate after omgrfn3-component-envelope.beta.  This program deliberately
+; does not import or execute either Delta CKIR producer/backend.
+;
+; Status 0 means the exact raw CKIR is canonical and its independently evaluated
+; selected result agrees with the refinement envelope.  Malformed relations and
+; dynamic traps return 251; published CKIR ceilings return 252.  No stdout is
+; produced.  Exact ELF template reconstruction is a later suffix of this layer.
+;
+; Globals at 525000:
+; entry,total, twelve counts, twelve table bases, reconstructed counts/result.
+; Reconstruction arrays begin at 6000000 and remain disjoint from the envelope's
+; 4 MiB raw-byte region [1048576,5242880).
+; Schema-2-only graph/evaluation scratch occupies 10500000..10630000.  It is
+; below Alpha's 64 MiB memory ceiling and disjoint from the later ELF checker's
+; block/value/place regions through 10462144.  Call evaluation publishes a
+; checker-local limit of 64 simultaneously active calls; exceeding it is
+; evidence exhaustion (252), not CKIR malformedness.
+
+proc ckir_u32(at) {
+    return refinement_ckir_byte(at)
+        + refinement_ckir_byte(at + 1) * 256
+        + refinement_ckir_byte(at + 2) * 65536
+        + refinement_ckir_byte(at + 3) * 16777216
+}
+
+proc ckir_u16(at) {
+    return refinement_ckir_byte(at) + refinement_ckir_byte(at + 1) * 256
+}
+
+proc ckir_span_ok(start, count, length) {
+    state start { to no when (start > length)  to count }
+    state count { to no when (count > length - start)  return 1 }
+    state no { return 0 }
+}
+
+proc ckir_count(index) { return word[525016 + index * 8] }
+proc ckir_base(index) { return word[525112 + index * 8] }
+
+proc ckir_type_word(type_id, offset) { return ckir_u32(ckir_base(0) + type_id * 24 + offset) }
+proc ckir_type_byte(type_id, offset) { return refinement_ckir_byte(ckir_base(0) + type_id * 24 + offset) }
+proc ckir_record_word(record_id, offset) { return ckir_u32(ckir_base(1) + record_id * 20 + offset) }
+proc ckir_record_byte(record_id, offset) { return refinement_ckir_byte(ckir_base(1) + record_id * 20 + offset) }
+proc ckir_field_word(field_id, offset) { return ckir_u32(ckir_base(2) + field_id * 16 + offset) }
+proc ckir_machine_word(machine_id, offset) { return ckir_u32(ckir_base(3) + machine_id * 36 + offset) }
+proc ckir_machine_byte(machine_id, offset) { return refinement_ckir_byte(ckir_base(3) + machine_id * 36 + offset) }
+proc ckir_mparam_word(param_id, offset) { return ckir_u32(ckir_base(4) + param_id * 20 + offset) }
+proc ckir_block_word(block_id, offset) { return ckir_u32(ckir_base(5) + block_id * 32 + offset) }
+proc ckir_block_byte(block_id, offset) { return refinement_ckir_byte(ckir_base(5) + block_id * 32 + offset) }
+proc ckir_bparam_word(param_id, offset) { return ckir_u32(ckir_base(6) + param_id * 20 + offset) }
+proc ckir_op_word(op_id, offset) { return ckir_u32(ckir_base(7) + op_id * 40 + offset) }
+proc ckir_op_byte(op_id, offset) { return refinement_ckir_byte(ckir_base(7) + op_id * 40 + offset) }
+proc ckir_operand(index) { return ckir_u32(ckir_base(8) + index * 4) }
+proc ckir_term_word(term_id, offset) { return ckir_u32(ckir_base(9) + term_id * 44 + offset) }
+proc ckir_term_byte(term_id, offset) { return refinement_ckir_byte(ckir_base(9) + term_id * 44 + offset) }
+
+proc ckir_align(value, alignment) {
+    return ((value + alignment - 1) / alignment) * alignment
+}
+
+proc ckir_decode_header() {
+    let n = word[524336]
+    let i = 0
+    let cursor = 72
+    let count = 0
+    let ceiling = 0
+    let size = 0
+    state size { to bad when (n < 72)  to magic0 }
+    state magic0 { to bad when (refinement_ckir_byte(0) != 'O')  to magic1 }
+    state magic1 { to bad when (refinement_ckir_byte(1) != 'M')  to magic2 }
+    state magic2 { to bad when (refinement_ckir_byte(2) != 'G')  to magic3 }
+    state magic3 { to bad when (refinement_ckir_byte(3) != 'C')  to magic4 }
+    state magic4 { to bad when (refinement_ckir_byte(4) != 'K')  to magic5 }
+    state magic5 { to bad when (refinement_ckir_byte(5) != 'I')  to magic6 }
+    state magic6 { to bad when (refinement_ckir_byte(6) != 'R')  to magic7 }
+    state magic7 { to bad when (refinement_ckir_byte(7) != 0)  to schema }
+    state schema {
+        to bad when (ckir_u16(8) != 2)
+        to bad when (ckir_u16(10) != 0)
+        to bad when (ckir_u16(12) != 1)
+        to bad when (ckir_u16(14) > 1)
+        word[525000] = ckir_u32(16)
+        word[525008] = ckir_u32(20)
+        to bad when (word[525008] > 2147483647)
+        to exhausted when (n > 2260040)
+        to flag_present when (ckir_u16(14) == 1)
+        to flag_absent
+    }
+    state flag_present { to bad when (word[525000] == 4294967295)  to counts }
+    state flag_absent { to bad when (word[525000] != 4294967295)  to counts }
+    state counts {
+        i = 0
+        to count_loop
+    }
+    state count_loop { to count_one when (i < 12)  to combined }
+    state count_one {
+        count = ckir_u32(24 + i * 4)
+        word[525016 + i * 8] = count
+        to bad when (count > 2147483647)
+        to ceiling_type when (i == 0)
+        to ceiling_record when (i == 1)
+        to ceiling_field when (i == 2)
+        to ceiling_machine when (i == 3)
+        to ceiling_mparam when (i == 4)
+        to ceiling_block when (i == 5)
+        to ceiling_bparam when (i == 6)
+        to ceiling_op when (i == 7)
+        to ceiling_operand when (i == 8)
+        to ceiling_term when (i == 9)
+        to ceiling_value when (i == 10)
+        to ceiling_place
+    }
+    state ceiling_type { ceiling = 8192  size = 24  to count_check }
+    state ceiling_record { ceiling = 128  size = 20  to count_check }
+    state ceiling_field { ceiling = 8192  size = 16  to count_check }
+    state ceiling_machine { ceiling = 128  size = 36  to count_check }
+    state ceiling_mparam { ceiling = 896  size = 20  to count_check }
+    state ceiling_block { ceiling = 2048  size = 32  to count_check }
+    state ceiling_bparam { ceiling = 4096  size = 20  to count_check }
+    state ceiling_op { ceiling = 32768  size = 40  to count_check }
+    state ceiling_operand { ceiling = 94208  size = 4  to count_check }
+    state ceiling_term { ceiling = 2048  size = 44  to count_check }
+    state ceiling_value { ceiling = 36864  size = 0  to count_check }
+    state ceiling_place { ceiling = 32768  size = 0  to count_check }
+    state count_check {
+        to exhausted when (count > ceiling)
+        to derived_only when (i >= 10)
+        word[525112 + i * 8] = cursor
+        cursor = cursor + count * size
+        to count_next
+    }
+    state derived_only { to count_next }
+    state count_next { i = i + 1  to count_loop }
+    state combined {
+        to exhausted when (ckir_count(4) + ckir_count(6) > 4096)
+        to bad when (word[525008] != n)
+        to bad when (cursor != n)
+        return 0
+    }
+    state exhausted { return 252 }
+    state bad { return 251 }
+}
+
+proc ckir_layout_type(type_id) {
+    let kind = 0
+    let payload0 = 0
+    let payload1 = 0
+    let size = 0
+    let alignment = 1
+    let record = 0
+    let field = 0
+    let end = 0
+    let fsize = 0
+    let falign = 0
+    state bounds { to bad when (type_id >= ckir_count(0))  to cached }
+    state cached { to done when (byte[6300000 + type_id] == 2)  to recursive }
+    state recursive { to bad when (byte[6300000 + type_id] == 1)  to begin }
+    state begin {
+        byte[6300000 + type_id] = 1
+        kind = ckir_type_byte(type_id, 4)
+        payload0 = ckir_type_word(type_id, 8)
+        payload1 = ckir_type_word(type_id, 12)
+        to byte_scalar when (kind == 1)
+        to word_scalar when (kind == 2)
+        to byte_scalar when (kind == 3)
+        to nominal when (kind == 4)
+        to array
+    }
+    state byte_scalar { size = 1  alignment = 1  to save }
+    state word_scalar { size = 4  alignment = 4  to save }
+    state array {
+        to bad when (ckir_layout_type(payload0) != 0)
+        fsize = word[6000000 + payload0 * 8]
+        falign = word[6100000 + payload0 * 8]
+        to array_nonzero when (payload1 > 0)
+        to array_sized
+    }
+    state array_nonzero {
+        to bad when (fsize > 2147483647 / payload1)
+        to array_sized
+    }
+    state array_sized {
+        size = fsize * payload1
+        alignment = falign
+        to save
+    }
+    state nominal {
+        record = payload0
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        size = 0
+        alignment = 1
+        to field_loop
+    }
+    state field_loop { to field_one when (field < end)  to nominal_finish }
+    state field_one {
+        payload0 = ckir_field_word(field, 12)
+        to bad when (ckir_layout_type(payload0) != 0)
+        fsize = word[6000000 + payload0 * 8]
+        falign = word[6100000 + payload0 * 8]
+        size = ckir_align(size, falign)
+        word[6200000 + field * 8] = size
+        to bad when (size > 2147483647 - fsize)
+        size = size + fsize
+        to keep_alignment when (alignment >= falign)
+        alignment = falign
+        to field_next
+    }
+    state keep_alignment { to field_next }
+    state field_next { field = field + 1  to field_loop }
+    state nominal_finish { size = ckir_align(size, alignment)  to save }
+    state save {
+        to bad when (size > 2147483647)
+        word[6000000 + type_id * 8] = size
+        word[6100000 + type_id * 8] = alignment
+        byte[6300000 + type_id] = 2
+        return 0
+    }
+    state done { return 0 }
+    state bad { return 251 }
+}
+
+proc ckir_copyable(type_id) {
+    let kind = ckir_type_byte(type_id, 4)
+    let child = 0
+    let record = 0
+    let field = 0
+    let end = 0
+    state cached { to yes when (byte[6320000 + type_id] == 2)  to no when (byte[6320000 + type_id] == 1)  to calculate }
+    state calculate {
+        to yes_save when (kind < 4)
+        to array when (kind == 5)
+        record = ckir_type_word(type_id, 8)
+        to no_save when (ckir_record_byte(record, 16) != 1)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state array { child = ckir_type_word(type_id, 8)  to yes_save when (ckir_copyable(child) == 1)  to no_save }
+    state fields { to field_one when (field < end)  to yes_save }
+    state field_one { child = ckir_field_word(field, 12)  to no_save when (ckir_copyable(child) == 0)  field = field + 1  to fields }
+    state yes_save { byte[6320000 + type_id] = 2  return 1 }
+    state no_save { byte[6320000 + type_id] = 1  return 0 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc ckir_validate_types_records() {
+    let i = 0
+    let j = 0
+    let kind = 0
+    let flags = 0
+    let payload0 = 0
+    let payload1 = 0
+    let low = 0
+    let high = 0
+    let field_next = 0
+    let field = 0
+    let field_count = 0
+    let nominal_count = 0
+    state types { to type_one when (i < ckir_count(0))  to records_begin }
+    state type_one {
+        to bad when (ckir_type_word(i, 0) != i)
+        kind = ckir_type_byte(i, 4)
+        flags = ckir_type_byte(i, 5)
+        payload0 = ckir_type_word(i, 8)
+        payload1 = ckir_type_word(i, 12)
+        low = ckir_type_word(i, 16)
+        high = ckir_type_word(i, 20)
+        to bad when (kind < 1)
+        to bad when (kind > 5)
+        to bad when (flags > 1)
+        to bad when (ckir_u16(ckir_base(0) + i * 24 + 6) != 0)
+        to scalar when (kind < 4)
+        to nominal when (kind == 4)
+        to array
+    }
+    state scalar {
+        to bad when (payload0 != 0)
+        to bad when (payload1 != 0)
+        to bad when (low > high)
+        to byte_bounds when (kind == 1)
+        to word_bounds when (kind == 2)
+        to bool when (kind == 3)
+        to intern_begin
+    }
+    state byte_bounds { to bad when (high > 255)  to intern_begin }
+    state word_bounds { to bad when (high > 2147483647)  to intern_begin }
+    state bool {
+        to bad when (flags != 0)
+        to bad when (low != 0)
+        to bad when (high != 1)
+        to intern_begin
+    }
+    state nominal {
+        to bad when (flags != 0)
+        to bad when (payload0 >= ckir_count(1))
+        to bad when (payload1 != 0)
+        to bad when (low != 0)
+        to bad when (high != 0)
+        nominal_count = nominal_count + 1
+        to intern_begin
+    }
+    state array {
+        to bad when (payload0 >= ckir_count(0))
+        to exhausted when (payload1 > 65536)
+        to bad when (low != 0)
+        to bad when (high != 0)
+        to intern_begin
+    }
+    state intern_begin { j = 0  to intern_loop }
+    state intern_loop { to intern_one when (j < i)  to type_next }
+    state intern_one {
+        to intern_next when (ckir_type_byte(j, 4) != kind)
+        to intern_next when (ckir_type_byte(j, 5) != flags)
+        to intern_next when (ckir_type_word(j, 8) != payload0)
+        to intern_next when (ckir_type_word(j, 12) != payload1)
+        to intern_next when (ckir_type_word(j, 16) != low)
+        to intern_next when (ckir_type_word(j, 20) != high)
+        to bad
+    }
+    state intern_next { j = j + 1  to intern_loop }
+    state type_next { i = i + 1  to types }
+    state records_begin {
+        to bad when (nominal_count != ckir_count(1))
+        i = 0
+        field_next = 0
+        to records
+    }
+    state records { to record_one when (i < ckir_count(1))  to records_done }
+    state record_one {
+        to bad when (ckir_record_word(i, 0) != i)
+        payload0 = ckir_record_word(i, 4)
+        field = ckir_record_word(i, 8)
+        field_count = ckir_record_word(i, 12)
+        to bad when (payload0 >= ckir_count(0))
+        to bad when (ckir_type_byte(payload0, 4) != 4)
+        to bad when (ckir_type_word(payload0, 8) != i)
+        to bad when (field != field_next)
+        to bad when (field_count > 64)
+        to bad when (ckir_span_ok(field, field_count, ckir_count(2)) == 0)
+        to bad when (ckir_record_byte(i, 16) > 1)
+        to bad when (ckir_record_byte(i, 17) != 0)
+        to bad when (ckir_record_byte(i, 18) != 0)
+        to bad when (ckir_record_byte(i, 19) != 0)
+        j = 0
+        to fields
+    }
+    state fields { to field_one when (j < field_count)  to record_finish }
+    state field_one {
+        to bad when (ckir_field_word(field + j, 0) != field + j)
+        to bad when (ckir_field_word(field + j, 4) != i)
+        to bad when (ckir_field_word(field + j, 8) != j)
+        to bad when (ckir_field_word(field + j, 12) >= ckir_count(0))
+        j = j + 1
+        to fields
+    }
+    state record_finish { field_next = field_next + field_count  i = i + 1  to records }
+    state records_done {
+        to bad when (field_next != ckir_count(2))
+        i = 0
+        to layouts
+    }
+    state layouts { to layout_one when (i < ckir_count(0))  to copy_records }
+    state layout_one { to bad when (ckir_layout_type(i) != 0)  i = i + 1  to layouts }
+    state copy_records { i = 0  to copy_loop }
+    state copy_loop { to copy_one when (i < ckir_count(1))  return 0 }
+    state copy_one {
+        to copy_next when (ckir_record_byte(i, 16) == 0)
+        to bad when (ckir_copyable(ckir_record_word(i, 4)) == 0)
+        to copy_next
+    }
+    state copy_next { i = i + 1  to copy_loop }
+    state exhausted { return 252 }
+    state bad { return 251 }
+}
+
+proc ckir_validate_machines_blocks() {
+    let i = 0
+    let j = 0
+    let owner = 0
+    let access = 0
+    let result = 0
+    let start = 0
+    let count = 0
+    let next_mparam = 0
+    let next_block = 0
+    let next_bparam = 0
+    let next_op = 0
+    let type_id = 0
+    state machines { to machine_one when (i < ckir_count(3))  to machines_done }
+    state machine_one {
+        to bad when (ckir_machine_word(i, 0) != i)
+        owner = ckir_machine_word(i, 4)
+        access = ckir_machine_byte(i, 8)
+        result = ckir_machine_word(i, 12)
+        start = ckir_machine_word(i, 16)
+        count = ckir_machine_word(i, 20)
+        to bad when (owner >= ckir_count(1))
+        to bad when (access < 1)
+        to bad when (access > 2)
+        to bad when (ckir_machine_byte(i, 9) != 0)
+        to bad when (ckir_u16(ckir_base(3) + i * 36 + 10) != 0)
+        to result_present when (result != 4294967295)
+        to params
+    }
+    state result_present {
+        to bad when (result >= ckir_count(0))
+        to bad when (ckir_type_byte(result, 4) > 3)
+        to params
+    }
+    state params {
+        to bad when (start != next_mparam)
+        to bad when (count > 7)
+        to bad when (ckir_span_ok(start, count, ckir_count(4)) == 0)
+        j = 0
+        to mparams
+    }
+    state mparams { to mparam_one when (j < count)  to blocks }
+    state mparam_one {
+        type_id = ckir_mparam_word(start + j, 12)
+        to bad when (ckir_mparam_word(start + j, 0) != start + j)
+        to bad when (ckir_mparam_word(start + j, 4) != i)
+        to bad when (ckir_mparam_word(start + j, 8) != j)
+        to bad when (type_id >= ckir_count(0))
+        to bad when (ckir_mparam_word(start + j, 16) != start + j)
+        to structural_mparam when (ckir_type_byte(type_id, 4) > 3)
+        to mparam_next
+    }
+    state structural_mparam { to bad when (ckir_copyable(type_id) == 0)  to mparam_next }
+    state mparam_next { j = j + 1  to mparams }
+    state blocks {
+        next_mparam = next_mparam + count
+        start = ckir_machine_word(i, 24)
+        count = ckir_machine_word(i, 28)
+        to bad when (start != next_block)
+        to bad when (count < 1)
+        to bad when (count > 128)
+        to bad when (ckir_span_ok(start, count, ckir_count(5)) == 0)
+        to bad when (ckir_machine_word(i, 32) != start)
+        next_block = next_block + count
+        i = i + 1
+        to machines
+    }
+    state machines_done {
+        to bad when (next_mparam != ckir_count(4))
+        to bad when (next_block != ckir_count(5))
+        i = 0
+        to block_loop
+    }
+    state block_loop { to block_one when (i < ckir_count(5))  to blocks_done }
+    state block_one {
+        to bad when (ckir_block_word(i, 0) != i)
+        owner = ckir_block_word(i, 4)
+        access = ckir_block_byte(i, 8)
+        start = ckir_block_word(i, 12)
+        count = ckir_block_word(i, 16)
+        to bad when (owner >= ckir_count(3))
+        to bad when (access < 1)
+        to bad when (access > 2)
+        to bad when (access > ckir_machine_byte(owner, 8))
+        to bad when (ckir_block_byte(i, 9) != 0)
+        to bad when (ckir_u16(ckir_base(5) + i * 32 + 10) != 0)
+        to bad when (i < ckir_machine_word(owner, 24))
+        to bad when (i >= ckir_machine_word(owner, 24) + ckir_machine_word(owner, 28))
+        to bad when (start != next_bparam)
+        to bad when (count > 7)
+        to bad when (ckir_span_ok(start, count, ckir_count(6)) == 0)
+        to entry_block when (i == ckir_machine_word(owner, 32))
+        to bparams_begin
+    }
+    state entry_block {
+        to bad when (access != ckir_machine_byte(owner, 8))
+        to bad when (count != 0)
+        to bparams_begin
+    }
+    state bparams_begin { j = 0  to bparams }
+    state bparams { to bparam_one when (j < count)  to block_ops }
+    state bparam_one {
+        type_id = ckir_bparam_word(start + j, 12)
+        to bad when (ckir_bparam_word(start + j, 0) != start + j)
+        to bad when (ckir_bparam_word(start + j, 4) != i)
+        to bad when (ckir_bparam_word(start + j, 8) != j)
+        to bad when (type_id >= ckir_count(0))
+        to bad when (ckir_bparam_word(start + j, 16) != ckir_count(4) + start + j)
+        to structural_bparam when (ckir_type_byte(type_id, 4) > 3)
+        to bparam_next
+    }
+    state structural_bparam { to bad when (ckir_copyable(type_id) == 0)  to bparam_next }
+    state bparam_next { j = j + 1  to bparams }
+    state block_ops {
+        next_bparam = next_bparam + count
+        start = ckir_block_word(i, 20)
+        count = ckir_block_word(i, 24)
+        to bad when (start != next_op)
+        to bad when (ckir_span_ok(start, count, ckir_count(7)) == 0)
+        to bad when (ckir_block_word(i, 28) != i)
+        next_op = next_op + count
+        i = i + 1
+        to block_loop
+    }
+    state blocks_done {
+        to bad when (next_bparam != ckir_count(6))
+        to bad when (next_op != ckir_count(7))
+        return 0
+    }
+    state bad { return 251 }
+}
+
+proc ckir_value_type(value_id) { return word[6400000 + value_id * 8] }
+proc ckir_value_machine(value_id) { return word[6700000 + value_id * 8] }
+proc ckir_value_block(value_id) { return word[7000000 + value_id * 8] }
+proc ckir_value_operation(value_id) { return word[7300000 + value_id * 8] }
+proc ckir_place_type(place_id) { return word[7600000 + place_id * 8] }
+proc ckir_place_mutable(place_id) { return byte[7900000 + place_id] }
+proc ckir_place_block(place_id) { return word[8200000 + place_id * 8] }
+proc ckir_place_operation(place_id) { return word[8500000 + place_id * 8] }
+
+proc ckir_value_visible(value_id, machine, block, operation) {
+    state bounds { to no when (value_id >= word[525208])  to machine }
+    state machine { to no when (ckir_value_machine(value_id) != machine)  to block }
+    state block {
+        to yes when (ckir_value_block(value_id) == 4294967295)
+        to no when (ckir_value_block(value_id) != block)
+        to yes when (ckir_value_operation(value_id) == 4294967295)
+        to no when (ckir_value_operation(value_id) >= operation)
+        to yes
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc ckir_place_visible(place_id, block, operation) {
+    state bounds { to no when (place_id >= word[525216])  to owner }
+    state owner { to no when (ckir_place_block(place_id) != block)  to order }
+    state order { to no when (ckir_place_operation(place_id) >= operation)  return 1 }
+    state no { return 0 }
+}
+
+proc ckir_carrier_same(left_type, right_type) {
+    state bounds { to no when (left_type >= ckir_count(0))  to bounds2 }
+    state bounds2 { to no when (right_type >= ckir_count(0))  to compare }
+    state compare { to no when (ckir_type_byte(left_type, 4) != ckir_type_byte(right_type, 4))  return 1 }
+    state no { return 0 }
+}
+
+proc ckir_initialize_value_scopes() {
+    let i = 0
+    let type_id = 0
+    let owner = 0
+    state mparams { to mparam when (i < ckir_count(4))  to bparams_begin }
+    state mparam {
+        type_id = ckir_mparam_word(i, 12)
+        word[6400000 + i * 8] = type_id
+        word[6700000 + i * 8] = ckir_mparam_word(i, 4)
+        word[7000000 + i * 8] = 4294967295
+        word[7300000 + i * 8] = 4294967295
+        i = i + 1
+        to mparams
+    }
+    state bparams_begin { i = 0  to bparams }
+    state bparams { to bparam when (i < ckir_count(6))  to done }
+    state bparam {
+        type_id = ckir_bparam_word(i, 12)
+        owner = ckir_bparam_word(i, 4)
+        word[6400000 + (ckir_count(4) + i) * 8] = type_id
+        word[6700000 + (ckir_count(4) + i) * 8] = ckir_block_word(owner, 4)
+        word[7000000 + (ckir_count(4) + i) * 8] = owner
+        word[7300000 + (ckir_count(4) + i) * 8] = 4294967295
+        i = i + 1
+        to bparams
+    }
+    state done {
+        word[525208] = ckir_count(4) + ckir_count(6)
+        word[525216] = 0
+        return 0
+    }
+}
+
+; Schema 2 admits a bounded whole-machine call graph.  Edges are deduplicated
+; in a 128x128 byte matrix so repeated calls do not inflate indegree.
+proc ckir_initialize_call_graph() {
+    let i = 0
+    let total = 16384
+    state edges { to edge_one when (i < total)  i = 0  to machines }
+    state edge_one { byte[10500000 + i] = 0  i = i + 1  to edges }
+    state machines { to machine_one when (i < ckir_count(3))  return 0 }
+    state machine_one {
+        word[10600000 + i * 8] = 0
+        byte[10602000 + i] = 0
+        i = i + 1
+        to machines
+    }
+}
+
+proc ckir_record_call_edge(caller,callee) {
+    let at = caller * 128 + callee
+    state duplicate { to done when (byte[10500000 + at] != 0)  to add }
+    state add {
+        byte[10500000 + at] = 1
+        word[10600000 + callee * 8] = word[10600000 + callee * 8] + 1
+        to done
+    }
+    state done { return 0 }
+}
+
+; Deterministic Kahn elimination checks the complete graph, including machines
+; unreachable from the selected root.
+proc ckir_validate_call_graph() {
+    let removed = 0 let scan = 0 let chosen = 4294967295 let callee = 0
+    state complete { to scan_begin when (removed < ckir_count(3))  return 0 }
+    state scan_begin { scan = 0 chosen = 4294967295 to scan_loop }
+    state scan_loop { to scan_one when (scan < ckir_count(3))  to selected }
+    state scan_one {
+        to scan_next when (byte[10602000 + scan] != 0)
+        to scan_next when (word[10600000 + scan * 8] != 0)
+        chosen = scan
+        to selected
+    }
+    state scan_next { scan = scan + 1  to scan_loop }
+    state selected { to bad when (chosen == 4294967295) byte[10602000 + chosen] = 1 removed = removed + 1 callee = 0 to outgoing }
+    state outgoing { to outgoing_one when (callee < ckir_count(3)) to complete }
+    state outgoing_one { to outgoing_next when (byte[10500000 + chosen * 128 + callee] == 0) word[10600000 + callee * 8] = word[10600000 + callee * 8] - 1 to outgoing_next }
+    state outgoing_next { callee = callee + 1 to outgoing }
+    state bad { return 251 }
+}
+
+proc ckir_validate_operations() {
+    let i = 0
+    let opcode = 0
+    let result_kind = 0
+    let result_id = 0
+    let result_type = 0
+    let owner = 0
+    let block = 0
+    let operand_start = 0
+    let operand_count = 0
+    let a = 0
+    let b = 0
+    let base_type = 0
+    let source_type = 0
+    let expected_kind = 0
+    let next_operand = 0
+    let callee = 0
+    let parameter = 0
+    let argument = 0
+    let j = 0
+    state begin { ckir_initialize_value_scopes() ckir_initialize_call_graph() to loop }
+    state loop { to one when (i < ckir_count(7))  to finish }
+    state one {
+        to bad when (ckir_op_word(i, 0) != i)
+        owner = ckir_op_word(i, 4)
+        block = ckir_op_word(i, 8)
+        opcode = ckir_op_byte(i, 12)
+        result_kind = ckir_op_byte(i, 13)
+        result_id = ckir_op_word(i, 16)
+        result_type = ckir_op_word(i, 20)
+        operand_start = ckir_op_word(i, 24)
+        operand_count = ckir_op_word(i, 28)
+        to bad when (block >= ckir_count(5))
+        to bad when (owner != ckir_block_word(block, 4))
+        to bad when (i < ckir_block_word(block, 20))
+        to bad when (i >= ckir_block_word(block, 20) + ckir_block_word(block, 24))
+        to bad when (ckir_u16(ckir_base(7) + i * 40 + 14) != 0)
+        to bad when (operand_start != next_operand)
+        to bad when (ckir_span_ok(operand_start, operand_count, ckir_count(8)) == 0)
+        to bad when (opcode < 1)
+        to bad when (opcode > 10)
+        expected_kind = 1
+        to call_kind when (opcode == 10)
+        to none_kind when (opcode == 6)
+        to none_kind when (opcode == 7)
+        to place_kind when (opcode == 2)
+        to place_kind when (opcode == 3)
+        to place_kind when (opcode == 4)
+        to kind_ready
+    }
+    state call_kind {
+        callee = ckir_op_word(i, 32)
+        to bad when (callee >= ckir_count(3))
+        to call_unit_kind when (ckir_machine_word(callee, 12) == 4294967295)
+        expected_kind = 1
+        to kind_ready
+    }
+    state call_unit_kind { expected_kind = 0 to kind_ready }
+    state none_kind { expected_kind = 0  to kind_ready }
+    state place_kind { expected_kind = 2  to kind_ready }
+    state kind_ready {
+        to bad when (result_kind != expected_kind)
+        to no_result when (result_kind == 0)
+        to value_result when (result_kind == 1)
+        to place_result
+    }
+    state no_result {
+        to bad when (result_id != 4294967295)
+        to bad when (result_type != 4294967295)
+        to arity
+    }
+    state value_result {
+        to bad when (result_id != word[525208])
+        to bad when (result_type >= ckir_count(0))
+        word[6400000 + result_id * 8] = result_type
+        word[6700000 + result_id * 8] = owner
+        word[7000000 + result_id * 8] = block
+        word[7300000 + result_id * 8] = i
+        word[525208] = word[525208] + 1
+        to arity
+    }
+    state place_result {
+        to bad when (result_id != word[525216])
+        to bad when (result_type >= ckir_count(0))
+        word[7600000 + result_id * 8] = result_type
+        byte[7900000 + result_id] = 0
+        word[8200000 + result_id * 8] = block
+        word[8500000 + result_id * 8] = i
+        word[525216] = word[525216] + 1
+        to arity
+    }
+    state arity {
+        to arity_call when (opcode == 10)
+        to arity0 when (opcode == 1)
+        to arity0 when (opcode == 2)
+        to arity1 when (opcode == 3)
+        to arity2 when (opcode == 4)
+        to arity1 when (opcode == 5)
+        to arity2 when (opcode == 6)
+        to arity2 when (opcode == 7)
+        to arity2
+    }
+    state arity_call {
+        to bad when (operand_count != 1 + ckir_machine_word(callee, 20))
+        to bad when (operand_count < 1)
+        to bad when (operand_count > 8)
+        a = ckir_operand(operand_start)
+        to dispatch
+    }
+    state arity0 { to bad when (operand_count != 0)  to dispatch }
+    state arity1 { to bad when (operand_count != 1)  a = ckir_operand(operand_start)  to dispatch }
+    state arity2 { to bad when (operand_count != 2)  a = ckir_operand(operand_start)  b = ckir_operand(operand_start + 1)  to dispatch }
+    state dispatch {
+        to op_const when (opcode == 1)
+        to op_self when (opcode == 2)
+        to op_field when (opcode == 3)
+        to op_index when (opcode == 4)
+        to op_load when (opcode == 5)
+        to op_store when (opcode == 6)
+        to op_copy when (opcode == 7)
+        to op_add when (opcode == 8)
+        to op_call when (opcode == 10)
+        to op_less
+    }
+    state immediates_zero {
+        to bad when (ckir_op_word(i, 32) != 0)
+        to bad when (ckir_op_word(i, 36) != 0)
+        to op_next
+    }
+    state op_const {
+        to bad when (ckir_op_word(i, 36) != 0)
+        to bad when (ckir_type_byte(result_type, 4) > 3)
+        to bad when (ckir_op_word(i, 32) < ckir_type_word(result_type, 16))
+        to bad when (ckir_op_word(i, 32) > ckir_type_word(result_type, 20))
+        to op_next
+    }
+    state op_self {
+        to bad when (ckir_op_word(i, 32) != 0)
+        to bad when (ckir_op_word(i, 36) != 0)
+        to bad when (result_type != ckir_record_word(ckir_machine_word(owner, 4), 4))
+        to bad when (ckir_type_byte(result_type, 4) != 4)
+        to self_mutable when (ckir_block_byte(block, 8) == 2)
+        to op_next
+    }
+    state self_mutable { byte[7900000 + result_id] = 1  to op_next }
+    state op_field {
+        to bad when (ckir_op_word(i, 32) >= ckir_count(2))
+        to bad when (ckir_op_word(i, 36) != 0)
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        base_type = ckir_record_word(ckir_field_word(ckir_op_word(i, 32), 4), 4)
+        to bad when (ckir_place_type(a) != base_type)
+        to bad when (result_type != ckir_field_word(ckir_op_word(i, 32), 12))
+        byte[7900000 + result_id] = ckir_place_mutable(a)
+        to op_next
+    }
+    state op_index {
+        to bad when (ckir_op_word(i, 32) != 0)
+        to bad when (ckir_op_word(i, 36) != 0)
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        base_type = ckir_place_type(a)
+        to bad when (ckir_type_byte(base_type, 4) != 5)
+        to bad when (result_type != ckir_type_word(base_type, 8))
+        source_type = ckir_value_type(b)
+        to bad when (ckir_type_byte(source_type, 4) < 1)
+        to bad when (ckir_type_byte(source_type, 4) > 2)
+        byte[7900000 + result_id] = ckir_place_mutable(a)
+        to op_next
+    }
+    state op_load {
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        to bad when (result_type != ckir_place_type(a))
+        to bad when (ckir_type_byte(result_type, 4) > 3)
+        to immediates_zero
+    }
+    state op_store {
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        to bad when (ckir_place_mutable(a) == 0)
+        to bad when (ckir_carrier_same(ckir_place_type(a), ckir_value_type(b)) == 0)
+        to bad when (ckir_type_byte(ckir_place_type(a), 4) > 3)
+        to immediates_zero
+    }
+    state op_copy {
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        to bad when (ckir_place_mutable(a) == 0)
+        to bad when (ckir_op_word(i, 36) != 0)
+        to copy_value when (ckir_op_word(i, 32) == 1)
+        to copy_place when (ckir_op_word(i, 32) == 2)
+        to bad
+    }
+    state copy_value {
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        source_type = ckir_value_type(b)
+        to copy_type
+    }
+    state copy_place {
+        to bad when (ckir_place_visible(b, block, i) == 0)
+        source_type = ckir_place_type(b)
+        to copy_type
+    }
+    state copy_type {
+        to bad when (source_type != ckir_place_type(a))
+        to bad when (ckir_type_byte(source_type, 4) < 4)
+        to bad when (ckir_copyable(source_type) == 0)
+        to op_next
+    }
+    state op_add {
+        to bad when (ckir_value_visible(a, owner, block, i) == 0)
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        to bad when (ckir_carrier_same(ckir_value_type(a), ckir_value_type(b)) == 0)
+        to bad when (ckir_carrier_same(ckir_value_type(a), result_type) == 0)
+        to bad when (ckir_type_byte(result_type, 4) < 1)
+        to bad when (ckir_type_byte(result_type, 4) > 2)
+        to immediates_zero
+    }
+    state op_less {
+        to bad when (ckir_value_visible(a, owner, block, i) == 0)
+        to bad when (ckir_value_visible(b, owner, block, i) == 0)
+        to bad when (ckir_carrier_same(ckir_value_type(a), ckir_value_type(b)) == 0)
+        to bad when (ckir_type_byte(ckir_value_type(a), 4) < 1)
+        to bad when (ckir_type_byte(ckir_value_type(a), 4) > 2)
+        to bad when (ckir_type_byte(result_type, 4) != 3)
+        to immediates_zero
+    }
+    state op_call {
+        to bad when (ckir_op_word(i, 36) != 0)
+        to bad when (ckir_place_visible(a, block, i) == 0)
+        base_type = ckir_record_word(ckir_machine_word(callee, 4), 4)
+        to bad when (ckir_place_type(a) != base_type)
+        to call_receiver_ready when (ckir_machine_byte(callee, 8) == 1)
+        to bad when (ckir_place_mutable(a) == 0)
+        to call_receiver_ready
+    }
+    state call_receiver_ready {
+        j = 0
+        to call_arguments
+    }
+    state call_arguments { to call_argument when (j < ckir_machine_word(callee, 20)) to call_result }
+    state call_argument {
+        argument = ckir_operand(operand_start + 1 + j)
+        parameter = ckir_machine_word(callee, 16) + j
+        to bad when (ckir_value_visible(argument, owner, block, i) == 0)
+        to bad when (ckir_value_type(argument) != ckir_mparam_word(parameter, 12))
+        j = j + 1
+        to call_arguments
+    }
+    state call_result {
+        to call_unit_result when (ckir_machine_word(callee, 12) == 4294967295)
+        to bad when (result_type != ckir_machine_word(callee, 12))
+        to bad when (ckir_type_byte(result_type, 4) > 3)
+        ckir_record_call_edge(owner, callee)
+        to op_next
+    }
+    state call_unit_result {
+        ; Result shape was already checked from the callee signature.
+        ckir_record_call_edge(owner, callee)
+        to op_next
+    }
+    state op_next { next_operand = next_operand + operand_count  i = i + 1  to loop }
+    state finish {
+        word[525224] = next_operand
+        to bad when (word[525208] != ckir_count(10))
+        to bad when (word[525216] != ckir_count(11))
+        return 0
+    }
+    state bad { return 251 }
+}
+
+proc ckir_validate_edge(block, target, start, count) {
+    let i = 0
+    let argument = 0
+    let parameter = 0
+    let atype = 0
+    let ptype = 0
+    let owner = ckir_block_word(block, 4)
+    let block_end = ckir_block_word(block, 20) + ckir_block_word(block, 24)
+    state absent {
+        to present when (target != 4294967295)
+        to bad when (count != 0)
+        return 0
+    }
+    state present {
+        to bad when (target >= ckir_count(5))
+        to bad when (ckir_block_word(target, 4) != owner)
+        to bad when (target == ckir_machine_word(owner, 32))
+        to bad when (count != ckir_block_word(target, 16))
+        to bad when (ckir_span_ok(start, count, ckir_count(8)) == 0)
+        to loop
+    }
+    state loop { to one when (i < count)  return 0 }
+    state one {
+        argument = ckir_operand(start + i)
+        parameter = ckir_block_word(target, 12) + i
+        to bad when (ckir_value_visible(argument, owner, block, block_end) == 0)
+        atype = ckir_value_type(argument)
+        ptype = ckir_bparam_word(parameter, 12)
+        to structural when (ckir_type_byte(ptype, 4) > 3)
+        to bad when (ckir_carrier_same(atype, ptype) == 0)
+        to next
+    }
+    state structural { to bad when (atype != ptype)  to next }
+    state next { i = i + 1  to loop }
+    state bad { return 251 }
+}
+
+proc ckir_zero_establishes(type_id) {
+    let kind = ckir_type_byte(type_id, 4)
+    let record = 0
+    let field = 0
+    let end = 0
+    state scalar {
+        to compound when (kind > 3)
+        to no when (ckir_type_word(type_id, 16) > 0)
+        return 1
+    }
+    state compound {
+        to array when (kind == 5)
+        record = ckir_type_word(type_id, 8)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state array { return ckir_zero_establishes(ckir_type_word(type_id, 8)) }
+    state fields { to field_one when (field < end)  return 1 }
+    state field_one { to no when (ckir_zero_establishes(ckir_field_word(field, 12)) == 0)  field = field + 1  to fields }
+    state no { return 0 }
+}
+
+proc ckir_validate_terminators_root() {
+    let i = 0
+    let owner = 0
+    let block = 0
+    let kind = 0
+    let value = 0
+    let target0 = 0
+    let start0 = 0
+    let count0 = 0
+    let target1 = 0
+    let start1 = 0
+    let count1 = 0
+    let block_end = 0
+    let result_type = 0
+    let next_operand = word[525224]
+    let entry = word[525000]
+    state relation { to bad when (ckir_count(9) != ckir_count(5))  to terms }
+    state terms { to term_one when (i < ckir_count(9))  to operands_done }
+    state term_one {
+        to bad when (ckir_term_word(i, 0) != i)
+        owner = ckir_term_word(i, 4)
+        block = ckir_term_word(i, 8)
+        kind = ckir_term_byte(i, 12)
+        value = ckir_term_word(i, 16)
+        target0 = ckir_term_word(i, 20)
+        start0 = ckir_term_word(i, 24)
+        count0 = ckir_term_word(i, 28)
+        target1 = ckir_term_word(i, 32)
+        start1 = ckir_term_word(i, 36)
+        count1 = ckir_term_word(i, 40)
+        to bad when (block != i)
+        to bad when (block >= ckir_count(5))
+        to bad when (owner != ckir_block_word(block, 4))
+        to bad when (ckir_term_byte(i, 13) != 0)
+        to bad when (ckir_u16(ckir_base(9) + i * 44 + 14) != 0)
+        to bad when (kind < 1)
+        to bad when (kind > 4)
+        to bad when (start0 != next_operand)
+        next_operand = next_operand + count0
+        to bad when (start1 != next_operand)
+        next_operand = next_operand + count1
+        block_end = ckir_block_word(block, 20) + ckir_block_word(block, 24)
+        to bad when (ckir_validate_edge(block, target0, start0, count0) != 0)
+        to bad when (ckir_validate_edge(block, target1, start1, count1) != 0)
+        result_type = ckir_machine_word(owner, 12)
+        to jump when (kind == 1)
+        to branch when (kind == 2)
+        to unit when (kind == 3)
+        to value_return
+    }
+    state jump {
+        to bad when (value != 4294967295)
+        to bad when (target0 == 4294967295)
+        to bad when (target1 != 4294967295)
+        to term_next
+    }
+    state branch {
+        to bad when (target0 == 4294967295)
+        to bad when (target1 == 4294967295)
+        to bad when (ckir_value_visible(value, owner, block, block_end) == 0)
+        to bad when (ckir_type_byte(ckir_value_type(value), 4) != 3)
+        to term_next
+    }
+    state unit {
+        to bad when (value != 4294967295)
+        to bad when (target0 != 4294967295)
+        to bad when (target1 != 4294967295)
+        to bad when (result_type != 4294967295)
+        to term_next
+    }
+    state value_return {
+        to bad when (target0 != 4294967295)
+        to bad when (target1 != 4294967295)
+        to bad when (result_type == 4294967295)
+        to bad when (ckir_value_visible(value, owner, block, block_end) == 0)
+        to bad when (ckir_carrier_same(ckir_value_type(value), result_type) == 0)
+        to term_next
+    }
+    state term_next { i = i + 1  to terms }
+    state operands_done {
+        to bad when (next_operand != ckir_count(8))
+        to bad when (ckir_validate_call_graph() != 0)
+        to absent when (entry == 4294967295)
+        to entry_bounds
+    }
+    ; Schema 2 carries an exact selected root.  Other zero-parameter scalar
+    ; machines are ordinary declarations and never compete with it.
+    state absent { to flags }
+    state entry_bounds { to bad when (entry >= ckir_count(3)) to entry_checks }
+    state entry_checks {
+        to bad when (ckir_machine_word(entry, 20) != 0)
+        result_type = ckir_machine_word(entry, 12)
+        to bad when (result_type == 4294967295)
+        to bad when (ckir_type_byte(result_type, 4) > 3)
+        result_type = ckir_record_word(ckir_machine_word(entry, 4), 4)
+        to exhausted when (word[6000000 + result_type * 8] > 131072)
+        to bad when (ckir_zero_establishes(result_type) == 0)
+        to flags
+    }
+    state flags {
+        to entry_flag when (entry != 4294967295)
+        to bad when (word[524304] != 0)
+        return 0
+    }
+    state entry_flag { to bad when (word[524304] != 1)  return 0 }
+    state exhausted { return 252 }
+    state bad { return 251 }
+}
+
+proc ckir_runtime_load(type_id, address) {
+    state word_kind { to word_value when (ckir_type_byte(type_id, 4) == 2)  to byte_value }
+    state word_value {
+        return byte[9400000 + address]
+            + byte[9400000 + address + 1] * 256
+            + byte[9400000 + address + 2] * 65536
+            + byte[9400000 + address + 3] * 16777216
+    }
+    state byte_value { return byte[9400000 + address] }
+}
+
+proc ckir_runtime_store(type_id, address, value) {
+    state range {
+        to trap when (value < ckir_type_word(type_id, 16))
+        to trap when (value > ckir_type_word(type_id, 20))
+        to word_kind when (ckir_type_byte(type_id, 4) == 2)
+        byte[9400000 + address] = value
+        return 0
+    }
+    state word_kind {
+        byte[9400000 + address] = value % 256
+        byte[9400000 + address + 1] = (value / 256) % 256
+        byte[9400000 + address + 2] = (value / 65536) % 256
+        byte[9400000 + address + 3] = (value / 16777216) % 256
+        return 0
+    }
+    state trap { return 251 }
+}
+
+proc ckir_snapshot_type(type_id, source, relative) {
+    let kind = ckir_type_byte(type_id, 4)
+    let i = 0
+    let count = 0
+    let child = 0
+    let record = 0
+    let field = 0
+    let end = 0
+    let size = 0
+    state scalar { to compound when (kind > 3)  to scalar_copy }
+    state scalar_copy {
+        size = word[6000000 + type_id * 8]
+        to scalar_word when (size == 4)
+        byte[9600000 + relative] = byte[9400000 + source]
+        return 0
+    }
+    state scalar_word {
+        byte[9600000 + relative] = byte[9400000 + source]
+        byte[9600000 + relative + 1] = byte[9400000 + source + 1]
+        byte[9600000 + relative + 2] = byte[9400000 + source + 2]
+        byte[9600000 + relative + 3] = byte[9400000 + source + 3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  to record_begin }
+    state array {
+        child = ckir_type_word(type_id, 8)
+        count = ckir_type_word(type_id, 12)
+        to array_loop
+    }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one {
+        size = word[6000000 + child * 8] * i
+        to bad when (ckir_snapshot_type(child, source + size, relative + size) != 0)
+        i = i + 1
+        to array_loop
+    }
+    state record_begin {
+        record = ckir_type_word(type_id, 8)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one {
+        child = ckir_field_word(field, 12)
+        size = word[6200000 + field * 8]
+        to bad when (ckir_snapshot_type(child, source + size, relative + size) != 0)
+        field = field + 1
+        to fields
+    }
+    state bad { return 251 }
+}
+
+proc ckir_commit_type(type_id, destination, relative) {
+    let kind = ckir_type_byte(type_id, 4)
+    let i = 0
+    let count = 0
+    let child = 0
+    let record = 0
+    let field = 0
+    let end = 0
+    let size = 0
+    state scalar { to compound when (kind > 3)  to scalar_copy }
+    state scalar_copy {
+        size = word[6000000 + type_id * 8]
+        to scalar_word when (size == 4)
+        byte[9400000 + destination] = byte[9600000 + relative]
+        return 0
+    }
+    state scalar_word {
+        byte[9400000 + destination] = byte[9600000 + relative]
+        byte[9400000 + destination + 1] = byte[9600000 + relative + 1]
+        byte[9400000 + destination + 2] = byte[9600000 + relative + 2]
+        byte[9400000 + destination + 3] = byte[9600000 + relative + 3]
+        return 0
+    }
+    state compound { to array when (kind == 5)  to record_begin }
+    state array { child = ckir_type_word(type_id, 8)  count = ckir_type_word(type_id, 12)  to array_loop }
+    state array_loop { to array_one when (i < count)  return 0 }
+    state array_one {
+        size = word[6000000 + child * 8] * i
+        to bad when (ckir_commit_type(child, destination + size, relative + size) != 0)
+        i = i + 1
+        to array_loop
+    }
+    state record_begin {
+        record = ckir_type_word(type_id, 8)
+        field = ckir_record_word(record, 8)
+        end = field + ckir_record_word(record, 12)
+        to fields
+    }
+    state fields { to field_one when (field < end)  return 0 }
+    state field_one {
+        child = ckir_field_word(field, 12)
+        size = word[6200000 + field * 8]
+        to bad when (ckir_commit_type(child, destination + size, relative + size) != 0)
+        field = field + 1
+        to fields
+    }
+    state bad { return 251 }
+}
+
+proc ckir_runtime_copy(type_id, destination, source) {
+    state snapshot { to bad when (ckir_snapshot_type(type_id, source, 0) != 0)  to commit }
+    state commit { return ckir_commit_type(type_id, destination, 0) }
+    state bad { return 251 }
+}
+
+proc ckir_runtime_edge(target, start, count) {
+    let i = 0
+    let value_id = 0
+    let parameter_id = 0
+    let parameter_value = 0
+    let type_id = 0
+    state stage { to stage_one when (i < count)  to commit_begin }
+    state stage_one {
+        value_id = ckir_operand(start + i)
+        word[9700000 + i * 8] = word[8800000 + value_id * 8]
+        i = i + 1
+        to stage
+    }
+    state commit_begin { i = 0  to commit }
+    state commit { to commit_one when (i < count)  return 0 }
+    state commit_one {
+        parameter_id = ckir_block_word(target, 12) + i
+        parameter_value = ckir_bparam_word(parameter_id, 16)
+        type_id = ckir_bparam_word(parameter_id, 12)
+        to scalar when (ckir_type_byte(type_id, 4) < 4)
+        word[8800000 + parameter_value * 8] = word[9700000 + i * 8]
+        to next
+    }
+    state scalar {
+        to trap when (word[9700000 + i * 8] < ckir_type_word(type_id, 16))
+        to trap when (word[9700000 + i * 8] > ckir_type_word(type_id, 20))
+        word[8800000 + parameter_value * 8] = word[9700000 + i * 8]
+        to next
+    }
+    state next { i = i + 1  to commit }
+    state trap { return 251 }
+}
+
+proc ckir_interpret_selected() {
+    let entry = word[525000]
+    let block = 0
+    let op = 0
+    let op_end = 0
+    let opcode = 0
+    let result = 0
+    let result_type = 0
+    let start = 0
+    let a = 0
+    let b = 0
+    let value = 0
+    let address = 0
+    let base_type = 0
+    let field = 0
+    let target = 0
+    let count = 0
+    let steps = 0
+    let clear = 0
+    let owner_size = 0
+    let receiver = 0
+    let depth = 0
+    let callee = 0
+    let argument = 0
+    let parameter = 0
+    let j = 0
+    state library { to entry_begin when (entry != 4294967295)  return 0 }
+    state entry_begin {
+        owner_size = word[6000000 + ckir_record_word(ckir_machine_word(entry, 4), 4) * 8]
+        clear = 0
+        to clear_owner
+    }
+    state clear_owner { to clear_one when (clear < owner_size)  to entry_ready }
+    state clear_one {
+        byte[9400000 + clear] = 0
+        clear = clear + 1
+        to clear_owner
+    }
+    state entry_ready {
+        receiver = 0
+        depth = 0
+        block = ckir_machine_word(entry, 32)
+        to block_begin
+    }
+    state block_begin {
+        steps = steps + 1
+        to exhausted when (steps > 1000000)
+        op = ckir_block_word(block, 20)
+        op_end = op + ckir_block_word(block, 24)
+        to operations
+    }
+    state operations { to operation when (op < op_end)  to terminator }
+    state operation {
+        opcode = ckir_op_byte(op, 12)
+        result = ckir_op_word(op, 16)
+        result_type = ckir_op_word(op, 20)
+        start = ckir_op_word(op, 24)
+        to constant when (opcode == 1)
+        to self_place when (opcode == 2)
+        to field_place when (opcode == 3)
+        to index_place when (opcode == 4)
+        to load when (opcode == 5)
+        to store when (opcode == 6)
+        to copy when (opcode == 7)
+        to add when (opcode == 8)
+        to call when (opcode == 10)
+        to less
+    }
+    state constant { word[8800000 + result * 8] = ckir_op_word(op, 32)  to op_next }
+    state self_place { word[9100000 + result * 8] = receiver  to op_next }
+    state field_place {
+        a = ckir_operand(start)
+        field = ckir_op_word(op, 32)
+        word[9100000 + result * 8] = word[9100000 + a * 8] + word[6200000 + field * 8]
+        to op_next
+    }
+    state index_place {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = word[8800000 + b * 8]
+        base_type = ckir_place_type(a)
+        to trap when (value >= ckir_type_word(base_type, 12))
+        word[9100000 + result * 8] = word[9100000 + a * 8]
+            + value * word[6000000 + ckir_type_word(base_type, 8) * 8]
+        to op_next
+    }
+    state load {
+        a = ckir_operand(start)
+        address = word[9100000 + a * 8]
+        word[8800000 + result * 8] = ckir_runtime_load(result_type, address)
+        to op_next
+    }
+    state store {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        address = word[9100000 + a * 8]
+        value = word[8800000 + b * 8]
+        to trap when (ckir_runtime_store(ckir_place_type(a), address, value) != 0)
+        to op_next
+    }
+    state copy {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        address = word[9100000 + a * 8]
+        to copy_value when (ckir_op_word(op, 32) == 1)
+        value = word[9100000 + b * 8]
+        to copy_ready
+    }
+    state copy_value { value = word[8800000 + b * 8]  to copy_ready }
+    state copy_ready { to trap when (ckir_runtime_copy(ckir_place_type(a), address, value) != 0)  to op_next }
+    state add {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = word[8800000 + a * 8] + word[8800000 + b * 8]
+        to byte_overflow when (ckir_type_byte(result_type, 4) == 1)
+        to word_overflow
+    }
+    state byte_overflow { to trap when (value > 255)  to add_range }
+    state word_overflow { to trap when (value > 4294967295)  to add_range }
+    state add_range {
+        to trap when (value < ckir_type_word(result_type, 16))
+        to trap when (value > ckir_type_word(result_type, 20))
+        word[8800000 + result * 8] = value
+        to op_next
+    }
+    state less {
+        a = ckir_operand(start)
+        b = ckir_operand(start + 1)
+        value = 0
+        to less_true when (word[8800000 + a * 8] < word[8800000 + b * 8])
+        word[8800000 + result * 8] = 0
+        to op_next
+    }
+    state less_true { word[8800000 + result * 8] = 1  to op_next }
+    state call {
+        to exhausted when (depth >= 64)
+        callee = ckir_op_word(op, 32)
+        a = ckir_operand(start)
+        address = word[9100000 + a * 8]
+        ; Preserve the caller continuation and receiver.  Values and places
+        ; have globally dense IDs, while this stack supplies distinct active
+        ; machine frames over the one shared owner memory.
+        word[10610000 + depth * 8] = block
+        word[10611000 + depth * 8] = op + 1
+        word[10612000 + depth * 8] = op_end
+        word[10613000 + depth * 8] = receiver
+        word[10614000 + depth * 8] = result
+        j = 0
+        to call_stage
+    }
+    state call_stage { to call_stage_one when (j < ckir_machine_word(callee, 20)) j = 0 to call_commit }
+    state call_stage_one {
+        argument = ckir_operand(start + 1 + j)
+        word[10620000 + j * 8] = word[8800000 + argument * 8]
+        j = j + 1
+        to call_stage
+    }
+    state call_commit { to call_commit_one when (j < ckir_machine_word(callee, 20)) to call_enter }
+    state call_commit_one {
+        parameter = ckir_machine_word(callee, 16) + j
+        word[8800000 + ckir_mparam_word(parameter, 16) * 8] = word[10620000 + j * 8]
+        j = j + 1
+        to call_commit
+    }
+    state call_enter {
+        depth = depth + 1
+        receiver = address
+        block = ckir_machine_word(callee, 32)
+        to block_begin
+    }
+    state op_next { op = op + 1  to operations }
+    state terminator {
+        opcode = ckir_term_byte(block, 12)
+        to jump when (opcode == 1)
+        to branch when (opcode == 2)
+        to return_unit when (opcode == 3)
+        to return_value
+    }
+    state jump {
+        target = ckir_term_word(block, 20)
+        start = ckir_term_word(block, 24)
+        count = ckir_term_word(block, 28)
+        to transfer
+    }
+    state branch {
+        value = word[8800000 + ckir_term_word(block, 16) * 8]
+        to branch_true when (value != 0)
+        target = ckir_term_word(block, 32)
+        start = ckir_term_word(block, 36)
+        count = ckir_term_word(block, 40)
+        to transfer
+    }
+    state branch_true {
+        target = ckir_term_word(block, 20)
+        start = ckir_term_word(block, 24)
+        count = ckir_term_word(block, 28)
+        to transfer
+    }
+    state transfer {
+        to trap when (ckir_runtime_edge(target, start, count) != 0)
+        block = target
+        to block_begin
+    }
+    state return_value {
+        value = word[8800000 + ckir_term_word(block, 16) * 8]
+        result_type = ckir_machine_word(ckir_block_word(block, 4), 12)
+        to trap when (value < ckir_type_word(result_type, 16))
+        to trap when (value > ckir_type_word(result_type, 20))
+        to return_call_value when (depth > 0)
+        word[525232] = value
+        to bad_claim when (value != word[524360])
+        return 0
+    }
+    state return_call_value {
+        depth = depth - 1
+        result = word[10614000 + depth * 8]
+        word[8800000 + result * 8] = value
+        block = word[10610000 + depth * 8]
+        op = word[10611000 + depth * 8]
+        op_end = word[10612000 + depth * 8]
+        receiver = word[10613000 + depth * 8]
+        to operations
+    }
+    state return_unit {
+        to trap when (depth == 0)
+        depth = depth - 1
+        block = word[10610000 + depth * 8]
+        op = word[10611000 + depth * 8]
+        op_end = word[10612000 + depth * 8]
+        receiver = word[10613000 + depth * 8]
+        to operations
+    }
+    state bad_claim { return 251 }
+    state exhausted { return 252 }
+    state trap { return 251 }
+}
+
+proc ckir_refinement_artifact_check() {
+    let status = ckir_decode_header()
+    state header { to done when (status != 0)  to types }
+    state types { status = ckir_validate_types_records()  to done when (status != 0)  to structure }
+    state structure { status = ckir_validate_machines_blocks()  to done when (status != 0)  to operations }
+    state operations { status = ckir_validate_operations()  to done when (status != 0)  to terminators }
+    state terminators { status = ckir_validate_terminators_root()  to done when (status != 0)  to interpret }
+    state interpret { status = ckir_interpret_selected()  to done }
+    state done { return status }
+}
+
+proc main() {
+    let status = omgrfn3_component_read()
+    state envelope { to done when (status != 0)  to artifact }
+    state artifact { status = ckir_refinement_artifact_check()  to done }
+    state done { return status }
+}
