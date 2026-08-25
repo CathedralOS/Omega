@@ -634,14 +634,11 @@ fn check_proposition_law_conformance(
                 program.render_proof_expression_with_parameters(*argument, &substitutions)
             })
             .collect::<Vec<_>>();
-        let Some(expected) = program
-            .normalize_proposition_application_with_labels(
-                &instantiated,
-                &binder_labels,
-                &argument_labels,
-            )
-            .map(|formula| formula.identity_label())
-        else {
+        let Some(expected_formula) = program.normalize_proposition_application_with_labels(
+            &instantiated,
+            &binder_labels,
+            &argument_labels,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but its proposition law `{}` does not normalize after trait-family and indexed-binder substitution",
                 machine.name,
@@ -651,17 +648,35 @@ fn check_proposition_law_conformance(
             )));
             continue;
         };
-        let matched = proven_propositions.iter().any(|proven| {
-            program
-                .normalize_proposition_application(proven)
-                .map(|formula| formula.identity_label())
-                .is_some_and(|actual| actual == expected)
-        }) || proven_expressions.iter().any(|proven| {
-            format!(
-                "boolean:{}",
-                program.render_proof_expression_with_symbols(*proven, &[])
-            ) == expected
-        });
+        let expected = expected_formula.identity_label();
+        let expected_nominal = program.normalize_nominal_proposition_application_with_labels(
+            &instantiated,
+            &binder_labels,
+            &argument_labels,
+        );
+        let matched = if let Some(expected_nominal) = expected_nominal {
+            proven_propositions.iter().any(|proven| {
+                program
+                    .normalize_nominal_proposition_application(proven)
+                    .is_some_and(|actual| actual == expected_nominal)
+            })
+        } else if let psi_typed_trees::proposition::NormalizedPropositionFormula::Boolean {
+            label: expected_boolean,
+        } = &expected_formula
+        {
+            proven_propositions.iter().any(|proven| {
+                matches!(
+                    program.normalize_proposition_application(proven),
+                    Some(psi_typed_trees::proposition::NormalizedPropositionFormula::Boolean {
+                        label,
+                    }) if label == *expected_boolean
+                )
+            }) || proven_expressions.iter().any(|proven| {
+                program.render_proof_expression_with_symbols(*proven, &[]) == *expected_boolean
+            })
+        } else {
+            false
+        };
         if !matched {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}` but proves no ensures matching proposition law `{expected}` after trait-family substitution",
