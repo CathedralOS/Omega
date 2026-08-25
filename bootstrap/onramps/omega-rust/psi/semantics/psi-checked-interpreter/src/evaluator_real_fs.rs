@@ -33,8 +33,8 @@ use super::{
     PreparedByteOutput, PreparedFilesystemCall, Value, host_open_flags, synthetic_handle_fd,
 };
 use crate::{
-    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemReturnedPathCompleteness,
-    FilesystemReturnedPathKind,
+    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemObservedByteRegionKind,
+    FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -568,6 +568,13 @@ impl<'program> super::Evaluator<'program> {
                     Ok(bytes) => {
                         let n = bytes.len() as i64;
                         buffer.write(&bytes)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::SequentialFileRead,
+                            &buffer,
+                            0,
+                            bytes.len(),
+                        )?;
                         n
                     }
                     Err(errno) => {
@@ -783,6 +790,13 @@ impl<'program> super::Evaluator<'program> {
                     Ok(bytes) => {
                         let n = bytes.len() as i64;
                         buffer.write(&bytes)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::PositionedFileRead,
+                            &buffer,
+                            0,
+                            bytes.len(),
+                        )?;
                         n
                     }
                     Err(errno) => {

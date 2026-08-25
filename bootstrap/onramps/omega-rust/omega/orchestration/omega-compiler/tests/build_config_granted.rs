@@ -9,11 +9,11 @@
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
-    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
-    BuildFilesystemProvider, BuildFilesystemReturnedPathCompleteness,
-    BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
-    PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemObservedByteRegionKind,
+    BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
+    BuildFilesystemScalarOperandValue, BuildObservationClass, CheckedCompilation, CompileOptions,
+    FilesystemSponsor, PackageCompilationInputs, PackageSourceBinding, compile, compile_to_checked,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir,
 };
@@ -202,7 +202,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 15);
+    assert_eq!(checked_observations.schema_version(), 16);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -213,7 +213,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        15
+        16
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -347,6 +347,17 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(read_buffer.operand_ordinal(), 1);
     assert_eq!(read_buffer.pre_bytes(), &[0; 6]);
     assert_eq!(read_buffer.post_bytes(), b"table\n");
+    let [observed] = read.observed_byte_regions() else {
+        panic!("successful read retains one semantic observed-byte region")
+    };
+    assert_eq!(observed.output_operand_ordinal(), 1);
+    assert_eq!(
+        observed.kind(),
+        BuildFilesystemObservedByteRegionKind::SequentialFileRead
+    );
+    assert_eq!(observed.offset(), 0);
+    assert_eq!(observed.length(), 6);
+    assert_eq!(read.observed_bytes(observed), Some(b"table\n".as_slice()));
     assert_eq!(create.scalar_operands().len(), 1);
     assert_eq!(
         create.scalar_operands()[0].value(),
@@ -1332,6 +1343,38 @@ fn returned_read_link_bytes_survive_compiler_projection() {
         read_link.result(),
         BuildFilesystemOperationResult::Scalar(15)
     );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn zero_length_positioned_read_region_survives_compiler_projection() {
+    let (project, profile) = rooted_build_probe_project(
+        "empty-positioned-read",
+        r#"    let input: &[u8] in Path = builder.source.resolve("empty.txt");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read_at(self.descriptor, &mut self.buffer, 4096, 7);"#,
+    );
+    std::fs::write(project.join("empty.txt"), b"").expect("create empty source fixture");
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("positioned EOF read of a granted source file succeeds");
+    let observations = checked
+        .build_observation_summary()
+        .expect("filesystem build publishes observation evidence");
+    let [_, read_at] = observations.filesystem_operation_attempts() else {
+        panic!("fixture opens and reads one source file")
+    };
+    let [region] = read_at.observed_byte_regions() else {
+        panic!("successful positioned EOF retains one empty observed region")
+    };
+    assert_eq!(region.output_operand_ordinal(), 1);
+    assert_eq!(
+        region.kind(),
+        BuildFilesystemObservedByteRegionKind::PositionedFileRead
+    );
+    assert_eq!(region.offset(), 0);
+    assert_eq!(region.length(), 0);
+    assert_eq!(read_at.observed_bytes(region), Some(b"".as_slice()));
+    assert_eq!(read_at.result(), BuildFilesystemOperationResult::Scalar(0));
     let _ = std::fs::remove_dir_all(&project);
 }
 

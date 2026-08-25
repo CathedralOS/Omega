@@ -19,6 +19,7 @@ pub use pipeline::{
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemMutableByteOperand, BuildFilesystemMutableByteOperandResolution,
     BuildFilesystemMutableI64Operand, BuildFilesystemMutableI64OperandResolution,
+    BuildFilesystemObservedByteRegion, BuildFilesystemObservedByteRegionKind,
     BuildFilesystemOperationAttempt, BuildFilesystemOperationResult,
     BuildFilesystemPathLikeOperand, BuildFilesystemProvider, BuildFilesystemReturnedPath,
     BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,

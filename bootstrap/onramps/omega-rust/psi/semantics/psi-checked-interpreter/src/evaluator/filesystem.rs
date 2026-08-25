@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     FilesystemByteOperand, FilesystemMutableByteOperandResolution,
-    FilesystemMutableI64OperandResolution, FilesystemPathLikeOperand, FilesystemReturnedPath,
+    FilesystemMutableI64OperandResolution, FilesystemObservedByteRegion,
+    FilesystemObservedByteRegionKind, FilesystemPathLikeOperand, FilesystemReturnedPath,
     FilesystemReturnedPathCompleteness, FilesystemReturnedPathKind,
     FilesystemRootedPathOperandResolution, FilesystemScalarOperand,
 };
@@ -115,6 +116,15 @@ impl<'program> Evaluator<'program> {
                     return Err(Halt::Trap(format!(
                         "canonical filesystem operation `{operation}` returned `{result}` outside its i32 result type"
                     )));
+                }
+                if let Err(halt) =
+                    self.validate_observed_byte_regions(attempt_index, operation, result)
+                {
+                    self.filesystem_operation_attempts[attempt_index].outcome =
+                        Some(FilesystemOperationAttemptOutcome::EvaluationHalted(
+                            FilesystemEvaluationHaltKind::Trap,
+                        ));
+                    return Err(halt);
                 }
                 if let Err(halt) = self.complete_logical_handle_observations(
                     attempt_index,
@@ -230,6 +240,38 @@ impl<'program> Evaluator<'program> {
                 kind,
                 completeness,
                 bytes: bytes.to_owned(),
+            });
+        Ok(())
+    }
+
+    pub(super) fn record_observed_byte_region(
+        &mut self,
+        output_operand_ordinal: u8,
+        kind: FilesystemObservedByteRegionKind,
+        output: &PreparedByteOutput,
+        offset: usize,
+        length: usize,
+    ) -> EvalResult<()> {
+        let end = offset.checked_add(length).ok_or_else(|| {
+            Halt::Trap("filesystem observed-byte region length overflowed".to_owned())
+        })?;
+        if end > output.capacity() {
+            return Err(Halt::Trap(format!(
+                "filesystem observed-byte region {offset}..{end} exceeds output capacity {}",
+                output.capacity()
+            )));
+        }
+        let attempt_index = *self
+            .filesystem_operation_attempt_stack
+            .last()
+            .expect("observed-byte region requires an active filesystem attempt");
+        self.filesystem_operation_attempts[attempt_index]
+            .observed_byte_regions
+            .push(FilesystemObservedByteRegion {
+                output_operand_ordinal,
+                kind,
+                offset,
+                length,
             });
         Ok(())
     }
@@ -371,6 +413,73 @@ impl<'program> Evaluator<'program> {
         let attempt = &mut self.filesystem_operation_attempts[attempt_index];
         attempt.mutable_byte_operands = mutable_byte_operands;
         attempt.mutable_i64_operands = mutable_i64_operands;
+        Ok(())
+    }
+
+    fn validate_observed_byte_regions(
+        &self,
+        attempt_index: usize,
+        operation: FilesystemHostOperation,
+        result: i64,
+    ) -> EvalResult<()> {
+        let expected_kind = match operation {
+            FilesystemHostOperation::Read => {
+                Some(FilesystemObservedByteRegionKind::SequentialFileRead)
+            }
+            FilesystemHostOperation::ReadAt => {
+                Some(FilesystemObservedByteRegionKind::PositionedFileRead)
+            }
+            _ => None,
+        };
+        let attempt = &self.filesystem_operation_attempts[attempt_index];
+        let expected = expected_kind.is_some() && result >= 0;
+        if !expected {
+            if attempt.observed_byte_regions.is_empty() {
+                return Ok(());
+            }
+            return Err(Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` retained an unexpected observed-byte region"
+            )));
+        }
+
+        let [region] = &attempt.observed_byte_regions[..] else {
+            return Err(Halt::Trap(format!(
+                "successful canonical filesystem operation `{operation}` did not retain exactly one observed-byte region"
+            )));
+        };
+        let length = usize::try_from(result).map_err(|_| {
+            Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` returned an unrepresentable observed-byte length `{result}`"
+            ))
+        })?;
+        if region.kind != expected_kind.expect("successful read has an expected kind")
+            || region.output_operand_ordinal != 1
+            || region.offset != 0
+            || region.length != length
+        {
+            return Err(Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` retained an inconsistent observed-byte region"
+            )));
+        }
+        let Some(output) = attempt
+            .mutable_byte_operands
+            .iter()
+            .find(|output| output.operand_ordinal == region.output_operand_ordinal)
+        else {
+            return Err(Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` retained an observed-byte region without its output carrier"
+            )));
+        };
+        let end = region.offset.checked_add(region.length).ok_or_else(|| {
+            Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` retained an overflowing observed-byte region"
+            ))
+        })?;
+        if end > output.post_bytes.len() {
+            return Err(Halt::Trap(format!(
+                "canonical filesystem operation `{operation}` retained an out-of-bounds observed-byte region"
+            )));
+        }
         Ok(())
     }
 
@@ -644,6 +753,13 @@ impl<'program> Evaluator<'program> {
                     Some(bytes) => {
                         let n = bytes.len() as i64;
                         buffer.write(&bytes)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::SequentialFileRead,
+                            &buffer,
+                            0,
+                            bytes.len(),
+                        )?;
                         n
                     }
                     None => {
@@ -673,6 +789,13 @@ impl<'program> Evaluator<'program> {
                     Some(bytes) => {
                         let n = bytes.len() as i64;
                         buffer.write(&bytes)?;
+                        self.record_observed_byte_region(
+                            1,
+                            FilesystemObservedByteRegionKind::PositionedFileRead,
+                            &buffer,
+                            0,
+                            bytes.len(),
+                        )?;
                         n
                     }
                     None => {
@@ -2196,6 +2319,180 @@ mod tests {
         assert!(
             evaluator.filesystem_operation_attempts[0]
                 .returned_paths
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn virtual_file_reads_retain_only_exact_observed_bytes() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        evaluator
+            .virtual_files
+            .insert(b"input".to_vec(), b"abcdef".to_vec());
+        let descriptor = evaluator.virtual_open(b"input".to_vec(), false, false);
+
+        let sequential_output = mutable_byte_output(&[9; 8]);
+        let sequential = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::Read {
+                fd: descriptor,
+                buffer: sequential_output.clone(),
+                count: PreparedTransferCount { raw: 4, host: 4 },
+            })
+            .unwrap_or_else(|_| panic!("sequential read succeeds"));
+        assert!(matches!(sequential, Value::Int(4)));
+        assert_eq!(
+            sequential_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("sequential output remains readable")),
+            b"abcd\x09\x09\x09\x09"
+        );
+
+        let positioned_output = mutable_byte_output(&[9; 8]);
+        let positioned = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::ReadAt {
+                fd: descriptor,
+                buffer: positioned_output,
+                count: PreparedTransferCount { raw: 3, host: 3 },
+                offset: 1,
+            })
+            .unwrap_or_else(|_| panic!("positioned read succeeds"));
+        assert!(matches!(positioned, Value::Int(3)));
+
+        let tail_output = mutable_byte_output(&[9; 8]);
+        let tail = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::Read {
+                fd: descriptor,
+                buffer: tail_output,
+                count: PreparedTransferCount { raw: 8, host: 8 },
+            })
+            .unwrap_or_else(|_| panic!("tail read succeeds"));
+        assert!(matches!(tail, Value::Int(2)));
+
+        let eof_output = mutable_byte_output(&[9; 8]);
+        let eof = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::Read {
+                fd: descriptor,
+                buffer: eof_output,
+                count: PreparedTransferCount { raw: 8, host: 8 },
+            })
+            .unwrap_or_else(|_| panic!("EOF read succeeds"));
+        assert!(matches!(eof, Value::Int(0)));
+
+        let failed_output = mutable_byte_output(&[9; 8]);
+        let failed = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::Read {
+                fd: -1,
+                buffer: failed_output.clone(),
+                count: PreparedTransferCount { raw: 8, host: 8 },
+            })
+            .unwrap_or_else(|_| panic!("unknown descriptor is a provider error"));
+        assert!(matches!(failed, Value::Int(-1)));
+        assert_eq!(
+            failed_output
+                .snapshot()
+                .unwrap_or_else(|_| panic!("failed output remains readable")),
+            &[9; 8]
+        );
+
+        let rows = &evaluator.filesystem_operation_attempts[0].observed_byte_regions;
+        assert_eq!(rows.len(), 4);
+        assert!(rows.iter().all(|row| row.output_operand_ordinal() == 1));
+        assert_eq!(
+            rows[0].kind(),
+            FilesystemObservedByteRegionKind::SequentialFileRead
+        );
+        assert_eq!(
+            rows[1].kind(),
+            FilesystemObservedByteRegionKind::PositionedFileRead
+        );
+        assert_eq!(
+            rows[2].kind(),
+            FilesystemObservedByteRegionKind::SequentialFileRead
+        );
+        assert_eq!(
+            rows[3].kind(),
+            FilesystemObservedByteRegionKind::SequentialFileRead
+        );
+        assert_eq!(rows[0].offset(), 0);
+        assert_eq!(rows[0].length(), 4);
+        assert_eq!(rows[1].length(), 3);
+        assert_eq!(rows[2].length(), 2);
+        assert_eq!(rows[3].length(), 0);
+        assert_eq!(
+            evaluator.filesystem_observation_evidence_bytes, 0,
+            "semantic regions reference the already-custodied mutable post-state"
+        );
+    }
+
+    #[test]
+    fn observed_byte_region_validation_binds_result_kind_and_post_carrier() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempts[0]
+            .observed_byte_regions
+            .push(FilesystemObservedByteRegion {
+                output_operand_ordinal: 1,
+                kind: FilesystemObservedByteRegionKind::SequentialFileRead,
+                offset: 0,
+                length: 4,
+            });
+        evaluator.filesystem_operation_attempts[0]
+            .mutable_byte_operands
+            .push(crate::FilesystemMutableByteOperand {
+                operand_ordinal: 1,
+                pre_bytes: vec![9; 6],
+                post_bytes: b"abcd\x09\x09".to_vec(),
+            });
+
+        evaluator
+            .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 4)
+            .unwrap_or_else(|_| panic!("exact read region validates"));
+        assert!(
+            evaluator
+                .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 3)
+                .is_err(),
+            "scalar result must equal semantic region length"
+        );
+        assert!(
+            evaluator
+                .validate_observed_byte_regions(0, FilesystemHostOperation::ReadAt, 4)
+                .is_err(),
+            "positioned and sequential read regions are distinct"
+        );
+        evaluator.filesystem_operation_attempts[0]
+            .mutable_byte_operands
+            .clear();
+        assert!(
+            evaluator
+                .validate_observed_byte_regions(0, FilesystemHostOperation::Read, 4)
+                .is_err(),
+            "semantic region requires its retained post-carrier"
+        );
+    }
+
+    #[test]
+    fn observed_byte_region_rejects_out_of_bounds_without_a_row() {
+        let program = TypedTrees::default();
+        let mut evaluator = evaluator_with_pending_attempt(&program);
+        evaluator.filesystem_operation_attempt_stack.push(0);
+        let output = mutable_byte_output(&[9]);
+
+        assert!(
+            evaluator
+                .record_observed_byte_region(
+                    1,
+                    FilesystemObservedByteRegionKind::SequentialFileRead,
+                    &output,
+                    0,
+                    2,
+                )
+                .is_err()
+        );
+        assert!(
+            evaluator.filesystem_operation_attempts[0]
+                .observed_byte_regions
                 .is_empty()
         );
     }

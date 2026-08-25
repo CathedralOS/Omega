@@ -289,7 +289,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation schema v15 carries operation-attempt schema v15, retaining exact
+Observation schema v16 carries operation-attempt schema v16, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -347,9 +347,14 @@ and final-path bytes without NUL terminators or stale tails, plus output ordinal
 closed kind, and Complete/LimitReached disposition. Exact provider target length
 distinguishes an exact-fit `read_link` from truncation; failure and insufficient-
 capacity returns carry no output row. Package-rooted builds reject the two
-always-absolute operations, while `read_link` remains inert payload. Complete
-observed-input content remains absent, so this is an incomplete trace rather
-than a transcript or receipt.
+always-absolute operations, while `read_link` remains inert payload. Successful
+`read`/`read_at` observations designate the exact prefix of the
+already-custodied mutable post-carrier with a closed sequential/positioned kind,
+output ordinal, and returned length. EOF retains a zero-length row; failure
+retains none. These zero-copy rows add no byte-sponsor charge. Package
+commitments bind their kind, coordinates, and referenced mutable post-state.
+Directory/find and metadata output semantics plus replay execution remain absent, so this is
+an incomplete trace rather than a transcript or receipt.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

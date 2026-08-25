@@ -1,8 +1,8 @@
 use omega_compiler::{
-    BuildObservationClass, CheckedPackageReviewProjection, PackageReviewCallableRole,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+    BuildFilesystemObservedByteRegionKind, BuildObservationClass, CheckedPackageReviewProjection,
+    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewCheckedServiceReach, PackageReviewContractExpression, PackageReviewContractFact,
+    PackageReviewContractKind, PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
     PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
 };
@@ -483,6 +483,25 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 if executes_filesystem_build { 6 } else { 0 },
                 "only generated-table executes its declared filesystem build"
             );
+            if executes_filesystem_build {
+                let [_, read, _, _, _, _] = observations.filesystem_operation_attempts() else {
+                    panic!("generated-table retains its six filesystem attempts")
+                };
+                let [region] = read.observed_byte_regions() else {
+                    panic!("generated-table retains one observed source-content region")
+                };
+                assert_eq!(
+                    region.kind(),
+                    BuildFilesystemObservedByteRegionKind::SequentialFileRead
+                );
+                assert_eq!(region.output_operand_ordinal(), 1);
+                assert_eq!(region.offset(), 0);
+                assert_eq!(region.length(), 24);
+                assert_eq!(
+                    read.observed_bytes(region),
+                    Some(b"alpha=1\nbeta=2\ngamma=3\n\n".as_slice())
+                );
+            }
             let staged_output = observations
                 .staged_output_tree()
                 .expect("sponsored package review commits even an empty staged-output tree");

@@ -765,8 +765,8 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation schema v15
-carries operation-attempt schema v15, retaining each completed operation's exact
+Observation schema v16
+carries operation-attempt schema v16, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
 operand/access, closed Source/Output root, and canonical relative UTF-8 bytes
@@ -826,7 +826,12 @@ stale tails, plus output ordinal, closed kind, and Complete/LimitReached state.
 Provider-known target length distinguishes exact-fit from truncated `read_link`;
 failure and insufficient-capacity returns add no row. Package-rooted builds
 reject canonical and final absolute output, while `read_link` remains inert.
-Complete observed-input content remains absent, so
+Successful `read`/`read_at` calls designate the exact zero-offset region of the
+already-retained mutable post-carrier as sequential or positioned file content.
+The length equals the nonnegative result; EOF retains an empty row and failure
+retains none. The row copies no bytes and adds no sponsor charge. Package
+commitments bind its kind and coordinates plus the referenced mutable
+post-state. Directory/find and metadata output semantics plus replay execution remain absent, so
 this makes no receipt, replayability, or source-rebuildability claim. Sponsored
 package review separately commits its complete fresh Output tree after
 successful evaluator/provider teardown and before cleanup-gated publication.
