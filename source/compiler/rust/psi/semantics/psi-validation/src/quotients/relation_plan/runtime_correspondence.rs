@@ -9,9 +9,9 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array, direct Boolean-literal array, exact depth-two Boolean-literal array,
-//! or exactly landed integer/float-literal array to its exact fixed-array
-//! representative position.
+//! array, direct Boolean-literal array, exact depth-two byte/Boolean-literal
+//! array, or exactly landed integer/float-literal array to its exact fixed-
+//! array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -77,6 +77,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     NestedBooleanArray {
         rows: std::sync::Arc<[std::sync::Arc<[bool]>]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    NestedFixedByteArray {
+        rows: std::sync::Arc<[std::sync::Arc<[u8]>]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
     IntegerArray {
@@ -331,7 +335,32 @@ pub(super) fn closed_lift_literal_for_representative(
             length: psi_typed_trees::types::FixedArrayLength::Literal(row_width),
         } = program.type_reference_table.type_reference(*element_type)
         {
-            if exact_primitive_type(program, *row_element_type) != Some(PrimitiveType::Bool) {
+            let row_primitive = exact_primitive_type(program, *row_element_type)
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            if row_primitive == PrimitiveType::U8 {
+                let rows = elements
+                    .iter()
+                    .map(|row| {
+                        let ExpressionNode::ArrayLiteral(row_elements) =
+                            program.expression_table.expression(*row)
+                        else {
+                            return None;
+                        };
+                        let row_elements =
+                            program.expression_table.expression_handles(*row_elements);
+                        (row_elements.len() == *row_width)
+                            .then(|| canonical_fixed_bytes(program, row_elements))
+                            .flatten()
+                            .map(std::sync::Arc::from)
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+                return Ok(Some(ClosedLiftLiteral::NestedFixedByteArray {
+                    rows: rows.into(),
+                    target_type: program.normalized_type_identity(representative_type),
+                }));
+            }
+            if row_primitive != PrimitiveType::Bool {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
             let rows = elements
