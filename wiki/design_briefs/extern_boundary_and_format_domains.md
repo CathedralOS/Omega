@@ -193,16 +193,34 @@ System V ABI [section-header, type, flag, link, and info
 rules](https://gabi.xinuos.com/elf/03-sheader.html) and the LSB [GNU section
 type assignments](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html).
 
+The first address-free procedure-linkage relocation rung consumes those
+descriptors and joins every private import binding to its exact canonical
+request and source call sites. It admits only intact unresolved x86-64 `CALL
+rel32` or AArch64 `BL` placeholders with the matching four-byte, zero-addend
+text relocation. One canonical logical PLT/GOT slot belongs to each imported
+dynamic symbol and carries one semantic RELA `JUMP_SLOT` requirement
+(`R_X86_64_JUMP_SLOT` or `R_AARCH64_JUMP_SLOT`); multiple calls to one import
+share that slot. Target drift, non-procedure uses, malformed or overlapping
+sites, and binding/slot/relocation drift reject with exact descriptor custody.
+Because every unresolved use is accounted for as a procedure call, the plan
+proves that the current admitted image needs no general `.rela.dyn` row. The
+relocation contracts follow the primary [x86-64
+psABI](https://gitlab.com/x86-psABIs/x86-64-ABI) and [AArch64 ELF
+ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst).
+Logical slots and relocation requirements grant no address, physical
+GOT/PLT/section index, serialized relocation, placement, or mutation authority.
+
 The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
 planned together; this rung does not claim a partial `.dynamic` payload.
 The final section roster and completed `.shstrtab`, numeric
 `sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags,
-optional `.gnu.hash`, the selected GOT/PLT arrangement,
-`.rela.dyn`/`.rela.plt`, architecture-specific relocation lowering, complete
-load/program-header layout, image mutation, and independent final-byte replay
-remain open. Validated descriptors still grant no layout, loader, publication,
-or runnable-image authority. An owned direct `[u8; N]` destination now contextually
+optional `.gnu.hash`, target GOT/PLT templates and reserved entries,
+address-bearing `.rela.plt` serialization, architecture-specific PLT fixups,
+complete load/program-header layout, image mutation, and independent final-byte
+replay remain open. Validated semantic procedure linkage still grants no
+layout, loader, publication, or runnable-image authority. An owned direct
+`[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
