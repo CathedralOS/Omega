@@ -694,6 +694,7 @@ mod tests {
                 PathBuf::from("/test/git"),
                 "11".repeat(32),
             ),
+            transport_executable: None,
         };
 
         let https_lineage =

@@ -206,12 +206,14 @@ around every launch, and re-hashed when resolution returns. Git receives a
 cleared, fixed environment and an explicit absolute working directory. The
 executor grants exactly one Git protocol per validated request (`https` or
 `ssh`); the test-only local-repository adapter alone grants `file`. The cache
-key and exact metadata bind that execution profile even when hosted-repository lineage
-normalizes HTTPS and SSH clone spellings together. Resolved-source diagnostics
-retain the profile separately. This closes ambient parent-executable,
-environment, and cross-protocol selection, but does not
-certify Git or bind every helper it may
-launch. SSH is noninteractive and strict about host keys, but still consumes
+key and exact metadata bind that execution profile even when hosted-repository
+lineage normalizes HTTPS and SSH clone spellings together. Resolved-source
+diagnostics retain the profile separately. This closes ambient parent-executable,
+environment, and cross-protocol selection. SSH additionally retains and
+rechecks the selected client's exact path and content under the same Unix
+custody floor as the parent Git executable. This does not certify either
+executable or bind HTTPS transport helpers. SSH is noninteractive and strict
+about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file

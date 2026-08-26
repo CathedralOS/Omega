@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v10";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v11";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -388,6 +388,9 @@ pub struct ResolvedGitSource {
     /// Absolute parent Git executable identity observed before and after every launch.
     /// This is diagnostic custody, not certification of the executable.
     pub git_executable: GitExecutableIdentity,
+    /// Exact SSH client observed when the selected transport is SSH.
+    /// HTTPS and the test-only file adapter retain no transport executable here.
+    pub transport_executable: Option<GitTransportExecutableIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -414,15 +417,38 @@ impl GitExecutableIdentity {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitTransportExecutableIdentity {
+    path: PathBuf,
+    content_identity: String,
+}
+
+impl GitTransportExecutableIdentity {
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn content_identity(&self) -> &str {
+        &self.content_identity
+    }
+}
+
 #[derive(Debug)]
 struct GitExecutor {
     identity: GitExecutableIdentity,
     metadata_identity: GitExecutableMetadataIdentity,
+    transport_executable: Option<GitTransportExecutableObservation>,
     execution_transport: GitExecutionTransport,
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
     maximum_launches: usize,
+}
+
+#[derive(Debug)]
+struct GitTransportExecutableObservation {
+    identity: GitTransportExecutableIdentity,
+    metadata_identity: GitExecutableMetadataIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -616,12 +642,12 @@ impl fmt::Display for SourceResolveError {
             ),
             Self::GitExecutableInvalid { path, message } => write!(
                 output,
-                "Git executable `{}` is invalid: {message}",
+                "Git resolver executable `{}` is invalid: {message}",
                 path.display()
             ),
             Self::GitExecutableChanged { path } => write!(
                 output,
-                "Git executable `{}` changed during source resolution",
+                "Git resolver executable `{}` changed during source resolution",
                 path.display()
             ),
             Self::GitResolutionCommandLimit { limit } => write!(
@@ -936,6 +962,10 @@ fn resolve_verified_git_cache_entry(
         snapshot_root,
         local,
         git_executable: executor.identity.clone(),
+        transport_executable: executor
+            .transport_executable
+            .as_ref()
+            .map(|executable| executable.identity.clone()),
     })
 }
 
@@ -4102,12 +4132,19 @@ impl GitExecutor {
         if observe_git_executable_metadata(&canonical)? != metadata_identity {
             return Err(SourceResolveError::GitExecutableChanged { path: canonical });
         }
+        let transport_executable = match execution_transport {
+            GitExecutionTransport::Ssh => Some(open_ssh_transport_executable(&canonical)?),
+            GitExecutionTransport::Https => None,
+            #[cfg(test)]
+            GitExecutionTransport::File => None,
+        };
         Ok(Self {
             identity: GitExecutableIdentity {
                 path: canonical,
                 content_identity,
             },
             metadata_identity,
+            transport_executable,
             execution_transport,
             started,
             timeout,
@@ -4122,7 +4159,11 @@ impl GitExecutor {
                 path: self.identity.path.clone(),
             });
         }
-        verify_git_executable_custody(&self.identity.path)
+        verify_git_executable_custody(&self.identity.path)?;
+        if let Some(transport_executable) = &self.transport_executable {
+            verify_ssh_transport_executable(transport_executable)?;
+        }
+        Ok(())
     }
 
     fn verify_content(&self) -> Result<(), SourceResolveError> {
@@ -4130,6 +4171,14 @@ impl GitExecutor {
         if hash_git_executable(&self.identity.path)? != self.identity.content_identity {
             return Err(SourceResolveError::GitExecutableChanged {
                 path: self.identity.path.clone(),
+            });
+        }
+        if let Some(transport_executable) = &self.transport_executable
+            && hash_git_executable(&transport_executable.identity.path)?
+                != transport_executable.identity.content_identity
+        {
+            return Err(SourceResolveError::GitExecutableChanged {
+                path: transport_executable.identity.path.clone(),
             });
         }
         self.verify()?;
@@ -4164,6 +4213,48 @@ impl GitExecutor {
     }
 }
 
+fn open_ssh_transport_executable(
+    git_executable: &Path,
+) -> Result<GitTransportExecutableObservation, SourceResolveError> {
+    let requested_path = ssh_transport_executable_path(git_executable);
+    open_git_transport_executable(&requested_path)
+}
+
+fn open_git_transport_executable(
+    requested_path: &Path,
+) -> Result<GitTransportExecutableObservation, SourceResolveError> {
+    let canonical = requested_path.canonicalize().map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: requested_path.to_path_buf(),
+            message: format!("SSH transport executable is unavailable: {error}"),
+        }
+    })?;
+    verify_git_executable_custody(&canonical)?;
+    let metadata_identity = observe_git_executable_metadata(&canonical)?;
+    let content_identity = hash_git_executable(&canonical)?;
+    if observe_git_executable_metadata(&canonical)? != metadata_identity {
+        return Err(SourceResolveError::GitExecutableChanged { path: canonical });
+    }
+    Ok(GitTransportExecutableObservation {
+        identity: GitTransportExecutableIdentity {
+            path: canonical,
+            content_identity,
+        },
+        metadata_identity,
+    })
+}
+
+fn verify_ssh_transport_executable(
+    executable: &GitTransportExecutableObservation,
+) -> Result<(), SourceResolveError> {
+    if observe_git_executable_metadata(&executable.identity.path)? != executable.metadata_identity {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: executable.identity.path.clone(),
+        });
+    }
+    verify_git_executable_custody(&executable.identity.path)
+}
+
 #[cfg(unix)]
 fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::MetadataExt;
@@ -4178,34 +4269,35 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "canonical Git executable is not a concrete regular file".to_owned(),
+            message: "canonical resolver executable is not a concrete regular file".to_owned(),
         });
     }
     if metadata.uid() != 0 && metadata.uid() != effective_user {
         return Err(SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "Git executable is owned by neither root nor the resolver's effective user"
-                .to_owned(),
+            message:
+                "resolver executable is owned by neither root nor the resolver's effective user"
+                    .to_owned(),
         });
     }
     let mode = metadata.mode();
     if mode & 0o022 != 0 {
         return Err(SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "Git executable is writable by group or other users".to_owned(),
+            message: "resolver executable is writable by group or other users".to_owned(),
         });
     }
     if mode & 0o6000 != 0 {
         return Err(SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "Git executable must not carry set-user-ID or set-group-ID authority"
+            message: "resolver executable must not carry set-user-ID or set-group-ID authority"
                 .to_owned(),
         });
     }
     if mode & 0o111 == 0 {
         return Err(SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "Git executable has no executable mode bit".to_owned(),
+            message: "resolver executable has no executable mode bit".to_owned(),
         });
     }
 
@@ -4213,7 +4305,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
         .parent()
         .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
             path: path.to_path_buf(),
-            message: "Git executable has no absolute custody ancestry".to_owned(),
+            message: "resolver executable has no absolute custody ancestry".to_owned(),
         })?;
     for ancestor in parent.ancestors() {
         let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
@@ -4225,13 +4317,14 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(SourceResolveError::GitExecutableInvalid {
                 path: ancestor.to_path_buf(),
-                message: "Git executable ancestry contains a non-directory or symlink".to_owned(),
+                message: "resolver executable ancestry contains a non-directory or symlink"
+                    .to_owned(),
             });
         }
         if metadata.uid() != 0 && metadata.uid() != effective_user {
             return Err(SourceResolveError::GitExecutableInvalid {
                 path: ancestor.to_path_buf(),
-                message: "Git executable ancestry is owned by an unrelated user".to_owned(),
+                message: "resolver executable ancestry is owned by an unrelated user".to_owned(),
             });
         }
         let mode = metadata.mode();
@@ -4239,7 +4332,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
             return Err(SourceResolveError::GitExecutableInvalid {
                 path: ancestor.to_path_buf(),
                 message:
-                    "Git executable ancestry is externally writable without sticky-entry protection"
+                    "resolver executable ancestry is externally writable without sticky-entry protection"
                         .to_owned(),
             });
         }
@@ -4276,6 +4369,20 @@ fn system_git_candidates() -> &'static [&'static str] {
         r"C:\Program Files\Git\bin\git.exe",
         r"C:\Program Files (x86)\Git\cmd\git.exe",
     ]
+}
+
+#[cfg(unix)]
+fn ssh_transport_executable_path(_git_executable: &Path) -> PathBuf {
+    PathBuf::from("/usr/bin/ssh")
+}
+
+#[cfg(windows)]
+fn ssh_transport_executable_path(git_executable: &Path) -> PathBuf {
+    git_executable
+        .parent()
+        .and_then(Path::parent)
+        .map(|root| root.join("usr/bin/ssh.exe"))
+        .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\Git\usr\bin\ssh.exe"))
 }
 
 fn hash_git_executable(path: &Path) -> Result<String, SourceResolveError> {
@@ -4838,11 +4945,6 @@ fn sealed_git_command(
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
         .env("GIT_PROTOCOL_FROM_USER", "0")
-        .env(
-            "GIT_SSH_COMMAND",
-            sealed_ssh_command(&executor.identity.path),
-        )
-        .env("GIT_SSH_VARIANT", "ssh")
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("--no-replace-objects")
         .arg("-c")
@@ -4904,6 +5006,14 @@ fn sealed_git_command(
             "-c",
             "filter.lfs.required=false",
         ]);
+    if let Some(transport_executable) = &executor.transport_executable {
+        command
+            .env(
+                "GIT_SSH_COMMAND",
+                sealed_ssh_command(&transport_executable.identity.path),
+            )
+            .env("GIT_SSH_VARIANT", "ssh");
+    }
     Ok(command)
 }
 
@@ -4913,10 +5023,11 @@ fn git_helper_path(_git_executable: &Path) -> OsString {
 }
 
 #[cfg(unix)]
-fn sealed_ssh_command(_git_executable: &Path) -> OsString {
-    OsString::from(
-        "/usr/bin/ssh -F /dev/null -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
-    )
+fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
+    OsString::from(format!(
+        "{} -F /dev/null -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
+        ssh_executable.display()
+    ))
 }
 
 #[cfg(windows)]
@@ -4933,15 +5044,10 @@ fn git_helper_path(git_executable: &Path) -> OsString {
 }
 
 #[cfg(windows)]
-fn sealed_ssh_command(git_executable: &Path) -> OsString {
-    let ssh = git_executable
-        .parent()
-        .and_then(Path::parent)
-        .map(|root| root.join("usr/bin/ssh.exe"))
-        .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\Git\usr\bin\ssh.exe"));
+fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
         "\"{}\" -F NUL -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
-        ssh.display()
+        ssh_executable.display()
     ))
 }
 
@@ -5349,6 +5455,36 @@ mod tests {
             "a descendant survived the bounded command deadline"
         );
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ssh_transport_executable_reuses_resolver_executable_custody() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("ssh-transport-executable");
+        std::fs::create_dir_all(&root).expect("create SSH executable custody root");
+        let fake_ssh = root.join("ssh");
+        std::fs::write(&fake_ssh, b"#!/bin/sh\nexit 0\n").expect("write fake SSH executable");
+        std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake SSH executable");
+
+        let executable =
+            open_git_transport_executable(&fake_ssh).expect("capture SSH executable identity");
+        assert!(executable.identity.path.is_absolute());
+        assert_eq!(executable.identity.content_identity.len(), 64);
+        verify_ssh_transport_executable(&executable).expect("verify unchanged SSH executable");
+
+        std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o777))
+            .expect("make SSH executable unsafe");
+        assert!(matches!(
+            verify_ssh_transport_executable(&executable),
+            Err(SourceResolveError::GitExecutableChanged { .. })
+                | Err(SourceResolveError::GitExecutableInvalid { .. })
+        ));
+
+        std::fs::set_permissions(&fake_ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[cfg(unix)]
@@ -7275,14 +7411,6 @@ mod tests {
                 Some(OsString::from("0")),
             ),
             (
-                OsString::from("GIT_SSH_COMMAND"),
-                Some(sealed_ssh_command(&executor.identity.path)),
-            ),
-            (
-                OsString::from("GIT_SSH_VARIANT"),
-                Some(OsString::from("ssh")),
-            ),
-            (
                 OsString::from("GIT_TERMINAL_PROMPT"),
                 Some(OsString::from("0")),
             ),
@@ -7380,6 +7508,28 @@ mod tests {
                 environment.get(OsStr::new("GIT_ALLOW_PROTOCOL")),
                 Some(&Some(OsString::from(protocol)))
             );
+            if transport == GitExecutionTransport::Ssh {
+                let transport_executable = executor
+                    .transport_executable
+                    .as_ref()
+                    .expect("SSH transport executable identity");
+                assert!(transport_executable.identity.path.is_absolute());
+                assert_eq!(transport_executable.identity.content_identity.len(), 64);
+                assert_eq!(
+                    environment.get(OsStr::new("GIT_SSH_COMMAND")),
+                    Some(&Some(sealed_ssh_command(
+                        &transport_executable.identity.path
+                    )))
+                );
+                assert_eq!(
+                    environment.get(OsStr::new("GIT_SSH_VARIANT")),
+                    Some(&Some(OsString::from("ssh")))
+                );
+            } else {
+                assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
+                assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
+                assert!(executor.transport_executable.is_none());
+            }
             for (configured, candidate) in [
                 ("file", GitExecutionTransport::File),
                 ("https", GitExecutionTransport::Https),
