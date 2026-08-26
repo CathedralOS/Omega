@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_optimization_core::{OptimizationUnitIdentity, ScalarConstantFactIdentity};
 use omega_optimization_unit::{
     OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ScalarConstantValue, ValueDefinition, ValueUse,
-    literal_scalar_constant_fact_identity,
+    PsiProvenance, ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition, ValueUse,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
@@ -214,16 +215,16 @@ pub(super) fn executable_edges(unit: &PsiOptimizationUnit) -> ExecutableEdgeAnal
     sparse_conditional_constants(unit).1
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LatticeValue {
+    Unknown,
+    Constant(ScalarConstant, ScalarConstantSupport),
+    Overdefined,
+}
+
 fn sparse_conditional_constants(
     unit: &PsiOptimizationUnit,
 ) -> (ScalarConstantAnalysis, ExecutableEdgeAnalysis) {
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    enum LatticeValue {
-        Unknown,
-        Constant(ScalarConstant, ScalarConstantSupport),
-        Overdefined,
-    }
-
     fn merge(
         target: &mut LatticeValue,
         incoming: &LatticeValue,
@@ -504,22 +505,38 @@ fn sparse_conditional_constants(
             }
         }
 
+        let snapshot = sccp_machine_snapshot(function, &values, &reachable, &feasible_edges);
+
         facts.extend(values.into_iter().filter_map(|(value, state)| {
             let LatticeValue::Constant(constant, support) = state else {
                 return None;
             };
-            let identity = support.literal_operation().and_then(|operation| {
-                let definition = scalar_value_definition(function, value)?;
-                literal_scalar_constant_fact_identity(
-                    unit.identity,
-                    function.machine,
-                    definition,
-                    match constant {
-                        ScalarConstant::Boolean(value) => ScalarConstantValue::Boolean(value),
-                        ScalarConstant::Integer(value) => ScalarConstantValue::Integer(value),
-                    },
-                    operation,
-                )
+            let definition = scalar_value_definition(function, value);
+            let constant_value = match constant {
+                ScalarConstant::Boolean(value) => ScalarConstantValue::Boolean(value),
+                ScalarConstant::Integer(value) => ScalarConstantValue::Integer(value),
+            };
+            let identity = definition.and_then(|definition| {
+                support
+                    .literal_operation()
+                    .and_then(|operation| {
+                        literal_scalar_constant_fact_identity(
+                            unit.identity,
+                            function.machine,
+                            definition,
+                            constant_value,
+                            operation,
+                        )
+                    })
+                    .or_else(|| {
+                        derived_sccp_scalar_constant_fact_identity(
+                            unit.identity,
+                            function.machine,
+                            definition,
+                            constant_value,
+                            &snapshot,
+                        )
+                    })
             });
             Some(ScalarConstantFact {
                 value,
@@ -539,6 +556,85 @@ fn sparse_conditional_constants(
         ScalarConstantAnalysis { facts },
         ExecutableEdgeAnalysis { edges: edge_facts },
     )
+}
+
+fn sccp_machine_snapshot(
+    function: &PsiOptimizationFunction,
+    values: &BTreeMap<ValueId, LatticeValue>,
+    reachable: &BTreeSet<BlockId>,
+    feasible_edges: &BTreeMap<EdgeId, ScalarConstantSupport>,
+) -> SccpMachineSnapshot {
+    let mut blocks = function
+        .blocks
+        .iter()
+        .map(|block| SccpBlockRow {
+            block: block.id,
+            executable: reachable.contains(&block.id),
+        })
+        .collect::<Vec<_>>();
+    blocks.sort_by_key(|row| row.block);
+
+    let mut edges = function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let reachable_source = reachable.contains(&block.id);
+            let operation = block.nodes.last().map(|node| &node.operation);
+            operation.into_iter().flat_map(move |operation| {
+                scalar_operation_successors(operation)
+                    .into_iter()
+                    .map(move |successor| {
+                        let state = if feasible_edges.contains_key(&successor.psi_edge) {
+                            SccpEdgeState::Executable
+                        } else if !reachable_source {
+                            SccpEdgeState::Inexecutable
+                        } else if let O::Conditional { condition, .. } = operation {
+                            match values.get(condition) {
+                                Some(LatticeValue::Constant(ScalarConstant::Boolean(_), _)) => {
+                                    SccpEdgeState::Inexecutable
+                                }
+                                _ => SccpEdgeState::Unknown,
+                            }
+                        } else {
+                            SccpEdgeState::Inexecutable
+                        };
+                        SccpEdgeRow {
+                            source: block.id,
+                            edge: successor.psi_edge,
+                            target: successor.target,
+                            state,
+                        }
+                    })
+            })
+        })
+        .collect::<Vec<_>>();
+    edges.sort_by_key(|row| (row.source, row.edge));
+
+    let mut snapshot_values = values
+        .iter()
+        .filter_map(|(value, state)| {
+            let definition = scalar_value_definition(function, *value)?;
+            Some(SccpValueRow {
+                definition,
+                state: match state {
+                    LatticeValue::Unknown => SccpValueState::Unknown,
+                    LatticeValue::Constant(ScalarConstant::Boolean(value), _) => {
+                        SccpValueState::Boolean(*value)
+                    }
+                    LatticeValue::Constant(ScalarConstant::Integer(value), _) => {
+                        SccpValueState::Integer(*value)
+                    }
+                    LatticeValue::Overdefined => SccpValueState::Overdefined,
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    snapshot_values.sort_by_key(|row| row.definition.value);
+    SccpMachineSnapshot {
+        blocks,
+        edges,
+        values: snapshot_values,
+    }
 }
 
 fn scalar_value_definition(

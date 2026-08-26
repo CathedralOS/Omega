@@ -1285,7 +1285,8 @@ pub(crate) mod tests {
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
-        TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
+        TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractParameter,
+        TerminalAbstractResult, TerminalAbstractSuccessor, TerminalValueBinding,
     };
     use psi_core::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ObligationId,
@@ -1384,6 +1385,133 @@ pub(crate) mod tests {
                         operation_offset: 0,
                     }],
                     operations,
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn propagated_block_parameter_unit() -> PsiOptimizationUnit {
+        let machine = id(601, MachineId::new);
+        let entry = id(602, BlockId::new);
+        let when_true = id(603, BlockId::new);
+        let when_false = id(604, BlockId::new);
+        let merge = id(605, BlockId::new);
+        let condition = id(606, ValueId::new);
+        let true_value = id(607, ValueId::new);
+        let false_value = id(608, ValueId::new);
+        let parameter = id(609, ValueId::new);
+        let result = id(610, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let binding = |argument| TerminalValueBinding {
+            parameter,
+            argument,
+            scalar_type,
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([21; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: when_true,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: when_false,
+                            parameters: Vec::new(),
+                            operation_offset: 4,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: merge,
+                            parameters: vec![TerminalAbstractParameter {
+                                value: parameter,
+                                scalar_type,
+                            }],
+                            operation_offset: 6,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: id(611, OperationId::new),
+                            result: condition,
+                            value: true,
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(612, EdgeId::new),
+                                target: when_true,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(613, EdgeId::new),
+                                target: when_false,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(614, OperationId::new),
+                            result: true_value,
+                            scalar_type,
+                            value: IntegerValue::Unsigned(7),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(615, EdgeId::new),
+                            target: merge,
+                            bindings: vec![binding(true_value)],
+                        },
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(616, OperationId::new),
+                            result: false_value,
+                            scalar_type,
+                            value: IntegerValue::Unsigned(8),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(617, EdgeId::new),
+                            target: merge,
+                            bindings: vec![binding(false_value)],
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(618, OperationId::new),
+                            result,
+                            scalar_type: integer,
+                            operand: parameter,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(619, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
                 }],
             },
             FuelScheduleIdentity::new(1).unwrap(),
@@ -2063,6 +2191,24 @@ pub(crate) mod tests {
                 } if value == expected
             ));
         }
+    }
+
+    #[test]
+    fn propagated_block_parameter_fact_is_independently_reconstructed() {
+        let unit = propagated_block_parameter_unit();
+        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+        let candidates = IntegerBitwiseNotConstantsRule
+            .propose(&unit, RuleAnalysisView::new(&[constants]))
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+        assert!(matches!(
+            accepted.unit().functions[0].blocks[3].nodes[0].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: IntegerValue::Unsigned(248),
+                ..
+            }
+        ));
     }
 
     #[test]

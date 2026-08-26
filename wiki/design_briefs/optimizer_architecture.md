@@ -347,6 +347,15 @@ validator—not the rule—reconstructs each fact identity and the arithmetic,
 produces the new unit, and attaches its own validator identity. This establishes
 the pattern future patch variants must follow before they become executable.
 
+For a propagated block parameter, the fact identity additionally binds a
+canonical snapshot of the entire machine's coupled SCCP result: every block's
+reachability, every exact `EdgeId` verdict (including infeasible competitors),
+and every scalar definition's lattice state. The validation crate owns a second
+fixed-point implementation and reconstructs this snapshot without depending on
+the optimizer crate. A digest supplied by the optimizer is therefore only a
+claim; it becomes rewrite evidence only when the validator independently
+derives the identical snapshot and fact identity.
+
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
 It retains the complete verified input context, charges every bounded work
