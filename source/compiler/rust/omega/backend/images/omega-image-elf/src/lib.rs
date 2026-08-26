@@ -7,6 +7,7 @@ use psi_diagnostics::Diagnostic;
 mod bytes;
 mod constants;
 mod dynamic_link;
+mod dynamic_section_bytes;
 mod dynamic_sections;
 mod entry;
 mod headers;
@@ -18,6 +19,10 @@ mod tests;
 
 pub use dynamic_link::{
     ElfDynamicLinkInputPlanningError, PlannedElfDynamicLinkInputs, plan_elf_dynamic_link_inputs,
+};
+pub use dynamic_section_bytes::{
+    ElfDynamicSectionSerializationError, ValidatedElfDynamicSectionPayloads,
+    serialize_elf_dynamic_sections,
 };
 pub use dynamic_sections::{
     ElfDynamicSectionPlanningError, ValidatedElfDynamicSectionPlan, plan_elf_dynamic_sections,
