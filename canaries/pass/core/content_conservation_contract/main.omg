@@ -19,10 +19,10 @@ data SplitResult {
     right: Region in Owned;
 }
 
-pub trait RegionSplit {
+trait RegionSplit {
     machine split(whole: Region in Owned) -> SplitResult
     ensures
-        Owned::content(entry(&whole))
+        Owned::content(old(&whole))
         == separate(
             Owned::content(&result.left),
             Owned::content(&result.right),

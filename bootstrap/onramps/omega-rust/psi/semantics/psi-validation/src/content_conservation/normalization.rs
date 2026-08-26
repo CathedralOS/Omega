@@ -1,5 +1,5 @@
 use super::{
-    algebra_key, domain_label, is_entry_call, is_separate_call, projection_label,
+    algebra_key, domain_label, is_old_call, is_separate_call, projection_label,
     projection_plan_for_call, structural_place_label,
 };
 use psi_language_semantics::content::{
@@ -19,6 +19,7 @@ pub(super) struct NormalizationContext<'program, 'contracts> {
     pub(super) projections: &'program [ContentProjectionPlan],
     pub(super) parameters: &'program [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
+    pub(super) self_data: SymbolHandle,
     pub(super) contracts: &'contracts [&'contracts SignatureContract],
 }
 
@@ -132,10 +133,10 @@ fn normalize_projection_subject(
     projection: &ContentProjectionPlan,
 ) -> Result<ContentStructuralPlace, String> {
     let (version, borrowed) = match context.program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) if is_entry_call(context.program, call) => {
+        ExpressionNode::Call(call) if is_old_call(context.program, call) => {
             if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
                 return Err(
-                    "`entry(place)` is a receiverless compiler-owned proof intrinsic".to_owned(),
+                    "`old(place)` is a receiverless compiler-owned proof intrinsic".to_owned(),
                 );
             }
             let [argument] = context
@@ -144,7 +145,7 @@ fn normalize_projection_subject(
                 .expression_handles(call.arguments)
             else {
                 return Err(
-                    "`entry(place)` requires exactly one parameter, `self`, or structural subplace"
+                    "`old(place)` requires exactly one parameter, `self`, or structural subplace"
                         .to_owned(),
                 );
             };
@@ -168,7 +169,7 @@ fn normalize_projection_subject(
     let (root, root_type) = if root_name == "result" {
         if version == ContentPlaceVersion::Entry {
             return Err(
-                "`entry(result)` is invalid: `result` does not exist at callable entry".to_owned(),
+                "`old(result)` is invalid: `result` does not exist at callable entry".to_owned(),
             );
         }
         if !context.return_type.is_valid() {
@@ -204,7 +205,8 @@ fn normalize_projection_subject(
         )
     };
 
-    let final_type = structural_place_type(context.program, root_type, &mut segments)?;
+    let final_type =
+        structural_place_type(context.program, root_type, &mut segments, context.self_data)?;
     retain_payload_case_segments(context.program, &mut segments);
     let carrier = crate::places::unwrapped_type_reference(context.program, final_type)
         .ok_or_else(|| "the projected structural place has no resolved carrier type".to_owned())?;
@@ -288,7 +290,7 @@ fn collect_structural_place(
             let ExpressionNode::Integer(index) = program.expression_table.expression(indexed.index)
             else {
                 return Err(
-                    "entry/current structural places admit only literal fixed-array indices"
+                    "old/current structural places admit only literal fixed-array indices"
                         .to_owned(),
                 );
             };
@@ -363,8 +365,10 @@ fn structural_place_type(
     program: &TypedTrees,
     mut current: TypeReferenceHandle,
     segments: &mut [ContentPlaceSegment],
+    self_data: SymbolHandle,
 ) -> Result<TypeReferenceHandle, String> {
     let mut active_variant = None;
+    let mut at_root = true;
     for segment in segments {
         let unwrapped = crate::places::unwrapped_type_reference(program, current)
             .ok_or_else(|| "an unresolved type appears in the structural place".to_owned())?;
@@ -374,6 +378,16 @@ fn structural_place_type(
                     return Err("a sum-case path must select a payload field".to_owned());
                 }
                 let data = crate::places::data_definition_for_type(program, unwrapped)
+                    .or_else(|| {
+                        (at_root && self_data.is_valid())
+                            .then(|| {
+                                program
+                                    .data_definitions()
+                                    .iter()
+                                    .find(|data| data.symbol == self_data)
+                            })
+                            .flatten()
+                    })
                     .ok_or_else(|| format!("`{}` is selected from a non-sum carrier", case.name))?;
                 let variant = program
                     .data_members(data)
@@ -399,9 +413,21 @@ fn structural_place_type(
                 active_variant = Some(variant.symbol);
             }
             ContentPlaceSegment::Field(field) => {
-                let data = crate::places::data_definition_for_type(program, unwrapped).ok_or_else(
-                    || format!("`{}` is selected from a non-record carrier", field.name),
-                )?;
+                let direct_data = crate::places::data_definition_for_type(program, unwrapped);
+                let through_attached_self =
+                    direct_data.is_none() && at_root && self_data.is_valid();
+                let data = direct_data
+                    .or_else(|| {
+                        through_attached_self.then_some(()).and_then(|()| {
+                            program
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.symbol == self_data)
+                        })
+                    })
+                    .ok_or_else(|| {
+                        format!("`{}` is selected from a non-record carrier", field.name)
+                    })?;
                 let selected = if let Some(variant_symbol) = active_variant.take() {
                     program.data_members(data).iter().find_map(|member| {
                         let psi_typed_trees::data::DataMember::Variant(variant) = member else {
@@ -439,7 +465,8 @@ fn structural_place_type(
                         data.name, field.name
                     )
                 })?;
-                if field.symbol.is_valid() && field.symbol != field_symbol {
+                if field.symbol.is_valid() && field.symbol != field_symbol && !through_attached_self
+                {
                     return Err(format!(
                         "structural field `{}` does not match its resolved identity",
                         field.name
@@ -463,6 +490,7 @@ fn structural_place_type(
                 };
             }
         }
+        at_root = false;
     }
     if active_variant.is_some() {
         return Err("a sum-case path must select a payload field".to_owned());

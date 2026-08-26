@@ -14,17 +14,8 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
     CountedQuantity { magnitude: embed(region.remaining) }
 }
 
-data SplitResult {
-    left: Region in Owned;
-    right: Region in Owned;
-}
-
-trait InvalidSplit {
-    machine split(whole: Region) -> SplitResult
+trait RetiredEntryContentForm {
+    machine retain(whole: Region in Owned)
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
-        );
+        Owned::content(entry(&whole)) == Owned::content(&whole);
 }

@@ -232,7 +232,7 @@ fn checked_facts_retain_normalized_content_conservation() {
         trait Splitter {
             machine split(whole: Region in Owned) -> SplitResult
             ensures
-                Owned::content(entry(&whole))
+                Owned::content(old(&whole))
                 == separate(
                     Owned::content(&result.right),
                     Owned::content(&result.left),
@@ -299,6 +299,138 @@ fn checked_facts_retain_normalized_content_conservation() {
         })
         .collect::<Vec<_>>();
     assert_eq!(output_fields, ["left", "right"]);
+}
+
+#[test]
+fn old_is_contextual_even_when_a_callable_parameter_has_the_same_name() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: region.length } }
+
+        trait Migration {
+            machine retain(whole: Region in Owned, old: u64)
+            ensures
+                Owned::content(old(&whole)) == Owned::content(&whole);
+        }
+    "#;
+
+    let checked = checked(source);
+    let [plan] = checked
+        .facts
+        .qualifications
+        .content
+        .conservation_plans
+        .as_slice()
+    else {
+        panic!("one contextual old conservation equation")
+    };
+    let ContentConservationTerm::Projection { subject, .. } = plan.equation.left() else {
+        panic!("old projection")
+    };
+    assert_eq!(subject.version, ContentPlaceVersion::Entry);
+    assert!(matches!(
+        subject.root,
+        ContentPlaceRoot::Parameter { position: 0, .. }
+    ));
+}
+
+#[test]
+fn old_retains_an_exact_self_field_place_at_callable_entry() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: region.length } }
+
+        data Store { region: Region in Owned; }
+        machine Store::retain(&mut self)
+        ensures
+            Owned::content(old(&self.region)) == Owned::content(&self.region)
+        {}
+    "#;
+
+    let checked = checked(source);
+    let [plan] = checked
+        .facts
+        .qualifications
+        .content
+        .conservation_plans
+        .as_slice()
+    else {
+        panic!("one self-field old conservation equation")
+    };
+    let ContentConservationTerm::Projection { subject, .. } = plan.equation.left() else {
+        panic!("old self-field projection")
+    };
+    assert_eq!(subject.version, ContentPlaceVersion::Entry);
+    assert!(matches!(
+        subject.root,
+        ContentPlaceRoot::Parameter {
+            position: 0,
+            is_self: true,
+            ..
+        }
+    ));
+    assert!(matches!(
+        subject.segments.as_slice(),
+        [ContentPlaceSegment::Field(field)] if field.name == "region" && field.symbol.is_valid()
+    ));
+}
+
+#[test]
+fn old_rejects_result_local_computed_and_retired_entry_operands() {
+    let diagnostics = rejected(
+        r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> { machine project(subject: &Self) -> A; }
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        { CountedQuantity { magnitude: region.length } }
+
+        trait InvalidOldOperands {
+            machine result_operand(whole: Region in Owned)
+            ensures
+                Owned::content(old(&result)) == Owned::content(&whole);
+            machine local_operand(whole: Region in Owned)
+            ensures
+                Owned::content(old(&scratch)) == Owned::content(&whole);
+            machine computed_operand(whole: Region in Owned)
+            ensures
+                Owned::content(old(&whole.length + 1)) == Owned::content(&whole);
+            machine retired_entry_operand(whole: Region in Owned)
+            ensures
+                Owned::content(entry(&whole)) == Owned::content(&whole);
+        }
+        "#,
+    );
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(rendered.contains("`old(result)` is invalid"), "{rendered}");
+    assert!(
+        rendered.contains("projection root `scratch` is not a callable parameter"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("is not a parameter, `self`, `result`, or structural subplace"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("entry(whole)"), "{rendered}");
 }
 
 #[test]
@@ -467,7 +599,7 @@ fn retained_content_custody_accepts_exact_authored_source_correspondence() {
             ) -> PendingWrite
             ensures
                 result in PendingWrite::Retained
-                Owned::content(entry(&selected)) == Retained::content(&result);
+                Owned::content(old(&selected)) == Retained::content(&result);
         }
         "#,
     );
@@ -498,7 +630,7 @@ fn retained_content_custody_rejects_authored_borrow_correspondence() {
             machine submit(buffer: &Buffer in Buffer::Owned) -> PendingWrite
             ensures
                 result in PendingWrite::Retained
-                Owned::content(entry(&buffer)) == Retained::content(&result);
+                Owned::content(old(&buffer)) == Retained::content(&result);
         }
         "#,
     );
@@ -641,8 +773,8 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
             ) -> Pair
             ensures
                 separate(
-                    Owned::content(entry(&left)),
-                    Owned::content(entry(&right)),
+                    Owned::content(old(&left)),
+                    Owned::content(old(&right)),
                 )
                 == separate(
                     Owned::content(&result.left),
@@ -771,8 +903,8 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             ) -> Pair
             ensures
                 separate(
-                    Owned::content(entry(&left)),
-                    Owned::content(entry(&right)),
+                    Owned::content(old(&left)),
+                    Owned::content(old(&right)),
                 )
                 == separate(
                     Owned::content(&result.left),
@@ -783,8 +915,8 @@ fn checked_facts_compose_partitions_through_exact_staged_result_rewrites() {
             machine partition(pair: Pair) -> Pair
             ensures
                 separate(
-                    Owned::content(entry(&pair.left)),
-                    Owned::content(entry(&pair.right)),
+                    Owned::content(old(&pair.left)),
+                    Owned::content(old(&pair.right)),
                 )
                 == separate(
                     Owned::content(&result.left),
@@ -1000,8 +1132,8 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
             machine partition(pair: [Region in Owned; 2]) -> Pair
             ensures
                 separate(
-                    Owned::content(entry(&pair[0])),
-                    Owned::content(entry(&pair[1])),
+                    Owned::content(old(&pair[0])),
+                    Owned::content(old(&pair[1])),
                 )
                 == separate(
                     Owned::content(&result.left),
@@ -1012,8 +1144,8 @@ fn checked_facts_compose_partitions_through_exact_array_and_case_arguments() {
             machine partition(pair: SumPair) -> Pair
             ensures
                 separate(
-                    Owned::content(entry(&pair.left)),
-                    Owned::content(entry(&pair.right)),
+                    Owned::content(old(&pair.left)),
+                    Owned::content(old(&pair.right)),
                 )
                 == separate(
                     Owned::content(&result.left),
