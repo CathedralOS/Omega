@@ -1,9 +1,9 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::artifacts::{
-    remove_stale_phase_diagrams, write_backend_report, write_checked_snapshot,
-    write_control_flow_snapshot, write_emission_plan, write_pipeline_index, write_pipeline_shell,
-    write_program_storage_entry_snapshot, write_resolved_snapshot, write_state_graph_snapshot,
-    write_syntax_snapshot, write_timings, write_typed_snapshot,
+    FinalPipelineObservation, remove_stale_phase_diagrams, write_backend_report,
+    write_checked_snapshot, write_control_flow_snapshot, write_final_pipeline_observations,
+    write_pipeline_index, write_resolved_snapshot, write_state_graph_snapshot,
+    write_syntax_snapshot, write_typed_snapshot,
 };
 use crate::pipeline::boundary_report::{
     write_boundary_report, write_boundary_report_with_capabilities,
@@ -578,9 +578,11 @@ impl Compiler {
         if self.requested_product == RequestedCompileProduct::Check
             && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
         {
-            if emit_auxiliary_artifacts {
-                write_pipeline_shell(&self.options)?;
-            }
+            write_final_pipeline_observations(
+                &self.options,
+                self.artifact_policy,
+                FinalPipelineObservation::CheckedOnly,
+            )?;
             return LegacyCompilerOutputCustody::unpublished()
                 .into_compile_report(
                     self.options.root_path,
@@ -677,14 +679,16 @@ impl Compiler {
         if retains_native_artifact {
             let artifact = super::RetainedNativeArtifact::checked(emission_plan, emitted)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
-            if emit_auxiliary_artifacts {
-                if let Some(bridge) = &program_storage_entry_bridge {
-                    write_program_storage_entry_snapshot(&self.options, bridge)?;
-                }
-                write_emission_plan(&self.options, &backend.plan, artifact.emission_plan(), None)?;
-                write_timings(&self.options, timings.as_slice())?;
-                write_pipeline_shell(&self.options)?;
-            }
+            write_final_pipeline_observations(
+                &self.options,
+                self.artifact_policy,
+                FinalPipelineObservation::RetainedNative {
+                    backend: &backend.plan,
+                    emission: artifact.emission_plan(),
+                    storage_bridge: program_storage_entry_bridge.as_ref(),
+                    timings: timings.as_slice(),
+                },
+            )?;
             return CompileReport::from_retained_native_artifact(
                 self.options.root_path,
                 source_file_count,
@@ -715,33 +719,28 @@ impl Compiler {
                 },
             )?;
             let output = LegacyCompilerOutputCustody::written(written_output);
-            if emit_auxiliary_artifacts {
-                if let Some(bridge) = &program_storage_entry_bridge {
-                    write_program_storage_entry_snapshot(&self.options, bridge)?;
-                }
-                write_emission_plan(
-                    &self.options,
-                    &backend.plan,
-                    &emission_plan,
-                    Some(
-                        output
-                            .output_path()
-                            .expect("written compiler output retains its exact destination"),
-                    ),
-                )?;
-                write_timings(&self.options, timings.as_slice())?;
-            }
             output
-        } else if emit_auxiliary_artifacts {
-            write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
-            LegacyCompilerOutputCustody::unpublished()
         } else {
             LegacyCompilerOutputCustody::unpublished()
         };
 
-        if emit_auxiliary_artifacts {
-            write_pipeline_shell(&self.options)?;
-        }
+        let final_observation = if installs_output {
+            FinalPipelineObservation::InstalledOutput {
+                backend: &backend.plan,
+                emission: &emission_plan,
+                storage_bridge: program_storage_entry_bridge.as_ref(),
+                output_path: output
+                    .output_path()
+                    .expect("written compiler output retains its exact destination"),
+                timings: timings.as_slice(),
+            }
+        } else {
+            FinalPipelineObservation::UnpublishedNative {
+                backend: &backend.plan,
+                emission: &emission_plan,
+            }
+        };
+        write_final_pipeline_observations(&self.options, self.artifact_policy, final_observation)?;
 
         output
             .into_compile_report(
