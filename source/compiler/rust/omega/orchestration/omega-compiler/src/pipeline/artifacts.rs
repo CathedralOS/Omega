@@ -1,9 +1,174 @@
-use crate::pipeline::compile_options::CompileOptions;
+use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
 use psi_diagnostics::Diagnostic;
 use std::path::Path;
+
+pub(super) enum FinalPipelineObservation<'a> {
+    CheckedOnly,
+    RetainedNative {
+        backend: &'a omega_backend_plan::BackendPlan,
+        emission: &'a omega_artifacts::EmissionPlan,
+        storage_bridge: Option<&'a super::ProgramStorageEntryNativeBridgePlan>,
+        timings: &'a [PhaseTiming],
+    },
+    InstalledOutput {
+        backend: &'a omega_backend_plan::BackendPlan,
+        emission: &'a omega_artifacts::EmissionPlan,
+        storage_bridge: Option<&'a super::ProgramStorageEntryNativeBridgePlan>,
+        output_path: &'a Path,
+        timings: &'a [PhaseTiming],
+    },
+    UnpublishedNative {
+        backend: &'a omega_backend_plan::BackendPlan,
+        emission: &'a omega_artifacts::EmissionPlan,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FinalPipelineObservationDisposition<'a> {
+    CheckedOnly,
+    RetainedNative {
+        has_storage_bridge: bool,
+    },
+    InstalledOutput {
+        has_storage_bridge: bool,
+        output_path: &'a Path,
+    },
+    UnpublishedNative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FinalPipelineObservationStep<'a> {
+    ProgramStorageEntry,
+    Emission { output_path: Option<&'a Path> },
+    Timings,
+    PipelineShell,
+}
+
+fn final_pipeline_observation_steps<'a>(
+    policy: ArtifactEmissionPolicy,
+    disposition: FinalPipelineObservationDisposition<'a>,
+) -> Vec<FinalPipelineObservationStep<'a>> {
+    if !policy.emits_auxiliary_artifacts() {
+        return Vec::new();
+    }
+
+    match disposition {
+        FinalPipelineObservationDisposition::CheckedOnly => {
+            vec![FinalPipelineObservationStep::PipelineShell]
+        }
+        FinalPipelineObservationDisposition::RetainedNative { has_storage_bridge } => {
+            let mut steps = Vec::with_capacity(4);
+            if has_storage_bridge {
+                steps.push(FinalPipelineObservationStep::ProgramStorageEntry);
+            }
+            steps.extend([
+                FinalPipelineObservationStep::Emission { output_path: None },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]);
+            steps
+        }
+        FinalPipelineObservationDisposition::InstalledOutput {
+            has_storage_bridge,
+            output_path,
+        } => {
+            let mut steps = Vec::with_capacity(4);
+            if has_storage_bridge {
+                steps.push(FinalPipelineObservationStep::ProgramStorageEntry);
+            }
+            steps.extend([
+                FinalPipelineObservationStep::Emission {
+                    output_path: Some(output_path),
+                },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]);
+            steps
+        }
+        FinalPipelineObservationDisposition::UnpublishedNative => vec![
+            FinalPipelineObservationStep::Emission { output_path: None },
+            FinalPipelineObservationStep::PipelineShell,
+        ],
+    }
+}
+
+pub(super) fn write_final_pipeline_observations(
+    options: &CompileOptions,
+    policy: ArtifactEmissionPolicy,
+    observation: FinalPipelineObservation<'_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let disposition = match &observation {
+        FinalPipelineObservation::CheckedOnly => FinalPipelineObservationDisposition::CheckedOnly,
+        FinalPipelineObservation::RetainedNative { storage_bridge, .. } => {
+            FinalPipelineObservationDisposition::RetainedNative {
+                has_storage_bridge: storage_bridge.is_some(),
+            }
+        }
+        FinalPipelineObservation::InstalledOutput {
+            storage_bridge,
+            output_path,
+            ..
+        } => FinalPipelineObservationDisposition::InstalledOutput {
+            has_storage_bridge: storage_bridge.is_some(),
+            output_path,
+        },
+        FinalPipelineObservation::UnpublishedNative { .. } => {
+            FinalPipelineObservationDisposition::UnpublishedNative
+        }
+    };
+
+    for step in final_pipeline_observation_steps(policy, disposition) {
+        match step {
+            FinalPipelineObservationStep::ProgramStorageEntry => {
+                let bridge = match &observation {
+                    FinalPipelineObservation::RetainedNative {
+                        storage_bridge: Some(bridge),
+                        ..
+                    }
+                    | FinalPipelineObservation::InstalledOutput {
+                        storage_bridge: Some(bridge),
+                        ..
+                    } => bridge,
+                    _ => unreachable!(
+                        "final observation roster requested an absent program-storage bridge"
+                    ),
+                };
+                write_program_storage_entry_snapshot(options, bridge)?;
+            }
+            FinalPipelineObservationStep::Emission { output_path } => {
+                let (backend, emission) = match &observation {
+                    FinalPipelineObservation::RetainedNative {
+                        backend, emission, ..
+                    }
+                    | FinalPipelineObservation::InstalledOutput {
+                        backend, emission, ..
+                    }
+                    | FinalPipelineObservation::UnpublishedNative {
+                        backend, emission, ..
+                    } => (backend, emission),
+                    FinalPipelineObservation::CheckedOnly => {
+                        unreachable!("checked-only observation roster requested native emission")
+                    }
+                };
+                write_emission_plan(options, backend, emission, output_path)?;
+            }
+            FinalPipelineObservationStep::Timings => {
+                let timings = match &observation {
+                    FinalPipelineObservation::RetainedNative { timings, .. }
+                    | FinalPipelineObservation::InstalledOutput { timings, .. } => timings,
+                    _ => unreachable!("final observation roster requested absent timings"),
+                };
+                write_timings(options, timings)?;
+            }
+            FinalPipelineObservationStep::PipelineShell => write_pipeline_shell(options)?,
+        }
+    }
+
+    Ok(())
+}
 
 pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
@@ -1028,4 +1193,120 @@ fn json_diagnostic(error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "failed to serialize phase snapshot: {error}"
     ))]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_only_suppresses_every_final_observation_roster() {
+        let output_path = Path::new("exact-output");
+        for disposition in [
+            FinalPipelineObservationDisposition::CheckedOnly,
+            FinalPipelineObservationDisposition::RetainedNative {
+                has_storage_bridge: true,
+            },
+            FinalPipelineObservationDisposition::InstalledOutput {
+                has_storage_bridge: true,
+                output_path,
+            },
+            FinalPipelineObservationDisposition::UnpublishedNative,
+        ] {
+            assert!(
+                final_pipeline_observation_steps(ArtifactEmissionPolicy::OutputOnly, disposition,)
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn full_checked_and_unpublished_rosters_preserve_their_distinct_boundaries() {
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::CheckedOnly,
+            ),
+            [FinalPipelineObservationStep::PipelineShell]
+        );
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::UnpublishedNative,
+            ),
+            [
+                FinalPipelineObservationStep::Emission { output_path: None },
+                FinalPipelineObservationStep::PipelineShell,
+            ]
+        );
+    }
+
+    #[test]
+    fn retained_native_roster_observes_only_a_present_storage_bridge() {
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::RetainedNative {
+                    has_storage_bridge: true,
+                },
+            ),
+            [
+                FinalPipelineObservationStep::ProgramStorageEntry,
+                FinalPipelineObservationStep::Emission { output_path: None },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]
+        );
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::RetainedNative {
+                    has_storage_bridge: false,
+                },
+            ),
+            [
+                FinalPipelineObservationStep::Emission { output_path: None },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]
+        );
+    }
+
+    #[test]
+    fn installed_output_roster_retains_the_exact_path_and_optional_bridge() {
+        let output_path = Path::new("exact-output");
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::InstalledOutput {
+                    has_storage_bridge: true,
+                    output_path,
+                },
+            ),
+            [
+                FinalPipelineObservationStep::ProgramStorageEntry,
+                FinalPipelineObservationStep::Emission {
+                    output_path: Some(output_path),
+                },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]
+        );
+        assert_eq!(
+            final_pipeline_observation_steps(
+                ArtifactEmissionPolicy::Full,
+                FinalPipelineObservationDisposition::InstalledOutput {
+                    has_storage_bridge: false,
+                    output_path,
+                },
+            ),
+            [
+                FinalPipelineObservationStep::Emission {
+                    output_path: Some(output_path),
+                },
+                FinalPipelineObservationStep::Timings,
+                FinalPipelineObservationStep::PipelineShell,
+            ]
+        );
+    }
 }
