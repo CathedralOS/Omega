@@ -12,8 +12,18 @@ use omega_compiler::{
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
-use psi_access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
+use psi_access_plans::{
+    AccessExposure, AtomicCapability, BoundaryReach, ExternalCapability, ExternalRead, FieldAccess,
+    ObservationModel, PlacementAdmissionId, ResourceProfile, ResourceProfileGrant,
+    ResourceProfileReceiptId, ResourceRegion, StableCapability, admit_owned_placement,
+    adopt_owned_stable,
+};
 use psi_core::PackageKeyIdentity;
+use psi_extents::{
+    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentInterpretationId,
+    ExtentContentValidityReceiptId, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
+    ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId, ResidentClaimId,
+};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory =
@@ -27,6 +37,33 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 
 fn package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
+}
+
+fn extent_identity<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+) -> T {
+    constructor(identity).expect("nonzero normalized extent identity")
+}
+
+fn provider_issuance(seed: u64) -> ExtentProviderIssuance {
+    let base = seed * 16;
+    ExtentProviderIssuance::from_normalized_identities([
+        base + 1,
+        base + 2,
+        base + 3,
+        base + 4,
+        base + 5,
+        base + 6,
+        base + 7,
+        base + 8,
+        base + 9,
+        base + 10,
+        base + 11,
+        base + 12,
+        base + 13,
+    ])
+    .expect("normalized provider issuance")
 }
 
 fn write_cross_package_program(name: &str, consumer: &str) -> (PathBuf, PackageCompilationInputs) {
@@ -1646,4 +1683,249 @@ fn access_evaluation_rejects_a_forged_layout_report() {
         error.contains("is not the canonical validated layout"),
         "unexpected diagnostic: {error}"
     );
+}
+
+#[test]
+fn source_derived_stable_plan_binds_owned_content_and_preserves_retry_custody() {
+    let main = write_program(
+        "source-stable-owned-adoption",
+        r#"
+use omega::language::core::layout;
+
+pub data Word {
+    word: u32;
+}
+
+pub data HomePlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine HomePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::Stable {
+                read: true,
+                write: true,
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+pub data ShiftedPlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine ShiftedPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::Stable {
+                read: true,
+                write: true,
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+machine retain_source_plans(
+    home: &Placed<HomePlacement, Word>,
+    shifted: &Placed<ShiftedPlacement, Word>
+) {}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(&main, None)
+        .expect("both source-derived Stable placements should reach checked custody");
+    let home = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "HomePlacement")
+        .expect("home checked placement row");
+    let shifted = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "ShiftedPlacement")
+        .expect("shifted checked placement row");
+    assert_ne!(home.policy_symbol, shifted.policy_symbol);
+    assert_ne!(home.placement.identity(), shifted.placement.identity());
+    assert_eq!(home.placement.layout().size, Some(8));
+    assert_eq!(shifted.placement.layout().size, Some(8));
+
+    let rights = ExtentRights::from_normalized_identities([extent_identity(
+        401,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let (extent, content) = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(25),
+        extent_identity(402, ExtentLineageId::from_normalized_identity),
+        extent_identity(403, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(404, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(405, MappingEraId::from_normalized_identity),
+    )
+    .mint_provider_existing_content(
+        0x8000,
+        8,
+        extent_identity(
+            home.placement.identity().normalized_identity(),
+            ExtentContentInterpretationId::from_normalized_identity,
+        ),
+        extent_identity(406, ResidentClaimId::from_normalized_identity),
+        extent_identity(
+            407,
+            ExtentContentValidityReceiptId::from_normalized_identity,
+        ),
+        extent_identity(408, ExtentContentCustodyReceiptId::from_normalized_identity),
+    )
+    .expect("provider-owned existing Stable content");
+    let extent_snapshot = (
+        extent.origin(),
+        extent.lineage_root(),
+        extent.base(),
+        extent.length(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    );
+    let content_snapshot = (
+        content.origin(),
+        content.lineage_root(),
+        content.base(),
+        content.length(),
+        content.address_space(),
+        content.provenance(),
+        content.era(),
+        content.interpretation(),
+        content.resident_claim(),
+        content.validity_receipt(),
+        content.custody_receipt(),
+    );
+    let profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(409).expect("profile receipt"),
+        &extent,
+        rights,
+        BoundaryReach::default(),
+    )
+    .expect("provider profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 8,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted Stable profile");
+    let admission_id =
+        PlacementAdmissionId::from_normalized_identity(410).expect("placement admission");
+    let mismatched = admit_owned_placement(admission_id, extent, &shifted.placement, &profile)
+        .expect("shifted placement is independently geometry/resource compatible");
+    let rejection = adopt_owned_stable(mismatched, content)
+        .expect_err("provider content must bind the exact checked source placement");
+    assert!(
+        rejection
+            .diagnostic()
+            .0
+            .contains("interpretation does not match the admitted placement")
+    );
+    let (returned_admission, returned_content, _) = rejection.into_parts();
+    assert_eq!(returned_admission.identity(), admission_id);
+    assert_eq!(returned_admission.placement_plan(), &shifted.placement);
+    assert_eq!(
+        (
+            returned_admission.extent().origin(),
+            returned_admission.extent().lineage_root(),
+            returned_admission.extent().base(),
+            returned_admission.extent().length(),
+            returned_admission.extent().address_space(),
+            returned_admission.extent().rights().clone(),
+            returned_admission.extent().provenance(),
+            returned_admission.extent().era(),
+        ),
+        extent_snapshot,
+    );
+    assert_eq!(
+        (
+            returned_content.origin(),
+            returned_content.lineage_root(),
+            returned_content.base(),
+            returned_content.length(),
+            returned_content.address_space(),
+            returned_content.provenance(),
+            returned_content.era(),
+            returned_content.interpretation(),
+            returned_content.resident_claim(),
+            returned_content.validity_receipt(),
+            returned_content.custody_receipt(),
+        ),
+        content_snapshot,
+    );
+
+    let returned_extent = returned_admission.withdraw();
+    let corrected = admit_owned_placement(admission_id, returned_extent, &home.placement, &profile)
+        .expect("the returned exact extent supports corrected admission");
+    let dormant = adopt_owned_stable(corrected, returned_content)
+        .expect("returned content supports exact source-plan retry");
+    assert_eq!(dormant.admission(), admission_id);
+    assert_eq!(dormant.placement_plan(), &home.placement);
+    assert_eq!(
+        (
+            dormant.extent().origin(),
+            dormant.extent().lineage_root(),
+            dormant.extent().base(),
+            dormant.extent().length(),
+            dormant.extent().address_space(),
+            dormant.extent().rights().clone(),
+            dormant.extent().provenance(),
+            dormant.extent().era(),
+        ),
+        extent_snapshot,
+    );
+    assert_eq!(dormant.resident_claim(), content_snapshot.8);
+    assert_eq!(dormant.validity_receipt(), content_snapshot.9);
+    assert_eq!(dormant.custody_receipt(), content_snapshot.10);
 }
