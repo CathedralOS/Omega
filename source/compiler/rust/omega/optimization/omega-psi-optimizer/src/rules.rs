@@ -151,6 +151,30 @@ integer_evaluation_rule!(
     IntegerBinaryKind::SaturatingRemainder,
     OptimizationSafetyClass::ProofCertified
 );
+integer_evaluation_rule!(
+    ExactIntegerShiftLeftConstantsRule,
+    b"omega.psi-rule.exact-integer-shift-left-constants.v1",
+    IntegerBinaryKind::ExactShiftLeft,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    ExactIntegerShiftRightConstantsRule,
+    b"omega.psi-rule.exact-integer-shift-right-constants.v1",
+    IntegerBinaryKind::ExactShiftRight,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    WrappingIntegerShiftLeftConstantsRule,
+    b"omega.psi-rule.wrapping-integer-shift-left-constants.v1",
+    IntegerBinaryKind::WrappingShiftLeft,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    WrappingIntegerShiftRightConstantsRule,
+    b"omega.psi-rule.wrapping-integer-shift-right-constants.v1",
+    IntegerBinaryKind::WrappingShiftRight,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
 
 fn propose_integer_binary_constants(
     unit: &PsiOptimizationUnit,
@@ -231,6 +255,7 @@ struct IntegerBinaryShape {
     scalar_type: psi_core::IntegerType,
     left: ValueId,
     right: ValueId,
+    count_type: Option<psi_core::IntegerType>,
     kind: IntegerBinaryKind,
 }
 
@@ -251,6 +276,10 @@ enum IntegerBinaryKind {
     WrappingRemainder,
     SaturatingDivide,
     SaturatingRemainder,
+    ExactShiftLeft,
+    ExactShiftRight,
+    WrappingShiftLeft,
+    WrappingShiftRight,
 }
 
 impl IntegerBinaryShape {
@@ -271,11 +300,111 @@ impl IntegerBinaryShape {
             IntegerBinaryKind::WrappingRemainder => self.scalar_type.wrapping_rem(left, right),
             IntegerBinaryKind::SaturatingDivide => self.scalar_type.saturating_div(left, right),
             IntegerBinaryKind::SaturatingRemainder => self.scalar_type.saturating_rem(left, right),
+            IntegerBinaryKind::ExactShiftLeft => self.scalar_type.exact_shift_left(
+                left,
+                self.count_type.expect("shift count type"),
+                right,
+            ),
+            IntegerBinaryKind::ExactShiftRight => self.scalar_type.exact_shift_right(
+                left,
+                self.count_type.expect("shift count type"),
+                right,
+            ),
+            IntegerBinaryKind::WrappingShiftLeft => self.scalar_type.wrapping_shift_left(
+                left,
+                self.count_type.expect("shift count type"),
+                right,
+            ),
+            IntegerBinaryKind::WrappingShiftRight => self.scalar_type.wrapping_shift_right(
+                left,
+                self.count_type.expect("shift count type"),
+                right,
+            ),
         }
     }
 }
 
 fn integer_binary_shape(operation: &O) -> Option<IntegerBinaryShape> {
+    let shift = match operation {
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => Some((
+            *psi_operation,
+            *result,
+            *value_type,
+            *count_type,
+            *value,
+            *count,
+            IntegerBinaryKind::ExactShiftLeft,
+        )),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => Some((
+            *psi_operation,
+            *result,
+            *value_type,
+            *count_type,
+            *value,
+            *count,
+            IntegerBinaryKind::ExactShiftRight,
+        )),
+        O::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => Some((
+            *psi_operation,
+            *result,
+            *value_type,
+            *count_type,
+            *value,
+            *count,
+            IntegerBinaryKind::WrappingShiftLeft,
+        )),
+        O::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => Some((
+            *psi_operation,
+            *result,
+            *value_type,
+            *count_type,
+            *value,
+            *count,
+            IntegerBinaryKind::WrappingShiftRight,
+        )),
+        _ => None,
+    };
+    if let Some((source, result, scalar_type, count_type, left, right, kind)) = shift {
+        return Some(IntegerBinaryShape {
+            source,
+            result,
+            scalar_type,
+            left,
+            right,
+            count_type: Some(count_type),
+            kind,
+        });
+    }
     let (source, result, scalar_type, left, right, kind) = match operation {
         O::ExactIntegerAdd {
             psi_operation,
@@ -504,6 +633,7 @@ fn integer_binary_shape(operation: &O) -> Option<IntegerBinaryShape> {
         scalar_type,
         left,
         right,
+        count_type: None,
         kind,
     })
 }
@@ -550,6 +680,10 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(WrappingIntegerRemainderConstantsRule));
         rules.push(Arc::new(SaturatingIntegerDivideConstantsRule));
         rules.push(Arc::new(SaturatingIntegerRemainderConstantsRule));
+        rules.push(Arc::new(ExactIntegerShiftLeftConstantsRule));
+        rules.push(Arc::new(ExactIntegerShiftRightConstantsRule));
+        rules.push(Arc::new(WrappingIntegerShiftLeftConstantsRule));
+        rules.push(Arc::new(WrappingIntegerShiftRightConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -729,6 +863,103 @@ pub(crate) mod tests {
         policy_add_unit(false)
     }
 
+    #[derive(Clone, Copy)]
+    enum ShiftFixtureKind {
+        ExactLeft,
+        ExactRight,
+        WrappingLeft,
+        WrappingRight,
+    }
+
+    fn shift_unit(kind: ShiftFixtureKind, value: u128, count: u128) -> PsiOptimizationUnit {
+        let mut unit = exact_add_unit();
+        let function = &mut unit.functions[0];
+        let block = &mut function.blocks[0];
+        let O::IntegerConstant {
+            value: left_value, ..
+        } = &mut block.nodes[0].operation
+        else {
+            unreachable!()
+        };
+        *left_value = IntegerValue::Unsigned(value);
+        let O::IntegerConstant {
+            value: right_value, ..
+        } = &mut block.nodes[1].operation
+        else {
+            unreachable!()
+        };
+        *right_value = IntegerValue::Unsigned(count);
+        let O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } = block.nodes[2].operation
+        else {
+            unreachable!()
+        };
+        block.nodes[2].operation = match kind {
+            ShiftFixtureKind::ExactLeft => O::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+            ShiftFixtureKind::ExactRight => O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+            ShiftFixtureKind::WrappingLeft => O::WrappingIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+            ShiftFixtureKind::WrappingRight => O::WrappingIntegerShiftRight {
+                psi_operation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+        };
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[0] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(value);
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[1] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(count);
+        if matches!(
+            kind,
+            ShiftFixtureKind::WrappingLeft | ShiftFixtureKind::WrappingRight
+        ) {
+            function.facts.truncate(2);
+        }
+        unit.identity =
+            omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(match kind {
+                ShiftFixtureKind::ExactLeft => b"exact-shift-left-fixture",
+                ShiftFixtureKind::ExactRight => b"exact-shift-right-fixture",
+                ShiftFixtureKind::WrappingLeft => b"wrapping-shift-left-fixture",
+                ShiftFixtureKind::WrappingRight => b"wrapping-shift-right-fixture",
+            });
+        unit
+    }
+
     fn exact_divide_unit(zero_divisor: bool) -> PsiOptimizationUnit {
         let mut unit = exact_add_unit();
         let function = &mut unit.functions[0];
@@ -781,7 +1012,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 15);
+        assert_eq!(registry.len(), 19);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -856,6 +1087,77 @@ pub(crate) mod tests {
         assert!(
             ExactIntegerDivideConstantsRule
                 .propose(&zero, RuleAnalysisView::new(&[constants]))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn exact_and_wrapping_shift_rules_use_psi_integer_semantics() {
+        let cases: [(ShiftFixtureKind, &dyn PsiOptimizationRule, u128, u128, u128); 4] = [
+            (
+                ShiftFixtureKind::ExactLeft,
+                &ExactIntegerShiftLeftConstantsRule,
+                7,
+                2,
+                28,
+            ),
+            (
+                ShiftFixtureKind::ExactRight,
+                &ExactIntegerShiftRightConstantsRule,
+                7,
+                2,
+                1,
+            ),
+            (
+                ShiftFixtureKind::WrappingLeft,
+                &WrappingIntegerShiftLeftConstantsRule,
+                250,
+                2,
+                232,
+            ),
+            (
+                ShiftFixtureKind::WrappingRight,
+                &WrappingIntegerShiftRightConstantsRule,
+                250,
+                2,
+                62,
+            ),
+        ];
+        for (kind, rule, value, count, expected) in cases {
+            let unit = shift_unit(kind, value, count);
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let candidates = rule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            let expected_safety = if matches!(
+                kind,
+                ShiftFixtureKind::ExactLeft | ShiftFixtureKind::ExactRight
+            ) {
+                OptimizationSafetyClass::ProofCertified
+            } else {
+                OptimizationSafetyClass::ExactOperationSemantics
+            };
+            assert_eq!(candidates[0].safety_class(), expected_safety);
+            let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[2].operation,
+                TerminalAbstractOperation::IntegerConstant {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } if value == expected
+            ));
+        }
+    }
+
+    #[test]
+    fn exact_shift_left_declines_an_overflowing_constant_evaluation() {
+        let unit = shift_unit(ShiftFixtureKind::ExactLeft, 250, 2);
+        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+        assert!(
+            ExactIntegerShiftLeftConstantsRule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
                 .unwrap()
                 .is_empty()
         );

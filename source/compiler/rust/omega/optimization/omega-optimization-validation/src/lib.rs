@@ -297,7 +297,7 @@ pub fn validate_psi_optimization_unit(
     Ok(())
 }
 
-/// Independently check and construct one exact integer-evaluation rewrite.
+/// Independently check and construct one integer-evaluation rewrite.
 /// The proposing rule never receives a mutable unit and cannot construct the
 /// accepted output itself.
 pub fn validate_integer_evaluation_candidate(
@@ -351,7 +351,7 @@ pub fn validate_integer_evaluation_candidate(
     }
 
     let (source_operation, result, scalar_type, left, right, evaluated, safety_class) =
-        evaluate_exact_binary(function, node, candidate)?;
+        evaluate_integer_binary(function, node, candidate)?;
     if candidate.safety_class() != safety_class {
         return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
     }
@@ -453,7 +453,7 @@ fn same_closed_scalar_observation(input: &PsiNodeObservation, output: &PsiNodeOb
         && input.events == output.events
 }
 
-fn evaluate_exact_binary(
+fn evaluate_integer_binary(
     function: &PsiOptimizationFunction,
     node: &omega_optimization_unit::OptimizationNode,
     candidate: &PsiRewriteCandidate,
@@ -486,6 +486,10 @@ fn evaluate_exact_binary(
         WrappingRemainder,
         SaturatingDivide,
         SaturatingRemainder,
+        ExactShiftLeft(psi_core::IntegerType),
+        ExactShiftRight(psi_core::IntegerType),
+        WrappingShiftLeft(psi_core::IntegerType),
+        WrappingShiftRight(psi_core::IntegerType),
     }
     let (kind, source, result, scalar_type, left, right) = match &node.operation {
         O::ExactIntegerAdd {
@@ -707,6 +711,68 @@ fn evaluate_exact_binary(
             *left,
             *right,
         ),
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => (
+            IntegerOperation::ExactShiftLeft(*count_type),
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            *count,
+        ),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => (
+            IntegerOperation::ExactShiftRight(*count_type),
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            *count,
+        ),
+        O::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IntegerOperation::WrappingShiftLeft(*count_type),
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            *count,
+        ),
+        O::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IntegerOperation::WrappingShiftRight(*count_type),
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            *count,
+        ),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let witness = candidate.witness();
@@ -774,6 +840,22 @@ fn evaluate_exact_binary(
         IntegerOperation::SaturatingRemainder => (
             scalar_type.saturating_rem(left_value, right_value),
             OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::ExactShiftLeft(count_type) => (
+            scalar_type.exact_shift_left(left_value, count_type, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::ExactShiftRight(count_type) => (
+            scalar_type.exact_shift_right(left_value, count_type, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::WrappingShiftLeft(count_type) => (
+            scalar_type.wrapping_shift_left(left_value, count_type, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::WrappingShiftRight(count_type) => (
+            scalar_type.wrapping_shift_right(left_value, count_type, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
         ),
     };
     let evaluated =

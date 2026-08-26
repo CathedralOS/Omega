@@ -33,11 +33,13 @@ pub use registry::{
 pub use rules::{
     ExactIntegerAddConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
+    ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
     WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
     WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
+    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
     WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
 };
 
