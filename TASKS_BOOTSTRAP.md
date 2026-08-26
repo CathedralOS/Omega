@@ -239,6 +239,18 @@ byte ABI. The first payload-sum tranche remains unblocked by excluding explicit
 discriminants and deriving one bridge-private layout from the checked
 declaration graph.
 
+The language guide specifies exact nominal provider selection and says target
+packages contribute defaults, but it does not specify the product source's
+current `Owner::provider_defaults(defaults: &mut Owner)` declaration convention.
+The Rust on-ramp recognizes that name suffix and scans the body for
+`select_provider`; that implementation convention is not language authority.
+The product owner must either rewrite target defaults into an already-normative
+`Build::select_provider<Service, Provider>` surface or publish the declaration,
+receiver, target-scope, and duplicate/default precedence rules. Until then the
+bridge may retain that spelling as opaque custody or use it in an explicitly
+bounded cost fixture, but it must not claim general provider-default selection
+semantics from it.
+
 ## External contract dependency
 
 The compilation-authority join is separately waiting on the package/security
@@ -360,7 +372,7 @@ evidence stay in
 | --- | --- | --- |
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
-| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; do not import general boundary traits into Delta |
+| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
 | generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
@@ -377,12 +389,17 @@ evidence stay in
   pure/total/nontrapping; do not describe the still-unruled observable-order
   combinations as generally supported.
 - [ ] Close the unblocked source-graph/provider forms without waiting on private
-  cross-module visibility. OMGCOMP2 now closes structural custody for the exact
-  Linux-x86-64/native-provider source graph while keeping provider spellings
-  opaque. Next close semantic resolution and lowering for the sealed static
-  provider and `Console::exit_process` path used by the hosted entrypoint; this
-  is product binding support, not admission of general boundary traits to
-  Delta or compilation authority.
+  cross-module visibility. OMGCOMP2 now closes structural custody for an exact
+  Linux-x86-64/native-provider fixture while keeping provider spellings opaque.
+  Next close exact trait-requirement, `satisfies`, target applicability,
+  payload-free compiler-intrinsic, and receiver-call resolution for its bounded
+  one-requirement `Console::exit_process` profile. Treat that result as cost
+  evidence only: real product `Console` has six requirements and provider
+  selection requires one complete provider plan, so the fixture cannot claim
+  product-plan closure. Do not lower the call through a supposedly selected
+  realization until selection comes from a normative source form. This remains
+  product binding support, not admission of general boundary traits to Delta,
+  provider admission, or compilation authority.
 - [ ] Close generated-source custody and resource behavior by binding ordinary
   generated Omega source, its generator and external inputs, rounded ceilings,
   exhaustion, and no-partial-publication behavior. Reuse already-closed
