@@ -532,9 +532,8 @@ impl Compiler {
             &mut checked.program,
             &checked.selected_provider_plans,
         )?;
-        crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
-            Arc::get_mut(&mut checked.program)
-                .expect("checked program must be uniquely owned before backend fan-out"),
+        crate::pipeline::float_intrinsic_dispatch::settle_selected_float_intrinsic_dispatch(
+            &mut checked.program,
             &checked.selected_provider_plans,
         )?;
         // PRV4 adapter dispatch (both engines, after checking): semantic facts

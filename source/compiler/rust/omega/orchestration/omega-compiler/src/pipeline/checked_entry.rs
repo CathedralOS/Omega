@@ -720,12 +720,12 @@ fn compile_to_checked_inner_with_replay(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
-    let checked_program = Arc::get_mut(&mut checked.program)
-        .expect("checked program must be uniquely owned before engine handoff");
-    crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
-        checked_program,
+    crate::pipeline::float_intrinsic_dispatch::settle_selected_float_intrinsic_dispatch(
+        &mut checked.program,
         &selected_provider_plan_facts,
     )?;
+    let checked_program = Arc::get_mut(&mut checked.program)
+        .expect("checked program must be uniquely owned before engine handoff");
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(

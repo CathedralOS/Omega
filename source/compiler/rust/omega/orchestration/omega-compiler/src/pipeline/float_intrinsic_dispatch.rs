@@ -15,6 +15,7 @@ use psi_numerics::float_semantics::RoundingDirection;
 use psi_numerics::literals::{FloatFormat, FloatLiteral};
 use psi_symbols::BuiltinFunction;
 use psi_typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NamedFloatRealization {
@@ -59,10 +60,23 @@ struct StagedNamedFloatRewrite {
     execution: StagedNamedFloatExecution,
 }
 
-pub(crate) fn rewrite_selected_float_intrinsic_calls(
-    checked: &mut CheckedTrees,
+pub(crate) fn settle_selected_float_intrinsic_dispatch(
+    checked: &mut Arc<CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let rewrites = plan_selected_float_intrinsic_rewrites(checked, selected_provider_plans)?;
+    if rewrites.is_empty() {
+        return Ok(());
+    }
+
+    apply_selected_float_intrinsic_rewrites(Arc::make_mut(checked), rewrites);
+    Ok(())
+}
+
+fn plan_selected_float_intrinsic_rewrites(
+    checked: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<Vec<StagedNamedFloatRewrite>, Vec<Diagnostic>> {
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
 
@@ -103,6 +117,13 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
         return Err(diagnostics);
     }
 
+    Ok(rewrites)
+}
+
+fn apply_selected_float_intrinsic_rewrites(
+    checked: &mut CheckedTrees,
+    rewrites: Vec<StagedNamedFloatRewrite>,
+) {
     for rewrite in rewrites {
         let ExpressionNode::Call(call) = checked
             .typed
@@ -155,8 +176,6 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             .expression_table
             .expression_mut(rewrite.expression) = replacement;
     }
-
-    Ok(())
 }
 
 fn resolve_selected_float_intrinsic_call(
@@ -998,14 +1017,25 @@ mod tests {
     }
 
     #[test]
-    fn exact_intrinsic_rewrite_preserves_handle_and_checked_evidence() {
-        let (mut fixture, selected, handle, retained) = selected_fixture();
+    fn shared_success_clones_only_after_complete_preflight() {
+        let (fixture, selected, handle, retained) = selected_fixture();
+        let original_contents = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut settled = Arc::clone(&original);
 
-        rewrite_selected_float_intrinsic_calls(&mut fixture.checked, &selected)
+        settle_selected_float_intrinsic_dispatch(&mut settled, &selected)
             .expect("exact selected intrinsic rewrites");
 
-        let ExpressionNode::Call(rewritten) = fixture
-            .checked
+        assert!(
+            !Arc::ptr_eq(&settled, &original),
+            "a shared successful settlement must publish through a fresh Arc"
+        );
+        assert_eq!(
+            original.as_ref(),
+            &original_contents,
+            "successful settlement must not mutate retained shared custody"
+        );
+        let ExpressionNode::Call(rewritten) = settled
             .typed
             .expression_table
             .expression(retained.expression)
@@ -1015,15 +1045,14 @@ mod tests {
         assert_eq!(rewritten.target.as_str(), "min");
         assert_eq!(
             rewritten.target_symbol,
-            fixture
-                .checked
+            settled
                 .typed
                 .symbols
                 .builtin_function_symbol(BuiltinFunction::Min)
                 .expect("min builtin symbol"),
         );
         assert_eq!(
-            fixture.checked.facts.operators.named_uses.get(handle),
+            settled.facts.operators.named_uses.get(handle),
             &retained,
             "execution rewrite must not change exact checked evidence",
         );
@@ -1063,19 +1092,67 @@ mod tests {
     }
 
     #[test]
-    fn any_invalid_intrinsic_use_prevents_every_staged_rewrite() {
+    fn negate_publication_appends_only_after_shared_arc_custody_separates() {
+        let (fixture, _, handle, retained) = selected_fixture();
+        let expression_count = fixture.checked.typed.expression_table.expression_count();
+        let original_contents = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut settled = Arc::clone(&original);
+
+        apply_selected_float_intrinsic_rewrites(
+            Arc::make_mut(&mut settled),
+            vec![StagedNamedFloatRewrite {
+                expression: retained.expression,
+                realization: NamedFloatRealization::Negate(FloatFormat::F32),
+                execution: StagedNamedFloatExecution::Negate(FloatFormat::F32),
+            }],
+        );
+
+        assert!(!Arc::ptr_eq(&settled, &original));
+        assert_eq!(original.as_ref(), &original_contents);
+        assert_eq!(
+            settled.typed.expression_table.expression_count(),
+            expression_count + 1,
+            "negate must append exactly one landed -1 literal"
+        );
+        let ExpressionNode::Binary(binary) = settled
+            .typed
+            .expression_table
+            .expression(retained.expression)
+        else {
+            panic!("negate publication must replace the selected root with multiplication");
+        };
+        assert_eq!(binary.operator, BinaryOperator::Multiply);
+        assert_eq!(
+            binary.right.arena_index() as usize,
+            expression_count + 1,
+            "the landed -1 literal must retain exact append order"
+        );
+        let ExpressionNode::Float(negative_one) =
+            settled.typed.expression_table.expression(binary.right)
+        else {
+            panic!("negate publication must append a float literal");
+        };
+        assert_eq!(negative_one.text(), "-1.0");
+        assert_eq!(negative_one.landing(), Some(FloatFormat::F32));
+        assert_eq!(
+            settled.facts.operators.named_uses.get(handle),
+            &retained,
+            "arena publication must not change exact checked evidence"
+        );
+    }
+
+    #[test]
+    fn shared_rejection_preserves_arc_identity_and_complete_contents() {
         let (mut fixture, selected, _, retained) = selected_fixture();
         let mut invalid = retained;
         invalid.provider_plan_identity = u64::MAX;
         fixture.checked.facts.operators.named_uses.append(invalid);
-        let before = fixture
-            .checked
-            .typed
-            .expression_table
-            .expression(retained.expression)
-            .clone();
+        let before = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut rejected = Arc::clone(&original);
 
-        let diagnostics = rewrite_selected_float_intrinsic_calls(&mut fixture.checked, &selected)
+        let diagnostics = settle_selected_float_intrinsic_dispatch(&mut rejected, &selected)
             .expect_err("one invalid intrinsic use rejects the complete rewrite batch");
         assert!(
             diagnostics[0]
@@ -1083,13 +1160,30 @@ mod tests {
                 .contains("unknown ProviderPlan identity")
         );
         assert_eq!(
-            fixture
-                .checked
-                .typed
-                .expression_table
-                .expression(retained.expression),
+            rejected.as_ref(),
             &before,
             "validation failure must not publish any staged rewrite",
         );
+        assert!(
+            Arc::ptr_eq(&rejected, &original),
+            "rejection must preserve exact shared program custody"
+        );
+    }
+
+    #[test]
+    fn empty_settlement_preserves_shared_arc_identity_and_contents() {
+        let fixture = fixture();
+        let original_contents = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut settled = Arc::clone(&original);
+
+        settle_selected_float_intrinsic_dispatch(
+            &mut settled,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("a program without selected float intrinsics is already settled");
+
+        assert!(Arc::ptr_eq(&settled, &original));
+        assert_eq!(settled.as_ref(), &original_contents);
     }
 }
