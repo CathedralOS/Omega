@@ -13,6 +13,7 @@ mod dynamic_linkage_templates;
 mod dynamic_section_bytes;
 mod dynamic_section_descriptors;
 mod dynamic_sections;
+mod dynamic_tags;
 mod entry;
 mod headers;
 mod imports;
@@ -47,6 +48,9 @@ pub use dynamic_section_descriptors::{
 };
 pub use dynamic_sections::{
     ElfDynamicSectionPlanningError, ValidatedElfDynamicSectionPlan, plan_elf_dynamic_sections,
+};
+pub use dynamic_tags::{
+    ElfDynamicTagPlanningError, ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags,
 };
 
 use entry::elf_entry_address;
