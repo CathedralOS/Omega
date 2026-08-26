@@ -465,7 +465,12 @@ certificate additionally exposes borrowed replay against its exact installed
 code context, artifact, and selected entry while preserving its semantic
 machine/block/edge coordinates. Its distinct type still cannot authorize a
 whole root, and ordinary whole-entry graph composition rejects segment-local
-evidence even when it appears beneath an opaque or entry summary. Cathedral migration and general
+evidence even when it appears beneath an opaque or entry summary. Psi also
+seals the complete canonically ordered safe-point partition only after replaying
+every row as one sequence; installation binds that non-clonable catalog to one
+exact code, artifact, and entry occurrence. The catalog exposes only borrowed
+segment rows and supplies no whole-entry, composition, bulk-charge,
+native-meter, or publication authority. Cathedral migration and general
 loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
 symbolic complexity language.
 

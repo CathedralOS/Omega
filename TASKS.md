@@ -5060,8 +5060,13 @@ Remaining:
   cannot authorize a whole root. Whole-entry fixed-fuel composition also now
   rejects a `TerminalSegment` row at any reachable graph position before
   summing or fingerprinting, so an opaque or entry root cannot absorb a
-  conservative path ceiling as complete provider work. Add attributed response
-  outcomes only when terminal wait/foreign edges can derive them. Inserted native
+  conservative path ceiling as complete provider work. The complete canonical
+  safe-point partition now also has a non-clonable Psi carrier that independently
+  replays exact order and completeness before installation binds the whole
+  catalog to one code/artifact/entry occurrence. It remains borrowed segment
+  evidence only and grants no whole-entry, composition, bulk-charge, native-meter,
+  or publication authority. Add attributed response outcomes only when terminal
+  wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site attribution rows. Implement the
   settled per-sponsor-region realization: fixed provision elides the meter only
   when the exact installed maximum logical work fits the grant; dynamic

@@ -21,8 +21,10 @@ use psi_terminal::{
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
     FixedFuelError, derive_fixed_entry_fuel, derive_fixed_safe_point_segments,
-    derive_fixed_segment_fuel, validate_fixed_entry_fuel, validate_fixed_safe_point_segments,
-    validate_fixed_segment_fuel,
+    derive_fixed_segment_fuel, derive_validated_fixed_safe_point_segments,
+    retain_validated_fixed_safe_point_segments, validate_fixed_entry_fuel,
+    validate_fixed_safe_point_segments, validate_fixed_segment_fuel,
+    validate_retained_fixed_safe_point_segments,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
@@ -1459,6 +1461,73 @@ fn safe_point_selection_covers_the_complete_ordered_path() {
         Err(FixedFuelError::CertificateMismatch),
         "a producer cannot reorder semantic safe-point segments"
     );
+}
+
+#[test]
+fn retained_safe_point_catalog_is_complete_ordered_and_semantically_exact() {
+    let (module, proof) = fixture();
+    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+    let segments = derive_fixed_safe_point_segments(&verified, machine_id(1)).unwrap();
+    let retained =
+        retain_validated_fixed_safe_point_segments(&verified, machine_id(1), segments.clone())
+            .expect("the complete canonical partition is retainable");
+
+    assert_eq!(
+        retained.terminal_psi(),
+        terminal_psi_identity(&module).unwrap()
+    );
+    assert_eq!(retained.schedule().marker(), 1);
+    assert_eq!(retained.machine(), machine_id(1));
+    assert_eq!(retained.certificates(), segments);
+    validate_retained_fixed_safe_point_segments(&verified, &retained)
+        .expect("the retained partition independently replays");
+
+    assert_eq!(
+        retain_validated_fixed_safe_point_segments(
+            &verified,
+            machine_id(1),
+            segments[..1].to_vec(),
+        ),
+        Err(FixedFuelError::CertificateMismatch),
+        "an omitted reachable segment cannot be sealed"
+    );
+    let mut reordered = segments.clone();
+    reordered.reverse();
+    assert_eq!(
+        retain_validated_fixed_safe_point_segments(&verified, machine_id(1), reordered),
+        Err(FixedFuelError::CertificateMismatch),
+        "a reordered partition cannot be sealed"
+    );
+    let mut duplicated = segments.clone();
+    duplicated.push(segments[0].clone());
+    assert_eq!(
+        retain_validated_fixed_safe_point_segments(&verified, machine_id(1), duplicated),
+        Err(FixedFuelError::CertificateMismatch),
+        "a duplicated segment cannot be sealed"
+    );
+
+    let (mut drifted_module, drifted_proof) = fixture();
+    let OperationKind::IntegerConstant { value } =
+        &mut drifted_module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("fixture begins with an integer constant")
+    };
+    *value = IntegerValue::Signed(8);
+    let drifted_verified = verify_module(
+        &drifted_module,
+        &drifted_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("the semantically drifted module remains structurally valid");
+    assert_eq!(
+        validate_retained_fixed_safe_point_segments(&drifted_verified, &retained),
+        Err(FixedFuelError::CertificateMismatch),
+        "a different terminal semantic identity cannot replay the catalog"
+    );
+
+    let derived = derive_validated_fixed_safe_point_segments(&verified, machine_id(1))
+        .expect("direct catalog derivation succeeds");
+    assert_eq!(derived.certificates(), segments);
 }
 
 fn unit_fixture() -> TerminalModule {
