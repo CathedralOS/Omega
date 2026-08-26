@@ -41,11 +41,12 @@ source- and cost-driven in the feature ledger.
   retains direct regression teeth at the buffer boundary. A state that reaches
   its closing brace without a transition or explicit return returns zero; it
   never falls into the next lexical state. This is sealed host I/O, not a
-  general allocator or runtime. Its fixed 19,992-cell typed backing admits at
-  most 128 machine declarations, including the entry machine, and 512 disjoint
+  general allocator or runtime. Its fixed 21,528-cell typed backing admits at
+  most 128 machine declarations, including the entry machine, 512 disjoint
   aggregate parameter rows—the complete product of that machine ceiling and
-  D0's four-register value-parameter profile. The adjacent 129th declaration,
-  aggregate overflow, or over-wide signature exits with the established
+  D0's four-register value-parameter profile—and 512 disjoint field-metadata
+  rows. The adjacent 129th machine or 513th field declaration, aggregate
+  overflow, or over-wide signature exits with the established
   storage/array exhaustion status `3` before publishing output; exact-bound
   gates also resolve and call names beyond the former 64-row parameter
   partition through both native and self-built compilers. Its explicit byte
