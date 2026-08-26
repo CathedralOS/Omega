@@ -5005,26 +5005,24 @@ Remaining:
   that exact plan, both complete unrelocated/final text coordinates, both
   replayed runtime intervals, terminal identity, `InstalledCodeContext`, and
   artifact into sealed `InstalledNativeFuelTransferCode` custody. Wrong profile,
-  interval bytes, complete image bytes, or installed occurrence reject. This is
-  deliberately byte custody only and does not yet join the fixed/
-  `FuelSuspensionFree` sponsor policy or unlock the sealed installed-transfer
-  constructor; other target runtimes also remain necessary for a complete
-  deployed path. The next engineering rung must retain that distinction: an
-  installed sponsor-route receipt must join the resolved sponsor call target to
-  the exact root/provider entry, `InstalledCodeContext`, artifact, and fixed
-  suspension-free provision. The current arena-local sponsor symbol and opaque
-  provider validation identifiers establish no such join, so adjacency in
-  `DynamicNativeFuelMeterPlan` must not mint installed-transfer authority.
+  interval bytes, complete image bytes, or installed occurrence reject. A
+  separate installed sponsor-route owner now rejoins the replayed sponsor-call
+  coordinate to the exact selected root/provider entry and installed-code
+  context, then verifies that root's native-fuel column is the identical fixed
+  provision retained by the independently derived `FuelSuspensionFree` proof.
+  Only exact transfer-code custody plus that exact route can construct
+  `InstalledNativeFuelTransferRuntime`; adjacent plan fields, compact provider
+  identities, wrong entry coordinates, and alternate provisions reject.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
   dynamic plan construction now rejects transfer identities that differ from
   the admitted target recipe. Dynamic admission requires both final
   metered-artifact attribution and sealed installed executable-transfer custody;
-  that custody deliberately has no public constructor until the physical
-  transfer/runtime replay lands, so opaque validation receipt identifiers cannot
-  admit an incomplete dynamic path. Dynamic attribution identity now also binds
-  the exact fixed sponsor provision and `FuelSuspensionFree` composition, so a
+  its constructor is now reachable only through the independently sealed byte
+  and sponsor-route joins, so opaque validation receipt identifiers still cannot
+  admit an incomplete dynamic path. Dynamic attribution identity also binds the
+  exact fixed sponsor provision and `FuelSuspensionFree` composition, so a
   different sponsor path cannot retain the same published summary.
   Fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
@@ -5054,10 +5052,13 @@ Remaining:
   relocation fields, exact state footprint, and 24-byte realized sponsor-stack
   peak; profile, transport, reserved-register, displacement, alignment, and
   ceiling drift reject. These remain unrelocated target bytes, not executable
-  custody. The remaining native slice is to add AArch64, carry transfer
-  evidence through the installation format, bind the exact installed sponsor
-  route, and only then construct the sealed executable installed-transfer
-  custody.
+  custody. The AArch64 target owner now supplies the corresponding Linux X28
+  transfer/resume encoder with exact `BL` and paired `ADRP`/`ADD` relocation
+  sites, physical state evidence, and a 16-byte sponsor-stack peak; scratch,
+  transport, profile, slot, alignment, and immediate drift reject. The remaining
+  native slice is to teach the object/image replay owner those three AArch64
+  relocations, emit ELF AArch64, carry transfer evidence through the installation
+  format, and connect the admitted runtime into deployed dynamic roots.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -7785,12 +7786,14 @@ boundary without its corresponding checked law.
   `ProviderBinding::Import` owns the whole normalized locator, validates its
   target against the provider plan, and carries its atomic identity through
   selected-plan/opaque-TCB facts, package-review format 57, and manifest JSON
-  with exact raw coordinates. Normalized imports fail closed at the still-
-  string-backed ABI and trust-report bridges rather than reconstructing text.
+  with exact raw coordinates. Trust artifacts now retain the same sealed locator
+  and render target, case, normalized identity, and raw hex coordinates/ordinal;
+  target drift rejects before report installation. Normalized imports still fail
+  closed at the string-backed ABI bridge rather than reconstructing text.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, trust realization, calling conventions, object planning, and
-  PE/ELF emission remain engineering joins.
+  array widths, calling conventions, object planning, and PE/ELF emission remain
+  engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

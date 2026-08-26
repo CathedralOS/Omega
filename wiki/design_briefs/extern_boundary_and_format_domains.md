@@ -128,10 +128,11 @@ identity. Provider import rows and opaque executable-TCB projections now retain
 that whole normalized locator, and package-review/manifest output preserves its
 target, case, identity, and raw coordinates without rebuilding strings. The
 current source evaluator is visibly segregated as a temporary string-backed
-bootstrap; normalized rows fail closed at unmigrated ABI and trust bridges.
-Exact fixed-array widths, producer closure, evaluator receipt, trust
-realization, calling conventions, object planning, and backend emission remain
-to migrate.
+bootstrap. Trust artifacts now carry the atomic locator and render exact raw
+coordinates without text reconstruction, rejecting target drift before report
+installation; normalized rows still fail closed at the unmigrated ABI bridge.
+Exact fixed-array widths, producer closure, evaluator receipt, calling
+conventions, object planning, and backend emission remain to migrate.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh
