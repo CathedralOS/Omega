@@ -1,8 +1,10 @@
 use std::collections::BTreeSet;
 
 use omega_optimization_core::{
-    OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget,
+    InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    OptimizationDecisionIdentity, OptimizationDecisionRecord, OptimizationPassManifestRecord,
+    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
@@ -73,6 +75,7 @@ pub struct OptimizationRun {
     pub commits: Vec<PsiOptimizationCommit>,
     pub usage: OptimizationRunUsage,
     pub decisions: BaselineDecisionLog,
+    pub pass_manifest: Option<OptimizationPassManifestRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,7 +93,9 @@ pub enum OptimizationRunError {
         current: u64,
     },
     RegistryCoverageMismatch,
+    DuplicateCandidate(OptimizationCandidateIdentity),
     PolicySelectionMissing(OptimizationCandidateIdentity),
+    InvalidManifest(InvalidOptimizationManifestRecord),
 }
 
 impl std::fmt::Display for OptimizationRunError {
@@ -108,7 +113,8 @@ pub fn run_psi_registry(
 ) -> Result<OptimizationRun, OptimizationRunError> {
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
-    let (unit, commits, usage, decisions) = run_unit(session.unit, registry, budget)?;
+    let (unit, commits, usage, decisions, pass_manifest) =
+        run_unit(session.unit, registry, budget)?;
     Ok(OptimizationRun {
         session: VerifiedPsiOptimizationSession {
             input: session.input,
@@ -117,6 +123,7 @@ pub fn run_psi_registry(
         commits,
         usage,
         decisions,
+        pass_manifest,
     })
 }
 
@@ -130,12 +137,16 @@ fn run_unit(
         Vec<PsiOptimizationCommit>,
         OptimizationRunUsage,
         BaselineDecisionLog,
+        Option<OptimizationPassManifestRecord>,
     ),
     OptimizationRunError,
 > {
     let mut analyses = AnalysisManager::new(&unit);
+    let initial_identity = unit.identity;
     let mut usage = OptimizationRunUsage::default();
     let mut commits = Vec::new();
+    let mut candidate_decisions = Vec::new();
+    let mut seen_candidates = BTreeSet::new();
     let mut dispatched = BTreeSet::new();
     let mut policy = BaselinePolicy::default();
     loop {
@@ -170,6 +181,11 @@ fn run_unit(
             }
             let mut validated = Vec::with_capacity(candidates.len());
             for candidate in candidates {
+                if !seen_candidates.insert(candidate.identity()) {
+                    return Err(OptimizationRunError::DuplicateCandidate(
+                        candidate.identity(),
+                    ));
+                }
                 charge(
                     &mut usage.validation_steps,
                     budget.validation_steps(),
@@ -191,6 +207,35 @@ fn run_unit(
                         predicted_cost_delta: candidate.predicted_cost_delta(),
                     }),
             );
+            for (candidate, accepted) in &validated {
+                let verdict = match outcome {
+                    BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.identity() => {
+                        OptimizationCandidateVerdict::Applied
+                    }
+                    BaselineDecisionOutcome::Choose(_) => {
+                        OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
+                    }
+                    BaselineDecisionOutcome::Skip(reason) => {
+                        OptimizationCandidateVerdict::Skipped(reason)
+                    }
+                };
+                candidate_decisions.push(
+                    OptimizationDecisionRecord::new(
+                        manifest_decision_identity(
+                            unit.identity,
+                            candidate.identity(),
+                            contract.identity(),
+                            verdict,
+                        ),
+                        candidate.identity(),
+                        contract.identity(),
+                        verdict,
+                        contract.required_analyses(),
+                        Some(accepted.validator()),
+                    )
+                    .map_err(OptimizationRunError::InvalidManifest)?,
+                );
+            }
             match outcome {
                 BaselineDecisionOutcome::Choose(identity) => {
                     let index = validated
@@ -207,7 +252,16 @@ fn run_unit(
             if dispatched.len() != registry.len() {
                 return Err(OptimizationRunError::RegistryCoverageMismatch);
             }
-            return Ok((unit, commits, usage, policy.finish()));
+            let decisions = policy.finish();
+            let pass_manifest = build_pass_manifest(
+                registry,
+                initial_identity,
+                unit.identity,
+                &commits,
+                &candidate_decisions,
+                usage,
+            )?;
+            return Ok((unit, commits, usage, decisions, pass_manifest));
         };
         let input_identity = unit.identity;
         let validator = validated.validator();
@@ -234,6 +288,65 @@ fn run_unit(
         });
         unit = next;
     }
+}
+
+fn build_pass_manifest(
+    registry: &OrderedRuleRegistry,
+    input: OptimizationUnitIdentity,
+    output: OptimizationUnitIdentity,
+    commits: &[PsiOptimizationCommit],
+    decisions: &[OptimizationDecisionRecord],
+    usage: OptimizationRunUsage,
+) -> Result<Option<OptimizationPassManifestRecord>, OptimizationRunError> {
+    let Some(pass) = registry.pass() else {
+        return Ok(None);
+    };
+    let contracts = registry.contracts().collect::<Vec<_>>();
+    let ordered_rules = contracts
+        .iter()
+        .map(|contract| contract.identity())
+        .collect::<Vec<_>>();
+    for commit in commits {
+        assert!(
+            decisions.iter().any(|decision| {
+                decision.candidate() == commit.candidate
+                    && decision.verdict() == OptimizationCandidateVerdict::Applied
+            }),
+            "every committed candidate has an applied manifest decision"
+        );
+    }
+    OptimizationPassManifestRecord::new(
+        pass,
+        input,
+        output,
+        registry.identity(),
+        ordered_rules,
+        decisions.to_vec(),
+        OptimizationWorkUsage {
+            rule_evaluations: usage.rule_evaluations,
+            candidates: usage.candidates,
+            validation_steps: usage.validation_steps,
+            commits: usage.commits,
+            iterations: usage.iterations,
+        },
+    )
+    .map(Some)
+    .map_err(OptimizationRunError::InvalidManifest)
+}
+
+fn manifest_decision_identity(
+    input: OptimizationUnitIdentity,
+    candidate: OptimizationCandidateIdentity,
+    rule: OptimizationRuleIdentity,
+    verdict: OptimizationCandidateVerdict,
+) -> OptimizationDecisionIdentity {
+    let mut canonical = Vec::with_capacity(130);
+    canonical.extend_from_slice(b"omega.psi-manifest-decision.v1\0");
+    canonical.extend_from_slice(&input.bytes());
+    canonical.extend_from_slice(&candidate.bytes());
+    canonical.extend_from_slice(&rule.bytes());
+    canonical.extend_from_slice(&verdict.encode());
+    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
 }
 
 fn charge(counter: &mut u64, limit: u64, axis: &'static str) -> Result<(), OptimizationRunError> {
@@ -265,11 +378,71 @@ fn exact_integer_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use omega_optimization_core::{Optimization, OptimizationSelections};
+    use omega_optimization_unit::PsiRewritePatch;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
 
     use super::*;
-    use crate::{built_in_psi_registry, rules::tests::exact_add_unit};
+    use crate::{
+        ExactIntegerConstantEvaluationRule, PsiOptimizationRule, built_in_psi_registry,
+        rules::tests::exact_add_unit,
+    };
+
+    #[derive(Debug)]
+    struct NonProfitableExactRule;
+
+    impl PsiOptimizationRule for NonProfitableExactRule {
+        fn contract(&self) -> omega_optimization_core::OptimizationRuleContract {
+            ExactIntegerConstantEvaluationRule::contract()
+        }
+
+        fn propose(
+            &self,
+            unit: &PsiOptimizationUnit,
+            analyses: RuleAnalysisView<'_>,
+        ) -> Result<Vec<omega_optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
+            ExactIntegerConstantEvaluationRule
+                .propose(unit, analyses)?
+                .into_iter()
+                .map(|candidate| {
+                    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
+                        candidate.patch();
+                    omega_optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
+                        candidate.input(),
+                        Self.contract(),
+                        candidate.affected_blocks().to_vec(),
+                        candidate.substitutions().to_vec(),
+                        candidate.provenance().to_vec(),
+                        candidate.witness(),
+                        0,
+                        patch,
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)
+                })
+                .collect()
+        }
+    }
+
+    #[derive(Debug)]
+    struct DuplicateExactRule;
+
+    impl PsiOptimizationRule for DuplicateExactRule {
+        fn contract(&self) -> omega_optimization_core::OptimizationRuleContract {
+            ExactIntegerConstantEvaluationRule::contract()
+        }
+
+        fn propose(
+            &self,
+            unit: &PsiOptimizationUnit,
+            analyses: RuleAnalysisView<'_>,
+        ) -> Result<Vec<omega_optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
+            let mut candidates = ExactIntegerConstantEvaluationRule.propose(unit, analyses)?;
+            candidates.push(candidates[0].clone());
+            Ok(candidates)
+        }
+    }
 
     fn verified_empty_unit() -> VerifiedPsiOptimizationUnit {
         use psi_core::{BlockId, ContractId, EdgeId, MachineId};
@@ -343,6 +516,123 @@ mod tests {
         .unwrap()
     }
 
+    fn verified_exact_add_unit() -> VerifiedPsiOptimizationUnit {
+        use psi_core::{
+            BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+            ObligationId, OperationId, ScalarType, ValueId,
+        };
+        use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
+        use psi_terminal::{
+            Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
+            TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+        };
+        use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+
+        let machine = MachineId::new(411).unwrap();
+        let block = BlockId::new(412).unwrap();
+        let left = ValueId::new(413).unwrap();
+        let right = ValueId::new(414).unwrap();
+        let computed = ValueId::new(415).unwrap();
+        let result = ValueId::new(422).unwrap();
+        let obligation = ObligationId::new(419).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block,
+                blocks: vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: OperationId::new(416).unwrap(),
+                            result: OperationResult::Scalar(declaration(left)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(7),
+                            },
+                        },
+                        Operation {
+                            id: OperationId::new(417).unwrap(),
+                            result: OperationResult::Scalar(declaration(right)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(8),
+                            },
+                        },
+                        Operation {
+                            id: OperationId::new(418).unwrap(),
+                            result: OperationResult::Scalar(declaration(computed)),
+                            kind: OperationKind::ExactIntegerAdd {
+                                left,
+                                right,
+                                obligation,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Return {
+                        cleanup_actions: Vec::new(),
+                        edge: EdgeId::new(420).unwrap(),
+                        value: computed,
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(421).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            }],
+        };
+        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
+        let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
+        let input =
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &psi_proof_admission::AdmissionProfile::default(),
+            )
+            .unwrap();
+        omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .unwrap()
+    }
+
     fn budget(iterations: u64) -> OptimizationWorkBudget {
         OptimizationWorkBudget::new(16, 16, 16, 16, iterations).unwrap()
     }
@@ -354,7 +644,7 @@ mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        let (output, commits, usage, decisions) =
+        let (output, commits, usage, decisions, pass_manifest) =
             run_unit(unit.clone(), &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(commits[0].input, unit.identity);
@@ -367,6 +657,18 @@ mod tests {
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
+        );
+        let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
+        assert_eq!(pass_manifest.input(), unit.identity);
+        assert_eq!(pass_manifest.output(), output.identity);
+        assert_eq!(pass_manifest.decisions().len(), 1);
+        assert_eq!(
+            pass_manifest.decisions()[0].verdict(),
+            OptimizationCandidateVerdict::Applied
+        );
+        assert_eq!(
+            OptimizationPassManifestRecord::decode(&pass_manifest.encode()),
+            Ok(pass_manifest)
         );
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
@@ -390,14 +692,76 @@ mod tests {
     }
 
     #[test]
+    fn nonprofitable_validated_candidate_is_recorded_as_a_skip() {
+        let registry = OrderedRuleRegistry::new([
+            Arc::new(NonProfitableExactRule) as Arc<dyn PsiOptimizationRule>
+        ])
+        .unwrap();
+        let (unit, commits, _, decisions, pass_manifest) =
+            run_unit(exact_add_unit(), &registry, budget(2)).unwrap();
+
+        assert!(commits.is_empty());
+        assert_eq!(decisions.records.len(), 1);
+        assert!(matches!(
+            unit.functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::ExactIntegerAdd { .. }
+        ));
+        let manifest = pass_manifest.unwrap();
+        assert_eq!(manifest.decisions().len(), 1);
+        assert_eq!(
+            manifest.decisions()[0].verdict(),
+            OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
+        );
+        assert!(manifest.decisions()[0].validator().is_some());
+    }
+
+    #[test]
+    fn duplicate_candidate_identity_fails_closed_without_a_manifest() {
+        let registry =
+            OrderedRuleRegistry::new(
+                [Arc::new(DuplicateExactRule) as Arc<dyn PsiOptimizationRule>],
+            )
+            .unwrap();
+        assert!(matches!(
+            run_unit(exact_add_unit(), &registry, budget(2)),
+            Err(OptimizationRunError::DuplicateCandidate(_))
+        ));
+    }
+
+    #[test]
     fn public_run_requires_and_retains_verified_optimizer_context() {
         let registry = OrderedRuleRegistry::new(Vec::new()).unwrap();
         let run = run_psi_registry(verified_empty_unit(), &registry, budget(2)).unwrap();
         assert!(run.commits.is_empty());
+        assert!(run.pass_manifest.is_none());
         assert_eq!(run.usage.iterations, 1);
         assert_eq!(
             run.session.unit().terminal_psi,
             run.session.input().plan().terminal_psi
         );
+    }
+
+    #[test]
+    fn public_run_folds_proof_admitted_exact_arithmetic_and_retains_its_context() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let run = run_psi_registry(verified_exact_add_unit(), &registry, budget(8)).unwrap();
+
+        assert_eq!(run.commits.len(), 1);
+        assert_eq!(run.pass_manifest.as_ref().unwrap().decisions().len(), 1);
+        assert_eq!(run.session.input().context().accepted_facts().len(), 1);
+        assert_eq!(
+            run.session.input().context().accepted_facts()[0].obligation,
+            psi_core::ObligationId::new(419).unwrap()
+        );
+        assert!(matches!(
+            run.session.unit().functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(15),
+                ..
+            }
+        ));
     }
 }

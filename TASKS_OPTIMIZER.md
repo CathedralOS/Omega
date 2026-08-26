@@ -146,12 +146,21 @@ These facts constrain the work below.
   iterations. Budget exhaustion returns no output, every registered rule is
   covered before successful convergence, and the verifier-owned optimizer
   context remains attached to the resulting unit. `OPT-PASS-MANAGER` remains
-  open for named multi-rule pass groups and synthetic oscillation coverage. A
-  separate `omega-optimization-policy` crate now receives only independently
-  validated candidate summaries, chooses improving work by exact cost then
-  stable candidate identity, cannot select outside that admitted set, and emits
-  a canonical decision log whose codec rejects identity tamper and trailing
-  bytes. The compiler build firewall remains unchanged.
+  open for multi-rule fixed-point schedules and synthetic oscillation
+  coverage. A separate `omega-optimization-policy` crate now receives only
+  independently validated candidate summaries, chooses improving work by exact
+  cost then stable candidate identity, cannot select outside that admitted set,
+  and emits a canonical decision log whose codec rejects identity tamper and
+  trailing bytes. A real canonically encoded Terminal-Psi artifact containing
+  literal exact addition now passes proof admission, enters through the public
+  verified optimizer carrier, folds to its exact constant, and retains the
+  admitted obligation fact. Each rule registry is one named pass group (mixed
+  pass identities reject), and successful runs emit a canonical pass-manifest
+  row binding input/output revisions, ordered rules, work usage, validator-backed
+  applied decisions, and validator-backed deterministic skips. Duplicate
+  candidate identities fail closed. The compiler build firewall remains
+  unchanged; the top-level manifest/report remains open for selection,
+  provenance/fuel, realization, code-size, and later allocator records.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
