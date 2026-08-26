@@ -275,7 +275,7 @@ fn extract_build_from_source(source: &str) -> Result<BuildDeclaration, PackageDe
     extract_build_from_syntax_trees(&syntax_trees)
 }
 
-fn extract_build_from_syntax_trees(
+pub(crate) fn extract_build_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDeclaration, PackageDeclarationError> {
     reject_authored_toolchain_vocabulary(syntax_trees)?;

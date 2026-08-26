@@ -1,3 +1,6 @@
+use crate::declaration::{
+    BuildDeclaration, BuildDeclarationError, extract_build_from_syntax_trees,
+};
 use crate::identity::{AliasName, PackageName};
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
@@ -54,6 +57,28 @@ impl DependencySourceRequest {
     }
 }
 
+/// One authoritative project role and its direct dependency requests,
+/// projected from the same parsed `build.omg` tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildDependencyProjection {
+    declaration: BuildDeclaration,
+    dependencies: Vec<DependencySourceRequest>,
+}
+
+impl BuildDependencyProjection {
+    pub const fn declaration(&self) -> &BuildDeclaration {
+        &self.declaration
+    }
+
+    pub fn dependencies(&self) -> &[DependencySourceRequest] {
+        &self.dependencies
+    }
+
+    pub fn into_parts(self) -> (BuildDeclaration, Vec<DependencySourceRequest>) {
+        (self.declaration, self.dependencies)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencyProjectionError {
     MissingBuildFile { path: PathBuf },
@@ -61,6 +86,7 @@ pub enum DependencyProjectionError {
     InvalidBuildFileEncoding { path: PathBuf },
     Lex { message: String },
     Parse { message: String },
+    BuildDeclaration(Box<BuildDeclarationError>),
     AuthoredToolchainVocabulary { name: String },
     ScopedBuildMachine { scope: String },
     DuplicateBuildMachines { count: usize },
@@ -96,6 +122,9 @@ impl fmt::Display for DependencyProjectionError {
             }
             Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
             Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
+            Self::BuildDeclaration(error) => {
+                write!(formatter, "cannot project dependencies without a valid project role: {error}")
+            }
             Self::AuthoredToolchainVocabulary { name } => write!(
                 formatter,
                 "package build must not declare toolchain dependency vocabulary `{name}`"
@@ -164,12 +193,19 @@ impl std::error::Error for DependencyProjectionError {}
 /// Project direct dependency declarations from the immutable package root.
 ///
 /// This parses only the root `build.omg`; it does not evaluate build code,
-/// imports, constants, helpers, control flow, or providers. A valid file with
-/// no `build` machine projects an empty dependency list. That absence grants
-/// no dependency reach and is therefore the conservative v1 behavior.
+/// imports, constants, helpers, control flow, or providers. The same parsed
+/// tree must first produce one authoritative package, application, or workspace
+/// declaration; absence is not a second implicit project kind.
 pub fn extract_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
+    extract_build_dependency_projection(package_root).map(|projection| projection.dependencies)
+}
+
+/// Project the project role and direct dependencies together from one parse.
+pub fn extract_build_dependency_projection(
+    package_root: impl AsRef<Path>,
+) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     let build_path = package_root.as_ref().join(BUILD_FILE_NAME);
     let source_bytes = match fs::read(&build_path) {
         Ok(source) => source,
@@ -188,12 +224,18 @@ pub fn extract_dependency_projection(
             path: build_path.clone(),
         }
     })?;
-    extract_from_source(source)
+    extract_build_projection_from_source(source)
 }
 
 pub(crate) fn extract_from_source(
     source: &str,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
+    extract_build_projection_from_source(source).map(|projection| projection.dependencies)
+}
+
+fn extract_build_projection_from_source(
+    source: &str,
+) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     let tokens = Lexer::new(source)
         .tokenize()
         .map_err(|error| DependencyProjectionError::Lex {
@@ -203,12 +245,12 @@ pub(crate) fn extract_from_source(
         parse_syntax_trees(&tokens).map_err(|error| DependencyProjectionError::Parse {
             message: error.message,
         })?;
-    extract_from_syntax_trees(&syntax_trees)
+    extract_build_projection_from_syntax_trees(&syntax_trees)
 }
 
-fn extract_from_syntax_trees(
+fn extract_build_projection_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
-) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
+) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     reject_authored_toolchain_vocabulary(syntax_trees)?;
 
     let named_builds = syntax_trees
@@ -244,7 +286,8 @@ fn extract_from_syntax_trees(
 
     let Some(build) = named_builds.first() else {
         reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
-        return Ok(Vec::new());
+        validate_build_declaration(syntax_trees)?;
+        unreachable!("a valid build declaration has one authoritative build machine")
     };
     if build.bodyless
         || build.boundary
@@ -352,7 +395,18 @@ fn extract_from_syntax_trees(
         &accepted_sources,
         &accepted_aliases,
     )?;
-    Ok(requests)
+    let declaration = validate_build_declaration(syntax_trees)?;
+    Ok(BuildDependencyProjection {
+        declaration,
+        dependencies: requests,
+    })
+}
+
+fn validate_build_declaration(
+    syntax_trees: &SyntaxTrees,
+) -> Result<BuildDeclaration, DependencyProjectionError> {
+    extract_build_from_syntax_trees(syntax_trees)
+        .map_err(|error| DependencyProjectionError::BuildDeclaration(Box::new(error)))
 }
 
 fn reject_authored_toolchain_vocabulary(
@@ -607,6 +661,7 @@ mod tests {
         let fixture = PackageFixture::with_source(
             r#"
             machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+                builder.application("dependency-projection-probe");
                 builder.depend(Source::Path { location: "../local" });
                 builder.depend_as("arithmetic_kernels", Source::Git {
                     revision: "0123456789abcdef",
@@ -615,8 +670,14 @@ mod tests {
             }
             "#,
         );
+        let projection = extract_build_dependency_projection(&fixture.root).unwrap();
+        assert!(matches!(
+            projection.declaration(),
+            BuildDeclaration::Application(application)
+                if application.name.as_str() == "dependency-projection-probe"
+        ));
         assert_eq!(
-            fixture.extract().unwrap(),
+            projection.dependencies(),
             vec![
                 DependencySourceRequest::Path {
                     explicit_alias: None,
@@ -653,9 +714,13 @@ mod tests {
     }
 
     #[test]
-    fn absent_build_machine_is_an_empty_projection() {
+    fn absent_build_machine_is_not_an_implicit_project_role() {
         let fixture = PackageFixture::with_source("target windows_x64 { }");
-        assert_eq!(fixture.extract().unwrap(), Vec::new());
+        assert!(matches!(
+            fixture.extract(),
+            Err(DependencyProjectionError::BuildDeclaration(error))
+                if matches!(*error, BuildDeclarationError::MissingBuildDeclaration)
+        ));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use crate::closure_resolution::PackageSourceCustody;
-use crate::declaration::{PackageDeclarationError, extract_package_declaration};
+use crate::declaration::{BuildDeclaration, PackageDeclaration, PackageDeclarationError};
 use crate::dependency_projection::{
-    DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
+    DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
 use crate::graph::ResolvedSourceIdentity;
 use crate::identity::{
@@ -192,8 +192,7 @@ pub fn resolve_external_local_package_source(
         &source.canonical_live_root,
         source_context,
     )?);
-    let declaration = extract_package_declaration(&source.snapshot_root)?;
-    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
+    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
         source.normalized.content_identity.as_bytes(),
     ));
@@ -244,8 +243,7 @@ pub fn resolve_workspace_member_package_source(
     let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
     let lineage =
         SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
-    let declaration = extract_package_declaration(&source.snapshot_root)?;
-    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
+    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
     let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
         source.normalized.content_identity.as_bytes(),
     ));
@@ -272,8 +270,7 @@ fn bind_git_package_source(
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let declaration = extract_package_declaration(&source.snapshot_root)?;
-    let dependency_requests = extract_dependency_projection(&source.snapshot_root)?;
+    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&source.commit)?,
         GitTreeId::parse_hex(&source.tree)?,
@@ -288,6 +285,52 @@ fn bind_git_package_source(
         dependency_requests,
         source,
     })
+}
+
+fn project_package_build(
+    snapshot_root: &Path,
+) -> Result<(PackageDeclaration, Vec<DependencySourceRequest>), ResolvePackageSourceError> {
+    let projection = match extract_build_dependency_projection(snapshot_root) {
+        Ok(projection) => projection,
+        Err(DependencyProjectionError::MissingBuildFile { path }) => {
+            return Err(ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::MissingBuildFile { path },
+            ));
+        }
+        Err(DependencyProjectionError::ReadBuildFile { path, message }) => {
+            return Err(ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::ReadBuildFile { path, message },
+            ));
+        }
+        Err(DependencyProjectionError::InvalidBuildFileEncoding { path }) => {
+            return Err(ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::InvalidBuildFileEncoding { path },
+            ));
+        }
+        Err(DependencyProjectionError::Lex { message }) => {
+            return Err(ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::Lex { message },
+            ));
+        }
+        Err(DependencyProjectionError::Parse { message }) => {
+            return Err(ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::Parse { message },
+            ));
+        }
+        Err(DependencyProjectionError::BuildDeclaration(error)) => {
+            return Err(ResolvePackageSourceError::Declaration(*error));
+        }
+        Err(error) => return Err(ResolvePackageSourceError::DependencyProjection(error)),
+    };
+    let (declaration, dependencies) = projection.into_parts();
+    match declaration {
+        BuildDeclaration::Package(package) => Ok((package, dependencies)),
+        other => Err(ResolvePackageSourceError::Declaration(
+            PackageDeclarationError::ExpectedPackageDeclaration {
+                found: other.kind(),
+            },
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -583,6 +626,40 @@ mod tests {
             error,
             ResolvePackageSourceError::Declaration(
                 PackageDeclarationError::MissingBuildFile { .. }
+            )
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn application_role_cannot_be_bound_as_a_package_source() {
+        let root = temp_root("application-role");
+        let cache = temp_root("application-role-cache");
+        std::fs::create_dir_all(&root).expect("create source");
+        std::fs::write(
+            root.join("build.omg"),
+            "machine build(builder: &mut Build) {\n    builder.application(\"artifact-root\");\n}\n",
+        )
+        .expect("write application declaration");
+        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
+
+        let error = resolve_external_local_package_source(
+            &root,
+            &cache,
+            LocalSourceLimits::default(),
+            ExternalSourceContext::derive(b"consumer-lock"),
+        )
+        .expect_err("an application must not become an importable package");
+
+        assert!(matches!(
+            error,
+            ResolvePackageSourceError::Declaration(
+                PackageDeclarationError::ExpectedPackageDeclaration {
+                    found: crate::declaration::BuildDeclarationKind::Application
+                }
             )
         ));
 

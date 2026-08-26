@@ -68,7 +68,8 @@ pub use dependency_edit::{
     plan_dependency_addition, plan_dependency_replacement,
 };
 pub use dependency_projection::{
-    DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
+    BuildDependencyProjection, DependencyProjectionError, DependencySourceRequest,
+    extract_build_dependency_projection, extract_dependency_projection,
 };
 pub use graph::{
     PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
