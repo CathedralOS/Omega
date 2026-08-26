@@ -371,7 +371,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation-summary schema v21 carries operation-attempt schema v18, retaining exact
+Observation-summary schema v22 carries operation-attempt schema v18, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -448,20 +448,22 @@ descriptor and cross-checks it against the semantic row. Package commitments
 bind both representations. This creates neither a public internal-IR contract
 nor nominal Chi. Complete replay remains absent, so this is still an incomplete
 trace rather than a transcript or receipt.
-One successful Source-rooted, flags-zero `open` -> (`read` or `read_at`)+ ->
-`close` chain receives one bounded compiler replay with no filesystem provider.
-Every read uses the created descriptor. Sequential reads advance an implicit
-zero-based cursor by their successful result; positioned reads bind an exact
-nonnegative offset and do not advance that cursor. Ordered operation kinds,
-counts, offsets, results, mutable carriers, and observed regions determine the
+One or more complete, non-interleaved Source-rooted source-read chains receive
+bounded compiler replay with no filesystem provider. Each chain contains one
+flags-zero `open`, one or more `read`/`read_at` calls on its distinct created
+descriptor, and its exact retiring `close`. Sequential reads advance that
+chain's implicit zero-based cursor by their successful result; positioned reads
+bind an exact nonnegative offset and do not advance it. Ordered operation kinds,
+counts, offsets, results, mutable carriers, and observed regions determine each
 cursor without a separately trusted field. Replay requires exact event order,
-inputs, outputs, exhaustion, and final result; zero reads, failed reads, another
-descriptor, and non-read middle operations reject. The package commitment binds
-this partial replay fact. Summary v21 and compiler replay-record v3 retain the
-exact verified sequence, while review-baseline capsule v2 preserves
+inputs, outputs, exhaustion, and final result; zero reads, failed reads,
+descriptor reuse, cross-chain operations, interleaving, and incomplete chains
+reject. The package commitment binds this partial replay fact. Summary v22 and
+compiler replay-record v4 retain the exact verified chains, while review-
+baseline capsule v2 preserves
 it across restart as opaque, bounded, non-admitting bytes associated with the
 parent observation. Checked compilation can strictly rehydrate those bytes into
-the PSI executor's exact typed source-read sequence and reevaluate the
+the PSI executor's exact typed source-read chains and reevaluate the
 selected build machine without a host filesystem provider. Recorded source
 bytes are used even after the corresponding host file changes, while changed
 authored paths, counts, positioned offsets, operation or region kinds, and

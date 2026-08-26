@@ -802,25 +802,27 @@ commitment binds both. Filesystem-reaching builds load and check the standard
 layout policy before execution. This private seam does not create a public IR
 contract or nominal Chi. Complete replay remains absent, so the record remains
 non-receipted.
-The first bounded replay rung handles one successful Source-rooted, flags-zero
-`open` -> (`read` or `read_at`)+ -> `close` chain. It reruns the build without
-any filesystem provider, supplies recorded results and read bytes, reconstructs
-one logical descriptor lifetime, and requires exact event order, inputs,
-outputs, exhaustion, and final result. Sequential reads advance an implicit
-zero-based cursor by their successful result; positioned reads retain an exact
-nonnegative offset without advancing it. Ordered operation kinds, counts,
-offsets, results, carriers, and observed regions determine cursor semantics
-without a separately trusted field. Empty sequences, failed reads, another
-descriptor, and non-read middle operations reject. Summary v21 binds this
-successful partial replay. Compiler replay-record v3 canonically retains every
-lane of the verified sequence and strictly recovers only the current semantic
-schemas and exact source-read shape. Review-baseline
+The first bounded replay rung handles one or more complete, non-interleaved
+Source-rooted source-read chains. Each chain contains one flags-zero `open`, one
+or more `read`/`read_at` calls on its distinct created descriptor, and its exact
+retiring `close`. It reruns the build without any filesystem provider, supplies
+recorded results and read bytes, reconstructs logical descriptor lifetimes, and
+requires exact event order, inputs, outputs, exhaustion, and final result. Each
+chain's sequential cursor starts at zero and advances by successful sequential-
+read results; positioned reads retain an exact nonnegative offset without
+advancing it. Ordered operation kinds, counts, offsets, results, carriers, and
+observed regions determine cursor semantics without separately trusted fields.
+Empty sequences, failed reads, descriptor reuse, cross-chain operations,
+interleaving, and incomplete chains reject. Summary v22 binds this successful
+partial replay. Compiler replay-record v4 canonically retains every lane of the
+verified chains and strictly recovers only the current semantic schemas and
+exact source-read shape. Review-baseline
 capsule v2 keeps those opaque bytes across restart,
 binds their commitment to the parent build observation, and accounts them under
 one aggregate capsule ceiling. The checksum and association are custody checks,
 not authenticity or admission. This does not change the observation class:
 checked compilation can now strictly rehydrate reopened custody into the PSI
-executor's exact typed source-read sequence and evaluate the build machine with
+executor's exact typed source-read chains and evaluate the build machine with
 no host filesystem provider. Retained source bytes serve that build call even
 after host source drift, while changed authored paths, counts, positioned
 offsets, operation or region kinds, or event structure reject. This uses the

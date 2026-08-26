@@ -509,25 +509,27 @@ builds need no such layout. This is an internal checker seam, not a public IR
 contract or reason to add nominal Chi. Complete replay remains absent. It is
 an incomplete operation trace, not a transcript or receipt, and makes no
 replayability or source-rebuildability claim.
-The first bounded replay executor accepts one successful Source-rooted,
-flags-zero `open` -> (`read` or `read_at`)+ -> `close` chain. It reruns the build
-without a filesystem provider, uses inert rooted coordinates, supplies the
-recorded scalar/logical results and mutable read bytes, reconstructs descriptor
-lifetime, and rejects the first extra, reordered, changed, or missing event.
-Every read consumes the created descriptor. Sequential reads advance an
-implicit zero-based cursor by their exact result; positioned reads bind an exact
-nonnegative offset and do not advance that cursor. The ordered operations,
-counts, offsets, results, carriers, and observed regions determine cursor
-semantics without a separately trusted field. Zero reads, failed reads, another
-descriptor, and non-read middle operations reject. Exact result and complete-
-record equality are required. Summary v21 binds successful partial replay.
-Compiler replay-record v3 retains the complete ordered sequence in canonical
-binary form, rejects stale semantic schemas and operation-inapplicable or
-internally inconsistent lanes, and survives restart inside review-baseline capsule v2.
+The first bounded replay executor accepts one or more complete, non-interleaved
+Source-rooted source-read chains. Each chain contains one flags-zero `open`, one
+or more `read`/`read_at` calls on its distinct created descriptor, and its exact
+retiring `close`. It reruns the build without a filesystem provider, uses inert
+rooted coordinates, supplies recorded scalar/logical results and mutable read
+bytes, reconstructs descriptor lifetimes, and rejects the first extra,
+reordered, changed, or missing event. Each chain's sequential cursor starts at
+zero and advances by exact sequential-read results; positioned reads bind an
+exact nonnegative offset and do not advance it. Ordered operations, counts,
+offsets, results, carriers, and observed regions determine cursor semantics
+without separately trusted fields. Zero reads, failed reads, descriptor reuse,
+cross-chain operations, interleaving, and incomplete chains reject. Exact
+result and complete-record equality are required. Summary v22 binds successful
+partial replay. Compiler replay-record v4 retains the complete ordered chains
+in canonical binary form, rejects stale semantic schemas and operation-
+inapplicable or internally inconsistent lanes, and survives restart inside
+review-baseline capsule v2.
 The record is opaque, bounded, and review-
 only; custody alone establishes neither authenticity, admission, nor a receipt.
 An explicit checked-compilation entry now strictly rehydrates the canonical
-record into the PSI executor's exact typed source-read sequence and evaluates the
+record into the PSI executor's exact typed source-read chains and evaluates the
 build machine with no host filesystem provider. The replay supplies retained
 source bytes even if that host file has changed and rejects changed authored
 paths, counts, positioned offsets, operation or region kinds, and event

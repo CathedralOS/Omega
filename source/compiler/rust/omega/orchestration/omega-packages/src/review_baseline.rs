@@ -357,7 +357,7 @@ pub struct ReviewOnlyBaselinePackage {
     compiler_executable_commitment: ReviewOnlyCompilerExecutableCommitment,
     source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment: Option<[u8; 32]>,
-    source_read_sequence_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
+    source_read_chains_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
     replay_record_parent_binding: Option<[u8; 32]>,
     whole_review_commitment: [u8; 32],
     canonical_rows: Vec<ReviewOnlyCanonicalRow>,
@@ -388,10 +388,10 @@ impl ReviewOnlyBaselinePackage {
         self.build_observation_commitment
     }
 
-    pub const fn source_read_sequence_replay_record(
+    pub const fn source_read_chains_replay_record(
         &self,
     ) -> Option<&ReviewOnlyBuildFilesystemReplayRecord> {
-        self.source_read_sequence_replay_record.as_ref()
+        self.source_read_chains_replay_record.as_ref()
     }
 
     pub const fn whole_review_commitment(&self) -> [u8; 32] {
@@ -499,7 +499,7 @@ impl ReviewOnlyBaselineCapsule {
                         "review baseline replay records exceed their aggregate ceiling",
                     )
                 })?;
-            let source_read_sequence_replay_record = review
+            let source_read_chains_replay_record = review
                 .build_observation_summary()
                 .map(|summary| {
                     capture_verified_build_filesystem_replay_record(
@@ -514,7 +514,7 @@ impl ReviewOnlyBaselineCapsule {
                 })
                 .transpose()?
                 .flatten();
-            if let Some(record) = &source_read_sequence_replay_record {
+            if let Some(record) = &source_read_chains_replay_record {
                 replay_record_bytes = replay_record_bytes
                     .checked_add(record.canonical_bytes().len())
                     .filter(|bytes| *bytes <= limits.maximum_capsule_bytes)
@@ -526,7 +526,7 @@ impl ReviewOnlyBaselineCapsule {
             }
             let replay_record_parent_binding = match (
                 build_observation_commitment,
-                source_read_sequence_replay_record.as_ref(),
+                source_read_chains_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(record)) => {
                     Some(replay_parent_binding(parent, record.commitment()))
@@ -545,7 +545,7 @@ impl ReviewOnlyBaselineCapsule {
                 compiler_executable_commitment: review.compiler_executable_commitment().into(),
                 source_consumption_commitment: review.source_consumption_commitment().into(),
                 build_observation_commitment,
-                source_read_sequence_replay_record,
+                source_read_chains_replay_record,
                 replay_record_parent_binding,
                 whole_review_commitment: whole_review_commitment(review.canonical_review_bytes()),
                 canonical_rows: rows,
@@ -633,11 +633,11 @@ impl ReviewOnlyBaselineCapsule {
                     ));
                 }
             };
-            let source_read_sequence_replay_record =
+            let source_read_chains_replay_record =
                 decode_replay_record_option(&mut record, limits)?;
             let replay_record_parent_binding = match (
                 build_observation_commitment,
-                source_read_sequence_replay_record.as_ref(),
+                source_read_chains_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(replay)) => {
                     let recovered = record.array_32()?;
@@ -727,7 +727,7 @@ impl ReviewOnlyBaselineCapsule {
                     compiler_executable_commitment: compiler,
                     source_consumption_commitment,
                     build_observation_commitment,
-                    source_read_sequence_replay_record,
+                    source_read_chains_replay_record,
                     replay_record_parent_binding,
                     whole_review_commitment,
                     canonical_rows: rows,
@@ -843,7 +843,7 @@ impl ReviewOnlyBaselineCapsule {
             }
             encode_replay_record_option(
                 &mut record,
-                package.source_read_sequence_replay_record.as_ref(),
+                package.source_read_chains_replay_record.as_ref(),
             )?;
             if let Some(binding) = package.replay_record_parent_binding {
                 record.fixed(&binding);
@@ -942,14 +942,14 @@ impl ReviewOnlyBaselineCapsule {
                         )
                     })?;
             }
-            if package.source_read_sequence_replay_record.is_some()
+            if package.source_read_chains_replay_record.is_some()
                 && package.build_observation_commitment.is_none()
             {
                 return Err(ReviewOnlyBaselineError::new(
                     "filesystem replay record has no parent build observation",
                 ));
             }
-            if let Some(replay) = &package.source_read_sequence_replay_record {
+            if let Some(replay) = &package.source_read_chains_replay_record {
                 replay_record_bytes = replay_record_bytes
                     .checked_add(replay.canonical_bytes().len())
                     .ok_or_else(|| {
@@ -970,7 +970,7 @@ impl ReviewOnlyBaselineCapsule {
             }
             let expected_binding = match (
                 package.build_observation_commitment,
-                package.source_read_sequence_replay_record.as_ref(),
+                package.source_read_chains_replay_record.as_ref(),
             ) {
                 (Some(parent), Some(replay)) => {
                     Some(replay_parent_binding(parent, replay.commitment()))

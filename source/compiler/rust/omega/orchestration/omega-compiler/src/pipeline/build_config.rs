@@ -104,7 +104,7 @@ impl BuildMachineFilesystemScope {
 
     fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         if let Some(replay) = &self.replay {
-            return BuildMachineFilesystemAccess::ReplaySourceReadSequence(replay.clone());
+            return BuildMachineFilesystemAccess::ReplaySourceReadChains(replay.clone());
         }
         let grants = BuildMachineFilesystemGrants {
             read_roots: vec![BuildMachineFilesystemGrantRoot::new(
@@ -236,7 +236,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 21;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 22;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -955,7 +955,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
-    source_read_sequence_replay_verified: bool,
+    source_read_chains_replay_verified: bool,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
@@ -981,11 +981,11 @@ impl BuildObservationSummary {
     }
 
     /// Whether the compiler reran this build with no filesystem provider and
-    /// consumed the complete record using the bounded source-read sequence
+    /// consumed the complete record using the bounded source-read chains
     /// replay executor. This is a partial replay fact, never a `Receipted`
     /// verdict.
-    pub const fn source_read_sequence_replay_verified(&self) -> bool {
-        self.source_read_sequence_replay_verified
+    pub const fn source_read_chains_replay_verified(&self) -> bool {
+        self.source_read_chains_replay_verified
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
@@ -2022,97 +2022,134 @@ fn selected_filesystem_metadata_layout(
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
-fn is_source_read_sequence_replay_record(
+fn is_source_read_chains_replay_record(
     observations: &psi_checked_interpreter::EvaluationObservations,
 ) -> bool {
+    let attempts = observations.filesystem_operation_attempts();
+    let mut cursor = 0;
+    let mut identities = Vec::new();
+    while cursor < attempts.len() {
+        let Some(identity) = source_read_chain_open_identity(&attempts[cursor]) else {
+            return false;
+        };
+        if identities.contains(&identity) {
+            return false;
+        }
+        identities.push(identity);
+        cursor += 1;
+
+        let reads_start = cursor;
+        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
+            if !source_read_chain_read_is_exact(&attempts[cursor], identity) {
+                return false;
+            }
+            cursor += 1;
+        }
+        if cursor == reads_start
+            || cursor == attempts.len()
+            || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+        {
+            return false;
+        }
+        cursor += 1;
+    }
+    !identities.is_empty()
+}
+
+fn source_read_chain_open_identity(
+    open: &psi_checked_interpreter::FilesystemOperationAttempt,
+) -> Option<psi_checked_interpreter::FilesystemLogicalHandleIdentity> {
     use psi_checked_interpreter::{
-        FilesystemLogicalHandleInputResolution as InputResolution,
         FilesystemLogicalHandleKind as HandleKind,
         FilesystemLogicalHandleOutputSource as OutputSource,
         FilesystemOperationResult as ResultValue, FilesystemScalarOperandValue as ScalarValue,
     };
-
-    let attempts = observations.filesystem_operation_attempts();
-    let Some((open, remainder)) = attempts.split_first() else {
-        return false;
-    };
-    let Some((close, reads)) = remainder.split_last() else {
-        return false;
-    };
-    if open.operation_tag() != 2
-        || close.operation_tag() != 8
-        || reads.is_empty()
-        || attempts.iter().any(|attempt| {
-            attempt.provider() != psi_checked_interpreter::FilesystemObservationProvider::RealScoped
-        })
-    {
-        return false;
-    }
     let [rooted] = open.rooted_path_operand_resolutions() else {
-        return false;
+        return None;
     };
     let [flags] = open.scalar_operands() else {
-        return false;
+        return None;
     };
     let Some(output) = open.logical_handle_output() else {
-        return false;
+        return None;
     };
     let identity = output.identity();
-    if rooted.operand_ordinal() != 0
-        || rooted.root() != BUILD_SOURCE_ROOT_IDENTITY
-        || flags.operand_ordinal() != 1
-        || flags.value() != ScalarValue::I32(0)
-        || output.kind() != HandleKind::Descriptor
-        || output.source() != OutputSource::Created
-        || open.result() != Some(ResultValue::LogicalHandle(identity))
-    {
+    (open.operation_tag() == 2
+        && open.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && flags.operand_ordinal() == 1
+        && flags.value() == ScalarValue::I32(0)
+        && output.kind() == HandleKind::Descriptor
+        && output.source() == OutputSource::Created
+        && open.result() == Some(ResultValue::LogicalHandle(identity)))
+    .then_some(identity)
+}
+
+fn source_read_chain_read_is_exact(
+    read: &psi_checked_interpreter::FilesystemOperationAttempt,
+    identity: psi_checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemOperationResult as ResultValue,
+        FilesystemScalarOperandValue as ScalarValue,
+    };
+    let [read_input] = read.logical_handle_inputs() else {
         return false;
-    }
+    };
+    let Some(ResultValue::Scalar(read_result)) = read.result() else {
+        return false;
+    };
+    let Ok(read_length) = usize::try_from(read_result) else {
+        return false;
+    };
+    let Ok(read_length_u64) = u64::try_from(read_result) else {
+        return false;
+    };
+    let expected_region_kind = match (read.operation_tag(), read.scalar_operands()) {
+        (4, [count])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64) =>
+        {
+            psi_checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead
+        }
+        (6, [count, offset])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64)
+                && offset.operand_ordinal() == 3
+                && matches!(offset.value(), ScalarValue::I64(value) if value >= 0) =>
+        {
+            psi_checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead
+        }
+        _ => return false,
+    };
+    let [region] = read.observed_byte_regions() else {
+        return false;
+    };
+    read.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped
+        && read_input.operand_ordinal() == 0
+        && read_input.kind() == HandleKind::Descriptor
+        && read_input.resolution() == InputResolution::Resolved(identity)
+        && region.output_operand_ordinal() == 1
+        && region.kind() == expected_region_kind
+        && region.offset() == 0
+        && region.length() == read_length
+}
+
+fn source_read_chain_close_is_exact(
+    close: &psi_checked_interpreter::FilesystemOperationAttempt,
+    identity: psi_checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind, FilesystemOperationResult as ResultValue,
+    };
     let [close_input] = close.logical_handle_inputs() else {
         return false;
     };
-    let reads_are_exact = reads.iter().all(|read| {
-        let [read_input] = read.logical_handle_inputs() else {
-            return false;
-        };
-        let Some(ResultValue::Scalar(read_result)) = read.result() else {
-            return false;
-        };
-        let Ok(read_length) = usize::try_from(read_result) else {
-            return false;
-        };
-        let Ok(read_length_u64) = u64::try_from(read_result) else {
-            return false;
-        };
-        let expected_region_kind = match (read.operation_tag(), read.scalar_operands()) {
-            (4, [count])
-                if count.operand_ordinal() == 2
-                    && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64) =>
-            {
-                psi_checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead
-            }
-            (6, [count, offset])
-                if count.operand_ordinal() == 2
-                    && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64)
-                    && offset.operand_ordinal() == 3
-                    && matches!(offset.value(), ScalarValue::I64(value) if value >= 0) =>
-            {
-                psi_checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead
-            }
-            _ => return false,
-        };
-        let [region] = read.observed_byte_regions() else {
-            return false;
-        };
-        read_input.operand_ordinal() == 0
-            && read_input.kind() == HandleKind::Descriptor
-            && read_input.resolution() == InputResolution::Resolved(identity)
-            && region.output_operand_ordinal() == 1
-            && region.kind() == expected_region_kind
-            && region.offset() == 0
-            && region.length() == read_length
-    });
-    reads_are_exact
+    close.operation_tag() == 8
+        && close.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped
         && close_input.operand_ordinal() == 0
         && close_input.kind() == HandleKind::Descriptor
         && close_input.resolution() == InputResolution::Resolved(identity)
@@ -2399,10 +2436,10 @@ pub(crate) fn compute_build_config(
     })?;
     let usage = measured.usage();
     let replayable_first_rung =
-        filesystem_reachable && is_source_read_sequence_replay_record(measured.observations());
-    let source_read_sequence_replay_verified = if replayable_first_rung {
+        filesystem_reachable && is_source_read_chains_replay_record(measured.observations());
+    let source_read_chains_replay_verified = if replayable_first_rung {
         let replay =
-            psi_checked_interpreter::FilesystemReplay::from_source_read_sequence_observations(
+            psi_checked_interpreter::FilesystemReplay::from_source_read_chains_observations(
                 measured.observations(),
             )
         .map_err(|reason| {
@@ -2415,7 +2452,7 @@ pub(crate) fn compute_build_config(
             machine_name,
             initial_arguments,
             BuildMachineExecutionMode::Granted {
-                filesystem: BuildMachineFilesystemAccess::ReplaySourceReadSequence(replay),
+                filesystem: BuildMachineFilesystemAccess::ReplaySourceReadChains(replay),
                 filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
             },
         )
@@ -2804,7 +2841,7 @@ pub(crate) fn compute_build_config(
             realized: realized_observation,
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
-            source_read_sequence_replay_verified,
+            source_read_chains_replay_verified,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
