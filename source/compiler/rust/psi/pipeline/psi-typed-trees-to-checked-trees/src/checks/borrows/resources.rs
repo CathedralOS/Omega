@@ -1,8 +1,9 @@
 use psi_checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowLoanResource, CheckedReborrowRestorationObligation,
-    FlowFacts, FlowInvalidationSource,
+    CheckedParentBorrowResource, CheckedReborrowLoanResource,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowRestorationObligation, FlowFacts,
+    FlowInvalidationSource,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -66,6 +67,8 @@ struct CheckedReborrowLoanResourceDraft {
     weakening_source: psi_checked_trees::FlowInvalidationSource,
     weakening_reason: psi_checked_trees::FlowBorrowWeakeningReason,
     parent_loan: psi_arena::Handle<BorrowLoanFact>,
+    child_activation: psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
+    parent_entry_constraint: psi_arena::Handle<psi_checked_trees::FlowConstraintRef>,
 }
 
 impl CheckedReborrowLoanResourceDraft {
@@ -83,6 +86,14 @@ impl CheckedReborrowLoanResourceDraft {
             weakening_reason: self.weakening_reason,
             parent_loan: self.parent_loan,
             parent_resource: parent_resource.clone(),
+            parent_suspension: CheckedReborrowParentSuspensionBoundary {
+                child_loan: self.loan,
+                parent_loan: self.parent_loan,
+                parent_resource: parent_resource.clone(),
+                child_activation: self.child_activation,
+                parent_entry_constraint: self.parent_entry_constraint,
+                source: self.activation_source,
+            },
             restoration: CheckedReborrowRestorationObligation {
                 child_loan: self.loan,
                 parent_loan: self.parent_loan,
@@ -352,7 +363,12 @@ fn reconstruct_reborrow_resource_drafts(
                 .activations
                 .span_or_empty(flow_state.borrow_activations)
                 .iter()
-                .filter(|activation| activation.loan == loan_handle)
+                .enumerate()
+                .filter(|(_, activation)| activation.loan == loan_handle)
+                .filter_map(|(offset, activation)| {
+                    span_handle(flow_state.borrow_activations, offset)
+                        .map(|handle| (handle, activation))
+                })
                 .collect::<Vec<_>>();
             let weakenings = flow
                 .borrow_lifetimes
@@ -361,13 +377,14 @@ fn reconstruct_reborrow_resource_drafts(
                 .iter()
                 .filter(|weakening| weakening.loan == loan_handle)
                 .collect::<Vec<_>>();
-            let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice())
-            else {
+            if activations.len() != 1 || weakenings.len() != 1 {
                 diagnostics.push(Diagnostic::error(
                     "checked direct-reborrow resource requires exactly one activation and one weakening",
                 ));
                 continue;
-            };
+            }
+            let (child_activation, activation) = activations[0];
+            let weakening = weakenings[0];
             if activation.source
                 != (FlowInvalidationSource::Statement {
                     statement_index: loan.statement_index,
@@ -378,6 +395,37 @@ fn reconstruct_reborrow_resource_drafts(
                 ));
                 continue;
             }
+
+            let Some(statement) = flow
+                .control
+                .statements
+                .span_or_empty(flow_state.statements)
+                .iter()
+                .find(|statement| statement.statement_index == loan.statement_index)
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow suspension has no exact formation statement",
+                ));
+                continue;
+            };
+            let parent_constraints = flow
+                .contexts
+                .constraint_refs
+                .span_or_empty(statement.entry_constraints)
+                .iter()
+                .enumerate()
+                .filter(|(_, constraint)| {
+                    constraint.kind
+                        == psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: *parent_loan }
+                })
+                .filter_map(|(offset, _)| span_handle(statement.entry_constraints, offset))
+                .collect::<Vec<_>>();
+            let [parent_entry_constraint] = parent_constraints.as_slice() else {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow suspension requires exactly one parent entry constraint",
+                ));
+                continue;
+            };
 
             resources.push(CheckedReborrowLoanResourceDraft {
                 loan: loan_handle,
@@ -394,6 +442,8 @@ fn reconstruct_reborrow_resource_drafts(
                 weakening_source: weakening.source,
                 weakening_reason: weakening.reason,
                 parent_loan: *parent_loan,
+                child_activation,
+                parent_entry_constraint: *parent_entry_constraint,
             });
         }
     }
@@ -403,6 +453,15 @@ fn reconstruct_reborrow_resource_drafts(
     } else {
         Err(diagnostics)
     }
+}
+
+fn span_handle<T>(span: psi_arena::HandleSpan<T>, offset: usize) -> Option<psi_arena::Handle<T>> {
+    let offset = u32::try_from(offset).ok()?;
+    let arena_index = span.start().arena_index().checked_add(offset)?;
+    Some(psi_arena::Handle::from_parts(
+        arena_index,
+        span.start().generation(),
+    ))
 }
 
 fn replay_checked_direct_reborrow_lineage(

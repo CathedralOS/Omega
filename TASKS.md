@@ -5530,6 +5530,16 @@ Owners:
   unretained remain outside the arena, as do aggregate/helper transfers. The
   obligation does not prove parent activity, reactivation, temporal
   containment, completed restoration, or Terminal authority.
+  The next checked-only join now retains the exact parent-suspension formation
+  boundary for every retained child: one typed child activation and the one
+  exact parent-loan constraint present immediately before it, both joined to
+  the existing child/parent resource identities. Independent replay rejects
+  missing, duplicate, reordered, substituted, or cross-state occurrences
+  before either resource arena rebuilds. This boundary proves only that the
+  parent occurrence was available when the explicit child reborrow formed.
+  Parent activity after formation, suspension-interval containment,
+  reactivation, completed restoration, and Terminal authority remain open;
+  current lexical weakening rows cannot establish those claims.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
