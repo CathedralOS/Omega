@@ -5,9 +5,9 @@
 //! mutable/borrow mode while matching quotient carriers through the retained
 //! representative static application. Faithful `define` remains declaration-
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
-//! members of the public telescope or supply a closed boolean, explicitly
-//! landed integer, or format-landed float to an exact immutable scalar
-//! representative position.
+//! members of the public telescope or supply a closed boolean, integer with an
+//! explicit or exact target-derived landing, or format-landed float to an exact
+//! immutable scalar representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -308,12 +308,17 @@ pub(super) fn closed_scalar_literal_for_representative(
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
         }
         ExpressionNode::Integer(literal) => {
-            let landing = literal
-                .landing()
-                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            let target_domain = program.arithmetic_domain_for_type_reference(representative_type);
+            let landing = match literal.landing() {
+                Some(landing) => landing,
+                None => IntegerLanding {
+                    landed_type: integer_primitive_landing(primitive)
+                        .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?,
+                    domain: target_domain,
+                },
+            };
             if landed_primitive(landing.landed_type) != primitive
-                || landing.domain
-                    != program.arithmetic_domain_for_type_reference(representative_type)
+                || landing.domain != target_domain
                 || !integer_literal_fits(literal, landing.landed_type)
             {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
@@ -358,6 +363,21 @@ fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
         LandedIntegerType::U64 => PrimitiveType::U64,
         LandedIntegerType::Addr => PrimitiveType::Addr,
     }
+}
+
+fn integer_primitive_landing(primitive: PrimitiveType) -> Option<LandedIntegerType> {
+    Some(match primitive {
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+        _ => return None,
+    })
 }
 
 fn integer_literal_fits(literal: &IntegerLiteral, landed: LandedIntegerType) -> bool {

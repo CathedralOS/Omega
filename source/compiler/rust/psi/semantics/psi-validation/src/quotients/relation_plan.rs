@@ -388,9 +388,7 @@ pub(super) fn derive_direct_terminal_plan(
         let Some(argument_type) = argument_type else {
             let is_closed_scalar_candidate = match program.expression_table.expression(*argument) {
                 psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Integer(literal) => {
-                    literal.landing().is_some()
-                }
+                psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
                 psi_typed_trees::expression::ExpressionNode::Float(literal) => {
                     literal.landing().is_some()
                 }
