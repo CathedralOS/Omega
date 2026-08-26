@@ -153,16 +153,22 @@ externally writable directories have sticky-entry protection. Those custody
 conditions are rechecked around every launch. The resolver hashes the file
 under a 256 MiB ceiling, retains that observation on `ResolvedGitSource`, checks
 stable file identity before and after every launch, and re-hashes the bytes when
-the complete resolution returns. SSH requests apply the same observation and
-Unix custody checks to one exact client, recheck it around every Git launch,
-re-hash it at completion, and retain it separately. Drift rejects. The Git
-cache policy is v11, so a cache fetched before these executable-custody floors
+the complete resolution returns. HTTPS requests select `git-remote-https` from
+a closed install-relative candidate set, retain its invocation entry and
+canonical target, and apply the same observation and Unix custody checks to
+both identities. `GIT_EXEC_PATH` and `PATH` expose only that observed helper
+directory. SSH requests apply the same observation and Unix custody checks to
+one exact client. Both transports recheck their executable identity around
+every Git launch, re-hash the canonical target at completion, and retain it
+separately. Drift rejects. The Git cache policy is v12, so a cache fetched
+before these executable-custody floors
 or under a different transport-authority profile is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
-ownership on Unix; it does not certify Git or SSH, bind other executable
-components or transport helpers, inspect macOS ACL grants, establish Windows
-ownership/DACL custody, protect against same-user replacement, or prove that an
-observed file equals an already loaded image.
+ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
+other executable components, inspect macOS ACL grants, establish Windows
+ownership/DACL custody, protect against same-user replacement, bind TLS trust
+or the effective endpoint, or prove that an observed file equals an already
+loaded image.
 Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
@@ -223,10 +229,11 @@ ownership/DACL policy, or
 replace native isolation. Git path and symlink preflight rejects Windows
 drive/alternate-stream colons, forbidden characters and controls, trailing
 dots/spaces, and reserved device names independently of the host path parser.
-The fixed helper path still permits Git to invoke required transport helpers;
-apart from the selected SSH client, those descendants are not yet bound to
-retained executable identities. SSH is forced through that content-observed
-absolute client with user configuration disabled, `BatchMode`, zero password
+HTTPS Git commands can select only the observed install-relative
+`git-remote-https` invocation entry and its retained canonical target. Other
+executable components beneath Git remain outside retained identity. SSH is
+forced through its content-observed absolute client with user configuration
+disabled, `BatchMode`, zero password
 prompts, and strict host-key checking. It still
 consults the user's default known-host and key files, so host and credential
 custody remain ambient and unsuitable for strict admission. Those conditions

@@ -257,8 +257,8 @@ complete.
   - on Unix the selected Git executable now has resolver/root ownership,
     non-writable/non-set-id executable mode, and safe owned ancestry checks;
     macOS ACL custody, Windows executable ownership/DACL custody, provenance,
-    the already loaded image, and fixed-path executables Git may launch other
-    than the separately observed SSH client remain;
+    the already loaded image, and executable components Git may launch other
+    than the separately observed HTTPS transport helper and SSH client remain;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
     hostile Unix process that deliberately changes session; cleanup has its own
@@ -356,6 +356,18 @@ complete.
   floor. This observes the selected client; it does not prove its loaded image,
   confine it, or replace explicit known-host, key, credential-provider,
   endpoint, macOS ACL, or Windows DACL custody.
+
+  Milestone 2026-08-25: HTTPS execution now resolves `git-remote-https` only
+  from a closed install-relative candidate set beside the selected Git
+  installation. The resolver retains both the exact invocation entry and its
+  canonical executable target, hashes the target, applies the executable and
+  ancestry custody floor to both identities, and rechecks them around every
+  launch and at resolution completion. `GIT_EXEC_PATH` and `PATH` expose only
+  that observed helper directory to HTTPS Git commands. Cache policy v12
+  prevents reuse of entries fetched before this helper-binding floor. This
+  closes ambient HTTPS transport-helper selection; it does not prove the
+  loaded image or TLS implementation, bind certificate stores or endpoints,
+  inspect macOS ACLs or Windows DACLs, or replace native confinement.
 
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
