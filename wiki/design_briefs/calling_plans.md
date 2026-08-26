@@ -498,10 +498,17 @@ complete normalized row map are unchanged. Checked facts retain both statement
 versions; checked-to-state replay reconstructs the assignment and prior row
 identity; the forwarded argument selects the latest prior version. Runtime
 lowering then replaces both words in the exact existing local slot with the new
-instance address and unchanged selected-table address. Direct dispatch through
-the rebound local, a changed or inferred conformance, non-cast assignment,
-control-flow joins, aggregate storage, returns, and component crossing gain no
-authority from this rung.
+instance address and unchanged selected-table address. The same exact local may
+now dispatch one requirement directly after that rebind. State-call planning
+retains the unanimous binding and latest selection statement as a closed
+rebound-local receiver, rejects version collisions without falling through to
+devirtualization, and owns the selected table demand independently of forwarded
+argument evidence. Instruction selection rejoins the latest checked selection,
+sole exact conformance candidate, existing two-word local slot, common
+normalized table row, and its authoritative `CallPlan` before emitting the
+ordinary private table-slot call. A changed or inferred conformance, non-cast
+assignment, control-flow join, aggregate storage, return, and component
+crossing gain no authority from this rung.
 
 A bare dynamic parameter retains every eligible complete closed conformance as
 an exact candidate map. Call-site specialization selects from those maps by the

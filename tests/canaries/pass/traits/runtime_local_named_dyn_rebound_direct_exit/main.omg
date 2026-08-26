@@ -1,0 +1,43 @@
+use omega::language::std::console;
+
+trait Shape {
+    machine code(&self) -> i32;
+}
+
+data Item {
+    value: i32;
+}
+
+Primary: Item satisfies Shape {
+    machine code(&self) -> i32 {
+        transition {
+            _ -> self.value
+        }
+    }
+}
+
+data Main {
+    console: Console;
+    decoy: Item;
+    selected: Item;
+}
+
+machine Main::main(&mut self) {
+    self.decoy.value = 4;
+    self.selected.value = 99;
+    let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
+    erased = &self.selected as &dyn Item::Primary;
+    let result: i32 = erased.code();
+    transition result == 99 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

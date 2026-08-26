@@ -278,16 +278,28 @@ pub struct StateCallDynamicConformance {
     pub rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
 }
 
-/// Exact checked identity retained by one call through a bare dynamic
-/// parameter. The runtime descriptor chooses the candidate table; the
+/// Exact checked identity retained by one indirect dynamic call. The receiver
+/// is either a bare dynamic parameter or one exact same-conformance rebound
+/// local; the runtime descriptor chooses the candidate table and the
 /// normalized requirement identity chooses one common row in every table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCallDynamicDispatch {
-    pub receiver_parameter: SymbolHandle,
+    pub receiver: StateCallDynamicReceiver,
     pub target_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub requirement_identity: String,
     pub candidates: Vec<StateCallDynamicDispatchCandidate>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateCallDynamicReceiver {
+    Parameter {
+        symbol: SymbolHandle,
+    },
+    ReboundLocal {
+        binding: SymbolHandle,
+        selection_statement_index: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

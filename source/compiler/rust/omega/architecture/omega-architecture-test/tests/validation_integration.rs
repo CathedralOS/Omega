@@ -2532,7 +2532,7 @@ fn same_conformance_local_dynamic_rebind_retains_both_exact_selections() {
 }
 
 #[test]
-fn direct_call_through_rebound_dynamic_local_remains_fenced() {
+fn direct_call_through_same_conformance_rebound_dynamic_local_is_admitted() {
     let typed = typed_program_from_source(
         r#"
         trait Shape { machine code(&self) -> i32; }
@@ -2548,13 +2548,7 @@ fn direct_call_through_rebound_dynamic_local_remains_fenced() {
         "#,
     );
 
-    let diagnostics = validate_program(&typed)
-        .expect_err("direct local dispatch after a rebind has no lowering authority");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("direct call through rebound dynamic local `erased` remains fenced")
-    }));
+    validate_program(&typed).expect("exact same-conformance rebound direct call");
 }
 
 #[test]

@@ -1011,6 +1011,41 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
+    for target in ["linux_x64", "linux_arm64"] {
+        compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "{target} should replay the rebound-local indirect table call exactly:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| diagnostic.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            },
+        );
+    }
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-named-dyn-rebound-direct-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("a rebound local dynamic descriptor should call its exact table slot");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "rebound-local direct dynamic call canary",
+        "the indirect slot must execute against the selected instance, never the same-type decoy",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     // TWO data types satisfy Shape, so the `&mut dyn Shape` receiver cannot
     // devirtualize; the call is monomorphized over the trait's closed world and

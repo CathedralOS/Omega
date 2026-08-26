@@ -735,11 +735,15 @@ initializer and assignment are exact direct-place casts naming the same
 carrier, trait, conformance, and normalized row map. The compiler retains one
 selection per statement, independently replays the assignment against its
 earlier version, selects the latest version at the forwarding call, and
-overwrites both the instance and table words in the existing local slot. Calling
-a requirement directly through the rebound local remains fenced; forward it to
-the exact bare-dynamic parameter instead. Different-conformance or non-cast
-assignments, aggregate erased calls, storage, joins, escaping, and component
-crossing remain open. Those consumers use the same complete normalized maps.
+overwrites both the instance and table words in the existing local slot. That
+same exact local may now call one requirement directly after rebinding. The
+compiler retains the unanimous binding and latest selection statement, refuses
+a malformed or colliding version without devirtualizing it, rejoins the
+existing two-word local slot and sole selected table, and performs the same
+private indirect slot call used by a bare dynamic parameter. Different-
+conformance or non-cast assignments, aggregate erased calls, storage, joins,
+escaping, and component crossing remain open. Those consumers use the same
+complete normalized maps.
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
 conformance identity.

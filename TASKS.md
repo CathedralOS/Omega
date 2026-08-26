@@ -8794,9 +8794,19 @@ checked-result arithmetic decision listed below.
   table address into the existing two-word local slot before generic mutation
   handling. A decoy-to-selected native canary proves that the reassigned
   instance, not stale initializer state, reaches the indirect slot on both
-  Linux targets. Direct calls through the rebound local, a changed conformance
-  or carrier, non-cast assignments, aggregate erased calls, stored/joined/
-  escaping descriptors, and component crossing remain fail closed.
+  Linux targets. The exact same-conformance local can now also call one
+  requirement directly after rebinding. State-call planning retains a closed
+  `ReboundLocal` receiver with the unanimous exact binding and latest selection
+  statement, refuses malformed/colliding versions without devirtualization
+  fallback, and makes the dispatch itself own the table-materialization demand.
+  Instruction selection independently rejoins that latest selection, its sole
+  conformance candidate, the existing two-word local slot, one common normalized
+  requirement row, and its authoritative `CallPlan` before reusing the private
+  table-call lowering. A distinct decoy/selected canary executes the direct
+  rebound call natively and under both Linux target replays. A changed
+  conformance or carrier, non-cast assignments, aggregate erased calls,
+  stored/joined/escaping descriptors, and component crossing remain fail
+  closed.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

@@ -436,18 +436,6 @@ fn validate_dynamic_call_arguments_in_statement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let StatementNode::Call(call) = statement {
-        reject_rebound_dynamic_receiver(
-            machine,
-            state,
-            statement_index,
-            call.receiver_symbol,
-            program
-                .statement_table
-                .name_path_members(call.receiver)
-                .last(),
-            selections,
-            diagnostics,
-        );
         validate_dynamic_call_arguments(
             program,
             machine,
@@ -514,19 +502,6 @@ fn validate_dynamic_call_arguments_in_expression(
         }
         ExpressionNode::Cast(cast) => visit!(cast.value),
         ExpressionNode::Call(call) => {
-            if let Some(receiver) = dynamic_source_place(program, call.receiver)
-                && receiver.path.len() == 1
-            {
-                reject_rebound_dynamic_receiver(
-                    machine,
-                    state,
-                    statement_index,
-                    receiver.symbol,
-                    Some(&receiver.name),
-                    selections,
-                    diagnostics,
-                );
-            }
             validate_dynamic_call_arguments(
                 program,
                 machine,
@@ -565,37 +540,6 @@ fn validate_dynamic_call_arguments_in_expression(
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn reject_rebound_dynamic_receiver(
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    binding: psi_symbols::SymbolHandle,
-    binding_name: Option<&Identifier>,
-    selections: &[DynamicConformanceSelection],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let versions = selections
-        .iter()
-        .filter(|selection| {
-            selection.machine == machine.symbol
-                && selection.state == state.symbol
-                && selection.statement_index < statement_index
-                && if binding.is_valid() {
-                    selection.binding == binding
-                } else {
-                    binding_name.is_some_and(|name| selection.binding_name == *name)
-                }
-        })
-        .count();
-    if versions > 1 {
-        diagnostics.push(Diagnostic::error(format!(
-            "direct call through rebound dynamic local `{}` remains fenced; forward the descriptor to an exact bare-dynamic parameter",
-            binding_name.map(Identifier::as_str).unwrap_or("<dynamic>")
-        )));
     }
 }
 

@@ -9,7 +9,8 @@ use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
 
 use super::{
-    StateCallDynamicDispatch, StateCallDynamicDispatchCandidate, StateCallResolution, StateCallRole,
+    StateCallDynamicDispatch, StateCallDynamicDispatchCandidate, StateCallDynamicReceiver,
+    StateCallResolution, StateCallRole,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,19 +95,19 @@ pub(crate) fn collect_machine_state_calls(
                     target,
                 );
 
-                let dynamic_dispatch = resolved_target
-                    .is_none()
-                    .then(|| {
-                        resolve_dynamic_parameter_dispatch(
-                            &context.control_flow,
-                            state.key,
-                            *receiver_symbol,
-                            receiver,
-                            *target_symbol,
-                        )
-                    })
-                    .flatten();
-                if let Some((candidate, dispatch)) = dynamic_dispatch {
+                let dynamic_dispatch = resolved_target.is_none().then(|| {
+                    resolve_dynamic_dispatch(
+                        &context.control_flow,
+                        state.key,
+                        operation.statement_index,
+                        *receiver_symbol,
+                        receiver,
+                        *target_symbol,
+                    )
+                });
+                if let Some(DynamicDispatchResolution::Resolved(candidate, dispatch)) =
+                    dynamic_dispatch
+                {
                     calls.push(CollectedStateCall {
                         source_key: state.key,
                         statement_index: operation.statement_index,
@@ -139,9 +140,44 @@ pub(crate) fn collect_machine_state_calls(
                     continue;
                 }
 
+                let rejected_dynamic_dispatch =
+                    matches!(dynamic_dispatch, Some(DynamicDispatchResolution::Rejected));
+                if rejected_dynamic_dispatch {
+                    calls.push(CollectedStateCall {
+                        source_key: state.key,
+                        statement_index: operation.statement_index,
+                        call_ordinal,
+                        role: StateCallRole::Statement,
+                        receiver_symbol: *receiver_symbol,
+                        receiver_name: receiver.clone(),
+                        raw_receiver: ExpressionHandle::invalid(),
+                        resolved_receiver_path: Vec::new(),
+                        target_key: StateKey::default(),
+                        raw_arguments: match operation.expressions {
+                            OperationExpressionRefs::Call { arguments } => arguments,
+                            _ => HandleSpan::empty(),
+                        },
+                        reachable: context.runtime_state_is_reachable_by_key(state.key),
+                        required: false,
+                        resolution: StateCallResolution::Unresolved,
+                        dynamic_dispatch: None,
+                    });
+                    call_ordinal += 1;
+                    collect_expression_state_calls_for_operation(
+                        context,
+                        machine,
+                        state.key,
+                        operation.statement_index,
+                        &mut call_ordinal,
+                        operation.expressions,
+                        &mut calls,
+                    );
+                    continue;
+                }
+
                 // A local or parameter `dyn` selection routes only through
                 // exact rows retained by complete closed conformances.
-                let dyn_candidates = if resolved_target.is_none() {
+                let dyn_candidates = if resolved_target.is_none() && !rejected_dynamic_dispatch {
                     resolve_dynamic_call_candidates(
                         &context.control_flow,
                         state.key,
@@ -575,14 +611,17 @@ fn collect_expression_state_calls_in_table(
                 receiver.is_present,
                 &call.target,
             );
-            if resolved_target.is_none()
-                && let Some((candidate, dispatch)) = resolve_dynamic_parameter_dispatch(
+            let dynamic_dispatch = resolved_target.is_none().then(|| {
+                resolve_dynamic_dispatch(
                     &context.control_flow,
                     source_key,
+                    statement_index,
                     receiver.symbol,
                     &receiver.name,
                     call.target_symbol,
                 )
+            });
+            if let Some(DynamicDispatchResolution::Resolved(candidate, dispatch)) = dynamic_dispatch
             {
                 calls.push(CollectedStateCall {
                     source_key,
@@ -619,11 +658,49 @@ fn collect_expression_state_calls_in_table(
                 }
                 return;
             }
+            if matches!(dynamic_dispatch, Some(DynamicDispatchResolution::Rejected)) {
+                calls.push(CollectedStateCall {
+                    source_key,
+                    statement_index,
+                    call_ordinal: *call_ordinal,
+                    role,
+                    receiver_symbol: receiver.symbol,
+                    receiver_name: receiver.name.clone(),
+                    raw_receiver: call.receiver,
+                    resolved_receiver_path: Vec::new(),
+                    target_key: StateKey::default(),
+                    raw_arguments: call.arguments,
+                    reachable: context.runtime_state_is_reachable_by_key(source_key),
+                    required: false,
+                    resolution: StateCallResolution::Unresolved,
+                    dynamic_dispatch: None,
+                });
+                *call_ordinal += 1;
+                for argument in context
+                    .control_flow
+                    .expressions
+                    .expression_handles(call.arguments)
+                {
+                    collect_expression_state_calls_in_table(
+                        context,
+                        machine,
+                        source_key,
+                        statement_index,
+                        call_ordinal,
+                        role,
+                        *argument,
+                        calls,
+                    );
+                }
+                return;
+            }
             // A method call through a multi-conformance `dyn Trait` reference
             // parameter has no single target. Retain one exact row candidate
             // per complete conformance; the concrete call-site receiver
             // selects among their inline expansions during selection.
-            if resolved_target.is_none() {
+            if resolved_target.is_none()
+                && !matches!(dynamic_dispatch, Some(DynamicDispatchResolution::Rejected))
+            {
                 let candidates = resolve_dynamic_call_candidates(
                     &context.control_flow,
                     source_key,
@@ -1311,41 +1388,154 @@ fn resolve_dynamic_call_candidates(
         .collect()
 }
 
-fn resolve_dynamic_parameter_dispatch(
+enum DynamicDispatchResolution {
+    NotApplicable,
+    Resolved(ResolvedStateCall, StateCallDynamicDispatch),
+    Rejected,
+}
+
+fn resolve_dynamic_dispatch(
     control_flow: &ControlFlowPlan,
     source_key: StateKey,
+    statement_index: usize,
     receiver_symbol: SymbolHandle,
     receiver_name: &Identifier,
     target_symbol: SymbolHandle,
-) -> Option<(ResolvedStateCall, StateCallDynamicDispatch)> {
-    let _ = receiver_name;
-    let state = control_flow
+) -> DynamicDispatchResolution {
+    let matching_selections = control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .selections
+        .iter()
+        .filter(|selection| {
+            selection.machine == source_key.machine
+                && selection.state == source_key.state
+                && selection.statement_index < statement_index
+                && if receiver_symbol.is_valid() {
+                    selection.binding == receiver_symbol
+                } else {
+                    selection.binding_name == *receiver_name
+                }
+        })
+        .collect::<Vec<_>>();
+    if matching_selections.len() > 1 {
+        let Some(binding) = matching_selections
+            .first()
+            .map(|selection| selection.binding)
+            .filter(|binding| binding.is_valid())
+        else {
+            return DynamicDispatchResolution::Rejected;
+        };
+        if receiver_symbol.is_valid() && receiver_symbol != binding {
+            return DynamicDispatchResolution::Rejected;
+        }
+        if matching_selections
+            .iter()
+            .any(|selection| selection.binding != binding)
+        {
+            return DynamicDispatchResolution::Rejected;
+        }
+        let Some(selection) = matching_selections
+            .iter()
+            .max_by_key(|selection| selection.statement_index)
+            .copied()
+        else {
+            return DynamicDispatchResolution::Rejected;
+        };
+        if matching_selections.iter().any(|version| {
+            version.target_trait != selection.target_trait
+                || version.conformance != selection.conformance
+                || version.source_data != selection.source_data
+                || version.rows != selection.rows
+        }) {
+            return DynamicDispatchResolution::Rejected;
+        }
+        let Some(conformance) = selection.conformance else {
+            return DynamicDispatchResolution::Rejected;
+        };
+        let mut matching_rows = selection
+            .rows
+            .iter()
+            .filter(|row| row.requirement == target_symbol);
+        let Some(row) = matching_rows.next() else {
+            return DynamicDispatchResolution::Rejected;
+        };
+        if matching_rows.next().is_some() || row.declaring_trait != selection.target_trait {
+            return DynamicDispatchResolution::Rejected;
+        }
+        let mut states = control_flow.states.iter().filter(|(_, state)| {
+            state.key.machine == row.realization_machine
+                && state.key.state == row.realization_state
+                && state.key.segment_index == 0
+        });
+        let Some(state) = states.next().map(|(_, state)| state) else {
+            return DynamicDispatchResolution::Rejected;
+        };
+        if states.next().is_some() {
+            return DynamicDispatchResolution::Rejected;
+        }
+        return DynamicDispatchResolution::Resolved(
+            ResolvedStateCall {
+                key: state.key,
+                resolution: StateCallResolution::ContainedMachine,
+            },
+            StateCallDynamicDispatch {
+                receiver: StateCallDynamicReceiver::ReboundLocal {
+                    binding,
+                    selection_statement_index: selection.statement_index,
+                },
+                target_trait: selection.target_trait,
+                requirement: target_symbol,
+                requirement_identity: row.requirement_identity.clone(),
+                candidates: vec![StateCallDynamicDispatchCandidate {
+                    source_data: selection.source_data,
+                    conformance,
+                    rows: selection.rows.clone(),
+                }],
+            },
+        );
+    }
+
+    let Some(state) = control_flow
         .states
         .iter()
-        .find_map(|(_, state)| (state.key == source_key).then_some(state))?;
-    let parameter = control_flow
+        .find_map(|(_, state)| (state.key == source_key).then_some(state))
+    else {
+        return DynamicDispatchResolution::NotApplicable;
+    };
+    let Some(parameter) = control_flow
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == receiver_symbol)?;
+        .find(|parameter| parameter.symbol == receiver_symbol)
+    else {
+        return DynamicDispatchResolution::NotApplicable;
+    };
     if parameter.dyn_conformance_candidates.is_empty() {
-        return None;
+        return DynamicDispatchResolution::NotApplicable;
     }
 
     let mut requirement_identity: Option<String> = None;
     let mut representative = None;
     let mut candidates = Vec::with_capacity(parameter.dyn_conformance_candidates.len());
     for candidate in &parameter.dyn_conformance_candidates {
-        let conformance = candidate.conformance?;
+        let Some(conformance) = candidate.conformance else {
+            return DynamicDispatchResolution::Rejected;
+        };
         let mut matching_rows = candidate
             .rows
             .iter()
             .filter(|row| row.requirement == target_symbol);
-        let row = matching_rows.next()?;
+        let Some(row) = matching_rows.next() else {
+            return DynamicDispatchResolution::Rejected;
+        };
         if matching_rows.next().is_some() || row.declaring_trait != parameter.type_symbol {
-            return None;
+            return DynamicDispatchResolution::Rejected;
         }
         match &requirement_identity {
-            Some(identity) if identity != &row.requirement_identity => return None,
+            Some(identity) if identity != &row.requirement_identity => {
+                return DynamicDispatchResolution::Rejected;
+            }
             None => requirement_identity = Some(row.requirement_identity.clone()),
             _ => {}
         }
@@ -1354,9 +1544,11 @@ fn resolve_dynamic_parameter_dispatch(
                 && state.key.state == row.realization_state
                 && state.key.segment_index == 0
         });
-        let state = states.next()?.1;
+        let Some(state) = states.next().map(|(_, state)| state) else {
+            return DynamicDispatchResolution::Rejected;
+        };
         if states.next().is_some() {
-            return None;
+            return DynamicDispatchResolution::Rejected;
         }
         representative.get_or_insert(ResolvedStateCall {
             key: state.key,
@@ -1369,16 +1561,22 @@ fn resolve_dynamic_parameter_dispatch(
         });
     }
 
-    Some((
-        representative?,
+    let (Some(representative), Some(requirement_identity)) = (representative, requirement_identity)
+    else {
+        return DynamicDispatchResolution::Rejected;
+    };
+    DynamicDispatchResolution::Resolved(
+        representative,
         StateCallDynamicDispatch {
-            receiver_parameter: parameter.symbol,
+            receiver: StateCallDynamicReceiver::Parameter {
+                symbol: parameter.symbol,
+            },
             target_trait: parameter.type_symbol,
             requirement: target_symbol,
-            requirement_identity: requirement_identity?,
+            requirement_identity,
             candidates,
         },
-    ))
+    )
 }
 
 /// A FREE top-level machine (`machine pick(x: i32) -> i32`, no attached data)
@@ -2157,5 +2355,91 @@ mod tests {
                 .expect("normalized realization")
                 .identity()
         );
+    }
+
+    #[test]
+    fn rebound_local_direct_call_retains_exact_indirect_dispatch_identity() {
+        let source = r#"
+            trait Shape { machine code(&self) -> i32; }
+            data Item {}
+            Primary: Item satisfies Shape {
+                machine code(&self) -> i32 { transition { _ -> 7 } }
+            }
+            machine run(first: Item, second: Item) -> i32 {
+                let mut erased: &dyn Shape = &first as &dyn Item::Primary;
+                erased = &second as &dyn Item::Primary;
+                let result: i32 = erased.code();
+                transition { _ -> result }
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        psi_validation::validate_program(&typed).expect("validate rebound direct call");
+        let checked = lower_typed_trees(typed).expect("check");
+        let [initial, rebound] = checked.facts.dynamic_conformances.selections.as_slice() else {
+            panic!("initial and rebound selections");
+        };
+        assert_eq!(initial.binding, rebound.binding);
+
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        let run = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "run")
+            .map(|(_, machine)| machine)
+            .expect("run machine");
+        let entry_key = control_flow
+            .states
+            .span(run.states)
+            .and_then(|states| states.first())
+            .map(|state| state.key)
+            .expect("run entry");
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let calls = crate::build_state_call_plan(&control_flow, &host_calls, &runtime_flow);
+        let call = calls
+            .calls
+            .iter()
+            .find(|(_, call)| call.dynamic_dispatch.is_some())
+            .map(|(_, call)| call)
+            .expect("rebound direct call");
+        assert_eq!(call.lowering, crate::StateCallLowering::IndirectDynamic);
+        let dispatch = call.dynamic_dispatch.as_ref().expect("dynamic dispatch");
+        assert_eq!(
+            dispatch.receiver,
+            StateCallDynamicReceiver::ReboundLocal {
+                binding: rebound.binding,
+                selection_statement_index: rebound.statement_index,
+            }
+        );
+        let [candidate] = dispatch.candidates.as_slice() else {
+            panic!("one rebound candidate");
+        };
+        assert_eq!(candidate.source_data, rebound.source_data);
+        assert_eq!(
+            candidate.conformance,
+            rebound.conformance.expect("conformance")
+        );
+        assert_eq!(candidate.rows, rebound.rows);
+
+        let mut collided = control_flow.clone();
+        collided.semantics.facts.dynamic_conformances.selections[1].binding = initial.source_symbol;
+        let rejected = crate::build_state_call_plan(&collided, &host_calls, &runtime_flow);
+        let rejected_call = rejected
+            .calls
+            .iter()
+            .find(|(_, call)| call.statement_index == rebound.statement_index + 1)
+            .map(|(_, call)| call)
+            .expect("recognized rebound collision remains an unresolved call");
+        assert_eq!(rejected_call.lowering, crate::StateCallLowering::Unresolved);
+        assert!(rejected_call.dynamic_dispatch.is_none());
+        assert!(!rejected_call.target_key.is_valid());
     }
 }

@@ -2,7 +2,7 @@ use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind};
-use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
+use omega_state_calls::{StateCall, StateCallDynamicReceiver, StateCallLowering, StateCallRole};
 use omega_state_storage::{StateLocalStorage, StateMutation, StateMutationLowering};
 use psi_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
@@ -308,6 +308,9 @@ fn append_inlined_dynamic_receiver_parameter_alias(
     let Some(dynamic) = dynamic_call.dynamic_dispatch.as_ref() else {
         return;
     };
+    let StateCallDynamicReceiver::Parameter { symbol } = dynamic.receiver else {
+        return;
+    };
     let Some(state) = context.control_flow.state_by_key(dynamic_source) else {
         return;
     };
@@ -315,7 +318,7 @@ fn append_inlined_dynamic_receiver_parameter_alias(
         .control_flow
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == dynamic.receiver_parameter)
+        .find(|parameter| parameter.symbol == symbol)
     else {
         return;
     };
@@ -335,7 +338,7 @@ fn append_inlined_dynamic_receiver_parameter_alias(
                 .span(call.arguments)?
                 .iter()
                 .find_map(|argument| {
-                    (argument.parameter_symbol == dynamic.receiver_parameter)
+                    (argument.parameter_symbol == symbol)
                         .then_some(argument.dynamic_conformance.as_ref()?.source_binding)
                 })
         });

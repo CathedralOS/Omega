@@ -19,8 +19,8 @@ use std::sync::Arc;
 pub use alias_flow::{AliasBinding, AliasFlowPlan, build_alias_flow_plan};
 pub use model::{
     StateCall, StateCallArgument, StateCallArgumentKind, StateCallDynamicConformance,
-    StateCallDynamicDispatch, StateCallDynamicDispatchCandidate, StateCallLowering, StateCallPlan,
-    StateCallResolution, StateCallRole,
+    StateCallDynamicDispatch, StateCallDynamicDispatchCandidate, StateCallDynamicReceiver,
+    StateCallLowering, StateCallPlan, StateCallResolution, StateCallRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
