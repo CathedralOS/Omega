@@ -2,16 +2,15 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
+use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_admission::Obligation;
-use psi_terminal::{
-    OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
-};
+use psi_terminal::{OutcomeSpecificGuard, TerminalMachine, TerminalModule};
 #[cfg(test)]
 use psi_terminal_semantics::CanonicalScalarGoal;
 
+use crate::validation::exact_payloadless_case_return_exits;
 use crate::{ModuleError, validate_module};
 
 mod affine_custody;
@@ -199,85 +198,6 @@ pub(super) fn reconstruct_validated_terminal_obligations(
         }
     }
     Ok(ReconstructedTerminalObligationSet { obligations })
-}
-
-/// Recognize the bounded executable guarded-result carrier whose ordinary
-/// exits each return an exact, claim-free payloadless case. Calls and payload
-/// substitution remain fail closed until their case-conditioned replay is
-/// implemented.
-pub(super) fn exact_payloadless_case_return_exits(
-    machine: &TerminalMachine,
-) -> Option<BTreeMap<BlockId, OutcomeSpecificGuard>> {
-    let result = machine.result.structural()?;
-    if !result.qualifications.is_empty()
-        || result.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
-        || machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|operation| {
-                matches!(
-                    operation.kind,
-                    OperationKind::Call { .. }
-                        | OperationKind::CallUnit { .. }
-                        | OperationKind::CallStructuralScalar { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::BoundaryCall { .. }
-                )
-            })
-    {
-        return None;
-    }
-    let mut exits = BTreeMap::new();
-    for block in &machine.blocks {
-        let Terminator::ReturnStructural {
-            source,
-            returned_claims,
-            ..
-        } = &block.terminator
-        else {
-            continue;
-        };
-        if !returned_claims.is_empty() {
-            return None;
-        }
-        let producer = machine.structural_places.iter().find_map(|place| {
-            (place.id == *source)
-                .then_some(place.kind)
-                .and_then(|kind| match kind {
-                    psi_core::StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type,
-                    } if structural_type == result.structural_type => Some(producer),
-                    _ => None,
-                })
-        })?;
-        let operation = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| operation.id == producer)?;
-        let operation_result = operation.result.structural()?;
-        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
-            return None;
-        };
-        if operation_result.place != *source
-            || operation_result.structural_type != result.structural_type
-            || operation_result.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
-            || !operation_result.claims.is_empty()
-            || !operation_result.qualifications.is_empty()
-        {
-            return None;
-        }
-        exits.insert(
-            block.id,
-            OutcomeSpecificGuard {
-                result_type: result.structural_type,
-                result_case,
-            },
-        );
-    }
-    (!exits.is_empty()).then_some(exits)
 }
 
 /// Reconstruct facts at each executable obligation site and facts established

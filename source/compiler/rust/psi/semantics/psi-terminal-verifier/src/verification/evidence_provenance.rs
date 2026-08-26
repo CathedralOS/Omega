@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::EvidenceIdentity;
 use psi_terminal::TerminalModule;
 
-use super::reconstruction::exact_payloadless_case_return_exits;
 use super::{EvidenceProducerRealization, ProofBundle, VerificationError};
+use crate::validation::exact_payloadless_case_return_exits;
 
 pub(super) fn validate_evidence_producer_provenance(
     module: &TerminalModule,

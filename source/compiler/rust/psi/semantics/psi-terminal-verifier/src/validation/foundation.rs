@@ -422,6 +422,11 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         }
     }
 
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect::<BTreeMap<_, _>>();
     for machine in &module.machines {
         validate_attachment(machine.id, machine.attachment, &types)?;
         validate_structural_signature(
@@ -651,10 +656,14 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                 .flat_map(|block| &block.operations)
                                 .find(|operation| operation.id == *producer)
                                 .is_some_and(|operation| {
-                                    matches!(
+                                    (matches!(
                                         operation.kind,
                                         OperationKind::EstablishPayloadlessCase { .. }
-                                    ) && operation.result.structural().is_some_and(
+                                    ) || super::structural_operations::exact_payloadless_structural_call(
+                                        module,
+                                        operation,
+                                        &machines,
+                                    )) && operation.result.structural().is_some_and(
                                         |operation_result| {
                                             operation_result.place == *source
                                                 && operation_result.structural_type
@@ -680,9 +689,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                     OperationKind::Call { .. }
                                         | OperationKind::CallUnit { .. }
                                         | OperationKind::CallStructuralScalar { .. }
-                                        | OperationKind::CallStructural { .. }
                                         | OperationKind::BoundaryCall { .. }
-                                )
+                                ) && (!matches!(operation.kind, OperationKind::CallStructural { .. })
+                                    || super::structural_operations::exact_payloadless_structural_call(
+                                        module,
+                                        operation,
+                                        &machines,
+                                    ))
                             });
                 if result.multiplicity == StructuralMultiplicity::Unrestricted
                     && !exact_unrestricted_payloadless_result

@@ -488,7 +488,10 @@ fn lower_machine(
             matches!(
                 operation.kind,
                 OperationKind::EstablishPayloadlessCase { .. }
-            )
+            ) || matches!(operation.kind, OperationKind::CallStructural { .. })
+                && operation.result.structural().is_some_and(|result| {
+                    result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                })
         })
     {
         return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));

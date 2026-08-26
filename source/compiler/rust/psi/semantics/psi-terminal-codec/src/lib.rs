@@ -864,7 +864,8 @@ fn validate_operation_foundation(
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
-            ..
+            requirement_obligations,
+            crash_continuations,
         } => {
             let Some(callee) = module
                 .machines
@@ -879,9 +880,32 @@ fn validate_operation_foundation(
             let Some(actual_result) = operation.result.structural() else {
                 return malformed("structural call has no structural operation result");
             };
+            let exact_payloadless = callee.parameters.is_empty()
+                && callee.structural_parameters.is_empty()
+                && callee.entry_claims.is_empty()
+                && callee.content_entry_claims.is_empty()
+                && callee.contract.requires.is_empty()
+                && callee.contract.ensures.is_empty()
+                && callee.contract.crash_routes.is_empty()
+                && module
+                    .evidence_contract_lanes
+                    .iter()
+                    .all(|lane| lane.machine != callee.id)
+                && structural_arguments.is_empty()
+                && claim_transfers.is_empty()
+                && returned_claim_transfers.is_empty()
+                && requirement_obligations.is_empty()
+                && crash_continuations.is_empty()
+                && actual_result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                && expected_result.multiplicity
+                    == psi_terminal::StructuralMultiplicity::Unrestricted
+                && actual_result.qualifications.is_empty()
+                && expected_result.qualifications.is_empty()
+                && actual_result.claims.is_empty()
+                && callee_exact_payloadless_return(callee);
             if !callee.parameters.is_empty()
-                || structural_arguments.len() != 1
-                || callee.structural_parameters.len() != 1
+                || (!exact_payloadless
+                    && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
                 || actual_result.structural_type != expected_result.structural_type
                 || actual_result.multiplicity != expected_result.multiplicity
                 || actual_result.qualifications != expected_result.qualifications
@@ -920,6 +944,9 @@ fn validate_operation_foundation(
                 {
                     return malformed("structural call result has an unknown structural domain");
                 }
+            }
+            if exact_payloadless {
+                return Ok(());
             }
             if actual_result.claims.is_empty()
                 || claim_transfers.is_empty()
@@ -1103,6 +1130,80 @@ fn validate_operation_foundation(
         }
     }
     Ok(())
+}
+
+fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
+    let Some(result) = callee.result.structural() else {
+        return false;
+    };
+    let mut has_return = false;
+    for block in &callee.blocks {
+        let Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        has_return = true;
+        if !returned_claims.is_empty() {
+            return false;
+        }
+        let Some(producer) = callee.structural_places.iter().find_map(|place| {
+            (place.id == *source)
+                .then_some(place.kind)
+                .and_then(|kind| match kind {
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    } if structural_type == result.structural_type => Some(producer),
+                    _ => None,
+                })
+        }) else {
+            return false;
+        };
+        let Some(operation) = callee
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)
+        else {
+            return false;
+        };
+        if !matches!(
+            operation.kind,
+            OperationKind::EstablishPayloadlessCase { .. }
+        ) || !operation
+            .result
+            .structural()
+            .is_some_and(|operation_result| {
+                operation_result.place == *source
+                    && operation_result.structural_type == result.structural_type
+                    && operation_result.multiplicity
+                        == psi_terminal::StructuralMultiplicity::Unrestricted
+                    && operation_result.qualifications.is_empty()
+                    && operation_result.claims.is_empty()
+            })
+        {
+            return false;
+        }
+    }
+    has_return
+        && callee
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .all(|operation| {
+                !matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            })
 }
 
 fn validate_structural_arguments(

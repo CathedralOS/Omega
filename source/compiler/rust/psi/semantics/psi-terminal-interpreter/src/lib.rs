@@ -975,6 +975,15 @@ impl TerminalExecution {
                         let Some(callee_result) = callee.result.structural() else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
+                        let exact_payloadless_call = structural_arguments.is_empty()
+                            && callee.structural_parameters.is_empty()
+                            && callee.entry_claims.is_empty()
+                            && callee.content_entry_claims.is_empty()
+                            && claim_transfers.is_empty()
+                            && returned_claim_transfers.is_empty()
+                            && result.multiplicity == StructuralMultiplicity::Unrestricted
+                            && result.qualifications.is_empty()
+                            && result.claims.is_empty();
                         if !callee.parameters.is_empty()
                             || structural_arguments
                                 .iter()
@@ -982,8 +991,10 @@ impl TerminalExecution {
                             || result.structural_type != callee_result.structural_type
                             || result.multiplicity != callee_result.multiplicity
                             || result.qualifications != callee_result.qualifications
-                            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                            || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                                && !exact_payloadless_call)
                             || self.structural_values.contains_key(&result.place)
+                            || self.payloadless_case_values.contains_key(&result.place)
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
@@ -2356,11 +2367,38 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
                     if let Some(value) = self.payloadless_case_values.get(source).copied() {
+                        let internal_result = match self.call_stack.last() {
+                            Some(SuspendedCall {
+                                structural_values,
+                                payloadless_case_values,
+                                live_affine_frontier,
+                                result:
+                                    SuspendedCallResult::Structural {
+                                        result,
+                                        returned_claim_transfers,
+                                    },
+                                ..
+                            }) if result.multiplicity == StructuralMultiplicity::Unrestricted
+                                && result.qualifications.is_empty()
+                                && result.claims.is_empty()
+                                && returned_claim_transfers.is_empty()
+                                && !structural_values.contains_key(&result.place)
+                                && !payloadless_case_values.contains_key(&result.place)
+                                && live_affine_frontier
+                                    .iter()
+                                    .all(|entry| entry.place != result.place) =>
+                            {
+                                Some(result.clone())
+                            }
+                            Some(_) => {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            None => None,
+                        };
                         if value.structural_type != signature.structural_type
                             || !signature.qualifications.is_empty()
                             || !returned_claims.is_empty()
                             || !self.live_claims.is_empty()
-                            || self.call_stack.last().is_some()
                             || trivial_affine_discards.iter().any(|place| {
                                 *place == *source
                                     || (!self.structural_values.contains_key(place)
@@ -2378,6 +2416,32 @@ impl TerminalExecution {
                             self.structural_values.remove(place);
                             self.payloadless_case_values.remove(place);
                             remove_affine_root(&mut self.live_affine_frontier, *place);
+                        }
+                        if let Some(result) = internal_result {
+                            let caller = self
+                                .call_stack
+                                .pop()
+                                .expect("an internal payloadless return has a caller frame");
+                            let SuspendedCallResult::Structural { .. } = caller.result else {
+                                unreachable!("payloadless return preflight matched its caller")
+                            };
+                            self.blocks = caller.blocks;
+                            self.values = caller.values;
+                            self.structural_values = caller.structural_values;
+                            self.payloadless_case_values = caller.payloadless_case_values;
+                            if self
+                                .payloadless_case_values
+                                .insert(result.place, value)
+                                .is_some()
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            self.live_affine_frontier = caller.live_affine_frontier;
+                            self.live_claims = caller.live_claims;
+                            self.current_machine = caller.current_machine;
+                            self.current = caller.current;
+                            self.next_operation = caller.next_operation;
+                            continue;
                         }
                         let result = TerminalExecutionResult::PayloadlessCase(
                             TerminalPayloadlessCaseResult { value },
