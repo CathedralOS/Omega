@@ -1936,8 +1936,13 @@ Remaining:
   permutations are removed. The five entry/worker permutations are replaced by
   one explicitly test-only `CompileHarnessRequest` and `compile_harness`
   operation; its entry override and worker ceiling cannot enter the production
-  request. Requested-product stopping, the checked/terminal route, and output
-  destination custody remain open.
+  request. `RequestedCompileProduct` now makes `Check`, terminal artifact,
+  retained native artifact, and installed output explicit. The legacy route
+  currently executes only `Check` and `InstalledOutput`; it honors the typed
+  request over the compatibility Boolean seed and rejects terminal/native
+  artifact requests before source acquisition rather than falling back. The
+  checked/terminal cutover, retained-artifact stopping, and output destination
+  custody remain open.
 
   Restore the driver contract:
 
