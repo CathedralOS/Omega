@@ -703,7 +703,11 @@ realization-callable identities through checked facts, state graph, control
 flow, and state-call
 argument planning. Checked-to-state validation independently reconstructs both
 identities and rejects drift rather than trusting copied handles or short
-spellings. Runtime `{ instance, table }` construction, rebinding, storage,
+spellings. The abstract-data handoff preserves the exact trait and conformance
+symbols, normalized row identities, and private table object. Transitional
+instruction selection can therefore bind one unique table object without
+rediscovering a conformance from names; missing, duplicate, or non-table
+bindings fail closed. Runtime `{ instance, table }` construction, rebinding, storage,
 joins, escaping, and component crossing remain open. Those consumers use the
 same complete normalized maps. Each row retains
 the declaring trait, requirement, exact satisfier machine, default instantiation
