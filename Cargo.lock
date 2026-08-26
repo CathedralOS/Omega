@@ -580,6 +580,7 @@ dependencies = [
 name = "omega-effects"
 version = "0.1.0"
 dependencies = [
+ "omega-target",
  "psi-core",
  "psi-diagnostics",
  "psi-effects",

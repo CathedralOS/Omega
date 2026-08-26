@@ -7754,6 +7754,16 @@ boundary without its corresponding checked law.
   changes every dependent final artifact and requires relink plus fresh
   admission.
 
+  The dependency-light locator foundation is implemented in `omega-effects`.
+  One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
+  `PeByOrdinal`, and `ElfVersioned` candidates, rejecting empty/NUL coordinates,
+  zero PE ordinals, UEFI/PE conflation, and non-Linux versioned ELF use. Every
+  target, case, byte, length boundary, and ordinal participates in its normalized
+  identity. This carrier is evaluated data only: `ProviderBinding::Import`
+  remains string-backed until the coordinated compiler/package-review/calling-
+  convention/TCB/trust-report migration, and source `via` evaluation plus exact
+  fixed-array widths remain later rungs.
+
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
 primitive-provider or foreign-endpoint registry; an intrinsic lowering is

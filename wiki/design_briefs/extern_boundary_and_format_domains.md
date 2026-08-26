@@ -120,6 +120,14 @@ binding enters a provider plan. Fixed byte arrays supply ordinary owned values,
 not an ambient text interpretation; the locator case supplies their physical
 meaning.
 
+The Rust comparator now has the first dependency-light representation rung: a
+sealed target-bound normalized locator for atomic PE-by-name, PE-by-ordinal,
+and versioned-ELF coordinates. It validates target applicability and basic
+coordinate shape and derives a domain-separated, length-prefixed compatibility
+identity. This is not yet the evaluated Omega `Binding` path: the current
+provider import row, exact fixed-array widths, producer closure, evaluator
+receipt, and downstream artifact/report joins remain to migrate together.
+
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh
 admission. No parallel endpoint registry or sealed metadata language exists.
