@@ -371,6 +371,18 @@ homes on x86-64 and AArch64. This establishes an exact physical-form pressure
 recovery without granting spill, frame, emission, or general rematerialization
 authority.
 
+The source-visible `SelectedIncomingU12ExactAddImmediate` family uses a
+separate compiler-owned schedule,
+`SelectedIncomingU12ExactAddImmediateToNoChangeV1`. It repeatedly invokes the
+one-step primitive, with complete reanalysis after every changed selected CFG,
+until one final independently validated attempt applies zero actions. Every
+changed sweep must remove exactly one virtual register per action; the initial
+virtual-register count is therefore a structural bound. The full build suite,
+its exact selected-lowering projection, fixed constituent policies, upstream
+work budget, aggregate usage, ordered changed steps, final roots, and terminal
+no-change attempt remain together in the completion custody record. An enabled
+family with no candidate is a verified successful no-op, not an error.
+
 Optimization orchestration retains this as an append-only custody chain rather
 than a raw series of core calls. `stage_first_optimized_literal_fold` owns the
 source legality/availability chain plus the exact victim choice,
@@ -384,6 +396,15 @@ reorder that ledger. Each public iteration receipt exposes the exact source
 selected/range/legality roots, choice/classification/fold identities, named
 policies and work usage, transformed selected identity, and fresh analysis
 identities; adjacent receipt rows must join exactly.
+
+That rejection remains the contract of the manually invoked one-step API. The
+selected-lowering suite executor does not append the zero-action attempt as a
+transformation; it retains it separately as completion evidence. It derives
+the suite and budget from upstream optimized custody rather than accepting
+detached caller claims. The executor is available to the clean orchestration
+lane, but native compiler publication remains closed until this phase receipt
+is joined through homes, machine validation, emission, and the final
+realization manifest.
 
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
