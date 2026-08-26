@@ -212,75 +212,33 @@ Omega/
 `-- wiki/                                               # Language design notes, target notes, and guide drafts.
 ```
 
-## Planned Relocation
+## Canonical placement
 
-The tree above describes the repository as it stands. It is not the intended
-shape. Three top-level directories split one concept — the compiler — by role
-and implementation language, and the only one that builds anything is three
-levels down under a name that means "temporary":
+The displayed tree is the intended ownership shape, not a temporary prelude to
+another `source/` hierarchy. The permanent split is by architectural role:
 
 ```text
-apps/omega-compiler/                       Omega entrypoint          3 files
-compiler/{psi,omega}/                      Omega implementation     17 files
-bootstrap/onramps/omega-rust/              Rust implementation   2,547 files
+compiler/{psi,omega}/             Omega-written product compiler source
+apps/omega-compiler/              hosted product entrypoint
+bootstrap/onramps/omega-rust/     explicitly suffixed Rust reference producer
+bootstrap/rungs/                  canonical bootstrap languages and artifacts
+bootstrap/assurance/              cross-cutting bootstrap proof/refinement
+bootstrap/omega-bootstrap/        Delta-written hosted-build bridge
 ```
 
-`bootstrap/` is 63% working compiler by tracked file count. That is the
-discoverability defect: someone opening this repository to read the compiler
-finds four `.omg` files under `compiler/` and a stdlib under `omega/`.
+Do not merge a rung with a Rust implementation merely because the latter
+currently produces it. The rung owns the language, canonical source, and
+lattice-built artifacts; `onramps/*-rust` owns disposable or maintained-parallel
+external-language producers. Likewise, do not move the proof kernel into the
+product compiler: it is cross-cutting assurance for the complete bootstrap
+lattice, not a Psi/Omega phase or a language rung.
 
-Target shape:
-
-```text
-source/
-  compiler/
-    rust/            <- bootstrap/onramps/omega-rust
-    omega/           <- compiler/{psi,omega} + apps/omega-compiler
-  library/           <- omega/language
-  assurance/         <- bootstrap/assurance
-bootstrap/           <- lattice only
-  {alpha,beta,gamma,delta}/   <- rungs/X merged with onramps/X-rust
-  omega-bootstrap/
-  gates/             <- corpus + lattice-cache-deps
-tests/               <- canaries + fixtures
-tools/               <- scripts
-samples/  wiki/      unchanged
-```
-
-Ordered work:
-
-- [ ] Rewrite this page against the current tree before moving anything. A map
-      that is already wrong compounds every relocation.
-- [ ] `bootstrap/onramps/omega-rust` -> `source/compiler/rust`. The Rust
-      compiler is the current implementation, not bootstrapping material;
-      its language is a fact about how it is written, not about its role.
-- [ ] `compiler/{psi,omega}` + `apps/omega-compiler` -> `source/compiler/omega`.
-      These are the implementation and entrypoint halves of one self-hosted
-      compiler.
-- [ ] `bootstrap/assurance` -> `source/assurance`. The proof kernel is a
-      shipped cross-cutting service, explicitly "deliberately not a language
-      rung"; it is product, currently filed under bootstrap.
-- [ ] Merge `bootstrap/rungs/X` with `bootstrap/onramps/X-rust` into
-      `bootstrap/X/`. Today one directory holds source written in a rung's
-      language and another holds the Rust host that runs it — two layers
-      splitting one concept.
-- [ ] `bootstrap/corpus` + `bootstrap/lattice-cache-deps` -> `bootstrap/gates/`.
-- [ ] `canaries` + `fixtures` -> `tests/`. Eleven package fixtures currently sit
-      apart from 4,592 other test programs for no reason beyond being
-      package-shaped.
-- [ ] `scripts` -> `tools/`.
-- [ ] **Blocked:** `omega/language` -> `source/library`. Gated on
-      `TASKS_PACKAGE_MANAGER.md` P8 — the standard library must stop being
-      reached by hardcoded path before its directory can move. Every other item
-      above is unblocked.
-
-Retired already: `docs/` (one orphaned file, no references), `omega/host/`
-(tombstone README, now a design brief), `target_runtime/` (nine `.gitkeep`
-files reserving a home for payloads that were never built).
-
-Separately tracked: `bootstrap/corpus` is a hand-maintained fork of `samples/`.
-All 74 corpus programs share a name with a sample and differ only by stripped
-interactive I/O, with no drift check. Generate it or gate it.
+The unsuffixed `compiler/psi` and `compiler/omega` names are deliberate product
+roles. Their implementation is ordinary Omega constrained by `Ωself`; the
+current Rust implementation remains visibly suffixed under `bootstrap/onramps`.
+No broad relocation plan is active. Any future move must first amend the
+[canonical bootstrap repository structure](bootstrap_lattice/repository_structure.md)
+and update the role manifest rather than introducing a competing map here.
 
 ## Placement Rules
 

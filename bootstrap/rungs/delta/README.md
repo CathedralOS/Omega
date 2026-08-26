@@ -24,6 +24,13 @@ outside Delta v1 rejects as Delta source; rejection of Omega outside `Ωself` is
 byte input, artifact output, diagnostic output, and process termination rather
 than a general boundary-trait system.
 
+Delta may present a general runtime-sized allocation interface to its programs
+while implementing it with fixed, bump, typed/indexed-arena, or paged backing.
+That is an ordinary compiler-host facility, not permission for an ambient host
+heap: capacity, lifetime/reclamation, aliasing, and exhaustion behavior must be
+part of the Delta contract and lower-rung meaning. The final choice remains
+source- and cost-driven in the feature ledger.
+
 - [`samples/`](samples/) contains the executable language corpus.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks provisional candidates and the
   evidence required to retain or remove them before the v1 freeze.
