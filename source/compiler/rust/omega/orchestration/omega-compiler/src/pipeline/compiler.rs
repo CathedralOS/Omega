@@ -903,7 +903,9 @@ impl Compiler {
         // frontend artifacts would turn `--check` into implicit execution
         // policy; callers that need native validation either select an exact
         // `ProgramEntry` or use the explicit legacy test-entry seam.
-        if !self.options.write_output && entry_machine_name.is_none() {
+        if !self.options.write_output
+            && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
+        {
             if emit_auxiliary_artifacts {
                 write_pipeline_shell(&self.options)?;
             }
@@ -925,6 +927,10 @@ impl Compiler {
         if self.options.write_output {
             reject_undischarged_build_bound_progress(checked.component_progress.as_deref())?;
         }
+
+        crate::pipeline::optimization_gate::require_available_pipeline(
+            &build_config.optimizations,
+        )?;
 
         // Frontend-only compilation never submits work to the backend pool.
         // Construct it only after the checked-only exit so large validation

@@ -244,6 +244,7 @@ data Build {
     dependencies: DependencyBindings;
     roots: RootBindings;
     providers: ProviderBindings;
+    optimizations: Optimizations;
     outputs: BuildOutputs;
 }
 ```
@@ -252,6 +253,15 @@ This is the durable projection, not a claim that the source-visible activation
 handle serializes every ephemeral facet it exposes. In particular, its source
 and staging roots and admitted `filesystem` service are absent from this
 schema.
+
+`optimizations` is an exact, empty-by-default set of individually named,
+semantics-preserving transformation families. It is orthogonal to target,
+debug information, diagnostics, assertions, and packaging: the build model has
+no `debug`/`release` optimization categories and no `O1`/`O2`/`O3` intensity
+levels. During the experimental phase only the root package's authoritative
+`build.omg` may populate it; dependency metadata and embedding defaults cannot
+enable optimization. The optimizer architecture defines the vocabulary,
+identity, fail-closed behavior, and eventual manifest projection.
 
 Hosted versus freestanding, subsystem/image format, default providers, calling
 policies, fault supply, and resource supply belong to the selected target

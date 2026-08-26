@@ -6,9 +6,26 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+pub data Optimization {
+    case ControlFlowCleanup;
+    case SparseConditionalConstantPropagation;
+    case CopyPropagation;
+    case GlobalValueNumbering;
+    case DeadPureScalarElimination;
+    case ProofCheckElision;
+}
+pub data Optimizations {
+    control_flow_cleanup: u8 in Trapping;
+    sparse_conditional_constant_propagation: u8 in Trapping;
+    copy_propagation: u8 in Trapping;
+    global_value_numbering: u8 in Trapping;
+    dead_pure_scalar_elimination: u8 in Trapping;
+    proof_check_elision: u8 in Trapping;
+}
 pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
+    optimizations: Optimizations;
 }
 pub data Source {
     case Path(location: &[u8]);
@@ -23,4 +40,38 @@ pub machine Build::package(&mut self, name: &[u8]) {
 pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
+}
+pub machine Optimizations::enable(&mut self, optimization: Optimization) {
+    transition optimization {
+        Optimization::ControlFlowCleanup -> control_flow_cleanup()
+        Optimization::SparseConditionalConstantPropagation -> sparse_conditional_constant_propagation()
+        Optimization::CopyPropagation -> copy_propagation()
+        Optimization::GlobalValueNumbering -> global_value_numbering()
+        Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
+        Optimization::ProofCheckElision -> proof_check_elision()
+    }
+
+    state control_flow_cleanup(&mut self) {
+        self.control_flow_cleanup = self.control_flow_cleanup + 1;
+    }
+
+    state sparse_conditional_constant_propagation(&mut self) {
+        self.sparse_conditional_constant_propagation = self.sparse_conditional_constant_propagation + 1;
+    }
+
+    state copy_propagation(&mut self) {
+        self.copy_propagation = self.copy_propagation + 1;
+    }
+
+    state global_value_numbering(&mut self) {
+        self.global_value_numbering = self.global_value_numbering + 1;
+    }
+
+    state dead_pure_scalar_elimination(&mut self) {
+        self.dead_pure_scalar_elimination = self.dead_pure_scalar_elimination + 1;
+    }
+
+    state proof_check_elision(&mut self) {
+        self.proof_check_elision = self.proof_check_elision + 1;
+    }
 }

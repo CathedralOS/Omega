@@ -6,8 +6,8 @@
   "entry_source": "source/compiler/omega/main.omg",
   "build_source": "source/compiler/omega/build.omg",
   "source_file_count": 12,
-  "content_set_sha256": "3e884919abd4955dbe0135809cd3bca0a1b39670c13e0270af5645d4d2034c9f",
-  "closure_sha256": "5d3531e739fcb32e48169c8ecf4ee8f4c2b9263b3815f0ea902805d34354cb3e",
+  "content_set_sha256": "7960a4e215a9ff3427a69feab58b41e32e4fe136d10077e9167414e85eebb698",
+  "closure_sha256": "f244ca144c2912a208cc017a82c56074423087fee358c2e59a1d7687de917a31",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -96,13 +96,13 @@
   ],
   "virtual_sources": [
     {
-      "byte_length": 670,
+      "byte_length": 2572,
       "identity": "<build-prelude>",
       "origin": "virtual",
       "path": "source/compiler/omega/source-checkpoints/inputs/build-prelude.omg",
       "provider": "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "provider_symbol": "BUILD_PRELUDE",
-      "sha256": "51bb6154212920d5cd5740973b1f0d756a0a02338b4234699ee6997ac8f7c304"
+      "sha256": "715646f67aaa64fb547b97d543c5017ba0ec00af515a80b27901ef7d4b8ad68a"
     }
   ],
   "dependency_aliases": [
@@ -179,17 +179,17 @@
     {
       "path": "Cargo.lock",
       "role": "generator_dependency_lock",
-      "sha256": "b8d00fa3875b668dd3a2ba9ef06cf8f95a8cf134b4a83b77a3ccdd1ae02017d8"
+      "sha256": "6aba3510e24aaa947213707691674f4b4ad27760799b35d0051ecf1db35cd2f9"
     },
     {
       "path": "Cargo.toml",
       "role": "generator_workspace_manifest",
-      "sha256": "b8f473f2c48573f48dddd3eb3f013923c6fa57cae8147faf7a1a7ea1d31b80da"
+      "sha256": "f62238dba922e8945d2c99a62cffc2939df369e950e1d1096f6110194dd197cc"
     },
     {
       "path": "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "role": "virtual_source_provider",
-      "sha256": "9c4dd8f4a80118b94bf0261923423af6528d1351af76dc79b35403ab8e3cf8bb"
+      "sha256": "1bf33ef72fb021ca6292243930e3161445f4780f2d28cd4838e8f8daf933855f"
     },
     {
       "path": "source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",

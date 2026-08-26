@@ -8,10 +8,13 @@
 //!
 //! ```omega
 //! data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-//! data Build { subsystem: Subsystem; freestanding: bool; }
+//! data Optimization { case ControlFlowCleanup; /* ... */ }
+//! data Optimizations { control_flow_cleanup: u8 in Trapping; /* ... */ }
+//! data Build { subsystem: Subsystem; freestanding: bool; optimizations: Optimizations; }
 //! machine build(build: &mut Build) {
 //!     build.subsystem = Subsystem::EfiApplication;
 //!     build.freestanding = true;
+//!     build.optimizations.enable(Optimization::ControlFlowCleanup);
 //! }
 //! ```
 //!
@@ -24,6 +27,8 @@
 //!   stated as itself -- previously fused into the `efi_application` name.
 //! - Absent build.omg == an empty `build` machine == the zero `Build`: the
 //!   hosted console default.
+//! - `optimizations` is an exact set of individually named transformations.
+//!   It is empty by default; duplicates reject rather than acting like levels.
 //! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` is a static
 //!   declaration harvested from the same authoritative build machine. It
 //!   selects the exact source entry and performs no name-based discovery.
@@ -41,6 +46,8 @@ use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
+
+use omega_optimization_core::{Optimization, OptimizationSelections};
 
 use super::build_staged_output::{
     BuildStagedOutputTree, BuildStagedSource, capture, empty, select_included_sources,
@@ -196,6 +203,9 @@ pub struct BuildConfig {
     pub subsystem: u16,
     /// Freestanding image: empty host-ABI plan, no import thunks.
     pub freestanding: bool,
+    /// Exact root-build optimization selections. Empty is the ordinary
+    /// compiler path and constructs no optimizer machinery.
+    pub optimizations: OptimizationSelections,
     /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
     /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
     /// from the build machine's marker calls (grants are declarations,
@@ -1700,6 +1710,7 @@ impl Default for BuildConfig {
         Self {
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
+            optimizations: OptimizationSelections::default(),
             grants: Vec::new(),
             provider_selections: Vec::new(),
             wire_compatibility_demands: Vec::new(),
@@ -1763,6 +1774,91 @@ fn has_exact_toolchain_build_root_facets(typed: &TypedTrees) -> bool {
                     })
         })
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OptimizationBuildVocabulary {
+    LegacyWithoutField,
+    Canonical,
+}
+
+fn is_exact_toolchain_build_prelude_data(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    expected_name: &str,
+) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.symbol == symbol
+            && definition.name.as_str() == expected_name
+            && typed
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == psi_source::SourceOrigin::Toolchain
+                        && file.path == Path::new("<build-prelude>")
+                })
+    })
+}
+
+/// Classify the selected Build declaration before constructing its interpreter
+/// argument. BuildTimeValue intentionally carries no nominal symbol, so doing
+/// this after evaluation would let an authored lookalike cross the boundary.
+fn optimization_build_vocabulary(
+    typed: &TypedTrees,
+) -> Result<OptimizationBuildVocabulary, Vec<Diagnostic>> {
+    let builds = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name.as_str() == "Build")
+        .collect::<Vec<_>>();
+    let [build] = builds.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "build-machine evaluation requires exactly one `Build` data declaration, found {}",
+            builds.len()
+        ))]);
+    };
+    let optimization_fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "optimizations" =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [] = optimization_fields.as_slice() else {
+        let [field] = optimization_fields.as_slice() else {
+            return Err(vec![Diagnostic::error(
+                "Build declares more than one `optimizations` field",
+            )]);
+        };
+        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
+                typed.display_type_reference_with_constraints(field.type_reference)
+            ))]);
+        };
+        if !is_exact_toolchain_build_prelude_data(typed, *symbol, "Optimizations") {
+            return Err(vec![Diagnostic::error(format!(
+                "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
+                typed.display_type_reference_with_constraints(field.type_reference)
+            ))]);
+        }
+        if !is_exact_toolchain_build_prelude_data(typed, build.symbol, "Build") {
+            return Err(vec![Diagnostic::error(
+                "Build.optimizations is reserved to the toolchain-provided Build vocabulary",
+            )]);
+        }
+        return Ok(OptimizationBuildVocabulary::Canonical);
+    };
+    Ok(OptimizationBuildVocabulary::LegacyWithoutField)
 }
 
 fn canonical_metadata_field(name: &str) -> Option<FilesystemMetadataField> {
@@ -2002,6 +2098,7 @@ pub(crate) fn compute_build_config(
         ))]);
     }
     let machine_name = machine.name.as_str();
+    let optimization_vocabulary = optimization_build_vocabulary(typed)?;
 
     // The build gate admits exactly the pinned standard staging slots from
     // build_and_package_model.md: FilesystemHost and Console. These are
@@ -2111,6 +2208,23 @@ pub(crate) fn compute_build_config(
         ),
         ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
     ];
+    if optimization_vocabulary == OptimizationBuildVocabulary::Canonical {
+        build_fields.push((
+            "optimizations".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "Optimizations".to_owned(),
+                fields: Optimization::ALL
+                    .into_iter()
+                    .map(|optimization| {
+                        (
+                            optimization.build_counter_field().to_owned(),
+                            BuildTimeValue::Int(0),
+                        )
+                    })
+                    .collect(),
+            },
+        ));
+    }
     if has_exact_toolchain_build_root_facets(typed) {
         let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
             BuildTimeValue::Struct {
@@ -2602,11 +2716,12 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
 
-    let mut config = extract_build_config(&augmented).map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "`{machine_name}` produced an invalid Build: {reason}"
-        ))]
-    })?;
+    let mut config =
+        extract_build_config(&augmented, optimization_vocabulary).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "`{machine_name}` produced an invalid Build: {reason}"
+            ))]
+        })?;
     config.grants = harvest_root_grants(typed, machine);
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
@@ -2969,7 +3084,10 @@ fn harvest_root_grants(
     grants
 }
 
-fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
+fn extract_build_config(
+    build: &BuildTimeValue,
+    optimization_vocabulary: OptimizationBuildVocabulary,
+) -> Result<BuildConfig, String> {
     let BuildTimeValue::Struct { fields, .. } = build else {
         return Err(format!("expected a Build struct, got {build:?}"));
     };
@@ -3014,9 +3132,54 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     };
 
+    let optimizations = match optimization_vocabulary {
+        OptimizationBuildVocabulary::LegacyWithoutField => OptimizationSelections::default(),
+        OptimizationBuildVocabulary::Canonical => {
+            let BuildTimeValue::Struct { type_name, fields } = field("optimizations")? else {
+                return Err("Build.optimizations is not an Optimizations value".to_owned());
+            };
+            if type_name != "Optimizations" {
+                return Err(format!(
+                    "Build.optimizations has nominal type `{type_name}` instead of `Optimizations`"
+                ));
+            }
+            let mut selected = Vec::new();
+            for optimization in Optimization::ALL {
+                let name = optimization.build_counter_field();
+                let Some((_, value)) = fields.iter().find(|(field, _)| field == name) else {
+                    return Err(format!(
+                        "Build.optimizations carries no `{name}` selection counter"
+                    ));
+                };
+                let BuildTimeValue::Int(count) = value else {
+                    return Err(format!(
+                        "Build.optimizations.{name} is not an integer selection counter: {value:?}"
+                    ));
+                };
+                match *count {
+                    0 => {}
+                    1 => selected.push(optimization),
+                    count if count > 1 => {
+                        return Err(format!(
+                            "optimization `{}` is enabled more than once",
+                            optimization.build_case_name()
+                        ));
+                    }
+                    count => {
+                        return Err(format!(
+                            "Build.optimizations.{name} has invalid negative selection count {count}"
+                        ));
+                    }
+                }
+            }
+            OptimizationSelections::new(selected).map_err(|error| error.to_string())?
+        }
+    };
+
     Ok(BuildConfig {
         subsystem,
         freestanding,
+        optimizations,
         grants: Vec::new(),
         provider_selections: Vec::new(),
         wire_compatibility_demands: Vec::new(),

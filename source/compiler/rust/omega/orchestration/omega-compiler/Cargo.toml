@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }

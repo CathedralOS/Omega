@@ -1,0 +1,12 @@
+[package]
+name = "omega-optimization-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_optimization_core"
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10.9"

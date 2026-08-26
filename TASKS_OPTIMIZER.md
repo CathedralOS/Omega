@@ -40,8 +40,11 @@ These facts constrain the work below.
   coalescing, or frame allocation. The clean Terminal assignment lane handles
   bounded forms but is also not a general allocator.
 - `CompileOptions` contains root, build directory, target, and output policy.
-  `BuildConfig` currently carries subsystem, freestanding, grants, providers,
-  wire demands, and root bindings; there is no optimization setting.
+  `BuildConfig` now retains the exact canonical optimization selection set from
+  the toolchain build vocabulary. A nonempty set is centrally rejected before
+  either the legacy or clean target backend can emit output until the verified
+  optimizer pipeline exists; root-package authority and persistent build/cache
+  identity remain P0 work.
 - Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
   and debug maps have separate identities. Optimization must preserve that
   separation and retain source fuel/provenance mappings.

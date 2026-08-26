@@ -197,6 +197,9 @@ pub fn stage_terminal_component(
         profile,
     )
     .map_err(|error| stage_error("verified artifact lowering", error))?;
+    crate::pipeline::optimization_gate::require_available_pipeline(
+        checked.optimization_selections(),
+    )?;
 
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(settlements.len());
