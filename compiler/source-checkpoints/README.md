@@ -23,17 +23,15 @@ The manifest and census are evidence, never an allowlist for `omega-bootstrap`.
 The bridge must implement the published profile generally and reject excluded
 Omega before publication.
 
-Current status: checkpoint 000001 passed at publication but is not a coherent
-checkpoint of current `main`. The fast gate rejects compiled-source drift in
-`compiler/psi/lex/lexer.omg`, `compiler/psi/tokens/tokens.omg`, and
-`omega/language/std/console.omg`, plus provenance drift in `Cargo.lock` and
+Current status: checkpoint 000001 is a coherent snapshot of its refreshed
+product closure. The fast gate pins compiled source and Cargo/provider
+provenance, including the exact `BUILD_PRELUDE` extracted from
 `bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
-The latter is also the provider of the pinned build-prelude snapshot, so its
-drift must be reconciled with `inputs/build-prelude.omg` rather than treated as
-an unrelated hash update. Refresh the manifest and profile as one product-owned
-closure; do not weaken verification or update only the first mismatch. Its
-pinned census remains bounded historical evidence for bridge cost work, not
-current source-closure evidence.
+The refreshed snapshot includes the prelude's public build vocabulary and
+package-identity declaration. Future drift must again refresh the manifest,
+profile, and prelude together; verification must never be weakened or stopped
+after the first mismatch. The census remains bounded checkpoint evidence for
+bridge cost work, not authority for later compiler phases.
 
 Run `compiler/source-checkpoints/verify.sh` for the fast gate: it composes the
 resolver-exact manifest/provenance gate with every-target profile census,
