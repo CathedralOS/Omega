@@ -54,4 +54,29 @@ if [ "$reference_status" -ne 37 ] || [ "$native_status" -ne 37 ] || [ "$self_sta
   exit 1
 fi
 
+# Once `->` establishes a transition-target relation, only lexical trivia and
+# then an identifier are admitted. String, punctuation, and EOF forms reject in
+# phase 1, before the assembly header is published, in both compiler fixed points.
+check_malformed_target() {
+  case_name=$1
+  case_source=$2
+  printf '%s' "$case_source" > "$T/$case_name.alp"
+  set +e
+  "$T/lowermachine.native" < "$T/$case_name.alp" > "$T/$case_name.native.s" 2>/dev/null
+  malformed_native=$?
+  "$T/lowermachine.self" < "$T/$case_name.alp" > "$T/$case_name.self.s" 2>/dev/null
+  malformed_self=$?
+  set -e
+  if [ "$malformed_native" -ne 1 ] || [ "$malformed_self" -ne 1 ] \
+      || [ -s "$T/$case_name.native.s" ] || [ -s "$T/$case_name.self.s" ]; then
+    echo "lowermachine malformed contextual target FAIL — $case_name native=$malformed_native self=$malformed_self, expected 1/1 with no output"
+    exit 1
+  fi
+}
+
+SOURCE_PREFIX='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { transition 0 { _ -> '
+check_malformed_target target-string "${SOURCE_PREFIX}\"read_byte\" } }"
+check_malformed_target target-punctuation "${SOURCE_PREFIX}) } }"
+check_malformed_target target-eof "$SOURCE_PREFIX"
+
 echo "LOWERMACHINE CONTEXTUAL STATES ✓ — 12 contextual names preserve exact native/self assembly and runtime control flow"

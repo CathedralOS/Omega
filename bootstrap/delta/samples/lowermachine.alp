@@ -35,7 +35,7 @@ data Main {
     ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
     nb: i32; subjoff: i32; payidx: i32; unegate: i32;
     apbase: i32; aix: i32; scc: i32; mmk: i32;
-    mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32;
+    mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; target_pending: i32;
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     byte_cursor: i32; typed_cursor: i32; alloc_base: i32; alloc_ok: i32; alloc_pad: i32; storage_ok: i32; source_base: i32;
     opaop_base: i32; opcc_base: i32; opprec_base: i32;
@@ -723,7 +723,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.array_depth = 0; self.usesio = 0; self.skl = 0; self.ne = 0; self.bterm = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.target_pending = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.array_depth = 0; self.usesio = 0; self.skl = 0; self.ne = 0; self.bterm = 0;
     self.init_storage();
     transition self.storage_ok == 1 { true -> rd() false -> storage_exhausted() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
@@ -741,7 +741,9 @@ machine Main::main(&mut self) {
     state cms()   { transition self.pos < self.n { true -> cnl()  false -> endph() } }
     state cnl()   { transition self.byte_backing[self.source_base + self.pos] == 10 { true -> wadv()  false -> cadv() } }
     state cadv()  { self.pos = self.pos + 1; transition 0 { _ -> cms() } }
-    state str0()  { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> stra()  false -> tok() } }
+    state str0()  { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> str_target_phase()  false -> tok() } }
+    state str_target_phase() { transition self.phase == 1 { true -> str_target_pending() false -> stra() } }
+    state str_target_pending() { transition self.target_pending == 1 { true -> source_malformed() false -> stra() } }
     state stra()  { self.pos = self.pos + 1; transition 0 { _ -> ssx() } }
     state ssx()   { transition self.pos < self.n { true -> ss2()  false -> endph() } }
     state ss2()   { transition self.byte_backing[self.source_base + self.pos] == 34 { true -> wadv()  false -> ssa() } }
@@ -835,7 +837,18 @@ machine Main::main(&mut self) {
     state p0adv() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     // ---- pass 1: collect state labels (mi over depth-0 machines, si over depth-1 states) ----
     state tok1()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word1()  false -> punc1() } }
-    state punc1() { transition self.byte_backing[self.source_base + self.pos] == 123 { true -> opn1()  false -> p1b() } }
+    state punc1() { transition self.target_pending == 1 { true -> source_malformed() false -> punc1_arrow() } }
+    state punc1_arrow() { transition self.byte_backing[self.source_base + self.pos] == 45 { true -> arrow1_bound() false -> punc1_open() } }
+    state arrow1_bound() { transition self.pos + 1 < self.n { true -> arrow1_check() false -> punc1_open() } }
+    state arrow1_check() { transition self.byte_backing[self.source_base + self.pos + 1] == 62 { true -> arrow1_context() false -> punc1_open() } }
+    // Transition targets occur inside the arm block (depth >= 2). Return-type
+    // arrows in free or boundary machine signatures are not target relations.
+    state arrow1_context() { transition self.depth > 1 { true -> arrow1_mark() false -> punc1_open() } }
+    // Record the lexical relation, not a byte-distance guess.  The main scanner
+    // already drops whitespace, strings, and complete `//` comments, so this
+    // flag survives arbitrary admitted trivia and is consumed by the next word.
+    state arrow1_mark() { self.target_pending = 1; self.pos = self.pos + 2; transition 0 { _ -> sk() } }
+    state punc1_open() { transition self.byte_backing[self.source_base + self.pos] == 123 { true -> opn1()  false -> p1b() } }
     state opn1()  { self.depth = self.depth + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p1b()   { transition self.byte_backing[self.source_base + self.pos] == 125 { true -> cls1()  false -> p1c() } }
     state p1c()   { transition self.byte_backing[self.source_base + self.pos] == 40 { true -> mname()  false -> p1d() } }
@@ -860,7 +873,9 @@ machine Main::main(&mut self) {
     state padv1() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state word1() { self.start = self.pos; transition 0 { _ -> wr1() } }
     state wr1()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> wa1()  false -> wlw() } }
-    state wlw()   { self.lastws = self.start; self.lastwe = self.pos; transition self.insig == 1 { true -> wsig()  false -> wc1() } }
+    state wlw()   { self.lastws = self.start; self.lastwe = self.pos; transition self.target_pending == 1 { true -> target1_clear() false -> wlw_sig() } }
+    state target1_clear() { self.target_pending = 0; transition 0 { _ -> sk() } }
+    state wlw_sig() { transition self.insig == 1 { true -> wsig()  false -> wc1() } }
     state wsig()  { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> wsig2()  false -> sk() } }
     state wsig2() { transition self.typed_backing[self.pcs_base + self.mi] < 4 { true -> wsig3() false -> machine_exhausted() } }
     state wsig3() { self.typed_backing[self.hsf_base + self.mi] = 1; transition 0 { _ -> sk() } }
@@ -889,8 +904,7 @@ machine Main::main(&mut self) {
     state sparadv(){ self.pos = self.pos + 1; transition 0 { _ -> sparnx() } }
     state addSf() { self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
     state ck1m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> newM1()  false -> ck1l() } }
-    state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let1_context()  false -> ck1s() } }
-    state let1_context() { self.qk = 2; transition 0 { _ -> word1_context() } }
+    state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> setL1()  false -> ck1s() } }
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
     // Five machine-scoped tables have 128 rows. Reject in phase 1, before p2 publishes assembly.
     state newM1() { transition self.depth == 0 { true -> nmcap()  false -> sk() } }
@@ -898,28 +912,14 @@ machine Main::main(&mut self) {
     state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.typed_backing[self.hsf_base + self.mi] = 0; transition 0 { _ -> sk() } }
     state machine_exhausted() { self.console.exit_process(3) }
     state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> ck1wb() } }
-    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> state1_context()  false -> ck1wb() } }
-    state state1_context() { self.qk = 1; transition 0 { _ -> word1_context() } }
+    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> ck1wb() } }
     state setP1() { self.pend = 1; transition 0 { _ -> sk() } }
     // Pre-scan the sealed byte-I/O spellings before pass 2 emits the entry
     // epilogue. This lets an implicit entry return flush output even when the
     // only write occurs in a later method body.
-    state ck1wb() { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> ck1rb() } }
-    state ck1rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> ck1wl() } }
-    state ck1wl() { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> sk() } }
-    // A transition target is an identifier followed by `(` too, but it is not
-    // a byte-I/O call.  Exclude the structurally preceding `->` so a state
-    // named read_byte/write_byte/write_line does not manufacture I/O support.
-    state io1_context() { self.qk = 3; transition 0 { _ -> word1_context() } }
-    state word1_context() { self.qa = self.start; transition 0 { _ -> word1_back() } }
-    state word1_back() { transition self.qa > 0 { true -> word1_dec() false -> word1_context_accept() } }
-    state word1_dec() { self.qa = self.qa - 1; transition self.byte_backing[self.source_base + self.qa] <= 32 { true -> word1_back() false -> word1_gt() } }
-    state word1_gt() { transition self.byte_backing[self.source_base + self.qa] == 62 { true -> word1_arrow_back() false -> word1_context_accept() } }
-    state word1_arrow_back() { transition self.qa > 0 { true -> word1_arrow_dec() false -> word1_context_accept() } }
-    state word1_arrow_dec() { self.qa = self.qa - 1; transition self.byte_backing[self.source_base + self.qa] <= 32 { true -> word1_arrow_back() false -> word1_dash() } }
-    state word1_dash() { transition self.byte_backing[self.source_base + self.qa] == 45 { true -> sk() false -> word1_context_accept() } }
-    state word1_context_accept() { transition self.qk == 1 { true -> setP1() false -> word1_context_let() } }
-    state word1_context_let() { transition self.qk == 2 { true -> setL1() false -> setio1() } }
+    state ck1wb() { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1rb() } }
+    state ck1rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1wl() } }
+    state ck1wl() { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> sk() } }
     state setio1(){ self.usesio = 1; transition 0 { _ -> sk() } }
     // ---- pass 2: find the first `transition`, skip its subject, emit pop + arm dispatch ----
     state tok2()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word2()  false -> padv2() } }
@@ -1523,12 +1523,20 @@ machine Main::main(&mut self) {
     state ckdig() { self.kind = 1; self.val = 0; self.cj = self.ps; transition 0 { _ -> diga() } } // int literal pattern
     state diga()  { transition self.cj < self.pe { true -> digacc()  false -> toarrow() } }
     state digacc(){ self.val = self.val * 10 + self.byte_backing[self.source_base + self.cj] - 48; self.cj = self.cj + 1; transition 0 { _ -> diga() } }
-    // advance to the target name (skip ws + the "->")
+    // advance through the `->` and lexical trivia to the target name
     state toarrow(){ transition self.byte_backing[self.source_base + self.pos] == 45 { true -> arrskip()  false -> toa2() } }  // '-'
     state arrskip(){ self.pos = self.pos + 2; transition 0 { _ -> totgt() } }                      // skip "->"
     state toa2()  { self.pos = self.pos + 1; transition 0 { _ -> toarrow() } }
-    state totgt() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> tgadv()  false -> tgt0() } }
+    state totgt() { transition self.pos < self.n { true -> tgttrivia() false -> source_malformed() } }
+    state tgttrivia() { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> tgadv()  false -> tgslash() } }
     state tgadv() { self.pos = self.pos + 1; transition 0 { _ -> totgt() } }
+    state tgslash() { transition self.byte_backing[self.source_base + self.pos] == 47 { true -> tgslash_bound() false -> tgt0() } }
+    state tgslash_bound() { transition self.pos + 1 < self.n { true -> tgslash_check() false -> tgt0() } }
+    state tgslash_check() { transition self.byte_backing[self.source_base + self.pos + 1] == 47 { true -> tgcomment_start() false -> tgt0() } }
+    state tgcomment_start() { self.pos = self.pos + 2; transition 0 { _ -> tgcomment_bound() } }
+    state tgcomment_bound() { transition self.pos < self.n { true -> tgcomment_char() false -> source_malformed() } }
+    state tgcomment_char() { transition self.byte_backing[self.source_base + self.pos] == 10 { true -> tgadv() false -> tgcomment_more() } }
+    state tgcomment_more() { self.pos = self.pos + 1; transition 0 { _ -> tgcomment_bound() } }
     state tgt0()  { self.start = self.pos; transition 0 { _ -> tgr() } }
     state tgr()   { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> tga()  false -> tge() } }
     state tga()   { self.pos = self.pos + 1; transition 0 { _ -> tgr() } }
@@ -1563,9 +1571,10 @@ machine Main::main(&mut self) {
     state aendsk(){ self.pos = self.pos + 1; transition 0 { _ -> aend() } }
     state aend2() { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
     state endph() { transition self.phase == 0 { true -> p1()  false -> endph1() } }
-    state endph1(){ transition self.phase == 1 { true -> p2()  false -> done() } }
+    state endph1(){ transition self.phase == 1 { true -> endph1_target()  false -> done() } }
+    state endph1_target() { transition self.target_pending == 1 { true -> source_malformed() false -> p2() } }
     state source_malformed() { self.console.exit_process(1) }
-    state p1()    { self.dsize = self.coff; self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.array_depth = 0; transition 0 { _ -> sk() } }   // capture the entry struct's data size (coff is final after phase 0)
+    state p1()    { self.dsize = self.coff; self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.target_pending = 0; self.array_depth = 0; transition 0 { _ -> sk() } }   // capture the entry struct's data size (coff is final after phase 0)
     state p2()    { self.console.write_line("// generated by the proof kernel-rs aarch64 backend (slices 1-2, 4-6)"); self.console.write_line(".global _main"); self.console.write_line(".align 2"); self.phase = 2; self.pos = 0; self.mi = 0 - 1; self.lsi = 0; self.depth = 0; self.pend = 0; self.array_depth = 0; transition 0 { _ -> sk() } }   // emit the asm header before any machine
     state done()  { self.emit_epilogue(); transition self.usesio > 0 { true -> iosupport()  false -> trap_plain() } }
     state iosupport() {
