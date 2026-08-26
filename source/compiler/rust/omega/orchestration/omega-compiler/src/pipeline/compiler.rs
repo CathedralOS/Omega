@@ -522,48 +522,20 @@ impl Compiler {
             )?;
         checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
         checked.component_progress =
-            if let Some(source) = selected_program_entry_source_signature.as_ref() {
-                Some(Arc::new(
-                    crate::pipeline::component_progress::build_component_progress_manifest(
-                        &checked.program,
-                        &checked.selected_provider_plans,
-                        source.machine_symbol(),
-                        source.normalized_callable_identity().to_owned(),
-                    )?,
-                ))
-            } else if let Some(entry_name) = entry_machine_name.as_deref() {
-                let matches = checked
-                    .program
-                    .machines()
-                    .iter()
-                    .filter(|machine| machine.name.as_str() == entry_name)
-                    .collect::<Vec<_>>();
-                let [entry] = matches.as_slice() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "selected test entry `{entry_name}` resolves to {} checked machines",
-                        matches.len()
-                    ))]);
-                };
-                let identity = checked
-                    .program
-                    .normalized_machine_overload_identity(entry)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "selected test entry `{entry_name}` has no normalized callable identity"
-                        ))]
-                    })?
-                    .identity();
-                Some(Arc::new(
-                    crate::pipeline::component_progress::build_component_progress_manifest(
-                        &checked.program,
-                        &checked.selected_provider_plans,
-                        entry.symbol,
-                        identity,
-                    )?,
-                ))
-            } else {
-                None
-            };
+            crate::pipeline::component_progress::build_selected_component_progress_manifest(
+                &checked.program,
+                &checked.selected_provider_plans,
+                selected_program_entry_source_signature
+                    .as_ref()
+                    .map(|source| {
+                        crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+                            source.machine_symbol(),
+                            source.normalized_callable_identity(),
+                        )
+                    }),
+                entry_machine_name.as_deref(),
+            )?
+            .map(Arc::new);
         crate::pipeline::trust_report::write_trust_report(
             &self.options,
             &checked.program,
