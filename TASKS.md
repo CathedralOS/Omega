@@ -7517,15 +7517,16 @@ reach or trust, and private proof improvements do not change public identity.
   CFG, complete cleanup plan, or conservation witness.
 
   The mixed scalar/affine record rung is closed for claim-free records whose
-  fields are bounded Terminal scalars or affine structural subtrees. Scalar
-  fields remain ordered structural/type and partition identity, but contribute
-  no moved path, residual cleanup, runtime action, or fuel. Projected moves
-  still select only affine structural fields, and maximal live structural
-  residuals are cleaned recursively in reverse declaration order. Checked
-  lowering, Terminal verification, machine emission, and object/installation
-  replay independently reject scalar/structural classification drift. Floats,
-  byte sequences, provider-backed or erased values, arrays, sums, claims or
-  content, contracts, and nominal drop remain fenced from this rung.
+  fields are bounded Terminal scalars, exact binary32/binary64 float leaves, or
+  affine structural subtrees. Scalar and float fields remain ordered
+  structural/type and partition identity, but contribute no moved path,
+  residual cleanup, runtime action, or fuel. Projected moves still select only
+  affine structural fields, and maximal live structural residuals are cleaned
+  recursively in reverse declaration order. Checked lowering, Terminal
+  verification, machine emission, and object/installation replay independently
+  reject scalar/float/structural classification drift. Byte sequences,
+  provider-backed or erased values, arrays, sums, claims or content, contracts,
+  and nominal drop remain fenced from this rung.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
   selection kind. The package-agnostic selection ledger rejects the exact hook

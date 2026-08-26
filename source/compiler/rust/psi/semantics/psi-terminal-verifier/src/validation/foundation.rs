@@ -1463,7 +1463,9 @@ fn collect_partial_affine_residuals(
             field.relevance.is_erased()
                 || !matches!(
                     field.field_type,
-                    StructuralFieldType::Structural(_) | StructuralFieldType::Scalar(_)
+                    StructuralFieldType::Structural(_)
+                        | StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
                 )
         })
     {

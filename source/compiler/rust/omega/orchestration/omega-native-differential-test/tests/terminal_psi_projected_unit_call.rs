@@ -67,8 +67,10 @@ const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     data RightToken { value: u64; }
     data Mixed {
         before: u8;
+        before_float: f32;
         left: LeftToken;
         between: bool;
+        between_float: f64;
         right: RightToken;
         after: u16;
     }
@@ -941,19 +943,27 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
             .iter()
             .map(|field| (field.identity.as_str(), &field.field_type))
             .collect::<Vec<_>>(),
-        [
+        vec![
             (
                 "before",
                 &StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
                     psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
                 ))
             ),
-            ("left", &fields[1].field_type),
+            (
+                "before_float",
+                &StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32)
+            ),
+            ("left", &fields[2].field_type),
             (
                 "between",
                 &StructuralFieldType::Scalar(psi_core::ScalarType::Boolean)
             ),
-            ("right", &fields[3].field_type),
+            (
+                "between_float",
+                &StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64)
+            ),
+            ("right", &fields[5].field_type),
             (
                 "after",
                 &StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
@@ -962,12 +972,12 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
             ),
         ]
     );
-    let left_type = match fields[1].field_type {
+    let left_type = match fields[2].field_type {
         StructuralFieldType::Structural(structural_type) => structural_type,
         _ => panic!("left field remains structural"),
     };
     assert!(matches!(
-        fields[3].field_type,
+        fields[5].field_type,
         StructuralFieldType::Structural(_)
     ));
     let cleanup_actions = caller
@@ -986,6 +996,25 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
         panic!("only the live affine left field requires cleanup")
     };
     assert_eq!(residual.path, [StructuralPathSegment::Field("left".into())]);
+
+    let mut moved_as_float = plan.clone();
+    let moved_root = moved_as_float
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == root_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut moved_root.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "right")
+        .unwrap()
+        .field_type = StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32);
+    assert!(
+        lower_to_target_operations(&moved_as_float, NativeTarget::linux_x64()).is_err(),
+        "a retained projected move cannot be rebound to a float leaf"
+    );
 
     for target in [
         NativeTarget::linux_x64(),
@@ -1018,7 +1047,7 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
         };
         fields
             .iter_mut()
-            .find(|field| field.identity == "between")
+            .find(|field| field.identity == "before_float")
             .unwrap()
             .field_type = StructuralFieldType::Structural(left_type);
         assert!(emit_machine_code(&forged_assigned).is_err());
@@ -1053,7 +1082,7 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
         };
         fields
             .iter_mut()
-            .find(|field| field.identity == "between")
+            .find(|field| field.identity == "before_float")
             .unwrap()
             .field_type = StructuralFieldType::Structural(left_type);
         assert!(build_terminal_object_artifact(&forged_machine).is_err());

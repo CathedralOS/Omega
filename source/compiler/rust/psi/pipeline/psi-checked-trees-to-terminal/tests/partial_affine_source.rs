@@ -15,8 +15,10 @@ const SOURCE: &str = r#"
     data Token { value: u64; }
     data Quintet {
         before: u8;
+        before_float: f32;
         first: Token;
         between: bool;
+        between_float: f64;
         second: Token;
         third: Token;
         fourth: Token;
@@ -82,24 +84,29 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     assert_eq!(
         fields
             .iter()
-            .map(|field| {
-                (
-                    field.identity.as_str(),
-                    matches!(field.field_type, StructuralFieldType::Scalar(_)),
-                )
-            })
+            .map(|field| field.identity.as_str())
             .collect::<Vec<_>>(),
         vec![
-            ("before", true),
-            ("first", false),
-            ("between", true),
-            ("second", false),
-            ("third", false),
-            ("fourth", false),
-            ("fifth", false),
-            ("after", true),
+            "before",
+            "before_float",
+            "first",
+            "between",
+            "between_float",
+            "second",
+            "third",
+            "fourth",
+            "fifth",
+            "after",
         ],
-        "scalar fields before, between, and after affine fields remain structural identity"
+        "integer, Boolean, and exact-format float fields remain ordered structural identity"
+    );
+    assert_eq!(
+        fields[1].field_type,
+        StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32)
+    );
+    assert_eq!(
+        fields[4].field_type,
+        StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64)
     );
     let [block] = entry.blocks.as_slice() else {
         panic!("partial affine source slice has one block")
@@ -183,8 +190,8 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         .expect("token type");
     fields
         .iter_mut()
-        .find(|field| field.identity == "between")
-        .expect("interleaved scalar")
+        .find(|field| field.identity == "before_float")
+        .expect("interleaved float")
         .field_type = StructuralFieldType::Structural(token_type);
     assert!(
         psi_terminal_verifier::verify_module(
@@ -193,11 +200,11 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
             &AdmissionProfile::default(),
         )
         .is_err(),
-        "reclassifying a cleanup-free scalar as affine structural requires a new residual"
+        "reclassifying a cleanup-free float as affine structural requires a new residual"
     );
 
-    let mut moved_as_scalar = lowered.semantic_module.clone();
-    let root_shape = moved_as_scalar
+    let mut moved_as_float = lowered.semantic_module.clone();
+    let root_shape = moved_as_float
         .structural_types
         .iter_mut()
         .find(|shape| shape.id == root.structural_type)
@@ -205,26 +212,19 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
         unreachable!()
     };
-    let scalar_type = fields
-        .iter()
-        .find_map(|field| match &field.field_type {
-            StructuralFieldType::Scalar(scalar_type) => Some(scalar_type.clone()),
-            _ => None,
-        })
-        .expect("retained scalar type");
     fields
         .iter_mut()
         .find(|field| field.identity == "third")
         .expect("moved structural field")
-        .field_type = StructuralFieldType::Scalar(scalar_type);
+        .field_type = StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32);
     assert!(
         psi_terminal_verifier::verify_module(
-            &moved_as_scalar,
+            &moved_as_float,
             &lowered.proof_bundle,
             &AdmissionProfile::default(),
         )
         .is_err(),
-        "a projected move cannot target a scalar field"
+        "a projected move cannot target a float field"
     );
     let semantic = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(

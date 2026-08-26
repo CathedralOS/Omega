@@ -327,6 +327,14 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
                         ),
                     },
                     psi_terminal::StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(4).expect("float field"),
+                        identity: "ratio".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::IeeeFloat(
+                            psi_core::IeeeFloatFormat::Binary32,
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
                         id: psi_core::StructuralFieldId::new(3).expect("residual field"),
                         identity: "residual".into(),
                         relevance: psi_terminal::BindingRelevance::Relevant,
@@ -385,6 +393,31 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
             &[&scalar_residual, &residual],
         ),
         "a scalar field cannot acquire an affine residual cleanup"
+    );
+
+    let float_path = vec![StructuralPathSegment::Field("ratio".into())];
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &[(float_path.as_slice(), residual_type)],
+            &residuals,
+        ),
+        "a cleanup-free float field cannot become a moved affine structural path"
+    );
+    let float_residual = psi_terminal::StructuralAffineDiscard {
+        place: PlaceId::new(1).expect("place"),
+        path: float_path,
+        structural_type: residual_type,
+    };
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &[&float_residual, &residual],
+        ),
+        "a cleanup-free float field cannot acquire an affine residual cleanup"
     );
 
     let mut scalar_as_structural = declarations.clone();

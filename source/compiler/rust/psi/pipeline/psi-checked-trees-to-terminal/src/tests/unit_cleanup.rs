@@ -400,8 +400,10 @@ fn partial_affine_unit_checked_fixture() -> CheckedTrees {
         data Token { value: u64; }
         data Quartet {
             before: u8;
+            before_float: f32;
             first: Token;
             between: bool;
+            between_float: f64;
             second: Token;
             third: Token;
             fourth: Token;
@@ -487,6 +489,31 @@ fn partial_affine_unit_cleanup_lowers_exact_terminal_paths_before_verification()
         vec![
             vec![StructuralPathSegment::Field("third".to_owned())],
             vec![StructuralPathSegment::Field("first".to_owned())],
+        ]
+    );
+    let root_type = entry.structural_parameters[0].structural_type;
+    let root = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("mixed float partial root type");
+    let StructuralTypeShape::Record { fields } = &root.shape else {
+        panic!("mixed float partial root remains a record")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::IeeeFloat(format) => {
+                    Some((field.identity.as_str(), format))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ("before_float", psi_core::IeeeFloatFormat::Binary32),
+            ("between_float", psi_core::IeeeFloatFormat::Binary64),
         ]
     );
     let Terminator::ReturnUnitPartialAffine {
@@ -800,8 +827,8 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         .expect("token type identity");
     fields
         .iter_mut()
-        .find(|field| field.identity == "between")
-        .expect("interleaved scalar field")
+        .find(|field| field.identity == "before_float")
+        .expect("interleaved float field")
         .field_type = CheckedUnitStructuralFieldType::Structural {
         type_identity: token_identity,
     };
@@ -812,8 +839,8 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         ))
     ));
 
-    let mut moved_as_scalar = partial_affine_unit_checked_fixture();
-    let moved_plan = moved_as_scalar
+    let mut moved_as_float = partial_affine_unit_checked_fixture();
+    let moved_plan = moved_as_float
         .facts
         .flow
         .terminal_partial_affine_unit_cleanups
@@ -822,7 +849,7 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
     let source_identity = moved_plan.machine.structural_parameters[0]
         .type_identity
         .clone();
-    let shape = moved_as_scalar
+    let shape = moved_as_float
         .facts
         .flow
         .terminal_partial_affine_unit_cleanups
@@ -837,9 +864,9 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         .iter_mut()
         .find(|field| field.identity == "third")
         .expect("moved structural field")
-        .field_type = CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64);
+        .field_type = CheckedUnitStructuralFieldType::Scalar(PrimitiveType::F32);
     assert!(matches!(
-        lower_partial_affine_unit_cleanup_machine(&moved_as_scalar, &moved_plan),
+        lower_partial_affine_unit_cleanup_machine(&moved_as_float, &moved_plan),
         Err(LoweringError::Unsupported(
             "partial affine Unit field path or type identity drifted"
         ))

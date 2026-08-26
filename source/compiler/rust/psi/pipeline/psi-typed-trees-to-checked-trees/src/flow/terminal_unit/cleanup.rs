@@ -1216,6 +1216,8 @@ fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> 
                     | PrimitiveType::U32
                     | PrimitiveType::U64
                     | PrimitiveType::Addr
+                    | PrimitiveType::F32
+                    | PrimitiveType::F64
             )
     )
 }

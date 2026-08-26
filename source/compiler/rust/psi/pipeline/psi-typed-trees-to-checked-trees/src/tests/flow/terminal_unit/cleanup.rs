@@ -206,8 +206,10 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
         data Token { value: u64; }
         data Mixed {
             before: u8;
+            before_float: f32;
             left: Token;
             between: bool;
+            between_float: f64;
             right: Token;
             after: u64;
         }
@@ -249,11 +251,32 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
             .collect::<Vec<_>>(),
         vec![
             ("before", true),
+            ("before_float", true),
             ("left", false),
             ("between", true),
+            ("between_float", true),
             ("right", false),
             ("after", true),
         ]
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .filter_map(|field| match field.field_type {
+                CheckedUnitStructuralFieldType::Scalar(PrimitiveType::F32) => {
+                    Some((field.identity.as_str(), PrimitiveType::F32))
+                }
+                CheckedUnitStructuralFieldType::Scalar(PrimitiveType::F64) => {
+                    Some((field.identity.as_str(), PrimitiveType::F64))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ("before_float", PrimitiveType::F32),
+            ("between_float", PrimitiveType::F64),
+        ],
+        "both exact IEEE source formats remain ordered checked shape identity"
     );
     assert_eq!(
         plan.residual_affine_discards
@@ -263,7 +286,7 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
         vec![vec![CheckedUnitStructuralPathSegment::Field(
             "left".to_owned()
         )]],
-        "unrestricted scalar fields are cleanup-free even before, between, and after affine fields"
+        "unrestricted integer, Boolean, and float fields are cleanup-free even before, between, and after affine fields"
     );
 }
 
