@@ -272,10 +272,9 @@ coherently, and its complete gate compares the product compiler's versioned
 structural lexical observation with an independently encoded Rust observation
 across success, retained-prefix rejection, and capacity cases. The fast gate
 rejects later compiled-source, provenance, prelude, feature, or resource drift
-until the evidence set is refreshed again. It currently rejects changed
-`Cargo.lock` and workspace `Cargo.toml` provenance while the compiled sources
-and extracted prelude still match. The published evidence is enough
-to begin evidence-led bridge work for those facilities only.
+until the evidence set is refreshed again. The current evidence is coherent;
+the published snapshot is enough to begin evidence-led bridge work for those
+facilities only.
 It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
 does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
@@ -468,7 +467,7 @@ gates rather than being repeated in this decision document.
 | explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
 | canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
 | program-static shared byte views with a guarded head and one-byte tail | OMGRSW4, OMGLOWD/CKIR12, conservative backend, and OMGRFN14 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V4.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md), and [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) |
-| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md); the product-owned checkpoint refresh over the same tuple remains open because Cargo lock/workspace provenance has drifted |
+| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, CKIR3/OMGRFN4 preflight composition, and a coherent product-owned checkpoint refresh over the same tuple | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md) and the [`source checkpoint status`](../../../source/compiler/omega/source-checkpoints/README.md) |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
 No row admits a facility to final `Ωself`, claims general checkpoint coverage,

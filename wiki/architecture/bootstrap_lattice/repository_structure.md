@@ -41,7 +41,7 @@ bootstrap/
   gamma/                    Gamma language, interpreter, and type checker
   delta/                    Delta language, compiler, artifacts, and rust/
   omega-bootstrap/          Delta-built bridge compiler owner
-    meaning/                Rust-free Omega/Psi meaning route used by the bridge
+    meaning/                Rust-free lower-rung meaning for Delta/bridge slices
     compiler/               Delta source, profiles, and source-bundle format
     gates/                  Delta→bridge and future hosted-build validation
   gates/

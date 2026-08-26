@@ -126,4 +126,6 @@ through the independent reference.
 
 This milestone does not admit CKIR operations, descriptor ABI, indexing,
 subsampling, mutable views, allocation, UTF-8 meaning, general raw strings,
-general references, or the checkpoint's authored `u32`/`u64` mismatch.
+general references, or heterogeneous `u32`/`u64` collection operations. The
+current product checkpoint has since moved collection coordinates and counts to
+same-carrier `u64`; V4 itself makes no claim about those operations.
