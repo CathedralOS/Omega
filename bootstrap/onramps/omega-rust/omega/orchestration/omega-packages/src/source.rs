@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v9";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v10";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -116,6 +116,72 @@ pub struct GitSourceRequest {
     locator_identity: String,
     requested_revision: String,
     lineage: SourceLineage,
+    execution_transport: GitExecutionTransport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GitExecutionTransport {
+    Https,
+    Ssh,
+    #[cfg(test)]
+    File,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitTransportProfile {
+    Https,
+    Ssh,
+    TestFile,
+}
+
+impl GitTransportProfile {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Https => "https",
+            Self::Ssh => "ssh",
+            Self::TestFile => "test-file",
+        }
+    }
+}
+
+impl GitExecutionTransport {
+    fn from_locator_transport(transport: GitTransport) -> Self {
+        match transport {
+            GitTransport::Https => Self::Https,
+            GitTransport::SshUrl | GitTransport::ScpLike => Self::Ssh,
+        }
+    }
+
+    fn cache_tag(self) -> &'static [u8] {
+        match self {
+            Self::Https => b"https",
+            Self::Ssh => b"ssh",
+            #[cfg(test)]
+            Self::File => b"test-file",
+        }
+    }
+
+    fn allowed_protocol(self) -> &'static str {
+        match self {
+            Self::Https => "https",
+            Self::Ssh => "ssh",
+            #[cfg(test)]
+            Self::File => "file",
+        }
+    }
+
+    fn permits(self, transport: Self) -> &'static str {
+        if self == transport { "always" } else { "never" }
+    }
+
+    fn profile(self) -> GitTransportProfile {
+        match self {
+            Self::Https => GitTransportProfile::Https,
+            Self::Ssh => GitTransportProfile::Ssh,
+            #[cfg(test)]
+            Self::File => GitTransportProfile::TestFile,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,8 +213,8 @@ impl GitSourceRequest {
                 IdentityError::MalformedGitLocator,
             ));
         }
-        let lineage =
-            SourceLineage::git(&locator).map_err(GitSourceRequestError::InvalidLocator)?;
+        let (lineage, locator_transport) = SourceLineage::git_with_transport(&locator)
+            .map_err(GitSourceRequestError::InvalidLocator)?;
         let requested_revision = revision.unwrap_or_else(|| "HEAD".to_owned());
         validate_git_revision(&requested_revision)?;
         let locator_identity = canonical_git_locator(&lineage);
@@ -157,6 +223,7 @@ impl GitSourceRequest {
             locator_identity,
             requested_revision,
             lineage,
+            execution_transport: GitExecutionTransport::from_locator_transport(locator_transport),
         })
     }
 
@@ -176,6 +243,14 @@ impl GitSourceRequest {
         &self.fetch_locator
     }
 
+    fn execution_transport(&self) -> GitExecutionTransport {
+        self.execution_transport
+    }
+
+    pub fn transport_profile(&self) -> GitTransportProfile {
+        self.execution_transport.profile()
+    }
+
     #[cfg(test)]
     pub(crate) fn for_local_test_repository(
         repository: &Path,
@@ -190,6 +265,7 @@ impl GitSourceRequest {
             revision,
         )?;
         request.fetch_locator = repository.display().to_string();
+        request.execution_transport = GitExecutionTransport::File;
         Ok(request)
     }
 
@@ -201,6 +277,7 @@ impl GitSourceRequest {
     ) -> Result<Self, GitSourceRequestError> {
         let mut request = Self::new(remote_locator, revision)?;
         request.fetch_locator = repository.display().to_string();
+        request.execution_transport = GitExecutionTransport::File;
         Ok(request)
     }
 }
@@ -302,12 +379,13 @@ fn canonical_git_locator(lineage: &SourceLineage) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
     pub locator_identity: String,
+    pub transport_profile: GitTransportProfile,
     pub requested_rev: String,
     pub commit: String,
     pub tree: String,
     pub snapshot_root: PathBuf,
     pub local: ResolvedLocalSource,
-    /// Absolute helper identity observed before and after every Git launch.
+    /// Absolute parent Git executable identity observed before and after every launch.
     /// This is diagnostic custody, not certification of the executable.
     pub git_executable: GitExecutableIdentity,
 }
@@ -340,6 +418,7 @@ impl GitExecutableIdentity {
 struct GitExecutor {
     identity: GitExecutableIdentity,
     metadata_identity: GitExecutableMetadataIdentity,
+    execution_transport: GitExecutionTransport,
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
@@ -701,7 +780,8 @@ pub fn resolve_git_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
-    let executor = GitExecutor::system()?;
+    let execution_transport = request.execution_transport();
+    let executor = GitExecutor::system(execution_transport)?;
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
@@ -711,15 +791,20 @@ pub fn resolve_git_source(
             .canonicalize()
             .map_err(|error| io_error(cache_dir, error))?;
         verify_git_cache_root_custody(&cache_dir)?;
-        let cache_identity = git_cache_identity(locator_identity, requested_rev);
+        let cache_identity =
+            git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
         let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
 
         if entry_root.exists() {
-            if let Err(error) =
-                verify_git_cache_entry(&entry_root, locator_identity, requested_rev, limits)
-            {
+            if let Err(error) = verify_git_cache_entry(
+                &entry_root,
+                locator_identity,
+                requested_rev,
+                execution_transport,
+                limits,
+            ) {
                 invalidate_git_cache_entry(&entry_root);
                 return Err(error);
             }
@@ -732,6 +817,7 @@ pub fn resolve_git_source(
                 locator_identity,
                 request.fetch_locator(),
                 requested_rev,
+                execution_transport,
                 limits,
             )?;
         }
@@ -742,6 +828,7 @@ pub fn resolve_git_source(
             locator_identity,
             request.fetch_locator(),
             requested_rev,
+            execution_transport,
             limits,
         );
         match result {
@@ -766,9 +853,16 @@ fn resolve_verified_git_cache_entry(
     locator_identity: &str,
     fetch_locator: &str,
     requested_rev: &str,
+    execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
+    verify_git_cache_entry(
+        entry_root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    )?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     run_git(
@@ -785,7 +879,13 @@ fn resolve_verified_git_cache_entry(
             OsStr::new(requested_rev),
         ],
     )?;
-    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
+    verify_git_cache_entry(
+        entry_root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    )?;
 
     let commit = run_git_stdout(
         executor,
@@ -808,15 +908,28 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
+    verify_git_cache_entry(
+        entry_root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    )?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(entry_root, locator_identity, requested_rev, limits)?;
+    verify_git_cache_entry(
+        entry_root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    )?;
     executor.verify()?;
     Ok(ResolvedGitSource {
         locator_identity: locator_identity.to_owned(),
+        transport_profile: execution_transport.profile(),
         requested_rev: requested_rev.to_owned(),
         commit,
         tree,
@@ -2617,6 +2730,7 @@ fn create_git_cache_entry(
     locator_identity: &str,
     fetch_locator: &str,
     requested_rev: &str,
+    execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     let mut pending = PendingCacheEntry::create(cache_dir, cache_identity)?;
@@ -2663,13 +2777,23 @@ fn create_git_cache_entry(
         .open(&metadata_path)
         .map_err(|error| io_error(&metadata_path, error))?;
     metadata
-        .write_all(&git_cache_metadata(locator_identity, requested_rev))
+        .write_all(&git_cache_metadata(
+            locator_identity,
+            requested_rev,
+            execution_transport,
+        ))
         .map_err(|error| io_error(&metadata_path, error))?;
     metadata
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
 
-    verify_git_cache_entry(&pending.root, locator_identity, requested_rev, limits)?;
+    verify_git_cache_entry(
+        &pending.root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    )?;
     std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
     pending.published = true;
     Ok(())
@@ -2741,13 +2865,14 @@ fn verify_git_cache_entry(
     entry_root: &Path,
     url: &str,
     requested_rev: &str,
+    execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     verify_git_cache_custody(entry_root, limits)?;
     require_real_directory(entry_root, "cache entry root is not a real directory")?;
     let metadata_path = entry_root.join(GIT_CACHE_METADATA);
     require_regular_file(&metadata_path, "resolver metadata is not a regular file")?;
-    let expected_metadata = git_cache_metadata(url, requested_rev);
+    let expected_metadata = git_cache_metadata(url, requested_rev, execution_transport);
     let metadata_size = std::fs::symlink_metadata(&metadata_path)
         .map_err(|error| io_error(&metadata_path, error))?
         .len();
@@ -2805,19 +2930,29 @@ fn invalidate_git_cache_entry(entry_root: &Path) {
     let _ = std::fs::remove_file(metadata_path);
 }
 
-fn git_cache_identity(url: &str, requested_rev: &str) -> String {
+fn git_cache_identity(
+    url: &str,
+    requested_rev: &str,
+    execution_transport: GitExecutionTransport,
+) -> String {
     let mut hasher = Sha256::new();
     hash_bytes(&mut hasher, GIT_CACHE_POLICY);
     hash_bytes(&mut hasher, url.as_bytes());
     hash_bytes(&mut hasher, requested_rev.as_bytes());
+    hash_bytes(&mut hasher, execution_transport.cache_tag());
     format_sha256(&hasher.finalize())
 }
 
-fn git_cache_metadata(url: &str, requested_rev: &str) -> Vec<u8> {
+fn git_cache_metadata(
+    url: &str,
+    requested_rev: &str,
+    execution_transport: GitExecutionTransport,
+) -> Vec<u8> {
     let mut metadata = Vec::new();
     metadata.extend_from_slice(GIT_CACHE_POLICY);
     append_framed_bytes(&mut metadata, url.as_bytes());
     append_framed_bytes(&mut metadata, requested_rev.as_bytes());
+    append_framed_bytes(&mut metadata, execution_transport.cache_tag());
     metadata
 }
 
@@ -3903,14 +4038,15 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
 }
 
 impl GitExecutor {
-    fn system() -> Result<Self, SourceResolveError> {
+    fn system(execution_transport: GitExecutionTransport) -> Result<Self, SourceResolveError> {
         for candidate in system_git_candidates() {
             let path = Path::new(candidate);
             if path.is_file() {
-                return Self::open_with_budget(
+                return Self::open_with_budget_for_transport(
                     path,
                     GIT_FIXED_COMMAND_ALLOWANCE,
                     GIT_RESOLUTION_TIMEOUT,
+                    execution_transport,
                 );
             }
         }
@@ -3919,13 +4055,33 @@ impl GitExecutor {
 
     #[cfg(test)]
     fn open(path: &Path) -> Result<Self, SourceResolveError> {
-        Self::open_with_budget(path, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT)
+        Self::open_with_budget_for_transport(
+            path,
+            GIT_FIXED_COMMAND_ALLOWANCE,
+            GIT_RESOLUTION_TIMEOUT,
+            GitExecutionTransport::Https,
+        )
     }
 
+    #[cfg(test)]
     fn open_with_budget(
         path: &Path,
         maximum_launches: usize,
         timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
+        Self::open_with_budget_for_transport(
+            path,
+            maximum_launches,
+            timeout,
+            GitExecutionTransport::Https,
+        )
+    }
+
+    fn open_with_budget_for_transport(
+        path: &Path,
+        maximum_launches: usize,
+        timeout: Duration,
+        execution_transport: GitExecutionTransport,
     ) -> Result<Self, SourceResolveError> {
         let started = Instant::now();
         if !path.is_absolute() {
@@ -3952,6 +4108,7 @@ impl GitExecutor {
                 content_identity,
             },
             metadata_identity,
+            execution_transport,
             started,
             timeout,
             launches: Cell::new(0),
@@ -4672,7 +4829,10 @@ fn sealed_git_command(
         .env("LANG", "C")
         .env("LC_ALL", "C")
         .env("PATH", git_helper_path(&executor.identity.path))
-        .env("GIT_ALLOW_PROTOCOL", "file:https:ssh")
+        .env(
+            "GIT_ALLOW_PROTOCOL",
+            executor.execution_transport.allowed_protocol(),
+        )
         .env("GIT_ATTR_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", null_device())
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -4687,17 +4847,36 @@ fn sealed_git_command(
         .arg("--no-replace-objects")
         .arg("-c")
         .arg(format!("core.hooksPath={}", null_device()))
+        .args(["-c", "protocol.allow=never"])
+        .arg("-c")
+        .arg(format!("protocol.file.allow={}", {
+            #[cfg(test)]
+            {
+                executor
+                    .execution_transport
+                    .permits(GitExecutionTransport::File)
+            }
+            #[cfg(not(test))]
+            {
+                "never"
+            }
+        }))
+        .args(["-c", "protocol.http.allow=never"])
+        .arg("-c")
+        .arg(format!(
+            "protocol.https.allow={}",
+            executor
+                .execution_transport
+                .permits(GitExecutionTransport::Https)
+        ))
+        .arg("-c")
+        .arg(format!(
+            "protocol.ssh.allow={}",
+            executor
+                .execution_transport
+                .permits(GitExecutionTransport::Ssh)
+        ))
         .args([
-            "-c",
-            "protocol.allow=never",
-            "-c",
-            "protocol.file.allow=always",
-            "-c",
-            "protocol.http.allow=never",
-            "-c",
-            "protocol.https.allow=always",
-            "-c",
-            "protocol.ssh.allow=always",
             "-c",
             "protocol.git.allow=never",
             "-c",
@@ -4840,6 +5019,20 @@ mod tests {
         assert_eq!(https.locator_identity(), ssh.locator_identity());
         assert_eq!(ssh.requested_revision(), "HEAD");
         assert_eq!(https.lineage(), ssh.lineage());
+        assert_eq!(https.execution_transport(), GitExecutionTransport::Https);
+        assert_eq!(ssh.execution_transport(), GitExecutionTransport::Ssh);
+        assert_ne!(
+            git_cache_identity(
+                https.locator_identity(),
+                https.requested_revision(),
+                https.execution_transport(),
+            ),
+            git_cache_identity(
+                ssh.locator_identity(),
+                ssh.requested_revision(),
+                ssh.execution_transport(),
+            )
+        );
     }
 
     #[test]
@@ -5015,8 +5208,15 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../fixtures/packages")
     }
 
-    fn git_cache_entry_root(cache: &Path, url: &str, requested_rev: &str) -> PathBuf {
-        cache.join(format!("git-{}", git_cache_identity(url, requested_rev)))
+    fn git_cache_entry_root(cache: &Path, request: &GitSourceRequest) -> PathBuf {
+        cache.join(format!(
+            "git-{}",
+            git_cache_identity(
+                request.locator_identity(),
+                request.requested_revision(),
+                request.execution_transport(),
+            )
+        ))
     }
 
     #[cfg(unix)]
@@ -5183,7 +5383,8 @@ mod tests {
         }
         run_test_git(&repo, ["add", "."]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "add batched sources"]);
-        let executor = GitExecutor::system().expect("system Git executor");
+        let executor =
+            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
         let tree = run_git_stdout(
             &executor,
             &repo,
@@ -5459,7 +5660,8 @@ mod tests {
     #[test]
     fn git_object_rejection_precedes_snapshot_staging() {
         let entry_root = temp_root("git-object-rejection-before-stage");
-        let executor = GitExecutor::system().expect("system Git executor");
+        let executor =
+            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
         let error = resolve_git_snapshot(
             &executor,
             &entry_root,
@@ -6344,8 +6546,7 @@ mod tests {
         resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect("resolve a shallow exact revision");
 
-        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
-            .join(GIT_CACHE_REPOSITORY);
+        let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
         let output = Command::new("git")
             .arg("-C")
             .arg(&repository)
@@ -6595,7 +6796,7 @@ mod tests {
         let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("tampered snapshot and matching forged metadata must reject");
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
-        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
+        let entry = git_cache_entry_root(&cache, &request);
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
 
         let _ = std::fs::remove_dir_all(&repo);
@@ -6609,10 +6810,11 @@ mod tests {
         let cache = temp_root("git-snapshot-cleanup-cache");
         let request = local_git_request(&repo, "HEAD");
         resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let entry_root = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
+        let entry_root = git_cache_entry_root(&cache, &request);
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
-        let executor = GitExecutor::system().expect("system Git executor");
+        let executor =
+            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
         let mut entries = vec![GitTreeEntry {
             relative_bytes: b"missing.omg".to_vec(),
             relative_path: PathBuf::from("missing.omg"),
@@ -6671,13 +6873,20 @@ mod tests {
 
     #[test]
     fn git_cache_identity_is_full_policy_versioned_and_injectively_framed() {
-        let first = git_cache_identity("a\0b", "c");
-        let second = git_cache_identity("a", "b\0c");
+        let first = git_cache_identity("a\0b", "c", GitExecutionTransport::Https);
+        let second = git_cache_identity("a", "b\0c", GitExecutionTransport::Https);
 
         assert_eq!(first.len(), 64);
         assert!(first.chars().all(|character| character.is_ascii_hexdigit()));
         assert_ne!(first, second);
-        assert_ne!(first, git_cache_identity("a\0b", "C"));
+        assert_ne!(
+            first,
+            git_cache_identity("a\0b", "C", GitExecutionTransport::Https)
+        );
+        assert_ne!(
+            first,
+            git_cache_identity("a\0b", "c", GitExecutionTransport::Ssh)
+        );
     }
 
     #[test]
@@ -6813,10 +7022,10 @@ mod tests {
         let substitute_url = substitute.display().to_string();
         let request = local_git_request(&repo, "HEAD");
         resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
+        let entry = git_cache_entry_root(&cache, &request);
         std::fs::write(
             entry.join(GIT_CACHE_METADATA),
-            git_cache_metadata(&substitute_url, "HEAD"),
+            git_cache_metadata(&substitute_url, "HEAD", GitExecutionTransport::File),
         )
         .expect("substitute metadata");
 
@@ -6831,19 +7040,44 @@ mod tests {
     }
 
     #[test]
+    fn git_cache_rejects_transport_profile_substitution() {
+        let (repo, _) = create_git_source("git-transport-metadata-source");
+        let cache = temp_root("git-transport-metadata-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        std::fs::write(
+            entry.join(GIT_CACHE_METADATA),
+            git_cache_metadata(
+                request.locator_identity(),
+                request.requested_revision(),
+                GitExecutionTransport::Https,
+            ),
+        )
+        .expect("substitute transport profile metadata");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("substituted transport profile must reject");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert!(!entry.join(GIT_CACHE_METADATA).exists());
+        let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_cache_rejects_repository_config_substitution_without_asking_git() {
         let (repo, _) = create_git_source("git-origin-source");
         let cache = temp_root("git-origin-cache");
         let request = local_git_request(&repo, "HEAD");
         resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
-            .join(GIT_CACHE_REPOSITORY);
+        let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
         let config = repository.join("config");
         assert_eq!(std::fs::read(&config).unwrap(), GIT_CONFIG_SHA1);
         let mut substituted = GIT_CONFIG_SHA1.to_vec();
         substituted.extend_from_slice(b"[remote \"origin\"]\n\turl = /substitute\n");
         std::fs::write(&config, substituted).expect("substitute repository config");
-        let entry = git_cache_entry_root(&cache, request.locator_identity(), "HEAD");
+        let entry = git_cache_entry_root(&cache, &request);
 
         let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
             .expect_err("any noncanonical repository configuration must reject");
@@ -6977,8 +7211,7 @@ mod tests {
         let sentinel = cache.join("filter-ran");
         let request = local_git_request(&repo, "HEAD");
         resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
-        let repository = git_cache_entry_root(&cache, request.locator_identity(), "HEAD")
-            .join(GIT_CACHE_REPOSITORY);
+        let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
         run_test_git(
             &repository,
             [
@@ -7000,7 +7233,8 @@ mod tests {
 
     #[test]
     fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
-        let executor = GitExecutor::system().expect("system Git executor");
+        let executor =
+            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
         let working_directory = std::env::temp_dir()
             .canonicalize()
             .expect("canonical temporary directory");
@@ -7018,7 +7252,7 @@ mod tests {
         let expected_environment = std::collections::BTreeMap::from([
             (
                 OsString::from("GIT_ALLOW_PROTOCOL"),
-                Some(OsString::from("file:https:ssh")),
+                Some(OsString::from("https")),
             ),
             (
                 OsString::from("GIT_ATTR_NOSYSTEM"),
@@ -7090,6 +7324,21 @@ mod tests {
         assert!(
             arguments
                 .iter()
+                .any(|argument| argument == "protocol.file.allow=never")
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "protocol.https.allow=always")
+        );
+        assert!(
+            arguments
+                .iter()
+                .any(|argument| argument == "protocol.ssh.allow=never")
+        );
+        assert!(
+            arguments
+                .iter()
                 .any(|argument| argument == "http.followRedirects=false")
         );
         assert!(
@@ -7103,6 +7352,49 @@ mod tests {
                 .iter()
                 .any(|argument| argument == "maintenance.auto=false")
         );
+    }
+
+    #[test]
+    fn git_commands_admit_only_the_request_transport() {
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        for (transport, protocol) in [
+            (GitExecutionTransport::Https, "https"),
+            (GitExecutionTransport::Ssh, "ssh"),
+            (GitExecutionTransport::File, "file"),
+        ] {
+            let executor = GitExecutor::system(transport).expect("system Git executor");
+            let command = sealed_git_command(&executor, &working_directory)
+                .expect("sealed absolute Git command");
+            let environment = command
+                .get_envs()
+                .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let arguments = command
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+
+            assert_eq!(
+                environment.get(OsStr::new("GIT_ALLOW_PROTOCOL")),
+                Some(&Some(OsString::from(protocol)))
+            );
+            for (configured, candidate) in [
+                ("file", GitExecutionTransport::File),
+                ("https", GitExecutionTransport::Https),
+                ("ssh", GitExecutionTransport::Ssh),
+            ] {
+                let expected = format!(
+                    "protocol.{configured}.allow={}",
+                    transport.permits(candidate)
+                );
+                assert!(
+                    arguments.iter().any(|argument| argument == &expected),
+                    "missing {expected:?} for {transport:?}"
+                );
+            }
+        }
     }
 
     #[cfg(unix)]
@@ -7231,7 +7523,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn system_git_executor_excludes_the_apple_dispatcher() {
-        let executor = GitExecutor::system().expect("concrete macOS Git executor");
+        let executor =
+            GitExecutor::system(GitExecutionTransport::Https).expect("concrete macOS Git executor");
         assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
         assert!(executor.identity.path.is_absolute());
     }

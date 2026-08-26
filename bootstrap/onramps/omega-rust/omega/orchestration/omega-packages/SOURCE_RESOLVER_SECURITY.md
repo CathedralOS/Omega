@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, 2026-08-24. This document refines
+Status: engineering contract, revised 2026-08-25. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -153,8 +153,9 @@ externally writable directories have sticky-entry protection. Those custody
 conditions are rechecked around every launch. The resolver hashes the file
 under a 256 MiB ceiling, retains that observation on `ResolvedGitSource`, checks
 stable file identity before and after every launch, and re-hashes the bytes when
-the complete resolution returns. Drift rejects. The Git cache policy is v9, so
-a cache fetched before this executable-custody floor is not silently reused.
+the complete resolution returns. Drift rejects. The Git cache policy is v10,
+so a cache fetched before this executable-custody floor or under a different
+transport-authority profile is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, bind every executable component or
 helper it may launch, inspect macOS ACL grants, establish Windows ownership/DACL
@@ -229,14 +230,20 @@ custody remain ambient and unsuitable for strict admission. Those conditions
 keep the resolver diagnostic-only until native helper confinement, hostile-
 process custody, during-write resource ceilings, and opaque-receipt work land.
 
-Public requests admit only HTTPS and SSH transports. The sealed Git executor
-also disables HTTP, unauthenticated `git://`, and HTTP redirects; the file
-transport remains available solely for the explicit test-only local-repository
-adapter. This prevents a validated HTTPS request from silently acquiring a
-second redirect-selected endpoint. It does not yet retain the effective socket
-endpoint, pin TLS trust, or confine DNS and network access to the requested
-host, so complete endpoint custody still belongs to the native resolver
-boundary and its receipt.
+Public requests admit only HTTPS and SSH transports. The validated request
+retains an execution profile distinct from transport-neutral hosted-repository
+lineage: an HTTPS request permits only Git's `https` protocol, and either SSH
+locator spelling permits only `ssh`. The cache key and exact metadata bind that
+profile, so normalized HTTPS and SSH spellings cannot reuse custody established
+under the other's authority. Resolved-source observations, human source-audit
+output, and legacy diagnostic cache-policy schema v3 retain the selected
+profile separately from normalized lineage. HTTP, unauthenticated `git://`, every unselected
+protocol, and HTTP redirects remain disabled; `file` exists solely in the
+explicit test-only local-repository adapter. This prevents a validated HTTPS
+request from silently acquiring SSH/file authority or a redirect-selected
+endpoint. It does not yet retain the effective socket endpoint, pin TLS trust,
+or confine DNS and network access to the requested host, so complete endpoint
+custody still belongs to the native resolver boundary and its receipt.
 
 Parent-owned selected-object-graph authentication supplies real evidence for a
 later strict receipt but does not itself make the resolver admissible. Native

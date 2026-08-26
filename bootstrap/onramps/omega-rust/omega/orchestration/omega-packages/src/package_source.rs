@@ -683,6 +683,7 @@ mod tests {
         write_package(&snapshot, "declared-package");
         let source = |locator_identity: &str| ResolvedGitSource {
             locator_identity: locator_identity.to_owned(),
+            transport_profile: crate::source::GitTransportProfile::Https,
             requested_rev: "main".to_owned(),
             commit: "11".repeat(20),
             tree: "22".repeat(20),

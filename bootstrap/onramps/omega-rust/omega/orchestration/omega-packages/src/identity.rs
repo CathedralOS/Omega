@@ -117,14 +117,20 @@ pub enum SourceLineage {
 impl SourceLineage {
     /// Parses a locator already selected by the Git source adapter.
     pub fn git(locator: &str) -> Result<Self, IdentityError> {
+        Self::git_with_transport(locator).map(|(lineage, _)| lineage)
+    }
+
+    pub(crate) fn git_with_transport(locator: &str) -> Result<(Self, GitTransport), IdentityError> {
         let parsed = ParsedGitLocator::parse(locator)?;
-        if parsed.host == "github.com" {
+        let transport = parsed.transport;
+        let lineage = if parsed.host == "github.com" {
             GitHubRepositoryLineage::from_parsed(parsed).map(Self::GitHub)
         } else if parsed.host == "gitlab.com" {
             GitLabRepositoryLineage::from_parsed(parsed).map(Self::GitLab)
         } else {
             GenericGitLineage::from_parsed(parsed).map(Self::Git)
-        }
+        }?;
+        Ok((lineage, transport))
     }
 
     fn family(&self) -> SourceLineageFamily {
