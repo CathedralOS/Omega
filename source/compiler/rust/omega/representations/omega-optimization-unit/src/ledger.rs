@@ -4,10 +4,12 @@ use omega_optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, TransformationLedgerIdentity,
 };
-use psi_core::FuelScheduleIdentity;
-use psi_terminal::TerminalPsiIdentity;
+use psi_core::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId};
+use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::{ProvenanceRewrite, PsiProvenance};
+use crate::{FuelSettlement, NodeLocation, ProvenanceRewrite, PsiProvenance};
+
+const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v1\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationRecord {
@@ -46,6 +48,30 @@ impl std::fmt::Display for InvalidPsiTransformationLedger {
 }
 
 impl std::error::Error for InvalidPsiTransformationLedger {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PsiTransformationLedgerDecodeError {
+    Truncated,
+    WrongMagic,
+    UnsupportedVocabulary(u16),
+    InvalidFuelSchedule,
+    InvalidSemanticIdentity,
+    UnknownProvenanceTag(u8),
+    LengthOverflow,
+    TrailingBytes,
+    InvalidLedger(InvalidPsiTransformationLedger),
+}
+
+impl std::fmt::Display for PsiTransformationLedgerDecodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid Psi transformation-ledger encoding: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for PsiTransformationLedgerDecodeError {}
 
 impl PsiTransformationLedger {
     pub fn new(
@@ -110,6 +136,92 @@ impl PsiTransformationLedger {
     pub fn records(&self) -> &[PsiTransformationRecord] {
         &self.records
     }
+
+    pub fn encode(&self) -> Vec<u8> {
+        encode_ledger(
+            self.terminal_psi,
+            self.fuel_schedule,
+            self.input,
+            self.output,
+            &self.records,
+        )
+    }
+
+    pub fn decode(encoded: &[u8]) -> Result<Self, PsiTransformationLedgerDecodeError> {
+        let mut cursor = LedgerCursor::new(encoded);
+        if cursor.take(LEDGER_MAGIC.len())? != LEDGER_MAGIC {
+            return Err(PsiTransformationLedgerDecodeError::WrongMagic);
+        }
+        let vocabulary = u16::from_le_bytes(cursor.array()?);
+        let vocabulary_marker = VocabularyMarker::new(vocabulary).ok_or(
+            PsiTransformationLedgerDecodeError::UnsupportedVocabulary(vocabulary),
+        )?;
+        let program_fingerprint = SemanticFingerprint::from_bytes(cursor.array()?);
+        let fuel_schedule = FuelScheduleIdentity::new(u32::from_le_bytes(cursor.array()?))
+            .ok_or(PsiTransformationLedgerDecodeError::InvalidFuelSchedule)?;
+        let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+        let output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+        let record_count = cursor.length()?;
+        let mut records = Vec::with_capacity(record_count.min(cursor.remaining()));
+        for _ in 0..record_count {
+            let rule = OptimizationRuleIdentity::from_bytes(cursor.array()?);
+            let candidate = OptimizationCandidateIdentity::from_bytes(cursor.array()?);
+            let validator = OptimizationValidatorIdentity::from_bytes(cursor.array()?);
+            let record_input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+            let record_output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+            let provenance_count = cursor.length()?;
+            let mut provenance = Vec::with_capacity(provenance_count.min(cursor.remaining()));
+            for _ in 0..provenance_count {
+                let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
+                let block = semantic_id(u64::from_le_bytes(cursor.array()?), BlockId::new)?;
+                let node = u32::from_le_bytes(cursor.array()?);
+                let source_count = cursor.length()?;
+                let mut sources = Vec::with_capacity(source_count.min(cursor.remaining()));
+                for _ in 0..source_count {
+                    sources.push(decode_provenance(&mut cursor)?);
+                }
+                let fuel_count = cursor.length()?;
+                let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
+                for _ in 0..fuel_count {
+                    fuel.push(FuelSettlement {
+                        site: decode_provenance(&mut cursor)?,
+                        units: u64::from_le_bytes(cursor.array()?),
+                    });
+                }
+                provenance.push(ProvenanceRewrite {
+                    output: NodeLocation {
+                        machine,
+                        block,
+                        node,
+                    },
+                    sources,
+                    fuel,
+                });
+            }
+            records.push(PsiTransformationRecord {
+                rule,
+                candidate,
+                validator,
+                input: record_input,
+                output: record_output,
+                provenance,
+            });
+        }
+        if cursor.remaining() != 0 {
+            return Err(PsiTransformationLedgerDecodeError::TrailingBytes);
+        }
+        Self::new(
+            TerminalPsiIdentity {
+                vocabulary_marker,
+                program_fingerprint,
+            },
+            fuel_schedule,
+            input,
+            output,
+            records,
+        )
+        .map_err(PsiTransformationLedgerDecodeError::InvalidLedger)
+    }
 }
 
 fn validate_provenance(rows: &[ProvenanceRewrite]) -> Result<(), InvalidPsiTransformationLedger> {
@@ -144,7 +256,7 @@ fn encode_ledger(
     records: &[PsiTransformationRecord],
 ) -> Vec<u8> {
     let mut encoded = Vec::new();
-    encoded.extend_from_slice(b"omega.psi-transformation-ledger.v1\0");
+    encoded.extend_from_slice(LEDGER_MAGIC);
     encoded.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
     encoded.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
     encoded.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
@@ -195,6 +307,77 @@ fn encode_len(encoded: &mut Vec<u8>, length: usize) {
             .expect("Psi transformation ledger length fits u64")
             .to_le_bytes(),
     );
+}
+
+fn decode_provenance(
+    cursor: &mut LedgerCursor<'_>,
+) -> Result<PsiProvenance, PsiTransformationLedgerDecodeError> {
+    match cursor.byte()? {
+        1 => Ok(PsiProvenance::Operation(semantic_id(
+            u64::from_le_bytes(cursor.array()?),
+            OperationId::new,
+        )?)),
+        2 => Ok(PsiProvenance::Edge(semantic_id(
+            u64::from_le_bytes(cursor.array()?),
+            EdgeId::new,
+        )?)),
+        tag => Err(PsiTransformationLedgerDecodeError::UnknownProvenanceTag(
+            tag,
+        )),
+    }
+}
+
+fn semantic_id<T>(
+    raw: u64,
+    constructor: impl FnOnce(u64) -> Option<T>,
+) -> Result<T, PsiTransformationLedgerDecodeError> {
+    constructor(raw).ok_or(PsiTransformationLedgerDecodeError::InvalidSemanticIdentity)
+}
+
+struct LedgerCursor<'encoded> {
+    encoded: &'encoded [u8],
+    offset: usize,
+}
+
+impl<'encoded> LedgerCursor<'encoded> {
+    const fn new(encoded: &'encoded [u8]) -> Self {
+        Self { encoded, offset: 0 }
+    }
+
+    fn take(
+        &mut self,
+        length: usize,
+    ) -> Result<&'encoded [u8], PsiTransformationLedgerDecodeError> {
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or(PsiTransformationLedgerDecodeError::Truncated)?;
+        let value = self
+            .encoded
+            .get(self.offset..end)
+            .ok_or(PsiTransformationLedgerDecodeError::Truncated)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn array<const N: usize>(&mut self) -> Result<[u8; N], PsiTransformationLedgerDecodeError> {
+        self.take(N)?
+            .try_into()
+            .map_err(|_| PsiTransformationLedgerDecodeError::Truncated)
+    }
+
+    fn byte(&mut self) -> Result<u8, PsiTransformationLedgerDecodeError> {
+        Ok(self.array::<1>()?[0])
+    }
+
+    fn length(&mut self) -> Result<usize, PsiTransformationLedgerDecodeError> {
+        usize::try_from(u64::from_le_bytes(self.array()?))
+            .map_err(|_| PsiTransformationLedgerDecodeError::LengthOverflow)
+    }
+
+    fn remaining(&self) -> usize {
+        self.encoded.len() - self.offset
+    }
 }
 
 #[cfg(test)]
@@ -256,6 +439,38 @@ mod tests {
         .unwrap();
         assert_eq!(ledger.identity(), replay.identity());
         assert_eq!(ledger.records().len(), 2);
+        assert_eq!(
+            PsiTransformationLedger::decode(&ledger.encode()),
+            Ok(ledger.clone())
+        );
+
+        let mut trailing = ledger.encode();
+        trailing.push(0);
+        assert_eq!(
+            PsiTransformationLedger::decode(&trailing),
+            Err(PsiTransformationLedgerDecodeError::TrailingBytes)
+        );
+        let mut wrong_magic = ledger.encode();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            PsiTransformationLedger::decode(&wrong_magic),
+            Err(PsiTransformationLedgerDecodeError::WrongMagic)
+        );
+        let mut wrong_vocabulary = ledger.encode();
+        wrong_vocabulary[LEDGER_MAGIC.len()..LEDGER_MAGIC.len() + 2]
+            .copy_from_slice(&u16::MAX.to_le_bytes());
+        assert_eq!(
+            PsiTransformationLedger::decode(&wrong_vocabulary),
+            Err(PsiTransformationLedgerDecodeError::UnsupportedVocabulary(
+                u16::MAX
+            ))
+        );
+        let encoded = ledger.encode();
+        let truncated = &encoded[..encoded.len() - 1];
+        assert_eq!(
+            PsiTransformationLedger::decode(truncated),
+            Err(PsiTransformationLedgerDecodeError::Truncated)
+        );
     }
 
     #[test]

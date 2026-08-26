@@ -35,7 +35,8 @@ mod rewrite;
 pub use identity::recompute_psi_optimization_unit_identity;
 
 pub use ledger::{
-    InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationRecord,
+    InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
+    PsiTransformationRecord,
 };
 pub use observation::{
     ObservationEventClass, ObservationKnowledge, PsiNodeObservation, PsiObservableEvent,

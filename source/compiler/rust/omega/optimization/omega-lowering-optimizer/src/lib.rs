@@ -452,7 +452,8 @@ fn project_parameter(
 mod tests {
     use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
     use omega_optimization_validation::{
-        PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifestError,
+        PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest,
+        PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
         validate_pre_physical_optimization_manifest,
     };
     use omega_psi_optimizer::{built_in_psi_registry, run_psi_pipeline};
@@ -737,6 +738,39 @@ mod tests {
 
         assert_eq!(manifest, second.pre_physical_manifest().record());
         assert_eq!(manifest.identity, manifest.recomputed_identity());
+        let encoded = manifest.encode();
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&encoded),
+            Ok(manifest.clone())
+        );
+        let mut identity_tamper = encoded.clone();
+        identity_tamper[12] ^= 1;
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&identity_tamper),
+            Err(PrePhysicalOptimizationManifestDecodeError::IdentityMismatch)
+        );
+        let mut trailing = encoded.clone();
+        trailing.push(0);
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&trailing),
+            Err(PrePhysicalOptimizationManifestDecodeError::TrailingBytes)
+        );
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&encoded[..encoded.len() - 1]),
+            Err(PrePhysicalOptimizationManifestDecodeError::Truncated)
+        );
+        let mut wrong_magic = encoded.clone();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&wrong_magic),
+            Err(PrePhysicalOptimizationManifestDecodeError::WrongMagic)
+        );
+        let mut wrong_version = encoded.clone();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            PrePhysicalOptimizationManifest::decode(&wrong_version),
+            Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(2))
+        );
         assert_eq!(
             manifest.physical_data,
             PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization

@@ -415,11 +415,15 @@ These facts constrain the work below.
   transformation ledger, provenance/fuel mapping, per-pass work ceiling and
   aggregate usage, abstract projection receipt, and source/final structural
   statistics under one domain-separated content identity. Its deterministic
-  text view is downstream of that structured record. It explicitly records
-  that physical realization data is unavailable rather than publishing zero or
-  guessed code-size, spill, frame, or allocation statistics. The final
-  publication manifest/report remains open for those downstream records and
-  artifact/rebuild integration.
+  text view is downstream of that structured record. A versioned standalone
+  codec now carries the complete record, including the transformation ledger;
+  strict nested decoders reject malformed identities, revision chains,
+  provenance, truncation, and trailing bytes, and decoding yields only the
+  untrusted record that must still pass independent manifest validation. It
+  explicitly records that physical realization data is unavailable rather
+  than publishing zero or guessed code-size, spill, frame, or allocation
+  statistics. The final publication manifest/report remains open for those
+  downstream records and compiler artifact/rebuild-metadata integration.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the

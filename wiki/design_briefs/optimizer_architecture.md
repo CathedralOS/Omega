@@ -232,6 +232,17 @@ zero code size, zero spills, a zero frame, or allocator success. A later
 physical/publication manifest must join this identity to independently
 validated target, allocation, emission, and artifact records.
 
+The pre-physical record has a versioned canonical artifact codec. It embeds the
+complete transformation ledger rather than merely its digest, while the
+established semantic manifest identity continues to bind the ledger by its
+content identity so artifact framing does not churn optimization identity.
+Nested codecs reconstruct and check decision rows, pass rows, work accounting,
+the identity bundle, the ledger's revision chain, and its provenance/fuel map.
+The outer decoder rejects identity tampering, truncation, unknown framing, and
+trailing bytes. Decoding deliberately returns a plain record, not the validated
+wrapper: cache or artifact bytes must re-enter the independent manifest
+validator before downstream custody can accept them.
+
 The first selected-instruction custody receipt binds that pre-physical manifest
 identity alongside the optimizer bundle and abstract-projection receipt. Every
 implemented liveness, live-range, allocation-legality, fixed-view-copy, and
@@ -1066,10 +1077,12 @@ changing optimization decisions.
 The current Rust slice implements the structured/text projection through the
 validated abstract-plan boundary only. It is intentionally named a
 pre-physical manifest and marks allocator, frame/spill, emitted-size, and
-publication fields unavailable. `OPT-MANIFEST-SCHEMA` remains open until a
-downstream manifest joins those physical records, enters artifact/rebuild
-metadata, and the compiler exposes a suppressible report request without
-entering native optimization during ordinary check-only builds.
+publication fields unavailable. Its versioned standalone codec serializes the
+whole pre-physical record and strict nested codecs, but is not yet wired into a
+compiler-owned artifact or rebuild-metadata section. `OPT-MANIFEST-SCHEMA`
+remains open until a downstream manifest joins the physical records, enters
+that metadata path, and the compiler exposes a suppressible report request
+without entering native optimization during ordinary check-only builds.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
 Each row derives its identity from the exact input unit, candidate, rule,
