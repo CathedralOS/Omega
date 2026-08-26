@@ -529,19 +529,42 @@ fn lifecycle(installed_code: u64, requirement_identity: &str) -> ComponentEraEnt
         tcb_acceptance(730),
     )
     .expect("lifecycle");
+    publish_lifecycle_era(
+        &mut ledger,
+        10,
+        installed_code,
+        requirement_identity,
+        110,
+        false,
+    );
+    ledger
+}
+
+fn publish_lifecycle_era(
+    ledger: &mut ComponentEraEntryLedger,
+    era_identity: u64,
+    installed_code: u64,
+    requirement_identity: &str,
+    publication_identity: u64,
+    previous_era_closed: bool,
+) {
     let candidate = ComponentEraCandidate {
-        era_identity: 10,
+        era_identity,
         artifact_instance_identity: installed_code,
         binding_contract_identity: "ProgramStorageBinding/v1".into(),
         entry_contract_identity: requirement_identity.into(),
         entry_plan_identity: "program-storage-entry-plan".into(),
         entry_plan_admission_receipt_identity: "program-storage-entry-plan-receipt".into(),
-        executable_tcb_acceptance: tcb_acceptance(10),
+        executable_tcb_acceptance: tcb_acceptance(era_identity),
     };
-    let receipt =
-        ComponentEraPublicationReceipt::from_runtime(110, &ledger, &candidate, true, false);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        publication_identity,
+        ledger,
+        &candidate,
+        true,
+        previous_era_closed,
+    );
     ledger.publish(candidate, receipt).expect("publish era");
-    ledger
 }
 
 fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPlanBinding {
@@ -720,13 +743,14 @@ fn assert_origin(
     root_slot: RootSlotId,
     schema_identity: u64,
     subject_place: u64,
+    lifecycle_epoch: u64,
 ) {
     assert_eq!(origin.installed_code(), 300);
     assert_eq!(origin.external_root(), 1);
     assert_eq!(origin.root_slot(), root_slot.normalized_identity());
     assert_eq!(origin.schema_identity(), schema_identity);
     assert_eq!(origin.lifecycle_ledger(), 730);
-    assert_eq!(origin.lifecycle_epoch(), 10);
+    assert_eq!(origin.lifecycle_epoch(), lifecycle_epoch);
     assert_eq!(origin.entry_invocation(), 900);
     assert_eq!(origin.subject_place(), subject_place);
 }
@@ -887,6 +911,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         recorded.roots().binding().root_slot(),
         schema_identities[0],
         901,
+        10,
     );
     assert_origin(
         storage
@@ -896,6 +921,7 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
         recorded.roots().binding().root_slot(),
         schema_identities[1],
         902,
+        10,
     );
 
     let record = recorded.installation_record();
@@ -979,6 +1005,212 @@ fn generated_program_entry_retains_two_exact_program_local_accounts_through_reco
     fs::remove_dir_all(&artifact_directory).expect("remove test artifacts");
     fs::remove_dir_all(compiled_directory).expect("remove compiled entry project");
     fs::remove_dir_all(other_directory).expect("remove alternate entry project");
+}
+
+#[test]
+fn stale_program_local_epoch_rejects_atomically_then_fresh_epoch_completes_handoff() {
+    let (compiled_directory, exact_bridge, catalog, terminal) =
+        compiled_receiver_free_bridge("stale_epoch_retry");
+    let requirement_identity = exact_bridge.binding().requirement_identity().to_owned();
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let (mut root_ledger, root) =
+        install_program_entry_root(&mut code, entry, &requirement_identity);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("program-local installation ledger");
+    let mut prebindings = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("source-derived program-storage prebindings");
+    prebindings.sort_by_key(|prebinding| prebinding.source_parameter_position());
+    let prebinding_identities = prebindings
+        .iter()
+        .map(|prebinding| prebinding.identity())
+        .collect::<Vec<_>>();
+    let schema_identities = prebindings
+        .iter()
+        .map(|prebinding| prebinding.identity().schema_identity())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(prebinding_identities.len(), 2);
+    assert_eq!(schema_identities.len(), 2);
+
+    let mut lifecycle = lifecycle(installed_code_identity, &requirement_identity);
+    let stale_members = prebinding_identities
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(840 + index as u64)
+                        .expect("stale lease identity"),
+                    10,
+                    &requirement_identity,
+                )
+                .expect("epoch-10 lease");
+            ProgramLocalRootCohortMember::new(prebinding, &root, lease)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(2));
+
+    publish_lifecycle_era(
+        &mut lifecycle,
+        20,
+        installed_code_identity,
+        &requirement_identity,
+        120,
+        true,
+    );
+    assert_eq!(lifecycle.current_era(), Some(20));
+    let stale = installation
+        .seal_epoch_cohort(&lifecycle, stale_members)
+        .expect_err("epoch-10 leases cannot introduce roots after epoch 20 is current");
+    assert!(stale.diagnostic().0.contains("exact current epoch ledger"));
+
+    let mut recovered = stale
+        .into_members()
+        .into_iter()
+        .map(ProgramLocalRootCohortMember::into_parts)
+        .collect::<Vec<_>>();
+    recovered.sort_by_key(|(prebinding, _, _)| *prebinding);
+    let mut expected_prebindings = prebinding_identities.clone();
+    expected_prebindings.sort_unstable();
+    assert_eq!(
+        recovered
+            .iter()
+            .map(|(prebinding, _, _)| *prebinding)
+            .collect::<Vec<_>>(),
+        expected_prebindings,
+        "stale rejection must return the exact source-derived prebinding set"
+    );
+    assert!(
+        recovered
+            .iter()
+            .all(|(_, recovered_root, _)| std::ptr::eq(*recovered_root, &root)),
+        "stale rejection must return the exact installed root borrow"
+    );
+    assert_eq!(
+        recovered
+            .iter()
+            .map(|(_, _, lease)| lease.identity().normalized_identity())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([840, 841])
+    );
+    assert!(
+        recovered
+            .iter()
+            .all(|(_, _, lease)| lease.era_identity() == 10)
+    );
+    for (_, _, lease) in recovered {
+        lifecycle
+            .release_program_local_root_epoch_lease(lease)
+            .expect("stale cohort rejection returns each epoch-10 lifecycle hold");
+    }
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(lifecycle.program_local_root_authority_holds(20), Some(0));
+    assert_eq!(
+        installation
+            .prebindings()
+            .map(|prebinding| prebinding.identity())
+            .collect::<BTreeSet<_>>(),
+        prebinding_identities.iter().copied().collect(),
+        "stale rejection must not consume or duplicate a producer schema"
+    );
+
+    let fresh_members = prebinding_identities
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(850 + index as u64)
+                        .expect("fresh lease identity"),
+                    20,
+                    &requirement_identity,
+                )
+                .expect("epoch-20 lease");
+            ProgramLocalRootCohortMember::new(prebinding, &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let cohort = installation
+        .seal_epoch_cohort(&lifecycle, fresh_members)
+        .expect("the exact returned prebindings remain sealable in epoch 20");
+    assert_eq!(cohort.identity().lifecycle_epoch(), 20);
+    assert_eq!(cohort.occurrences().len(), 2);
+    assert_eq!(
+        cohort
+            .aggregates()
+            .map(|aggregate| aggregate.schema_identity())
+            .collect::<BTreeSet<_>>(),
+        schema_identities,
+        "fresh sealing must retain exactly the source-derived schema set"
+    );
+    let mut runtime = cohort.into_runtime();
+    assert_eq!(runtime.pending_occurrences().len(), 2);
+
+    let artifact_directory = temp_directory("stale-epoch-retry");
+    let recorded = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        exact_bridge.binding().clone(),
+        &mut installation,
+        &mut runtime,
+        &lifecycle,
+        subject(&root, 0, 921, 0x4000, 0x400),
+        extent_plan(0x4000, 0x400, "Extent::Granted"),
+        subject(&root, 1, 922, 0xa000, 0x1000),
+        extent_plan(0xa000, 0x1000, "Extent::Granted"),
+    )
+    .expect("the fresh epoch completes source-to-installation handoff");
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    assert_eq!(recorded.registry().held_accounts(), 2);
+    let image = recorded.roots().image();
+    let storage = recorded
+        .roots()
+        .initial_storage()
+        .expect("receiver-free storage root");
+    assert_eq!(
+        BTreeSet::from([
+            image.lineage_root().normalized_identity(),
+            storage.lineage_root().normalized_identity(),
+        ]),
+        BTreeSet::from([1, 2]),
+        "only the two successful epoch-20 establishments may mint lineages"
+    );
+    assert_origin(
+        image.origin().program_local().expect("program-local image"),
+        recorded.roots().binding().root_slot(),
+        prebindings[0].identity().schema_identity(),
+        921,
+        20,
+    );
+    assert_origin(
+        storage
+            .origin()
+            .program_local()
+            .expect("program-local storage"),
+        recorded.roots().binding().root_slot(),
+        prebindings[1].identity().schema_identity(),
+        922,
+        20,
+    );
+
+    let json = program_storage_installation_record_json(&recorded.installation_record());
+    assert!(json.contains("\"lifecycle_epoch\": \"0x0000000000000014\""));
+    assert_eq!(json.matches("\"kind\": \"program_local\"").count(), 2);
+    for schema_identity in schema_identities {
+        assert!(json.contains(&format!(
+            "\"schema_identity\": \"0x{schema_identity:016x}\""
+        )));
+    }
+    let emitted =
+        fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
+            .expect("read epoch-20 installation audit");
+    assert_eq!(emitted, json);
+
+    fs::remove_dir_all(&artifact_directory).expect("remove stale-epoch artifacts");
+    fs::remove_dir_all(compiled_directory).expect("remove compiled stale-epoch fixture");
 }
 
 #[test]
