@@ -8552,12 +8552,20 @@ boundary without its corresponding checked law.
   literal and obligation, deterministic identity, and exact descriptor
   custody. General RELA, GNU-hash, bind-now, text-relocation, init/fini,
   runpath, soname, and target-optional tags remain absent because the sealed
-  inputs own none of those meanings. No `Elf64_Dyn` bytes or `.dynamic`
-  descriptor are claimed. Runnable ELF
+  inputs own none of those meanings. The following serialization rung now
+  consumes that plan into exact 16-byte ELF64-LSB `Elf64_Dyn` rows: signed
+  `d_tag` followed by unsigned `d_un`, both little-endian. Literal values are
+  copied exactly, while address-bearing values and the final null value remain
+  zero. The seven address obligations become typed eight-byte fixups at the
+  exact value-field offsets. An independent bounded decoder requires the exact
+  row count with no trailing bytes and replays endianness, row order and
+  values, fixup bounds/non-overlap/targets, deterministic identity, and plan
+  custody. These bytes still claim no `.dynamic` name, descriptor, section
+  index, address, or placement authority. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
-  `PT_DYNAMIC`, `.dynamic` byte serialization/address resolution, optional
+  `PT_DYNAMIC`, `.dynamic` address resolution, optional
   `.gnu.hash`, final descriptors for `.dynamic` and `.shstrtab`, numeric indexes for
   `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application, complete
   load/program-header layout, image mutation, and independent final-byte

@@ -70,7 +70,6 @@ impl ValidatedElfDynamicTagPlan {
         self.tag_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfDynamicTagContents {
         &self.contents
     }
