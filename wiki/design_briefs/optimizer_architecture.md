@@ -380,7 +380,10 @@ appends exactly one more explicitly requested step. A no-action request rejects
 instead of adding a meaningless ledger row. The final home carrier replays the
 chain again, derives the ordered `LiteralFold` manifest entries internally,
 and validates homes only from the last fresh analysis. Callers cannot supply or
-reorder that ledger.
+reorder that ledger. Each public iteration receipt exposes the exact source
+selected/range/legality roots, choice/classification/fold identities, named
+policies and work usage, transformed selected identity, and fresh analysis
+identities; adjacent receipt rows must join exactly.
 
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set

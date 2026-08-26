@@ -56,9 +56,9 @@ pub use literal_fold_homes::{
 };
 pub use literal_folds::{
     OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFoldStep, StagedOptimizedLiteralFolds,
-    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    validate_optimized_literal_fold_custody,
+    StagedOptimizedLiteralFoldIterationReceipt, StagedOptimizedLiteralFoldStep,
+    StagedOptimizedLiteralFolds, stage_first_optimized_literal_fold,
+    stage_next_optimized_literal_fold, validate_optimized_literal_fold_custody,
 };
 pub use live_ranges::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
@@ -2009,6 +2009,25 @@ mod tests {
             .unwrap();
             assert_eq!(staged_folds.steps().len(), 2);
             assert_eq!(staged_folds.custody().transformations().len(), 2);
+            let [first_iteration, second_iteration] = staged_folds.custody().iterations() else {
+                panic!("two explicit fold calls must retain two iteration receipts");
+            };
+            assert_eq!(
+                first_iteration.transformed_selected(),
+                second_iteration.source_selected()
+            );
+            assert_eq!(
+                first_iteration.fresh_ranges(),
+                second_iteration.source_ranges()
+            );
+            assert_eq!(
+                first_iteration.fresh_legality(),
+                second_iteration.source_legality()
+            );
+            assert_eq!(
+                second_iteration.fold_policy(),
+                TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1
+            );
             assert_eq!(
                 validate_optimized_literal_fold_custody(&staged_folds).unwrap(),
                 *staged_folds.custody()
