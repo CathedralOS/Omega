@@ -2445,14 +2445,12 @@ Remaining:
   compiler-derived Trapping guards remain executable crash-site facts rather
   than predicate effects. Imported crash capsules remain blocked on artifact
   identity and certificate binding.
-  Engineering gap 2026-08-24: direct-site guard coverage now rejects for
-  ordinary public machines, and propagated call routes reject for every
-  published crash interface. A private checked machine that explicitly authors
-  a nonempty `crashes` ceiling can still retain an uncovered direct site,
-  despite chapter 16's rule that every checked site under a published ceiling
-  must be covered. Existing guard-inference tests deliberately construct such
-  rows to inspect non-entailment. Split raw fact inspection from production
-  admission, then enforce direct-site coverage for every published interface.
+  Direct-site guard coverage and propagated call-route coverage now reject for
+  every published crash interface, including an explicitly authored ceiling on
+  a private checked machine. Private machines that omit the interface still
+  retain ordinary body inference. Raw guard-entailment tests inspect the
+  pre-admission facts through a test-only lowering path, so non-entailment
+  coverage cannot weaken production admission.
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from source
   automation. One recursive certificate owns one SCC, cites its ranking and
   well-foundedness evidence once, and proves every internal edge decreases;

@@ -6,6 +6,20 @@ use psi_checked_trees::CheckedTrees;
 pub(crate) fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lower_typed_trees_with_crash_admission(program, true)
+}
+
+#[cfg(test)]
+pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
+    program: psi_typed_trees::TypedTrees,
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lower_typed_trees_with_crash_admission(program, false)
+}
+
+fn lower_typed_trees_with_crash_admission(
+    program: psi_typed_trees::TypedTrees,
+    enforce_crash_admission: bool,
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
     // concrete machine here. Validation permits unused template bodies but the
@@ -57,7 +71,14 @@ pub(crate) fn lower_typed_trees(
         &facts.contract_plans,
     )?;
 
-    checks::check_checked_facts_recording(&program, &mut facts)?;
+    if enforce_crash_admission {
+        checks::check_checked_facts_recording(&program, &mut facts)?;
+    } else {
+        #[cfg(test)]
+        checks::check_checked_facts_recording_without_crash_admission(&program, &mut facts)?;
+        #[cfg(not(test))]
+        unreachable!("production lowering always enforces crash admission");
+    }
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 
     // This plan must be assembled only after multiplicity and carry checking:

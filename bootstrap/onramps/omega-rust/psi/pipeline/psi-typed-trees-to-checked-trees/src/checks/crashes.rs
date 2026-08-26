@@ -195,19 +195,17 @@ pub(crate) fn check_published_ceiling_coverage(
         let caller_name = caller_machine
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>");
-        if caller_machine.is_some_and(|machine| machine.is_public) {
-            for site in caller
-                .crash
-                .checked_sites()
-                .iter()
-                .filter(|site| site.guard_covering_buckets().is_empty())
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{caller_name}` has an uncovered {:?} crash at statement {}; publish a same-cause `crashes` route whose guard covers this site",
-                    site.cause(),
-                    site.location().statement_ordinal(),
-                )));
-            }
+        for site in caller
+            .crash
+            .checked_sites()
+            .iter()
+            .filter(|site| site.guard_covering_buckets().is_empty())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{caller_name}` has an uncovered {:?} crash at statement {}; publish a same-cause `crashes` route whose guard covers this site",
+                site.cause(),
+                site.location().statement_ordinal(),
+            )));
         }
         for call in caller.crash.checked_calls() {
             for surviving in call.surviving_buckets() {

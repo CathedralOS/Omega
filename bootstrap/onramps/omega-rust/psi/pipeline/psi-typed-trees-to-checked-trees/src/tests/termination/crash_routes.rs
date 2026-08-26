@@ -961,7 +961,8 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees_for_crash_fact_inspection(typed)
+        .expect("raw crash-fact inspection should succeed before production admission");
     let plan = |name: &str| {
         checked
             .facts
@@ -1480,8 +1481,8 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
-        .expect("equivalent comparison spellings should cover crash routes");
+    let checked = lower_typed_trees_for_crash_fact_inspection(typed)
+        .expect("raw comparison coverage facts should form before production admission");
     let plan = |name: &str| {
         checked
             .facts
@@ -1789,6 +1790,73 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
             .contains("call from `wrong_cause` to `risky`")
             && diagnostic.message.contains("uncovered Abort crash route")
     }));
+}
+
+#[test]
+fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
+    let uncovered = r#"
+    machine private_uncovered(flag: bool)
+    crashes Trap
+        flag
+    {
+        crash Trap;
+    }
+    "#;
+
+    let tokens = Lexer::new(uncovered)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a private published ceiling cannot retain an uncovered direct site");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("machine `private_uncovered` has an uncovered Trap crash")
+    }));
+
+    let covered = r#"
+    machine private_covered()
+    crashes Trap
+    {
+        crash Trap;
+    }
+
+    machine private_inferred() {
+        crash Abort;
+    }
+    "#;
+
+    let tokens = Lexer::new(covered)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed)
+        .expect("covered private ceilings and omitted private ceilings should remain valid");
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, "private_covered"))
+            .expect("covered private contract")
+            .crash
+            .interface(),
+        psi_checked_trees::CrashInterface::PublishedCeiling,
+    );
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(symbol_of_checked(&checked, "private_inferred"))
+            .expect("inferred private contract")
+            .crash
+            .interface(),
+        psi_checked_trees::CrashInterface::InternalInferred,
+    );
 }
 
 #[test]

@@ -1724,7 +1724,7 @@ fn named_ensures_need_not_be_assigned_on_crash_only_exit() {
         machine abort(value: i32)
         requires incoming: carries(value)
         ensures outgoing: carries(value)
-        crashes Abort if true;
+        crashes Abort
         {
             crash Abort;
         }
