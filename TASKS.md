@@ -5327,8 +5327,21 @@ Owners:
   half-open windows whose exclusive end and start normalize to the same value
   are ordinarily disjoint. Inclusive symbolic ends, mutable or computed local
   aliases, ambiguous local identities, cycles, and distinct unresolved bounds
-  remain conservative. The canonical captured-place compatibility judgment and
-  proof-consuming tactics remain open.
+  remain conservative.
+
+  The transient checked structural judgment is now canonical for ordinary
+  borrow conflicts. `CapturedPlace` identity is one exact root symbol plus its
+  ordered field, case, fixed-index, fixed-range, or retained selector
+  positions; compatibility reports spatial disjointness, directed containment,
+  and access-aware non-interference independently. Read/read access remains
+  non-interfering, while an exclusive access cannot use spatially disjoint
+  sibling fields to evade a shared dependent-data fact. Existing literal and
+  symbolic half-open tactics feed the same judgment, and unknown, mutable,
+  computed, ambiguous, cyclic, and inclusive-symbolic selectors remain
+  conservative. Access polarity stays in the resource ledger and is only a
+  premise to this transient result. Proof-consuming tactics, durable checked
+  facts, formation events, captured value versions, premise tokens, dominance,
+  proof derivations, and Terminal certificates remain open.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the

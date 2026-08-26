@@ -1,11 +1,7 @@
 use super::contextual::{contextual_effective_member_symbol, contextual_name_root_symbol};
 use crate::context::*;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct BorrowAccessPlace {
-    pub(crate) root_symbol: SymbolHandle,
-    pub(crate) segments: Vec<psi_facts::PlaceSegment>,
-}
+pub(crate) use psi_checked_trees::CapturedPlace as BorrowAccessPlace;
 
 pub(crate) fn borrow_access_place(
     program: &psi_typed_trees::TypedTrees,

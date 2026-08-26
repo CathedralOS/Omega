@@ -1,6 +1,42 @@
 use psi_arena::{Arena, HandleSpan};
 use psi_symbols::SymbolHandle;
 
+/// One exact structural place captured for compatibility checking.
+///
+/// Identity is the resolved root symbol plus ordered semantic path segments.
+/// Source labels are deliberately absent. Runtime or otherwise unresolved
+/// selectors may remain as expression handles, but cannot establish a positive
+/// spatial result until a checked tactic understands them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedPlace {
+    pub root_symbol: SymbolHandle,
+    pub segments: Vec<psi_facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CapturedPlaceContainment {
+    #[default]
+    None,
+    Same,
+    LeftContainsRight,
+    RightContainsLeft,
+}
+
+/// Transient result of the one checked captured-place compatibility judgment.
+///
+/// These conclusions are deliberately independent: two places can be both
+/// disjoint and non-interfering, while two shared reads can be non-interfering
+/// even when one place contains the other. Access polarity is an input to the
+/// judgment and is not retained here as proof authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CapturedPlaceCompatibility {
+    pub left: CapturedPlace,
+    pub right: CapturedPlace,
+    pub disjoint: bool,
+    pub containment: CapturedPlaceContainment,
+    pub non_interfering: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum BorrowRootKind {
     #[default]
@@ -115,15 +151,6 @@ impl BorrowFacts {
         self.access_segments.span_or_empty(access.segments)
     }
 
-    pub fn accesses_overlap(
-        &self,
-        left: &BorrowArgumentAccessFact,
-        right: &BorrowArgumentAccessFact,
-    ) -> bool {
-        left.root_symbol == right.root_symbol
-            && place_segments_overlap(self.access_segments(left), self.access_segments(right))
-    }
-
     pub fn loan_segments(&self, loan: &BorrowLoanFact) -> &[psi_facts::PlaceSegment] {
         self.access_segments.span_or_empty(loan.segments)
     }
@@ -131,38 +158,13 @@ impl BorrowFacts {
     pub fn loan_owner_path(&self, loan: &BorrowLoanFact) -> &[BorrowLoanOwnerSegment] {
         self.owner_segments.span_or_empty(loan.owner_path)
     }
-
-    pub fn access_overlaps_loan(
-        &self,
-        access: &BorrowArgumentAccessFact,
-        loan: &BorrowLoanFact,
-    ) -> bool {
-        access.root_symbol == loan.root_symbol
-            && place_segments_overlap(self.access_segments(access), self.loan_segments(loan))
-    }
-
-    pub fn loan_overlaps_loan(&self, left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
-        left.root_symbol == right.root_symbol
-            && place_segments_overlap(self.loan_segments(left), self.loan_segments(right))
-    }
-}
-
-fn place_segments_overlap(
-    left: &[psi_facts::PlaceSegment],
-    right: &[psi_facts::PlaceSegment],
-) -> bool {
-    let shared_len = left.len().min(right.len());
-    left.iter()
-        .take(shared_len)
-        .zip(right.iter().take(shared_len))
-        .all(|(left_segment, right_segment)| left_segment == right_segment)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         BorrowArgumentAccessFact, BorrowCallFact, BorrowFacts, BorrowLoanFact,
-        BorrowLoanOwnerSegment, BorrowWritableRootFact, StateBorrowFact,
+        BorrowLoanOwnerSegment, BorrowWritableRootFact, CapturedPlace, StateBorrowFact,
     };
     use psi_arena::Arena;
 
@@ -193,5 +195,41 @@ mod tests {
         assert_eq!(facts.calls, calls);
         assert_eq!(facts.loans, loans);
         assert_eq!(facts.states, states);
+    }
+
+    #[test]
+    fn captured_place_identity_is_structural_and_order_sensitive() {
+        let root = psi_symbols::SymbolHandle::from_arena_index(1);
+        let first = psi_symbols::SymbolHandle::from_arena_index(2);
+        let second = psi_symbols::SymbolHandle::from_arena_index(3);
+        let first_expression = crate::expression::ExpressionHandle::from_arena_index(4);
+        let place = CapturedPlace {
+            root_symbol: root,
+            segments: vec![
+                psi_facts::PlaceSegment::Field { symbol: first },
+                psi_facts::PlaceSegment::Case { variant: second },
+                psi_facts::PlaceSegment::FixedIndex { index: 5 },
+                psi_facts::PlaceSegment::FixedRange { start: 6, end: 8 },
+                psi_facts::PlaceSegment::Index {
+                    expression: first_expression,
+                },
+            ],
+        };
+        let mut reordered = place.clone();
+        reordered.segments.swap(0, 1);
+        let mut changed_root = place.clone();
+        changed_root.root_symbol = second;
+        let mut changed_selector = place.clone();
+        let Some(psi_facts::PlaceSegment::Index { expression }) =
+            changed_selector.segments.last_mut()
+        else {
+            unreachable!()
+        };
+        *expression = crate::expression::ExpressionHandle::from_arena_index(5);
+
+        assert_ne!(place, reordered);
+        assert_ne!(place, changed_root);
+        assert_ne!(place, changed_selector);
+        assert_eq!(place, place.clone());
     }
 }

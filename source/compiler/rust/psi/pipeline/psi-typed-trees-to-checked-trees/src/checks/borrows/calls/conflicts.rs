@@ -5,7 +5,8 @@ use crate::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
 use super::super::overlap::{
-    borrow_access_overlaps_loan, borrow_accesses_overlap, canonical_place_overlaps_loan,
+    borrow_access_compatibility, borrow_access_loan_compatibility,
+    canonical_place_loan_compatibility,
 };
 
 pub(super) fn check_call_access_conflicts(
@@ -36,7 +37,9 @@ pub(super) fn check_call_access_conflicts(
         borrow_call,
     ) {
         for (loan_handle, loan) in &active_loans {
-            if !canonical_place_overlaps_loan(program, &transferred, loan, &facts.borrow) {
+            if canonical_place_loan_compatibility(program, &transferred, loan, &facts.borrow)
+                .non_interfering
+            {
                 continue;
             }
             let detail =
@@ -52,48 +55,64 @@ pub(super) fn check_call_access_conflicts(
     }
 
     for (index, access) in accesses.iter().enumerate() {
-        if !access.kind.is_exclusive() {
-            continue;
-        }
-
         for other_access in accesses.iter().skip(index + 1) {
-            if !borrow_accesses_overlap(program, facts, access, other_access) {
+            if borrow_access_compatibility(program, facts, access, other_access).non_interfering {
                 continue;
             }
 
-            match other_access.kind {
-                BorrowAccessKind::Mutable => diagnostics.push(Diagnostic::error(format!(
+            match (&access.kind, &other_access.kind) {
+                (BorrowAccessKind::Mutable, BorrowAccessKind::Mutable) => {
+                    diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` as mutable more than once",
                     borrow_access_label(program, &facts.borrow, access),
-                ))),
-                BorrowAccessKind::Read => diagnostics.push(Diagnostic::error(format!(
+                )))
+                }
+                (BorrowAccessKind::Mutable, BorrowAccessKind::Read)
+                | (BorrowAccessKind::Read, BorrowAccessKind::Mutable) => {
+                    let mutable = if access.kind == BorrowAccessKind::Mutable {
+                        access
+                    } else {
+                        other_access
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives `{}` as both mutable and read-only",
-                    borrow_access_label(program, &facts.borrow, access),
-                ))),
-                BorrowAccessKind::WriteOnly => diagnostics.push(Diagnostic::error(format!(
+                    borrow_access_label(program, &facts.borrow, mutable),
+                )))
+                }
+                (BorrowAccessKind::WriteOnly, _)
+                | (_, BorrowAccessKind::WriteOnly) => {
+                    let write_only = if access.kind == BorrowAccessKind::WriteOnly {
+                        access
+                    } else {
+                        other_access
+                    };
+                    diagnostics.push(Diagnostic::error(format!(
                     "state `{target_name}` receives write-only `{}` overlapping another argument in the same call",
-                    borrow_access_label(program, &facts.borrow, access)
-                ))),
+                    borrow_access_label(program, &facts.borrow, write_only)
+                )))
+                }
+                (BorrowAccessKind::Read, BorrowAccessKind::Read) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "state `{target_name}` receives dependent read-only places that do not establish non-interference"
+                    )))
+                }
             }
         }
 
         for (loan_handle, loan) in &active_loans {
-            if borrow_access_overlaps_loan(program, facts, access, loan) {
-                let detail = active_loan_detail(
-                    state_flow,
-                    facts,
-                    *loan_handle,
-                    borrow_call.statement_index,
-                );
-                diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
-                    borrow_access_label(program, &facts.borrow, access),
-                    symbol_name(program, loan.owner_symbol),
-                    detail
-                        .map(|detail| format!(" ({detail})"))
-                        .unwrap_or_default(),
-                )));
+            if borrow_access_loan_compatibility(program, facts, access, loan).non_interfering {
+                continue;
             }
+            let detail =
+                active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
+                borrow_access_label(program, &facts.borrow, access),
+                symbol_name(program, loan.owner_symbol),
+                detail
+                    .map(|detail| format!(" ({detail})"))
+                    .unwrap_or_default(),
+            )));
         }
     }
 }
