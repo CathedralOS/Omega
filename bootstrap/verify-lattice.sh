@@ -489,6 +489,12 @@ precise_step "omega-bootstrap CKIR15 lowering meaning (RUST-FREE) — recurrent 
 precise_step "omega-bootstrap CKIR15 backend — recurrent head/tail templates, real producer cross-pair, and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v15-backend.sh omega-bootstrap-omgrfn17
 precise_step "omega-bootstrap OMGRFN17 refinement — modular Python owners and representative persisted-Beta seed-lineage joins" omega-bootstrap-refinement omgrfn17-reference.sh omega-bootstrap-omgrfn17-reference
 precise_step "omega-bootstrap OMGRFN17 producer refinement — actual native/self recurrent views and production backend artifacts" omega-bootstrap-refinement omgrfn17-same-frame-composite.sh omega-bootstrap-omgrfn17
+precise_step "omega-bootstrap CKIR16 independent reference — direct pure same-carrier full-width u64 Less" omega-bootstrap-gates delta-checked-ir-v16-reference.sh omega-bootstrap-ckir16-reference
+precise_step "omega-bootstrap OMGRSW8/OMGLOWH producer — full-width u64 operands and true-edge range custody" omega-bootstrap-gates delta-resolved-to-ckir16.sh omega-bootstrap-omgrfn18
+precise_step "omega-bootstrap CKIR16 lowering meaning (RUST-FREE) — u64 Less success, semantic rejection, and exhaustion through Gamma" omega-bootstrap-gates delta-resolved-to-ckir16-meaning.sh omega-bootstrap-omgrfn18
+precise_step "omega-bootstrap CKIR16 backend — exact qword comparison/range/transport templates and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v16-backend.sh omega-bootstrap-omgrfn18
+precise_step "omega-bootstrap OMGRFN18 refinement — modular Python owners and split persisted-Beta u64 projections" omega-bootstrap-refinement omgrfn18-reference.sh omega-bootstrap-omgrfn18-reference
+precise_step "omega-bootstrap OMGRFN18 producer refinement — actual native/self OMGRSW8/CKIR16 and production backend artifacts" omega-bootstrap-refinement omgrfn18-same-frame-composite.sh omega-bootstrap-omgrfn18
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
