@@ -38,6 +38,13 @@ compiler and bridge. It need not inherit Omega's proof surface, dependent types,
 production allocation model, or general host abstractions merely to look more
 like the product language.
 
+“Explicit memory/resource handling” does not require every program to hand-roll
+fixed partitions. Delta may expose general runtime-sized allocation over fixed,
+bump, typed/indexed-arena, or paged backing when that makes the compiler sources
+substantially more robust. Such an interface must specify its capacity,
+lifetime/reclamation, aliasing, and exhaustion behavior and must not imply an
+ambient host heap.
+
 ## Fixed constraints
 
 - deterministic specified behavior, with no undefined behavior;

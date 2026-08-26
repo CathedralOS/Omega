@@ -19,146 +19,75 @@ milestones. Engineering difficulty is not a design blocker; mark an item
 blocked only when a literal language/profile ruling is required and the
 existing decision procedure cannot settle it.
 
-## Settled boundary
+## Fixed execution model
 
 ```text
-Alpha → Beta → Gamma → Delta
-Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
-Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
-Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
-Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
+language capability: Alpha → Beta → Gamma → Delta → Omega
+build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap → omega [→ omega]
 ```
 
-In language-capability terms this is `Alpha → Beta → Gamma → Delta → Omega`.
-`omega-bootstrap` is an intervening compiler artifact, not Epsilon, Omega0, or
-another language rung. The optional second `omega` rebuilds the same source for
-executable quality; it does not select another source surface.
+`omega-bootstrap` is a Delta-written compiler artifact, not a language rung.
+It accepts the ordinary-Omega product-source profile `Ωself` and builds the
+first production `omega`. That compiler already accepts full Omega and contains
+the optimizer and advanced lowering even if its own executable was lowered
+conservatively. The bracketed `omega` rebuild is optional executable
+optimization, not bootstrap closure.
 
-Only two source decisions remain:
+The queue has only two source contracts:
 
-| Contract | Decision | Working bias |
+| Contract | Scope | Working rule |
 | --- | --- | --- |
-| Delta v1 | the independent language used by both the canonical Delta compiler and `omega-bootstrap` | robust deterministic C-class compiler power; regular data/control/modules; fixed, bump, or paged allocation is allowed when specified, bounded, and explicit about exhaustion |
-| `Ωself` | the ordinary-Omega profile used by the production compiler's own source | retain useful compiler-building forms; avoid proof-program mathematics and dependent/proof-indexed forms; measure generics/domains, numeric tags, mixed record-plus-sum declarations, and complex transition payloads before refactoring |
+| Delta v1 | independent source language of the canonical Delta compiler and `omega-bootstrap` | robust deterministic C-class compiler host; specified failure and deterministic allocation backed by fixed, bump, or paged storage; Omega-like shape where cheap, with no subset requirement |
+| `Ωself` | ordinary-Omega source profile of production `omega` | omit proof/dependent authoring forms by default; retain ordinary compiler facilities unless a measured refactor lowers total source, bridge, and assurance cost |
 
-Delta v1 is a language specification. `Ωself` is an incidental authoring
-restriction with no private syntax or meaning. The canonical Delta compiler and
-bridge are two Delta programs, not two Delta dialects. The product compiler is
-one ordinary Omega program constrained by `Ωself`; it may implement a full-Omega
-feature without using that feature in its own source. Ordinary facilities leave
-`Ωself` only when a concrete refactor reduces total source, bridge, and assurance
-cost—not merely the feature count.
+The exact feature procedure lives only in
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md);
+Delta evidence lives only in
+[`FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md). D0 and O0/O1 are
+bounded implementation canaries, not languages, inventories, or steps toward a
+hidden Omega0/Omega1 chain.
 
-Keep the three compiler obligations distinct:
+Queue invariants:
 
-| Artifact | Accepts | Required result |
+- Gamma supplies Delta's meaning route and happens to host one independent
+  proof-kernel implementation. Proof checking remains cross-cutting assurance.
+- Direct lower-rooted source-to-artifact refinement closes provenance. Do not
+  create a DDC lane or make Rust agreement a bootstrap/release requirement.
+- `compiler/{psi,omega}/` are permanent Omega-written product owners;
+  external-language implementations live under suffixed `bootstrap/onramps/`.
+- Only source transitively imported by the compiler belongs to the hosted
+  closure. Standalone interpreters, REPLs, proof explorers, viewers, debuggers,
+  and similar tools do not.
+- The bridge may use a private checked IR and conservative backend. It need not
+  execute the product optimizer or use Terminal Psi internally.
+
+## Readiness and ownership
+
+| Component | Closed evidence | Closure still required |
 | --- | --- | --- |
-| lower-rung-published Delta compiler | Delta v1 | builds the exact Delta bridge closure |
-| `omega-bootstrap` | frozen `Ωself` | compiles admitted Omega exactly, possibly with conservative code generation |
-| production `omega` | full Omega | implements the full specification, optimizer, advanced lowering, and specified artifact behavior |
+| Delta | corpus, native path, self-host, growing Delta→Gamma route | one frozen v1 contract over both complete required Delta source closures |
+| canonical Delta compiler | Delta-written self-host and bounded lower-rung runs | exact complete-source publication through Gamma joined to refinement |
+| `omega-bootstrap` | deterministic custody and selected vertical compiler slices | general `Ωself` frontend/backend, complete Delta source closure, frozen acceptance |
+| production `omega` source | checkpoint 000001 through the Psi lexer | remaining compiler phases, entrypoint closure, and final `Ωself` census |
+| hosted build | bounded bridge canaries | one validated bridge-built full-Omega compiler |
 
-Thus the bridge is input-incomplete, while the first `omega` it produces is
-already the full product compiler. A slow compiler binary is not a partial
-compiler. Only the optional `omega` → `omega` edge is strict self-hosting.
-Detailed rationale and the feature-disposition procedure live in
-[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+Product source and source refactors belong to `OMEGA-PRODUCT-COMPILER-SOURCE` in
+[`TASKS.md`](TASKS.md). This queue owns checkpoint census, bridge acceptance,
+Delta closure, and the hosted build. A bridge-cost result may request a product
+refactor, but the refactor lands through the product task and a new checkpoint.
+No proof/generic/domain/tag/data-shape candidate becomes a standalone bootstrap
+project before that measured disposition.
 
-Queue guardrails:
+The required order is:
 
-- Gamma is a language rung that also hosts one proof-kernel implementation; it
-  is not “the proof-checker rung.” The proof kernel and refinement machinery are
-  cross-cutting assurance.
-- Compiler authority comes from direct lower-rooted source-to-artifact
-  refinement. Do not add a DDC lane: another compiler's agreement is useful
-  differential evidence, not authority or a release dependency. See
-  [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
-- `compiler/{psi,omega}/` are permanent Omega-written product owners.
-  External-language implementations carry suffixes under `bootstrap/onramps/`;
-  the maintained Rust implementation is an optional comparator.
-- Product Terminal-Psi modules belong to the source closure only when the
-  compiler imports them. Standalone interpreters, verifiers, REPLs, proof
-  explorers, viewers, and debuggers are not bootstrap dependencies.
-- The bridge may lower through its own checked IR. It need not adopt Terminal
-  Psi internally.
+1. consume product checkpoints while growing general bridge capabilities;
+2. freeze Delta v1 and `Ωself` at the completed Delta/bridge/product-source join;
+3. publish the Delta compiler through Gamma and build `omega-bootstrap` with it;
+4. perform the sole required hosted production build.
 
-## Delta → omega-bootstrap → production Omega readiness
-
-Delta's compiler-host feasibility, self-host, and bounded bridge canaries exist.
-The general `omega-bootstrap`, frozen Delta v1, frozen `Ωself`, and hosted
-production build do not. Canaries and D0 are discovery evidence, not numbered
-steps toward `Ωself` or definitions of Delta v1.
-
-Current state, without extrapolating from bounded canaries:
-
-| Component | What exists | What is still missing |
-| --- | --- | --- |
-| Delta language | executable corpus, native compiler path, self-host evidence, and a growing Delta→Gamma meaning route | a frozen v1 specification justified by both complete required Delta source closures, plus complete lower-rung coverage |
-| canonical Delta compiler | a Delta-written self-hosting compiler and bounded lower-rung executions | publication of the exact final compiler artifact from its complete source through Gamma, joined to refinement |
-| `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→artifact→refinement slices, indexed by the bridge-local versioned contracts | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
-| production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
-| hosted production build | bounded bridge canaries only | the first validated build of full production `omega`; no optional self-rebuild is required to close bootstrap |
-
-This table is the stopping-point summary. A row is not promoted by a nearby
-fixture or format version: only its stated whole-source and acceptance join
-closes it.
-
-Two lanes co-evolve until their join:
-
-| Lane | Owner | Bootstrap responsibility |
-| --- | --- | --- |
-| production compiler source | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) | consume each deterministic checkpoint; derive and measure provisional `Ωself` |
-| Delta compiler, bridge, and language closure | this file | close both required Delta source manifests; implement general profile rules in the bridge; maintain the Delta ledger; publish both frozen contracts at the completed source/bridge join |
-
-The execution order is:
-
-1. continue general checkpoint-000001 capabilities one compositional vertical
-   slice at a time, consuming later product-source checkpoints as published;
-2. at the completed Delta-compiler/bridge/product-source join, publish `Ωself`
-   from the complete production source plus measured bridge cost and Delta v1
-   from both complete required Delta closures plus its compiler-host arguments;
-3. publish the Delta compiler through Gamma, then build and validate
-   `omega-bootstrap` through that artifact; and
-4. perform the one required hosted production build.
-
-The two contracts published in step 2 remain separately scoped and versioned.
-Neither is an upstream language rung for the other, and there is no third
-bootstrap source inventory or circular build dependency.
-
-The recheckable package-evidence/accepted-lock custody join may land whenever
-its external contract is published. It does not reorder or block these items.
-
-Product Psi/Omega implementation and any chosen source refactor stay in
-`TASKS.md`. This queue must not turn possible `Ωself` exclusions into separate
-proof, generics, domain, field-tag, data-shape, or transition projects. Those
-choices stay in the single disposition table in
-[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-Likewise, this queue does not decide whether full Omega has those features: the
-language specification already does. Bootstrap work only prices and implements
-the ordinary-Omega forms retained in the compiler's own source profile.
-
-Use this scope test before adding work here:
-
-| Proposed work | Owner |
-| --- | --- |
-| author or refactor production Psi/Omega modules | `OMEGA-PRODUCT-COMPILER-SOURCE` in `TASKS.md` |
-| implement a full-Omega user-facing feature in production `omega` | the relevant product/language task, not this queue |
-| census a product checkpoint, maintain `Ωself`, or implement its general bridge acceptance | this queue |
-| specify or implement a facility used by the canonical Delta compiler or bridge source | this queue and the Delta v1 ledger |
-| build an interpreter, viewer, REPL, proof explorer, debugger, or similar adjacent tool | product tooling unless the hosted compiler imports it |
-| optimize the first production compiler executable by rebuilding it with `omega` | optional product work after required bootstrap closure |
-
-In particular, this queue may consume and validate product checkpoints but must
-not edit product Psi/Omega source merely to make a bridge milestone convenient.
-If measured bridge cost motivates a source refactor, record the evidence here
-and route the implementation to `TASKS.md`; the next checkpoint then records
-the result.
-
-The optional product self-rebuild is not part of this queue. Fixed or paged
-backing, typed/indexed arenas, bulk reclamation, and conservative lowering are
-available bridge implementation choices when they reduce total cost. They do
-not become Delta features without specified behavior, lower-rung meaning, and
-explicit failure. Maintain that evidence only in
-[`bootstrap/rungs/delta/FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md).
+The package-evidence/accepted-lock custody contract can join when its product
+owner publishes it; it blocks final authority, not the implementation work in
+steps 1–2.
 
 ## Current language-design blockers
 

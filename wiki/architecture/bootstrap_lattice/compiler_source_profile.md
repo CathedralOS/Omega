@@ -110,31 +110,29 @@ contracts remain open:
 | A later `omega` → `omega` rebuild is optional executable optimization and reproducibility evidence. | Whether that optional rebuild is worth doing for a release; it cannot change bootstrap closure. |
 | Standalone interpreters, viewers, REPLs, proof explorers, and debuggers are outside the required closure unless imported by the compiler. | Which representation, checking, lowering, and support modules the final compiler executable actually imports. |
 
-The current authoring bias is also settled enough to guide implementation
-without prematurely freezing either contract. Delta should be a robust,
-deterministic C-class compiler host with explicit failure and deterministic
-storage. `Ωself` should omit proof-program mathematics and dependent or
-proof-indexed typing unless the compiler source demonstrates a real need;
-ordinary named data, basic generics, concrete domains, and regular compiler
-control remain available by default. Numeric/schema tags, mixed record-plus-sum
-declarations, advanced generics/domains, and aggregate transition payloads are
-cost candidates, not foregone exclusions.
+The current authoring bias is settled enough to guide implementation without
+prematurely freezing either contract:
 
-The names are deliberately non-generational. `omega-bootstrap` is a role, not
-“Omega 0”; the production compiler is `omega`, not “Omega 1”; and an optional
-self-rebuild creates a better executable of the same compiler rather than a new
-language or rung. O0/O1 are only names for already-frozen vertical canaries in
-the bridge implementation.
+| Surface | Presumption | Reason |
+| --- | --- | --- |
+| Delta v1 | provide robust deterministic C-class compiler power: regular data/control/modules, explicit failure, and deterministic bounded storage or allocation | Delta exists to make two large compilers maintainable, not to win a token-count contest |
+| `Ωself`: proof-program mathematics and dependent/proof-indexed typing, including linear-dependent forms | exclude unless the compiler source demonstrates a concrete implementation need | production `omega` can implement these facilities for users without using them to implement itself |
+| `Ωself`: named records, sums, arrays/views, modules, calls, ordinary ownership, basic generics, and concrete domains | retain when used unless a concrete refactor lowers total source, bridge, and assurance cost | these are ordinary compiler-building tools; removing them can create duplication and invalid intermediate states |
+| `Ωself`: numeric/schema field tags such as `0:`, mixed field-plus-case declarations, advanced generic/domain machinery, and aggregate transition payloads | measure against simpler ordinary-Omega encodings | these can sometimes be removed without making all data positional or giving the compiler a private dialect |
+| hosted source closure | include only modules transitively imported by the compiler executable | implementing full Omega does not require bundling standalone Terminal-Psi interpreters, REPLs, proof explorers, viewers, or debuggers |
 
-- **Delta** is an independent, robust compiler-host language. It may resemble
-  Omega in spelling and shape, but it is not required to be an Omega subset.
-- **`Ωself`** is the Omega product-compiler source profile: a compositional subset
-  of ordinary Omega accepted by `omega-bootstrap`. It introduces no syntax or
-  semantics of its own. It is a feature-and-resource contract, not a whitelist
-  of the current compiler files or a collection of recognized AST shapes.
-- **Full Omega** is the language implemented by the resulting production
-  compiler. A compiler can implement a feature without using that feature in
-  its own source.
+These are disposition defaults, not final admissions. A later complete source
+checkpoint supplies usage evidence; the general bridge and assurance path
+supplies cost evidence. Final `Ωself` decisions use both.
+
+The names are deliberately non-generational. Delta is an independent language,
+not restricted to valid Omega. `Ωself` is a compositional feature-and-resource
+profile of ordinary Omega with no syntax or semantics of its own. Full Omega is
+the language implemented by the resulting production compiler. Accordingly,
+`omega-bootstrap` is a role, not “Omega 0”; the production compiler is `omega`,
+not “Omega 1”; and an optional self-rebuild creates a better executable of the
+same compiler rather than a new language or rung. O0/O1 are only names for
+already-frozen vertical canaries in the bridge implementation.
 
 Keep these implications one-way:
 
