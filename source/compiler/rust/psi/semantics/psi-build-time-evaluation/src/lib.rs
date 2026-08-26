@@ -35,10 +35,11 @@ pub use const_lengths::{
     evaluate_zero_argument_machine, evaluate_zero_argument_machine_for_invocation,
 };
 pub use layout_plans::{
-    BuildTimeValue, compute_layout_plan, compute_layout_plan_with_authority,
-    compute_native_layout_plan, compute_native_layout_plan_with_authority,
-    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
-    normalized_schema_identity,
+    BuildTimeValue, ValidatedConstMaterialization, compute_layout_plan,
+    compute_layout_plan_with_authority, compute_native_layout_plan,
+    compute_native_layout_plan_with_authority, evaluate_and_materialize_typed_owned_layout_into,
+    materialize_typed_owned_layout_into, normalized_schema_identity,
+    validate_const_materializable_typed_owned_layout,
 };
 pub use placed_views::{
     PlacedViewRecord, desugar_placed_views, validate_placed_view_plans,

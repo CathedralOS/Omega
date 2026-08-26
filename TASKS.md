@@ -8903,9 +8903,24 @@ checked-result arithmetic decision listed below.
   validate their exact integer-to-Boolean signature, cross the same
   source-custodied opt-in boundary, and decode only an exact Boolean snapshot.
   Other compiler-owned plan evaluators do not opt in implicitly while their
-  affine result vocabularies remain unchanged. Quotient snapshots,
-  `ConstMaterializable`, target capsules/observations, and representation bytes
-  remain subsequent.
+  affine result vocabularies remain unchanged. The first bounded opt-in
+  `ConstMaterializable(value, layout)` carrier is also live for closed
+  non-generic `[copy]` records composed only of integer/Boolean fields, literal
+  fixed arrays, and nested records of the same kind. It retains the exact typed
+  owned value, schema name and identity, full validated layout plus normalized
+  fingerprint, target byte order, exact zero-initialized staged bytes, and one
+  deterministic identity. Construction and replay independently revalidate the
+  schema/member placements, derived offsets, fixed extent and alignment, value
+  shape, byte order, and exact bytes through the existing atomic aggregate
+  writer; failed replay or a short destination leaves the destination unchanged.
+  Floats including NaN, sums, generic/opaque/quotient records, references,
+  slices, Text, dynamic values, atomics, non-copy records, and malformed shapes
+  reject on this path without narrowing the legacy materialization API. This
+  custody is not evaluator admission, a target capsule, quotient
+  canonicalization, an origin-chain proof, or proof authority. Quotient
+  snapshots/materialization, realized sum cases, target capsules/observations,
+  complete origin diagnostics, and broader representation bytes remain
+  subsequent.
 
   Materialize one compiler-owned versioned typed capsule shared by evaluator and
   backend. Expose only its closed subject-qualified observation vocabulary; do

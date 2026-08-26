@@ -151,8 +151,8 @@ pub use pipeline::{
     TerminalComponentDeploymentReportError, TerminalComponentDeploymentSupply,
     TerminalComponentDriverError, TerminalComponentProviderExecution,
     TerminalComponentProviderSettlement, TerminalComponentStagingInputBindingError,
-    TerminalComponentStagingInputs, ValidatedAccessPlan, ValidatedPlacementPlan,
-    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
+    TerminalComponentStagingInputs, ValidatedAccessPlan, ValidatedConstMaterialization,
+    ValidatedPlacementPlan, ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootConsumerValidationError,
     WrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootWriterRecoveryError, acquire_and_deploy_terminal_component_output,
@@ -195,5 +195,6 @@ pub use pipeline::{
     reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
     stage_acquire_and_deploy_terminal_component_output, stage_terminal_component,
-    validate_ordinary_package_obligation_ledger, write_finalized_terminal_component_output,
+    validate_const_materializable_typed_owned_layout, validate_ordinary_package_obligation_ledger,
+    write_finalized_terminal_component_output,
 };

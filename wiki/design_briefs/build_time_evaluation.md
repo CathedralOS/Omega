@@ -289,6 +289,25 @@ ConstMaterializable(value, layout)
     the selected representation determines every observable emitted bit
 ```
 
+The first bounded internal `ConstMaterializable` carrier is live for closed
+non-generic `[copy]` records whose recursive values contain only integers,
+Booleans, literal fixed arrays, and records of the same kind. It retains the
+exact typed owned value, schema name and identity, complete validated layout and
+normalized fingerprint, target byte order, exact zero-initialized staged bytes,
+and a deterministic identity. Independent replay rechecks exact member
+placements, derived offsets, fixed extent and alignment, value shape, byte
+order, and staged bytes through the existing atomic aggregate writer. Applying
+the carrier copies only after replay succeeds, so malformed evidence or a short
+destination leaves the destination unchanged.
+
+This first slice deliberately rejects every float (including NaN), sum,
+generic/opaque/quotient record, reference, slice, Text, dynamic value, atomic,
+non-copy record, and malformed shape. It does not narrow the legacy typed-owned
+materialization API and establishes no evaluator admission, target capsule,
+quotient canonicalization, producer-origin chain, or proof authority. Realized
+sum cases, carried quotient representatives, richer origin diagnostics, and
+target-dependent const application remain later slices.
+
 The second judgment is value-sensitive and structural over the realized value,
 not merely its outer type. It traverses the active sum case and its actual
 fields; an inactive case cannot make the current value fail. When a nested

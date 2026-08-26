@@ -18,11 +18,15 @@ use psi_typed_trees::TypedTrees;
 
 use crate::BuildTimeAdmissionPlan;
 
+mod const_materializable;
 mod owned_value_encoding;
 mod plan_validation;
 mod schema_reflection;
 mod schema_value;
 
+pub use const_materializable::{
+    ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
+};
 use owned_value_encoding::{encode_typed_owned_value, exact_struct_fields};
 pub(crate) use plan_validation::validate_plan;
 pub use schema_reflection::normalized_schema_identity;

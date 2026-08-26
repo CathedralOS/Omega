@@ -15,7 +15,7 @@ use omega_compiler::{
     compile_to_checked_with_packages, compute_layout_plan, decode_scalar_layout,
     derive_symbolic_materialization, evaluate_and_materialize_typed_owned_layout_into,
     materialize_aggregate_layout_into, materialize_scalar_layout_into,
-    materialize_typed_owned_layout_into,
+    materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
@@ -1019,6 +1019,132 @@ machine Main::main(&mut self) { }
     )
     .expect("source-owned record should evaluate and materialize atomically");
     assert_eq!(&bytes[8..16], &[1, 0, 0, 0, 5, 4, 3, 2]);
+}
+
+#[test]
+fn const_materializable_record_binds_value_layout_order_and_zero_padding() {
+    let main_path = write_program(
+        "const-materializable-record",
+        r#"
+use omega::language::core::layout;
+
+data RecordLayout { entries: [FieldEntry; 64]; }
+machine RecordLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::At { offset: 12 },
+    };
+    Plan { entries: self.entries, entry_count: 3,
+           size_fixed: 16, size_is_dynamic: false, align: 4 }
+}
+data Pair [copy] { enabled: bool; code: u32; }
+data Samples [copy] { tag: u8; pair: Pair; words: [u16; 2]; }
+machine make_samples() -> Samples {
+    Samples {
+        tag: 7,
+        pair: Pair { enabled: true, code: 287454020 },
+        words: [258, 772],
+    }
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("closed copy-valued materialization fixture should check");
+    let layout = compute_layout_plan(&checked.typed, "RecordLayout::plan", "Samples")
+        .expect("fixture layout should validate");
+    let value = BuildTimeValue::Struct {
+        type_name: "Samples".into(),
+        fields: vec![
+            ("tag".into(), BuildTimeValue::Int(7)),
+            (
+                "pair".into(),
+                BuildTimeValue::Struct {
+                    type_name: "Pair".into(),
+                    fields: vec![
+                        ("enabled".into(), BuildTimeValue::Bool(true)),
+                        ("code".into(), BuildTimeValue::Int(287454020)),
+                    ],
+                },
+            ),
+            (
+                "words".into(),
+                BuildTimeValue::Array(vec![BuildTimeValue::Int(258), BuildTimeValue::Int(772)]),
+            ),
+        ],
+    };
+
+    let little = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("supported source value should retain materialization evidence");
+    assert_eq!(
+        little.bytes(),
+        &[7, 0, 0, 0, 1, 0, 0, 0, 0x44, 0x33, 0x22, 0x11, 2, 1, 4, 3]
+    );
+    let big = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &value,
+        ByteOrder::BigEndian,
+    )
+    .expect("target byte order should be selected explicitly");
+    assert_eq!(
+        big.bytes(),
+        &[7, 0, 0, 0, 1, 0, 0, 0, 0x11, 0x22, 0x33, 0x44, 1, 2, 3, 4]
+    );
+    assert_ne!(little.identity(), big.identity());
+
+    let mut destination = [0xa5; 20];
+    little
+        .apply(&checked.typed, &mut destination)
+        .expect("exact replay should copy only the fixed extent");
+    assert_eq!(&destination[..16], little.bytes());
+    assert_eq!(&destination[16..], &[0xa5; 4]);
+
+    let mut drifted_layout = layout.clone();
+    drifted_layout.entries[2].placement = LayoutPlacementReport::At { offset: 11 };
+    assert!(
+        little
+            .replay_against(
+                &checked.typed,
+                "Samples",
+                &drifted_layout,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err()
+    );
+    let mut drifted_value = value;
+    let BuildTimeValue::Struct { fields, .. } = &mut drifted_value else {
+        unreachable!("fixture value is a record")
+    };
+    fields[0].1 = BuildTimeValue::Int(8);
+    assert!(
+        little
+            .replay_against(
+                &checked.typed,
+                "Samples",
+                &layout,
+                &drifted_value,
+                ByteOrder::LittleEndian,
+            )
+            .is_err()
+    );
 }
 
 #[test]
