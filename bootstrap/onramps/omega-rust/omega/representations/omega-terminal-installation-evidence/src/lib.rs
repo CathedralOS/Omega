@@ -64,6 +64,18 @@ pub trait TerminalNativeFuelImageEvidence {
     fn charges(&self) -> Vec<TerminalNativeFuelChargeEvidence>;
 }
 
+/// Dependency-light view of a final image containing the compiler-owned
+/// exhaustion-transfer runtime. This exposes both complete text coordinates
+/// and the independently replayed runtime intervals, but grants no authority
+/// to install or execute either entry.
+pub trait TerminalNativeFuelTransferRuntimeImageEvidence {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
+    fn target(&self) -> omega_target::NativeTarget;
+    fn unrelocated_text_bytes(&self) -> &[u8];
+    fn final_text_bytes(&self) -> &[u8];
+    fn transfer_runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence;
+}
+
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {

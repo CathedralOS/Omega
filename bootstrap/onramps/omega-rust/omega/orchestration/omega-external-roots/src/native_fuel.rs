@@ -14,9 +14,10 @@ use omega_executable_installation::{
 };
 use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_installation_evidence::{
-    NativeFuelTransferRuntimePlanProjection, TerminalFuelAttributionEvidence,
-    TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence, TerminalNativeFuelImageEvidence,
-    TerminalObjectEvidence,
+    NativeFuelRuntimeTextEvidence, NativeFuelTransferRuntimePlanProjection,
+    TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence,
+    TerminalNativeFuelImageEvidence, TerminalNativeFuelTransferRuntimeEvidence,
+    TerminalNativeFuelTransferRuntimeImageEvidence, TerminalObjectEvidence,
 };
 
 use super::{
@@ -283,6 +284,156 @@ pub fn admit_native_fuel_transfer_plan(
         target_policy,
         projection,
     })
+}
+
+/// Exact installed-code custody for the compiler-owned transfer and resume
+/// entries. This binds the complete object/final text pair and the replayed
+/// runtime intervals to one installed realization. It intentionally does not
+/// include the separately required installed sponsor route and therefore is
+/// not executable transfer authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledNativeFuelTransferCode {
+    transfer_plan: ValidatedNativeFuelTransferPlan,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    runtime_evidence: TerminalNativeFuelTransferRuntimeEvidence,
+    unrelocated_text_fingerprint: u64,
+    final_text_fingerprint: u64,
+    fingerprint: u64,
+}
+
+impl InstalledNativeFuelTransferCode {
+    pub const fn transfer_plan(&self) -> &ValidatedNativeFuelTransferPlan {
+        &self.transfer_plan
+    }
+
+    pub const fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
+        &self.runtime_evidence
+    }
+
+    pub const fn unrelocated_text_fingerprint(&self) -> u64 {
+        self.unrelocated_text_fingerprint
+    }
+
+    pub const fn final_text_fingerprint(&self) -> u64 {
+        self.final_text_fingerprint
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
+    pub fn binds_installed_code(&self, installed_code: &InstalledCode) -> bool {
+        self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
+/// Bind the complete replayed transfer-runtime image to one exact installed
+/// code occurrence. The runtime spans are checked against both full text
+/// coordinate spaces so a valid interval from another image cannot be joined
+/// by fingerprint or compact identity alone.
+pub fn bind_installed_native_fuel_transfer_code<
+    Image: TerminalNativeFuelTransferRuntimeImageEvidence,
+>(
+    transfer_plan: ValidatedNativeFuelTransferPlan,
+    image: &Image,
+    installed_code: &InstalledCode,
+) -> Result<InstalledNativeFuelTransferCode, ExternalRootDiagnostic> {
+    let runtime_evidence = image.transfer_runtime_evidence();
+    if image.target() != transfer_plan.target_policy().target()
+        || runtime_evidence.plan() != transfer_plan.projection()
+        || installed_code.architecture() != image.target().architecture
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed native fuel transfer image does not match its exact admitted plan and target"
+                .into(),
+        ));
+    }
+    if !installed_code.binds_exact_materialized_artifact_bytes(
+        image.unrelocated_text_bytes(),
+        image.final_text_bytes(),
+    ) {
+        return Err(ExternalRootDiagnostic(
+            "installed native fuel transfer image bytes do not match the exact installed artifact"
+                .into(),
+        ));
+    }
+    if !runtime_text_matches_image(
+        runtime_evidence.transfer_text(),
+        image.unrelocated_text_bytes(),
+        image.final_text_bytes(),
+    ) || !runtime_text_matches_image(
+        runtime_evidence.resume_text(),
+        image.unrelocated_text_bytes(),
+        image.final_text_bytes(),
+    ) {
+        return Err(ExternalRootDiagnostic(
+            "native fuel transfer runtime intervals do not match the complete replayed image"
+                .into(),
+        ));
+    }
+
+    let mut unrelocated_hash = Fnv1a::new();
+    unrelocated_hash.bytes(b"omega.native-fuel-transfer-unrelocated-text.v1");
+    unrelocated_hash.bytes(image.unrelocated_text_bytes());
+    let unrelocated_text_fingerprint = unrelocated_hash.finish();
+    let mut final_hash = Fnv1a::new();
+    final_hash.bytes(b"omega.native-fuel-transfer-final-text.v1");
+    final_hash.bytes(image.final_text_bytes());
+    let final_text_fingerprint = final_hash.finish();
+
+    let terminal_psi = image.terminal_psi();
+    let mut fingerprint = Fnv1a::new();
+    fingerprint.bytes(b"omega.installed-native-fuel-transfer-code.v1");
+    fingerprint.u64(transfer_plan.normalized_identity());
+    fingerprint.u64(u64::from(terminal_psi.vocabulary_marker.get()));
+    fingerprint.bytes(terminal_psi.program_fingerprint.as_bytes());
+    fingerprint.u64(installed_code.identity().normalized_identity());
+    fingerprint.u64(installed_code.artifact().normalized_identity());
+    fingerprint.u64(runtime_evidence.fingerprint());
+    fingerprint.u64(unrelocated_text_fingerprint);
+    fingerprint.u64(final_text_fingerprint);
+
+    Ok(InstalledNativeFuelTransferCode {
+        transfer_plan,
+        terminal_psi,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        runtime_evidence: runtime_evidence.clone(),
+        unrelocated_text_fingerprint,
+        final_text_fingerprint,
+        fingerprint: fingerprint.finish(),
+    })
+}
+
+fn runtime_text_matches_image(
+    evidence: &NativeFuelRuntimeTextEvidence,
+    unrelocated_text: &[u8],
+    final_text: &[u8],
+) -> bool {
+    let span = evidence.span();
+    let Some(end) = span.text_offset.checked_add(span.byte_count) else {
+        return false;
+    };
+    unrelocated_text
+        .get(span.text_offset..end)
+        .is_some_and(|bytes| bytes == evidence.unrelocated_bytes())
+        && final_text
+            .get(span.text_offset..end)
+            .is_some_and(|bytes| bytes == evidence.final_bytes())
 }
 
 /// Pre-install dynamic meter selection. Structural transfer-plan admission is
@@ -1134,7 +1285,9 @@ fn fingerprint_native_target(hash: &mut Fnv1a, target: NativeTarget) {
 mod tests {
     use std::collections::BTreeSet;
 
-    use omega_calling_conventions::{MachineState, MachineStateSet};
+    use omega_calling_conventions::{
+        MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
+    };
 
     use super::*;
     use crate::{
@@ -1156,6 +1309,38 @@ mod tests {
         metered: Vec<u8>,
         final_text: Vec<u8>,
         charges: Vec<TerminalNativeFuelChargeEvidence>,
+    }
+
+    struct TestTransferRuntimeImage {
+        target: NativeTarget,
+        unrelocated: Vec<u8>,
+        final_text: Vec<u8>,
+        evidence: TerminalNativeFuelTransferRuntimeEvidence,
+    }
+
+    impl TerminalNativeFuelTransferRuntimeImageEvidence for TestTransferRuntimeImage {
+        fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+            psi_terminal::TerminalPsiIdentity {
+                vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
+                program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([7; 32]),
+            }
+        }
+
+        fn target(&self) -> NativeTarget {
+            self.target
+        }
+
+        fn unrelocated_text_bytes(&self) -> &[u8] {
+            &self.unrelocated
+        }
+
+        fn final_text_bytes(&self) -> &[u8] {
+            &self.final_text
+        }
+
+        fn transfer_runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
+            &self.evidence
+        }
     }
 
     impl TerminalNativeFuelImageEvidence for TestNativeFuelImage {
@@ -1363,6 +1548,166 @@ mod tests {
             x86_transfer_projection(profile),
         )
         .expect("canonical x86-64 native fuel transfer plan")
+    }
+
+    fn x86_transfer_runtime_evidence(
+        profile: TargetProfile,
+        transfer_unrelocated: Vec<u8>,
+        transfer_final: Vec<u8>,
+        resume_unrelocated: Vec<u8>,
+        resume_final: Vec<u8>,
+    ) -> TerminalNativeFuelTransferRuntimeEvidence {
+        TerminalNativeFuelTransferRuntimeEvidence::new(
+            x86_transfer_projection(profile),
+            NativeFuelRuntimeTextEvidence::new(
+                omega_terminal_installation_evidence::NativeFuelRuntimeEntryIdentity {
+                    section_identity: 1,
+                    symbol_identity: 2,
+                },
+                omega_terminal_installation_evidence::NativeFuelRuntimeTextSpan {
+                    text_offset: 0,
+                    byte_count: 4,
+                },
+                transfer_unrelocated,
+                transfer_final,
+            )
+            .expect("transfer interval"),
+            NativeFuelRuntimeTextEvidence::new(
+                omega_terminal_installation_evidence::NativeFuelRuntimeEntryIdentity {
+                    section_identity: 1,
+                    symbol_identity: 3,
+                },
+                omega_terminal_installation_evidence::NativeFuelRuntimeTextSpan {
+                    text_offset: 8,
+                    byte_count: 4,
+                },
+                resume_unrelocated,
+                resume_final,
+            )
+            .expect("resume interval"),
+            StateFootprintEvidence::new(
+                RegisterSet::new([
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rsp,
+                    MachineRegister::X86Xmm(0),
+                ]),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                ]),
+            ),
+            24,
+        )
+        .expect("complete runtime evidence")
+    }
+
+    fn transfer_runtime_image(
+        profile: TargetProfile,
+        evidence: TerminalNativeFuelTransferRuntimeEvidence,
+        unrelocated_fill: u8,
+        final_fill: u8,
+    ) -> TestTransferRuntimeImage {
+        TestTransferRuntimeImage {
+            target: profile.native_target(),
+            unrelocated: vec![unrelocated_fill; 64],
+            final_text: vec![final_fill; 64],
+            evidence,
+        }
+    }
+
+    #[test]
+    fn installed_transfer_code_binds_full_image_and_exact_runtime_intervals() {
+        let profile = TargetProfile::LinuxX64;
+        let image = transfer_runtime_image(
+            profile,
+            x86_transfer_runtime_evidence(profile, vec![9; 4], vec![9; 4], vec![9; 4], vec![9; 4]),
+            9,
+            9,
+        );
+        let installed = crate::tests::installed_code_with_fill(
+            390,
+            psi_layout_plans::EntryStubId::from_normalized_identity(1390).expect("entry"),
+            9,
+        );
+        let custody = bind_installed_native_fuel_transfer_code(
+            x86_transfer_plan(profile),
+            &image,
+            &installed,
+        )
+        .expect("exact replayed runtime image binds to installed code");
+        assert_eq!(custody.installed_code(), installed.identity());
+        assert_eq!(custody.runtime_evidence(), &image.evidence);
+        assert!(custody.binds_installed_code(&installed));
+        assert_ne!(custody.unrelocated_text_fingerprint(), 0);
+        assert_ne!(custody.final_text_fingerprint(), 0);
+        assert_ne!(custody.fingerprint(), 0);
+    }
+
+    #[test]
+    fn installed_transfer_code_rejects_plan_interval_and_full_image_substitution() {
+        let profile = TargetProfile::LinuxX64;
+        let installed = crate::tests::installed_code_with_fill(
+            391,
+            psi_layout_plans::EntryStubId::from_normalized_identity(1391).expect("entry"),
+            9,
+        );
+        let wrong_interval = transfer_runtime_image(
+            profile,
+            x86_transfer_runtime_evidence(profile, vec![8; 4], vec![9; 4], vec![9; 4], vec![9; 4]),
+            9,
+            9,
+        );
+        assert!(
+            bind_installed_native_fuel_transfer_code(
+                x86_transfer_plan(profile),
+                &wrong_interval,
+                &installed,
+            )
+            .expect_err("an interval from another object cannot enter full-image custody")
+            .0
+            .contains("intervals")
+        );
+
+        let wrong_full_image = transfer_runtime_image(
+            profile,
+            x86_transfer_runtime_evidence(profile, vec![8; 4], vec![8; 4], vec![8; 4], vec![8; 4]),
+            8,
+            8,
+        );
+        assert!(
+            bind_installed_native_fuel_transfer_code(
+                x86_transfer_plan(profile),
+                &wrong_full_image,
+                &installed,
+            )
+            .expect_err("different complete bytes cannot bind to installed code")
+            .0
+            .contains("exact installed artifact")
+        );
+
+        let uefi_evidence = transfer_runtime_image(
+            TargetProfile::UefiX64,
+            x86_transfer_runtime_evidence(
+                TargetProfile::UefiX64,
+                vec![9; 4],
+                vec![9; 4],
+                vec![9; 4],
+                vec![9; 4],
+            ),
+            9,
+            9,
+        );
+        assert!(
+            bind_installed_native_fuel_transfer_code(
+                x86_transfer_plan(profile),
+                &uefi_evidence,
+                &installed,
+            )
+            .expect_err("a profile sharing one native tuple cannot substitute")
+            .0
+            .contains("exact admitted plan")
+        );
     }
 
     #[test]
