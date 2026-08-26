@@ -150,7 +150,7 @@ pub fn bind_installed_runnable_component(
             "installation registry names a different installed-code occurrence".into(),
         );
     }
-    if roots.records().next().is_some() {
+    if !roots.live_external_roots_are_empty() {
         return reject(
             artifact,
             roots,
