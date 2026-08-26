@@ -526,6 +526,13 @@ era, and records finalization; restart reconciliation has defined behavior for
 preauthorized envelope accepted each candidate and retains all checked evidence
 and disclosed admissions. Cathedral chooses rollback versus roll-forward policy.
 
+The Rust on-ramp's canonical versioned journal record is the checkable core of
+that protocol. Its typed phase transitions require the exact durable predecessor,
+return candidate publication custody on rejection, and treat decoded bytes as
+report/replay evidence rather than reconstructed authority. Restart
+reconciliation reports the remaining rollback/roll-forward choices; the
+Cathedral-selected durable-storage adapter owns fsync ordering and policy.
+
 ## Implementation work
 
 - exact component artifact and lifetime-cohort manifest;
