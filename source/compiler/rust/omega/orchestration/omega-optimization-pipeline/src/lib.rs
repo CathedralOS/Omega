@@ -798,6 +798,93 @@ mod tests {
         )
     }
 
+    fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(4_201).unwrap();
+        let entry = BlockId::new(4_202).unwrap();
+        let empty = BlockId::new(4_203).unwrap();
+        let target = BlockId::new(4_204).unwrap();
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(4_211).unwrap(),
+                            target: empty,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: empty,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(4_212).unwrap(),
+                            target,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: target,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(4_213).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(4_215).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn staged_forwarded_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
         let (semantic, proof) = conditional_forwarded_parameter_artifact();
         let optimized = optimize_artifact_sections(
@@ -1238,6 +1325,46 @@ mod tests {
         assert!(report.contains("optimized structure: functions=1, blocks=2, nodes=3"));
         assert!(report.contains("proven-unreachable=2"));
         assert!(report.contains("runtime-charge=none reason=proven-unreachable"));
+    }
+
+    #[test]
+    fn control_flow_cleanup_projects_linear_threading_with_both_fuel_sources() {
+        let (semantic, proof) = linear_empty_block_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 2);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0]
+                .provenance
+                .len(),
+            2
+        );
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0].fuel.len(),
+            2
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .all(|row| row.disposition.is_realized())
+        );
+        assert!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .render_text()
+                .contains("optimized structure: functions=1, blocks=2, nodes=2")
+        );
     }
 
     #[test]

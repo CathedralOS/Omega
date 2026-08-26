@@ -366,18 +366,32 @@ pub struct ConstantConditionalRewrite {
     pub rejected_edge: EdgeId,
 }
 
+/// Thread one non-entry, single-incoming block whose only node is an
+/// unconditional jump. The predecessor and removed jump are necessarily
+/// co-executed, so both source edges remain realized at `predecessor`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LinearEmptyBlockRewrite {
+    pub predecessor: NodeLocation,
+    pub incoming_edge: EdgeId,
+    pub empty: NodeLocation,
+    pub outgoing_edge: EdgeId,
+    pub target: BlockId,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
     ReplaceBooleanOperationWithConstant(BooleanConstantRewrite),
     RemoveRedundantBlockParameter(RedundantBlockParameterRewrite),
     FoldConstantConditional(ConstantConditionalRewrite),
+    ThreadLinearEmptyBlock(LinearEmptyBlockRewrite),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum PsiRewriteWitness {
     ScalarEvaluation(ScalarEvaluationWitness),
     RedundantBlockParameter(RedundantBlockParameterWitness),
+    StructuralIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -529,6 +543,26 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_linear_empty_block(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: LinearEmptyBlockRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::ThreadLinearEmptyBlock(patch),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         input: OptimizationUnitIdentity,
@@ -549,6 +583,7 @@ impl PsiRewriteCandidate {
                 node: 0,
             },
             PsiRewritePatch::FoldConstantConditional(patch) => patch.location,
+            PsiRewritePatch::ThreadLinearEmptyBlock(patch) => patch.predecessor,
         };
         if affected_blocks.is_empty() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
@@ -666,6 +701,23 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::ThreadLinearEmptyBlock(patch) => {
+                if patch.empty.node != 0
+                    || patch.empty.machine != patch.predecessor.machine
+                    || !affected_blocks.contains(&patch.empty.block)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(location) = row.disposition else {
+                            return true;
+                        };
+                        location.machine != patch.predecessor.machine
+                            || !affected_blocks.contains(&location.block)
+                    })
+                    || !substitutions.is_empty()
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
         }
         let decision_point = location;
         let canonical = encode_candidate(
@@ -740,7 +792,8 @@ impl PsiRewriteCandidate {
     pub const fn scalar_evaluation_witness(&self) -> Option<ScalarEvaluationWitness> {
         match &self.witness {
             PsiRewriteWitness::ScalarEvaluation(witness) => Some(*witness),
-            PsiRewriteWitness::RedundantBlockParameter(_) => None,
+            PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
 
@@ -748,6 +801,7 @@ impl PsiRewriteCandidate {
         match &self.witness {
             PsiRewriteWitness::ScalarEvaluation(_) => None,
             PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
+            PsiRewriteWitness::StructuralIdentity => None,
         }
     }
 
@@ -783,7 +837,8 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*right_fact),
                 OptimizationFactReference::AcceptedObligation(*obligation_fact),
             ],
-            PsiRewriteWitness::RedundantBlockParameter(_) => Vec::new(),
+            PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::StructuralIdentity => Vec::new(),
         };
         facts.sort_unstable();
         facts.dedup();
@@ -812,7 +867,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v8\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v9\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -906,6 +961,7 @@ fn encode_candidate(
                 bytes.extend_from_slice(&incoming.argument.get().to_le_bytes());
             }
         }
+        PsiRewriteWitness::StructuralIdentity => bytes.push(3),
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
     match patch {
@@ -940,6 +996,14 @@ fn encode_candidate(
             bytes.push(u8::from(patch.constant));
             bytes.extend_from_slice(&patch.selected_edge.get().to_le_bytes());
             bytes.extend_from_slice(&patch.rejected_edge.get().to_le_bytes());
+        }
+        PsiRewritePatch::ThreadLinearEmptyBlock(patch) => {
+            bytes.push(5);
+            encode_location(&mut bytes, patch.predecessor);
+            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
+            encode_location(&mut bytes, patch.empty);
+            bytes.extend_from_slice(&patch.outgoing_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
         }
     }
     bytes

@@ -40,13 +40,14 @@ pub use rules::{
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
     IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
-    IntegerWidenConstantsRule, RedundantBlockParameterRule, SaturatingIntegerAddConstantsRule,
-    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
-    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registries, built_in_psi_registry,
+    IntegerWidenConstantsRule, LinearEmptyBlockThreadRule, RedundantBlockParameterRule,
+    SaturatingIntegerAddConstantsRule, SaturatingIntegerDivideConstantsRule,
+    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerRemainderConstantsRule,
+    SaturatingIntegerSubtractConstantsRule, WrappingIntegerAddConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
+    built_in_psi_registries, built_in_psi_registry,
 };
 
 #[cfg(test)]
