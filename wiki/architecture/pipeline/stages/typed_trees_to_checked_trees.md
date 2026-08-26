@@ -210,9 +210,18 @@ Current ownership is:
   unique prior state-owned loan retains its immediate parent; multihop chains
   name each immediate parent independently. Checked replay rederives the source
   occurrence, owner projection, formation order, and rebased captured place and
-  rejects parent or lineage-tag substitution. Aggregate/helper transfers,
-  ambiguous or reassigned aliases, and all reborrow lifetime/restoration rows
-  remain excluded. No lineage row is Terminal resource authority.
+  rejects parent or lineage-tag substitution. The next checked-only closure
+  rung retains each such direct reborrow in a separate topological resource
+  arena: the child keeps its exact state/owner/place/access and one activation
+  and weakening, while a typed handle identifies either its direct-root parent
+  resource or the preceding reborrow resource. Independent replay validates
+  both arenas before rebuilding either and then remaps every parent handle in
+  loan order. The restoration row is explicitly a pending child-to-parent
+  obligation only; it does not prove parent activity or reactivation, temporal
+  containment, or completed restoration. Compatibility certificates for these
+  children must rejoin the exact new resource row. Aggregate/helper transfers
+  and ambiguous or reassigned aliases remain `UnretainedDerived` and have no
+  row. Neither resource arena supplies Terminal authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

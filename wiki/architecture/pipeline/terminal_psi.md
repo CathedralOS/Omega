@@ -287,10 +287,17 @@ parent loan, or an unretained derived occurrence. Only an explicit
 reference-local reborrow with exactly one prior matching state-owned loan may
 name a parent; checked replay reconstructs that source occurrence, owner path,
 formation order, and rebased captured place. Multihop chains name immediate
-parents. Aggregate and helper transfers, ambiguous or reassigned aliases, and
-write-only local loans remain fenced. This checked-only parent identity does
-not close a reborrow resource row, establish restoration, or supply Terminal
-authority.
+parents. A separate checked-only arena now closes the narrow direct-reborrow
+case over the child's exact state/owner/place/access and activation/weakening
+lifecycle. Each row has a typed handle to either the direct-root parent
+resource or an earlier reborrow resource; transactional replay validates the
+whole graph before rebuilding and remapping those handles in loan order. Its
+restoration member is a pending child-to-parent obligation, not evidence of
+parent activity or reactivation, temporal containment, or completed
+restoration. Compatibility certificates must rejoin these exact child rows.
+Aggregate and helper transfers, ambiguous or reassigned aliases, and
+write-only local loans remain fenced with no resource row. Neither checked
+resource arena supplies Terminal authority.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the

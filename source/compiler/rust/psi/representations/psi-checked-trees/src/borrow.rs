@@ -202,11 +202,8 @@ pub struct CheckedDirectBorrowRestorationObligation {
 /// Checked-only resource closure for one state-local loan captured directly
 /// from a root authority occurrence.
 ///
-/// Reborrows and borrow-carrying transfers deliberately have no row in this
-/// first prerequisite: `lineage` must be `DirectRoot`. A separately replayed
-/// direct-reborrow lineage may name its exact parent loan, but does not yet
-/// close the child's lifetime/restoration resource. Compatibility certificates
-/// remain a separate proof ledger and cannot manufacture one of these rows.
+/// `lineage` must be `DirectRoot`. Compatibility certificates remain a
+/// separate proof ledger and cannot manufacture one of these rows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedDirectBorrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
@@ -221,6 +218,67 @@ pub struct CheckedDirectBorrowLoanResource {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_lifetime: CheckedDirectBorrowParentLifetime,
     pub restoration: CheckedDirectBorrowRestorationObligation,
+}
+
+/// Typed parent-resource identity for one retained direct reborrow.
+///
+/// The handle points into one of the two checked-only resource arenas. It
+/// records the immediate resource occurrence and is not authority to use or
+/// reactivate that resource.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedParentBorrowResource {
+    DirectRoot {
+        resource: Handle<CheckedDirectBorrowLoanResource>,
+    },
+    Reborrow {
+        resource: Handle<CheckedReborrowLoanResource>,
+    },
+}
+
+impl Default for CheckedParentBorrowResource {
+    fn default() -> Self {
+        Self::DirectRoot {
+            resource: Handle::invalid(),
+        }
+    }
+}
+
+/// Pending restoration obligation for one retained direct reborrow.
+///
+/// This row binds the child's weakening to its immediate parent occurrence.
+/// It does not prove that the parent remained active, that the two lifetimes
+/// are temporally contained, or that the parent was reactivated.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowRestorationObligation {
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub child_weakening_source: crate::FlowInvalidationSource,
+    pub child_weakening_reason: crate::FlowBorrowWeakeningReason,
+}
+
+/// Checked-only resource closure for one explicit direct reborrow.
+///
+/// The row retains the child's exact activation/weakening lifecycle and a
+/// typed link to the immediate checked parent resource. It is a pending
+/// restoration obligation only: aggregate transfers, temporal containment,
+/// parent activity/reactivation, and Terminal authority remain outside this
+/// representation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowLoanResource {
+    pub loan: Handle<BorrowLoanFact>,
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub owner_symbol: SymbolHandle,
+    pub owner_path: Vec<BorrowLoanOwnerSegment>,
+    pub captured_place: CapturedPlace,
+    pub access: BorrowAccessKind,
+    pub activation_source: crate::FlowInvalidationSource,
+    pub weakening_source: crate::FlowInvalidationSource,
+    pub weakening_reason: crate::FlowBorrowWeakeningReason,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub restoration: CheckedReborrowRestorationObligation,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -246,9 +304,13 @@ pub struct BorrowFacts {
     pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
-    /// retained separately; reborrow and transfer resource closure remains
-    /// fenced from this first checked-only carrier.
+    /// retained separately.
     pub direct_loan_resources: Arena<CheckedDirectBorrowLoanResource>,
+    /// Non-authorizing resource closures for the narrow explicit direct-
+    /// reborrow lineage. Rows form a topological arena through typed parent
+    /// resource handles. Aggregate and otherwise unretained transfers have no
+    /// row.
+    pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
 }
 
 impl BorrowFacts {
@@ -271,6 +333,7 @@ impl BorrowFacts {
             states,
             compatibility_certificates: Arena::new(),
             direct_loan_resources: Arena::new(),
+            reborrow_loan_resources: Arena::new(),
         }
     }
 
@@ -322,9 +385,9 @@ impl BorrowFacts {
     /// Returns the exact access polarities that an independently replayed
     /// compatibility certificate must consume.
     ///
-    /// Direct-root loans use the joined checked resource row. Reborrow and
-    /// transfer loans remain on their established raw-loan route until their
-    /// parent occurrence lineage has a checked resource representation.
+    /// Direct-root and direct-reborrow loans use their joined checked resource
+    /// rows. Deliberately unretained transfer loans remain on their established
+    /// raw-loan route.
     pub fn compatibility_certificate_resource_accesses(
         &self,
         certificate: &CheckedBorrowCompatibilityCertificate,
@@ -347,21 +410,37 @@ impl BorrowFacts {
         loan: &BorrowLoanFact,
         place: &CapturedPlace,
     ) -> bool {
-        if loan.lineage != BorrowLoanLineage::DirectRoot {
-            return place.root_symbol == loan.root_symbol
-                && place.segments == self.loan_segments(loan);
+        match loan.lineage {
+            BorrowLoanLineage::DirectRoot => {
+                let mut matches = self
+                    .direct_loan_resources
+                    .iter()
+                    .filter(|(_, resource)| resource.loan == handle);
+                let Some((_, resource)) = matches.next() else {
+                    return false;
+                };
+                matches.next().is_none()
+                    && resource.machine_symbol == state.machine_symbol
+                    && resource.state_symbol == state.state_symbol
+                    && &resource.captured_place == place
+            }
+            BorrowLoanLineage::Reborrow { .. } => {
+                let mut matches = self
+                    .reborrow_loan_resources
+                    .iter()
+                    .filter(|(_, resource)| resource.loan == handle);
+                let Some((_, resource)) = matches.next() else {
+                    return false;
+                };
+                matches.next().is_none()
+                    && resource.machine_symbol == state.machine_symbol
+                    && resource.state_symbol == state.state_symbol
+                    && &resource.captured_place == place
+            }
+            BorrowLoanLineage::UnretainedDerived => {
+                place.root_symbol == loan.root_symbol && place.segments == self.loan_segments(loan)
+            }
         }
-        let mut matches = self
-            .direct_loan_resources
-            .iter()
-            .filter(|(_, resource)| resource.loan == handle);
-        let Some((_, resource)) = matches.next() else {
-            return false;
-        };
-        matches.next().is_none()
-            && resource.machine_symbol == state.machine_symbol
-            && resource.state_symbol == state.state_symbol
-            && &resource.captured_place == place
     }
 
     fn certificate_loan_access<'a>(
@@ -369,15 +448,25 @@ impl BorrowFacts {
         handle: Handle<BorrowLoanFact>,
         loan: &'a BorrowLoanFact,
     ) -> Option<&'a BorrowAccessKind> {
-        if loan.lineage != BorrowLoanLineage::DirectRoot {
-            return Some(&loan.kind);
+        match loan.lineage {
+            BorrowLoanLineage::DirectRoot => {
+                let mut matches = self
+                    .direct_loan_resources
+                    .iter()
+                    .filter(|(_, resource)| resource.loan == handle);
+                let access = &matches.next()?.1.access;
+                matches.next().is_none().then_some(access)
+            }
+            BorrowLoanLineage::Reborrow { .. } => {
+                let mut matches = self
+                    .reborrow_loan_resources
+                    .iter()
+                    .filter(|(_, resource)| resource.loan == handle);
+                let access = &matches.next()?.1.access;
+                matches.next().is_none().then_some(access)
+            }
+            BorrowLoanLineage::UnretainedDerived => Some(&loan.kind),
         }
-        let mut matches = self
-            .direct_loan_resources
-            .iter()
-            .filter(|(_, resource)| resource.loan == handle);
-        let access = &matches.next()?.1.access;
-        matches.next().is_none().then_some(access)
     }
 
     pub fn access_segments(&self, access: &BorrowArgumentAccessFact) -> &[psi_facts::PlaceSegment] {
@@ -447,6 +536,7 @@ mod tests {
         assert_eq!(facts.states, states);
         assert!(facts.compatibility_certificates.is_empty());
         assert!(facts.direct_loan_resources.is_empty());
+        assert!(facts.reborrow_loan_resources.is_empty());
     }
 
     #[test]

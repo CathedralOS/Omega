@@ -1,50 +1,224 @@
 use psi_checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation, FlowFacts,
-    FlowInvalidationSource,
+    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
+    CheckedParentBorrowResource, CheckedReborrowLoanResource, CheckedReborrowRestorationObligation,
+    FlowFacts, FlowInvalidationSource,
 };
 use psi_diagnostics::Diagnostic;
 
-/// Populate the checked-only direct-root resource closure before ordinary
-/// checked-fact replay. Reborrow parent identity is replayed here too, but this
-/// resource carrier remains deliberately absent for reborrows and
-/// borrow-carrying transfers until their complete lifetime/restoration closure
-/// is represented.
+/// Populate the checked-only direct-root and direct-reborrow resource closures
+/// before ordinary checked-fact replay.
 pub(super) fn initialize_checked_direct_borrow_resources(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
-    let resources = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
-    facts.borrow.direct_loan_resources.reset_retain_capacity();
-    facts.borrow.direct_loan_resources.insert_many(resources);
+    let direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
+    let reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
+    let installation = plan_resource_installation(&direct, &reborrows)?;
+    install_borrow_resources(&mut facts.borrow, direct, &reborrows, &installation);
     Ok(())
 }
 
-/// Independently replay every retained direct-root resource from the
-/// authoritative loan and flow-lifetime ledgers, then rebuild it
-/// deterministically. The row itself never participates in borrow admission.
+/// Independently replay every retained resource from the authoritative loan
+/// and flow-lifetime ledgers, then transactionally rebuild both arenas with
+/// remapped typed parent handles. The rows never participate in admission.
 pub(super) fn replay_checked_direct_borrow_resources(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
-    let expected = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
+    let expected_direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
+    let expected_reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
     let retained = facts
         .borrow
         .direct_loan_resources
         .iter()
         .map(|(_, resource)| resource.clone())
         .collect::<Vec<_>>();
-    if retained != expected {
+    if retained != expected_direct {
         return Err(vec![Diagnostic::error(
             "checked direct-root borrow resource closure drifted from independent replay",
         )]);
     }
+    validate_retained_reborrow_resources(&facts.borrow, &expected_reborrows)?;
+    let installation = plan_resource_installation(&expected_direct, &expected_reborrows)?;
 
-    facts.borrow.direct_loan_resources.reset_retain_capacity();
-    facts.borrow.direct_loan_resources.insert_many(expected);
+    install_borrow_resources(
+        &mut facts.borrow,
+        expected_direct,
+        &expected_reborrows,
+        &installation,
+    );
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedReborrowLoanResourceDraft {
+    loan: psi_arena::Handle<BorrowLoanFact>,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    owner_symbol: psi_symbols::SymbolHandle,
+    owner_path: Vec<psi_checked_trees::BorrowLoanOwnerSegment>,
+    captured_place: psi_checked_trees::CapturedPlace,
+    access: psi_checked_trees::BorrowAccessKind,
+    activation_source: psi_checked_trees::FlowInvalidationSource,
+    weakening_source: psi_checked_trees::FlowInvalidationSource,
+    weakening_reason: psi_checked_trees::FlowBorrowWeakeningReason,
+    parent_loan: psi_arena::Handle<BorrowLoanFact>,
+}
+
+impl CheckedReborrowLoanResourceDraft {
+    fn close(&self, parent_resource: CheckedParentBorrowResource) -> CheckedReborrowLoanResource {
+        CheckedReborrowLoanResource {
+            loan: self.loan,
+            machine_symbol: self.machine_symbol,
+            state_symbol: self.state_symbol,
+            owner_symbol: self.owner_symbol,
+            owner_path: self.owner_path.clone(),
+            captured_place: self.captured_place.clone(),
+            access: self.access.clone(),
+            activation_source: self.activation_source,
+            weakening_source: self.weakening_source,
+            weakening_reason: self.weakening_reason,
+            parent_loan: self.parent_loan,
+            parent_resource: parent_resource.clone(),
+            restoration: CheckedReborrowRestorationObligation {
+                child_loan: self.loan,
+                parent_loan: self.parent_loan,
+                parent_resource,
+                child_weakening_source: self.weakening_source,
+                child_weakening_reason: self.weakening_reason,
+            },
+        }
+    }
+}
+
+fn validate_retained_reborrow_resources(
+    borrow: &BorrowFacts,
+    expected: &[CheckedReborrowLoanResourceDraft],
+) -> Result<(), Vec<Diagnostic>> {
+    let retained = borrow.reborrow_loan_resources.iter().collect::<Vec<_>>();
+    if retained.len() != expected.len() {
+        return Err(reborrow_resource_drift());
+    }
+
+    let mut prior_reborrows = Vec::new();
+    for ((resource_handle, retained), draft) in retained.into_iter().zip(expected) {
+        let parent_resource = retained_parent_resource(borrow, draft.parent_loan, &prior_reborrows)
+            .ok_or_else(reborrow_resource_drift)?;
+        if retained != &draft.close(parent_resource) {
+            return Err(reborrow_resource_drift());
+        }
+        prior_reborrows.push((draft.loan, resource_handle));
+    }
+    Ok(())
+}
+
+fn retained_parent_resource(
+    borrow: &BorrowFacts,
+    parent_loan: psi_arena::Handle<BorrowLoanFact>,
+    prior_reborrows: &[(
+        psi_arena::Handle<BorrowLoanFact>,
+        psi_arena::Handle<CheckedReborrowLoanResource>,
+    )],
+) -> Option<CheckedParentBorrowResource> {
+    match &borrow.loans.get(parent_loan).lineage {
+        BorrowLoanLineage::DirectRoot => {
+            let mut matches = borrow
+                .direct_loan_resources
+                .iter()
+                .filter(|(_, resource)| resource.loan == parent_loan);
+            let handle = matches.next()?.0;
+            matches
+                .next()
+                .is_none()
+                .then_some(CheckedParentBorrowResource::DirectRoot { resource: handle })
+        }
+        BorrowLoanLineage::Reborrow { .. } => {
+            prior_reborrows.iter().find_map(|(loan, resource)| {
+                (*loan == parent_loan).then_some(CheckedParentBorrowResource::Reborrow {
+                    resource: *resource,
+                })
+            })
+        }
+        BorrowLoanLineage::UnretainedDerived => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParentResourceIndex {
+    Direct(usize),
+    Reborrow(usize),
+}
+
+/// Resolve the entire parent graph before either retained arena is reset.
+/// Installation is therefore a purely indexed, infallible rewrite.
+fn plan_resource_installation(
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+) -> Result<Vec<ParentResourceIndex>, Vec<Diagnostic>> {
+    let mut plan = Vec::with_capacity(reborrows.len());
+    for (child_index, child) in reborrows.iter().enumerate() {
+        let direct_matches = direct
+            .iter()
+            .enumerate()
+            .filter(|(_, resource)| resource.loan == child.parent_loan)
+            .map(|(index, _)| ParentResourceIndex::Direct(index));
+        let reborrow_matches = reborrows[..child_index]
+            .iter()
+            .enumerate()
+            .filter(|(_, resource)| resource.loan == child.parent_loan)
+            .map(|(index, _)| ParentResourceIndex::Reborrow(index));
+        let mut matches = direct_matches.chain(reborrow_matches);
+        let Some(parent) = matches.next() else {
+            return Err(reborrow_resource_drift());
+        };
+        if matches.next().is_some() {
+            return Err(reborrow_resource_drift());
+        }
+        plan.push(parent);
+    }
+    Ok(plan)
+}
+
+fn install_borrow_resources(
+    borrow: &mut BorrowFacts,
+    direct: Vec<CheckedDirectBorrowLoanResource>,
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    installation: &[ParentResourceIndex],
+) {
+    borrow.direct_loan_resources.reset_retain_capacity();
+    borrow.reborrow_loan_resources.reset_retain_capacity();
+
+    let mut direct_handles = Vec::with_capacity(direct.len());
+    for resource in direct {
+        let handle = borrow.direct_loan_resources.insert(resource);
+        direct_handles.push(handle);
+    }
+
+    let mut reborrow_handles: Vec<psi_arena::Handle<CheckedReborrowLoanResource>> =
+        Vec::with_capacity(reborrows.len());
+    for (draft, parent) in reborrows.iter().zip(installation) {
+        let parent_resource = match *parent {
+            ParentResourceIndex::Direct(index) => CheckedParentBorrowResource::DirectRoot {
+                resource: direct_handles[index],
+            },
+            ParentResourceIndex::Reborrow(index) => CheckedParentBorrowResource::Reborrow {
+                resource: reborrow_handles[index],
+            },
+        };
+        let handle = borrow
+            .reborrow_loan_resources
+            .insert(draft.close(parent_resource));
+        reborrow_handles.push(handle);
+    }
+}
+
+fn reborrow_resource_drift() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "checked direct-reborrow resource closure drifted from independent topological replay",
+    )]
 }
 
 fn reconstruct_direct_borrow_resources(
@@ -71,10 +245,8 @@ fn reconstruct_direct_borrow_resources(
             .iter()
             .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
         {
-            // Parent identity is now retained for the narrow direct-reborrow
-            // case, but its complete lifetime/restoration resource is not.
-            // Every derived occurrence therefore remains outside this first
-            // direct-root closure.
+            // Direct reborrows close in their own typed parent-resource arena;
+            // every derived occurrence remains outside this root-only arena.
             if loan.lineage != BorrowLoanLineage::DirectRoot {
                 continue;
             }
@@ -137,6 +309,91 @@ fn reconstruct_direct_borrow_resources(
                 weakening_reason: weakening.reason,
                 parent_lifetime,
                 restoration,
+            });
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(resources)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn reconstruct_reborrow_resource_drafts(
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+) -> Result<Vec<CheckedReborrowLoanResourceDraft>, Vec<Diagnostic>> {
+    let mut resources = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for (_, state) in borrow.states.iter() {
+        let Some(flow_state) = flow.control.states.iter().find_map(|(_, candidate)| {
+            (candidate.machine_symbol == state.machine_symbol
+                && candidate.state_symbol == state.state_symbol)
+                .then_some(candidate)
+        }) else {
+            diagnostics.push(Diagnostic::error(
+                "checked direct-reborrow resource has no exact flow-state owner",
+            ));
+            continue;
+        };
+
+        for (loan_handle, loan) in borrow
+            .loans
+            .iter()
+            .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
+        {
+            let BorrowLoanLineage::Reborrow { parent_loan } = &loan.lineage else {
+                continue;
+            };
+            let activations = flow
+                .borrow_lifetimes
+                .activations
+                .span_or_empty(flow_state.borrow_activations)
+                .iter()
+                .filter(|activation| activation.loan == loan_handle)
+                .collect::<Vec<_>>();
+            let weakenings = flow
+                .borrow_lifetimes
+                .weakenings
+                .span_or_empty(flow_state.borrow_weakenings)
+                .iter()
+                .filter(|weakening| weakening.loan == loan_handle)
+                .collect::<Vec<_>>();
+            let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice())
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow resource requires exactly one activation and one weakening",
+                ));
+                continue;
+            };
+            if activation.source
+                != (FlowInvalidationSource::Statement {
+                    statement_index: loan.statement_index,
+                })
+            {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow activation drifted from loan formation",
+                ));
+                continue;
+            }
+
+            resources.push(CheckedReborrowLoanResourceDraft {
+                loan: loan_handle,
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                owner_symbol: loan.owner_symbol,
+                owner_path: borrow.loan_owner_path(loan).to_vec(),
+                captured_place: psi_checked_trees::CapturedPlace {
+                    root_symbol: loan.root_symbol,
+                    segments: borrow.loan_segments(loan).to_vec(),
+                },
+                access: loan.kind.clone(),
+                activation_source: activation.source,
+                weakening_source: weakening.source,
+                weakening_reason: weakening.reason,
+                parent_loan: *parent_loan,
             });
         }
     }

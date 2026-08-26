@@ -75,6 +75,27 @@ fn direct_reborrow_chain() -> psi_checked_trees::CheckedTrees {
     )
 }
 
+fn main_reborrow_loans(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> Vec<psi_arena::Handle<psi_checked_trees::BorrowLoanFact>> {
+    let state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| checked.facts.borrow.loans.span_or_empty(state.loans).len() == 4)
+        .expect("main reborrow state");
+    checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(handle, _)| checked.facts.borrow.state_owns_loan(state, *handle))
+        .map(|(handle, _)| handle)
+        .collect()
+}
+
 #[test]
 fn retains_exact_direct_root_lifetime_and_restoration_closure() {
     let mut checked = symbolic_adjacency();
@@ -273,6 +294,117 @@ fn retains_exact_immediate_parent_for_multihop_direct_reborrows() {
 }
 
 #[test]
+fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
+    let mut checked = direct_reborrow_chain();
+    let loans = main_reborrow_loans(&checked);
+    let before = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .map(|(handle, row)| (handle, row.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(before.len(), 2);
+    assert_eq!(before[0].1.loan, loans[2]);
+    assert_eq!(before[0].1.parent_loan, loans[1]);
+    let psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
+        before[0].1.parent_resource
+    else {
+        panic!("the first child must link to its direct-root resource")
+    };
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(resource)
+            .loan,
+        loans[1]
+    );
+    assert_eq!(before[1].1.loan, loans[3]);
+    assert_eq!(before[1].1.parent_loan, loans[2]);
+    assert_eq!(
+        before[1].1.parent_resource,
+        psi_checked_trees::CheckedParentBorrowResource::Reborrow {
+            resource: before[0].0,
+        }
+    );
+    for (_, resource) in &before {
+        let loan = checked.facts.borrow.loans.get(resource.loan);
+        assert_eq!(resource.owner_symbol, loan.owner_symbol);
+        assert_eq!(
+            resource.owner_path,
+            checked.facts.borrow.loan_owner_path(loan)
+        );
+        assert_eq!(resource.captured_place.root_symbol, loan.root_symbol);
+        assert_eq!(
+            resource.captured_place.segments,
+            checked.facts.borrow.loan_segments(loan)
+        );
+        assert_eq!(resource.access, loan.kind);
+        assert_eq!(
+            resource.activation_source,
+            psi_checked_trees::FlowInvalidationSource::Statement {
+                statement_index: loan.statement_index,
+            }
+        );
+        assert_eq!(resource.restoration.child_loan, resource.loan);
+        assert_eq!(resource.restoration.parent_loan, resource.parent_loan);
+        assert_eq!(
+            resource.restoration.parent_resource,
+            resource.parent_resource
+        );
+        assert_eq!(
+            resource.restoration.child_weakening_source,
+            resource.weakening_source
+        );
+        assert_eq!(
+            resource.restoration.child_weakening_reason,
+            resource.weakening_reason
+        );
+    }
+
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("topological replay remaps every parent handle transactionally");
+    let after = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .map(|(handle, row)| (handle, row))
+        .collect::<Vec<_>>();
+    assert_eq!(after.len(), 2);
+    assert_eq!(after[0].0, before[0].0);
+    assert_eq!(
+        after[1].1.parent_resource,
+        psi_checked_trees::CheckedParentBorrowResource::Reborrow {
+            resource: after[0].0,
+        }
+    );
+    let psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource } =
+        after[0].1.parent_resource
+    else {
+        panic!("rebuilt first child must retain a direct-root parent")
+    };
+    assert!(
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .is_valid(resource)
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(resource)
+            .loan,
+        loans[1]
+    );
+}
+
+#[test]
 fn retains_projected_direct_reborrow_parent() {
     let checked = lower(
         r#"
@@ -304,6 +436,348 @@ fn retains_projected_direct_reborrow_parent() {
         checked.facts.borrow.loan_segments(loans[1].1).len()
             > checked.facts.borrow.loan_segments(loans[0].1).len()
     );
+    let (_, resource) = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("projected child resource");
+    assert_eq!(resource.loan, loans[1].0);
+    assert_eq!(resource.parent_loan, loans[0].0);
+    assert_eq!(
+        resource.captured_place.segments,
+        checked.facts.borrow.loan_segments(loans[1].1)
+    );
+}
+
+#[test]
+fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transactionally() {
+    for axis in 0..20 {
+        let mut checked = direct_reborrow_chain();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let wrong_direct = checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .iter()
+            .next()
+            .expect("alternate direct resource")
+            .0;
+        let rows = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let resource = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .get_mut(rows[0]);
+        match axis {
+            0 => resource.loan = psi_arena::Handle::invalid(),
+            1 => resource.machine_symbol = psi_symbols::SymbolHandle::invalid(),
+            2 => resource.state_symbol = psi_symbols::SymbolHandle::invalid(),
+            3 => resource.owner_symbol = psi_symbols::SymbolHandle::invalid(),
+            4 => resource
+                .owner_path
+                .push(psi_checked_trees::BorrowLoanOwnerSegment::DynamicIndex),
+            5 => resource.captured_place.root_symbol = psi_symbols::SymbolHandle::invalid(),
+            6 => resource
+                .captured_place
+                .segments
+                .push(psi_facts::PlaceSegment::FixedIndex { index: usize::MAX }),
+            7 => {
+                resource.access = match resource.access {
+                    psi_checked_trees::BorrowAccessKind::Read => {
+                        psi_checked_trees::BorrowAccessKind::Mutable
+                    }
+                    psi_checked_trees::BorrowAccessKind::Mutable
+                    | psi_checked_trees::BorrowAccessKind::WriteOnly => {
+                        psi_checked_trees::BorrowAccessKind::Read
+                    }
+                }
+            }
+            8 => {
+                resource.activation_source = psi_checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: usize::MAX,
+                }
+            }
+            9 => {
+                resource.weakening_source = psi_checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: usize::MAX,
+                }
+            }
+            10 => resource.parent_loan = psi_arena::Handle::invalid(),
+            11 => {
+                resource.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::Reborrow { resource: rows[1] }
+            }
+            12 => resource.restoration.child_loan = psi_arena::Handle::invalid(),
+            13 => resource.restoration.parent_loan = psi_arena::Handle::invalid(),
+            14 => {
+                resource.restoration.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::Reborrow { resource: rows[1] }
+            }
+            15 => {
+                resource.restoration.child_weakening_reason =
+                    match resource.restoration.child_weakening_reason {
+                        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+                            psi_checked_trees::FlowBorrowWeakeningReason::StateExit
+                        }
+                        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                        | psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                            psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                        }
+                    }
+            }
+            16 => {
+                resource.weakening_reason = match resource.weakening_reason {
+                    psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+                        psi_checked_trees::FlowBorrowWeakeningReason::StateExit
+                    }
+                    psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                    | psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+                    }
+                }
+            }
+            17 => {
+                resource.restoration.child_weakening_source =
+                    psi_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
+                    }
+            }
+            18 => {
+                resource.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: wrong_direct,
+                    }
+            }
+            19 => {
+                resource.restoration.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: wrong_direct,
+                    }
+            }
+            _ => unreachable!(),
+        }
+
+        let Err(diagnostics) =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        else {
+            panic!("reborrow resource drift axis {axis} was accepted")
+        };
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("direct-reborrow resource closure drifted")
+                || diagnostic
+                    .message
+                    .contains("does not rejoin its exact state-owned loans")
+        }));
+        assert_eq!(
+            checked.facts.borrow.direct_loan_resources, direct_before,
+            "failed reborrow replay must not rebuild the direct arena"
+        );
+    }
+}
+
+#[test]
+fn rejects_missing_duplicate_reordered_and_cross_state_reborrow_resources() {
+    for axis in 0..4 {
+        let mut checked = direct_reborrow_chain();
+        let rows = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .iter()
+            .map(|(_, row)| row.clone())
+            .collect::<Vec<_>>();
+        checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .reset_retain_capacity();
+        match axis {
+            0 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[0].clone());
+            }
+            1 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[0].clone());
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[1].clone());
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[1].clone());
+            }
+            2 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[1].clone());
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[0].clone());
+            }
+            3 => {
+                let sibling = checked
+                    .facts
+                    .borrow
+                    .direct_loan_resources
+                    .iter()
+                    .map(|(_, row)| row)
+                    .find(|row| row.machine_symbol != rows[0].machine_symbol)
+                    .expect("sibling resource owner");
+                let mut substituted = rows[0].clone();
+                substituted.machine_symbol = sibling.machine_symbol;
+                substituted.state_symbol = sibling.state_symbol;
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(substituted);
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .insert(rows[1].clone());
+            }
+            _ => unreachable!(),
+        }
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("resource cardinality, order, and owner substitution must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("direct-reborrow resource closure drifted")
+                || diagnostic
+                    .message
+                    .contains("does not rejoin its exact state-owned loans")
+        }));
+    }
+}
+
+#[test]
+fn rejects_missing_and_duplicate_reborrow_lifecycle_edges() {
+    for weakenings in [false, true] {
+        for duplicate in [false, true] {
+            let mut checked = direct_reborrow_chain();
+            let loans = main_reborrow_loans(&checked);
+            let target = loans[2];
+            let replacement = if duplicate {
+                loans[2]
+            } else {
+                psi_arena::Handle::invalid()
+            };
+            let source = if duplicate { loans[3] } else { target };
+            if weakenings {
+                let arena = &mut checked.facts.flow.borrow_lifetimes.weakenings;
+                let handle = arena
+                    .iter()
+                    .find(|(_, edge)| edge.loan == source)
+                    .map(|(handle, _)| handle)
+                    .expect("selected reborrow weakening edge");
+                arena.get_mut(handle).loan = replacement;
+            } else {
+                let arena = &mut checked.facts.flow.borrow_lifetimes.activations;
+                let handle = arena
+                    .iter()
+                    .find(|(_, edge)| edge.loan == source)
+                    .map(|(handle, _)| handle)
+                    .expect("selected reborrow activation edge");
+                arena.get_mut(handle).loan = replacement;
+            }
+
+            let diagnostics =
+                crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                    .expect_err("missing and duplicate child lifecycle edges must reject");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(
+                        "direct-reborrow resource requires exactly one activation and one weakening"
+                    ))
+            );
+        }
+    }
+}
+
+#[test]
+fn reborrow_compatibility_certificate_requires_its_checked_resource() {
+    let mut checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { left: Cell; right: Cell; }
+        machine write(value: &mut i32) { value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.left;
+            let child: &mut i32 = &mut parent.value;
+            let sibling: &mut i32 = &mut self.right.value;
+            write(child);
+            write(sibling);
+        }
+        "#,
+    );
+    let certificate = checked
+        .facts
+        .borrow
+        .compatibility_certificates
+        .iter()
+        .map(|(_, row)| row.clone())
+        .find(|row| {
+            matches!(
+                checked.facts.borrow.loans.get(row.forming_loan).lineage,
+                psi_checked_trees::BorrowLoanLineage::Reborrow { .. }
+            ) || matches!(
+                checked.facts.borrow.loans.get(row.active_loan).lineage,
+                psi_checked_trees::BorrowLoanLineage::Reborrow { .. }
+            )
+        })
+        .expect("source-backed compatibility certificate involving a reborrow");
+    assert!(
+        checked
+            .facts
+            .borrow
+            .compatibility_certificate_matches_resources(&certificate)
+    );
+    checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .reset_retain_capacity();
+    assert!(
+        !checked
+            .facts
+            .borrow
+            .compatibility_certificate_matches_resources(&certificate)
+    );
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &checked.facts)
+        .expect_err("a certificate cannot replace its missing reborrow resource");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not rejoin its exact state-owned loans")
+    }));
 }
 
 #[test]
@@ -434,6 +908,7 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
         })
     );
     assert_ne!(child_loans[0].root_symbol, child_loans[1].root_symbol);
+    assert!(ambiguous.facts.borrow.reborrow_loan_resources.is_empty());
 
     let derived = lower(
         r#"
@@ -465,6 +940,40 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
             loan.lineage == psi_checked_trees::BorrowLoanLineage::UnretainedDerived
         })
     );
+    assert!(derived.facts.borrow.reborrow_loan_resources.is_empty());
+}
+
+#[test]
+fn keeps_explicit_reborrow_of_an_unretained_helper_parent_outside_the_resource_arena() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine pass(value: &mut Cell) -> &mut Cell { value }
+        machine write(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let direct: &mut Cell = &mut self.cell;
+            let helper: &mut Cell = pass(direct);
+            let child: &mut Cell = &mut helper;
+            write(child);
+        }
+        "#,
+    );
+    let derived = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(_, loan)| loan.source_owner_symbol.is_valid())
+        .map(|(_, loan)| loan)
+        .collect::<Vec<_>>();
+    assert!(derived.len() >= 2);
+    assert!(
+        derived.iter().all(|loan| {
+            loan.lineage == psi_checked_trees::BorrowLoanLineage::UnretainedDerived
+        })
+    );
+    assert!(checked.facts.borrow.reborrow_loan_resources.is_empty());
 }
 
 #[test]
@@ -590,7 +1099,7 @@ fn rejects_duplicate_direct_resource_and_missing_lifecycle_edges() {
 }
 
 #[test]
-fn excludes_reborrow_rows_until_exact_parent_occurrences_are_retained() {
+fn keeps_reborrows_out_of_the_direct_arena_and_in_the_typed_child_arena() {
     let checked = lower(
         r#"
         data Cell { value: i32; }
@@ -629,6 +1138,21 @@ fn excludes_reborrow_rows_until_exact_parent_occurrences_are_retained() {
             .direct_loan_resources
             .iter()
             .all(|(_, resource)| !checked
+                .facts
+                .borrow
+                .loans
+                .get(resource.loan)
+                .source_owner_symbol
+                .is_valid())
+    );
+    assert_eq!(checked.facts.borrow.reborrow_loan_resources.len(), derived);
+    assert!(
+        checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .iter()
+            .all(|(_, resource)| checked
                 .facts
                 .borrow
                 .loans
