@@ -1,7 +1,8 @@
 use std::num::NonZeroU64;
 
 use crate::{
-    TerminalExecutableImage, TerminalNativeFuelExecutableImage, TerminalObjectBoundarySettlement,
+    TerminalExecutableImage, TerminalNativeFuelExecutableImage,
+    TerminalNativeFuelTransferRuntimeExecutableImage, TerminalObjectBoundarySettlement,
     TerminalObjectFuelAttribution, TerminalObjectPortEffect,
     boundary_results::boundary_result_is_exact,
     byte_sequence_custody::linux_write_line_custody_is_exact,
@@ -16,6 +17,7 @@ use omega_image::CompilerTextValidationEvidence;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_installation_evidence::{
     NativeFuelTargetPlanProjection, TerminalNativeFuelChargeEvidence,
+    TerminalNativeFuelTransferRuntimeEvidence,
 };
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalStructuralReturnRecord};
 use omega_terminal_target_operations::{TerminalBoundaryRealization, TerminalCallSiteOwner};
@@ -38,6 +40,7 @@ mod function_stack_codec;
 mod installation_header_codec;
 mod internal_unit_call_codec;
 mod native_fuel_codec;
+mod native_fuel_transfer_codec;
 mod port_effect_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
@@ -53,7 +56,8 @@ mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
 use fingerprint_codec::{
-    fingerprint_image, fingerprint_native_fuel_source, fingerprint_record, write_hex,
+    fingerprint_image, fingerprint_native_fuel_source, fingerprint_native_fuel_transfer_final,
+    fingerprint_native_fuel_transfer_unrelocated, fingerprint_record, write_hex,
 };
 use fuel_attribution_codec::{decode_fuel_attributions, encode_fuel_attributions};
 use function_codec::{decode_functions, encode_functions};
@@ -62,6 +66,7 @@ use installation_header_codec::{
 };
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use native_fuel_codec::{decode_native_fuel, encode_native_fuel};
+use native_fuel_transfer_codec::{decode_native_fuel_transfer, encode_native_fuel_transfer};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use structural_case_codec::{decode_structural_cases, encode_structural_cases};
@@ -72,7 +77,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 38;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 39;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -206,6 +211,7 @@ pub struct TerminalInstallationRecord {
     internal_unit_calls: Vec<TerminalInstalledInternalUnitCall>,
     fuel_attribution: Vec<TerminalObjectFuelAttribution>,
     native_fuel: Option<TerminalInstalledNativeFuel>,
+    native_fuel_transfer_runtime: Option<TerminalInstalledNativeFuelTransferRuntime>,
     port_effects: Vec<TerminalObjectPortEffect>,
     boundary_settlements: Vec<TerminalObjectBoundarySettlement>,
     image: TerminalImageFingerprint,
@@ -259,6 +265,12 @@ impl TerminalInstallationRecord {
 
     pub const fn native_fuel(&self) -> Option<&TerminalInstalledNativeFuel> {
         self.native_fuel.as_ref()
+    }
+
+    pub const fn native_fuel_transfer_runtime(
+        &self,
+    ) -> Option<&TerminalInstalledNativeFuelTransferRuntime> {
+        self.native_fuel_transfer_runtime.as_ref()
     }
 
     pub fn port_effects(&self) -> &[TerminalObjectPortEffect] {
@@ -325,6 +337,27 @@ impl TerminalNativeFuelSourceFingerprint {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalNativeFuelTransferTextFingerprint([u8; 32]);
+
+impl TerminalNativeFuelTransferTextFingerprint {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for TerminalNativeFuelTransferTextFingerprint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::fmt::Display for TerminalNativeFuelTransferTextFingerprint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_hex(formatter, &self.0)
+    }
+}
+
 impl std::fmt::Debug for TerminalNativeFuelSourceFingerprint {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, formatter)
@@ -377,6 +410,45 @@ impl TerminalInstalledNativeFuel {
 
     pub fn charges(&self) -> &[TerminalNativeFuelChargeEvidence] {
         &self.charges
+    }
+}
+
+/// Canonical report-only transfer-runtime facts for one native-metered image.
+/// Full-text fingerprints keep the appended runtime evidence joined to both
+/// relocation sides without granting installation or execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledNativeFuelTransferRuntime {
+    unrelocated_text_fingerprint: TerminalNativeFuelTransferTextFingerprint,
+    unrelocated_text_byte_count: usize,
+    final_text_fingerprint: TerminalNativeFuelTransferTextFingerprint,
+    final_text_byte_count: usize,
+    sponsor_text_offset: usize,
+    evidence: TerminalNativeFuelTransferRuntimeEvidence,
+}
+
+impl TerminalInstalledNativeFuelTransferRuntime {
+    pub const fn unrelocated_text_fingerprint(&self) -> TerminalNativeFuelTransferTextFingerprint {
+        self.unrelocated_text_fingerprint
+    }
+
+    pub const fn unrelocated_text_byte_count(&self) -> usize {
+        self.unrelocated_text_byte_count
+    }
+
+    pub const fn final_text_fingerprint(&self) -> TerminalNativeFuelTransferTextFingerprint {
+        self.final_text_fingerprint
+    }
+
+    pub const fn final_text_byte_count(&self) -> usize {
+        self.final_text_byte_count
+    }
+
+    pub const fn sponsor_text_offset(&self) -> usize {
+        self.sponsor_text_offset
+    }
+
+    pub const fn evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
+        &self.evidence
     }
 }
 
@@ -598,6 +670,7 @@ where
             .collect(),
         fuel_attribution: image.fuel_attribution().to_vec(),
         native_fuel: None,
+        native_fuel_transfer_runtime: None,
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
         image: fingerprint_image(&image.output().bytes),
@@ -673,7 +746,7 @@ where
     Ok(record)
 }
 
-/// Rejoin a decoded format-38 record to the exact replayed metered image.
+/// Rejoin a decoded format-39 record to the exact replayed metered image.
 /// The common semantic rows validate against the retained source artifact;
 /// this second half validates the independent physical coordinate map.
 pub fn validate_terminal_native_fuel_installation_record(
@@ -681,6 +754,9 @@ pub fn validate_terminal_native_fuel_installation_record(
     image: &TerminalNativeFuelExecutableImage,
 ) -> Result<(), TerminalInstallationError> {
     validate_record_shape(record)?;
+    if record.native_fuel_transfer_runtime.is_some() {
+        return Err(TerminalInstallationError::NativeFuelTransferImageMismatch);
+    }
     let mut semantic_record = record.clone();
     semantic_record.native_fuel = None;
     let semantic_view = image.semantic_installation_view();
@@ -719,6 +795,106 @@ fn expected_installed_native_fuel(
         functions,
         charges: image.charges(),
     })
+}
+
+/// Build the canonical installation record for one final native-metered image
+/// containing the independently replayed exhaustion-transfer runtime.
+pub fn build_terminal_native_fuel_transfer_runtime_installation_record(
+    image: &TerminalNativeFuelTransferRuntimeExecutableImage,
+    profile_decision: ProfileDecisionId,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError> {
+    build_terminal_native_fuel_transfer_runtime_installation_record_with_provider_executions(
+        image,
+        profile_decision,
+        std::iter::empty::<
+            &dyn omega_terminal_installation_evidence::TerminalProviderExecutionEvidence,
+        >(),
+    )
+}
+
+pub fn build_terminal_native_fuel_transfer_runtime_installation_record_with_provider_executions<
+    'execution,
+    Execution,
+>(
+    image: &TerminalNativeFuelTransferRuntimeExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
+    build_terminal_native_fuel_transfer_runtime_installation_record_with_evidence(
+        image,
+        profile_decision,
+        provider_executions,
+        None,
+    )
+}
+
+pub fn build_terminal_native_fuel_transfer_runtime_installation_record_with_evidence<
+    'execution,
+    Execution,
+>(
+    image: &TerminalNativeFuelTransferRuntimeExecutableImage,
+    profile_decision: ProfileDecisionId,
+    provider_executions: impl IntoIterator<Item = &'execution Execution>,
+    component_progress: Option<
+        &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence,
+    >,
+) -> Result<TerminalInstallationRecord, TerminalInstallationError>
+where
+    Execution: omega_terminal_installation_evidence::TerminalProviderExecutionEvidence
+        + ?Sized
+        + 'execution,
+{
+    let metered_view = image.metered_installation_view();
+    let mut record = build_terminal_native_fuel_installation_record_with_evidence(
+        &metered_view,
+        profile_decision,
+        provider_executions,
+        component_progress,
+    )?;
+    record.native_fuel_transfer_runtime = Some(expected_installed_native_fuel_transfer(image));
+    validate_terminal_native_fuel_transfer_runtime_installation_record(&record, image)?;
+    Ok(record)
+}
+
+/// Rejoin a decoded format-39 record to both complete transfer-runtime text
+/// coordinates and the replayed runtime evidence. This remains report-only;
+/// installed executable custody is constructed by external-root admission.
+pub fn validate_terminal_native_fuel_transfer_runtime_installation_record(
+    record: &TerminalInstallationRecord,
+    image: &TerminalNativeFuelTransferRuntimeExecutableImage,
+) -> Result<(), TerminalInstallationError> {
+    validate_record_shape(record)?;
+    let mut metered_record = record.clone();
+    metered_record.native_fuel_transfer_runtime = None;
+    let metered_view = image.metered_installation_view();
+    validate_terminal_native_fuel_installation_record(&metered_record, &metered_view)?;
+    let expected = expected_installed_native_fuel_transfer(image);
+    if record.native_fuel_transfer_runtime.as_ref() != Some(&expected) {
+        return Err(TerminalInstallationError::NativeFuelTransferImageMismatch);
+    }
+    Ok(())
+}
+
+fn expected_installed_native_fuel_transfer(
+    image: &TerminalNativeFuelTransferRuntimeExecutableImage,
+) -> TerminalInstalledNativeFuelTransferRuntime {
+    use omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeImageEvidence;
+
+    let unrelocated = image.unrelocated_text_bytes();
+    let final_text = image.final_text_bytes();
+    TerminalInstalledNativeFuelTransferRuntime {
+        unrelocated_text_fingerprint: fingerprint_native_fuel_transfer_unrelocated(unrelocated),
+        unrelocated_text_byte_count: unrelocated.len(),
+        final_text_fingerprint: fingerprint_native_fuel_transfer_final(final_text),
+        final_text_byte_count: final_text.len(),
+        sponsor_text_offset: image.sponsor_text_offset(),
+        evidence: image.transfer_runtime_evidence().clone(),
+    }
 }
 
 /// Recompose the exact internal stack closure retained by a canonical
@@ -900,6 +1076,7 @@ pub fn encode_terminal_installation_record(
     )?;
     encode_fuel_attributions(&mut bytes, fuel_attribution_count, &record.fuel_attribution)?;
     encode_native_fuel(&mut bytes, record.native_fuel.as_ref())?;
+    encode_native_fuel_transfer(&mut bytes, record.native_fuel_transfer_runtime.as_ref())?;
     encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
     encode_boundary_settlements(&mut bytes, settlement_count, &record.boundary_settlements)?;
     Ok(bytes)
@@ -924,6 +1101,7 @@ pub fn decode_terminal_installation_record(
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let fuel_attribution = decode_fuel_attributions(&mut reader)?;
     let native_fuel = decode_native_fuel(&mut reader, target)?;
+    let native_fuel_transfer_runtime = decode_native_fuel_transfer(&mut reader, target)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
     if reader.remaining() != 0 {
@@ -942,6 +1120,7 @@ pub fn decode_terminal_installation_record(
         internal_unit_calls,
         fuel_attribution,
         native_fuel,
+        native_fuel_transfer_runtime,
         port_effects,
         boundary_settlements,
         image,
@@ -960,6 +1139,7 @@ pub fn validate_terminal_installation_record(
 ) -> Result<(), TerminalInstallationError> {
     validate_record_shape(record)?;
     if record.native_fuel.is_some()
+        || record.native_fuel_transfer_runtime.is_some()
         || record.terminal_psi != image.terminal_psi()
         || record.target != image.target()
         || record.subsystem != image.subsystem()
@@ -2307,6 +2487,59 @@ fn validate_record_shape(
         previous_operation_ordinal = installed.settlement.operation_ordinal;
     }
     validate_native_fuel_shape(record)?;
+    validate_native_fuel_transfer_shape(record)?;
+    Ok(())
+}
+
+fn validate_native_fuel_transfer_shape(
+    record: &TerminalInstallationRecord,
+) -> Result<(), TerminalInstallationError> {
+    let Some(transfer) = &record.native_fuel_transfer_runtime else {
+        return Ok(());
+    };
+    let Some(native) = &record.native_fuel else {
+        return Err(TerminalInstallationError::NativeFuelTransferWithoutMetering);
+    };
+    let evidence = &transfer.evidence;
+    if evidence.plan().target() != record.target
+        || evidence
+            .plan()
+            .validate_target_policy(native.target_policy)
+            .is_err()
+        || transfer.unrelocated_text_byte_count == 0
+        || transfer.final_text_byte_count == 0
+        || transfer.unrelocated_text_byte_count != transfer.final_text_byte_count
+    {
+        return Err(TerminalInstallationError::InvalidNativeFuelTransferEvidence);
+    }
+
+    let metered_end = native
+        .functions
+        .last()
+        .and_then(|function| {
+            function
+                .metered_text_offset
+                .checked_add(function.metered_byte_count)
+        })
+        .ok_or(TerminalInstallationError::InvalidNativeFuelTransferEvidence)?;
+    let transfer_span = evidence.transfer_text().span();
+    let resume_span = evidence.resume_text().span();
+    let transfer_end = transfer_span
+        .text_offset
+        .checked_add(transfer_span.byte_count)
+        .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+    let resume_end = resume_span
+        .text_offset
+        .checked_add(resume_span.byte_count)
+        .ok_or(TerminalInstallationError::NativeFuelOffsetNotRepresentable)?;
+    if transfer.sponsor_text_offset >= metered_end
+        || transfer_span.text_offset != metered_end
+        || resume_span.text_offset != transfer_end
+        || resume_end != transfer.unrelocated_text_byte_count
+        || resume_end != transfer.final_text_byte_count
+    {
+        return Err(TerminalInstallationError::InvalidNativeFuelTransferEvidence);
+    }
     Ok(())
 }
 
@@ -2860,6 +3093,9 @@ pub enum TerminalInstallationError {
     TooManyFuelAttributions,
     TooManyNativeFuelFunctions,
     TooManyNativeFuelCharges,
+    TooManyNativeFuelTransferStateSlots,
+    TooManyNativeFuelTransferRegisters,
+    NativeFuelTransferBytesTooLong,
     TooManyPortEffects,
     TooManyBoundarySettlements,
     TooManySettlementScalarArguments,
@@ -2898,6 +3134,11 @@ pub enum TerminalInstallationError {
     InvalidNativeFuelSiteTag(u8),
     InvalidNativeFuelProfileTag(u8),
     InvalidNativeFuelTransportTag(u8),
+    InvalidNativeFuelSavedValueTag(u8),
+    InvalidNativeFuelTransferRegister,
+    InvalidNativeFuelTransferMachineState,
+    InvalidNativeFuelTransferPlan,
+    InvalidNativeFuelTransferEvidence,
     ZeroNativeFuelIdentity(&'static str),
     InvalidCallSiteOwnerTag(u8),
     InvalidBoundaryRealizationTag,
@@ -2981,6 +3222,8 @@ pub enum TerminalInstallationError {
     MissingCompilerTextValidation,
     ImageBindingMismatch,
     NativeFuelImageMismatch,
+    NativeFuelTransferWithoutMetering,
+    NativeFuelTransferImageMismatch,
 }
 
 impl std::fmt::Display for TerminalInstallationError {

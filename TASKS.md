@@ -5027,13 +5027,22 @@ Remaining:
   Fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
   publishes its kind and replay-bound fingerprint. Terminal installation format
-  36 now takes the explicit dual-coordinate route: ordinary function, effect,
+  39 takes the explicit dual-coordinate route: ordinary function, effect,
   settlement, and fuel rows retain immutable semantic/source coordinates, while
   an optional native-fuel section commits the exact target recipe and source
   fingerprint, one source-to-metered function-span map, and the ordered hot/
   semantic/cold charge catalog. Plain images require that section to be absent.
   Native builders, codecs, and image rejoin validation reject target-policy,
   source, function-map, charge-row, or physical-coordinate drift independently.
+  A second optional format-39 section now carries the transfer runtime without
+  relabeling those semantic rows: it commits domain-separated fingerprints and
+  lengths for the complete unrelocated/final text, the exact sponsor-call text
+  coordinate, the canonical structural transfer plan, dual transfer/resume
+  bytes, physical state footprint, and realized sponsor-stack peak. Decode
+  reconstructs the sealed plan/evidence and rejects derived-identity drift;
+  installation replay rejoins both full-text coordinates to the exact image.
+  Plain and metered-only validators reject the section, and the report grants no
+  executable authority.
   A dependency-light transfer-runtime owner now defines and validates the exact
   profile/target/context projection, complete naturally aligned activation save
   slots, interrupted/saved/restored state sets, independent sponsor-stack
@@ -5060,9 +5069,8 @@ Remaining:
   exact `Aarch64Branch26`, `Aarch64Page21`, and `Aarch64PageOffset12`
   relocations, emits through the ELF AArch64 path, and decodes final `BL` plus
   `ADRP`/`ADD` instructions to require the exact sponsor target and `.text`
-  base. The remaining native slice is to carry transfer evidence through the
-  installation format and connect the admitted runtime into deployed dynamic
-  roots.
+  base. The remaining native slice is to connect the admitted runtime into
+  deployed dynamic roots.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

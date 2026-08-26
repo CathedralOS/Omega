@@ -248,7 +248,7 @@ fn decode_offset(reader: &mut Reader<'_>) -> Result<usize, TerminalInstallationE
         .map_err(|_| TerminalInstallationError::NativeFuelOffsetNotRepresentable)
 }
 
-fn profile_tag(profile: TargetProfile) -> u8 {
+pub(super) fn profile_tag(profile: TargetProfile) -> u8 {
     match profile {
         TargetProfile::LinuxArm64 => 1,
         TargetProfile::LinuxX64 => 2,
@@ -260,7 +260,7 @@ fn profile_tag(profile: TargetProfile) -> u8 {
     }
 }
 
-fn decode_profile(tag: u8) -> Result<TargetProfile, TerminalInstallationError> {
+pub(super) fn decode_profile(tag: u8) -> Result<TargetProfile, TerminalInstallationError> {
     match tag {
         1 => Ok(TargetProfile::LinuxArm64),
         2 => Ok(TargetProfile::LinuxX64),
@@ -273,7 +273,7 @@ fn decode_profile(tag: u8) -> Result<TargetProfile, TerminalInstallationError> {
     }
 }
 
-fn transport_tag(transport: SponsorContextTransport) -> u8 {
+pub(super) fn transport_tag(transport: SponsorContextTransport) -> u8 {
     match transport {
         SponsorContextTransport::ReservedNonvolatileRegister {
             register: MachineRegister::X86Rbx,
@@ -285,7 +285,9 @@ fn transport_tag(transport: SponsorContextTransport) -> u8 {
     }
 }
 
-fn decode_transport(tag: u8) -> Result<SponsorContextTransport, TerminalInstallationError> {
+pub(super) fn decode_transport(
+    tag: u8,
+) -> Result<SponsorContextTransport, TerminalInstallationError> {
     match tag {
         1 => Ok(SponsorContextTransport::ReservedNonvolatileRegister {
             register: MachineRegister::X86Rbx,
