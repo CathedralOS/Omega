@@ -201,6 +201,20 @@ fn fixed_integer_array_type(
         })
 }
 
+fn fixed_float_array_type(
+    program: &mut TypedTrees,
+    primitive: &'static str,
+    width: usize,
+) -> TypeReferenceHandle {
+    let element_type = primitive_type(program, primitive);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(width),
+        })
+}
+
 fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> ExpressionHandle {
     let elements =
         bytes
@@ -242,6 +256,24 @@ fn integer_array_literal(
             program
                 .expression_table
                 .insert(ExpressionNode::Integer(value))
+        })
+        .collect::<Vec<_>>();
+    let elements = program.expression_table.insert_expression_handles(elements);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn float_array_literal(
+    program: &mut TypedTrees,
+    values: impl IntoIterator<Item = FloatLiteral>,
+) -> ExpressionHandle {
+    let elements = values
+        .into_iter()
+        .map(|value| {
+            program
+                .expression_table
+                .insert(ExpressionNode::Float(value))
         })
         .collect::<Vec<_>>();
     let elements = program.expression_table.insert_expression_handles(elements);
@@ -2098,6 +2130,44 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&integer_array_value),
         context(&no_values),
     ));
+
+    let float_array_parameter = symbol(959);
+    let float_array_name = named_argument(&mut program, "scales", float_array_parameter);
+    let exact_float_array_literal = float_array_literal(
+        &mut program,
+        [
+            FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+            FloatLiteral::parse("2.5f32").expect("format-landed f32 literal"),
+        ],
+    );
+    let drifted_float_array_literal = float_array_literal(
+        &mut program,
+        [
+            FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+            FloatLiteral::parse("2.5f32").expect("format-landed f32 literal"),
+        ],
+    );
+    let float_array_value = vec![ProofValueSubstitution::float_array(
+        float_array_parameter,
+        [
+            ("1.25".to_owned(), FloatFormat::F32),
+            ("2.5".to_owned(), FloatFormat::F32),
+        ],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_array_name),
+        &ProofFact::Expression(exact_float_array_literal),
+        context(&float_array_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_array_name),
+        &ProofFact::Expression(drifted_float_array_literal),
+        context(&float_array_value),
+        context(&no_values),
+    ));
 }
 
 #[test]
@@ -3025,6 +3095,112 @@ fn direct_lift_runtime_accepts_exact_integer_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_float_array_literals() {
+    use super::runtime_correspondence::ClosedFloatArrayElement;
+
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(980),
+        "FloatArrayLiteralQ",
+        symbol(981),
+        "FloatArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let f32_array = fixed_float_array_type(&mut program, "f32", 2);
+    let f64_array = fixed_float_array_type(&mut program, "f64", 1);
+    let f32_literal = float_array_literal(
+        &mut program,
+        [
+            FloatLiteral::parse("1.25").expect("anonymous exact decimal literal"),
+            FloatLiteral::parse("2.5").expect("anonymous exact decimal literal"),
+        ],
+    );
+    let f64_literal = float_array_literal(
+        &mut program,
+        [FloatLiteral::parse("3.75f64").expect("format-landed f64 literal")],
+    );
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([f32_literal, f64_literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(
+        &mut program,
+        &[(f32_array, false, false), (f64_array, false, false)],
+        carrier,
+    );
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("each fixed float-array element follows the exact scalar format rule");
+    assert_eq!(
+        plan.input_relations,
+        [
+            InputRelation::ExactEquality(f32_array),
+            InputRelation::ExactEquality(f64_array),
+        ]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("float-array literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
+                        elements: Arc::from(vec![
+                            ClosedFloatArrayElement {
+                                spelling: "1.25".to_owned(),
+                                landing: FloatFormat::F32,
+                            },
+                            ClosedFloatArrayElement {
+                                spelling: "2.5".to_owned(),
+                                landing: FloatFormat::F32,
+                            },
+                        ]),
+                        target_type: program.normalized_type_identity(f32_array),
+                    },
+                ),
+                representative_parameter: symbol(100),
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
+                        elements: Arc::from(vec![ClosedFloatArrayElement {
+                            spelling: "3.75".to_owned(),
+                            landing: FloatFormat::F64,
+                        }]),
+                        target_type: program.normalized_type_identity(f64_array),
+                    },
+                ),
+                representative_parameter: symbol(101),
+            },
+        ]
+    );
+    let mut format_drift = runtime.clone();
+    format_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
+            elements: Arc::from(vec![
+                ClosedFloatArrayElement {
+                    spelling: "1.25".to_owned(),
+                    landing: FloatFormat::F64,
+                },
+                ClosedFloatArrayElement {
+                    spelling: "2.5".to_owned(),
+                    landing: FloatFormat::F32,
+                },
+            ]),
+            target_type: program.normalized_type_identity(f32_array),
+        },
+    );
+    assert_ne!(runtime, format_drift, "element format remains identity");
+}
+
+#[test]
 fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positions() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -3118,6 +3294,7 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
     let i8_type = primitive_type(&mut program, "i8");
     let u8_type = primitive_type(&mut program, "u8");
     let bool_type = primitive_type(&mut program, "bool");
+    let f32_type = primitive_type(&mut program, "f32");
     let f64_type = primitive_type(&mut program, "f64");
     let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let cases = [
@@ -3348,6 +3525,61 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (24, wrapping_array, one_i8_array),
         (25, boolean_array, constrained_boolean_array),
         (26, out_of_range_array, unresolved_i8_array),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+    let mismatched_float_array = float_array_literal(
+        &mut program,
+        [FloatLiteral::parse("1.25f64").expect("format-landed f64 literal")],
+    );
+    let short_float_array = float_array_literal(
+        &mut program,
+        [FloatLiteral::parse("1.25f32").expect("format-landed f32 literal")],
+    );
+    let computed_left = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.0f32").expect("format-landed f32 literal"),
+    ));
+    let computed_right = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("2.0f32").expect("format-landed f32 literal"),
+    ));
+    let computed_float =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: computed_left,
+                operator: BinaryOperator::Add,
+                right: computed_right,
+            }));
+    let computed_elements = program
+        .expression_table
+        .insert_expression_handles([computed_float]);
+    let computed_float_array = program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(computed_elements));
+    let one_f32_array = fixed_float_array_type(&mut program, "f32", 1);
+    let two_f32_array = fixed_float_array_type(&mut program, "f32", 2);
+    let constrained_f32 = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: f32_type,
+            constraints: HandleSpan::empty(),
+        });
+    let constrained_float_array =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_f32,
+                length: FixedArrayLength::Literal(1),
+            });
+    for (position, expression, target) in [
+        (27, mismatched_float_array, one_f32_array),
+        (28, integer_array, one_f32_array),
+        (29, short_float_array, two_f32_array),
+        (30, computed_float_array, one_f32_array),
+        (31, short_float_array, constrained_float_array),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

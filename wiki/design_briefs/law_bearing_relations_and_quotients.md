@@ -808,7 +808,11 @@ likewise contain only integer literals at an exact literal-width primitive
 `[I; N]` target. Each element independently follows the scalar landing rule:
 its explicit landing must agree, or the exact element target supplies one, and
 the value must fit. Ordered spelling/landing evidence and normalized array
-identity are retained without element coercion. Exact
+identity are retained without element coercion. A direct fixed float array may
+likewise contain only float literals at an exact literal-width `[f32; N]` or
+`[f64; N]` target. Each element independently follows the scalar format rule;
+ordered spelling/format evidence and normalized array identity are retained
+without evaluating computed elements. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -818,8 +822,9 @@ Literal-only facts stay fixed ordinary call obligations. Mismatched or
 out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
-byte/Boolean arrays, mismatched or out-of-range integer arrays, float, nested,
-or data arrays, other aggregates, zero-value, casts, calls, computations,
+byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
+computed float arrays, nested or data arrays, other aggregates, zero-value,
+casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly

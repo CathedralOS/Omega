@@ -8107,7 +8107,11 @@ Remaining N6/N8 work:
   `[I; N]` target. Each element independently follows the scalar landing rule:
   its explicit landing must agree, or the exact element target supplies one,
   and the value must fit. Ordered spelling/landing evidence and normalized
-  array identity are retained without element coercion.
+  array identity are retained without element coercion. A direct fixed float
+  array may likewise contain only float literals at an exact literal-width
+  `[f32; N]` or `[f64; N]` target. Each element independently follows the
+  scalar format rule; ordered spelling/format evidence and normalized array
+  identity are retained without evaluating computed elements.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8118,8 +8122,8 @@ Remaining N6/N8 work:
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
   undersized or otherwise constrained byte-string targets, raw strings not
   already context-landed for a bare fixed array, noncanonical or heterogeneous
-  byte/Boolean arrays, mismatched or out-of-range integer arrays, float, nested,
-  or data arrays, other aggregates, zero-value,
+  byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
+  computed float arrays, nested or data arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
