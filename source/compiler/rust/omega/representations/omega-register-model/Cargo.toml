@@ -1,12 +1,12 @@
 [package]
-name = "omega-regalloc"
+name = "omega-register-model"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_regalloc"
+name = "omega_register_model"
 path = "src/lib.rs"
 
 [dependencies]
-omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../foundation/omega-target" }

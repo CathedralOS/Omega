@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_regalloc::{
+use omega_register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
     RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
     RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
@@ -687,7 +687,7 @@ fn overlay(
 
 #[cfg(test)]
 mod tests {
-    use omega_regalloc::{
+    use omega_register_model::{
         RegisterConstraintCatalogValidationError, RegisterModelValidationError,
         validate_physical_register_model,
     };

@@ -1124,7 +1124,7 @@ dependencies = [
  "omega-lowering-optimizer",
  "omega-optimization-core",
  "omega-psi-optimizer",
- "omega-regalloc",
+ "omega-register-model",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
@@ -1241,6 +1241,13 @@ dependencies = [
 
 [[package]]
 name = "omega-regalloc"
+version = "0.1.0"
+dependencies = [
+ "omega-register-model",
+]
+
+[[package]]
+name = "omega-register-model"
 version = "0.1.0"
 dependencies = [
  "omega-target",
@@ -1612,7 +1619,7 @@ name = "omega-terminal-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-regalloc",
+ "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
  "psi-core",
@@ -1624,7 +1631,7 @@ name = "omega-terminal-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-regalloc",
+ "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
  "psi-core",
