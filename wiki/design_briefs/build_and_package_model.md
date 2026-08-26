@@ -915,8 +915,8 @@ obligation schema. Compiler review may emit candidate bytes in that same
 vocabulary, but only independent reconstruction from the exact source subject
 and byte-for-byte comparison gives them evidentiary force. Source bytes,
 certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review-v52 rows are not promoted
-by terminology.
+subjects or provenance. The current incomplete review rows are not promoted by
+terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
 proof routes, and kernel dependencies remain derivation provenance; semantic

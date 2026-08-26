@@ -819,8 +819,8 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v56 projection therefore
-does not become a package artifact or `PackageInstance` by renaming it.
+remain separately bound. The current incomplete review projection therefore does
+not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
 
