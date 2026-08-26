@@ -20,6 +20,11 @@ named roots, plus emitted executable image output.
 
 Primary responsibility: preserve object-level symbols/imports/relocations in a final-image representation, apply target image layout and fixups, and emit executable bytes for supported formats.
 
+Private dynamic-conformance table slots arrive as ordinary initialized-data
+`Absolute64` relocations targeting exact compiler-private function symbols.
+Both AArch64 and x86-64 final-image paths apply that existing relocation form;
+this stage does not inspect trait rows or reconstruct dynamic-table identity.
+
 ## Semantic Ownership
 
 This stage owns final artifact image data. It does not create source-level semantics; it maps already-lowered artifact metadata into loader-visible sections, addresses, imports, fixups, headers, and output summaries.

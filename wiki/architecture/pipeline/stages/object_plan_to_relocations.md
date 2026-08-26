@@ -55,6 +55,11 @@ Must not own:
 - `omega-relocations/src/lookups.rs` owns selected-instruction offset lookup.
 - `omega-relocations/src/data_addresses.rs` owns scanning assigned operands for data/storage address references.
 - `omega-relocations/src/data_address_records.rs` owns target-specific data-address relocation record facts.
+- `omega-relocations/src/dynamic_conformances.rs` owns private dynamic-table
+  slot validation and exact address-free realization-state to private-function
+  symbol joins. It emits one data-section `Absolute64` materialization record
+  per pointer slot and never uses a short source spelling as function
+  authority.
 - `omega-relocations/src/offsets/*` owns target-specific relocation offset math by family: data addresses, external calls, runtime frame indexing, runtime storage, and runtime text. `offsets/runtime_storage/*` keeps compare, copy, string-descriptor, and write/binary operand offset math split by relocation family. `offsets/runtime_text/*` keeps append, materialize, and host-backed line-read offset math split by runtime-text relocation family.
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/host_operation.rs` owns host-operation relocation routing, including data-address operand relocation scanning and external import call relocation records.

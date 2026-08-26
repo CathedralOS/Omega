@@ -2,6 +2,7 @@ mod artifact;
 mod builder;
 mod data_address_records;
 mod data_addresses;
+mod dynamic_conformances;
 mod input;
 mod instruction_records;
 mod lookups;

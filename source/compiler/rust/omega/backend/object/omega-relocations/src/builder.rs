@@ -1,4 +1,5 @@
 use crate::RelocationPlanningInput;
+use crate::dynamic_conformances::collect_dynamic_conformance_table_relocations;
 use crate::instruction_records::collect_instruction_relocations;
 use crate::lookups::SelectedInstructionTextLayouts;
 use omega_object_file::{RelocationPlan, object_function_symbol};
@@ -8,10 +9,22 @@ use psi_diagnostics::Diagnostic;
 pub fn build_relocation_plan(
     input: RelocationPlanningInput<'_>,
 ) -> Result<RelocationPlan, Diagnostic> {
-    let mut relocation_plan = RelocationPlan::with_record_capacity(
-        input.target,
-        input.instructions.code.instructions.len(),
-    );
+    let table_relocation_capacity = input
+        .data
+        .dynamic_conformance_tables
+        .iter()
+        .try_fold(0usize, |count, (_, table)| {
+            count.checked_add(table.rows.len())
+        })
+        .ok_or_else(|| Diagnostic::error("dynamic conformance relocation capacity overflow"))?;
+    let record_capacity = input
+        .instructions
+        .code
+        .instructions
+        .len()
+        .checked_add(table_relocation_capacity)
+        .ok_or_else(|| Diagnostic::error("relocation record capacity overflow"))?;
+    let mut relocation_plan = RelocationPlan::with_record_capacity(input.target, record_capacity);
     let selected_instruction_text_layouts = SelectedInstructionTextLayouts::collect(input);
 
     for (_, function) in input.instructions.code.functions.iter() {
@@ -22,6 +35,12 @@ pub fn build_relocation_plan(
             &mut relocation_plan,
         )?;
     }
+    collect_dynamic_conformance_table_relocations(
+        input.target,
+        input.data,
+        input.object,
+        &mut relocation_plan,
+    )?;
 
     Ok(relocation_plan)
 }

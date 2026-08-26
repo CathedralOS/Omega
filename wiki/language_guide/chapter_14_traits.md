@@ -691,8 +691,13 @@ again during target-data planning, sorts runtime slots by normalized
 requirement identity, and emits one deduplicated pointer-aligned data object.
 Each slot begins as one zero-filled pointer word paired in the plan with its
 exact private realization target. Object planning publishes that object's
-private data symbol; relocation planning still must bind each slot to the
-matching function before the table is runnable. The first pass-through adapter
+private data symbol. Relocation planning revalidates the table's zero bytes,
+alignment, strict requirement order, and object-symbol shape, then resolves
+each retained realization state to exactly one private function symbol and
+publishes a data-section absolute-pointer relocation. Both supported native
+architectures apply that relocation to initialized data. Missing, duplicate,
+or shape-incoherent targets reject before final-image construction. The first
+pass-through adapter
 preserves each row's complete normalized requirement-overload and selected
 realization-callable identities through checked facts, state graph, control
 flow, and state-call

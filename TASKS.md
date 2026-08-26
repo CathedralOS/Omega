@@ -8405,10 +8405,13 @@ checked-result arithmetic decision listed below.
   again and emits one deduplicated, pointer-aligned private data object per
   logical selected conformance. Each runtime slot is one zero-filled pointer
   word paired with its exact address-free realization target; normalized-
-  identity drift rejects before any bytes publish. Function-address
-  relocations, construction of the runtime `{ instance, table }` pair, and
-  rebound, stored, joined, escaping, or component-crossing descriptors remain
-  open.
+  identity drift rejects before any bytes publish. Relocation planning now
+  revalidates zero slot bytes, alignment, strict normalized requirement order,
+  and the private data symbol, then binds every retained realization `StateKey`
+  to exactly one private function symbol with a data-section `Absolute64`
+  materialization record. Missing or duplicate function identities fail
+  closed. Construction of the runtime `{ instance, table }` pair and rebound,
+  stored, joined, escaping, or component-crossing descriptors remain open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and
