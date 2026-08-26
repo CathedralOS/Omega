@@ -940,7 +940,9 @@ impl Compiler {
         }
 
         if requires_native_backend {
-            reject_undischarged_build_bound_progress(checked.component_progress.as_deref())?;
+            super::component_progress::reject_undischarged_build_bound_progress(
+                checked.component_progress.as_deref(),
+            )?;
         }
 
         crate::pipeline::optimization_gate::require_available_pipeline(
@@ -1198,35 +1200,6 @@ impl Compiler {
         )
         .map_err(|message| vec![Diagnostic::error(message)])
     }
-}
-
-/// TPR6 fail-closed admission seam. Checked lowering and the component
-/// manifest now preserve exact provider-receiver demands, but a selected
-/// provider plan is not itself an establishment receipt. Native/final
-/// composition must stop here until the installation occurrence + admitted
-/// receipt carrier can discharge each exact row.
-fn reject_undischarged_build_bound_progress(
-    manifest: Option<&omega_effects::ComponentProgressManifest>,
-) -> Result<(), Vec<Diagnostic>> {
-    let Some(manifest) = manifest else {
-        return Ok(());
-    };
-    let demands = manifest.pending();
-    if demands.is_empty() {
-        return Ok(());
-    }
-    Err(demands
-        .iter()
-        .map(|demand| {
-            Diagnostic::error(format!(
-                "final composition cannot discharge build-bound progress demand `{}` requiring profile `{}` at checked call {}:{}; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
-                demand.requirement_identity,
-                demand.profile_identity,
-                demand.statement_ordinal,
-                demand.call_ordinal,
-            ))
-        })
-        .collect())
 }
 
 #[cfg(test)]
