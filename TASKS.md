@@ -7586,14 +7586,25 @@ compiler concept is introduced.
   deployment, republishes it, and transfers the repaired custody through the
   report.
 
+  The production-driver tail now accepts independently acquired deployment
+  values without pretending the compiler owns their acquisition. A
+  `TerminalComponentDeploymentSupply` contains one real `InstalledCode`, exact
+  provider-occurrence bindings, exact progress attestations, and the profile
+  decision, but not the compiler's staged candidate. The driver binds that
+  supply to the candidate once, runs the typed deployment transaction, and
+  constructs the non-clonable terminal-deployment `CompileReport`. Deployment
+  rejection retains the current typed stage plus unused report metadata;
+  report-admission rejection returns the deployment together with root/source
+  and build evaluation/observation metadata for exact recovery. A progress-
+  bearing source canary crosses this supplied-input driver tail.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
-  output rejection only after the production driver obtains these real inputs
-  from their installation/deployment owners, invokes the typed transaction for
-  its staged terminal candidate, and constructs the terminal-deployment report
-  instead of calling the legacy writer. The current legacy path still publishes
-  a native executable directly and carries neither the manifest nor an
-  installation acceptance, so removing the fence there would erase the
-  obligation; selected plans and authorized routes remain insufficient.
+  output rejection only after a live installation/deployment owner is connected
+  to candidate staging and supplies these real inputs to the new driver tail.
+  The current legacy path still publishes a native executable directly and
+  carries neither the manifest nor an installation acceptance, so removing the
+  fence there would erase the obligation; selected plans and authorized routes
+  remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

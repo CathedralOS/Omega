@@ -1882,8 +1882,13 @@ deployment before taking ownership; rejection returns that deployment intact,
 while success permits borrowed inspection, validated path projection, or a
 consuming transfer to the next owner. The legacy direct `write_output` route
 remains fenced until the production driver obtains the deployment inputs from
-their real owners, invokes the transaction, and constructs this report lane
-instead of the legacy publication path.
+their real owners. The driver tail now accepts those independently acquired
+values as a `TerminalComponentDeploymentSupply`, binds them to the staged
+candidate, invokes the transaction, and constructs this report lane without
+discarding deployment-stage or report metadata on failure. The supply does not
+grant the compiler installation/provider/progress/profile authority; connecting
+its live owner to candidate staging is the remaining prerequisite to replacing
+the legacy publication path.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

@@ -229,7 +229,11 @@ impl ExecutablePublicationReceipt {
 /// report. The complete published runnable is returned for exact recovery.
 #[derive(Debug)]
 pub struct TerminalComponentDeploymentReportError {
+    root_path: PathBuf,
+    source_file_count: usize,
     deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
+    build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     diagnostic: String,
 }
 
@@ -242,6 +246,25 @@ impl TerminalComponentDeploymentReportError {
         self,
     ) -> omega_component_deployment::PublishedTerminalComponentFlatOutput {
         self.deployment
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub fn into_parts(
+        self,
+    ) -> (
+        PathBuf,
+        usize,
+        omega_component_deployment::PublishedTerminalComponentFlatOutput,
+        Option<super::build_config::BuildEvaluationUsage>,
+        Option<super::build_config::BuildObservationSummary>,
+    ) {
+        (
+            self.root_path,
+            self.source_file_count,
+            self.deployment,
+            self.build_evaluation_usage,
+            self.build_observation_summary,
+        )
     }
 }
 
@@ -343,7 +366,11 @@ impl CompileReport {
     ) -> Result<Self, Box<TerminalComponentDeploymentReportError>> {
         if let Err(error) = deployment.validate() {
             return Err(Box::new(TerminalComponentDeploymentReportError {
+                root_path,
+                source_file_count,
                 deployment,
+                build_evaluation_usage,
+                build_observation_summary,
                 diagnostic: format!(
                     "terminal component deployment cannot enter compiler report custody: {}",
                     error.diagnostic()
