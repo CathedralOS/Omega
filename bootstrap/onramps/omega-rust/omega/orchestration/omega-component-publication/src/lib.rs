@@ -21,6 +21,10 @@ use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
 use omega_external_roots::{InstalledComponentProgressClosure, InstalledRootLedger};
 use omega_terminal_image_emission::InstalledTerminalArtifact;
 
+mod deployment_journal;
+
+pub use deployment_journal::*;
+
 /// Installed terminal artifact plus the concrete accepted progress closure
 /// committed by its canonical installation record.
 ///

@@ -7897,7 +7897,14 @@ checked-result arithmetic decision listed below.
   - implement a durable deployment journal with `Prepared`, `Activated`, and
     `Finalized` restart reconciliation. The journal retains accepting envelope,
     evidence, admissions, slot history, and live-era state; it is not assumed
-    atomic with in-memory publication.
+    atomic with in-memory publication. The Rust on-ramp now owns the canonical
+    versioned journal record and typed `Prepared` -> `Activated` -> `Finalized`
+    transitions. It retains exact slot/era/artifact, entry-plan/admission,
+    accepting-envelope, disclosed-admission, and canonical installation
+    evidence; decode is report-only, failed publication returns all custody,
+    and restart reconciliation exposes rather than chooses rollback or
+    roll-forward policy. Add the Cathedral-selected durable storage/fsync
+    adapter and restart-to-runtime reconciliation around this checked core.
 - Replace the provider-switchboard fixture's transitional `clock: ClockHost`
   field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
   provider as checked Omega code; `Binding::VtableSlot` remains only for real

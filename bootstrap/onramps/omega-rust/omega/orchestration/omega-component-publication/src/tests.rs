@@ -579,6 +579,163 @@ fn runnable_publication_rejection_returns_candidate_receipt_and_opaque_evidence(
     assert_eq!(ledger.current_era(), None);
 }
 
+fn journal_acceptance() -> ComponentDeploymentAcceptanceSnapshot {
+    ComponentDeploymentAcceptanceSnapshot::new(
+        "envelope:codec-v1",
+        b"canonical-envelope-v1".to_vec(),
+        vec![
+            ComponentDeploymentAdmissionRecord::new(
+                "opaque-native",
+                "CodecEntry/v1",
+                "admission:7",
+            )
+            .expect("admission row"),
+        ],
+    )
+    .expect("acceptance snapshot")
+}
+
+#[test]
+fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
+    let fixture = runnable_fixture(40_000);
+    let mut ledger = lifecycle();
+    let current_candidate = candidate(20, fixture.installed_code);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        400,
+        ledger.lifecycle(),
+        &current_candidate,
+        true,
+        false,
+    );
+    let prepared = prepare_component_deployment(
+        900,
+        &ledger,
+        current_candidate,
+        receipt,
+        fixture.runnable,
+        journal_acceptance(),
+    )
+    .expect("prepared deployment");
+    let prepared_bytes =
+        encode_component_deployment_journal(prepared.record()).expect("canonical Prepared journal");
+    let decoded =
+        decode_component_deployment_journal(&prepared_bytes).expect("decode Prepared journal");
+    assert_eq!(&decoded, prepared.record());
+    assert_eq!(
+        reconcile_component_deployment_restart(&decoded, 900, "CodecBinding/v1", "CodecEntry/v1",)
+            .expect("Prepared reconciliation"),
+        ComponentDeploymentRestartReconciliation::PolicyRequired {
+            phase: ComponentDeploymentJournalPhase::Prepared,
+            choices: vec![ComponentDeploymentRecoveryChoice::RollForwardCandidate],
+        }
+    );
+
+    let activated = prepared
+        .activate(&decoded, &mut ledger)
+        .expect("activate exact durable predecessor");
+    let activated_bytes = encode_component_deployment_journal(activated.record())
+        .expect("canonical Activated journal");
+    let activated_durable =
+        decode_component_deployment_journal(&activated_bytes).expect("decode Activated journal");
+    assert!(matches!(
+        reconcile_component_deployment_restart(
+            &activated_durable,
+            900,
+            "CodecBinding/v1",
+            "CodecEntry/v1",
+        ),
+        Ok(ComponentDeploymentRestartReconciliation::PolicyRequired {
+            phase: ComponentDeploymentJournalPhase::Activated,
+            ..
+        })
+    ));
+
+    let finalized = activated
+        .finalize(&activated_durable, &ledger)
+        .expect("finalize exact live occurrence");
+    let finalized_bytes = encode_component_deployment_journal(finalized.record())
+        .expect("canonical Finalized journal");
+    let finalized_durable =
+        decode_component_deployment_journal(&finalized_bytes).expect("decode Finalized journal");
+    assert!(matches!(
+        reconcile_component_deployment_restart(
+            &finalized_durable,
+            900,
+            "CodecBinding/v1",
+            "CodecEntry/v1",
+        ),
+        Ok(ComponentDeploymentRestartReconciliation::Complete { .. })
+    ));
+
+    let next = runnable_fixture(45_000);
+    let next_candidate = candidate(21, next.installed_code);
+    let next_receipt = ComponentEraPublicationReceipt::from_runtime(
+        401,
+        ledger.lifecycle(),
+        &next_candidate,
+        true,
+        true,
+    );
+    let next_prepared = prepare_component_deployment(
+        901,
+        &ledger,
+        next_candidate,
+        next_receipt,
+        next.runnable,
+        journal_acceptance(),
+    )
+    .expect("replacement preparation derives current slot history");
+    assert_eq!(
+        next_prepared
+            .record()
+            .prior()
+            .map(|value| value.era_identity()),
+        Some(20)
+    );
+    assert_eq!(next_prepared.record().live_eras_before().len(), 1);
+    assert_eq!(
+        next_prepared.record().live_eras_before()[0]
+            .occurrence()
+            .era_identity(),
+        20
+    );
+}
+
+#[test]
+fn deployment_journal_rejects_tamper_and_failed_activation_returns_custody() {
+    let fixture = runnable_fixture(50_000);
+    let mut ledger = lifecycle();
+    let wrong = candidate(30, fixture.installed_code);
+    let receipt =
+        ComponentEraPublicationReceipt::from_runtime(500, ledger.lifecycle(), &wrong, false, false);
+    let prepared = prepare_component_deployment(
+        901,
+        &ledger,
+        wrong,
+        receipt,
+        fixture.runnable,
+        journal_acceptance(),
+    )
+    .expect("preparation records candidate before publication");
+    let durable = prepared.record().clone();
+    let error = prepared
+        .activate(&durable, &mut ledger)
+        .expect_err("runtime receipt that did not publish rejects activation");
+    assert!(!error.diagnostic().is_empty());
+    let recovered = error.into_prepared();
+    assert_eq!(recovered.record(), &durable);
+    assert_eq!(ledger.current_era(), None);
+
+    let mut bytes = encode_component_deployment_journal(&durable).expect("canonical journal bytes");
+    let last = bytes.len() - 1;
+    bytes[last] ^= 1;
+    assert!(decode_component_deployment_journal(&bytes).is_err());
+    assert!(
+        reconcile_component_deployment_restart(&durable, 902, "CodecBinding/v1", "CodecEntry/v1",)
+            .is_err()
+    );
+}
+
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
     constructor(identity).expect("normalized external-root identity")
 }
