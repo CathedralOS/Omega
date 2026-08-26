@@ -9,6 +9,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::EnterFunction
             | Self::LeaveFunction
             | Self::CallInternalFunction { .. }
+            | Self::DynamicTableCall { .. }
             | Self::LoadOutgoingStackAddress { .. }
             | Self::ReserveOutgoingStackFrame { .. }
             | Self::WriteOutgoingStackU64 { .. }

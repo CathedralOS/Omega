@@ -2,9 +2,9 @@
 
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallSignature, IndirectPointerLocation, MachineStateSet, PlanDiagnostic,
-    RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement,
-    ValueShape, validate_boundary_entry_plan, validate_state_footprint,
+    BoundaryEntryPlan, CallPlan, CallSignature, IndirectPointerLocation, MachineStateSet,
+    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
+    ValuePlacement, ValueShape, validate_boundary_entry_plan, validate_state_footprint,
 };
 
 /// Target-specific inbound storage writes together with the exact registers
@@ -102,7 +102,23 @@ pub fn derive_boundary_entry_storage(
         result,
     };
     let boundary = validate_boundary_entry_plan(boundary.clone(), &signature)?;
-    let call = &boundary.plan().call;
+    let derived = derive_internal_call_entry_storage(
+        &boundary.plan().call,
+        parameter_destinations,
+        indirect_result_pointer_byte_offset,
+    )?;
+    validate_state_footprint(&boundary, &derived.footprint)?;
+    Ok(derived)
+}
+
+/// Derive exact inbound storage writes from an already-authoritative internal
+/// call plan. The caller separately validates the resulting footprint against
+/// its enclosing root StatePlan ceiling.
+pub fn derive_internal_call_entry_storage(
+    call: &CallPlan,
+    parameter_destinations: &[(usize, ValueShape)],
+    indirect_result_pointer_byte_offset: Option<usize>,
+) -> Result<DerivedBoundaryEntryStorage, PlanDiagnostic> {
     let mut writes = Vec::new();
     let mut parameters = Vec::with_capacity(parameter_destinations.len());
 
@@ -181,8 +197,7 @@ pub fn derive_boundary_entry_storage(
 
     let mut prior_clobbers = Vec::new();
     for write in &writes {
-        let clobbers =
-            entry_storage_write_clobbers(boundary.plan().call.policy.architecture(), write)?;
+        let clobbers = entry_storage_write_clobbers(call.policy.architecture(), write)?;
         if let Some(source) = entry_storage_write_register_source(write)
             && (clobbers.contains(source) || prior_clobbers.contains(&source))
         {
@@ -194,8 +209,6 @@ pub fn derive_boundary_entry_storage(
     }
     let footprint =
         StateFootprintEvidence::new(RegisterSet::new(prior_clobbers), MachineStateSet::empty());
-    validate_state_footprint(&boundary, &footprint)?;
-
     Ok(DerivedBoundaryEntryStorage {
         writes,
         parameters,

@@ -472,6 +472,25 @@ materialization and erased-shape adapters remain necessary for dynamic values
 that pass onward, are rebound, join, are stored, or otherwise escape this exact
 use.
 
+The first physical erased adapter admits an immutable bare-dynamic parameter
+and calls one exact table slot. Its retained normalized requirement identity,
+slot byte offset, and every candidate realization are validated before the
+caller plan is accepted. Each candidate's realization signature must evaluate
+to the same structural `CallPlan`; a representative candidate cannot define the
+erased ABI by coincidence. That one plan owns the descriptor receiver,
+arguments, and result transport. Runtime-body lowering therefore excludes the
+direct/spliced terminal-result replay used by inline calls. The private call's
+closed validation identity also distinguishes it from an authored foreign
+table call, whose mechanism independently requires the floating-control
+envelope.
+
+Standalone private realizations do not acquire separate boundary contracts.
+Their complete prologue/body/result/return footprints are independently derived
+and composed by normalized union into the enclosing root certificate, while
+their internal call plan remains authoritative for the call bytes. Missing
+instruction spans and root-ceiling mismatches reject with diagnostics; neither
+can silently omit a private fragment or panic during selection.
+
 A bare dynamic parameter retains every eligible complete closed conformance as
 an exact candidate map. Call-site specialization selects from those maps by the
 concrete receiver and routes to each row's retained realization symbol. It does

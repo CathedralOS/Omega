@@ -8685,10 +8685,26 @@ checked-result arithmetic decision listed below.
   control-flow `StateKey`, and emits one standalone private function containing
   that retained state body. Repeated exact realizations deduplicate, entry-state
   realizations reuse the existing entry identity, and missing, duplicate, or
-  mismatched demands fail before machine bytes. Both native targets now complete
-  the table relocation and full-image pass-through canary. Runtime indirect
-  slot-call lowering, plus rebound, stored, joined, escaping, or component-
-  crossing descriptors, remains open.
+  mismatched demands fail before machine bytes. Both native targets now
+  complete the table relocation and full-image pass-through canary. The first
+  runtime indirect slot-call rung is also live for an immutable bare-dynamic
+  parameter. Selection requires the exact parameter symbol/kind and two-word
+  descriptor, one normalized requirement row at one common slot in every
+  retained candidate, and an identical authoritative `CallPlan` for every
+  realization; parameter/result shape drift, missing or duplicate rows, and
+  representative-first coincidence reject. That plan alone owns receiver,
+  arguments, and result, so indirect lowering cannot also replay a direct/
+  spliced result producer. Private calls retain a closed validation identity
+  distinct from foreign table calls and therefore add no foreign floating-
+  control envelope on either ISA. Every private realization's complete
+  prologue/body/result/return span contributes to the one root transitive
+  footprint certificate, and ceiling/span failures return diagnostics rather
+  than panicking or omitting evidence. Mach-O publishes loader rebase opcodes
+  for the exact typed data-to-private-function `Absolute64` sites and replays
+  their preferred pointers before publication, so a distinct-instance native
+  canary truly executes the relocated table slot under ASLR. Mutable or
+  aggregate erased calls, plus rebound, stored, joined, escaping, or component-
+  crossing descriptors, remain open engineering rungs.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

@@ -1125,6 +1125,18 @@ fn select_runtime_straight_line_local_initializer_write(
         bindings,
         operation.statement_index,
     );
+    if crate::selection::runtime_dispatch::emit_local_dynamic_conformance_descriptor(
+        input,
+        expansion.dispatch_index,
+        operation.source_key,
+        operation.statement_index,
+        slot,
+        expressions,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
     // A judged recast local is an address-bearing runtime view. The ordinary
     // dispatch path materializes that address before projected uses; a value
     // callee spliced into a straight-line branch must do the same. Otherwise

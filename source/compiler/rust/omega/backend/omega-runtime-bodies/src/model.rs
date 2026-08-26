@@ -86,6 +86,12 @@ pub enum RuntimeDispatchBodyOperationKind {
         target_key: StateKey,
         argument_count: usize,
     },
+    DynamicStateCall {
+        role: StateCallRole,
+        call_ordinal: usize,
+        target_key: StateKey,
+        argument_count: usize,
+    },
     InlineStateCall {
         role: StateCallRole,
         call_ordinal: usize,

@@ -65,6 +65,7 @@ pub(super) fn collect_data_address_relocations(
     operation_key: Option<HostOperationKey>,
     operands: psi_arena::HandleSpan<omega_target_operations::InstructionOperand>,
     selected_text_offset: usize,
+    explicit_field_plan: Option<(&omega_calling_conventions::CallPlan, FieldModelCallShape)>,
     relocation_plan: &mut RelocationPlan,
 ) {
     let Some(operands) = input
@@ -90,29 +91,33 @@ pub(super) fn collect_data_address_relocations(
         ) && selected_binding
             .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
     });
-    let authoritative_plan = selected_binding.map(|binding| binding.call_plan());
+    let authoritative_plan = explicit_field_plan
+        .map(|(plan, _)| plan)
+        .or_else(|| selected_binding.map(|binding| binding.call_plan()));
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the
     // operands (more operands than declared parameters).
-    let field_model_shape = selected_binding.and_then(|binding| match &binding.mechanism {
-        HostBindingMechanism::VtableSlot { .. } => Some(FieldModelCallShape {
-            passes_receiver: true,
-            result_present: false,
-        }),
-        HostBindingMechanism::VtableField { .. } => {
-            authoritative_plan.map(|plan| FieldModelCallShape {
+    let field_model_shape = explicit_field_plan.map(|(_, shape)| shape).or_else(|| {
+        selected_binding.and_then(|binding| match &binding.mechanism {
+            HostBindingMechanism::VtableSlot { .. } => Some(FieldModelCallShape {
                 passes_receiver: true,
-                result_present: operands.len() > plan.parameters.len(),
-            })
-        }
-        HostBindingMechanism::TableFunction { .. } => {
-            authoritative_plan.map(|plan| FieldModelCallShape {
-                passes_receiver: false,
-                result_present: operands.len() > plan.parameters.len() + 1,
-            })
-        }
-        _ => None,
+                result_present: false,
+            }),
+            HostBindingMechanism::VtableField { .. } => {
+                authoritative_plan.map(|plan| FieldModelCallShape {
+                    passes_receiver: true,
+                    result_present: operands.len() > plan.parameters.len(),
+                })
+            }
+            HostBindingMechanism::TableFunction { .. } => {
+                authoritative_plan.map(|plan| FieldModelCallShape {
+                    passes_receiver: false,
+                    result_present: operands.len() > plan.parameters.len() + 1,
+                })
+            }
+            _ => None,
+        })
     });
 
     for (operand_index, operand) in operands.iter().enumerate() {
@@ -129,8 +134,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                match selected_binding {
-                    Some(binding) => data_address_relocation_offset_for_target_with_plan(
+                match authoritative_plan {
+                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
                         input.target,
                         operation_key,
                         operands,
@@ -139,7 +144,7 @@ pub(super) fn collect_data_address_relocations(
                         is_syscall,
                         field_model_shape,
                         authored_import,
-                        binding.call_plan(),
+                        plan,
                     ),
                     None => constant_result_data_relocation_offset_for_target(
                         input.target,
@@ -161,8 +166,8 @@ pub(super) fn collect_data_address_relocations(
                 relocation_plan,
                 function_symbol_handle,
                 selected_instruction_index,
-                match selected_binding {
-                    Some(binding) => data_address_relocation_offset_for_target_with_plan(
+                match authoritative_plan {
+                    Some(plan) => data_address_relocation_offset_for_target_with_plan(
                         input.target,
                         operation_key,
                         operands,
@@ -171,7 +176,7 @@ pub(super) fn collect_data_address_relocations(
                         is_syscall,
                         field_model_shape,
                         authored_import,
-                        binding.call_plan(),
+                        plan,
                     ),
                     None => constant_result_data_relocation_offset_for_target(
                         input.target,

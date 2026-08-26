@@ -1,8 +1,9 @@
 use crate::InstructionSelectionInput;
 use omega_abstract_operations::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, AbstractOperationPlan,
-    PermissionRealizationCandidate,
+    PermissionRealizationCandidate, Place, PlaceStep, RuntimeStorageRegion,
 };
+use omega_calling_conventions::ValueLocation;
 use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
@@ -22,6 +23,8 @@ pub(super) fn select_private_dynamic_realization_functions(
     input: &InstructionSelectionInput<'_>,
     plan: &mut AbstractOperationPlan,
     permission_realization_candidates: &mut Vec<PermissionRealizationCandidate>,
+    boundary_footprints: &mut omega_abstract_operations::BoundaryFootprintPlan,
+    entry_boundary: Option<&omega_calling_conventions::ValidatedBoundaryEntryPlan>,
 ) -> Result<(), Diagnostic> {
     let demands = validated_private_dynamic_realization_demands(input)?;
     let entry_identity = MachineFunctionIdentity::source(input.entry_key);
@@ -49,15 +52,35 @@ pub(super) fn select_private_dynamic_realization_functions(
             demand.realization,
             AbstractOperationKind::EnterFunction,
         ));
+        let prologue_footprint =
+            select_private_dynamic_realization_prologue(input, demand.realization, &mut selected)?;
+        let boundary = entry_boundary.ok_or_else(|| {
+            Diagnostic::error(
+                "private dynamic realization has no enclosing root StatePlan boundary",
+            )
+        })?;
+        omega_calling_conventions::validate_state_footprint(boundary, &prologue_footprint)
+            .map_err(|error| Diagnostic::error(error.0))?;
+        if !prologue_footprint.registers().as_slice().is_empty()
+            || !prologue_footprint.machine_state().is_empty()
+        {
+            boundary_footprints
+                .retain_validated_fragment(
+                    boundary,
+                    omega_abstract_operations::BoundaryFootprintFragment {
+                        origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::EntryStorage,
+                        evidence: prologue_footprint,
+                    },
+                )
+                .map_err(|error| Diagnostic::error(error.0))?;
+        }
         select_state_body_instructions(
             input,
             demand.realization,
-            input
-                .runtime_bodies
-                .bodies
-                .iter()
-                .find(|(_, body)| body.key == demand.realization)
-                .map(|(_, body)| body.dispatch_index),
+            Some(exact_runtime_body_dispatch_index(
+                input,
+                demand.realization,
+            )?),
             &RuntimeAliasBuffer::default(),
             &psi_checked_trees::expression::ExpressionTable::new(),
             &mut plan.code.operands,
@@ -65,12 +88,26 @@ pub(super) fn select_private_dynamic_realization_functions(
             &mut selected,
             &mut StateBodyVisitStack::with_capacity(input.control_flow.states.len()),
         );
+        select_private_dynamic_realization_result(input, demand.realization, &mut selected)?;
         selected.push(function_boundary_instruction(
             demand.realization,
             AbstractOperationKind::LeaveFunction,
         ));
         let (instructions, candidates) = selected.finish();
         permission_realization_candidates.extend(candidates);
+        let function_instructions = plan.code.instructions.span(instructions).ok_or_else(|| {
+            Diagnostic::error(
+                "private dynamic realization lost its exact selected-instruction span",
+            )
+        })?;
+        super::retain_exit_footprints(
+            boundary_footprints,
+            entry_boundary,
+            input,
+            &plan.code.operands,
+            &plan.code.runtime_value_operands,
+            function_instructions,
+        )?;
 
         let symbol =
             omega_object_file::private_function_symbol_name(identity).ok_or_else(|| {
@@ -87,6 +124,326 @@ pub(super) fn select_private_dynamic_realization_functions(
     }
 
     Ok(())
+}
+
+fn select_private_dynamic_realization_prologue(
+    input: &InstructionSelectionInput<'_>,
+    realization: StateKey,
+    selected: &mut SelectedInstructionSink<'_, '_>,
+) -> Result<omega_calling_conventions::StateFootprintEvidence, Diagnostic> {
+    let plan = super::dynamic_calls::dynamic_call_plan_for_realization(input, realization)?;
+    let dispatch_index = exact_runtime_body_dispatch_index(input, realization)?;
+    let receiver = unique_dynamic_slot(
+        input,
+        dispatch_index,
+        realization,
+        |slot| matches!(slot.kind, omega_runtime_storage::RuntimeFrameSlotKind::DynamicReceiver { realization: key } if key == realization),
+    )?;
+    let state = input
+        .control_flow
+        .state_by_key(realization)
+        .ok_or_else(|| {
+            Diagnostic::error("private dynamic realization has no exact control-flow state")
+        })?;
+    let mut destinations = vec![receiver];
+    for parameter in input.control_flow.state_parameters(state) {
+        let slot = unique_dynamic_slot(input, dispatch_index, realization, |slot| {
+            matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+            ) && slot.symbol == parameter.symbol
+        })?;
+        destinations.push(slot);
+    }
+    if destinations.len() != plan.parameters.len() {
+        return Err(Diagnostic::error(
+            "private dynamic realization inbound storage does not match its calling plan",
+        ));
+    }
+    let parameter_destinations = plan
+        .parameters
+        .iter()
+        .zip(destinations)
+        .map(|(placement, destination)| {
+            if destination.byte_size != usize::from(placement.shape.byte_size) {
+                return Err(Diagnostic::error(
+                    "private dynamic realization parameter storage width drifted from its call plan",
+                ));
+            }
+            Ok((destination.byte_offset, placement.shape))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let derived = crate::derive_internal_call_entry_storage(&plan, &parameter_destinations, None)
+        .map_err(|error| Diagnostic::error(error.0))?;
+    for kind in derived.writes {
+        if matches!(
+            kind,
+            AbstractOperationKind::WriteEntryIndirectArgument { .. }
+        ) {
+            return Err(Diagnostic::error(
+                "private dynamic realization currently rejects indirect aggregate parameters",
+            ));
+        }
+        selected.push(function_boundary_instruction(realization, kind));
+    }
+    Ok(derived.footprint)
+}
+
+fn select_private_dynamic_realization_result(
+    input: &InstructionSelectionInput<'_>,
+    realization: StateKey,
+    selected: &mut SelectedInstructionSink<'_, '_>,
+) -> Result<(), Diagnostic> {
+    let plan = super::dynamic_calls::dynamic_call_plan_for_realization(input, realization)?;
+    let Some(result) = &plan.result else {
+        return Ok(());
+    };
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size,
+        },
+    ] = result.locations.as_slice()
+    else {
+        return Err(Diagnostic::error(
+            "private dynamic realization currently requires one direct scalar result register",
+        ));
+    };
+    let expression =
+        private_realization_terminal_expression(input, realization).ok_or_else(|| {
+            Diagnostic::error("private dynamic realization has no exact terminal result expression")
+        })?;
+    if let Some(value) = super::storage_places::static_integer_value_in_table(
+        input.layouts,
+        &input.program.expression_table,
+        expression,
+    ) {
+        selected.push(function_boundary_instruction(
+            realization,
+            AbstractOperationKind::WriteReturnRegisterInteger {
+                register: *register,
+                byte_size: usize::from(*byte_size),
+                value,
+            },
+        ));
+        return Ok(());
+    }
+    let dispatch_index = exact_runtime_body_dispatch_index(input, realization)?;
+    if let Some(pointee) = super::storage_places::resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        realization,
+        &input.program.expression_table,
+        expression,
+    ) {
+        if pointee.pointee_byte_size != usize::from(*byte_size) {
+            return Err(Diagnostic::error(
+                "private dynamic scalar result width does not match its calling plan",
+            ));
+        }
+        let scratch = unique_dynamic_slot(
+            input,
+            dispatch_index,
+            realization,
+            |slot| matches!(slot.kind, omega_runtime_storage::RuntimeFrameSlotKind::DynamicResultScratch { realization: key } if key == realization),
+        )?;
+        let source = Place::at(
+            RuntimeStorageRegion::RuntimeFrame,
+            pointee.pointer_byte_offset,
+        )
+        .with_step(PlaceStep::Deref)
+        .and_then(|place| place.with_step(PlaceStep::ConstOffset(pointee.field_byte_offset)))
+        .ok_or_else(|| Diagnostic::error("private dynamic receiver result place is too complex"))?;
+        selected.push(function_boundary_instruction(
+            realization,
+            AbstractOperationKind::CopyPlaces {
+                source,
+                target: Place::at(RuntimeStorageRegion::RuntimeFrame, scratch.byte_offset),
+                byte_count: pointee.pointee_byte_size,
+                role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+            },
+        ));
+        selected.push(function_boundary_instruction(
+            realization,
+            AbstractOperationKind::CopyRuntimeStorageToReturnRegister {
+                register: *register,
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: scratch.byte_offset,
+                byte_size: pointee.pointee_byte_size,
+            },
+        ));
+        return Ok(());
+    }
+    if let Some(place) = super::storage_places::resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        realization,
+        &input.program.expression_table,
+        expression,
+    ) && place.byte_count == usize::from(*byte_size)
+    {
+        let receiver = unique_dynamic_slot(
+            input,
+            dispatch_index,
+            realization,
+            |slot| matches!(slot.kind, omega_runtime_storage::RuntimeFrameSlotKind::DynamicReceiver { realization: key } if key == realization),
+        )?;
+        if place.region == RuntimeStorageRegion::RuntimeFrame
+            && place.byte_offset >= receiver.byte_offset
+            && let Some(field_byte_offset) = place.byte_offset.checked_sub(receiver.byte_offset)
+            && let Some(data_layout) = input
+                .layouts
+                .data_layouts
+                .iter()
+                .find(|(_, data)| data.symbol == receiver.type_symbol)
+                .map(|(_, data)| data)
+            && field_byte_offset
+                .checked_add(place.byte_count)
+                .is_some_and(|end| end <= data_layout.layout.size)
+        {
+            let scratch = unique_dynamic_slot(
+                input,
+                dispatch_index,
+                realization,
+                |slot| matches!(slot.kind, omega_runtime_storage::RuntimeFrameSlotKind::DynamicResultScratch { realization: key } if key == realization),
+            )?;
+            let source = Place::at(RuntimeStorageRegion::RuntimeFrame, receiver.byte_offset)
+                .with_step(PlaceStep::Deref)
+                .and_then(|place| place.with_step(PlaceStep::ConstOffset(field_byte_offset)))
+                .ok_or_else(|| {
+                    Diagnostic::error("private dynamic receiver result place is too complex")
+                })?;
+            selected.push(function_boundary_instruction(
+                realization,
+                AbstractOperationKind::CopyPlaces {
+                    source,
+                    target: Place::at(RuntimeStorageRegion::RuntimeFrame, scratch.byte_offset),
+                    byte_count: place.byte_count,
+                    role: omega_abstract_operations::CopyPlacesRole::Ordinary,
+                },
+            ));
+            selected.push(function_boundary_instruction(
+                realization,
+                AbstractOperationKind::CopyRuntimeStorageToReturnRegister {
+                    register: *register,
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: scratch.byte_offset,
+                    byte_size: place.byte_count,
+                },
+            ));
+            return Ok(());
+        }
+        selected.push(function_boundary_instruction(
+            realization,
+            AbstractOperationKind::CopyRuntimeStorageToReturnRegister {
+                register: *register,
+                region: place.region,
+                byte_offset: place.byte_offset,
+                byte_size: place.byte_count,
+            },
+        ));
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        "private dynamic scalar result is not a resolvable receiver projection",
+    ))
+}
+
+fn exact_runtime_body_dispatch_index(
+    input: &InstructionSelectionInput<'_>,
+    realization: StateKey,
+) -> Result<u32, Diagnostic> {
+    let mut slots = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::DynamicReceiver {
+                    realization: key
+                } if key == realization
+            )
+            .then_some(slot.dispatch_index)
+        });
+    let dispatch_index = slots
+        .next()
+        .ok_or_else(|| Diagnostic::error("private dynamic realization has no storage namespace"))?;
+    if slots.next().is_some() {
+        return Err(Diagnostic::error(
+            "private dynamic realization has duplicate storage namespaces",
+        ));
+    }
+    Ok(dispatch_index)
+}
+
+fn unique_dynamic_slot<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    realization: StateKey,
+    slot_matches: impl Fn(&omega_runtime_storage::RuntimeFrameSlot) -> bool,
+) -> Result<&'plan omega_runtime_storage::RuntimeFrameSlot, Diagnostic> {
+    let mut slots = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == realization
+                && slot_matches(slot))
+            .then_some(slot)
+        });
+    let slot = slots
+        .next()
+        .ok_or_else(|| Diagnostic::error("private dynamic realization frame slot is missing"))?;
+    if slots.next().is_some() {
+        return Err(Diagnostic::error(
+            "private dynamic realization frame slot is duplicated",
+        ));
+    }
+    Ok(slot)
+}
+
+fn private_realization_terminal_expression(
+    input: &InstructionSelectionInput<'_>,
+    realization: StateKey,
+) -> Option<psi_checked_trees::expression::ExpressionHandle> {
+    use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == realization.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == realization.state)?;
+    match input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()?
+    {
+        StatementNode::Expression(expression) => expression.is_valid().then_some(*expression),
+        StatementNode::Transition(transition)
+            if !transition.continuation.is_valid()
+                && matches!(transition.guard, TransitionGuardNode::Always) =>
+        {
+            match input
+                .program
+                .statement_table
+                .transition_target(transition.target)
+            {
+                TransitionTargetNode::Value(expression) => {
+                    expression.is_valid().then_some(*expression)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn validated_private_dynamic_realization_demands(

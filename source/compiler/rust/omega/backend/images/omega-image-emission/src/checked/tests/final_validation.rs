@@ -883,7 +883,7 @@ fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
         byte_offset: 8,
     };
     let (bytes, sites) =
-        encode_aarch64_indirect_call_replay(&operands, &[], &mechanism, &plan, true)
+        encode_aarch64_indirect_call_replay(&operands, &[], &mechanism, &plan, true, true)
             .expect("final AArch64 vtable replay");
 
     let lowered = operands
@@ -958,6 +958,7 @@ fn aarch64_indirect_call_replay_reconstructs_bytes_and_page_sites() {
         &[],
         &table_mechanism,
         &table_plan,
+        true,
         true,
     )
     .expect("final AArch64 table-function replay");

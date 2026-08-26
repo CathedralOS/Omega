@@ -902,6 +902,14 @@ fn selected_instruction_name(
                 selected_instruction_operands_name(backend_plan, *operands)
             )
         }
+        SelectedInstructionKind::DynamicTableCall {
+            byte_offset,
+            operands,
+            ..
+        } => format!(
+            "call private dynamic table slot +{byte_offset}({})",
+            selected_instruction_operands_name(backend_plan, *operands)
+        ),
         SelectedInstructionKind::WriteReturnRegisterInteger {
             register,
             byte_size,

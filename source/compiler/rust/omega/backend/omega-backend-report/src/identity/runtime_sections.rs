@@ -34,6 +34,7 @@ pub(in crate::identity) fn count_runtime_body_strings(
             | RuntimeDispatchBodyOperationKind::PortWrite
             | RuntimeDispatchBodyOperationKind::PortRead => {}
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
+            | RuntimeDispatchBodyOperationKind::DynamicStateCall { .. }
             | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
             | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
             RuntimeDispatchBodyOperationKind::LocalStorage {

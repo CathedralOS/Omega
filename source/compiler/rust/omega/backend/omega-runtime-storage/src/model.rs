@@ -361,6 +361,12 @@ pub struct RuntimeFrameSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeFrameSlotKind {
     Parameter,
+    DynamicReceiver {
+        realization: StateKey,
+    },
+    DynamicResultScratch {
+        realization: StateKey,
+    },
     LocalStorage,
     StateCallResult {
         role: StateCallRole,

@@ -62,6 +62,7 @@ use psi_arena::Arena;
 use psi_checked_trees::expression::ExpressionTable;
 
 mod bindings;
+mod dynamic_calls;
 mod host_operations;
 mod instruction_sink;
 mod lookups;
@@ -87,15 +88,20 @@ use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_b
 pub fn build_instruction_plan(
     input: &InstructionSelectionInput<'_>,
 ) -> Result<AbstractOperationPlan, psi_diagnostics::Diagnostic> {
+    dynamic_calls::validate_dynamic_calls(input)?;
     let mut instruction_plan = estimated_instruction_plan(input);
 
-    let (instructions, mut permission_realization_candidates, boundary_footprints) =
-        select_entry_instructions(
-            input,
-            &mut instruction_plan.code.operands,
-            &mut instruction_plan.code.runtime_value_operands,
-            &mut instruction_plan.code.instructions,
-        );
+    let (
+        instructions,
+        mut permission_realization_candidates,
+        mut boundary_footprints,
+        entry_boundary,
+    ) = select_entry_instructions(
+        input,
+        &mut instruction_plan.code.operands,
+        &mut instruction_plan.code.runtime_value_operands,
+        &mut instruction_plan.code.instructions,
+    )?;
     append_trivial_affine_drop_realizations(input, &mut permission_realization_candidates);
     append_elided_no_debt_realizations(input, &mut permission_realization_candidates);
 
@@ -111,6 +117,8 @@ pub fn build_instruction_plan(
         input,
         &mut instruction_plan,
         &mut permission_realization_candidates,
+        &mut boundary_footprints,
+        entry_boundary.as_ref(),
     )?;
     instruction_plan.permission_realization_candidates = permission_realization_candidates;
     instruction_plan.semantics.boundaries.footprints = boundary_footprints;
@@ -245,11 +253,15 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<AbstractValueOperand>,
     instructions: &mut Arena<AbstractOperation>,
-) -> (
-    psi_arena::HandleSpan<AbstractOperation>,
-    Vec<omega_abstract_operations::PermissionRealizationCandidate>,
-    omega_abstract_operations::BoundaryFootprintPlan,
-) {
+) -> Result<
+    (
+        psi_arena::HandleSpan<AbstractOperation>,
+        Vec<omega_abstract_operations::PermissionRealizationCandidate>,
+        omega_abstract_operations::BoundaryFootprintPlan,
+        Option<omega_calling_conventions::ValidatedBoundaryEntryPlan>,
+    ),
+    psi_diagnostics::Diagnostic,
+> {
     let mut selected_instructions = SelectedInstructionSink::new(instructions, input.control_flow);
     let mut boundary_footprints = omega_abstract_operations::BoundaryFootprintPlan::default();
 
@@ -283,8 +295,13 @@ fn select_entry_instructions(
             operands,
             runtime_value_operands,
             instructions.span(instruction_span).unwrap_or_default(),
-        );
-        return (instruction_span, candidates, boundary_footprints);
+        )?;
+        return Ok((
+            instruction_span,
+            candidates,
+            boundary_footprints,
+            entry_boundary,
+        ));
     }
 
     let schedule_context =
@@ -319,8 +336,13 @@ fn select_entry_instructions(
         operands,
         runtime_value_operands,
         instructions.span(instruction_span).unwrap_or_default(),
-    );
-    (instruction_span, candidates, boundary_footprints)
+    )?;
+    Ok((
+        instruction_span,
+        candidates,
+        boundary_footprints,
+        entry_boundary,
+    ))
 }
 
 fn retain_exit_footprints(
@@ -330,16 +352,24 @@ fn retain_exit_footprints(
     operands: &Arena<InstructionOperand>,
     runtime_value_operands: &Arena<AbstractValueOperand>,
     instructions: &[AbstractOperation],
-) {
+) -> Result<(), psi_diagnostics::Diagnostic> {
     let Some(boundary) = boundary else {
-        return;
+        return Ok(());
     };
-    if input.runtime_dispatch_loop.needed {
+    if input.runtime_dispatch_loop.needed
+        && instructions.iter().any(|instruction| {
+            matches!(
+                instruction.kind,
+                AbstractOperationKind::EnterDispatchLoop { .. }
+                    | AbstractOperationKind::LeaveDispatchLoop
+            )
+        })
+    {
         let evidence = derive_boundary_dispatch_scaffold_footprint(
             boundary,
             instructions.iter().map(|instruction| &instruction.kind),
         )
-        .expect("selected dispatch scaffold must fit the validated entry state ceiling");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
         plan.retain_validated_fragment(
             boundary,
             omega_abstract_operations::BoundaryFootprintFragment {
@@ -348,13 +378,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained dispatch scaffold must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_static_guard_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected static guards must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -364,13 +394,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained static guards must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_runtime_text_guard_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected runtime text guards must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -379,13 +409,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained runtime text guards must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_place_guard_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected place guards must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -394,14 +424,14 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained place guards must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_runtime_value_guard_footprint(
         boundary,
         runtime_value_operands,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected runtime-value guards must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -410,28 +440,28 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained runtime-value guards must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_call_return_mechanics_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected function entry/return must match the validated boundary control contract");
-    plan.retain_validated_fragment(
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
+    retain_boundary_footprint_fragment(
+        plan,
         boundary,
         omega_abstract_operations::BoundaryFootprintFragment {
             origin: omega_abstract_operations::BoundaryFootprintFragmentOrigin::CallReturnMechanics,
             evidence,
         },
-    )
-    .expect("retained function mechanics must name and fit the entry boundary contract");
+    )?;
 
     let evidence = derive_boundary_checked_assembly_footprint(
         boundary,
         runtime_value_operands,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected checked assembly must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -440,14 +470,14 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained checked-assembly footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
 
     let evidence = derive_boundary_exit_result_register_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected exit-result registers must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -457,13 +487,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained result footprint must name and fit the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_copy_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body place copies must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -472,13 +502,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body place-copy footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_integer_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body integer writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -487,13 +517,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body integer-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_address_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body address writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -502,7 +532,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body address-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_constant_host_result_footprint(
         boundary,
@@ -510,9 +540,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body constant host results must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -521,7 +549,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body constant-host-result footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_immediate_import_footprint(
         boundary,
@@ -529,7 +557,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body immediate imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -538,7 +566,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body immediate-import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_immediate_import_result_footprint(
         boundary,
@@ -546,7 +574,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing immediate imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -555,7 +583,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing immediate-import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_float_import_result_footprint(
         boundary,
@@ -563,7 +591,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing float imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -572,7 +600,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing float-import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_dereferenced_import_result_footprint(
         boundary,
@@ -580,7 +608,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body dereferenced-result imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -589,7 +617,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body dereferenced-result import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_data_import_footprint(
         boundary,
@@ -597,9 +625,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body data-address imports must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -608,7 +634,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body data-address import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_data_import_result_footprint(
         boundary,
@@ -616,7 +642,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing data-address imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -625,7 +651,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing data-address import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_indirect_call_footprint(
         boundary,
@@ -633,7 +659,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body indirect calls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -642,7 +668,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body indirect-call footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_import_footprint(
         boundary,
@@ -650,7 +676,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body authored imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -659,7 +685,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body authored import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_import_result_footprint(
         boundary,
@@ -667,7 +693,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing authored imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -676,7 +702,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing authored import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_float_import_footprint(
         boundary,
@@ -684,9 +710,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body authored float imports must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -695,7 +719,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body authored float import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_float_import_result_footprint(
         boundary,
@@ -703,7 +727,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing authored float imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -712,7 +736,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing authored float import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_aggregate_import_footprint(
         boundary,
@@ -720,9 +744,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body authored aggregate imports must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -731,7 +753,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body authored aggregate import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence =
         derive_boundary_compiler_body_outbound_authored_aggregate_import_result_footprint(
@@ -740,7 +762,7 @@ fn retain_exit_footprints(
             operands,
             instructions,
         )
-        .expect("selected compiler-body result-bearing authored aggregate imports must fit the validated entry state ceiling");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -749,7 +771,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing authored aggregate import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_authored_aggregate_result_footprint(
         boundary,
@@ -757,9 +779,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body authored aggregate results must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -768,7 +788,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body authored aggregate result footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_open_create_import_footprint(
         boundary,
@@ -776,9 +796,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect(
-        "selected compiler-body Darwin open-create imports must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -787,14 +805,11 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body Darwin open-create footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
-    let evidence = derive_boundary_compiler_body_runtime_byte_read_footprint(
-        boundary,
-        input,
-        instructions,
-    )
-    .expect("selected compiler-body runtime byte reads must fit the validated entry state ceiling");
+    let evidence =
+        derive_boundary_compiler_body_runtime_byte_read_footprint(boundary, input, instructions)
+            .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -803,16 +818,11 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body runtime byte-read footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
-    let evidence = derive_boundary_compiler_body_runtime_byte_write_footprint(
-        boundary,
-        input,
-        instructions,
-    )
-    .expect(
-        "selected compiler-body runtime byte writes must fit the validated entry state ceiling",
-    );
+    let evidence =
+        derive_boundary_compiler_body_runtime_byte_write_footprint(boundary, input, instructions)
+            .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -821,14 +831,11 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body runtime byte-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
-    let evidence = derive_boundary_compiler_body_runtime_line_read_footprint(
-        boundary,
-        input,
-        instructions,
-    )
-    .expect("selected compiler-body runtime line reads must fit the validated entry state ceiling");
+    let evidence =
+        derive_boundary_compiler_body_runtime_line_read_footprint(boundary, input, instructions)
+            .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -837,7 +844,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body runtime line-read footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_storage_import_footprint(
         boundary,
@@ -845,7 +852,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body storage imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -854,7 +861,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body storage-import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_storage_import_result_footprint(
         boundary,
@@ -862,7 +869,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing storage imports must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -871,7 +878,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing storage-import footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_footprint(
         boundary,
@@ -879,7 +886,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body outbound syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -888,7 +895,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body outbound-syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_storage_arguments_footprint(
         boundary,
@@ -896,7 +903,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body storage-argument outbound syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -905,7 +912,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body storage-argument outbound-syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_data_arguments_footprint(
         boundary,
@@ -913,7 +920,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body data-argument outbound syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -922,7 +929,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body data-argument outbound-syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_result_footprint(
         boundary,
@@ -930,7 +937,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing outbound syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -939,15 +946,16 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing outbound-syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
-    let evidence = derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint(
-        boundary,
-        input,
-        operands,
-        instructions,
-    )
-    .expect("selected compiler-body result-bearing storage-argument syscalls must fit the validated entry state ceiling");
+    let evidence =
+        derive_boundary_compiler_body_outbound_syscall_result_storage_arguments_footprint(
+            boundary,
+            input,
+            operands,
+            instructions,
+        )
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -956,7 +964,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing storage-argument syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_result_data_arguments_footprint(
         boundary,
@@ -964,7 +972,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body result-bearing data-argument syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -973,7 +981,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body result-bearing data-argument syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_timespec_argument_footprint(
         boundary,
@@ -981,7 +989,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body timespec-argument syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -990,7 +998,7 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body timespec-argument syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_outbound_syscall_timespec_result_footprint(
         boundary,
@@ -998,7 +1006,7 @@ fn retain_exit_footprints(
         operands,
         instructions,
     )
-    .expect("selected compiler-body timespec-result syscalls must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1007,13 +1015,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body timespec-result syscall footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_storage_bit_field_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body bit-field writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1022,15 +1030,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body bit-field-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_bounded_buffer_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body bounded-buffer writes must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1039,13 +1045,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body bounded-buffer-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_string_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body string writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1054,15 +1060,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body string-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_literal_byte_append_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire literal-byte appends must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1071,15 +1075,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire literal-byte footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_scalar_varint_append_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire scalar-varint appends must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1088,13 +1090,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire scalar-varint footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_text_bytes_append_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body wire text appends must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1103,15 +1105,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire text-append footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_scalar_slice_append_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire scalar-slice appends must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1120,15 +1120,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire scalar-slice append footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_repeated_scalar_varint_append_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body repeated scalar appends must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1137,15 +1135,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body repeated scalar append footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_expected_byte_read_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire expected-byte reads must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1154,15 +1150,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire expected-byte footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_scalar_varint_read_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire scalar-varint reads must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1171,15 +1165,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire scalar-varint read footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_byte_slice_read_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body wire byte-slice reads must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1188,13 +1180,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body wire byte-slice read footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_nested_open_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body nested-open checks must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1203,15 +1195,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body nested-open footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_nested_close_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body nested-close checks must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1220,15 +1210,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body nested-close footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_wire_repeated_scalar_varint_read_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body repeated scalar reads must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1237,14 +1225,14 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body repeated scalar read footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_atomic_footprint(
         boundary,
         runtime_value_operands,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body atomic operations must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() || !evidence.machine_state().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1253,15 +1241,13 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body atomic footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_text_assembly_write_footprint(
         boundary,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect(
-        "selected compiler-body text assembly writes must fit the validated entry state ceiling",
-    );
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1270,14 +1256,14 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body text-assembly footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_place_binary_write_footprint(
         boundary,
         runtime_value_operands,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body binary writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1286,14 +1272,14 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body binary-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     let evidence = derive_boundary_compiler_body_storage_convert_write_footprint(
         boundary,
         runtime_value_operands,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected compiler-body conversion writes must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1302,17 +1288,17 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained compiler-body conversion-write footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     }
     if input.runtime_storage.entry_indirect_result_pointer_size != 8 {
-        return;
+        return Ok(());
     }
     let evidence = derive_boundary_exit_indirect_result_copy_footprint(
         boundary,
         input.runtime_storage.entry_indirect_result_pointer_base,
         instructions.iter().map(|instruction| &instruction.kind),
     )
-    .expect("selected indirect-result copies must fit the validated entry state ceiling");
+    .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
     if !evidence.registers().as_slice().is_empty() {
         plan.retain_validated_fragment(
             boundary,
@@ -1322,7 +1308,61 @@ fn retain_exit_footprints(
                 evidence,
             },
         )
-        .expect("retained indirect-result footprint must name the entry boundary contract");
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))?;
+    }
+    Ok(())
+}
+
+fn retain_boundary_footprint_fragment(
+    plan: &mut omega_abstract_operations::BoundaryFootprintPlan,
+    boundary: &omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    fragment: omega_abstract_operations::BoundaryFootprintFragment,
+) -> Result<(), psi_diagnostics::Diagnostic> {
+    plan.retain_validated_fragment(boundary, fragment)
+        .map_err(|error| psi_diagnostics::Diagnostic::error(error.0))
+}
+
+#[cfg(test)]
+mod footprint_error_tests {
+    use super::retain_boundary_footprint_fragment;
+    use omega_abstract_operations::{
+        BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
+    };
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, MachineState, MachineStateSet, RegisterSet,
+        StateFootprintEvidence, evaluate_ordinary_boundary_entry_plan,
+    };
+
+    #[test]
+    fn root_ceiling_mismatch_returns_a_diagnostic() {
+        let boundary = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("ordinary boundary");
+        let mut plan = BoundaryFootprintPlan::default();
+        let diagnostic = retain_boundary_footprint_fragment(
+            &mut plan,
+            &boundary,
+            BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::StaticGuardComparison,
+                evidence: StateFootprintEvidence::new(
+                    RegisterSet::default(),
+                    MachineStateSet::new([MachineState::DebugState]),
+                ),
+            },
+        )
+        .expect_err("a fragment beyond the root ceiling must fail closed");
+
+        assert!(
+            diagnostic
+                .message
+                .contains("exceeds the entry plan ceiling")
+        );
+        assert!(plan.fragments.is_empty());
     }
 }
 

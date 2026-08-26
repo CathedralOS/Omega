@@ -718,9 +718,21 @@ the retained control-flow state body rather than an alias or empty placeholder.
 An exact repeated realization deduplicates, an entry-state realization reuses
 the existing entry identity, and identity, state, or one-to-one demand drift
 rejects before machine bytes. The full native pass-through image can therefore
-link every table slot on both supported architectures. Runtime indirect
-slot-call lowering remains open, as do rebinding, storage, joins, escaping, and
-component crossing. Those consumers use the same complete normalized maps.
+link every table slot on both supported architectures. An immutable bare
+dynamic parameter can now call one admitted requirement through that physical
+slot. The descriptor must be the exact symbol-bound parameter and two-word ABI
+carrier; every retained candidate must place the exact normalized requirement
+in one common slot and expose a realization with the same structural calling
+plan. The plan owns receiver, explicit arguments, and result exactly once.
+Private dynamic calls carry a closed validation identity rather than pretending
+to be authored foreign table calls, so they do not acquire a foreign floating-
+control save/restore envelope. Private function spans still contribute their
+complete prologue, body, result, and return mechanics to the one root footprint
+certificate. A distinct-instance native canary proves that the relocated table
+slot, rather than a static fallback or a same-type decoy, executes under ASLR.
+Mutable or aggregate erased calls, rebinding, storage, joins, escaping, and
+component crossing remain open. Those consumers use the same complete
+normalized maps.
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
 conformance identity.

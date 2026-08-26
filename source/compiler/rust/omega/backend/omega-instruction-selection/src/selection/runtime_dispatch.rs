@@ -1306,6 +1306,122 @@ pub(crate) fn write_place_address_direct(
     }
 }
 
+pub(crate) fn emit_local_dynamic_conformance_descriptor(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target_slot: &omega_runtime_storage::RuntimeFrameSlot,
+    expressions: &ExpressionTable,
+    initializer: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(selection) = input
+        .control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_binding(source_key.machine, source_key.state, target_slot.symbol)
+    else {
+        return false;
+    };
+    if selection.statement_index != statement_index
+        || selection.source_path.last() != Some(&selection.source_name)
+    {
+        return true;
+    }
+    let Some(conformance) = selection.conformance else {
+        return true;
+    };
+    let recast = match expressions.expression(initializer) {
+        ExpressionNode::Borrow(inner) => inner.target,
+        ExpressionNode::Cast(_) => initializer,
+        _ => return true,
+    };
+    let ExpressionNode::Cast(cast) = expressions.expression(recast) else {
+        return true;
+    };
+    let Some(source_place) =
+        crate::selection::storage_places::resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            cast.value,
+        )
+    else {
+        return true;
+    };
+    let Some(table_object) = input
+        .data
+        .dynamic_conformance_table_object(selection.target_trait, conformance)
+    else {
+        return true;
+    };
+    let mut tables = input
+        .data
+        .dynamic_conformance_tables
+        .iter()
+        .filter_map(|(_, table)| (table.object == table_object).then_some(table));
+    let Some(table) = tables.next() else {
+        return true;
+    };
+    if tables.next().is_some()
+        || table.rows.len() != selection.rows.len()
+        || table
+            .rows
+            .iter()
+            .zip(&selection.rows)
+            .any(|(physical, checked)| {
+                physical.requirement_identity.as_ref() != checked.requirement_identity
+                    || physical.realization_identity.as_ref() != checked.realization_identity
+                    || physical.realization.machine != checked.realization_machine
+                    || physical.realization.state != checked.realization_state
+            })
+    {
+        return true;
+    }
+    let abi = input.runtime_abi.dynamic_trait_descriptor();
+    if target_slot.byte_size != abi.total_size()
+        || target_slot.alignment < abi.align()
+        || !matches!(
+            &target_slot.type_descriptor,
+            omega_layout::TypeLayoutDescriptor::Reference { referee, is_mutable: false }
+                if matches!(
+                    referee.as_ref(),
+                    omega_layout::TypeLayoutDescriptor::DynamicTrait { symbol, .. }
+                        if *symbol == selection.target_trait
+                )
+        )
+    {
+        return true;
+    }
+    let Some(instance_offset) = target_slot.byte_offset.checked_add(abi.instance_offset()) else {
+        return true;
+    };
+    let Some(table_offset) = target_slot.byte_offset.checked_add(abi.table_offset()) else {
+        return true;
+    };
+    selected_instructions.push(SelectedInstruction {
+        kind: write_place_address_direct(
+            source_place.region,
+            source_place.byte_offset,
+            instance_offset,
+        ),
+        source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteDataAddressToRuntimeFrame {
+            data: table_object,
+            target_offset: table_offset,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    true
+}
+
 pub(crate) fn write_place_address_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
@@ -3176,6 +3292,20 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     &mut runtime_aliases,
                     &mut runtime_alias_expressions,
                 );
+                if let RuntimeDispatchBodyOperationKind::DynamicStateCall { call_ordinal, .. } =
+                    operation.kind
+                {
+                    super::dynamic_calls::select_dynamic_state_call(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation.source_key,
+                        operation.statement_index,
+                        call_ordinal,
+                        operands,
+                        selected_instructions,
+                    );
+                    continue;
+                }
 
                 // The synthesized wire encoder/decoder calls surface as
                 // unresolved state calls (no real machine exists for
@@ -4046,6 +4176,18 @@ fn select_runtime_dispatch_local_initializer_write(
         )
         .unwrap_or(resolved_initializer.expression)
     };
+    if emit_local_dynamic_conformance_descriptor(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        slot,
+        expressions,
+        resolved_initializer,
+        selected_instructions,
+    ) {
+        return;
+    }
     // §5b recast initializer (`let v: &f32 = &self.bits as &f32`): the view
     // is ADDRESS IDENTITY, and a reference-typed let materializes as a
     // pointee-VALUE copy -- so the judged recast strips to its source place

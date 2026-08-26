@@ -183,6 +183,30 @@ pub(super) fn build_runtime_storage_body_plan(
                 *call_ordinal,
                 *target_key,
             ),
+            RuntimeDispatchBodyOperationKind::DynamicStateCall {
+                role,
+                call_ordinal,
+                target_key,
+                ..
+            } => {
+                append_state_call_result_slot(
+                    context,
+                    &mut plan,
+                    &mut next_frame_offset,
+                    body.dispatch_index,
+                    operation.source_key,
+                    operation.statement_index,
+                    *role,
+                    *call_ordinal,
+                    *target_key,
+                );
+                append_inlined_dynamic_receiver_parameter_alias(
+                    context,
+                    body.dispatch_index,
+                    operation.source_key,
+                    &mut plan,
+                );
+            }
             RuntimeDispatchBodyOperationKind::StateCall {
                 role,
                 call_ordinal,
@@ -263,6 +287,102 @@ pub(super) fn build_runtime_storage_body_plan(
     }
 
     plan
+}
+
+fn append_inlined_dynamic_receiver_parameter_alias(
+    context: &RuntimeStorageContext,
+    dispatch_index: u32,
+    dynamic_source: StateKey,
+    plan: &mut RuntimeStoragePlan,
+) {
+    let mut dynamic_calls = context.state_calls.calls.iter().filter_map(|(_, call)| {
+        (call.source_key == dynamic_source && call.lowering == StateCallLowering::IndirectDynamic)
+            .then_some(call)
+    });
+    let Some(dynamic_call) = dynamic_calls.next() else {
+        return;
+    };
+    if dynamic_calls.next().is_some() {
+        return;
+    }
+    let Some(dynamic) = dynamic_call.dynamic_dispatch.as_ref() else {
+        return;
+    };
+    let Some(state) = context.control_flow.state_by_key(dynamic_source) else {
+        return;
+    };
+    let Some(parameter) = context
+        .control_flow
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == dynamic.receiver_parameter)
+    else {
+        return;
+    };
+    let mut inbound = context
+        .state_calls
+        .calls
+        .iter()
+        .filter_map(|(_, call)| {
+            (call.target_key.machine == dynamic_source.machine
+                && call.target_key.state == dynamic_source.state)
+                .then_some(call)
+        })
+        .filter_map(|call| {
+            context
+                .state_calls
+                .arguments
+                .span(call.arguments)?
+                .iter()
+                .find_map(|argument| {
+                    (argument.parameter_symbol == dynamic.receiver_parameter)
+                        .then_some(argument.dynamic_conformance.as_ref()?.source_binding)
+                })
+        });
+    let Some(source_binding) = inbound.next() else {
+        return;
+    };
+    if inbound.next().is_some() {
+        return;
+    }
+    let mut source_slots = plan.frame_slots.iter().filter_map(|(_, slot)| {
+        (slot.dispatch_index == dispatch_index && slot.symbol == source_binding).then_some(slot)
+    });
+    let Some(source_slot) = source_slots.next().cloned() else {
+        return;
+    };
+    if source_slots.next().is_some() {
+        return;
+    }
+    let layout = layout_for_type_reference(
+        context,
+        &context.program.type_reference_table,
+        parameter.type_reference,
+    );
+    if source_slot.byte_size != layout.size || source_slot.alignment < layout.alignment {
+        return;
+    }
+    plan.frame_slots.insert(RuntimeFrameSlot {
+        dispatch_index,
+        source_key: dynamic_source,
+        statement_index: usize::MAX,
+        kind: RuntimeFrameSlotKind::Parameter,
+        symbol: parameter.symbol,
+        name: parameter.name.clone(),
+        type_symbol: parameter.type_symbol,
+        type_name: parameter.type_name.as_str().into(),
+        type_descriptor: type_descriptor(
+            &context.program.type_reference_table,
+            parameter.type_reference,
+        ),
+        byte_offset: source_slot.byte_offset,
+        byte_size: layout.size,
+        alignment: layout.alignment,
+        is_static_boundary_capability: is_static_boundary_capability(
+            context,
+            parameter.type_symbol,
+        ),
+    });
 }
 
 pub(super) fn build_straight_line_runtime_storage_plan(
@@ -446,6 +566,35 @@ fn append_straight_line_local_slots_for_state(
             local_storage,
         );
     }
+}
+
+/// Reserve ordinary frame storage for one compiler-private dynamic
+/// realization. A table entry reaches this state through a native indirect
+/// call, so it owns a synthetic dispatch namespace outside the runtime flow.
+pub(super) fn append_private_dynamic_state_storage(
+    context: &RuntimeStorageContext,
+    plan: &mut RuntimeStoragePlan,
+    dispatch_index: u32,
+    state_key: StateKey,
+) -> usize {
+    let mut next_frame_offset = 0usize;
+    append_parameter_slots_for_state(
+        context,
+        dispatch_index,
+        state_key,
+        plan,
+        &mut next_frame_offset,
+    );
+    next_frame_offset = next_frame_offset.max(context_parameter_extent(context));
+    append_branch_expanded_storage(
+        context,
+        plan,
+        &mut next_frame_offset,
+        dispatch_index,
+        state_key,
+        &mut BranchStorageVisitingStates::with_capacity(context.control_flow.states.len()),
+    );
+    next_frame_offset
 }
 
 /// Returns the maximum parameter end offset across every dispatch body in the

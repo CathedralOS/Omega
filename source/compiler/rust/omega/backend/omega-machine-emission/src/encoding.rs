@@ -27,6 +27,27 @@ pub(super) fn encode_machine_instruction_bytes(
         return host::encode_host_operation(input, host_operation.operation_key, operands);
     }
 
+    if let SelectedInstructionKind::DynamicTableCall {
+        byte_offset,
+        result_present,
+        call_plan,
+        operands,
+        ..
+    } = kind
+    {
+        let operands = input
+            .assigned_target_operations
+            .instruction_operands(*operands)
+            .ok_or_else(|| Diagnostic::error("dynamic table call lost its operand span"))?;
+        return omega_instruction_selection::encode_table_function_call_sequence_with_plan(
+            input.target,
+            operands,
+            *byte_offset,
+            *result_present,
+            call_plan,
+        );
+    }
+
     match kind {
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text::encode_runtime_text_literal_compare(
@@ -832,7 +853,8 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::BeginPlatformCall => Err(Diagnostic::error(
             "internal error: zero-width machine instruction reached byte encoder",
         )),
-        SelectedInstructionKind::HostOperation { .. } => Err(Diagnostic::error(
+        SelectedInstructionKind::HostOperation { .. }
+        | SelectedInstructionKind::DynamicTableCall { .. } => Err(Diagnostic::error(
             "internal error: host operation was not handled by machine encoder host query",
         )),
     }

@@ -159,14 +159,21 @@ pub(super) fn outbound_call_footprint_parts(
         ),
         CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
             operands,
-            mechanism,
+            identity,
             plan,
             ..
         } => {
-            let dispatch_only = usize::from(matches!(
-                mechanism,
-                omega_calling_conventions::HostBindingMechanism::TableFunction { .. }
-            ));
+            let dispatch_only = usize::from(match identity {
+                omega_machine_bytes::CompilerIndirectCallValidationIdentity::Foreign {
+                    mechanism,
+                } => matches!(
+                    mechanism,
+                    omega_calling_conventions::HostBindingMechanism::TableFunction { .. }
+                ),
+                omega_machine_bytes::CompilerIndirectCallValidationIdentity::PrivateDynamic {
+                    ..
+                } => true,
+            });
             let result_present = operands.len() == plan.parameters.len() + dispatch_only + 1;
             let envelope_and_store_scratch = match architecture {
                 Architecture::X86_64 => vec![MachineRegister::X86Rsp],

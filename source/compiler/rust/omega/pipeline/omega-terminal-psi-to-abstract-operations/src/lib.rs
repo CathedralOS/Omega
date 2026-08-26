@@ -757,11 +757,7 @@ fn lower_machine(
                             edge: block.terminator.edge(),
                         });
                     }
-                    lowered_unit_affine_locals.push((
-                        operation.id,
-                        *place,
-                        declaration.clone(),
-                    ));
+                    lowered_unit_affine_locals.push((operation.id, *place, declaration.clone()));
                     operations.push(TerminalAbstractOperation::EstablishTrivialAffineLocal {
                         psi_operation: operation.id,
                         place: *place,

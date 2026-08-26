@@ -89,8 +89,119 @@ pub fn build_runtime_storage_plan_with_workers(
     }
 
     append_unserved_recursive_call_result_slots(&context, &mut plan);
+    append_private_dynamic_receiver_slots(&context, &mut plan);
     reserve_frame_scratch_region(&mut plan);
     plan
+}
+
+fn append_private_dynamic_receiver_slots(
+    context: &RuntimeStorageContext,
+    plan: &mut RuntimeStoragePlan,
+) {
+    use crate::{RuntimeFrameSlot, RuntimeFrameSlotKind};
+    use omega_layout::TypeLayoutDescriptor;
+    use psi_checked_trees::name::Identifier;
+
+    let mut realizations = Vec::new();
+    for (_, call) in context.state_calls.calls.iter() {
+        let Some(dispatch) = &call.dynamic_dispatch else {
+            continue;
+        };
+        for candidate in &dispatch.candidates {
+            for row in &candidate.rows {
+                let Some(state) = context.control_flow.states.iter().find_map(|(_, state)| {
+                    (state.key.machine == row.realization_machine
+                        && state.key.state == row.realization_state
+                        && state.key.segment_index == 0)
+                        .then_some(state.key)
+                }) else {
+                    continue;
+                };
+                if !realizations.contains(&state) {
+                    realizations.push(state);
+                }
+            }
+        }
+    }
+
+    let mut next_private_dispatch_index = context
+        .runtime_bodies
+        .bodies
+        .iter()
+        .map(|(_, body)| body.dispatch_index)
+        .max()
+        .unwrap_or(0)
+        .saturating_add(1);
+    for realization in realizations {
+        let dispatch_index = next_private_dispatch_index;
+        next_private_dispatch_index = next_private_dispatch_index.saturating_add(1);
+        let Some(machine) = context
+            .control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.symbol == realization.machine)
+            .map(|(_, machine)| machine)
+        else {
+            continue;
+        };
+        let Some(attached_data) = &machine.attached_data else {
+            continue;
+        };
+        let Some(data_layout) = context
+            .layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data)| data.name == *attached_data)
+            .map(|(_, data)| data)
+        else {
+            continue;
+        };
+        let occupied = crate::body::append_private_dynamic_state_storage(
+            context,
+            plan,
+            dispatch_index,
+            realization,
+        );
+        let byte_offset = align_to(occupied, context.target.pointer_alignment.max(1));
+        plan.frame_slots.insert(RuntimeFrameSlot {
+            dispatch_index,
+            source_key: realization,
+            statement_index: usize::MAX,
+            kind: RuntimeFrameSlotKind::DynamicReceiver { realization },
+            // `self` expressions are resolved to the attached machine symbol;
+            // the concrete data symbol remains the slot's type identity.
+            symbol: realization.machine,
+            name: Identifier::generated_static("self"),
+            type_symbol: data_layout.symbol,
+            type_name: std::sync::Arc::from(attached_data.as_str()),
+            type_descriptor: TypeLayoutDescriptor::Reference {
+                referee: Box::new(TypeLayoutDescriptor::Named {
+                    symbol: data_layout.symbol,
+                    name: attached_data.clone(),
+                }),
+                is_mutable: false,
+            },
+            byte_offset,
+            byte_size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+            is_static_boundary_capability: false,
+        });
+        plan.frame_slots.insert(RuntimeFrameSlot {
+            dispatch_index,
+            source_key: realization,
+            statement_index: usize::MAX,
+            kind: RuntimeFrameSlotKind::DynamicResultScratch { realization },
+            symbol: psi_symbols::SymbolHandle::invalid(),
+            name: Identifier::generated_static("$dyn_result"),
+            type_symbol: psi_symbols::SymbolHandle::invalid(),
+            type_name: std::sync::Arc::from("$dyn_result"),
+            type_descriptor: TypeLayoutDescriptor::Unit,
+            byte_offset: byte_offset.saturating_add(context.target.pointer_size),
+            byte_size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+            is_static_boundary_capability: false,
+        });
+    }
 }
 
 /// A DISPATCHED value call to an ENTRY-REENTERING callee (`true ->

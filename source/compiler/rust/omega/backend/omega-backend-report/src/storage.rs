@@ -117,6 +117,8 @@ pub(super) fn write_storage_sections(output: &mut String, backend_plan: &Backend
 fn runtime_frame_slot_kind_name(kind: &RuntimeFrameSlotKind) -> String {
     match kind {
         RuntimeFrameSlotKind::Parameter => "parameter".into(),
+        RuntimeFrameSlotKind::DynamicReceiver { .. } => "dynamic-receiver".into(),
+        RuntimeFrameSlotKind::DynamicResultScratch { .. } => "dynamic-result-scratch".into(),
         RuntimeFrameSlotKind::LocalStorage => "local".into(),
         RuntimeFrameSlotKind::StateCallResult {
             role, call_ordinal, ..

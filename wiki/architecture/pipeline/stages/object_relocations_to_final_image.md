@@ -24,6 +24,11 @@ Private dynamic-conformance table slots arrive as ordinary initialized-data
 `Absolute64` relocations targeting exact compiler-private function symbols.
 Both AArch64 and x86-64 final-image paths apply that existing relocation form;
 this stage does not inspect trait rows or reconstruct dynamic-table identity.
+For PIE Mach-O output, the same typed relocation sites additionally become
+dyld pointer-rebase opcodes. The writer retains the exact internal symbol and
+addend, rejects malformed or duplicate data sites, and replays each patched
+preferred pointer before publication; it does not disable ASLR or synthesize a
+runtime slide.
 
 ## Semantic Ownership
 
@@ -150,7 +155,7 @@ Must not own:
   non-relocated instruction bits remain unchanged.
 - `omega-image-elf/src/lib.rs` owns ELF emission orchestration; ELF constants, byte writing, section/address planning, entry-symbol lookup, layout helpers, and header/program-header writing live in focused sibling modules.
 - `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, section/RVA planning, imports, entry-symbol lookup, and headers live in focused sibling modules.
-- `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; image command/section/linkedit planning, import thunks, bind info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
+- `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; image command/section/linkedit planning, import thunks, bind info, typed internal-pointer rebase info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
 - The remaining ELF, Mach-O, and PE modules own format-specific executable layout and byte writing.
 - `omega-terminal-image-emission/src/lib.rs` dispatches the clean terminal-Psi
   artifact to those writers and publishes relocation-envelope validation

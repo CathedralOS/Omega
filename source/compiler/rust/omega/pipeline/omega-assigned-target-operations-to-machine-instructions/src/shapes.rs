@@ -34,6 +34,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::HostOperation { operation_key, .. } => {
             host::host_operation_kind(*operation_key)
         }
+        SelectedInstructionKind::DynamicTableCall { .. } => {
+            MachineInstructionKind::DynamicTableCallSequence
+        }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..
@@ -153,6 +156,9 @@ pub(super) fn lower_machine_instruction_kind(
         }
         SelectedInstructionKind::PortWrite { .. } => MachineInstructionKind::PortWrite,
         SelectedInstructionKind::PortRead { .. } => MachineInstructionKind::PortRead,
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame { .. } => {
+            MachineInstructionKind::DataAddressToRuntimeFrameWrite
+        }
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::LeaveDispatchLoop

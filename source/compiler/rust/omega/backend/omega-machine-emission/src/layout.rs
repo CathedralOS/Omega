@@ -285,6 +285,29 @@ fn machine_instruction_width(
         return Ok(width + control_restore_width);
     }
 
+    if let SelectedInstructionKind::DynamicTableCall {
+        byte_offset,
+        result_present,
+        call_plan,
+        operands,
+        ..
+    } = kind
+    {
+        let operands = input
+            .assigned_target_operations
+            .instruction_operands(*operands)
+            .ok_or_else(|| Diagnostic::error("dynamic table call lost its operand span"))?;
+        return Ok(
+            omega_instruction_selection::table_function_call_sequence_width_with_plan(
+                input.target,
+                operands,
+                *byte_offset,
+                *result_present,
+                call_plan,
+            ),
+        );
+    }
+
     let width = match kind {
         SelectedInstructionKind::EnterDispatchLoop { .. } => {
             dispatch_loop_enter_width(input.target.architecture)
@@ -1098,7 +1121,8 @@ fn machine_instruction_width(
         SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall => 0,
-        SelectedInstructionKind::HostOperation { .. } => {
+        SelectedInstructionKind::HostOperation { .. }
+        | SelectedInstructionKind::DynamicTableCall { .. } => {
             return Err(Diagnostic::error(
                 "internal error: host operation was not handled by machine layout host query",
             ));

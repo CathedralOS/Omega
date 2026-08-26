@@ -722,6 +722,13 @@ pub enum AbstractOperationKind {
         byte_count: u32,
     },
     BeginPlatformCall,
+    DynamicTableCall {
+        byte_offset: usize,
+        requirement_identity: std::sync::Arc<str>,
+        result_present: bool,
+        call_plan: omega_calling_conventions::CallPlan,
+        operands: HandleSpan<InstructionOperand>,
+    },
     HostOperation {
         operation_ordinal: u16,
         operands: HandleSpan<InstructionOperand>,
