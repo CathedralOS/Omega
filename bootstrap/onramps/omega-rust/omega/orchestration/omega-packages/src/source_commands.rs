@@ -68,6 +68,7 @@ impl PackageSourceRequest {
 pub struct PackageSourceAudit {
     pub source_kind: String,
     pub locator: String,
+    pub transport_profile: Option<String>,
     pub requested_rev: Option<String>,
     pub resolved_commit: Option<String>,
     pub resolved_tree: Option<String>,
@@ -98,6 +99,11 @@ impl PackageSourceAudit {
         report.push_str("locator: ");
         report.push_str(&self.locator);
         report.push('\n');
+        if let Some(transport_profile) = &self.transport_profile {
+            report.push_str("transport profile: ");
+            report.push_str(transport_profile);
+            report.push('\n');
+        }
         if let Some(rev) = &self.requested_rev {
             report.push_str("requested rev: ");
             report.push_str(rev);
@@ -164,6 +170,7 @@ pub fn audit_package_source(
             Ok(PackageSourceAudit {
                 source_kind: "local-path".to_owned(),
                 locator: path.display().to_string(),
+                transport_profile: None,
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
@@ -177,6 +184,7 @@ pub fn audit_package_source(
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
+                transport_profile: Some(resolved.transport_profile.as_str().to_owned()),
                 requested_rev: Some(resolved.requested_rev),
                 resolved_commit: Some(resolved.commit),
                 resolved_tree: Some(resolved.tree),
@@ -278,6 +286,7 @@ mod tests {
             "https://github.com/cathedralos/arithmetic-kernels.git"
         );
         assert_eq!(request.requested_revision(), "refs/heads/main");
+        assert_eq!(request.transport_profile().as_str(), "ssh");
 
         for locator in [
             "http://github.com/CathedralOS/tool.git",

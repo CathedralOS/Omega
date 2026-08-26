@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 2;
+pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCacheRequest {
@@ -41,6 +41,7 @@ pub struct SourceCachePolicyRecord {
     pub verdict: SourceCacheVerdict,
     pub source_kind: String,
     pub locator: String,
+    pub transport_profile: Option<String>,
     pub requested_rev: Option<String>,
     pub resolved_commit: Option<String>,
     pub resolved_tree: Option<String>,
@@ -89,6 +90,7 @@ impl SourceCachePolicyRecord {
                 "verdict",
                 "source_kind",
                 "locator",
+                "transport_profile",
                 "requested_rev",
                 "resolved_commit",
                 "resolved_tree",
@@ -120,6 +122,7 @@ impl SourceCachePolicyRecord {
             source_kind: value_string(field(fields, "source_kind", "$")?, "$.source_kind")?
                 .to_owned(),
             locator: value_string(field(fields, "locator", "$")?, "$.locator")?.to_owned(),
+            transport_profile: optional_string(field(fields, "transport_profile", "$")?)?,
             requested_rev: optional_string(field(fields, "requested_rev", "$")?)?,
             resolved_commit: optional_string(field(fields, "resolved_commit", "$")?)?,
             resolved_tree: optional_string(field(fields, "resolved_tree", "$")?)?,
@@ -183,6 +186,13 @@ impl SourceCachePolicyRecord {
         push_string_field(&mut json, 1, "verdict", self.verdict.as_str(), true);
         push_string_field(&mut json, 1, "source_kind", &self.source_kind, true);
         push_string_field(&mut json, 1, "locator", &self.locator, true);
+        push_optional_string_field(
+            &mut json,
+            1,
+            "transport_profile",
+            self.transport_profile.as_deref(),
+            true,
+        );
         push_optional_string_field(
             &mut json,
             1,
@@ -396,6 +406,7 @@ pub fn resolve_source_cache_record(
                 verdict: SourceCacheVerdict::DiagnosticObserved,
                 source_kind: "local-path".to_owned(),
                 locator: path.display().to_string(),
+                transport_profile: None,
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
@@ -416,12 +427,14 @@ pub fn resolve_source_cache_record(
                 "local-path",
                 path.display().to_string(),
                 None,
+                None,
                 limits,
                 error,
             ),
         },
         SourceCacheRequest::Git(request) => {
             let locator = request.locator_identity().to_owned();
+            let transport_profile = request.transport_profile().as_str().to_owned();
             let requested_rev = request.requested_revision().to_owned();
             match resolve_git_source(&request, cache_dir, limits) {
                 Ok(resolved) => SourceCachePolicyRecord {
@@ -429,6 +442,7 @@ pub fn resolve_source_cache_record(
                     verdict: SourceCacheVerdict::DiagnosticObserved,
                     source_kind: "git".to_owned(),
                     locator,
+                    transport_profile: Some(resolved.transport_profile.as_str().to_owned()),
                     requested_rev: Some(resolved.requested_rev),
                     resolved_commit: Some(resolved.commit),
                     resolved_tree: Some(resolved.tree),
@@ -446,7 +460,14 @@ pub fn resolve_source_cache_record(
                             .to_owned(),
                     rejection: None,
                 },
-                Err(error) => rejected_record("git", locator, Some(requested_rev), limits, error),
+                Err(error) => rejected_record(
+                    "git",
+                    locator,
+                    Some(transport_profile),
+                    Some(requested_rev),
+                    limits,
+                    error,
+                ),
             }
         }
     }
@@ -455,6 +476,7 @@ pub fn resolve_source_cache_record(
 fn rejected_record(
     source_kind: &str,
     locator: String,
+    transport_profile: Option<String>,
     requested_rev: Option<String>,
     limits: LocalSourceLimits,
     error: SourceResolveError,
@@ -464,6 +486,7 @@ fn rejected_record(
         verdict: SourceCacheVerdict::Rejected,
         source_kind: source_kind.to_owned(),
         locator,
+        transport_profile,
         requested_rev,
         resolved_commit: None,
         resolved_tree: None,
@@ -750,6 +773,7 @@ mod tests {
             verdict: SourceCacheVerdict::DiagnosticObserved,
             source_kind: "git".to_owned(),
             locator: "git@github.com:CathedralOS/file-journal.git".to_owned(),
+            transport_profile: Some("ssh".to_owned()),
             requested_rev: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
             resolved_commit: Some("0123456789abcdef0123456789abcdef01234567".to_owned()),
             resolved_tree: Some("89abcdef0123456789abcdef0123456789abcdef".to_owned()),
@@ -788,6 +812,7 @@ mod tests {
             verdict: SourceCacheVerdict::Rejected,
             source_kind: "local-path".to_owned(),
             locator: "./missing-package".to_owned(),
+            transport_profile: None,
             requested_rev: None,
             resolved_commit: None,
             resolved_tree: None,
@@ -818,7 +843,7 @@ mod tests {
 
     #[test]
     fn source_cache_policy_record_parse_rejects_unknown_schema_and_fields() {
-        let unknown_schema = "{\n  \"schema_version\": 99,\n  \"verdict\": \"accepted\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null\n}\n";
+        let unknown_schema = "{\n  \"schema_version\": 99,\n  \"verdict\": \"accepted\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"transport_profile\": null,\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null\n}\n";
         assert_eq!(
             SourceCachePolicyRecord::from_json(unknown_schema),
             Err(
@@ -829,7 +854,7 @@ mod tests {
             )
         );
 
-        let unexpected_field = "{\n  \"schema_version\": 2,\n  \"verdict\": \"diagnostic-observed\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null,\n  \"extra\": \"no\"\n}\n";
+        let unexpected_field = "{\n  \"schema_version\": 3,\n  \"verdict\": \"diagnostic-observed\",\n  \"source_kind\": \"local-path\",\n  \"locator\": \".\",\n  \"transport_profile\": null,\n  \"requested_rev\": null,\n  \"resolved_commit\": null,\n  \"resolved_tree\": null,\n  \"content_identity\": null,\n  \"cache_path\": null,\n  \"file_count\": null,\n  \"byte_count\": null,\n  \"max_files\": 4096,\n  \"max_bytes\": 268435456,\n  \"max_depth\": 64,\n  \"submodule_policy\": \"git-submodules-not-applicable\",\n  \"path_policy\": \"canonical-root-contained\",\n  \"rejection\": null,\n  \"extra\": \"no\"\n}\n";
         assert_eq!(
             SourceCachePolicyRecord::from_json(unexpected_field),
             Err(SourceCachePolicyRecordParseError::UnexpectedField {
@@ -862,6 +887,7 @@ mod tests {
         assert_eq!(record.verdict, SourceCacheVerdict::DiagnosticObserved);
         assert_eq!(record.source_kind, "git");
         assert_eq!(record.locator, locator_identity);
+        assert_eq!(record.transport_profile.as_deref(), Some("test-file"));
         assert!(!record.locator.contains(&repo.display().to_string()));
         assert_eq!(record.requested_rev.as_deref(), Some("HEAD"));
         assert_eq!(record.resolved_commit.as_ref().expect("commit").len(), 40);

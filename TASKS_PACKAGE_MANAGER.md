@@ -328,6 +328,17 @@ complete.
   replacement, macOS ACL custody, executable provenance, loaded-image identity,
   helper custody, Windows DACL policy, or native confinement.
 
+  Milestone 2026-08-25: the validated Git request now retains its execution
+  transport independently of normalized package lineage. HTTPS grants only
+  Git's `https` protocol; SSH URL and SCP-like forms grant only `ssh`; `file`
+  remains reachable solely through the test adapter. The cache key and exact
+  resolver metadata bind this profile, and policy v10 invalidates cache custody
+  created under the former HTTPS/SSH/file union. Resolved-source observations,
+  source-audit output, and diagnostic cache-policy schema v3 retain the selected
+  profile rather than showing only transport-neutral hosted lineage. This
+  closes cross-protocol authority and cache reuse, not effective endpoint, TLS, known-host,
+  credential, transport-helper, or native-network custody.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
@@ -342,10 +353,14 @@ complete.
   credential custody, during-operation resource quotas, handle-relative cache
   custody, canonical build-observable source metadata, and a locally
   reconstructed opaque strict receipt. Public requests now admit only HTTPS and
-  SSH transports; the sealed executor disables HTTP, unauthenticated `git://`,
-  and HTTP redirects, and permits file transport only through the explicit
-  test adapter. This removes redirect-selected endpoint substitution but does
-  not yet retain or confine the effective socket/DNS/TLS/SSH endpoint. Helper,
+  SSH transports; the sealed executor grants only the request's selected
+  `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
+  unselected protocol, and HTTP redirects, and permits file transport only
+  through the explicit test adapter. Cache identity and metadata bind that
+  execution profile even when hosted lineage normalizes HTTPS and SSH together.
+  This removes cross-protocol authority and redirect-selected endpoint
+  substitution but does not yet retain or confine the effective
+  socket/DNS/TLS/SSH endpoint. Helper,
   diagnostic, and future resolver routes must not bypass the same request
   validator.
 
