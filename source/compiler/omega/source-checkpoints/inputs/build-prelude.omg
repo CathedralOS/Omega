@@ -16,6 +16,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
+    human_report: u8 in Trapping;
     control_flow_cleanup: u8 in Trapping;
     sparse_conditional_constant_propagation: u8 in Trapping;
     copy_propagation: u8 in Trapping;
@@ -81,4 +82,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state selected_incoming_u12_exact_add_immediate(&mut self) {
         self.selected_incoming_u12_exact_add_immediate = self.selected_incoming_u12_exact_add_immediate + 1;
     }
+}
+pub machine Optimizations::emit_report(&mut self) {
+    self.human_report = self.human_report + 1;
 }

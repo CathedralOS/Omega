@@ -569,6 +569,7 @@ machine Main::check_source_label_order(&mut self) {
 // 447 self
 // 451 input
 // 456 _
+// 457 as
 machine Main::init_words(&mut self) {
     self.words[0]=112; self.words[1]=117; self.words[2]=98;
     self.words[3]=100; self.words[4]=97; self.words[5]=116; self.words[6]=97;
@@ -638,6 +639,7 @@ machine Main::init_words(&mut self) {
     self.words[447]=115; self.words[448]=101; self.words[449]=108; self.words[450]=102;
     self.words[451]=105; self.words[452]=110; self.words[453]=112; self.words[454]=117; self.words[455]=116;
     self.words[456]=95;
+    self.words[457]=97; self.words[458]=115;
 }
 
 machine Main::init_productions(&mut self) {
@@ -1218,7 +1220,9 @@ machine Main::init_productions(&mut self) {
     self.productions[577]=15882;
     self.productions[578]=40;
     self.productions[579]=36870;
-    self.productions[580]=-195;
+    // Action kind 3 requires the explicit `as i32` and then captures the
+    // complete requirement-call end at the following `)` token.
+    self.productions[580]=-291;
     self.productions[581]=41;
     self.productions[582]=59;
     self.productions[583]=31626;
@@ -1318,7 +1322,7 @@ machine Main::init_productions(&mut self) {
     self.productions[677]=15882;
     self.productions[678]=40;
     self.productions[679]=36870;
-    self.productions[680]=-196;
+    self.productions[680]=-292;
     self.productions[681]=41;
     self.productions[682]=59;
     self.productions[683]=125;
@@ -1806,7 +1810,14 @@ machine Main::expect_production(&mut self, production_start: i32, production_cou
         self.spans[self.action_slot*2+1]=self.tok_len;
         transition 0 { _ -> action_next() }
     }
-    state action_start_test() { transition self.action_kind == 1 { true -> capture_start() _ -> capture_end() } }
+    state action_start_test() { transition self.action_kind == 1 { true -> capture_start() _ -> action_end_test() } }
+    state action_end_test() { transition self.action_kind == 2 { true -> capture_end() _ -> cast_as() } }
+    state cast_as() {
+        self.token_word(457,2);
+        transition self.match_ok == 1 { true -> cast_i32_next() _ -> bad() }
+    }
+    state cast_i32_next() { self.next_source_token(); self.token_word(31,3); transition self.match_ok == 1 { true -> cast_end_next() _ -> bad() } }
+    state cast_end_next() { self.next_source_token(); transition 0 { _ -> capture_end() } }
     state capture_start() {
         self.spans[self.action_slot*2]=self.tok_start-self.source_base;
         transition 0 { _ -> action_next() }

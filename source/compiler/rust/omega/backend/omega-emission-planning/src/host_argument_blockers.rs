@@ -118,6 +118,30 @@ fn collect_computed_scalar_argument_blockers(
             if !is_computed_scalar {
                 continue;
             }
+            // A selected byte-write composite completely serves the exact
+            // authored `u8 as i32` argument by reading the source place's low
+            // byte. It intentionally needs no generic scratch
+            // materialization; unsupported casts never select that composite
+            // and still reach the blocker below.
+            if matches!(host_call.data, PlatformCallData::SingleByteWrite)
+                && input
+                    .instructions
+                    .code
+                    .instructions
+                    .iter()
+                    .any(|(_, instruction)| {
+                        state_key_matches_statement_source(
+                            instruction.source_key,
+                            host_call.source_key,
+                        ) && instruction.source_statement == host_call.statement_index
+                            && matches!(
+                                instruction.kind,
+                                SelectedInstructionKind::WriteRuntimeByte { .. }
+                            )
+                    })
+            {
+                continue;
+            }
             let target_offset = input.runtime_storage.host_argument_scratch_base + index * 8;
             let has_materialization = input.instructions.code.instructions.iter().any(
                 |(_, instruction)| {
