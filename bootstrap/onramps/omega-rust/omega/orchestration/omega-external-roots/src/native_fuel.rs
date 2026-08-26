@@ -14,13 +14,13 @@ use omega_executable_installation::{
 };
 use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_installation_evidence::{
-    TerminalFuelAttributionEvidence, TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence,
-    TerminalNativeFuelImageEvidence, TerminalObjectEvidence,
+    NativeFuelTransferRuntimePlanProjection, TerminalFuelAttributionEvidence,
+    TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence, TerminalNativeFuelImageEvidence,
+    TerminalObjectEvidence,
 };
 
 use super::{
-    ComposedFuelDemand, DynamicFuelMeterValidationReceiptId, ExternalRootDiagnostic, Fnv1a,
-    FuelExhaustionTransferPlanId, FuelProvisionId, FuelSuspensionFreeEvidence,
+    ComposedFuelDemand, ExternalRootDiagnostic, Fnv1a, FuelProvisionId, FuelSuspensionFreeEvidence,
     NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelTargetPlanProjection,
     SponsorContextTransport,
 };
@@ -236,52 +236,91 @@ fn validate_native_fuel_context_layout(
     Ok(())
 }
 
-/// Pre-install dynamic meter selection. The transfer identity must agree with
-/// the admitted target recipe. The validation receipt remains plan metadata;
-/// it cannot authorize installed execution without separately constructed
-/// executable transfer-runtime custody.
+/// Sealed structural transfer plan for one exact admitted native-fuel target
+/// policy. This validates plan identity and shape only; executable transfer
+/// runtime custody remains unavailable until target emission and image replay
+/// can construct [`InstalledNativeFuelTransferRuntime`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedNativeFuelTransferPlan {
+    target_policy: AdmittedNativeFuelTargetPolicy,
+    projection: NativeFuelTransferRuntimePlanProjection,
+}
+
+impl ValidatedNativeFuelTransferPlan {
+    pub const fn target_policy(&self) -> &AdmittedNativeFuelTargetPolicy {
+        &self.target_policy
+    }
+
+    pub const fn projection(&self) -> &NativeFuelTransferRuntimePlanProjection {
+        &self.projection
+    }
+
+    pub const fn normalized_identity(&self) -> u64 {
+        self.projection.normalized_identity()
+    }
+}
+
+/// Seal a dependency-light runtime plan only when every target-policy field
+/// and its derived normalized identity agree with the admitted charge recipe.
+pub fn admit_native_fuel_transfer_plan(
+    target_policy: AdmittedNativeFuelTargetPolicy,
+    projection: NativeFuelTransferRuntimePlanProjection,
+) -> Result<ValidatedNativeFuelTransferPlan, ExternalRootDiagnostic> {
+    let policy = *target_policy.projection();
+    if projection.profile() != policy.profile
+        || projection.target() != policy.target
+        || projection.transport() != policy.transport
+        || projection.context() != policy.context
+        || projection.normalized_identity() != policy.transfer_plan_identity
+        || projection.validate_target_policy(policy).is_err()
+    {
+        return Err(ExternalRootDiagnostic(
+            "native fuel transfer runtime plan does not match the exact admitted target policy"
+                .into(),
+        ));
+    }
+    Ok(ValidatedNativeFuelTransferPlan {
+        target_policy,
+        projection,
+    })
+}
+
+/// Pre-install dynamic meter selection. Structural transfer-plan admission is
+/// necessary but not installed execution authority; the final executable
+/// runtime value deliberately still has no public constructor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicNativeFuelMeterPlan {
-    target_policy: AdmittedNativeFuelTargetPolicy,
+    transfer_plan: ValidatedNativeFuelTransferPlan,
     schedule: psi_core::FuelScheduleIdentity,
     meter: NativeFuelMeterPlanId,
-    exhaustion_transfer: FuelExhaustionTransferPlanId,
     sponsor_path: SuspensionFreeFixedFuelProvision,
-    validation_receipt: DynamicFuelMeterValidationReceiptId,
 }
 
 impl DynamicNativeFuelMeterPlan {
-    pub fn from_admitted_target_policy(
-        target_policy: AdmittedNativeFuelTargetPolicy,
+    pub fn from_admitted_transfer_plan(
+        transfer_plan: ValidatedNativeFuelTransferPlan,
         schedule: psi_core::FuelScheduleIdentity,
         meter: NativeFuelMeterPlanId,
-        exhaustion_transfer: FuelExhaustionTransferPlanId,
         sponsor_path: SuspensionFreeFixedFuelProvision,
-        validation_receipt: DynamicFuelMeterValidationReceiptId,
-    ) -> Result<Self, ExternalRootDiagnostic> {
-        if exhaustion_transfer.normalized_identity()
-            != target_policy.projection().transfer_plan_identity
-        {
-            return Err(ExternalRootDiagnostic(
-                "dynamic native fuel transfer does not match the admitted target policy".into(),
-            ));
-        }
-        Ok(Self {
-            target_policy,
+    ) -> Self {
+        Self {
+            transfer_plan,
             schedule,
             meter,
-            exhaustion_transfer,
             sponsor_path,
-            validation_receipt,
-        })
+        }
     }
 
     pub const fn target(&self) -> NativeTarget {
-        self.target_policy.target()
+        self.transfer_plan.target_policy.target()
     }
 
     pub const fn target_policy(&self) -> &AdmittedNativeFuelTargetPolicy {
-        &self.target_policy
+        &self.transfer_plan.target_policy
+    }
+
+    pub const fn transfer_plan(&self) -> &ValidatedNativeFuelTransferPlan {
+        &self.transfer_plan
     }
 
     pub const fn sponsor_path(&self) -> &SuspensionFreeFixedFuelProvision {
@@ -410,7 +449,7 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvi
 ) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
     if image.terminal_psi() != basis.terminal_psi
         || image.target() != basis.plan.target()
-        || image.target_policy() != *basis.plan.target_policy.projection()
+        || image.target_policy() != *basis.plan.target_policy().projection()
         || installed_code.architecture() != image.target().architecture
     {
         return Err(ExternalRootDiagnostic(
@@ -640,15 +679,14 @@ fn fingerprint_dynamic_fuel_attribution_basis(
     rows: &[TerminalFuelAttributionEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.dynamic-fuel-attribution-basis.v2");
+    hash.bytes(b"omega.dynamic-fuel-attribution-basis.v3");
     hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
     hash.bytes(terminal_psi.program_fingerprint.as_bytes());
     hash.u64(source_text_fingerprint);
     hash.u64(u64::from(plan.schedule.marker()));
     hash.u64(plan.meter.normalized_identity());
-    hash_native_fuel_target_policy(&mut hash, plan.target_policy.projection());
-    hash.u64(plan.exhaustion_transfer.normalized_identity());
-    hash.u64(plan.validation_receipt.normalized_identity());
+    hash_native_fuel_target_policy(&mut hash, plan.target_policy().projection());
+    hash.u64(plan.transfer_plan.normalized_identity());
     hash.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
     hash.u64(plan.sponsor_path.fixed.provision.normalized_identity());
     hash.u64(plan.sponsor_path.fixed.granted_units);
@@ -824,7 +862,7 @@ pub fn admit_native_fuel_realization(
             (NativeFuelRealizationKind::FixedProvision, None, None)
         }
         NativeFuelRealizationRequest::Dynamic(plan) => {
-            if plan.target_policy.profile() != environment.profile() {
+            if plan.target_policy().profile() != environment.profile() {
                 return Err(ExternalRootDiagnostic(
                     "dynamic native fuel plan does not match the selected target profile".into(),
                 ));
@@ -1096,6 +1134,8 @@ fn fingerprint_native_target(hash: &mut Fnv1a, target: NativeTarget) {
 mod tests {
     use std::collections::BTreeSet;
 
+    use omega_calling_conventions::{MachineState, MachineStateSet};
+
     use super::*;
     use crate::{
         AdmittedOpaqueFuelSuspensionFree, FixedFuelProviderSummary,
@@ -1222,33 +1262,107 @@ mod tests {
         (demand, suspension)
     }
 
+    fn x86_context() -> NativeFuelContextLayout {
+        NativeFuelContextLayout {
+            byte_size: 112,
+            alignment: 16,
+            remaining_units_offset: 0,
+            unpaid_site_kind_offset: 8,
+            unpaid_site_identity_offset: 16,
+            required_units_offset: 24,
+            transfer_entry_offset: 32,
+            retry_code_offset_offset: 40,
+            sponsor_stack_top_offset: 48,
+            activation_state_offset: 64,
+            activation_state_byte_count: 40,
+        }
+    }
+
+    fn transfer_state() -> MachineStateSet {
+        MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::VectorRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ])
+    }
+
+    fn x86_transfer_projection(profile: TargetProfile) -> NativeFuelTransferRuntimePlanProjection {
+        NativeFuelTransferRuntimePlanProjection::new(
+            profile,
+            profile.native_target(),
+            SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::X86Rbx,
+            },
+            x86_context(),
+            vec![
+                omega_terminal_installation_evidence::NativeFuelActivationStateSlot {
+                    value: omega_terminal_installation_evidence::NativeFuelSavedValue::Register(
+                        MachineRegister::X86Rax,
+                    ),
+                    context_offset: 64,
+                    byte_count: 8,
+                },
+                omega_terminal_installation_evidence::NativeFuelActivationStateSlot {
+                    value: omega_terminal_installation_evidence::NativeFuelSavedValue::Flags,
+                    context_offset: 72,
+                    byte_count: 8,
+                },
+                omega_terminal_installation_evidence::NativeFuelActivationStateSlot {
+                    value: omega_terminal_installation_evidence::NativeFuelSavedValue::Register(
+                        MachineRegister::X86Xmm(0),
+                    ),
+                    context_offset: 80,
+                    byte_count: 16,
+                },
+                omega_terminal_installation_evidence::NativeFuelActivationStateSlot {
+                    value: omega_terminal_installation_evidence::NativeFuelSavedValue::StackPointer,
+                    context_offset: 96,
+                    byte_count: 8,
+                },
+            ],
+            omega_terminal_installation_evidence::NativeFuelSponsorStackPlan {
+                alignment: 16,
+                byte_ceiling: 256,
+            },
+            transfer_state(),
+            transfer_state(),
+            transfer_state(),
+            omega_terminal_installation_evidence::NativeFuelRuntimeEntryIdentity {
+                section_identity: 1,
+                symbol_identity: 2,
+            },
+            omega_terminal_installation_evidence::NativeFuelRuntimeEntryIdentity {
+                section_identity: 1,
+                symbol_identity: 3,
+            },
+        )
+        .expect("canonical x86-64 transfer-runtime projection")
+    }
+
     fn x86_target_projection(profile: TargetProfile) -> NativeFuelTargetPlanProjection {
+        let transfer = x86_transfer_projection(profile);
         NativeFuelTargetPlanProjection {
             profile,
             target: profile.native_target(),
-            transport: SponsorContextTransport::ReservedNonvolatileRegister {
-                register: MachineRegister::X86Rbx,
-            },
-            context: NativeFuelContextLayout {
-                byte_size: 256,
-                alignment: 16,
-                remaining_units_offset: 0,
-                unpaid_site_kind_offset: 8,
-                unpaid_site_identity_offset: 16,
-                required_units_offset: 24,
-                transfer_entry_offset: 32,
-                retry_code_offset_offset: 40,
-                sponsor_stack_top_offset: 48,
-                activation_state_offset: 64,
-                activation_state_byte_count: 192,
-            },
-            transfer_plan_identity: 26,
+            transport: transfer.transport(),
+            context: transfer.context(),
+            transfer_plan_identity: transfer.normalized_identity(),
         }
     }
 
     fn x86_target_policy(profile: TargetProfile) -> AdmittedNativeFuelTargetPolicy {
         admit_native_fuel_target_policy(x86_target_projection(profile))
             .expect("canonical x86-64 native fuel target policy")
+    }
+
+    fn x86_transfer_plan(profile: TargetProfile) -> ValidatedNativeFuelTransferPlan {
+        admit_native_fuel_transfer_plan(
+            x86_target_policy(profile),
+            x86_transfer_projection(profile),
+        )
+        .expect("canonical x86-64 native fuel transfer plan")
     }
 
     #[test]
@@ -1271,6 +1385,53 @@ mod tests {
                 .expect_err("context fields must be disjoint")
                 .0
                 .contains("overlap")
+        );
+    }
+
+    #[test]
+    fn native_fuel_transfer_plan_requires_the_exact_admitted_target_policy() {
+        let profile = TargetProfile::WindowsX64;
+        let projection = x86_transfer_projection(profile);
+        let admitted =
+            admit_native_fuel_transfer_plan(x86_target_policy(profile), projection.clone())
+                .expect("exact structural transfer plan");
+        assert_eq!(admitted.projection(), &projection);
+        assert_eq!(
+            admitted.normalized_identity(),
+            projection.normalized_identity()
+        );
+
+        let mut wrong_identity = x86_target_projection(profile);
+        wrong_identity.transfer_plan_identity =
+            wrong_identity.transfer_plan_identity.wrapping_add(1);
+        let wrong_identity = admit_native_fuel_target_policy(wrong_identity)
+            .expect("nonzero alternate identity remains a structurally valid target recipe");
+        assert!(
+            admit_native_fuel_transfer_plan(wrong_identity, projection.clone())
+                .expect_err("transfer identity drift must reject")
+                .0
+                .contains("exact admitted target policy")
+        );
+
+        assert!(
+            admit_native_fuel_transfer_plan(
+                x86_target_policy(TargetProfile::UefiX64),
+                projection.clone(),
+            )
+            .expect_err("profiles sharing one native tuple remain distinct")
+            .0
+            .contains("exact admitted target policy")
+        );
+
+        let mut wrong_context = x86_target_projection(profile);
+        wrong_context.context.byte_size = 128;
+        let wrong_context = admit_native_fuel_target_policy(wrong_context)
+            .expect("larger nonoverlapping context remains structurally valid");
+        assert!(
+            admit_native_fuel_transfer_plan(wrong_context, projection)
+                .expect_err("context drift must reject")
+                .0
+                .contains("exact admitted target policy")
         );
     }
 
@@ -1318,43 +1479,18 @@ mod tests {
                 .expect("alternate fixed/suspension join");
         let profile = TargetProfile::WindowsX64;
         let target = profile.native_target();
-        let mismatched_transfer = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
-            x86_target_policy(profile),
+        let plan = DynamicNativeFuelMeterPlan::from_admitted_transfer_plan(
+            x86_transfer_plan(profile),
             schedule(),
             id(24, NativeFuelMeterPlanId::from_normalized_identity),
-            id(25, FuelExhaustionTransferPlanId::from_normalized_identity),
-            sponsor_path.clone(),
-            id(
-                27,
-                DynamicFuelMeterValidationReceiptId::from_normalized_identity,
-            ),
-        )
-        .expect_err("an opaque receipt cannot hide transfer-plan identity drift");
-        assert!(mismatched_transfer.0.contains("target policy"));
-        let plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
-            x86_target_policy(profile),
-            schedule(),
-            id(24, NativeFuelMeterPlanId::from_normalized_identity),
-            id(26, FuelExhaustionTransferPlanId::from_normalized_identity),
             sponsor_path,
-            id(
-                27,
-                DynamicFuelMeterValidationReceiptId::from_normalized_identity,
-            ),
-        )
-        .expect("target policy and exhaustion transfer identity agree");
-        let alternate_sponsor_plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
-            x86_target_policy(profile),
+        );
+        let alternate_sponsor_plan = DynamicNativeFuelMeterPlan::from_admitted_transfer_plan(
+            x86_transfer_plan(profile),
             schedule(),
             id(24, NativeFuelMeterPlanId::from_normalized_identity),
-            id(26, FuelExhaustionTransferPlanId::from_normalized_identity),
             alternate_sponsor_path,
-            id(
-                27,
-                DynamicFuelMeterValidationReceiptId::from_normalized_identity,
-            ),
-        )
-        .expect("alternate sponsor still matches the target transfer identity");
+        );
         let machine = psi_core::MachineId::new(1).unwrap();
         let rows = vec![
             TerminalFuelAttributionEvidence {

@@ -906,39 +906,94 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         omega_target::Architecture::X86_64 => MachineRegister::X86Rbx,
         omega_target::Architecture::Aarch64 => MachineRegister::Aarch64X(28),
     };
+    let (saved_general, saved_vector) = match object_artifact.target().architecture {
+        omega_target::Architecture::X86_64 => (MachineRegister::X86Rax, MachineRegister::X86Xmm(0)),
+        omega_target::Architecture::Aarch64 => {
+            (MachineRegister::Aarch64X(0), MachineRegister::Aarch64V(0))
+        }
+    };
+    let context = NativeFuelContextLayout {
+        byte_size: 112,
+        alignment: 16,
+        remaining_units_offset: 0,
+        unpaid_site_kind_offset: 8,
+        unpaid_site_identity_offset: 16,
+        required_units_offset: 24,
+        transfer_entry_offset: 32,
+        retry_code_offset_offset: 40,
+        sponsor_stack_top_offset: 48,
+        activation_state_offset: 64,
+        activation_state_byte_count: 40,
+    };
+    let transfer_state = MachineStateSet::new([
+        MachineState::GeneralRegisters,
+        MachineState::VectorRegisters,
+        MachineState::Flags,
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+    ]);
+    let transfer_projection = NativeFuelTransferRuntimePlanProjection::new(
+        profile,
+        object_artifact.target(),
+        SponsorContextTransport::ReservedNonvolatileRegister {
+            register: context_register,
+        },
+        context,
+        vec![
+            NativeFuelActivationStateSlot {
+                value: NativeFuelSavedValue::Register(saved_general),
+                context_offset: 64,
+                byte_count: 8,
+            },
+            NativeFuelActivationStateSlot {
+                value: NativeFuelSavedValue::Flags,
+                context_offset: 72,
+                byte_count: 8,
+            },
+            NativeFuelActivationStateSlot {
+                value: NativeFuelSavedValue::Register(saved_vector),
+                context_offset: 80,
+                byte_count: 16,
+            },
+            NativeFuelActivationStateSlot {
+                value: NativeFuelSavedValue::StackPointer,
+                context_offset: 96,
+                byte_count: 8,
+            },
+        ],
+        NativeFuelSponsorStackPlan {
+            alignment: 16,
+            byte_ceiling: 256,
+        },
+        transfer_state,
+        transfer_state,
+        transfer_state,
+        NativeFuelRuntimeEntryIdentity {
+            section_identity: 0x5356,
+            symbol_identity: 0x5357,
+        },
+        NativeFuelRuntimeEntryIdentity {
+            section_identity: 0x5356,
+            symbol_identity: 0x5358,
+        },
+    )
+    .expect("canonical host native fuel transfer projection");
     let target_policy = admit_native_fuel_target_policy(NativeFuelTargetPlanProjection {
         profile,
         target: object_artifact.target(),
-        transport: SponsorContextTransport::ReservedNonvolatileRegister {
-            register: context_register,
-        },
-        context: NativeFuelContextLayout {
-            byte_size: 256,
-            alignment: 16,
-            remaining_units_offset: 0,
-            unpaid_site_kind_offset: 8,
-            unpaid_site_identity_offset: 16,
-            required_units_offset: 24,
-            transfer_entry_offset: 32,
-            retry_code_offset_offset: 40,
-            sponsor_stack_top_offset: 48,
-            activation_state_offset: 64,
-            activation_state_byte_count: 192,
-        },
-        transfer_plan_identity: 0x5357,
+        transport: transfer_projection.transport(),
+        context: transfer_projection.context(),
+        transfer_plan_identity: transfer_projection.normalized_identity(),
     })
-    .expect("host x86-64 native fuel target policy");
-    let dynamic_plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
-        target_policy,
+    .expect("host native fuel target policy");
+    let transfer_plan = admit_native_fuel_transfer_plan(target_policy, transfer_projection)
+        .expect("host structural transfer plan matches target policy");
+    let dynamic_plan = DynamicNativeFuelMeterPlan::from_admitted_transfer_plan(
+        transfer_plan,
         fixed_fuel.schedule(),
         NativeFuelMeterPlanId::from_normalized_identity(0x5355).expect("native meter plan"),
-        FuelExhaustionTransferPlanId::from_normalized_identity(0x5357)
-            .expect("exhaustion-transfer plan"),
         sponsor_path,
-        DynamicFuelMeterValidationReceiptId::from_normalized_identity(0x5358)
-            .expect("dynamic meter validation receipt"),
-    )
-    .expect("target policy and exhaustion transfer identity agree");
+    );
     let missing_dynamic_attribution =
         validate_dynamic_fuel_attribution_basis(dynamic_plan, &object_artifact)
             .expect_err("native code without attribution rows cannot select dynamic metering");

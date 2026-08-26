@@ -5005,9 +5005,13 @@ Remaining:
   evidence mutation, while malformed recipes, gaps, overlaps, duplicate saved
   values, state drift, entry substitution, byte/span drift, and resource
   overruns reject. These values remain dependency-light plan/report evidence
-  rather than installation authority. The remaining native slice is to make
-  target encoders and image replay produce that evidence, carry it through the
-  installation format, and construct the sealed installed-transfer custody.
+  rather than installation authority. External-root planning now admits that
+  structural projection only through a sealed value joined to the exact
+  admitted target policy; arbitrary transfer-plan and validation-receipt
+  identities no longer select dynamic metering. The remaining native slice is
+  to make target encoders and image replay produce that evidence, carry it
+  through the installation format, and construct the sealed installed-transfer
+  custody.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
