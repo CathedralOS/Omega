@@ -6,11 +6,14 @@ use std::fs;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    compile_to_checked, compute_access_plan, compute_layout_plan, compute_placement_plan,
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, compile_to_checked,
+    compile_to_checked_with_packages, compute_access_plan, compute_layout_plan,
+    compute_placement_plan,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
+use psi_core::PackageKeyIdentity;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory =
@@ -22,31 +25,50 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     main
 }
 
-fn write_cross_package_program(name: &str, consumer: &str) -> PathBuf {
+fn package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
+}
+
+fn write_cross_package_program(name: &str, consumer: &str) -> (PathBuf, PackageCompilationInputs) {
+    write_cross_package_program_with_policy(name, consumer, POLICY_SOURCE)
+}
+
+fn write_cross_package_program_with_policy(
+    name: &str,
+    consumer: &str,
+    policy_source: &str,
+) -> (PathBuf, PackageCompilationInputs) {
     let directory =
         std::env::temp_dir().join(format!("omega-access-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&directory);
+    let root_directory = directory.join("root");
     let policy_directory = directory.join("policy");
+    fs::create_dir_all(&root_directory).expect("create root package directory");
     fs::create_dir_all(&policy_directory).expect("create policy package directory");
-    let policy_end = POLICY_SOURCE
+    let policy_end = policy_source
         .find("data Main {}")
         .expect("policy fixture main marker");
     fs::write(
         policy_directory.join("policy.omg"),
-        &POLICY_SOURCE[..policy_end],
+        &policy_source[..policy_end],
     )
     .expect("write policy package");
     fs::write(
-        directory.join("build.omg"),
+        policy_directory.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"policy\"); }\n",
+    )
+    .expect("write policy package declaration");
+    fs::write(
+        root_directory.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
     builder.application("access-plans");
-    builder.depend_as("policy", Source::Path { location: "policy" });
+    builder.depend_as("policy", Source::Path { location: "../policy" });
 }
 "#,
     )
     .expect("write root build manifest");
-    let main = directory.join("main.omg");
+    let main = root_directory.join("main.omg");
     fs::write(
         &main,
         format!(
@@ -61,13 +83,26 @@ machine Main::main(&mut self) {{}}
         ),
     )
     .expect("write root consumer");
-    main
+    let inputs = PackageCompilationInputs::new(
+        package_identity(1),
+        vec![
+            PackageSourceBinding::new(package_identity(1), "access-plans", root_directory),
+            PackageSourceBinding::new(package_identity(2), "policy", policy_directory),
+        ],
+        vec![PackageDependencyBinding::new(
+            package_identity(1),
+            "policy",
+            package_identity(2),
+        )],
+    )
+    .expect("cross-package access fixture should form a closed package graph");
+    (main, inputs)
 }
 
 const POLICY_SOURCE: &str = r#"
 use omega::language::core::layout;
 
-data Registers {
+pub data Registers {
     status: u32;
     transmit: u8;
     snapshot: u16;
@@ -188,7 +223,7 @@ satisfies Access::plan
     }
 }
 
-data UartPlacement {
+pub data UartPlacement {
     layout_entries: [FieldEntry; 64];
     services: [u64; 32];
 }
@@ -930,7 +965,7 @@ data Main {}
 
 #[test]
 fn placed_view_allows_exported_accessors_across_package_boundary() {
-    let main = write_cross_package_program(
+    let (main, inputs) = write_cross_package_program(
         "placed-view-exported-package",
         r#"
 machine inspect(view: &mut Placed<UartPlacement, Registers>) {
@@ -939,13 +974,205 @@ machine inspect(view: &mut Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    compile_to_checked(&main, None)
+    let checked = compile_to_checked_with_packages(&main, None, inputs)
         .expect("exported placed accessors should remain callable from a dependent package");
+    let plan = checked
+        .typed
+        .placed_view_plans
+        .first()
+        .expect("placed view plan");
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .symbol_package_identity(plan.policy_symbol),
+        Some(package_identity(2))
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .symbol_package_identity(plan.schema_symbol),
+        Some(package_identity(2))
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .symbol_package_identity(plan.data_symbol),
+        None,
+        "the synthetic shell is compiler-owned; its plan retains the exact package-owned policy and schema identities"
+    );
+}
+
+#[test]
+fn placed_view_rejects_a_private_policy_from_a_dependency() {
+    let private_policy = POLICY_SOURCE.replacen("pub data UartPlacement", "data UartPlacement", 1);
+    let (main, inputs) = write_cross_package_program_with_policy(
+        "placed-view-private-policy-package",
+        "machine inspect(view: &Placed<UartPlacement, Registers>) {}",
+        &private_policy,
+    );
+    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
+        .expect_err("a private dependency policy must not publish a placed shell");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot use private placement policy `UartPlacement` from another package")
+    }));
+}
+
+#[test]
+fn placed_view_rejects_a_private_schema_from_a_dependency() {
+    let private_schema = POLICY_SOURCE.replacen("pub data Registers", "data Registers", 1);
+    let (main, inputs) = write_cross_package_program_with_policy(
+        "placed-view-private-schema-package",
+        "machine inspect(view: &Placed<UartPlacement, Registers>) {}",
+        &private_schema,
+    );
+    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
+        .expect_err("a private dependency schema must not publish a placed shell");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot use private schema `Registers` from another package")
+    }));
+}
+
+#[test]
+fn placed_view_rejects_private_local_inputs_before_public_signature_erasure() {
+    let source = POLICY_SOURCE
+        .replacen("pub data Registers", "data Registers", 1)
+        .replacen("pub data UartPlacement", "data UartPlacement", 1)
+        .replacen(
+            "data Main {}",
+            "pub machine inspect(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
+            1,
+        );
+    let main = write_program("placed-view-private-public-signature", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("placed erasure must not launder a private input through a public signature");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("placement policy `UartPlacement`")
+            && diagnostic.message.contains("must be public")
+    }));
+}
+
+#[test]
+fn placed_view_schema_requires_direct_dependency_authority() {
+    const REGISTERS: &str = r#"pub data Registers {
+    status: u32;
+    transmit: u8;
+    snapshot: u16;
+    counter: u64;
+    reserved: u8;
+}
+"#;
+
+    let directory = std::env::temp_dir().join(format!(
+        "omega-access-placed-transitive-schema-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&directory);
+    let root_directory = directory.join("root");
+    let middle_directory = directory.join("middle");
+    let leaf_directory = directory.join("leaf");
+    for package in [&root_directory, &middle_directory, &leaf_directory] {
+        fs::create_dir_all(package).expect("create package directory");
+    }
+
+    let root_source = POLICY_SOURCE.replacen(REGISTERS, "", 1).replacen(
+        "data Main {}",
+        "machine inspect(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
+        1,
+    );
+    fs::write(
+        root_directory.join("main.omg"),
+        format!("use middle::middle;\n{root_source}"),
+    )
+    .expect("write root source");
+    fs::write(
+        root_directory.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("root");
+    builder.depend_as("middle", Source::Path { location: "../middle" });
+}
+"#,
+    )
+    .expect("write root build declaration");
+    fs::write(
+        middle_directory.join("middle.omg"),
+        "use leaf::schema;\ndata Middle {}\n",
+    )
+    .expect("write middle source");
+    fs::write(
+        middle_directory.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("middle");
+    builder.depend_as("leaf", Source::Path { location: "../leaf" });
+}
+"#,
+    )
+    .expect("write middle build declaration");
+    fs::write(leaf_directory.join("schema.omg"), REGISTERS).expect("write leaf schema");
+    fs::write(
+        leaf_directory.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"leaf\"); }\n",
+    )
+    .expect("write leaf build declaration");
+
+    let inputs = PackageCompilationInputs::new(
+        package_identity(1),
+        vec![
+            PackageSourceBinding::new(package_identity(1), "root", root_directory.clone()),
+            PackageSourceBinding::new(package_identity(2), "middle", middle_directory),
+            PackageSourceBinding::new(package_identity(3), "leaf", leaf_directory),
+        ],
+        vec![
+            PackageDependencyBinding::new(package_identity(1), "middle", package_identity(2)),
+            PackageDependencyBinding::new(package_identity(2), "leaf", package_identity(3)),
+        ],
+    )
+    .expect("transitive schema fixture should form a closed package graph");
+    let diagnostics =
+        compile_to_checked_with_packages(&root_directory.join("main.omg"), None, inputs)
+            .expect_err("a transitive-only schema must not survive placed type erasure");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("placed schema selects package")
+            && rendered.contains("without direct dependency authority"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn placed_view_rejects_same_spelled_policy_declarations_across_packages() {
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-ambiguous-policy-package",
+        r#"
+pub data UartPlacement {}
+
+machine inspect(view: &Placed<UartPlacement, Registers>) {}
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
+        .expect_err("same-spelled package policies must not be joined by load order");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot select one exact placement policy `UartPlacement`")
+    }));
 }
 
 #[test]
 fn placed_view_rejects_binding_private_accessors_outside_the_policy_package() {
-    let main = write_cross_package_program(
+    let (main, inputs) = write_cross_package_program(
         "placed-view-private-package",
         r#"
 machine inspect(view: &Placed<UartPlacement, Registers>) {
@@ -953,7 +1180,7 @@ machine inspect(view: &Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
         .expect_err("binding-private access must remain in the nominal policy package");
     let rendered = diagnostics
         .iter()
@@ -969,7 +1196,7 @@ machine inspect(view: &Placed<UartPlacement, Registers>) {
 
 #[test]
 fn placed_view_rejects_binding_private_statement_calls_outside_the_policy_package() {
-    let main = write_cross_package_program(
+    let (main, inputs) = write_cross_package_program(
         "placed-view-private-statement-package",
         r#"
 machine inspect(view: &mut Placed<UartPlacement, Registers>) {
@@ -977,7 +1204,7 @@ machine inspect(view: &mut Placed<UartPlacement, Registers>) {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(&main, None)
+    let diagnostics = compile_to_checked_with_packages(&main, None, inputs)
         .expect_err("a binding-private statement call must remain in the policy package");
     let rendered = diagnostics
         .iter()

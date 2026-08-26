@@ -576,25 +576,33 @@ pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<
                 .iter()
                 .enumerate()
             {
-                if let StatementNode::Call(call) = statement
-                    && let Some(receiver) = program
+                if let StatementNode::Call(call) = statement {
+                    let dynamic_target = program
                         .statement_table
                         .name_path_members(call.receiver)
                         .last()
-                    && let Some(receiver_type) = crate::calls::declared_receiver_type_reference(
-                        program,
-                        machine,
-                        state,
-                        receiver.as_str(),
-                    )
-                    && let Some(requirement) = resolved_dynamic_requirement_symbol(
-                        program,
-                        receiver_type,
-                        call.target.as_str(),
-                        &mut diagnostics,
-                    )
-                {
-                    statement_updates.push((state.statement_nodes, statement_index, requirement));
+                        .and_then(|receiver| {
+                            crate::calls::declared_receiver_type_reference(
+                                program,
+                                machine,
+                                state,
+                                receiver.as_str(),
+                            )
+                        })
+                        .and_then(|receiver_type| {
+                            resolved_dynamic_requirement_symbol(
+                                program,
+                                receiver_type,
+                                call.target.as_str(),
+                                &mut diagnostics,
+                            )
+                        });
+                    let target = dynamic_target.or_else(|| {
+                        crate::placed_views::statement_call_target(program, machine, state, call)
+                    });
+                    if let Some(target) = target {
+                        statement_updates.push((state.statement_nodes, statement_index, target));
+                    }
                 }
 
                 for root in crate::calls::statement_value_expression_roots(program, statement) {

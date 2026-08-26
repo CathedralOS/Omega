@@ -89,6 +89,64 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
                 AuthoredDeclarationSelectionTarget::Resolved(_)
             )
     }));
+    let authored_addition = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == psi_typed_trees::expression::BinaryOperator::Add
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains declared addition");
+    assert!(
+        !crate::authored_selections::typed_operator_has_no_authored_selection(
+            &checked,
+            authored_addition
+        )
+    );
+}
+
+#[test]
+fn constrained_primitive_operator_is_not_preclassified_as_intrinsic() {
+    let source = r#"
+        domain i32::Degrees;
+
+        operator + i32::Degrees::add(left: i32, right: i32) -> i32;
+
+        data Main {}
+
+        machine Main::rotate(&self, value: i32 in Degrees & Wrapping) {
+            let sum: i32 in Wrapping = value + 1;
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let authored_addition = typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == psi_typed_trees::expression::BinaryOperator::Add
+            )
+            .then_some(expression)
+        })
+        .expect("typed program retains constrained primitive addition");
+
+    assert!(
+        !crate::authored_selections::typed_operator_has_no_authored_selection(
+            &typed,
+            authored_addition,
+        )
+    );
 }
 
 #[test]
@@ -152,6 +210,21 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             )
     }));
+    let logical_and = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator == psi_typed_trees::expression::BinaryOperator::And
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains logical conjunction");
+    assert!(
+        crate::authored_selections::typed_operator_has_no_authored_selection(&checked, logical_and)
+    );
     assert!(checked.authored_declaration_selections().all_finalized());
 }
 
@@ -195,7 +268,9 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
             .then_some(expression)
         })
         .expect("checked program retains indexed expression");
-    assert!(crate::authored_selections::typed_operator_is_definitely_intrinsic(&checked, indexed));
+    assert!(
+        crate::authored_selections::typed_operator_has_no_authored_selection(&checked, indexed)
+    );
     assert!(checked.authored_declaration_selections().all_finalized());
 }
 

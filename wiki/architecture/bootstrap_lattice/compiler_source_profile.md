@@ -289,7 +289,7 @@ The bridge must consume resolver-owned logical placement from its accepted
 compilation input, require any authored module declaration to agree, and apply
 the normative requester-local reach and visibility rules. The final product
 source checkpoint must close under those rules rather than making the bridge
-preserve the Rust on-ramp's compatibility scanner.
+recreate the deleted Rust on-ramp dependency scanner.
 
 Delta v1 and `Ωself` remain separate contracts even though their discovery can
 co-evolve. Delta is derived from the cost of implementing and assuring the

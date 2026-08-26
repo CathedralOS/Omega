@@ -277,6 +277,27 @@ fn placed_view_field_for_statement_call<'program>(
     })
 }
 
+/// Resolve one statement-position placed accessor to the exact compiler-
+/// generated state selected by the validated placement plan. Expression calls
+/// already carry ordinary resolved targets; statement calls retain a member
+/// path and need this typed late-binding pass.
+pub(crate) fn statement_call_target(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> Option<psi_symbols::SymbolHandle> {
+    if call.target_symbol.is_valid() {
+        return Some(call.target_symbol);
+    }
+    let (_, field) = placed_view_field_for_statement_call(program, machine, state, call)?;
+    field
+        .accessor_targets
+        .iter()
+        .find(|target| target.operation == call.target.as_str())
+        .map(|target| target.state_symbol)
+}
+
 fn validate_binding_private_use(
     program: &TypedTrees,
     machine: &Machine,

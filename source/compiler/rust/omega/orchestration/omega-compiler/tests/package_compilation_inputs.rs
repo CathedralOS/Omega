@@ -1,6 +1,6 @@
 use omega_compiler::{
     CompileOptions, CompileRequest, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile, compile_to_checked_with_packages,
+    PackageSourceBinding, compile, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
@@ -78,6 +78,39 @@ fn reconciled_bindings_ignore_build_dependency_discovery() {
 
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
         .expect("trusted package binding should be the only dependency authority");
+}
+
+#[test]
+fn standalone_compilation_does_not_project_dependencies_from_build_syntax() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::values;\nconst RESULT: u32 = 42;\n",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) {\n    builder.package(\"root\");\n    builder.depend_as(\"dep\", Source::Path { location: \"../dependency\" });\n}\n",
+    );
+    TempTree::write(dependency.join("values.omg"), "const ANSWER: u32 = 42;\n");
+
+    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
+        .expect_err("standalone compilation must not derive package aliases from build syntax");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains(&root.join("dep").display().to_string()),
+        "standalone resolution should remain confined to the root package: {rendered}"
+    );
+    assert!(
+        !rendered.contains(&dependency.display().to_string()),
+        "dependency declaration must not redirect standalone resolution: {rendered}"
+    );
 }
 
 #[test]
@@ -2009,7 +2042,7 @@ fn placed_view_evaluation_requires_direct_authority_before_execution() {
 
     TempTree::write(
         root.join("main.omg"),
-        "use middle::middle;\ndata Payload { value: u32; }\nmachine inspect(view: &Placed<LeafPlacement, Payload>) {}\n",
+        "use middle::middle;\npub data Payload { value: u32; }\nmachine inspect(view: &Placed<LeafPlacement, Payload>) {}\n",
     );
     TempTree::write(middle.join("middle.omg"), "use leaf::leaf;\n");
     TempTree::write(
@@ -2061,8 +2094,7 @@ pub machine LeafPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
         .expect_err("early placed-view execution may not select a transitive-only package");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("placed view")
-                && diagnostic.message.contains("build-time invocation")
+            diagnostic.message.contains("placement policy")
                 && diagnostic.message.contains("direct dependency authority")
         }),
         "unexpected diagnostics: {diagnostics:#?}"

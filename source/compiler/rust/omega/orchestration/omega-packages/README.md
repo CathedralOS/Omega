@@ -187,8 +187,7 @@ not return to the release path or its tests:
 - standalone JSON manifests accepted as compiler evidence;
 - a manifest fingerprint without the normalized accepted baseline;
 - free-form reviewer/reason receipts that accept whole sections; and
-- treating the legacy standalone local-Path compatibility scanner as package
-  dependency authority.
+- reintroducing standalone dependency scanning or identity-free package roots.
 
 The production source-custody and typed graph paths have received focused
 review; the hardened native resolver boundary, sealed admission projection, and
@@ -326,9 +325,9 @@ and this closure has no persistence, lock, or admission API. `PackageKey` also
 derives the opaque stable identity carrier used by package-aware compiler
 inputs. The compiler's separate native and checked package entrypoints consume
 a closed requester-local alias graph and canonical source roots without
-consulting downloaded dependency rows; legacy standalone compilation still
-retains a narrow explicit `depend_as(..., Source::Path { ... })` compatibility
-scanner. A package-side handoff translates only the validated custody closure
+consulting downloaded dependency rows. Standalone compilation never interprets
+dependency declarations and resolves only ordinary root-relative and toolchain
+imports. A package-side handoff translates only the validated custody closure
 into compiler inputs, whose constructor independently canonicalizes and checks
 every root and edge again. Review orchestration compiles every package in
 deterministic dependency-first order, temporarily re-rooting each package over

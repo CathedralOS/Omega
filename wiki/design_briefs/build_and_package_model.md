@@ -179,10 +179,11 @@ commitment includes those bytes and verifies them against retained staged-tree
 custody rather than rereading an output path. Resolving a path, writing output,
 and publishing generated source remain three separate operations.
 
-The dependency's own `PACKAGE` supplies its name. Its default local import
-alias is derived mechanically from kebab-case to snake_case; only a real local
-collision uses the exceptional `builder.depend_as(alias, source)` operation.
-The alias is name-resolution syntax, never package identity.
+The dependency's own `builder.package("canonical-name")` declaration supplies
+its name. Its default local import alias is derived mechanically from
+kebab-case to snake_case; only a real local collision uses the exceptional
+`builder.depend_as(alias, source)` operation. The alias is name-resolution
+syntax, never package identity.
 
 Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
@@ -198,9 +199,9 @@ discovery; source paths route loading but do not become nominal identity.
 Package orchestration now translates only a validated resolver-custody closure
 into that handoff, re-roots each package over exactly its transitive dependency
 subgraph, and compiles the complete closure in deterministic dependency-first
-order. Legacy standalone compilation retains only a narrow explicit
-`depend_as(..., Source::Path { ... })` compatibility scanner until its canaries
-migrate.
+order. Standalone compilation does not interpret dependency declarations: it
+resolves ordinary root-relative and toolchain imports only. Requester-local
+package aliases therefore require the validated package-aware entrypoint.
 
 ## Package-scoped filesystem roots
 
@@ -925,12 +926,14 @@ policy advice, never package evidence or proof of review.
 
 ## Package admission projection
 
-The compiler derives a review proposal from checked semantic state. A total
-internal `PackageAdmissionProjection` converts that state into canonical
-package-visible rows and rejects unresolved requirements, unbound identities,
-compiler-private handles, and any fact it cannot represent exactly. Those rows
-remain `CompilerIssuedPackageReview`: useful deterministic input to review, but
-never authority and never directly promotable into a `PackageInstance`.
+After successful checking, the compiler derives a review proposal by joining
+each fact from its earliest semantically complete compiler-owned
+representation. A total internal `PackageAdmissionProjection` converts that
+join into canonical package-visible rows and rejects unresolved requirements,
+unbound identities, compiler-private handles, and any fact it cannot represent
+exactly. Those rows remain `CompilerIssuedPackageReview`: useful deterministic
+input to review, but never authority and never directly promotable into a
+`PackageInstance`.
 
 Sealing is trust by checking. A consumer starts from the exact requested source
 subject and exact produced artifact, reconstructs their canonical obligation
@@ -971,7 +974,8 @@ identity still binds its declared name and source lineage. The closure comes
 only from validated compiler inputs and retains every reachable package identity
 and requester-local alias edge. Recovered row envelopes prove only canonical
 framing and must be joined to that separately reconstructed closure. The local
-compiler reconstructs the complete ledger from checked semantics and requires
+compiler reconstructs the complete ledger from the earliest semantically
+complete compiler-owned representations after successful checking and requires
 exact equality, and fresh closure-review publication performs that
 reconstruction before exposing its rows. Missing, reordered, stale,
 mixed-package, mixed-target, renamed-alias, or changed-closure subjects reject;
@@ -1052,9 +1056,11 @@ and convenient-but-unsettled shapes remain inadmissible as evidence.
 This projection is not another public IR stage and does not warrant a nominal
 Chi stage merely for collection or format stability. It has no execution
 semantics or transformation pipeline of its own. A future shared stage is
-warranted only if independent consumers, shared invariants, or transformations
-establish an actual semantic boundary. Psi may repeat the same invariant as a
-downstream backstop without becoming the mandatory reconstruction source for a
+warranted only if implementation discovers a genuine reusable semantic
+invariant boundary. Additional consumers or transformations may reveal such a
+boundary; stability, layer purity, or local simplification alone do not. Psi
+may repeat the same invariant as a downstream backstop without becoming the
+mandatory reconstruction source for a
 fact already complete in an earlier compiler-owned representation.
 Conversely, discovery may place more rows in an existing coherent
 representation such as `Exact` when that simplifies the compiler without
@@ -2065,11 +2071,19 @@ baselines, and triage, but it is not yet an accepted admission implementation.
 The name-keyed lock, caller-constructed manifest JSON, mandatory caller-supplied
 name/alias, fingerprint-only baseline, and free-form receipt prototypes are
 deleted rather than retained as a parallel test model.
-Legacy standalone compilation also retains a
-syntactic local-Path compatibility scanner that may skip malformed rows;
-package-aware compilation never consults it, and no admission path may treat it
-as authoritative dependency projection. This seam must be removed before
-install/update mutation.
+The legacy standalone local-Path compatibility scanner is deleted. Standalone
+compilation cannot mint package roots or aliases from `build.omg`; only the
+validated compiler handoff can route dependency imports. The migration also
+preserves package-aware placed-access semantics: discovery rejects ambiguous
+policy/schema spellings, retains both exact source identities, and checks both
+declarations' package visibility and direct-dependency authority before
+synthesis. Because `Placed<P, S>` is erased before ordinary type-selection
+capture, both nominal inputs must be public even for local use; this prevents a
+public signature from laundering a private declaration through the source-free
+compiler shell. Its inert opaque field carriers follow shell visibility,
+callable operation visibility follows exact `AccessExposure`, binding-private
+access remains policy-package-confined, and statement-position operations
+retain their exact generated target.
 The package-facing source/staging root capabilities, checked relative resolver,
 explicit generated-source handoff, and frozen package-review final pass are
 implemented. The native-image entry still rejects generated-source builds
@@ -2077,7 +2091,7 @@ until it runs inside the same sponsored package transaction; it must not invent
 ambient staging custody. That route follows recheckable package evidence and
 accepted-lock state so a rebuild can be compared before installation; it is
 not a standalone compiler escape hatch. `TASKS_PACKAGE_MANAGER.md` owns that
-integration and the compatibility-scanner migration.
+integration.
 
 ## Still open
 

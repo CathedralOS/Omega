@@ -2,10 +2,10 @@
 //!
 //! This mirrors the Terminal obligation-ledger rule at the ordinary package
 //! layer: recovered producer rows are inert until the selected local compiler
-//! reconstructs the complete current row set from checked semantics and
-//! requires exact equality. The current row vocabulary remains review-only and
-//! incomplete for accepted `PackageInstance` evidence; this module does not
-//! promote it into a lock or certificate.
+//! reconstructs the complete current row set from compiler-owned semantic state
+//! after successful checking and requires exact equality. The current row
+//! vocabulary remains review-only and incomplete for accepted `PackageInstance`
+//! evidence; this module does not promote it into a lock or certificate.
 
 use super::{
     DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
