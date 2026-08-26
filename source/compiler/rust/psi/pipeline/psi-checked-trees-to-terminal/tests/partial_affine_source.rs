@@ -2,7 +2,7 @@ use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::{OperationKind, StructuralPathSegment, Terminator};
+use psi_terminal::{OperationKind, StructuralFieldType, StructuralPathSegment, Terminator};
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
@@ -14,11 +14,14 @@ use psi_typed_trees_to_checked_trees::lower_typed_trees;
 const SOURCE: &str = r#"
     data Token { value: u64; }
     data Quintet {
+        before: u8;
         first: Token;
+        between: bool;
         second: Token;
         third: Token;
         fourth: Token;
         fifth: Token;
+        after: u64;
     }
 
     data Sink {}
@@ -67,6 +70,37 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let [root] = entry.structural_parameters.as_slice() else {
         panic!("partial affine source slice has one structural root")
     };
+    let root_shape = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed scalar/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &root_shape.shape else {
+        panic!("mixed scalar/affine root remains a record")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| {
+                (
+                    field.identity.as_str(),
+                    matches!(field.field_type, StructuralFieldType::Scalar(_)),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ("before", true),
+            ("first", false),
+            ("between", true),
+            ("second", false),
+            ("third", false),
+            ("fourth", false),
+            ("fifth", false),
+            ("after", true),
+        ],
+        "scalar fields before, between, and after affine fields remain structural identity"
+    );
     let [block] = entry.blocks.as_slice() else {
         panic!("partial affine source slice has one block")
     };
@@ -130,6 +164,68 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         &AdmissionProfile::default(),
     )
     .expect("verifier reconstructs moved field plus residual root exhaustion");
+
+    let mut scalar_as_structural = lowered.semantic_module.clone();
+    let root_shape = scalar_as_structural
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed scalar/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
+        unreachable!()
+    };
+    let token_type = fields
+        .iter()
+        .find_map(|field| match field.field_type {
+            StructuralFieldType::Structural(structural_type) => Some(structural_type),
+            _ => None,
+        })
+        .expect("token type");
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "between")
+        .expect("interleaved scalar")
+        .field_type = StructuralFieldType::Structural(token_type);
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &scalar_as_structural,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "reclassifying a cleanup-free scalar as affine structural requires a new residual"
+    );
+
+    let mut moved_as_scalar = lowered.semantic_module.clone();
+    let root_shape = moved_as_scalar
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed scalar/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
+        unreachable!()
+    };
+    let scalar_type = fields
+        .iter()
+        .find_map(|field| match &field.field_type {
+            StructuralFieldType::Scalar(scalar_type) => Some(scalar_type.clone()),
+            _ => None,
+        })
+        .expect("retained scalar type");
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "third")
+        .expect("moved structural field")
+        .field_type = StructuralFieldType::Scalar(scalar_type);
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &moved_as_scalar,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a projected move cannot target a scalar field"
+    );
     let semantic = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(
         decode_module(&semantic).expect("semantic module decodes"),

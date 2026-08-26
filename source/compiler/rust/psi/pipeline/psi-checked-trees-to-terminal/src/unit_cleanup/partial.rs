@@ -139,10 +139,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     }
     if fields.iter().enumerate().any(|(index, field)| {
         field.relevance.is_erased()
-            || !matches!(
-                field.field_type,
-                CheckedUnitStructuralFieldType::Structural { .. }
-            )
+            || !checked_partial_affine_field_type(&field.field_type)
             || fields[..index]
                 .iter()
                 .any(|earlier| earlier.identity == field.identity)
@@ -280,10 +277,7 @@ fn checked_partial_affine_residuals(
         if fields.is_empty()
             || fields.iter().enumerate().any(|(index, field)| {
                 field.relevance.is_erased()
-                    || !matches!(
-                        field.field_type,
-                        CheckedUnitStructuralFieldType::Structural { .. }
-                    )
+                    || !checked_partial_affine_field_type(&field.field_type)
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)
@@ -291,11 +285,8 @@ fn checked_partial_affine_residuals(
         {
             return None;
         }
+        let mut matched = 0_usize;
         for field in fields.iter().rev() {
-            let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
-            else {
-                return None;
-            };
             let matching = moved_paths
                 .iter()
                 .filter(|(path, _)| {
@@ -304,9 +295,18 @@ fn checked_partial_affine_residuals(
                 })
                 .copied()
                 .collect::<Vec<_>>();
+            matched += matching.len();
             prefix.push(CheckedUnitStructuralPathSegment::Field(
                 field.identity.clone(),
             ));
+            let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
+            else {
+                if !matching.is_empty() {
+                    return None;
+                }
+                prefix.pop();
+                continue;
+            };
             if matching.is_empty() {
                 residuals.push(CheckedUnitPartialAffineDiscardPlan {
                     source_parameter_index: 0,
@@ -334,7 +334,7 @@ fn checked_partial_affine_residuals(
             visit(types, type_identity, &nested, prefix, residuals)?;
             prefix.pop();
         }
-        Some(())
+        (matched == moved_paths.len()).then_some(())
     }
 
     if moved_paths.is_empty() {
@@ -349,4 +349,23 @@ fn checked_partial_affine_residuals(
         &mut residuals,
     )?;
     Some(residuals)
+}
+
+fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    matches!(
+        field_type,
+        CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::Scalar(
+                PrimitiveType::Bool
+                    | PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::Addr
+            )
+    )
 }

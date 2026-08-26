@@ -1079,15 +1079,14 @@ fn append_expected_partial_residuals(
                 || !matches!(
                     field.field_type,
                     psi_terminal::StructuralFieldType::Structural(_)
+                        | psi_terminal::StructuralFieldType::Scalar(_)
                 )
         })
     {
         return None;
     }
+    let mut matched = 0_usize;
     for field in fields.iter().rev() {
-        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
-            return None;
-        };
         let matching = moved
             .iter()
             .filter(|(path, _)| {
@@ -1096,10 +1095,17 @@ fn append_expected_partial_residuals(
             })
             .copied()
             .collect::<Vec<_>>();
+        matched += matching.len();
         let mut field_path = prefix.to_vec();
         field_path.push(psi_terminal::StructuralPathSegment::Field(
             field.identity.clone(),
         ));
+        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
+            if !matching.is_empty() {
+                return None;
+            }
+            continue;
+        };
         if matching.is_empty() {
             output.push((field_path, field_type));
         } else if matching.iter().any(|(path, _)| path.len() == 1) {
@@ -1120,5 +1126,5 @@ fn append_expected_partial_residuals(
             )?;
         }
     }
-    Some(())
+    (matched == moved.len()).then_some(())
 }
