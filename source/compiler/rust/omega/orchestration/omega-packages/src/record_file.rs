@@ -176,6 +176,103 @@ impl RecordFileRoot {
             message: record_error_message(error),
         })
     }
+
+    /// Atomically replace one existing regular file beneath this exact root.
+    ///
+    /// The synchronized stage remains open across the handle-relative rename,
+    /// allowing the published pathname to be checked against the exact bytes
+    /// and file identity that were prepared. This is suitable for
+    /// resolver-owned mutable control files; immutable records continue to use
+    /// [`Self::write_new`].
+    pub(crate) fn replace_existing(
+        &self,
+        relative_path: &Path,
+        bytes: &[u8],
+        limits: RecordFileLimits,
+    ) -> Result<(), RecordFileError> {
+        if bytes.len() > limits.maximum_bytes {
+            return Err(RecordFileError::ByteLimitExceeded {
+                actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+                maximum: limits.maximum_bytes,
+            });
+        }
+        let file_name = single_file_name(relative_path)?;
+        let display_path = self.display_path.join(file_name);
+        let destination_metadata = self
+            .directory
+            .symlink_metadata(file_name)
+            .map_err(|error| io_error(&display_path, error))?;
+        if destination_metadata.file_type().is_symlink() || !destination_metadata.is_file() {
+            return Err(RecordFileError::NotRegularFile { path: display_path });
+        }
+
+        let mut stage = create_exclusive_capability_stage(&self.directory, &self.display_path)?;
+        stage
+            .file
+            .write_all(bytes)
+            .map_err(|error| io_error(&stage.display_path, error))?;
+        stage
+            .file
+            .sync_all()
+            .map_err(|error| io_error(&stage.display_path, error))?;
+        stage
+            .file
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| io_error(&stage.display_path, error))?;
+        let staged = read_bytes_bounded(&mut stage.file, &stage.display_path, limits)?;
+        if staged != bytes {
+            return Err(RecordFileError::ContentsChanged {
+                path: stage.display_path.clone(),
+            });
+        }
+        verify_capability_regular_identity(
+            &self.directory,
+            &stage.file_name,
+            &stage.file,
+            &stage.display_path,
+        )?;
+
+        self.directory
+            .rename(&stage.file_name, &self.directory, file_name)
+            .map_err(|error| io_error(&display_path, error))?;
+        stage.removed = true;
+
+        let confirmation = (|| {
+            verify_capability_regular_identity(
+                &self.directory,
+                file_name,
+                &stage.file,
+                &display_path,
+            )?;
+            self.directory
+                .try_clone()
+                .map_err(|error| io_error(&self.display_path, error))?
+                .into_std_file()
+                .sync_all()
+                .map_err(|error| io_error(&self.display_path, error))?;
+            stage
+                .file
+                .seek(SeekFrom::Start(0))
+                .map_err(|error| io_error(&display_path, error))?;
+            let published = read_bytes_bounded(&mut stage.file, &display_path, limits)?;
+            if published != bytes {
+                return Err(RecordFileError::ContentsChanged {
+                    path: display_path.clone(),
+                });
+            }
+            verify_capability_regular_identity(
+                &self.directory,
+                file_name,
+                &stage.file,
+                &display_path,
+            )
+        })();
+
+        confirmation.map_err(|error| RecordFileError::PublishedButUnconfirmed {
+            path: display_path,
+            message: record_error_message(error),
+        })
+    }
 }
 
 pub(crate) struct RootRecordRead<'root> {
@@ -700,6 +797,84 @@ mod tests {
             read.verify_current(limits),
             Err(RecordFileError::ContentsChanged { .. })
         ));
+        let _ = fs::remove_dir_all(directory_path);
+    }
+
+    #[test]
+    fn rooted_replacement_publishes_exact_synchronized_bytes_without_a_stage_residue() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should follow the Unix epoch")
+            .as_nanos();
+        let directory_path = std::env::temp_dir().join(format!(
+            "omega-root-record-replacement-{}-{stamp}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory_path).expect("create record directory");
+        fs::write(directory_path.join("config"), b"mutable helper bytes")
+            .expect("write existing control file");
+        let directory = Dir::open_ambient_dir(&directory_path, ambient_authority())
+            .expect("open record directory capability");
+        let root = RecordFileRoot::from_directory(directory, directory_path.clone())
+            .expect("bind record directory capability");
+
+        root.replace_existing(
+            Path::new("config"),
+            b"canonical bytes",
+            RecordFileLimits { maximum_bytes: 64 },
+        )
+        .expect("replace exact control file");
+
+        assert_eq!(
+            fs::read(directory_path.join("config")).expect("read replacement"),
+            b"canonical bytes"
+        );
+        assert!(
+            fs::read_dir(&directory_path)
+                .expect("list record directory")
+                .all(|entry| !entry
+                    .expect("record entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".omega-record-stage-"))
+        );
+        let _ = fs::remove_dir_all(directory_path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rooted_replacement_rejects_a_symlink_destination_without_touching_its_target() {
+        use std::os::unix::fs::symlink;
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should follow the Unix epoch")
+            .as_nanos();
+        let directory_path = std::env::temp_dir().join(format!(
+            "omega-root-record-replacement-link-{}-{stamp}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory_path).expect("create record directory");
+        let target = directory_path.join("target");
+        fs::write(&target, b"outside replacement").expect("write symlink target");
+        symlink("target", directory_path.join("config")).expect("create destination symlink");
+        let directory = Dir::open_ambient_dir(&directory_path, ambient_authority())
+            .expect("open record directory capability");
+        let root = RecordFileRoot::from_directory(directory, directory_path.clone())
+            .expect("bind record directory capability");
+
+        assert!(matches!(
+            root.replace_existing(
+                Path::new("config"),
+                b"canonical bytes",
+                RecordFileLimits { maximum_bytes: 64 },
+            ),
+            Err(RecordFileError::NotRegularFile { .. })
+        ));
+        assert_eq!(
+            fs::read(target).expect("read symlink target"),
+            b"outside replacement"
+        );
         let _ = fs::remove_dir_all(directory_path);
     }
 }
