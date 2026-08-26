@@ -1,7 +1,11 @@
 use psi_diagnostics::Diagnostic;
 
+mod elf_loader;
 mod foreign_locator;
 
+pub use elf_loader::{
+    ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
+};
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
     normalize_foreign_locator,

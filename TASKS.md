@@ -8372,10 +8372,15 @@ boundary without its corresponding checked law.
   reach a canonical final-image request retaining their Linux profile,
   normalized identity, raw object/symbol/version bytes, symbol handle, and every
   relocation site. Wrong cases, target drift, duplicate handles, reused or
-  identity-colliding locators, and missing physical plans reject. Runnable ELF
-  emission remains fail closed before section planning or byte mutation: no
-  target/deployment-owned loader plan yet carries the exact `PT_INTERP` bytes,
-  and partial symbol-version sections would not constitute a dynamic image.
+  identity-colliding locators, and missing physical plans reject. The first
+  dependency-light loader-plan input rung now seals one target/deployment-owned
+  exact `PT_INTERP` pathname for Linux x86-64 or AArch64. It preserves raw
+  non-UTF-8 bytes, requires a nonempty absolute NUL-free path, and binds the
+  exact Linux profile plus length-framed bytes into deterministic identity.
+  This carrier grants no loader, publication, or admission authority. Runnable
+  ELF emission remains fail closed before section planning or byte mutation:
+  no owner yet joins that input to complete dynamic-link structures, and
+  partial symbol-version sections would not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
@@ -8386,8 +8391,8 @@ boundary without its corresponding checked law.
   `Array` value without text reconstruction.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Ordinary source `via` evaluation and
-  complete dynamic-ELF symbol-version emission with an exact loader plan remain
-  engineering joins.
+  the complete dynamic-ELF symbol-version/loader-plan join remain engineering
+  work.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
