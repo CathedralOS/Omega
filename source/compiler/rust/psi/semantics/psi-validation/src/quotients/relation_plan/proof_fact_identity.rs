@@ -198,6 +198,34 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn nested_float_array(
+        symbol: SymbolHandle,
+        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedFloatArrayElement]>],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                rows.iter()
+                    .map(|row| format!(
+                        "[{}]",
+                        row.iter()
+                            .map(|element| element.spelling.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: array_trace(rows.iter().map(|row| {
+                array_trace(
+                    row.iter()
+                        .map(|element| float_trace(&element.spelling, Some(element.landing))),
+                )
+            })),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,

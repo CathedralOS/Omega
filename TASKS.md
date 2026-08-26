@@ -8160,7 +8160,11 @@ Remaining N6/N8 work:
   Every leaf independently follows the scalar landing and range rule. Ordered
   spelling/landing/domain evidence, row boundaries, and normalized outer array
   identity remain evidence; all `u8` matrices stay exclusively in the
-  canonical fixed-byte lane.
+  canonical fixed-byte lane. A direct depth-two fixed float array may likewise
+  feed only its exact literal-width `[[f32; M]; N]` or `[[f64; M]; N]` target.
+  Every leaf independently follows the scalar format rule. Ordered spelling/
+  format evidence, row boundaries, and normalized outer array identity remain
+  evidence without evaluating computed leaves.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8173,8 +8177,8 @@ Remaining N6/N8 work:
   already context-landed for a bare fixed array, noncanonical or heterogeneous
   byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
   computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-  or computed integer matrices, ragged or deeper arrays, float or data nested
-  arrays, other aggregates, zero-value,
+  or computed integer matrices, mismatched or computed float matrices, ragged
+  or deeper arrays, other data nested arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public

@@ -827,7 +827,11 @@ its exact literal-width `[[I; M]; N]` target for a direct primitive integer `I`
 other than `u8`. Every leaf independently follows the scalar landing and range
 rule. Ordered spelling/landing/domain evidence, row boundaries, and normalized
 outer array identity remain evidence; all `u8` matrices stay exclusively in
-the canonical fixed-byte lane. Exact
+the canonical fixed-byte lane. A direct depth-two fixed float array may likewise
+feed only its exact literal-width `[[f32; M]; N]` or `[[f64; M]; N]` target.
+Every leaf independently follows the scalar format rule. Ordered spelling/
+format evidence, row boundaries, and normalized outer array identity remain
+evidence without evaluating computed leaves. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -839,8 +843,8 @@ otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
 computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-or computed integer matrices, ragged or deeper arrays, float or data nested
-arrays, other aggregates, zero-value,
+or computed integer matrices, mismatched or computed float matrices, ragged or
+deeper arrays, other data nested arrays, other aggregates, zero-value,
 casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`

@@ -9,9 +9,9 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array, direct Boolean-literal array, exact depth-two byte/Boolean/integer-
-//! literal array, or exactly landed integer/float-literal array to its exact
-//! fixed-array representative position.
+//! array, direct Boolean-literal array, exact depth-two byte/Boolean/integer/
+//! float-literal array, or exactly landed integer/float-literal array to its
+//! exact fixed-array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -85,6 +85,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     NestedIntegerArray {
         rows: std::sync::Arc<[std::sync::Arc<[ClosedIntegerArrayElement]>]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    NestedFloatArray {
+        rows: std::sync::Arc<[std::sync::Arc<[ClosedFloatArrayElement]>]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
     IntegerArray {
@@ -411,6 +415,52 @@ pub(super) fn closed_lift_literal_for_representative(
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 return Ok(Some(ClosedLiftLiteral::NestedIntegerArray {
+                    rows: rows.into(),
+                    target_type: program.normalized_type_identity(representative_type),
+                }));
+            }
+            if matches!(row_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                let rows = elements
+                    .iter()
+                    .map(|row| {
+                        let ExpressionNode::ArrayLiteral(row_elements) =
+                            program.expression_table.expression(*row)
+                        else {
+                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                position,
+                            ));
+                        };
+                        let row_elements =
+                            program.expression_table.expression_handles(*row_elements);
+                        if row_elements.len() != *row_width {
+                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                position,
+                            ));
+                        }
+                        row_elements
+                            .iter()
+                            .map(|element| {
+                                let ExpressionNode::Float(literal) =
+                                    program.expression_table.expression(*element)
+                                else {
+                                    return Err(
+                                        RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                            position,
+                                        ),
+                                    );
+                                };
+                                let landing =
+                                    exact_float_landing(row_primitive, literal, position)?;
+                                Ok(ClosedFloatArrayElement {
+                                    spelling: literal.text().to_owned(),
+                                    landing,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                            .map(std::sync::Arc::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(Some(ClosedLiftLiteral::NestedFloatArray {
                     rows: rows.into(),
                     target_type: program.normalized_type_identity(representative_type),
                 }));
