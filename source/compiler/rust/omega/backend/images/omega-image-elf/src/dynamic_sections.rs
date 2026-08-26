@@ -76,6 +76,10 @@ impl ValidatedElfDynamicSectionPlan {
         self.contents.content_identity
     }
 
+    pub(crate) const fn contents(&self) -> &ElfDynamicSectionContents {
+        &self.contents
+    }
+
     #[allow(dead_code)]
     pub(crate) fn into_parts(self) -> (PlannedElfDynamicLinkInputs, ElfDynamicSectionContents) {
         (self.inputs, self.contents)

@@ -165,12 +165,29 @@ rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), together with
 the [LSB symbol-version requirement
 format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
 The plan still grants no loader, layout, publication, or runnable-image
-authority. Serialization and section-header placement of the validated
-contents, `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic`
-addresses/tags, optional `.gnu.hash`, the selected GOT/PLT arrangement,
-`.rela.dyn`/`.rela.plt`, architecture-specific relocation lowering, complete
-load/program-header layout, image mutation, and independent final-byte replay
-remain open. An owned direct `[u8; N]` destination now contextually
+authority. The next sealed rung serializes its contents as six exact ELF64
+`ELFDATA2LSB` payloads: `.interp`, `.dynstr`, 24-byte `Elf64_Sym` rows in
+`.dynsym`, the word-oriented `.hash`, half-word `.gnu.version` rows, and
+16-byte `Elf64_Verneed`/`Elf64_Vernaux` chains in `.gnu.version_r`. A distinct
+bounds-checked decoder replays exact lengths, rows, hash indexes, linked
+version offsets, dynamic-string references, and section-kind boundaries before
+sealing payload identity. It rejects truncation, trailing bytes, endian drift,
+invalid counts/indexes, offset cycles, and mutation while retaining the exact
+validated structural plan. The wire rules come from the primary System V ABI
+[ELF64 data sizes and
+alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
+and [least-significant-byte-first
+encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
+
+The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
+planned together; this rung does not claim a partial `.dynamic` payload.
+Section names/headers, links, placement and alignment, `PT_INTERP` program-
+header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags, optional
+`.gnu.hash`, the selected GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`,
+architecture-specific relocation lowering, complete load/program-header
+layout, image mutation, and independent final-byte replay remain open.
+Validated payload bytes still grant no layout, loader, publication, or
+runnable-image authority. An owned direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the

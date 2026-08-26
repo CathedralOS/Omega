@@ -8415,13 +8415,28 @@ boundary without its corresponding checked law.
   rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), plus the [LSB
   symbol-version requirement
   format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
-  Runnable ELF emission remains fail closed before byte mutation: serialization
-  and section-header placement, `PT_INTERP` program-header placement,
+  The next sealed rung now serializes those structures into six exact ELF64
+  `ELFDATA2LSB` payloads: `.interp`, `.dynstr`, 24-byte `Elf64_Sym` rows in
+  `.dynsym`, the word-oriented `.hash`, half-word `.gnu.version` rows, and
+  16-byte `Elf64_Verneed`/`Elf64_Vernaux` chains in `.gnu.version_r`. A
+  separate bounds-checked decoder replays every row, exact length, hash index,
+  linked version offset, dynamic-string reference, and section-kind boundary
+  before sealing deterministic payload identity. Truncation, trailing bytes,
+  endian drift, invalid counts/indexes, offset cycles, or payload mutation
+  reject without losing the validated structural plan. This follows the
+  primary System V ABI [ELF64 data sizes and
+  alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
+  and [least-significant-byte-first
+  encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
+  The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
+  planned together; no partial `.dynamic` payload is claimed. Runnable ELF
+  emission remains fail closed before image mutation: section names/headers,
+  links, placement and alignment, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, the selected
   GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific
   relocation lowering, complete load/program-header layout, image mutation,
-  and independent final-byte replay remain unimplemented. A validated
-  address-free table plan does not constitute a dynamic image.
+  and independent final-byte replay remain unimplemented. Validated section
+  payload bytes do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
