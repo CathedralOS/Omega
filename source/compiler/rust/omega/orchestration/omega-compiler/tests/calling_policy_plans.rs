@@ -357,6 +357,20 @@ fn callback_private_materialization_rejects_the_wrong_callback_requirement() {
 }
 
 #[test]
+fn callback_private_materialization_rejects_a_raw_physical_offset_as_identity() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "        bound.call.callback_materializations[0].destination =\n            signature.callback_demands[0].destination;",
+        "        let mut invented_path: [u64; 16];\n        invented_path[0] = 8;\n        bound.call.callback_materializations[0].destination = NativePlace::Field {\n            parameter: 8,\n            layout: 8,\n            field_path: invented_path,\n            field_path_count: 1,\n        };",
+    );
+    let rendered = compile_std_negative("raw-offset", &source);
+
+    assert!(
+        rendered.contains("does not name a declared private native-place demand"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
 fn callback_private_materialization_rejects_duplicate_source_placement() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
         "Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",

@@ -7225,10 +7225,16 @@ Owners:
   inferring binder order, or appending a hidden ABI parameter. Add the same
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
-  native targets are X86-64 and AArch64 only. Add the remaining fail canaries
-  for serialization, raw calling-plan offset, and replay drift; semantic
-  projection/read and assignment already reject because the private slot is
-  absent from the layout data's source field schema.
+  native targets are X86-64 and AArch64 only. The raw-offset canary now proves
+  that an authored integer equal to the physical slot offset cannot substitute
+  for compiler-issued parameter, layout, or slot identity while another exact
+  demand remains valid. Semantic projection/read and assignment already reject
+  because the private slot is absent from the layout data's source field
+  schema; serialization walks only that declared schema and therefore has no
+  private slot to name. Replay drift is already rejected independently by the
+  nominal consumer's exact-context replay, checked placement-fingerprint
+  binding, and late thunk-emission plan replay. These are internal retained-
+  evidence seams, not source-authorable shapes.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful
