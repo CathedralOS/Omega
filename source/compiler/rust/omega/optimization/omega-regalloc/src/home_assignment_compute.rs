@@ -9,10 +9,17 @@ use omega_register_model::{
 use omega_terminal_selected_instructions::TerminalVirtualRegisterId;
 
 use crate::{
-    TerminalFunctionRegisterHomes, TerminalRegisterHomeError, TerminalRegisterHomePlan,
-    TerminalVirtualInterference, TerminalVirtualRegisterHome, ValidatedTerminalAllocationLegality,
-    ValidatedTerminalLiveRanges,
+    TerminalFunctionRegisterHomes, TerminalLiveRangePoint, TerminalRegisterHomeError,
+    TerminalRegisterHomePlan, TerminalVirtualInterference, TerminalVirtualRegisterHome,
+    ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
 };
+
+#[derive(Debug, Clone, Copy)]
+struct ActiveHome {
+    register: TerminalVirtualRegisterId,
+    end: TerminalLiveRangePoint,
+    view: RegisterViewId,
+}
 
 pub(crate) fn compute_terminal_register_homes(
     legality: &ValidatedTerminalAllocationLegality,
@@ -94,19 +101,17 @@ fn compute_function(
             function: function_index,
         });
     }
-    let mut order = legality.virtual_registers.iter().collect::<Vec<_>>();
-    order.sort_by_key(|register| {
-        (
-            register
-                .points
-                .first()
-                .map(|point| point.point.0)
-                .unwrap_or(u32::MAX),
-            register.virtual_register.0,
-        )
-    });
+    let mut order = legality
+        .virtual_registers
+        .iter()
+        .map(|register| {
+            interval_bounds(function_index, register).map(|(start, end)| (start, end, register))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    order.sort_by_key(|(start, _, register)| (start.0, register.virtual_register.0));
     let mut homes = BTreeMap::<TerminalVirtualRegisterId, RegisterViewId>::new();
-    for register in order {
+    let mut active = Vec::<ActiveHome>::new();
+    for (start, end, register) in order {
         if !register.entry_transitions.is_empty() {
             return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
                 function: function_index,
@@ -114,6 +119,7 @@ fn compute_function(
                 count: register.entry_transitions.len(),
             });
         }
+        active.retain(|entry| entry.end > start);
         let candidates = common_candidates(function_index, register)?;
         let mut selected = None;
         for candidate in candidates {
@@ -124,9 +130,12 @@ fn compute_function(
                 candidate,
                 physical,
             )?;
-            let conflicts = homes.iter().any(|(other, other_view)| {
-                interferes(register.virtual_register, *other, &ranges.interference)
-                    && footprints_overlap(view, &physical.model().views[usize::from(other_view.0)])
+            let conflicts = active.iter().any(|entry| {
+                interferes(
+                    register.virtual_register,
+                    entry.register,
+                    &ranges.interference,
+                ) && footprints_overlap(view, &physical.model().views[usize::from(entry.view.0)])
             });
             if !conflicts {
                 selected = Some(candidate);
@@ -138,6 +147,12 @@ fn compute_function(
             register: register.virtual_register.0,
         })?;
         homes.insert(register.virtual_register, selected);
+        active.push(ActiveHome {
+            register: register.virtual_register,
+            end,
+            view: selected,
+        });
+        active.sort_by_key(|entry| (entry.end, entry.register));
     }
     let assignments = legality
         .virtual_registers
@@ -152,6 +167,32 @@ fn compute_function(
         machine: legality.machine,
         assignments,
     })
+}
+
+fn interval_bounds(
+    function_index: usize,
+    register: &crate::TerminalVirtualRegisterAllocationLegality,
+) -> Result<(TerminalLiveRangePoint, TerminalLiveRangePoint), TerminalRegisterHomeError> {
+    let Some(first) = register.points.first() else {
+        return Err(TerminalRegisterHomeError::NoLivePoints {
+            function: function_index,
+            register: register.virtual_register.0,
+        });
+    };
+    let last = register
+        .points
+        .last()
+        .expect("nonempty points established above");
+    let end = last
+        .point
+        .0
+        .checked_add(1)
+        .map(TerminalLiveRangePoint)
+        .ok_or(TerminalRegisterHomeError::IntervalOverflow {
+            function: function_index,
+            register: register.virtual_register.0,
+        })?;
+    Ok((first.point, end))
 }
 
 fn common_candidates(

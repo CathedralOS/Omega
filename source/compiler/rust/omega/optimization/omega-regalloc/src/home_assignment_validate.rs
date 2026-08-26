@@ -9,11 +9,18 @@ use omega_register_model::{
 use omega_terminal_selected_instructions::TerminalVirtualRegisterId;
 
 use crate::{
-    TerminalFunctionRegisterHomes, TerminalRegisterHomeError, TerminalRegisterHomePlan,
-    TerminalRegisterHomeValidationReceipt, TerminalVirtualRegisterHome,
+    TerminalFunctionRegisterHomes, TerminalLiveRangePoint, TerminalRegisterHomeError,
+    TerminalRegisterHomePlan, TerminalRegisterHomeValidationReceipt, TerminalVirtualRegisterHome,
     ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
     ValidatedTerminalRegisterHomes, terminal_register_home_identity,
 };
+
+#[derive(Debug, Clone, Copy)]
+struct ReplayActiveHome {
+    register: TerminalVirtualRegisterId,
+    end: TerminalLiveRangePoint,
+    view: RegisterViewId,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_terminal_register_homes(
@@ -101,25 +108,24 @@ fn replay_function(
             function: function_index,
         });
     }
-    let mut positions = (0..legality.virtual_registers.len()).collect::<Vec<_>>();
-    positions.sort_by(|left, right| {
-        let left = &legality.virtual_registers[*left];
-        let right = &legality.virtual_registers[*right];
-        left.points
-            .first()
-            .map(|point| point.point.0)
-            .unwrap_or(u32::MAX)
-            .cmp(
-                &right
-                    .points
-                    .first()
-                    .map(|point| point.point.0)
-                    .unwrap_or(u32::MAX),
-            )
-            .then(left.virtual_register.cmp(&right.virtual_register))
+    let mut positions = legality
+        .virtual_registers
+        .iter()
+        .enumerate()
+        .map(|(position, register)| {
+            replay_interval_bounds(function_index, register)
+                .map(|(start, end)| (position, start, end))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    positions.sort_by_key(|(position, start, _)| {
+        (
+            start.0,
+            legality.virtual_registers[*position].virtual_register,
+        )
     });
     let mut selected = BTreeMap::new();
-    for position in positions {
+    let mut active = Vec::<ReplayActiveHome>::new();
+    for (position, start, end) in positions {
         let register = &legality.virtual_registers[position];
         if !register.entry_transitions.is_empty() {
             return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
@@ -128,12 +134,11 @@ fn replay_function(
                 count: register.entry_transitions.len(),
             });
         }
-        let Some(first) = register.points.first() else {
-            return Err(TerminalRegisterHomeError::NoLivePoints {
-                function: function_index,
-                register: register.virtual_register.0,
-            });
-        };
+        let first = register
+            .points
+            .first()
+            .expect("interval reconstruction established nonempty points");
+        active.retain(|entry| entry.end > start);
         let candidates = first
             .candidates
             .iter()
@@ -159,17 +164,18 @@ fn replay_function(
                 candidate,
                 physical,
             )?;
-            let blocked = selected.iter().any(|(other, other_view)| {
+            let blocked = active.iter().any(|entry| {
                 ranges.interference.iter().any(|pair| {
-                    (pair.lower == register.virtual_register && pair.higher == *other)
-                        || (pair.higher == register.virtual_register && pair.lower == *other)
+                    (pair.lower == register.virtual_register && pair.higher == entry.register)
+                        || (pair.higher == register.virtual_register
+                            && pair.lower == entry.register)
                 }) && overlaps(
                     view,
                     physical
                         .model()
                         .views
                         .iter()
-                        .find(|view| view.id == *other_view)
+                        .find(|view| view.id == entry.view)
                         .expect("previously validated home view remains present"),
                 )
             });
@@ -178,13 +184,21 @@ fn replay_function(
                 break;
             }
         }
-        selected.insert(
-            register.virtual_register,
-            home.ok_or(TerminalRegisterHomeError::NoCompatibleHome {
-                function: function_index,
-                register: register.virtual_register.0,
-            })?,
-        );
+        let home = home.ok_or(TerminalRegisterHomeError::NoCompatibleHome {
+            function: function_index,
+            register: register.virtual_register.0,
+        })?;
+        selected.insert(register.virtual_register, home);
+        active.push(ReplayActiveHome {
+            register: register.virtual_register,
+            end,
+            view: home,
+        });
+        active.sort_by(|left, right| {
+            left.end
+                .cmp(&right.end)
+                .then(left.register.cmp(&right.register))
+        });
     }
     Ok(TerminalFunctionRegisterHomes {
         machine: legality.machine,
@@ -198,6 +212,32 @@ fn replay_function(
             })
             .collect(),
     })
+}
+
+fn replay_interval_bounds(
+    function_index: usize,
+    register: &crate::TerminalVirtualRegisterAllocationLegality,
+) -> Result<(TerminalLiveRangePoint, TerminalLiveRangePoint), TerminalRegisterHomeError> {
+    let first = register
+        .points
+        .first()
+        .ok_or(TerminalRegisterHomeError::NoLivePoints {
+            function: function_index,
+            register: register.virtual_register.0,
+        })?;
+    let last = register
+        .points
+        .last()
+        .expect("nonempty points established above");
+    let exclusive_end =
+        last.point
+            .0
+            .checked_add(1)
+            .ok_or(TerminalRegisterHomeError::IntervalOverflow {
+                function: function_index,
+                register: register.virtual_register.0,
+            })?;
+    Ok((first.point, TerminalLiveRangePoint(exclusive_end)))
 }
 
 fn find_view(

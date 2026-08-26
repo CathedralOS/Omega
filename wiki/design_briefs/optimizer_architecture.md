@@ -261,6 +261,17 @@ storage/write footprints to prevent conflicting homes, while allowing
 mutually-exclusive leaf values to reuse a view. Production and independent
 replay both bind the legality, range, and register-environment identities.
 
+The bounded chooser now executes actual linear-scan mechanics for this base
+case. It orders canonical half-open VReg envelopes by start point and stable
+VReg ID, expires active homes whose exclusive end is at or before the next
+start, and tests candidates only against still-active exact CFG interference
+and full physical footprints. The independent validator reconstructs interval
+bounds and active expiration separately. After the fixed-view-copy transform,
+the condition and forwarded value form one real interference pair and receive
+distinct homes, while mutually exclusive leaf result intervals expire and
+reuse the same return view on both ISAs. This is not yet pressure-driven spill
+selection, general splitting, or a complete linear-scan allocator.
+
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,
 register-class, and physical-view assignments, and recomputes a stored content
