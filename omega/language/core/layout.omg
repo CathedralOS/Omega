@@ -445,6 +445,9 @@ satisfies DestructiveRead<T>::take;
 boundary machine PlacedField::write<T>(&mut self, value: T)
 satisfies Writable<T>::write;
 
+pub trait PrivateCallbackSlot<machine Requirement> {
+}
+
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
 pub trait Layout {
