@@ -114,7 +114,6 @@
     "call.static_argument.application",
     "call.static_argument.const",
     "call.static_argument.evidence_projection",
-    "contract.boundary",
     "contract.crashes",
     "contract.ensures",
     "contract.evidence_binding",

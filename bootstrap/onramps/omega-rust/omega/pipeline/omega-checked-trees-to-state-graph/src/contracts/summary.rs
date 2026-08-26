@@ -116,9 +116,6 @@ fn append_state_contract_fact_refs(
                     psi_checked_trees::ContractProofFactKind::Ensures => {
                         StateContractFactKind::Ensures
                     }
-                    psi_checked_trees::ContractProofFactKind::Boundary => {
-                        StateContractFactKind::Boundary
-                    }
                 },
                 fact: contract_fact.fact,
             },

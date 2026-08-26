@@ -20,7 +20,6 @@ pub(super) fn validate_contract_facts(
     for kind in [
         SignatureContractKind::Requires,
         SignatureContractKind::Ensures,
-        SignatureContractKind::Boundary,
     ] {
         let required = normalized_facts(program, required_contracts, &kind, required_parameters);
         let actual = normalized_facts(program, actual_contracts, &kind, actual_parameters);
@@ -29,7 +28,7 @@ pub(super) fn validate_contract_facts(
             // already prove them, so the selected implementation may demand a
             // subset. Selected postconditions must cover the requirement.
             SignatureContractKind::Requires => actual.iter().all(|fact| required.contains(fact)),
-            SignatureContractKind::Ensures | SignatureContractKind::Boundary => {
+            SignatureContractKind::Ensures => {
                 required.iter().all(|fact| actual.contains(fact))
             }
             SignatureContractKind::Crashes { .. } => {
@@ -264,7 +263,6 @@ fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
     match kind {
         SignatureContractKind::Requires => "requires",
         SignatureContractKind::Ensures => "ensures",
-        SignatureContractKind::Boundary => "boundary",
         SignatureContractKind::Crashes { .. } => "crashes",
     }
 }

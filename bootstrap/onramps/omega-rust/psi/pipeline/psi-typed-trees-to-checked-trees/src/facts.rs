@@ -829,7 +829,6 @@ fn build_closed_scalar_value_contract_plan(
     let mut requires = Vec::new();
     let mut ensures = Vec::new();
     let mut has_crash_clauses = false;
-    let mut has_other_clauses = false;
     for contract in program.machine_contracts(machine) {
         // Named witness-bearing lanes are checked and lowered through the
         // evidence contract plan. They do not participate in the independent
@@ -841,14 +840,12 @@ fn build_closed_scalar_value_contract_plan(
             SignatureContractKind::Requires => requires.push(lower_clause(contract)),
             SignatureContractKind::Ensures => ensures.push(lower_clause(contract)),
             SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
-            SignatureContractKind::Boundary => has_other_clauses = true,
         }
     }
     psi_checked_trees::ClosedScalarValueContractPlan::new(
         requires,
         ensures,
         has_crash_clauses,
-        has_other_clauses,
     )
 }
 
@@ -1017,7 +1014,6 @@ fn encode_signature_contract_kind(
     match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => output.push(1),
         psi_typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
-        psi_typed_trees::signature::SignatureContractKind::Boundary => output.push(3),
         psi_typed_trees::signature::SignatureContractKind::Crashes { cause } => {
             output.push(4);
             output.push(match cause {

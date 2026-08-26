@@ -86,7 +86,6 @@ pub enum SignatureContractKind {
     #[default]
     Requires,
     Ensures,
-    Boundary,
     Crashes {
         cause: CrashCause,
     },

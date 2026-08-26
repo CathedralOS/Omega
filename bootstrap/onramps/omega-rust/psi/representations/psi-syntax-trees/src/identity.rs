@@ -1,8 +1,7 @@
 use crate::SyntaxTrees;
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContractKind, CapabilityMember, Item, ProofFact, PropositionBody,
-    TargetHostSettingValue, WireDataMember,
+    CapabilityMember, Item, ProofFact, PropositionBody, TargetHostSettingValue, WireDataMember,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -485,9 +484,6 @@ fn count_contract(
     contract: &crate::item::CapabilityContract,
     counts: &mut AstIdentityStorageCounts,
 ) {
-    if let CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) = &contract.kind {
-        count_identifier(name, counts);
-    }
     for fact in syntax_trees.items.proof_facts(contract.facts) {
         count_proof_fact(syntax_trees, fact, counts);
     }

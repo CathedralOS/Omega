@@ -405,7 +405,6 @@ fn contract_kind_label(kind: &psi_typed_trees::signature::SignatureContractKind)
     match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => "requires",
         psi_typed_trees::signature::SignatureContractKind::Ensures => "ensures",
-        psi_typed_trees::signature::SignatureContractKind::Boundary => "boundary",
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => "crashes",
     }
 }

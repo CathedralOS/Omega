@@ -5,8 +5,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
-    CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
+    BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind, CapabilityDefinition,
+    CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
     DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable, Machine,
     MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
     StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
@@ -648,12 +648,6 @@ impl SyntaxTrees {
                 kind: match &contract.kind {
                     CapabilityContractKind::Ensures => CapabilityContractKind::Ensures,
                     CapabilityContractKind::Requires => CapabilityContractKind::Requires,
-                    CapabilityContractKind::Boundary(BoundaryLevel::Host) => {
-                        CapabilityContractKind::Boundary(BoundaryLevel::Host)
-                    }
-                    CapabilityContractKind::Boundary(BoundaryLevel::Named(name)) => {
-                        CapabilityContractKind::Boundary(BoundaryLevel::Named(name.clone()))
-                    }
                     CapabilityContractKind::Crashes { cause } => {
                         CapabilityContractKind::Crashes { cause: *cause }
                     }

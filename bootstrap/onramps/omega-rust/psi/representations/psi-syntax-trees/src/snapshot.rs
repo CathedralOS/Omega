@@ -3,7 +3,7 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
     ExternalBinding, GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause,
     StateParameterNode, StateSignature, WireDataMember,
 };
@@ -402,7 +402,6 @@ pub struct CapabilityContractSnapshot {
 pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
-    Boundary { boundary: BoundaryLevelSnapshot },
     Crashes { cause: &'static str },
 }
 
@@ -416,13 +415,6 @@ pub enum ProofFactSnapshot {
         value: ExpressionSnapshot,
         domain: Vec<IdentifierSnapshot>,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BoundaryLevelSnapshot {
-    Host,
-    Named { name: IdentifierSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1410,9 +1402,6 @@ fn snapshot_capability_contract(
         kind: match &contract.kind {
             CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
             CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
-            CapabilityContractKind::Boundary(level) => CapabilityContractKindSnapshot::Boundary {
-                boundary: snapshot_boundary_level(level),
-            },
             CapabilityContractKind::Crashes { cause } => CapabilityContractKindSnapshot::Crashes {
                 cause: match cause {
                     crate::item::CrashCause::Trap => "Trap",
@@ -1491,15 +1480,6 @@ fn snapshot_binding_relevance(relevance: psi_language_core::BindingRelevance) ->
     match relevance {
         psi_language_core::BindingRelevance::Relevant => "relevant",
         psi_language_core::BindingRelevance::Erased => "erased",
-    }
-}
-
-fn snapshot_boundary_level(level: &BoundaryLevel) -> BoundaryLevelSnapshot {
-    match level {
-        BoundaryLevel::Host => BoundaryLevelSnapshot::Host,
-        BoundaryLevel::Named(name) => BoundaryLevelSnapshot::Named {
-            name: snapshot_identifier(name),
-        },
     }
 }
 

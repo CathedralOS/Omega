@@ -308,7 +308,7 @@ pub(crate) fn validate_machine_contract_entailment_with_stand_downs(
         let bucket = match &contract.kind {
             SignatureContractKind::Requires => &mut requires,
             SignatureContractKind::Ensures => &mut ensures,
-            SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => continue,
+            SignatureContractKind::Crashes { .. } => continue,
         };
         for (fact_index, fact) in program
             .proof_facts
@@ -1207,7 +1207,7 @@ fn suggest_missing_citation(
                         }
                     }
                 }
-                SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {}
+                SignatureContractKind::Crashes { .. } => {}
             }
         }
         // A requires-bearing lemma cannot be cited yet; suggesting it would
@@ -1929,7 +1929,7 @@ fn instantiate_citation(
                     }
                 }
             }
-            SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {}
+            SignatureContractKind::Crashes { .. } => {}
         }
     }
     // The ENTRY state carries the signature; further states are the

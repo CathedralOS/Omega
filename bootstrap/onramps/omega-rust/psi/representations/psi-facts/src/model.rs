@@ -194,9 +194,6 @@ pub enum FactOrigin {
     OperatorEnsures {
         operator_symbol: SymbolHandle,
     },
-    OperatorBoundary {
-        operator_symbol: SymbolHandle,
-    },
     StatementTransfer,
 }
 
@@ -248,7 +245,6 @@ pub enum ContractFactKind {
     #[default]
     Requires,
     Ensures,
-    Boundary,
 }
 
 /// A contract expression after positional call/operator substitution. Typed

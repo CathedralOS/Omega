@@ -1,0 +1,6 @@
+data Main {}
+
+machine Main::main(&mut self)
+boundary host
+{
+}

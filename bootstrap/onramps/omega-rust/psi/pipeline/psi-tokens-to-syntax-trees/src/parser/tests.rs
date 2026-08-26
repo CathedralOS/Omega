@@ -1608,6 +1608,33 @@ fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
 }
 
 #[test]
+fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
+    for retired in [
+        "machine run() boundary host {}",
+        "machine run() boundary LegacyHost {}",
+        "capability Legacy { state run() { boundary host; } }",
+        "capability Legacy { state run() { boundary LegacyHost; } }",
+    ] {
+        let tokens = Lexer::new(retired)
+            .tokenize()
+            .expect("tokenize retired trailing boundary contract");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("trailing boundary contract clauses must be retired");
+        assert!(
+            error
+                .message
+                .contains("trailing `boundary host` and `boundary Name` contract clauses are retired")
+                && error.message.contains("leading `boundary trait`")
+                && error.message.contains("`boundary machine`")
+                && error.message.contains("`boundary operator`")
+                && error.message.contains("`satisfies Trait::requirement via Binding::...`"),
+            "got for {retired:?}: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
     let tokens = Lexer::new(retired)

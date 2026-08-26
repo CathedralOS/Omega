@@ -770,7 +770,6 @@ pub enum PackageReviewCallableRole {
 pub enum PackageReviewContractKind {
     Requires,
     Ensures,
-    Boundary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -5967,15 +5966,6 @@ fn project_contracts(
         let kind = match contract.kind {
             SignatureContractKind::Requires => PackageReviewContractKind::Requires,
             SignatureContractKind::Ensures => PackageReviewContractKind::Ensures,
-            SignatureContractKind::Boundary
-                if policy == ContractProjectionPolicy::PublicTraitRequirement =>
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a boundary contract not yet represented by public-trait review",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
-            SignatureContractKind::Boundary => PackageReviewContractKind::Boundary,
             SignatureContractKind::Crashes { .. }
                 if policy == ContractProjectionPolicy::PublicOperator =>
             {
@@ -6083,9 +6073,7 @@ fn project_contracts(
                         .binding
                         .as_ref()
                         .map(|binding| binding.as_str().to_owned()),
-                    PackageReviewContractKind::Requires | PackageReviewContractKind::Boundary => {
-                        None
-                    }
+                    PackageReviewContractKind::Requires => None,
                 },
                 evidence_lane_position,
                 fact,
@@ -6106,7 +6094,6 @@ fn checked_contract_fact<'a>(
     let checked_kind = match kind {
         PackageReviewContractKind::Requires => psi_checked_trees::ContractProofFactKind::Requires,
         PackageReviewContractKind::Ensures => psi_checked_trees::ContractProofFactKind::Ensures,
-        PackageReviewContractKind::Boundary => psi_checked_trees::ContractProofFactKind::Boundary,
     };
     let matching = compilation
         .facts

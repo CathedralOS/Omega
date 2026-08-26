@@ -285,7 +285,6 @@ impl Default for CapabilityContract {
 pub enum CapabilityContractKind {
     Ensures,
     Requires,
-    Boundary(BoundaryLevel),
     Crashes { cause: CrashCause },
 }
 
@@ -298,18 +297,6 @@ pub enum CrashCause {
 impl Default for CapabilityContractKind {
     fn default() -> Self {
         Self::Requires
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BoundaryLevel {
-    Host,
-    Named(Identifier),
-}
-
-impl Default for BoundaryLevel {
-    fn default() -> Self {
-        Self::Named(Identifier::default())
     }
 }
 

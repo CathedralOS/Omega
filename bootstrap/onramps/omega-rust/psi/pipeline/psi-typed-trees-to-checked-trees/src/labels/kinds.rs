@@ -8,7 +8,6 @@ pub(crate) fn semantic_contract_fact_kind(kind: ContractProofFactKind) -> Semant
     match kind {
         ContractProofFactKind::Requires => SemanticContractFactKind::Requires,
         ContractProofFactKind::Ensures => SemanticContractFactKind::Ensures,
-        ContractProofFactKind::Boundary => SemanticContractFactKind::Boundary,
     }
 }
 

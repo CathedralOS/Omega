@@ -40,15 +40,14 @@ pub(crate) fn check_operator_contract_conformance(
             let destination = match &contract.kind {
                 SignatureContractKind::Requires => &mut *requires,
                 SignatureContractKind::Ensures => &mut *ensures,
-                SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => continue,
+                SignatureContractKind::Crashes { .. } => continue,
             };
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let ProofFact::Expression(expression) = fact else {
                     match &contract.kind {
                         SignatureContractKind::Requires => *unsupported_requires = true,
                         SignatureContractKind::Ensures => *unsupported_ensures = true,
-                        SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {
-                        }
+                        SignatureContractKind::Crashes { .. } => {}
                     }
                     continue;
                 };
@@ -56,8 +55,7 @@ pub(crate) fn check_operator_contract_conformance(
                     match &contract.kind {
                         SignatureContractKind::Requires => *unsupported_requires = true,
                         SignatureContractKind::Ensures => *unsupported_ensures = true,
-                        SignatureContractKind::Boundary | SignatureContractKind::Crashes { .. } => {
-                        }
+                        SignatureContractKind::Crashes { .. } => {}
                     }
                 }
                 collect_equality_conjuncts(program, *expression, destination);

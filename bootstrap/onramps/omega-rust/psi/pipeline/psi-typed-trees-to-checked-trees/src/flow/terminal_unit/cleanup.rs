@@ -910,9 +910,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
                 SignatureContractKind::Requires if runtime_arithmetic_requires_are_terminal => {
                     false
                 }
-                SignatureContractKind::Requires
-                | SignatureContractKind::Ensures
-                | SignatureContractKind::Boundary => true,
+                SignatureContractKind::Requires | SignatureContractKind::Ensures => true,
             })
     {
         return None;
@@ -1070,12 +1068,10 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
         return None;
     }
-    if contract.closed_scalar_values.has_other_clauses()
-        || !service_reach_plan_is_empty(
-            facts,
-            facts.service_reaches.plan_for_machine(machine.symbol)?,
-        )
-    {
+    if !service_reach_plan_is_empty(
+        facts,
+        facts.service_reaches.plan_for_machine(machine.symbol)?,
+    ) {
         return None;
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
