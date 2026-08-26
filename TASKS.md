@@ -5540,6 +5540,17 @@ Owners:
   Parent activity after formation, suspension-interval containment,
   reactivation, completed restoration, and Terminal authority remain open;
   current lexical weakening rows cannot establish those claims.
+  A checked-only weakening-order join now retains the exact parent and child
+  weakening handles plus a closed lexical status at child end: parent retired
+  before, retired at the same boundary, or remained live past the child.
+  Ordering is derived from semantic statement phases (`LastUseExpired` before
+  entry, `LocalReassigned` after the right-hand side, and `StateExit` last),
+  never raw arena insertion order. Replay rejects handle, resource, status, or
+  phase drift transactionally. This classification remains purely lexical; it
+  does not prove suspension containment, authority return, reactivation,
+  cascade through retired parents, completed restoration, or Terminal
+  authority. A later path-aware resource-status carrier must settle those
+  outcomes.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -7425,6 +7436,23 @@ Owners:
   path drift. The binding still owns no physical home, field offset, target
   operation, bytes, object relocation, address, registration authority, or
   lease.
+  The next target-closed placement rung is complete. Backend planning joins
+  each exact registrar argument to the outbound `CallPlan` parameter's
+  `ValuePlacement` and, for the production field form, exactly one
+  authoritative `LayoutPlan` private-demand row. The retained row preserves
+  layout, slot, requirement, data symbol, physical offset, pointer extent, and
+  alignment as layout evidence rather than a new identity. Replay rejects
+  missing/duplicate rows, formal or ABI-placement drift, target-architecture
+  mismatch, identity or geometry drift, and field paths with zero or multiple
+  segments. Multi-segment physical path composition remains an engineering
+  prerequisite; the nominal path is already settled. Direct-parameter
+  construction remains synthetic-only pending Q13. This carrier still owns no
+  selected/assigned operation, object symbol, relocation kind, bytes, runtime
+  address, registration authority, or lease. The next emission prerequisite is
+  an exact registrar-occurrence/formal-to-assigned-operand carrier: target
+  `HostOperation` currently retains only operation key and operand span, so
+  operand position or coarse source coordinates cannot authorize a callback
+  relocation.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

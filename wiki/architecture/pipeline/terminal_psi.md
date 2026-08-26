@@ -238,6 +238,17 @@ deriving a byte offset; distinct fields may share one exact parameter root.
 This evidence still carries no target operation, bytes, object relocation,
 runtime address, registration authority, or lease.
 
+The target-closed backend recipe now extends that join to the exact outbound
+parameter `ValuePlacement` and one authoritative private-layout demand for the
+current single-slot `Field` form. Layout/slot/requirement/data-symbol identity,
+offset, pointer extent, and alignment replay against the selected target and
+containing data layout. The offset is retained evidence, not source-authored
+identity. Multi-segment physical path composition rejects as an engineering
+gap, and direct-parameter construction remains synthetic-only pending Q13.
+The recipe still has no selected/assigned operation, object symbol, relocation,
+bytes, runtime address, registration authority, or lease; an exact
+registrar-formal-to-assigned-operand carrier must precede emission.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that
@@ -321,6 +332,16 @@ parent activity, suspension-interval containment, reactivation, completed
 restoration, or Terminal authority. The lexical parent weakening may precede
 the child weakening, so those later lifecycle claims require a distinct flow
 carrier.
+
+One further checked-only join retains the exact parent and child weakening
+handles and classifies their semantic boundary order as parent retired before
+the child, retired with it, or remained lexically live past it. Statement
+expiry precedes entry, local reassignment ends the old carrier after its
+right-hand side, and state exit is last; raw arena order has no meaning.
+Independent replay checks both handles, the existing resource identities, and
+the derived status. This is lexical disposition only, not authority return,
+reactivation, cascading restoration through retired parents, suspension
+containment, or Terminal evidence.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
