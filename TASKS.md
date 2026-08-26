@@ -8592,9 +8592,17 @@ boundary without its corresponding checked law.
   relocated-section `sh_info` to exact in-roster indexes, and independently
   replays order, unique coverage, every metadata field/reference, identity,
   and name-table custody. The closed numeric roster still assigns no address,
-  file offset, payload placement, or header bytes. Runnable ELF emission
-  remains fail closed before image mutation: section-header serialization,
-  placement, `PT_INTERP` program-header placement,
+  file offset, or payload placement. The section-header serialization rung now
+  consumes that exact roster into twelve 64-byte ELF64-LSB `Elf64_Shdr`
+  templates (768 bytes total), copying every numeric field while leaving
+  `sh_addr` and `sh_offset` as zero placeholders. Twenty-one typed placement
+  fixups name the eleven non-null file-offset fields and the ten allocated
+  virtual-address fields. An independent bounded decoder requires the exact
+  table length with no trailing bytes and replays every field, row, fixup
+  coordinate, zero placeholder, bound, non-overlap relationship, identity,
+  and roster custody. It assigns no placement or `e_shoff`. Runnable ELF
+  emission remains fail closed before image mutation: section-header
+  placement and fixup resolution, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
   `.gnu.hash`, numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
   resolved fixup application, complete

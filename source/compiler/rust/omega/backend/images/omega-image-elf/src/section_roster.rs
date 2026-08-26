@@ -73,7 +73,6 @@ impl ValidatedElfDynamicSectionRoster {
         self.roster_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfDynamicSectionRosterContents {
         &self.contents
     }

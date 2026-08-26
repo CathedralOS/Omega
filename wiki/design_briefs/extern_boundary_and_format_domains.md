@@ -284,9 +284,17 @@ offsets and literal `sh_info` values survive unchanged; semantic links and the
 relocated-section info relationship resolve to exact in-roster indexes.
 Independent replay checks order, unique coverage, every metadata
 field/reference, identity, and name-table custody. The roster assigns no
-address, file offset, payload placement, or header bytes.
+address, file offset, or payload placement. A section-header serialization
+carrier then consumes the exact roster into twelve 64-byte ELF64-LSB
+`Elf64_Shdr` templates, 768 bytes total. It copies every numeric roster field
+and leaves each `sh_addr` and `sh_offset` placement field zero. Twenty-one
+typed fixups identify the eleven non-null file offsets and the ten allocated
+virtual addresses. An independent bounded decoder rejects truncated or
+trailing bytes and replays every field and row, exact fixup order and
+coordinate, zero placeholder, bounds and non-overlap, identity, and roster
+custody. The carrier grants no placement or `e_shoff` authority.
 
-Section-header serialization, placement,
+Section-header placement and fixup resolution,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
 resolution, optional `.gnu.hash`, numeric indexes for
 `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
