@@ -1,5 +1,10 @@
 use super::super::*;
-use psi_core::{IntegerType, ScalarType, ValueId};
+use psi_core::{IntegerType, PropositionContext, ScalarType, ValueId};
+use psi_proof_admission::{
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
+    IntegerCorrelatedForbiddenRootWitness, IntegerCorrelatedForbiddenRootWitnessError,
+    check_integer_correlated_forbidden_root_witness,
+};
 
 #[test]
 fn affine_fork_join_replays_correlated_branches_without_importing_prefix_proofs() {
@@ -589,6 +594,13 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
         ),
     ];
     let parameters = BTreeSet::from([root_id]);
+    let context = PropositionContext::from_value_types((1821..=1829).map(|id| {
+        (
+            ValueId::new(id).expect("divide/remainder value"),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .expect("divide/remainder proposition context");
     let lower = Proposition::LessOrEqual(literal(-1), root.clone());
     let upper = Proposition::LessOrEqual(root.clone(), literal(0));
     let mut bounded = definitions.clone();
@@ -600,6 +612,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     let expected = canonical_conjunction(vec![lower.clone(), upper.clone()]);
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -612,6 +625,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     );
     assert_eq!(
         exact_integer_divide_obligation_with_definitions(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -623,6 +637,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     );
     assert_eq!(
         exact_integer_remainder_obligation_with_definitions(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -643,6 +658,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     partial_zero.extend([lower.clone(), upper.clone()]);
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -660,6 +676,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     ]);
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -695,6 +712,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     all_forbidden.extend([lower.clone(), upper.clone()]);
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             coincident_left.clone(),
             identity_right,
@@ -721,6 +739,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     coincident_bounded.extend([lower.clone(), upper.clone()]);
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -736,6 +755,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     one_sided.push(lower.clone());
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -750,6 +770,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     let all_axioms_are_definitions = bounds_in_definition_carrier.len();
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -770,6 +791,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     );
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -782,6 +804,7 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
     );
     assert_eq!(
         exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
             IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 type"),
             left,
             right,
@@ -791,6 +814,160 @@ fn same_root_affine_divide_remainder_join_excludes_exact_forbidden_lattice_roots
         ),
         None,
         "the exact forbidden-root family is signed-only",
+    );
+}
+
+#[test]
+fn affine_divide_remainder_checker_boundary_rejects_literal_and_bound_index_drift() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 type");
+    let value = |id| {
+        ScalarTerm::value(
+            ValueId::new(id).expect("checker-boundary value"),
+            ScalarType::Integer(integer_type),
+        )
+    };
+    let literal = |value| {
+        ScalarTerm::integer(integer_type, IntegerValue::Signed(value))
+            .expect("checker-boundary literal")
+    };
+    let root_id = ValueId::new(1901).expect("checker-boundary root");
+    let root = ScalarTerm::value(root_id, ScalarType::Integer(integer_type));
+    let sixty_four = value(1902);
+    let left_offset = value(1903);
+    let negative_two = value(1904);
+    let dividend = value(1905);
+    let two = value(1906);
+    let right_product = value(1907);
+    let divisor = value(1908);
+    let loose_lower = Proposition::LessOrEqual(literal(-10), root.clone());
+    let lower = Proposition::LessOrEqual(literal(-1), root.clone());
+    let loose_upper = Proposition::LessOrEqual(root.clone(), literal(10));
+    let upper = Proposition::LessOrEqual(root.clone(), literal(0));
+    let axioms = vec![
+        Proposition::Equal(sixty_four.clone(), literal(64)),
+        Proposition::Equal(
+            left_offset.clone(),
+            ScalarTerm::exact_integer_add(integer_type, root.clone(), sixty_four)
+                .expect("root + landed 64"),
+        ),
+        Proposition::Equal(negative_two.clone(), literal(-2)),
+        Proposition::Equal(
+            dividend.clone(),
+            ScalarTerm::exact_integer_multiply(integer_type, left_offset, negative_two)
+                .expect("dividend branch"),
+        ),
+        Proposition::Equal(two.clone(), literal(2)),
+        Proposition::Equal(
+            right_product.clone(),
+            ScalarTerm::exact_integer_multiply(integer_type, root.clone(), two)
+                .expect("divisor product"),
+        ),
+        Proposition::Equal(
+            divisor.clone(),
+            ScalarTerm::exact_integer_add(integer_type, right_product, literal(1))
+                .expect("odd divisor"),
+        ),
+        loose_lower,
+        lower.clone(),
+        loose_upper,
+        upper.clone(),
+    ];
+    let context = PropositionContext::from_value_types((1901..=1908).map(|id| {
+        (
+            ValueId::new(id).expect("checker-boundary value"),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .expect("checker-boundary proposition context");
+    let parameters = BTreeSet::from([root_id]);
+    let expected = canonical_conjunction(vec![lower, upper]);
+    assert_eq!(
+        exact_integer_same_root_affine_divide_remainder_join_obligation(
+            &context,
+            integer_type,
+            dividend.clone(),
+            divisor.clone(),
+            &axioms,
+            7,
+            &parameters,
+        ),
+        Some(expected.clone()),
+        "the reducer retains exact prior literal and tight-bound coordinates for the checker",
+    );
+
+    let witness = IntegerCorrelatedForbiddenRootWitness {
+        dividend: CorrelatedAffineBranchWitness {
+            root: root.clone(),
+            target: dividend,
+            steps: vec![
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 1,
+                    literal_axiom: Some(0),
+                },
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 3,
+                    literal_axiom: Some(2),
+                },
+            ],
+        },
+        divisor: CorrelatedAffineBranchWitness {
+            root,
+            target: divisor,
+            steps: vec![
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 5,
+                    literal_axiom: Some(4),
+                },
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 6,
+                    literal_axiom: None,
+                },
+            ],
+        },
+        definition_axiom_count: 7,
+        lower_bound_axiom: 8,
+        upper_bound_axiom: 10,
+        conclusion: expected,
+    };
+    let check = |candidate: &IntegerCorrelatedForbiddenRootWitness| {
+        check_integer_correlated_forbidden_root_witness(&context, &axioms, &parameters, candidate)
+    };
+    check(&witness).expect("exact retained coordinates check");
+
+    let mut late_literal = witness.clone();
+    late_literal.dividend.steps[0].literal_axiom = Some(1);
+    assert_eq!(
+        check(&late_literal),
+        Err(
+            IntegerCorrelatedForbiddenRootWitnessError::LiteralAxiomNotPrior {
+                definition_axiom: 1,
+                literal_axiom: 1,
+            },
+        ),
+    );
+    let mut missing_literal = witness.clone();
+    missing_literal.dividend.steps[0].literal_axiom = None;
+    assert_eq!(
+        check(&missing_literal),
+        Err(IntegerCorrelatedForbiddenRootWitnessError::MissingLiteralAxiom(1)),
+    );
+    let mut reused_literal = witness.clone();
+    reused_literal.dividend.steps[1].literal_axiom = Some(0);
+    assert_eq!(
+        check(&reused_literal),
+        Err(IntegerCorrelatedForbiddenRootWitnessError::LiteralIdentityMismatch(3)),
+    );
+    let mut lower_drift = witness.clone();
+    lower_drift.lower_bound_axiom = 7;
+    assert_eq!(
+        check(&lower_drift),
+        Err(IntegerCorrelatedForbiddenRootWitnessError::BoundIdentityMismatch),
+    );
+    let mut upper_drift = witness;
+    upper_drift.upper_bound_axiom = 9;
+    assert_eq!(
+        check(&upper_drift),
+        Err(IntegerCorrelatedForbiddenRootWitnessError::BoundIdentityMismatch),
     );
 }
 

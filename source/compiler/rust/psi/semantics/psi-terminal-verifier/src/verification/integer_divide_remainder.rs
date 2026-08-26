@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ValueId};
+use psi_core::{IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::affine_joins::exact_integer_same_root_affine_divide_remainder_join_obligation;
 use super::{canonical_conjunction, known_integer_term_value};
@@ -70,6 +70,7 @@ pub(super) fn is_minimum_divide(
 }
 
 pub(super) fn exact_integer_divide_obligation_with_definitions(
+    proposition_context: &PropositionContext,
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
@@ -80,6 +81,7 @@ pub(super) fn exact_integer_divide_obligation_with_definitions(
     if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
         && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
         && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
+            proposition_context,
             integer_type,
             left.clone(),
             right.clone(),
@@ -133,6 +135,7 @@ pub(super) fn exact_integer_divide_obligation(
 }
 
 pub(super) fn exact_integer_remainder_obligation_with_definitions(
+    proposition_context: &PropositionContext,
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
@@ -143,6 +146,7 @@ pub(super) fn exact_integer_remainder_obligation_with_definitions(
     if known_integer_term_value(integer_type, &left, semantic_axioms).is_none()
         && known_integer_term_value(integer_type, &right, semantic_axioms).is_none()
         && let Some(obligation) = exact_integer_same_root_affine_divide_remainder_join_obligation(
+            proposition_context,
             integer_type,
             left.clone(),
             right.clone(),
