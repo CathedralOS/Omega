@@ -1205,6 +1205,9 @@ fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> 
     matches!(
         field_type,
         CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::ByteSequence(
+                psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+            )
             | CheckedUnitStructuralFieldType::Scalar(
                 PrimitiveType::Bool
                     | PrimitiveType::I8

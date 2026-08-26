@@ -1466,6 +1466,9 @@ fn collect_partial_affine_residuals(
                     StructuralFieldType::Structural(_)
                         | StructuralFieldType::Scalar(_)
                         | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
                 )
         })
     {

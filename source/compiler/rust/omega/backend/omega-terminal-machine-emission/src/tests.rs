@@ -335,6 +335,14 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
                         ),
                     },
                     psi_terminal::StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(5).expect("byte field"),
+                        identity: "bytes".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
                         id: psi_core::StructuralFieldId::new(3).expect("residual field"),
                         identity: "residual".into(),
                         relevance: psi_terminal::BindingRelevance::Relevant,
@@ -418,6 +426,47 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
             &[&float_residual, &residual],
         ),
         "a cleanup-free float field cannot acquire an affine residual cleanup"
+    );
+
+    let bytes_path = vec![StructuralPathSegment::Field("bytes".into())];
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &[(bytes_path.as_slice(), residual_type)],
+            &residuals,
+        ),
+        "bounded byte storage cannot become a moved affine structural path"
+    );
+    let bytes_residual = psi_terminal::StructuralAffineDiscard {
+        place: PlaceId::new(1).expect("place"),
+        path: bytes_path,
+        structural_type: residual_type,
+    };
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &[&bytes_residual, &residual],
+        ),
+        "bounded byte storage cannot acquire an affine residual cleanup"
+    );
+
+    let mut borrowed_view = declarations.clone();
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut borrowed_view[0].shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "bytes")
+        .expect("bounded byte field")
+        .field_type = psi_terminal::StructuralFieldType::ByteSequence(
+        psi_terminal::ByteSequenceCarrier::BorrowedView,
+    );
+    assert!(
+        !exact_partial_cleanup_partition(&borrowed_view, root_type, &moved, &residuals),
+        "borrowed views require a loan-retirement event"
     );
 
     let mut scalar_as_structural = declarations.clone();

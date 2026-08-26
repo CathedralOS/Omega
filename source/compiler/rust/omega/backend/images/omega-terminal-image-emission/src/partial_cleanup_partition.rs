@@ -65,6 +65,9 @@ fn append_expected_partial_residuals(
                     StructuralFieldType::Structural(_)
                         | StructuralFieldType::Scalar(_)
                         | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
                 )
         })
     {

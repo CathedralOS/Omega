@@ -12,12 +12,20 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
+    domain [u8; 3]::Utf8
+    requires
+        valid_utf8(self);
+    domain [u8; 8]::Utf8
+    requires
+        valid_utf8(self);
     data Token { value: u64; }
     data Quintet {
         before: u8;
+        before_bytes: [u8; 3] in Utf8;
         before_float: f32;
         first: Token;
         between: bool;
+        between_bytes: [u8; 8] in Utf8;
         between_float: f64;
         second: Token;
         third: Token;
@@ -88,9 +96,11 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
             .collect::<Vec<_>>(),
         vec![
             "before",
+            "before_bytes",
             "before_float",
             "first",
             "between",
+            "between_bytes",
             "between_float",
             "second",
             "third",
@@ -98,15 +108,44 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
             "fifth",
             "after",
         ],
-        "integer, Boolean, and exact-format float fields remain ordered structural identity"
+        "scalar, float, and exact-capacity byte fields remain ordered structural identity"
     );
     assert_eq!(
-        fields[1].field_type,
+        fields
+            .iter()
+            .find(|field| field.identity == "before_float")
+            .expect("f32 field")
+            .field_type,
         StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32)
     );
     assert_eq!(
-        fields[4].field_type,
+        fields
+            .iter()
+            .find(|field| field.identity == "between_float")
+            .expect("f64 field")
+            .field_type,
         StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64)
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::ByteSequence(carrier) => {
+                    Some((field.identity.as_str(), carrier))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "before_bytes",
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+            ),
+            (
+                "between_bytes",
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+            ),
+        ]
     );
     let [block] = entry.blocks.as_slice() else {
         panic!("partial affine source slice has one block")
@@ -203,6 +242,55 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         "reclassifying a cleanup-free float as affine structural requires a new residual"
     );
 
+    let mut bytes_as_structural = lowered.semantic_module.clone();
+    let root_shape = bytes_as_structural
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed byte/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "before_bytes")
+        .expect("interleaved bounded byte field")
+        .field_type = StructuralFieldType::Structural(token_type);
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &bytes_as_structural,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "reclassifying a cleanup-free bounded byte field as structural requires a residual"
+    );
+
+    let mut bytes_as_borrowed = lowered.semantic_module.clone();
+    let root_shape = bytes_as_borrowed
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed byte/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "before_bytes")
+        .expect("interleaved bounded byte field")
+        .field_type =
+        StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView);
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &bytes_as_borrowed,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a borrowed byte view cannot masquerade as no-code bounded storage"
+    );
+
     let mut moved_as_float = lowered.semantic_module.clone();
     let root_shape = moved_as_float
         .structural_types
@@ -225,6 +313,32 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         )
         .is_err(),
         "a projected move cannot target a float field"
+    );
+    let mut moved_as_bytes = lowered.semantic_module.clone();
+    let root_shape = moved_as_bytes
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.id == root.structural_type)
+        .expect("mixed byte/affine root shape");
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut root_shape.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "third")
+        .expect("moved structural field")
+        .field_type =
+        StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BoundedOwned {
+            capacity: 3,
+        });
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &moved_as_bytes,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a projected move cannot target a bounded byte leaf"
     );
     let semantic = encode_module(&lowered.semantic_module).expect("semantic module encodes");
     assert_eq!(

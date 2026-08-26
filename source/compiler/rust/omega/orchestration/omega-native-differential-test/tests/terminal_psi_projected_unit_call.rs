@@ -63,13 +63,21 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
 "#;
 
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
+    domain [u8; 3]::Utf8
+    requires
+        valid_utf8(self);
+    domain [u8; 8]::Utf8
+    requires
+        valid_utf8(self);
     data LeftToken { value: u32; }
     data RightToken { value: u64; }
     data Mixed {
         before: u8;
+        before_bytes: [u8; 3] in Utf8;
         before_float: f32;
         left: LeftToken;
         between: bool;
+        between_bytes: [u8; 8] in Utf8;
         between_float: f64;
         right: RightToken;
         after: u16;
@@ -951,19 +959,31 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
                 ))
             ),
             (
+                "before_bytes",
+                &StructuralFieldType::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 3 }
+                )
+            ),
+            (
                 "before_float",
                 &StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32)
             ),
-            ("left", &fields[2].field_type),
+            ("left", &fields[3].field_type),
             (
                 "between",
                 &StructuralFieldType::Scalar(psi_core::ScalarType::Boolean)
             ),
             (
+                "between_bytes",
+                &StructuralFieldType::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 }
+                )
+            ),
+            (
                 "between_float",
                 &StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64)
             ),
-            ("right", &fields[5].field_type),
+            ("right", &fields[7].field_type),
             (
                 "after",
                 &StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
@@ -972,12 +992,12 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
             ),
         ]
     );
-    let left_type = match fields[2].field_type {
+    let left_type = match fields[3].field_type {
         StructuralFieldType::Structural(structural_type) => structural_type,
         _ => panic!("left field remains structural"),
     };
     assert!(matches!(
-        fields[5].field_type,
+        fields[7].field_type,
         StructuralFieldType::Structural(_)
     ));
     let cleanup_actions = caller
@@ -1016,6 +1036,48 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
         "a retained projected move cannot be rebound to a float leaf"
     );
 
+    let mut moved_as_bytes = plan.clone();
+    let moved_root = moved_as_bytes
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == root_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut moved_root.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "right")
+        .unwrap()
+        .field_type =
+        StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BoundedOwned {
+            capacity: 3,
+        });
+    assert!(
+        lower_to_target_operations(&moved_as_bytes, NativeTarget::linux_x64()).is_err(),
+        "a retained projected move cannot be rebound to bounded byte storage"
+    );
+
+    let mut borrowed_view = plan.clone();
+    let moved_root = borrowed_view
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == root_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut moved_root.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "before_bytes")
+        .unwrap()
+        .field_type =
+        StructuralFieldType::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView);
+    assert!(
+        lower_to_target_operations(&borrowed_view, NativeTarget::linux_x64()).is_err(),
+        "a borrowed view cannot enter bounded-storage no-code cleanup"
+    );
+
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
@@ -1024,6 +1086,19 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
         NativeTarget::macos_arm64(),
     ] {
         let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let TerminalTargetOperation::UnitBody(target_body) = &target_caller.operation else {
+            panic!("mixed-byte caller remains a Unit body")
+        };
+        assert_eq!(
+            target_body.parameters[0].shape,
+            ValueShape::integer(72, 8),
+            "bounded carriers contribute their exact N+8 layout on {target:?}"
+        );
         let assigned = assign_registers(&target_plan).unwrap();
 
         let mut forged_assigned = assigned.clone();
@@ -1104,6 +1179,27 @@ fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
             cleanup_actions
         );
         validate_terminal_installation_record(&installation, &image).unwrap();
+
+        let mut changed_capacity = encode_terminal_installation_record(&installation).unwrap();
+        let mut encoded_field = Vec::new();
+        encoded_field.extend_from_slice(&12_u32.to_le_bytes());
+        encoded_field.extend_from_slice(b"before_bytes");
+        encoded_field.extend_from_slice(&[0, 6, 2, 0]);
+        encoded_field.extend_from_slice(&3_u64.to_le_bytes());
+        let capacity_offset = changed_capacity
+            .windows(encoded_field.len())
+            .position(|window| window == encoded_field)
+            .expect("installation retains exact bounded-byte field row")
+            + encoded_field.len()
+            - 8;
+        changed_capacity[capacity_offset..capacity_offset + 8]
+            .copy_from_slice(&4_u64.to_le_bytes());
+        let changed_capacity = decode_terminal_installation_record(&changed_capacity)
+            .expect("changed nonzero capacity remains structurally decodable");
+        assert!(
+            validate_terminal_installation_record(&changed_capacity, &image).is_err(),
+            "installation replay rejects bounded-byte capacity drift on {target:?}"
+        );
     }
 }
 

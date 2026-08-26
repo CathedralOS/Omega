@@ -3592,6 +3592,9 @@ fn append_maximal_residual_subtrees(
                     StructuralFieldType::Structural(_)
                         | StructuralFieldType::Scalar(_)
                         | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
                 )
         })
         || moved
