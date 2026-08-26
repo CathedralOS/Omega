@@ -386,8 +386,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        ExactIntegerConstantEvaluationRule, PsiOptimizationRule, built_in_psi_registry,
-        rules::tests::exact_add_unit,
+        ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
+        rules::tests::{dependent_exact_chain_unit, exact_add_unit},
     };
 
     #[derive(Debug)]
@@ -395,7 +395,7 @@ mod tests {
 
     impl PsiOptimizationRule for NonProfitableExactRule {
         fn contract(&self) -> omega_optimization_core::OptimizationRuleContract {
-            ExactIntegerConstantEvaluationRule::contract()
+            ExactIntegerAddConstantsRule::contract()
         }
 
         fn propose(
@@ -403,7 +403,7 @@ mod tests {
             unit: &PsiOptimizationUnit,
             analyses: RuleAnalysisView<'_>,
         ) -> Result<Vec<omega_optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
-            ExactIntegerConstantEvaluationRule
+            ExactIntegerAddConstantsRule
                 .propose(unit, analyses)?
                 .into_iter()
                 .map(|candidate| {
@@ -430,7 +430,7 @@ mod tests {
 
     impl PsiOptimizationRule for DuplicateExactRule {
         fn contract(&self) -> omega_optimization_core::OptimizationRuleContract {
-            ExactIntegerConstantEvaluationRule::contract()
+            ExactIntegerAddConstantsRule::contract()
         }
 
         fn propose(
@@ -438,7 +438,7 @@ mod tests {
             unit: &PsiOptimizationUnit,
             analyses: RuleAnalysisView<'_>,
         ) -> Result<Vec<omega_optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
-            let mut candidates = ExactIntegerConstantEvaluationRule.propose(unit, analyses)?;
+            let mut candidates = ExactIntegerAddConstantsRule.propose(unit, analyses)?;
             candidates.push(candidates[0].clone());
             Ok(candidates)
         }
@@ -652,13 +652,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 2);
+        assert_eq!(usage.rule_evaluations, 4);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
+        assert_eq!(pass_manifest.ordered_rules().len(), 3);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -674,6 +675,37 @@ mod tests {
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant { .. }
         ));
+    }
+
+    #[test]
+    fn ordered_multi_rule_group_reaches_a_dependent_exact_fixed_point() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, pass_manifest) =
+            run_unit(dependent_exact_chain_unit(), &registry, budget(8)).unwrap();
+
+        assert_eq!(commits.len(), 2);
+        assert_eq!(usage.iterations, 3);
+        assert_eq!(usage.rule_evaluations, 7);
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(15),
+                ..
+            }
+        ));
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[3].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(120),
+                ..
+            }
+        ));
+        let manifest = pass_manifest.unwrap();
+        assert_eq!(manifest.ordered_rules().len(), 3);
+        assert_eq!(manifest.decisions().len(), 2);
     }
 
     #[test]
