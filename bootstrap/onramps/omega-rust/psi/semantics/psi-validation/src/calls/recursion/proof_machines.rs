@@ -5,7 +5,6 @@
 //! matching, guard provenance, and sub-state descent closure.
 
 use super::is_self_entry_call;
-use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -484,9 +483,7 @@ fn guarded_integer_predecessor_call(
             let mut calls = Vec::new();
             collect_self_entry_call_arguments(program, entry_name, *value, &mut calls);
             calls.into_iter().any(|arguments| {
-                program
-                    .expression_table
-                    .expression_handles(arguments)
+                arguments
                     .get(measure_position)
                     .is_some_and(|candidate| *candidate == argument)
             })
@@ -525,7 +522,32 @@ pub(crate) fn validate_proof_machine_recursion(
         .rsplit("::")
         .next()
         .unwrap_or(machine.name.as_str());
-    let mut self_calls: Vec<HandleSpan<ExpressionHandle>> = Vec::new();
+    let mut self_calls: Vec<Vec<ExpressionHandle>> = Vec::new();
+    if let StatementNode::Call(call) = statement {
+        let receiver = program.statement_table.name_path_members(call.receiver);
+        let entry_symbol = program
+            .machine_states(machine)
+            .first()
+            .map(|entry| entry.symbol)
+            .unwrap_or_else(psi_symbols::SymbolHandle::invalid);
+        let selects_self_entry = (call.target_symbol.is_valid()
+            && call.target_symbol == entry_symbol)
+            || (!call.target_symbol.is_valid() && call.target.as_str() == entry_name);
+        if selects_self_entry
+            && (receiver.is_empty() || matches!(receiver, [only] if only.as_str() == "self"))
+        {
+            // A resultless citation and an explicitly discarded value call
+            // are both StatementNode::Call. The call itself is the induction
+            // edge; looking only through its argument expressions would let
+            // `theorem(n);` cite its own ensures without proving descent.
+            self_calls.push(
+                program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .to_vec(),
+            );
+        }
+    }
     for root in statement_expression_roots(program, statement) {
         collect_self_entry_call_arguments(program, entry_name, root, &mut self_calls);
     }
@@ -591,11 +613,7 @@ pub(crate) fn validate_proof_machine_recursion(
     };
 
     for arguments in self_calls {
-        let argument = program
-            .expression_table
-            .expression_handles(arguments)
-            .get(measure_position)
-            .copied();
+        let argument = arguments.get(measure_position).copied();
         let descends = argument.is_some_and(|argument| {
             strict_subterm_of_measure(program, argument, measure_symbol, measure_name.as_ref())
                 || substate_parameter_descends(
@@ -693,19 +711,24 @@ fn collect_self_entry_call_arguments(
     program: &TypedTrees,
     entry_name: &str,
     expression: ExpressionHandle,
-    found: &mut Vec<HandleSpan<ExpressionHandle>>,
+    found: &mut Vec<Vec<ExpressionHandle>>,
 ) {
     if !expression.is_valid() {
         return;
     }
-    let recurse = |handle: ExpressionHandle, found: &mut Vec<HandleSpan<ExpressionHandle>>| {
+    let recurse = |handle: ExpressionHandle, found: &mut Vec<Vec<ExpressionHandle>>| {
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, found),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {
-                found.push(call.arguments);
+                found.push(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .to_vec(),
+                );
             }
             recurse(call.receiver, found);
             for argument in program.expression_table.expression_handles(call.arguments) {

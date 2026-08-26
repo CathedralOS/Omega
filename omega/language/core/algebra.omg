@@ -19,10 +19,8 @@
 // compiler-known zero/one form.
 //
 // Migration note: the remaining `-> Self` results on LAW requirements below
-// are legacy onramp ceremony. The nonrecursive multiplicative-identity slot is
-// already resultless. RESULTLESS-LAWS migrates each remaining slot with its
-// satisfiers once erased recursive statement citations carry the same
-// ranked-cycle checking as value-position calls.
+// are legacy onramp ceremony. Both identity slots are resultless;
+// RESULTLESS-LAWS migrates the remaining theorem slots with their satisfiers.
 trait CommutativeSemiring {
     // Algebra operations are total mathematical functions. Publishing that
     // promise is what permits a selected implementation to denote a value in
@@ -35,7 +33,7 @@ trait CommutativeSemiring {
     ensures add(a, b) == add(b, a);
     machine add_assoc(a: Self, b: Self, c: Self) -> Self
     ensures add(add(a, b), c) == add(a, add(b, c));
-    machine add_identity(a: Self) -> Self
+    machine add_identity(a: Self)
     ensures add(a, zero()) == a;
     machine mul_comm(a: Self, b: Self) -> Self
     ensures mul(a, b) == mul(b, a);

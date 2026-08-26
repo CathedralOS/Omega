@@ -1,7 +1,6 @@
-// FAIL CANARY: a consumer cites core add_zero_right (proven `result ==
-// a`) but claims its result is Zero. Ensures-consumption instantiates
-// the lemma to `a`, and `a == Nat::Zero` does not hold for a symbolic a,
-// so the judge fences -- a cited FACT cannot launder a false conclusion.
+// FAIL CANARY: a consumer cites core add_zero_right's proven right-identity
+// theorem but claims an unrelated result is Zero. A cited FACT cannot launder
+// a false conclusion.
 use omega::language::core::nat;
 use omega::language::std::console;
 data Main { console: Console; }
@@ -10,5 +9,6 @@ machine bogus(a: Nat) -> Nat
 ensures
     result == Nat::Zero
 {
-    transition { _ -> (add_zero_right(a)) }
+    add_zero_right(a);
+    transition { _ -> a }
 }

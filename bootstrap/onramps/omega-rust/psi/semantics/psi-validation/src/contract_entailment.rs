@@ -1141,6 +1141,7 @@ fn collect_citation_equations(
             diagnostics,
             &mut equations,
             site_judge.as_ref(),
+            false,
         );
         if let Some(judge) = &mut site_judge {
             for (left, right) in &equations[before..] {
@@ -1881,13 +1882,27 @@ fn instantiate_citation(
     diagnostics: &mut Vec<Diagnostic>,
     equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
     judge: Option<&StructuralJudge>,
+    allow_self_induction: bool,
 ) {
     let Some(callee) = program.machines().iter().find(|candidate| {
         candidate.attached_data.is_none() && candidate.name.as_str() == target.as_str()
     }) else {
         return;
     };
-    if std::ptr::eq(callee, machine) || !classification.is_proof_machine(program, callee) {
+    let self_citation = std::ptr::eq(callee, machine);
+    let resultless_entry = program
+        .machine_states(callee)
+        .first()
+        .is_some_and(|entry| !entry.return_type.is_valid());
+    // A self-citation is an induction hypothesis only in a structurally
+    // refined arm and only for a resultless theorem. The recursion validator
+    // independently proves strict descent on that exact StatementNode::Call.
+    // Value-returning recursive calls continue to contribute their IH through
+    // the arm's returned value term; treating their lowering-generated local
+    // as a second citation would duplicate and prematurely discharge it.
+    if (self_citation && (!allow_self_induction || !resultless_entry))
+        || !classification.is_proof_machine(program, callee)
+    {
         return;
     }
     let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
@@ -2476,11 +2491,28 @@ fn recognize_structural_state_leaves(
                 _ => return None,
             }
         }
-        if transitions.is_empty()
-            || (transitions.len() > 1
-                && transitions
-                    .iter()
-                    .any(|transition| matches!(transition.guard, TransitionGuardNode::Always)))
+        if transitions.is_empty() {
+            if state.return_type.is_valid() {
+                return None;
+            }
+            return Some(vec![finalize_structural_case_arm(
+                program,
+                machine,
+                judge,
+                classification,
+                diagnostics,
+                machine_name,
+                parameter_names,
+                case_hypotheses,
+                case_equations,
+                pending_citations,
+                StructuralTerm::Opaque("()".to_owned()),
+            )]);
+        }
+        if transitions.len() > 1
+            && transitions
+                .iter()
+                .any(|transition| matches!(transition.guard, TransitionGuardNode::Always))
         {
             return None;
         }
@@ -2696,6 +2728,7 @@ fn finalize_structural_case_arm(
                 diagnostics,
                 &mut citations,
                 Some(&arm_judge),
+                true,
             );
             for (left, right) in &citations[before..] {
                 arm_judge.intake_equation(left.clone(), right.clone(), 0);
