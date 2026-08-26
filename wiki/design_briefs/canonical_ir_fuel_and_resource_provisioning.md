@@ -451,6 +451,11 @@ resolved sponsor call target to be joined to the exact installed root/provider
 entry and its fixed, suspension-free provision. The live external-root join
 performs that replay and exposes executable transfer custody only from both
 sealed halves.
+Component deployment is the production owner of the next join: it consumes the
+installed attribution and executable transfer custody against the exact
+installed-code occurrence, installs the dynamic root in the claimed ledger,
+and returns a live carrier that cannot discard root custody before explicit
+transactional removal. Admission rejection returns both sealed halves intact.
 
 The live hard-root precursor composes recomputable entry/segment certificates
 and admitted opaque-provider summaries under one `FuelScheduleIdentity`.

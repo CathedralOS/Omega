@@ -5201,9 +5201,14 @@ Remaining:
   the sealed attribution and transfer runtime against the exact installed-code
   occurrence, and then reuses root/provider/slot/trust admission; the ordinary
   constructor remains fixed-only and substituted installed halves reject. The
-  remaining native slice is deployment-coordinator carriage: no production
-  coordinator currently owns both the final installed attribution and live
-  sponsor-route runtime values needed to call that constructor.
+  deployment coordinator now carries both sealed installed halves into that
+  constructor and the exact claimed root ledger. Rejection returns the complete
+  non-clonable input for retry without consuming the session. Success retains
+  the live `InstalledExternalRoot` plus disjoint ledger access in one
+  non-self-referential carrier, and explicit removal transactionally returns
+  slot authority or the carrier and receipt for retry. A relocation-free native
+  canary covers wrong-profile rejection, exact retry, observable installation,
+  and teardown without weakening relocatable terminal theorem binding.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

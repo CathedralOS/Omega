@@ -4,13 +4,16 @@
 
 use omega_artifacts::external_root_manifest_json;
 use omega_calling_conventions::{
-    ArrivalContextId, ArrivalContextStackDomain, CallSignature, CallingPolicy, MachineRegister,
+    ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
+    CallingPolicy, EntryStackEpoch, EntryStackRealization, EntryStackStage, MachineRegister,
     MachineState, MachineStateSet, RegisterSet, StackDomainRef, StateFootprintEvidence,
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
+    validate_entry_stack_realization,
 };
 use omega_compiler::{
     CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
-    SuppliedTerminalComponentDeploymentError, TerminalComponentCompileError,
+    SuppliedTerminalComponentDeploymentError, TerminalComponentCandidate,
+    TerminalComponentCandidateParts, TerminalComponentCompileError,
     TerminalComponentCompileRequest, TerminalComponentDeploymentInputOwner,
     TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
     TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
@@ -21,8 +24,8 @@ use omega_compiler::{
     stage_terminal_component, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
-    ComponentProgressAttestationBinding, begin_terminal_component_deployment,
-    begin_terminal_component_deployment_with_claimed_registry,
+    ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
+    begin_terminal_component_deployment, begin_terminal_component_deployment_with_claimed_registry,
     publish_terminal_component_flat_output,
 };
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
@@ -46,19 +49,23 @@ use omega_external_roots::{
     ExternalRootId, FixedFuelProviderSummary, FuelProvisionId, FuelSuspensionValidationReceiptId,
     FuelValidationReceiptId, InstalledProviderOccurrenceId, InstalledRootLedger,
     LogicalFuelResourceColumn, MachineStateResourceColumn, NativeFuelActivationStateSlot,
-    NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelRuntimeEntryIdentity,
-    NativeFuelSavedValue, NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection,
-    NativeFuelTransferRuntimePlanProjection, NestingRelationId, OpaqueProviderExitAssurance,
-    ProgressProfileEstablishmentAttestation, ProgressProfileEstablishmentReceiptId,
-    ProgressProfileGrantInvocationId, ProviderExecution, ProviderExecutionId,
-    ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderOccurrenceInstallationReceipt,
-    ProviderOccurrenceInstallationReceiptId, ProviderOccurrencePlanBinding, ProviderPlanId,
-    ProviderStackSummary, RootAdmission, RootAdmissionId, RootProviderId, RootSlotAuthority,
+    NativeFuelContextLayout, NativeFuelExecutionEnvironment, NativeFuelMeterPlanId,
+    NativeFuelRuntimeEntryIdentity, NativeFuelSavedValue, NativeFuelSponsorStackPlan,
+    NativeFuelTargetPlanProjection, NativeFuelTransferRuntimePlanProjection, NestingRelationId,
+    OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
+    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
+    ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
+    ProviderOccurrencePlanBinding, ProviderPlanId, ProviderStackSummary, RootAdmission,
+    RootAdmissionId, RootProviderId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority,
     RootSlotId, RootSlotOwnerId, SponsorContextTransport, StackNestingRelation,
     StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
     admit_fixed_native_fuel, admit_native_fuel_target_policy, admit_native_fuel_transfer_plan,
-    bind_direct_generated_entry_stack_realization, bind_installed_terminal_entry_fuel,
-    bind_installed_terminal_entry_stack, bind_suspension_free_fixed_fuel,
+    admit_opaque_arrival_context_set, bind_direct_generated_entry_stack_realization,
+    bind_installed_dynamic_fuel_attribution, bind_installed_native_fuel_sponsor_route,
+    bind_installed_native_fuel_transfer_code, bind_installed_native_fuel_transfer_runtime,
+    bind_installed_terminal_entry_fuel, bind_installed_terminal_entry_stack,
+    bind_opaque_adapter_stack_realization, bind_suspension_free_fixed_fuel,
     compose_bound_entry_stack_epochs, compose_fixed_fuel, derive_fuel_suspension_free,
     validate_dynamic_fuel_attribution_basis, validate_external_root,
     validate_installed_terminal_entry_fuel, validate_installed_terminal_entry_stack,
@@ -66,7 +73,7 @@ use omega_external_roots::{
 use omega_native_differential_test::{
     admit_native_provider, admit_native_provider_for_selected_plan,
 };
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, TargetProfile};
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalValueBinding,
@@ -82,6 +89,12 @@ use omega_terminal_image_emission::{
     emit_terminal_executable_image, emit_terminal_object_container,
     encode_terminal_installation_record, terminal_installation_fingerprint,
     validate_terminal_installation_record,
+};
+use omega_terminal_installation_evidence::{
+    NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan, TerminalFuelAttributionEvidence,
+    TerminalFuelAttributionSite, TerminalNativeFuelChargeEvidence, TerminalNativeFuelImageEvidence,
+    TerminalNativeFuelTransferRuntimeEvidence, TerminalNativeFuelTransferRuntimeImageEvidence,
+    TerminalObjectEvidence,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
