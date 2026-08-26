@@ -1275,6 +1275,14 @@ cross-package publication spelling is ordinary
 remains package-private. This coherence property does not depend on making every
 named conformance public.
 
+Publishing conformance evidence does not create a mediated or replaceable
+runtime crossing. A consumer that selects an executable, layout, cleanup, or
+other runtime-bearing row from a public conformance acquires an exact static
+dependency on that realization. If the consumer is meant to sit in a different
+replacement cohort, the behavior must instead cross an independently selected
+boundary requirement. Proof-only erased evidence retains its theorem and
+certificate dependency without pinning runtime code.
+
 The item remains identifier-led and `satisfies` stays a contextual keyword.
 
 ## Synthesized Core Traits
