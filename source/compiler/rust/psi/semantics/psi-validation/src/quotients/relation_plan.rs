@@ -292,7 +292,7 @@ impl fmt::Display for RelationPlanError {
                 "the direct-lift precondition rung does not yet substitute a generic quotient owner",
             ),
             Self::DirectLiftRuntimeArityMismatch => formatter.write_str(
-                "the bounded direct-lift rung requires equal public, authored-call, and representative runtime arity",
+                "the bounded direct-lift rung requires equal authored-call, representative, and relation arity; the public telescope may contain omitted parameters",
             ),
             Self::DirectLiftParameterIdentityNotUnique => formatter.write_str(
                 "the bounded direct-lift rung requires unique public and representative parameter identities",

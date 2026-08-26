@@ -67,18 +67,25 @@ pub(super) fn derive_public_precondition_partition(
         .iter()
         .filter(|parameter| !parameter.is_const)
         .collect::<Vec<_>>();
-    if public_parameters.len() != input_relations.len()
-        || runtime_positions.len() != input_relations.len()
-    {
+    if runtime_positions.len() != input_relations.len() {
         return Err(RelationPlanError::DefineRuntimeArityMismatch);
     }
-    let varying_parameters = input_relations
+    let mut varying_parameters = input_relations
         .iter()
         .zip(runtime_positions)
         .filter_map(|(relation, position)| {
             matches!(relation, InputRelation::Quotient(_)).then_some(position.public_parameter)
         })
         .collect::<Vec<_>>();
+    for parameter in public_parameters {
+        if !runtime_positions
+            .iter()
+            .any(|position| position.public_parameter == parameter.symbol)
+            && super::super::quotient_for_type(program, parameter.type_reference).is_some()
+        {
+            varying_parameters.push(parameter.symbol);
+        }
+    }
     derive_precondition_partition(
         program,
         machine.contracts,
