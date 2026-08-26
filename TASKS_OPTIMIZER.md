@@ -1176,11 +1176,19 @@ dependency.
   effect declarations, and all legal target alternatives. Its identity binds
   the selected plan, optimization unit, fuel schedule, native target,
   register-environment/catalog roots, complete ordered rows, and counts. Opt-in
-  orchestration can stage the sidecar by borrow and independently revalidate
-  its custody; it grants no rewrite, home, emission, or publication authority.
-  Remaining to close: a strict artifact codec, complete memory/trap/call/
-  cleanup vocabularies as selected IR admits them, post-home physical operand
-  write footprints, alternative choice receipts, and encoder enforcement.
+  orchestration can stage the sidecar by borrow over original selection,
+  fixed-view-copy output, or the final output of an explicit literal-fold
+  sequence. Each route independently revalidates its exact source custody and
+  binds the transformed selected identity; no pre-transformation analysis fact
+  crosses that boundary.
+
+  The sidecar also has a strict, versioned, self-authenticating binary codec.
+  Decoding rejects wrong framing or version, truncated or trailing data,
+  unknown closed-vocabulary tags, and any identity/content mismatch. It grants
+  no rewrite, home, emission, or publication authority. Remaining to close:
+  complete memory/trap/call/cleanup vocabularies as selected IR admits them,
+  post-home physical operand write footprints, alternative choice receipts,
+  and encoder enforcement.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

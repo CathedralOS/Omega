@@ -39,6 +39,18 @@ pub struct TerminalPreAllocationMachineEffectPlan {
     pub functions: Vec<TerminalFunctionMachineEffects>,
 }
 
+impl TerminalPreAllocationMachineEffectPlan {
+    pub fn encode(&self) -> Vec<u8> {
+        crate::effect_codec::encode_terminal_pre_allocation_machine_effect_plan(self)
+    }
+
+    pub fn decode(
+        encoded: &[u8],
+    ) -> Result<Self, crate::TerminalPreAllocationMachineEffectDecodeError> {
+        crate::effect_codec::decode_terminal_pre_allocation_machine_effect_plan(encoded)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalFunctionMachineEffects {
     pub machine: MachineId,

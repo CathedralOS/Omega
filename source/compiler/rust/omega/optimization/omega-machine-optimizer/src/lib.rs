@@ -6,11 +6,13 @@
 //! publication authority. Its sealed inputs are already validated selected
 //! plans, and its output is a sidecar over those immutable instructions.
 
+mod effect_codec;
 mod effect_compute;
 mod effect_identity;
 mod effect_model;
 mod effect_validate;
 
+pub use effect_codec::TerminalPreAllocationMachineEffectDecodeError;
 pub use effect_identity::terminal_pre_allocation_machine_effect_identity;
 pub use effect_model::*;
 pub use effect_validate::validate_terminal_pre_allocation_machine_effects;

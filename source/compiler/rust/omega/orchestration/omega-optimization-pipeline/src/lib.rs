@@ -71,8 +71,11 @@ pub use liveness::{
 };
 pub use machine_effects::{
     OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffectCustodyReceipt,
-    StagedOptimizedMachineEffects, stage_optimized_machine_effects,
-    validate_optimized_machine_effect_custody,
+    StagedOptimizedMachineEffectSourceCustodyReceipt, StagedOptimizedMachineEffects,
+    stage_optimized_machine_effects, stage_optimized_machine_effects_after_fixed_view_copies,
+    stage_optimized_machine_effects_after_literal_folds, validate_optimized_machine_effect_custody,
+    validate_optimized_machine_effect_custody_after_fixed_view_copies,
+    validate_optimized_machine_effect_custody_after_literal_folds,
 };
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
@@ -1564,9 +1567,12 @@ mod tests {
             let selected = staged_exact_subtract_conditional(target);
             let staged = stage_optimized_machine_effects(&selected).unwrap();
             assert_eq!(staged.custody().instruction_count(), 10);
-            assert_eq!(staged.custody().source(), selected.custody());
             assert_eq!(
-                validate_optimized_machine_effect_custody(&selected, staged.effects()).unwrap(),
+                staged.custody().source(),
+                &StagedOptimizedMachineEffectSourceCustodyReceipt::Selected(selected.custody())
+            );
+            assert_eq!(
+                &validate_optimized_machine_effect_custody(&selected, staged.effects()).unwrap(),
                 staged.custody()
             );
             let instructions = staged
@@ -2292,6 +2298,26 @@ mod tests {
                     .fold()
                     .receipt()
                     .transformed_selected()
+            );
+            let machine_effects =
+                stage_optimized_machine_effects_after_literal_folds(&staged_folds).unwrap();
+            assert_eq!(
+                machine_effects.effects().receipt().selected(),
+                staged_folds.custody().final_selected()
+            );
+            assert_eq!(
+                machine_effects.custody().source(),
+                &StagedOptimizedMachineEffectSourceCustodyReceipt::LiteralFolds(
+                    staged_folds.custody().clone()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_machine_effect_custody_after_literal_folds(
+                    &staged_folds,
+                    machine_effects.effects(),
+                )
+                .unwrap(),
+                machine_effects.custody()
             );
             let expected_transformations = staged_folds
                 .custody()
@@ -3489,6 +3515,26 @@ mod tests {
                 budget(),
             )
             .unwrap();
+            let machine_effects =
+                stage_optimized_machine_effects_after_fixed_view_copies(&materialized).unwrap();
+            assert_eq!(
+                machine_effects.effects().receipt().selected(),
+                materialized.custody().transformed_selected()
+            );
+            assert_eq!(
+                machine_effects.custody().source(),
+                &StagedOptimizedMachineEffectSourceCustodyReceipt::FixedViewCopies(
+                    materialized.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_machine_effect_custody_after_fixed_view_copies(
+                    &materialized,
+                    machine_effects.effects(),
+                )
+                .unwrap(),
+                machine_effects.custody()
+            );
             let copy_plan = materialized.copies().plan();
             assert_eq!(copy_plan.copies.len(), 2);
             assert_eq!(materialized.custody().copy_count(), 2);

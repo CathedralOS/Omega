@@ -13,8 +13,12 @@ use omega_terminal_isa_x86_64::{
 };
 
 use crate::{
-    OptimizedSelectionCustodyError, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt, validate_optimized_selection_custody,
+    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedSelectionCustodyError, StagedOptimizedFixedViewCopies,
+    StagedOptimizedFixedViewCopyCustodyReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
+    StagedOptimizedLiteralFolds, StagedOptimizedSelectedInstructions,
+    StagedOptimizedSelectionCustodyReceipt, validate_optimized_fixed_view_copy_custody,
+    validate_optimized_literal_fold_custody, validate_optimized_selection_custody,
 };
 
 /// Borrowed, non-authoritative pre-allocation machine-effect sidecar with the
@@ -30,41 +34,53 @@ impl StagedOptimizedMachineEffects {
         &self.effects
     }
 
-    pub const fn custody(&self) -> StagedOptimizedMachineEffectCustodyReceipt {
-        self.custody
+    pub const fn custody(&self) -> &StagedOptimizedMachineEffectCustodyReceipt {
+        &self.custody
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedMachineEffectCustodyReceipt {
-    source: StagedOptimizedSelectionCustodyReceipt,
+    source: StagedOptimizedMachineEffectSourceCustodyReceipt,
     effects: omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity,
     catalog: omega_terminal_selected_instructions::TerminalMachineEffectCatalogIdentity,
     instruction_count: usize,
 }
 
 impl StagedOptimizedMachineEffectCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedSelectionCustodyReceipt {
-        self.source
+    pub const fn source(&self) -> &StagedOptimizedMachineEffectSourceCustodyReceipt {
+        &self.source
     }
     pub const fn effects(
-        self,
+        &self,
     ) -> omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity {
         self.effects
     }
     pub const fn catalog(
-        self,
+        &self,
     ) -> omega_terminal_selected_instructions::TerminalMachineEffectCatalogIdentity {
         self.catalog
     }
-    pub const fn instruction_count(self) -> usize {
+    pub const fn instruction_count(&self) -> usize {
         self.instruction_count
     }
+}
+
+/// The independently revalidated custody carrier whose selected CFG the
+/// effect sidecar describes. Transformations cannot be passed off as their
+/// pre-transformation selected source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StagedOptimizedMachineEffectSourceCustodyReceipt {
+    Selected(StagedOptimizedSelectionCustodyReceipt),
+    FixedViewCopies(StagedOptimizedFixedViewCopyCustodyReceipt),
+    LiteralFolds(StagedOptimizedLiteralFoldCustodyReceipt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedMachineEffectPipelineError {
     Upstream(OptimizedSelectionCustodyError),
+    FixedViewCopies(OptimizedFixedViewCopyCustodyError),
+    LiteralFolds(OptimizedLiteralFoldCustodyError),
     X86_64Catalog(X86_64TerminalMachineEffectCatalogValidationError),
     Aarch64Catalog(Aarch64TerminalMachineEffectCatalogValidationError),
     Analysis(TerminalMachineEffectError),
@@ -92,18 +108,56 @@ pub fn stage_optimized_machine_effects(
     )
     .map_err(OptimizedMachineEffectPipelineError::Upstream)?;
     let environment = source.register_environment();
-    let catalog = validated_catalog(source)?;
-    let effects = analyze_terminal_pre_allocation_machine_effects(
-        source.selected(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        environment.allocation_constraint_keys(),
-        &catalog,
-    )
-    .map_err(OptimizedMachineEffectPipelineError::Analysis)?;
-    let custody = custody_receipt(source_receipt, &effects);
+    let effects = analyze(source.selected(), source, environment)?;
+    let custody = custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::Selected(source_receipt),
+        &effects,
+    );
+    Ok(StagedOptimizedMachineEffects { effects, custody })
+}
+
+pub fn stage_optimized_machine_effects_after_fixed_view_copies(
+    source: &StagedOptimizedFixedViewCopies,
+) -> Result<StagedOptimizedMachineEffects, OptimizedMachineEffectPipelineError> {
+    let source_receipt =
+        validate_optimized_fixed_view_copy_custody(source.source_legality_stage(), source.copies())
+            .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let effects = analyze(
+        source.copies(),
+        selected_stage,
+        selected_stage.register_environment(),
+    )?;
+    let custody = custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::FixedViewCopies(source_receipt),
+        &effects,
+    );
+    Ok(StagedOptimizedMachineEffects { effects, custody })
+}
+
+pub fn stage_optimized_machine_effects_after_literal_folds(
+    source: &StagedOptimizedLiteralFolds,
+) -> Result<StagedOptimizedMachineEffects, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_optimized_literal_fold_custody(source)
+        .map_err(OptimizedMachineEffectPipelineError::LiteralFolds)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let effects = analyze(
+        source.final_step().fold(),
+        selected_stage,
+        selected_stage.register_environment(),
+    )?;
+    let custody = custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::LiteralFolds(source_receipt),
+        &effects,
+    );
     Ok(StagedOptimizedMachineEffects { effects, custody })
 }
 
@@ -118,22 +172,58 @@ pub fn validate_optimized_machine_effect_custody(
     )
     .map_err(OptimizedMachineEffectPipelineError::Upstream)?;
     let environment = source.register_environment();
-    let catalog = validated_catalog(source)?;
-    let replayed = validate_terminal_pre_allocation_machine_effects(
-        source.selected(),
-        environment.identity(),
-        environment.physical(),
-        environment.constraints(),
-        environment.reservations(),
-        environment.allocation_constraint_keys(),
-        &catalog,
-        effects.plan().clone(),
-    )
-    .map_err(OptimizedMachineEffectPipelineError::Analysis)?;
-    if &replayed != effects {
-        return Err(OptimizedMachineEffectPipelineError::ReceiptMismatch);
-    }
-    Ok(custody_receipt(source_receipt, &replayed))
+    let replayed = revalidate(source.selected(), source, environment, effects)?;
+    Ok(custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::Selected(source_receipt),
+        &replayed,
+    ))
+}
+
+pub fn validate_optimized_machine_effect_custody_after_fixed_view_copies(
+    source: &StagedOptimizedFixedViewCopies,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+) -> Result<StagedOptimizedMachineEffectCustodyReceipt, OptimizedMachineEffectPipelineError> {
+    let source_receipt =
+        validate_optimized_fixed_view_copy_custody(source.source_legality_stage(), source.copies())
+            .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let replayed = revalidate(
+        source.copies(),
+        selected_stage,
+        selected_stage.register_environment(),
+        effects,
+    )?;
+    Ok(custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::FixedViewCopies(source_receipt),
+        &replayed,
+    ))
+}
+
+pub fn validate_optimized_machine_effect_custody_after_literal_folds(
+    source: &StagedOptimizedLiteralFolds,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+) -> Result<StagedOptimizedMachineEffectCustodyReceipt, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_optimized_literal_fold_custody(source)
+        .map_err(OptimizedMachineEffectPipelineError::LiteralFolds)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let replayed = revalidate(
+        source.final_step().fold(),
+        selected_stage,
+        selected_stage.register_environment(),
+        effects,
+    )?;
+    Ok(custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::LiteralFolds(source_receipt),
+        &replayed,
+    ))
 }
 
 fn validated_catalog(
@@ -161,7 +251,7 @@ fn validated_catalog(
 }
 
 fn custody_receipt(
-    source: StagedOptimizedSelectionCustodyReceipt,
+    source: StagedOptimizedMachineEffectSourceCustodyReceipt,
     effects: &ValidatedTerminalPreAllocationMachineEffects,
 ) -> StagedOptimizedMachineEffectCustodyReceipt {
     StagedOptimizedMachineEffectCustodyReceipt {
@@ -170,4 +260,46 @@ fn custody_receipt(
         catalog: effects.receipt().machine_effect_catalog(),
         instruction_count: effects.receipt().instruction_count(),
     }
+}
+
+fn analyze<S: omega_regalloc::ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    selected_stage: &StagedOptimizedSelectedInstructions,
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Result<ValidatedTerminalPreAllocationMachineEffects, OptimizedMachineEffectPipelineError> {
+    let catalog = validated_catalog(selected_stage)?;
+    analyze_terminal_pre_allocation_machine_effects(
+        selected,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        &catalog,
+    )
+    .map_err(OptimizedMachineEffectPipelineError::Analysis)
+}
+
+fn revalidate<S: omega_regalloc::ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    selected_stage: &StagedOptimizedSelectedInstructions,
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+) -> Result<ValidatedTerminalPreAllocationMachineEffects, OptimizedMachineEffectPipelineError> {
+    let catalog = validated_catalog(selected_stage)?;
+    let replayed = validate_terminal_pre_allocation_machine_effects(
+        selected,
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        &catalog,
+        effects.plan().clone(),
+    )
+    .map_err(OptimizedMachineEffectPipelineError::Analysis)?;
+    if &replayed != effects {
+        return Err(OptimizedMachineEffectPipelineError::ReceiptMismatch);
+    }
+    Ok(replayed)
 }
