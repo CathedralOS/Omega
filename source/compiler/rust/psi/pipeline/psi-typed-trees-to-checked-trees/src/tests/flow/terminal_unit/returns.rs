@@ -44,6 +44,40 @@ fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
 }
 
 #[test]
+fn retains_guarded_only_payloadless_case_return_but_not_ordinary_contracts() {
+    let checked = checked(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        data Root {}
+
+        machine Root::guarded() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); true; }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine Root::ordinary() -> Outcome
+        ensures true;
+        { Outcome::Success }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_structural_returns;
+    assert!(
+        plans
+            .payloadless_case_for_machine(machine_named(&checked, "guarded"))
+            .is_some(),
+        "guarded-only contracts preserve the exact payloadless producer plan"
+    );
+    assert!(
+        plans
+            .payloadless_case_for_machine(machine_named(&checked, "ordinary"))
+            .is_none(),
+        "unconditional contracts remain outside this bounded producer rung"
+    );
+}
+
+#[test]
 fn payloadless_case_return_plan_fences_wider_result_and_body_shapes() {
     let checked = checked(
         r#"

@@ -18,6 +18,13 @@ pub(super) fn lower_and_install_evidence_artifacts(
         &applications,
         evidence_term_ids.term_ids,
     )?;
+    let outcome_specific_ensures = lower_outcome_specific_ensures(
+        checked,
+        machine,
+        &lowered.semantic_module,
+        &evidence_terms.term_ids,
+        &evidence_terms.declarations,
+    )?;
     let evidence_contract_lanes = lower_evidence_contract_lanes(
         checked,
         machine,
@@ -42,7 +49,275 @@ pub(super) fn lower_and_install_evidence_artifacts(
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     lowered.semantic_module.proof_output_calls = proof_output_calls;
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|candidate| candidate.id == lowered.semantic_module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "selected terminal machine is absent while installing guarded guarantees",
+        ))?;
+    entry.contract.outcome_specific_ensures = outcome_specific_ensures;
+    for row in &entry.contract.outcome_specific_ensures {
+        if row.evidence.is_none()
+            && row.proposition == Proposition::Truth
+            && exact_payloadless_return_guard(entry) == Some(row.guard)
+        {
+            lowered.proof_bundle.evidence.push(ObligationEvidence {
+                obligation: row.obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            });
+        }
+    }
+    lowered
+        .proof_bundle
+        .evidence
+        .sort_by_key(|evidence| evidence.obligation);
     Ok(())
+}
+
+fn exact_payloadless_return_guard(machine: &TerminalMachine) -> Option<OutcomeSpecificGuard> {
+    let result = machine.result.structural()?;
+    let mut returns = machine.blocks.iter().filter_map(|block| {
+        let Terminator::ReturnStructural { source, .. } = block.terminator else {
+            return None;
+        };
+        let operation = block.operations.iter().find(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == source)
+        })?;
+        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+            return None;
+        };
+        let operation_result = operation.result.structural()?;
+        (operation_result.structural_type == result.structural_type).then_some(
+            OutcomeSpecificGuard {
+                result_type: result.structural_type,
+                result_case,
+            },
+        )
+    });
+    let guard = returns.next()?;
+    returns.next().is_none().then_some(guard)
+}
+
+fn lower_outcome_specific_ensures(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+    module: &TerminalModule,
+    term_ids: &[Option<EvidenceTermId>],
+    evidence_terms: &[EvidenceTermDeclaration],
+) -> Result<Vec<OutcomeSpecificEnsure>, LoweringError> {
+    let guarantees = checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .filter_map(|(_, guarantee)| {
+            (guarantee.machine_symbol == selected_machine).then_some(guarantee)
+        })
+        .collect::<Vec<_>>();
+    if guarantees.is_empty() {
+        return Ok(Vec::new());
+    }
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .payloadless_case_for_machine(selected_machine)
+        .ok_or(LoweringError::Unsupported(
+            "guarded guarantees require the exact payloadless result producer",
+        ))?;
+    let state = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find(|state| state.symbol == plan.state)
+        .ok_or(LoweringError::Unsupported(
+            "guarded payloadless producer state is absent",
+        ))?;
+    let psi_checked_trees::types::TypeReferenceNode::Named {
+        symbol: result_data,
+        ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(state.return_type)
+    else {
+        return unsupported("guarded payloadless producer result is not nominal");
+    };
+    let data = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *result_data)
+        .ok_or(LoweringError::Unsupported(
+            "guarded payloadless producer result data is absent",
+        ))?;
+    let terminal_machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .ok_or(LoweringError::Unsupported(
+            "guarded payloadless terminal machine is absent",
+        ))?;
+    let terminal_result =
+        terminal_machine
+            .result
+            .structural()
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless terminal result is not structural",
+            ))?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == terminal_result.structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "guarded payloadless terminal result type is absent",
+        ))?;
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return unsupported("guarded payloadless terminal result is not a sum");
+    };
+
+    let mut next_positions = BTreeMap::<OutcomeSpecificGuard, u32>::new();
+    let mut rows = Vec::with_capacity(guarantees.len());
+    for guarantee in guarantees {
+        if guarantee.result_data != *result_data {
+            return unsupported("guarded guarantee references a foreign result sum");
+        }
+        let case_identity = checked
+            .typed
+            .data_members(data)
+            .iter()
+            .find_map(|member| {
+                let psi_checked_trees::data::DataMember::Variant(variant) = member else {
+                    return None;
+                };
+                (variant.symbol == guarantee.result_case).then(|| {
+                    variant
+                        .identity
+                        .map(|identity| format!("#{identity}"))
+                        .unwrap_or_else(|| variant.name.as_str().to_owned())
+                })
+            })
+            .ok_or(LoweringError::Unsupported(
+                "guarded guarantee references an unknown result case",
+            ))?;
+        let result_case = cases
+            .iter()
+            .find_map(|case| (case.identity == case_identity).then_some(case.id))
+            .ok_or(LoweringError::Unsupported(
+                "guarded guarantee case is absent from the terminal result sum",
+            ))?;
+        let guard = OutcomeSpecificGuard {
+            result_type: terminal_result.structural_type,
+            result_case,
+        };
+        let position = *next_positions.entry(guard).or_default();
+        *next_positions
+            .get_mut(&guard)
+            .expect("guarded position was inserted") = position.checked_add(1).ok_or(
+            LoweringError::Unsupported("guarded guarantee position exceeds u32"),
+        )?;
+        let (proposition, evidence) = match (
+            guarantee.public_selector.as_ref(),
+            guarantee.evidence_term,
+        ) {
+            (Some(selector), Some(term_handle)) => {
+                let checked_term = checked.facts.proof.evidence_terms.get(term_handle);
+                let psi_checked_trees::domain::ProofFact::Proposition(application) =
+                    checked.typed.proof_facts.get(guarantee.fact)
+                else {
+                    return unsupported("named guarded guarantee is not nominal");
+                };
+                let normalized = checked
+                    .typed
+                    .normalize_nominal_proposition_application(application)
+                    .ok_or(LoweringError::Unsupported(
+                        "named guarded guarantee has no normalized proposition endpoint",
+                    ))?;
+                if normalized.declaration != checked_term.proposition.declaration
+                    || normalized.arguments != checked_term.proposition.arguments
+                    || normalized.binder_arguments.len()
+                        != checked_term.proposition.binder_arguments.len()
+                    || normalized.binder_arguments.iter().zip(
+                        &checked_term.proposition.binder_arguments,
+                    ).any(|(left, right)| {
+                        let kind = match left.kind {
+                            psi_checked_trees::proposition::PropositionBinderArgumentKind::Type => {
+                                CheckedPropositionBinderArgumentKind::Type
+                            }
+                            psi_checked_trees::proposition::PropositionBinderArgumentKind::Const => {
+                                CheckedPropositionBinderArgumentKind::Const
+                            }
+                            psi_checked_trees::proposition::PropositionBinderArgumentKind::Machine => {
+                                CheckedPropositionBinderArgumentKind::Machine
+                            }
+                        };
+                        kind != right.kind
+                            || left.identity != right.identity
+                            || right.evidence_projection.is_some()
+                    })
+                {
+                    return unsupported(
+                        "named guarded guarantee disagrees with its evidence term",
+                    );
+                }
+                let term = terminal_evidence_term_id(
+                    term_ids,
+                    term_handle,
+                    "guarded guarantee term has no terminal identity",
+                )?;
+                let declaration = evidence_terms
+                    .iter()
+                    .find(|declaration| declaration.id == term)
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded guarantee term declaration is absent",
+                    ))?;
+                (
+                    Proposition::Atom(declaration.proposition),
+                    Some(OutcomeSpecificEvidence {
+                        term,
+                        output_field: selector.clone(),
+                    }),
+                )
+            }
+            (None, None) => {
+                let psi_checked_trees::domain::ProofFact::Expression(expression) =
+                    checked.typed.proof_facts.get(guarantee.fact)
+                else {
+                    return unsupported(
+                        "unnamed guarded guarantee is outside the bounded truth proposition",
+                    );
+                };
+                if !matches!(
+                    checked.typed.expression_table.expression(*expression),
+                    psi_checked_trees::expression::ExpressionNode::Boolean(true)
+                ) {
+                    return unsupported(
+                        "unnamed guarded guarantee is outside the bounded truth proposition",
+                    );
+                }
+                (Proposition::Truth, None)
+            }
+            _ => return unsupported("guarded guarantee has an incomplete evidence endpoint"),
+        };
+        rows.push(OutcomeSpecificEnsure {
+            guard,
+            position,
+            obligation: obligation_id(1),
+            proposition,
+            evidence,
+        });
+    }
+    rows.sort_by_key(|row| (row.guard, row.position));
+    for (index, row) in rows.iter_mut().enumerate() {
+        row.obligation = obligation_id(dense_identity(index)?);
+    }
+    Ok(rows)
 }
 
 fn lower_proposition_vocabulary(
@@ -216,6 +491,7 @@ fn lower_evidence_term_ids(
     selected_machine: psi_symbols::SymbolHandle,
 ) -> Result<LoweredEvidenceTermIds, LoweringError> {
     let mut parents = (0..checked.facts.proof.evidence_terms.len()).collect::<Vec<_>>();
+    let guarded_terms = selected_guarded_evidence_terms(checked, selected_machine);
     let invocations = checked
         .facts
         .proof
@@ -272,6 +548,14 @@ fn lower_evidence_term_ids(
         let root = evidence_term_root(&mut parents, index);
         let lane_key = match term.kind {
             psi_checked_trees::ContractProofFactKind::Requires => (0_u8, term.lane_position),
+            psi_checked_trees::ContractProofFactKind::Ensures
+                if guarded_terms.contains(
+                    &usize::try_from(handle.arena_index() - 1)
+                        .expect("arena indices fit the host address space"),
+                ) =>
+            {
+                (2_u8, term.lane_position)
+            }
             psi_checked_trees::ContractProofFactKind::Ensures => (1_u8, term.lane_position),
         };
         roots
@@ -287,7 +571,7 @@ fn lower_evidence_term_ids(
             let root = evidence_term_root(&mut parents, index);
             roots
                 .entry(root)
-                .or_insert((2_u8, package_identity_position));
+                .or_insert((3_u8, package_identity_position));
             package_identity_position = package_identity_position
                 .checked_add(1)
                 .expect("proof-output identity order fits usize");
@@ -304,7 +588,7 @@ fn lower_evidence_term_ids(
                 let root = evidence_term_root(&mut parents, index);
                 roots
                     .entry(root)
-                    .or_insert((2_u8, package_identity_position));
+                    .or_insert((3_u8, package_identity_position));
                 package_identity_position = package_identity_position
                     .checked_add(1)
                     .expect("proof-output identity order fits usize");
@@ -488,6 +772,7 @@ fn lower_evidence_contract_lanes(
     terminal_machine: MachineId,
     term_ids: &[Option<EvidenceTermId>],
 ) -> Result<Vec<EvidenceContractLane>, LoweringError> {
+    let guarded_terms = selected_guarded_evidence_terms(checked, selected_machine);
     let mut lanes = checked
         .facts
         .proof
@@ -497,7 +782,11 @@ fn lower_evidence_contract_lanes(
             (term.owner
                 == psi_checked_trees::ContractProofFactOwner::Machine {
                     machine_symbol: selected_machine,
-                })
+                }
+                && !guarded_terms.contains(
+                    &usize::try_from(handle.arena_index() - 1)
+                        .expect("arena indices fit the host address space"),
+                ))
             .then_some((handle, term))
         })
         .map(|(handle, term)| {
@@ -535,6 +824,27 @@ fn lower_evidence_contract_lanes(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     lanes.sort_unstable();
     Ok(lanes)
+}
+
+fn selected_guarded_evidence_terms(
+    checked: &CheckedTrees,
+    selected_machine: psi_symbols::SymbolHandle,
+) -> BTreeSet<usize> {
+    checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .filter_map(|(_, guarantee)| {
+            (guarantee.machine_symbol == selected_machine)
+                .then_some(guarantee.evidence_term)
+                .flatten()
+                .map(|handle| {
+                    usize::try_from(handle.arena_index() - 1)
+                        .expect("arena indices fit the host address space")
+                })
+        })
+        .collect()
 }
 
 fn lower_proof_output_calls(

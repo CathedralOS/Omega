@@ -1,7 +1,7 @@
 pub use psi_typed_trees::byte_predicates;
 pub use psi_typed_trees::{
-    data, expression, identity, machine, name, proof_only, signature, state, trait_definition,
-    types, wire,
+    data, domain, expression, identity, machine, name, proof_only, proposition, signature, state,
+    trait_definition, types, wire,
 };
 
 mod admissibility;

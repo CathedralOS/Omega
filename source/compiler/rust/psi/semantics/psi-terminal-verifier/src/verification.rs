@@ -175,9 +175,9 @@ pub fn verify_module<'module>(
     let validated = validate_module(module).map_err(VerificationError::Module)?;
     let structural_frontiers = reconstruct_validated_structural_ownership_frontiers(module)
         .map_err(VerificationError::Module)?;
-    validate_evidence_producer_provenance(module, proof_bundle)?;
     let reconstructed_obligations =
         reconstruct_validated_terminal_obligations(module).map_err(VerificationError::Module)?;
+    validate_evidence_producer_provenance(module, proof_bundle)?;
     let contexts = module
         .machines
         .iter()

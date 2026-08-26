@@ -6,7 +6,9 @@ use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_admission::Obligation;
-use psi_terminal::{TerminalMachine, TerminalModule};
+use psi_terminal::{
+    OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
+};
 #[cfg(test)]
 use psi_terminal_semantics::CanonicalScalarGoal;
 
@@ -130,12 +132,17 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
     let mut obligations = Vec::new();
     for machine in &module.machines {
-        if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
-            return Err(ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
-                machine: machine.id,
-                obligation: clause.obligation,
-            });
-        }
+        let guarded_return = if let Some(clause) = machine.contract.outcome_specific_ensures.first()
+        {
+            Some(exact_payloadless_case_return_guard(machine).ok_or(
+                ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
+                    machine: machine.id,
+                    obligation: clause.obligation,
+                },
+            )?)
+        } else {
+            None
+        };
         let semantics = reconstruct_machine_semantics(module, machine)?;
         obligations.extend(semantics.operation_obligations.into_iter().map(|site| {
             ReconstructedTerminalObligation {
@@ -166,8 +173,74 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                 }
             },
         ));
+        if let Some(guarded_return) = guarded_return {
+            let guarded_position_offset = machine.contract.ensures.len();
+            obligations.extend(
+                machine
+                    .contract
+                    .outcome_specific_ensures
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, clause)| {
+                        clause.guard == guarded_return && clause.evidence.is_none()
+                    })
+                    .map(
+                        |(guarded_position, clause)| ReconstructedTerminalObligation {
+                            owner: ReconstructedTerminalObligationOwner::ContractEnsures {
+                                machine: machine.id,
+                                contract: machine.contract.id,
+                                clause_position: u32::try_from(
+                                    guarded_position_offset + guarded_position,
+                                )
+                                .expect("validated guarded contract clause position fits u32"),
+                            },
+                            obligation: Obligation {
+                                id: clause.obligation,
+                                proposition: clause.proposition.clone(),
+                                class: psi_proof_admission::ObligationClass::Derivable,
+                            },
+                            requirements: machine.contract.requires.clone(),
+                            semantic_axioms: semantics.exit_axioms.clone(),
+                            canonical_certificate: false,
+                        },
+                    ),
+            );
+        }
     }
     Ok(ReconstructedTerminalObligationSet { obligations })
+}
+
+/// Recognize only the first bounded executable guarded-result carrier. Wider
+/// structural control, calls, payloads, and multiple ordinary exits remain
+/// fail closed until their case-conditioned replay is implemented.
+pub(super) fn exact_payloadless_case_return_guard(
+    machine: &TerminalMachine,
+) -> Option<OutcomeSpecificGuard> {
+    let [block] = machine.blocks.as_slice() else {
+        return None;
+    };
+    let [operation] = block.operations.as_slice() else {
+        return None;
+    };
+    let Terminator::ReturnStructural { source, .. } = block.terminator else {
+        return None;
+    };
+    let result = machine.result.structural()?;
+    let operation_result = operation.result.structural()?;
+    let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+        return None;
+    };
+    if operation_result.place != source
+        || operation_result.structural_type != result.structural_type
+        || !operation_result.claims.is_empty()
+        || !operation_result.qualifications.is_empty()
+    {
+        return None;
+    }
+    Some(OutcomeSpecificGuard {
+        result_type: result.structural_type,
+        result_case,
+    })
 }
 
 /// Reconstruct facts at each executable obligation site and facts established

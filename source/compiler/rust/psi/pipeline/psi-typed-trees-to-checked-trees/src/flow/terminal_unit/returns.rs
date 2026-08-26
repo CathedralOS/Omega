@@ -92,7 +92,12 @@ fn build_payloadless_case_return_machine(
         || !program.machine_invokes(machine).is_empty()
         || machine.suspends
         || machine.blocks
-        || !program.machine_contracts(machine).is_empty()
+        || !program.machine_contracts(machine).iter().all(|contract| {
+            matches!(
+                contract.kind,
+                SignatureContractKind::EnsuresForResultCase { .. }
+            )
+        })
         || !program.state_contracts(state).is_empty()
         || !program.state_parameters(state).is_empty()
     {

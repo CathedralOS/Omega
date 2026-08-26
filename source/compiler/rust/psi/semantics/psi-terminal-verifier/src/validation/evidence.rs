@@ -120,13 +120,16 @@ pub(super) fn validate_evidence_contract_lanes(
                     .expect("evidence terms were validated before guarded rows");
                 if row.proposition != Proposition::Atom(term.proposition)
                     || application.evidence_interface.as_ref() != Some(&term.interface)
-                    || !used_terms.insert(evidence.term)
                 {
                     return Err(ModuleError::OutcomeSpecificEvidenceMismatch {
                         machine: machine.id,
                         position: row.position,
                     });
                 }
+                // Proposition terms are copyable. A guarded output may be the
+                // exact forwarded identity of a required lane; selector and
+                // interface validation above still keep the endpoint exact.
+                used_terms.insert(evidence.term);
             }
         }
     }

@@ -7780,12 +7780,25 @@ Remaining N6/N8 work:
   and fixed fuel is exactly two units (one construction plus one return).
   Resumable exhaustion at either charge cannot replay the construction, and
   proof metadata still adds no runtime operation or fuel. Payload-bearing cases,
-  parameters/locals/internal calls, qualifications, machine contracts, and
-  wider structural-return shapes remain fenced; Omega/native lowering rejects
+  parameters/locals/internal calls, qualifications, unconditional or non-result-
+  case machine contracts, and wider structural-return shapes remain fenced;
+  Omega/native lowering rejects
   this target-neutral construction explicitly until tagged sum materialization
-  lands. Executable guarded matching-exit reconstruction,
-  vacuity/forwarding-aware derivation provenance, caller import, and validity
-  replay remain fail-closed pending the next stage-5 rung.
+  lands. The next bounded stage-5 producer rung is now live on that exact
+  carrier. Guarded-only contracts no longer disqualify the checked constructor;
+  lowering retains canonical per-case rows while keeping guarded evidence terms
+  out of unconditional `ensures` lanes. `ReturnStructural` rebases the exact
+  constructor membership fact onto the machine-result place, and verifier replay
+  activates only rows for the returned case. Matching named rows require exact
+  fresh producer provenance or an exact forwarded required-term identity;
+  matching unnamed `true` rows require their own proof route. Nonmatching named
+  and unnamed rows are vacuous and reject stray provenance or proof routes.
+  Codec round-trip, missing/stale evidence tampering, result-case activation
+  swaps, interpreter execution, and fixed fuel pin the proof-bearing producer to
+  the same one-construction/one-return runtime shape and two-unit ceiling as its
+  proof-free peer. Wider or unclassified structural exits retain the replay
+  fence. Payload substitution, multi-exit case intersections, caller import,
+  and validity replay remain fail-closed pending later stage-5 rungs.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
