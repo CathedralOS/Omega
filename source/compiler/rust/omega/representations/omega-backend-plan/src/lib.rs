@@ -13,9 +13,10 @@ pub use callback_placements::{
     validate_bound_nominal_callback_placement,
 };
 pub use callback_private_relocations::{
-    CallbackPrivateRelocationDemand, CallbackRegistrarArgumentBinding,
-    CallbackRegistrarAssignedOperandBinding, CallbackRegistrarPhysicalDestination,
-    CallbackRegistrarPhysicalDestinationKind, replay_callback_private_relocation_demand,
+    CallbackPrivateObjectStoreRequest, CallbackPrivateRelocationDemand,
+    CallbackRegistrarArgumentBinding, CallbackRegistrarAssignedOperandBinding,
+    CallbackRegistrarPhysicalDestination, CallbackRegistrarPhysicalDestinationKind,
+    replay_callback_private_object_store_requests, replay_callback_private_relocation_demand,
     replay_callback_private_relocation_demands, replay_callback_registrar_argument_bindings,
     replay_callback_registrar_assigned_operand_bindings,
     replay_callback_registrar_physical_destinations,

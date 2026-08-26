@@ -92,6 +92,30 @@ pub struct CallbackRegistrarAssignedOperandBinding {
     pub assigned_operand: Handle<omega_assigned_target_operations::AssignedInstructionOperand>,
 }
 
+/// Object-relative request to store one exact private callback address into a
+/// registrar argument's runtime-storage field.
+///
+/// Both object symbols are identity evidence only. This row deliberately owns
+/// no target/assigned store operation, relocation record or kind, encoded byte
+/// site, resolved address, runtime execution, registration authority, or
+/// callback lease. Those require a later explicit address-store operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackPrivateObjectStoreRequest {
+    pub assigned_binding_index: usize,
+    pub assigned_binding: CallbackRegistrarAssignedOperandBinding,
+    pub storage_region: omega_target_operations::RuntimeStorageRegion,
+    pub storage_base_offset: usize,
+    pub slot_offset: usize,
+    pub destination_offset: usize,
+    pub byte_size: usize,
+    pub alignment: usize,
+    pub storage_symbol: omega_object_file::ObjectSymbolHandle,
+    pub storage_symbol_plan: omega_object_file::SymbolPlan,
+    pub function_identity: MachineFunctionIdentity,
+    pub function_symbol: omega_object_file::ObjectSymbolHandle,
+    pub function_symbol_plan: omega_object_file::SymbolPlan,
+}
+
 /// Independently replay one address-free demand against its exact checked
 /// placement and emitted thunk/root schedule.
 pub fn replay_callback_private_relocation_demand(
@@ -698,6 +722,170 @@ pub fn replay_callback_registrar_assigned_operand_bindings(
         }
     }
     Ok(())
+}
+
+/// Independently replay the complete object-relative callback store-request
+/// catalog without minting a relocation or executable store.
+#[allow(clippy::too_many_arguments)]
+pub fn replay_callback_private_object_store_requests(
+    target: omega_target::NativeTarget,
+    placements: &[BoundNominalCallbackPlacement],
+    thunks: &[CallbackThunkPlan],
+    demands: &[CallbackPrivateRelocationDemand],
+    host_calls: &HostCallPlan,
+    boundaries: &omega_abstract_operations::AbstractBoundarySummary,
+    argument_bindings: &[CallbackRegistrarArgumentBinding],
+    layouts: &omega_layout::LayoutPlan,
+    destinations: &[CallbackRegistrarPhysicalDestination],
+    abstract_operations: &omega_abstract_operations::AbstractOperationPlan,
+    target_operations: &omega_target_operations::TargetOperationPlan,
+    assigned_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
+    assigned_bindings: &[CallbackRegistrarAssignedOperandBinding],
+    object: &omega_object_file::ObjectPlan,
+    entry_machine_name: &str,
+    requests: &[CallbackPrivateObjectStoreRequest],
+) -> Result<(), PlanDiagnostic> {
+    replay_callback_registrar_assigned_operand_bindings(
+        target,
+        placements,
+        thunks,
+        demands,
+        host_calls,
+        boundaries,
+        argument_bindings,
+        layouts,
+        destinations,
+        abstract_operations,
+        target_operations,
+        assigned_operations,
+        assigned_bindings,
+    )?;
+    if object.target != target || requests.len() != assigned_bindings.len() {
+        return Err(PlanDiagnostic(
+            "callback private object-store target or cardinality drifted".into(),
+        ));
+    }
+
+    for (binding_index, binding) in assigned_bindings.iter().enumerate() {
+        let request = requests
+            .get(binding_index)
+            .ok_or_else(|| object_store_error(binding_index, "ordered object-store request"))?;
+        if request.assigned_binding_index != binding_index || request.assigned_binding != *binding {
+            return Err(object_store_error(
+                binding_index,
+                "assigned-operand binding snapshot",
+            ));
+        }
+        let CallbackRegistrarPhysicalDestinationKind::Field { layout_demand, .. } =
+            &binding.destination.kind
+        else {
+            return Err(object_store_error(
+                binding_index,
+                "one-slot field destination; direct parameters remain fenced",
+            ));
+        };
+        let assigned_operand = assigned_operations
+            .code
+            .operands
+            .iter()
+            .find(|(handle, _)| *handle == binding.assigned_operand)
+            .map(|(_, operand)| operand)
+            .ok_or_else(|| object_store_error(binding_index, "assigned operand"))?;
+        let omega_target_operations::TargetInstructionOperandKind::RuntimeStorageAddress {
+            region,
+            byte_offset,
+        } = assigned_operand.kind
+        else {
+            return Err(object_store_error(
+                binding_index,
+                "RuntimeStorageAddress operand; DataAddress remains fenced",
+            ));
+        };
+        let destination_offset = byte_offset
+            .checked_add(layout_demand.offset)
+            .ok_or_else(|| object_store_error(binding_index, "nonoverflowing destination"))?;
+        if request.storage_region != region
+            || request.storage_base_offset != byte_offset
+            || request.slot_offset != layout_demand.offset
+            || request.destination_offset != destination_offset
+            || request.byte_size != layout_demand.byte_size
+            || request.alignment != layout_demand.alignment
+            || request.alignment == 0
+            || !request.destination_offset.is_multiple_of(request.alignment)
+        {
+            return Err(object_store_error(
+                binding_index,
+                "runtime-storage geometry",
+            ));
+        }
+
+        let expected_storage = exact_runtime_storage_object_symbol(
+            object,
+            region,
+            entry_machine_name,
+            request.destination_offset,
+            request.byte_size,
+        )
+        .ok_or_else(|| object_store_error(binding_index, "exact BSS storage symbol"))?;
+        if request.storage_symbol != expected_storage.0
+            || request.storage_symbol_plan != *expected_storage.1
+        {
+            return Err(object_store_error(
+                binding_index,
+                "BSS storage-symbol snapshot",
+            ));
+        }
+
+        let function_identity = binding.destination.binding.demand.function_identity;
+        let expected_function =
+            omega_object_file::object_function_symbol(object, function_identity).ok_or_else(
+                || object_store_error(binding_index, "exact callback function symbol"),
+            )?;
+        if request.function_identity != function_identity
+            || request.function_symbol != expected_function.0
+            || request.function_symbol_plan != *expected_function.1
+        {
+            return Err(object_store_error(
+                binding_index,
+                "callback function-symbol snapshot",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn exact_runtime_storage_object_symbol<'object>(
+    object: &'object omega_object_file::ObjectPlan,
+    region: omega_target_operations::RuntimeStorageRegion,
+    entry_machine_name: &str,
+    destination_offset: usize,
+    byte_size: usize,
+) -> Option<(
+    omega_object_file::ObjectSymbolHandle,
+    &'object omega_object_file::SymbolPlan,
+)> {
+    let name = omega_object_file::storage_region_symbol_name(region, entry_machine_name);
+    let mut matches = object.layout.symbols.iter().filter(|(_, symbol)| {
+        symbol.name == name
+            && symbol.kind == omega_object_file::SymbolKind::Object
+            && symbol.section
+                == omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Bss)
+    });
+    let (handle, symbol) = matches.next()?;
+    if matches.next().is_some()
+        || destination_offset
+            .checked_add(byte_size)
+            .is_none_or(|end| end > symbol.size)
+    {
+        return None;
+    }
+    Some((handle, symbol))
+}
+
+fn object_store_error(index: usize, identity: &str) -> PlanDiagnostic {
+    PlanDiagnostic(format!(
+        "callback private object store {index} lost its {identity}"
+    ))
 }
 
 fn handle_in_span<T>(handle: Handle<T>, span: psi_arena::HandleSpan<T>) -> bool {

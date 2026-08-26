@@ -260,6 +260,18 @@ missing or duplicated rows, stale handles, and operand-shape drift. Generic
 host operations remain outside the carrier, and it grants no object,
 relocation, byte, runtime, registration, or lease authority.
 
+Object planning now permits one further evidence-only join for an exact
+one-slot `Field` whose assigned registrar operand is
+`RuntimeStorageAddress`. The ordered request binds that operand's storage
+region/base and target-closed field geometry to the canonical BSS storage
+symbol and binds the demand's function identity to one exact private text
+symbol. Full snapshots replay against the rebuilt object plan; `DataAddress`,
+direct parameters, ambiguous or malformed symbols, and geometry drift reject.
+No target/assigned store operation or encoded patch site exists yet, so this is
+not a relocation record and grants no bytes, runtime address, registration, or
+lease authority. The next prerequisite is explicit callback-address store
+lowering.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that

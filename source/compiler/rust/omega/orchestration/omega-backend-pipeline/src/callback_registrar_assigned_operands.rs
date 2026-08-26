@@ -136,4 +136,4 @@ pub(super) fn plan_callback_registrar_assigned_operand_bindings(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

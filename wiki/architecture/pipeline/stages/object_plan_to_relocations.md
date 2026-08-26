@@ -88,3 +88,10 @@ Must not own:
 
 - Keep runtime text and runtime storage relocation families aligned with instruction-selection families as new selected instructions land.
 - Boundary summaries are preserved beside this stage, but target policy validation still needs explicit linkage between source boundary edges and lowered host-operation relocations.
+- Private callback materialization currently reaches an object-relative
+  `CallbackPrivateObjectStoreRequest`: exact `RuntimeStorageAddress` storage
+  geometry is joined to canonical BSS and private text symbols, but no
+  selected/assigned callback-address store operation or encoded patch site yet
+  exists. This stage must not infer a relocation record from that request;
+  explicit store lowering is the next prerequisite. `DataAddress` and direct
+  callback parameters remain fenced.
