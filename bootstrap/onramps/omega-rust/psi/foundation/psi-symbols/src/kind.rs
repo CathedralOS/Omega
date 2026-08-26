@@ -6,7 +6,6 @@ pub enum SymbolKind {
     Module,
     BuiltinType,
     BuiltinFunction,
-    Invariant,
     Data,
     Domain,
     Field,

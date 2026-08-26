@@ -1,4 +1,4 @@
-use omega_state_graph::{InvariantFact, ProofFactKind, ProofObligationFact, ProofObligationOwner};
+use omega_state_graph::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -434,23 +434,6 @@ fn remap_proof_owner(owner: &psi_checked_trees::ProofObligationOwner) -> ProofOb
             parameter_symbol: *parameter_symbol,
         },
     }
-}
-
-pub(crate) fn remap_invariants<'a>(
-    fact_count: usize,
-    facts: impl Iterator<Item = &'a psi_checked_trees::InvariantFact>,
-) -> psi_arena::Arena<InvariantFact> {
-    let mut invariants = psi_arena::Arena::with_capacity(fact_count);
-
-    for fact in facts {
-        invariants.append(InvariantFact {
-            symbol: fact.symbol,
-            name: fact.name.clone(),
-            constraint_count: fact.constraint_count,
-        });
-    }
-
-    invariants
 }
 
 #[cfg(test)]

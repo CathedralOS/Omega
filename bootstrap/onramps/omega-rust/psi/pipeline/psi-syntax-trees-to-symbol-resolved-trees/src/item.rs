@@ -1,6 +1,5 @@
 use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
-use crate::invariant::lower_invariant_definition;
 use crate::lowerer::Lowerer;
 use crate::machine::lower_machine_into;
 use crate::measure::lower_measure_definition;
@@ -31,14 +30,6 @@ fn lower_item_with_exposure(
         syntax::item::Item::Data(data_definition) => {
             let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
-        }
-        syntax::item::Item::Invariant(invariant_definition) => {
-            let invariant_definition =
-                lower_invariant_definition(lowerer, syntax_trees, invariant_definition)?;
-            lowerer
-                .symbol_resolved_trees
-                .invariant_definitions
-                .push(invariant_definition);
         }
         syntax::item::Item::Domain(domain_definition) => {
             let domain_definition =

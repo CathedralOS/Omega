@@ -1,7 +1,6 @@
 use crate::borrow::build_borrow_facts;
 use crate::capabilities::build_capability_facts;
 use crate::flow::{build_domain_facts, build_flow_facts_with_service_reaches};
-use crate::invariants::build_invariant_facts;
 use crate::operators::{build_operator_facts, select_pending_domain_operator_meanings};
 use crate::proof::build_proof_facts_with_operators;
 use crate::semantic::build_semantic_facts;
@@ -70,7 +69,6 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_proof_output_call_facts(program, &mut proof)?;
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
@@ -146,7 +144,6 @@ pub(crate) fn build_check_facts(
         borrow,
         proof,
         values,
-        invariants,
         domains,
         dynamic_conformances,
         nominal_machine_uses,

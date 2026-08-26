@@ -9,7 +9,7 @@ use crate::capacity::{
     StateGraphCapacity, estimated_machine_segment_capacity, machine_statement_count,
 };
 use crate::dynamic_conformances::validated_dynamic_conformance_bindings;
-use crate::facts::{remap_invariants, remap_proof_obligations};
+use crate::facts::remap_proof_obligations;
 use crate::machine_metadata::{
     machine_blocking_summary, machine_contains, machine_owned_data, machine_service_reach,
     machine_suspension_summary,
@@ -52,15 +52,6 @@ pub(crate) fn build_state_graph_with_workers(
     }
 
     state_graph.semantics.facts.proof_obligations = remap_proof_obligations(&program)?;
-    state_graph.semantics.facts.invariants = remap_invariants(
-        program.facts.invariants.definitions.len(),
-        program
-            .facts
-            .invariants
-            .definitions
-            .iter()
-            .map(|(_, fact)| fact),
-    );
     state_graph.semantics.facts.dynamic_conformances =
         validated_dynamic_conformance_bindings(&program)?;
 

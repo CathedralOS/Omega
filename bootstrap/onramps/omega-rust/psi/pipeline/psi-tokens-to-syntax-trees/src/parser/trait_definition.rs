@@ -36,12 +36,11 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;
-    let invariants = HandleSpan::empty();
     let mut machine_start = Handle::invalid();
     let mut machine_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_keyword(KeywordKind::Invariant) {
+        if input.at_contextual("invariant") {
             return Err(input.error_here(
                 "the `invariant` clause is retired: traits publish proof obligations through \
                  explicit `requires` and `ensures`; value-wide facts belong to the carrier's \
@@ -159,7 +158,6 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             type_parameters,
             conformance_bounds,
             parents,
-            invariants,
             requires,
             machines,
         },

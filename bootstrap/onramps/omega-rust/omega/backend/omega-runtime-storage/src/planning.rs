@@ -41,10 +41,6 @@ pub fn build_runtime_storage_plan_with_workers(
             capacity
         },
     );
-    let invariant_name_capacity = body_plans
-        .iter()
-        .map(|body_plan| body_plan.invariant_names.len())
-        .sum();
     let frame_slot_capacity = body_plans
         .iter()
         .map(|body_plan| body_plan.frame_slots.len())
@@ -55,7 +51,6 @@ pub fn build_runtime_storage_plan_with_workers(
         .sum();
     let mut plan = RuntimeStoragePlan::with_capacities(
         expression_capacity,
-        invariant_name_capacity,
         frame_slot_capacity,
         write_capacity,
     );
@@ -63,7 +58,6 @@ pub fn build_runtime_storage_plan_with_workers(
     for body_plan in body_plans {
         let RuntimeStoragePlan {
             expressions,
-            invariant_names: _,
             frame_slots,
             writes,
             // Scratch is reserved later on the aggregate plan (stacking phase).

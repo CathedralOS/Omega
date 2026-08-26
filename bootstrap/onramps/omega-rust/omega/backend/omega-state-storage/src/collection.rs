@@ -4,7 +4,6 @@ use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_values::simplify_state_expression;
-use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTableCapacity,
@@ -80,18 +79,11 @@ pub fn build_state_storage_plan_with_workers(
     for machine_plan in machine_plans {
         let StateStoragePlan {
             expressions,
-            invariant_names,
             locals,
             mutations,
             type_references,
         } = machine_plan;
         for local in locals.into_items() {
-            let local_invariant_names = plan.invariant_names.insert_many(
-                invariant_names
-                    .span_or_empty(local.invariant_names)
-                    .iter()
-                    .cloned(),
-            );
             let local_type_reference = plan.type_references.copy_from(
                 &type_references,
                 &expressions,
@@ -111,7 +103,6 @@ pub fn build_state_storage_plan_with_workers(
                 name: local.name,
                 type_symbol: local.type_symbol,
                 type_reference: local_type_reference,
-                invariant_names: local_invariant_names,
                 required: local.required,
                 initial_value: local_initial_value,
             });
@@ -193,11 +184,6 @@ fn build_machine_state_storage_plan(
                             &program.expression_table,
                             &mut plan.expressions,
                             local_data.type_reference,
-                        ),
-                        invariant_names: append_type_reference_invariant_names(
-                            program,
-                            local_data.type_reference,
-                            &mut plan.invariant_names,
                         ),
                         required,
                         initial_value: if local_data.initial_value.is_valid() {
@@ -2617,72 +2603,5 @@ fn expression_references_symbol(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,
-    }
-}
-
-fn append_type_reference_invariant_names(
-    program: &CheckedTrees,
-    type_reference: TypeReferenceHandle,
-    names: &mut Arena<Identifier>,
-) -> HandleSpan<Identifier> {
-    let mut span = HandleSpan::empty();
-    collect_type_reference_invariant_names(program, type_reference, names, &mut span);
-    span
-}
-
-fn collect_type_reference_invariant_names(
-    program: &CheckedTrees,
-    type_reference: TypeReferenceHandle,
-    names: &mut Arena<Identifier>,
-    span: &mut HandleSpan<Identifier>,
-) {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            collect_type_reference_invariant_names(program, *referee, names, span)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            collect_type_reference_invariant_names(program, *base_type, names, span);
-
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                let psi_checked_trees::types::TypeConstraintNode::Named(name) = constraint else {
-                    continue;
-                };
-
-                if program
-                    .facts
-                    .invariants
-                    .definitions
-                    .iter()
-                    .any(|(_, invariant)| invariant.name == *name)
-                    && !names
-                        .span_or_empty(*span)
-                        .iter()
-                        .any(|existing| existing == name)
-                {
-                    names.append_to_span(span, name.clone());
-                }
-            }
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            collect_type_reference_invariant_names(program, *element_type, names, span)
-        }
-        TypeReferenceNode::Slice { element_type } => {
-            collect_type_reference_invariant_names(program, *element_type, names, span)
-        }
-        TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
-                collect_type_reference_invariant_names(program, *argument, names, span);
-            }
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Named { .. }
-        | TypeReferenceNode::Unit => {}
     }
 }

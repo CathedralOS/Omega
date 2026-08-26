@@ -243,7 +243,6 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         conformance_bounds: Vec::new(),
-        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };

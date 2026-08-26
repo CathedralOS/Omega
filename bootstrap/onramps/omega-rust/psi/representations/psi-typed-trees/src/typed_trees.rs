@@ -1,5 +1,5 @@
 use crate::{
-    data, domain, expression, invariant, machine, measure, name, proposition, signature, snapshot,
+    data, domain, expression, machine, measure, name, proposition, signature, snapshot,
     trait_definition, types, wire,
 };
 use psi_arena::{Arena, HandleSpan};
@@ -356,7 +356,6 @@ pub struct TypedTreeTables {
     pub proposition_binders: Arena<proposition::PropositionBinder>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
-    pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub machines: Arena<machine::Machine>,
     pub measures: Arena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
@@ -383,7 +382,6 @@ pub struct TypedTreeRoots {
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
-    pub invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
@@ -397,7 +395,6 @@ impl TypedTreeRoots {
     pub fn with_roots(
         data_definitions: HandleSpan<data::DataDefinition>,
         domain_definitions: HandleSpan<domain::DomainDefinition>,
-        invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
         machines: HandleSpan<machine::Machine>,
         operators: HandleSpan<crate::operator::OperatorDefinition>,
         traits: HandleSpan<trait_definition::TraitDefinition>,
@@ -406,7 +403,6 @@ impl TypedTreeRoots {
             const_declarations: HandleSpan::default(),
             data_definitions,
             domain_definitions,
-            invariant_definitions,
             machines,
             measures: HandleSpan::default(),
             operators,
@@ -704,21 +700,6 @@ impl TypedTrees {
         span: HandleSpan<crate::name::Identifier>,
     ) -> &[crate::name::Identifier] {
         self.domain_path_members.span_or_empty(span)
-    }
-
-    pub fn push_invariant_definition(
-        &mut self,
-        invariant_definition: invariant::InvariantDefinition,
-    ) {
-        self.tables
-            .invariant_definitions
-            .append_to_span(&mut self.roots.invariant_definitions, invariant_definition);
-    }
-
-    pub fn invariant_definitions(&self) -> &[invariant::InvariantDefinition] {
-        self.tables
-            .invariant_definitions
-            .span_or_empty(self.roots.invariant_definitions)
     }
 
     pub fn push_measure(&mut self, measure: measure::MeasureDefinition) {
@@ -1209,22 +1190,6 @@ impl TypedTrees {
     ) -> &[data::TypeParameter] {
         self.data_type_parameters
             .span_or_empty(trait_definition.type_parameters)
-    }
-
-    pub fn push_trait_invariant(
-        &mut self,
-        trait_definition: &mut trait_definition::TraitDefinition,
-        fact: domain::ProofFact,
-    ) {
-        self.proof_facts
-            .append_to_span(&mut trait_definition.invariants, fact);
-    }
-
-    pub fn trait_invariants(
-        &self,
-        trait_definition: &trait_definition::TraitDefinition,
-    ) -> &[domain::ProofFact] {
-        self.proof_facts.span_or_empty(trait_definition.invariants)
     }
 
     pub fn push_trait_requirement(
@@ -1734,8 +1699,8 @@ impl DerefMut for TypedTrees {
 #[cfg(test)]
 mod tests {
     use crate::{
-        TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine,
-        name::Identifier, operator, trait_definition, types, wire,
+        TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, machine, name::Identifier,
+        operator, trait_definition, types, wire,
     };
     use psi_arena::HandleSpan;
     use psi_language_core::BindingRelevance;
@@ -1745,7 +1710,6 @@ mod tests {
     fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
         let data_definitions = HandleSpan::<data::DataDefinition>::default();
         let domain_definitions = HandleSpan::<domain::DomainDefinition>::default();
-        let invariant_definitions = HandleSpan::<invariant::InvariantDefinition>::default();
         let machines = HandleSpan::<machine::Machine>::default();
         let operators = HandleSpan::<operator::OperatorDefinition>::default();
         let traits = HandleSpan::<trait_definition::TraitDefinition>::default();
@@ -1753,7 +1717,6 @@ mod tests {
         let roots = TypedTreeRoots::with_roots(
             data_definitions,
             domain_definitions,
-            invariant_definitions,
             machines,
             operators,
             traits,
@@ -1761,7 +1724,6 @@ mod tests {
 
         assert_eq!(roots.data_definitions, data_definitions);
         assert_eq!(roots.domain_definitions, domain_definitions);
-        assert_eq!(roots.invariant_definitions, invariant_definitions);
         assert_eq!(roots.machines, machines);
         assert_eq!(roots.operators, operators);
         assert_eq!(roots.traits, traits);

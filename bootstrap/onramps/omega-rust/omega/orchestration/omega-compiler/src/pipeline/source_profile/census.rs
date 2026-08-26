@@ -382,13 +382,6 @@ impl Census {
                     self.operator(operator);
                 }
             }
-            ItemSnapshot::Invariant { name, constraints } => {
-                self.bump("item.invariant");
-                self.identifier(name);
-                for constraint in constraints {
-                    self.type_constraint(constraint);
-                }
-            }
             ItemSnapshot::Library {
                 name,
                 path: _,
@@ -585,7 +578,6 @@ impl Census {
                 type_parameters,
                 conformance_bounds,
                 parents,
-                invariants,
                 requires,
                 machines,
             } => {
@@ -606,10 +598,6 @@ impl Census {
                     self.bump("trait.parent");
                     self.type_reference(parent);
                 }
-                if !invariants.is_empty() {
-                    self.bump("trait.invariant");
-                }
-                self.proof_facts(invariants);
                 for requirement in requires {
                     self.bump("trait.requires");
                     self.identifier(requirement);

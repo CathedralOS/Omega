@@ -200,7 +200,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Capability(item), rest));
     }
 
-    if input.at_keyword(KeywordKind::Invariant) {
+    if input.at_contextual("invariant") {
         return Err(input.error_here(
             "the `invariant` declaration is retired: put value-wide facts in a data \
              default domain (`where` or field constraints) and behavioral facts in \

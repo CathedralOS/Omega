@@ -10,7 +10,6 @@ pub mod declaration_selection {
 pub mod domain;
 pub mod expression;
 pub mod identity;
-pub mod invariant;
 pub mod machine;
 pub mod measure;
 pub mod name;

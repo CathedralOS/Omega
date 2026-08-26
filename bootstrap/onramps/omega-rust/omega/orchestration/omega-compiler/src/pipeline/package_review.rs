@@ -3399,13 +3399,6 @@ fn project_public_traits(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if !compilation.trait_invariants(definition).is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "public trait `{}` uses invariants not yet represented by package review",
-                identity.path
-            ))]);
-        }
-
         let parameters = compilation.trait_type_parameters(definition);
         let (mut trait_binders, type_parameters) = project_type_parameters(
             compilation,

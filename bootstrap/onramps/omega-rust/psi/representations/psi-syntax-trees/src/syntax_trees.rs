@@ -107,7 +107,6 @@ impl SyntaxTrees {
             | Item::Const(_)
             | Item::Data(_)
             | Item::Domain(_)
-            | Item::Invariant(_)
             | Item::Library(_)
             | Item::Measure(_)
             | Item::Module(_)
@@ -291,10 +290,6 @@ impl SyntaxTrees {
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
                 semantic_clause_token_count: domain.semantic_clause_token_count,
-            }),
-            Item::Invariant(invariant) => Item::Invariant(crate::item::InvariantDefinition {
-                name: invariant.name.clone(),
-                constraints: self.copy_constraint_span(other, invariant.constraints),
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
@@ -542,7 +537,6 @@ impl SyntaxTrees {
                 })
                 .collect(),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
-            invariants: self.copy_domain_fact_span(other, trait_definition.invariants),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
         }

@@ -34,7 +34,6 @@ pub struct SymbolResolvedRoots {
     pub const_declarations: OrderedRootArena<crate::constant::ConstDeclaration>,
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
-    pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
     pub machines: OrderedRootArena<crate::machine::Machine>,
     pub measures: OrderedRootArena<measure::MeasureDefinition>,
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
@@ -48,7 +47,6 @@ impl SymbolResolvedRoots {
     pub fn with_roots(
         data_definitions: OrderedRootArena<crate::data::DataDefinition>,
         domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
-        invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
         machines: OrderedRootArena<crate::machine::Machine>,
         operators: OrderedRootArena<operator::OperatorDefinition>,
         traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
@@ -57,7 +55,6 @@ impl SymbolResolvedRoots {
             const_declarations: OrderedRootArena::default(),
             data_definitions,
             domain_definitions,
-            invariant_definitions,
             machines,
             measures: OrderedRootArena::default(),
             operators,
@@ -281,13 +278,6 @@ impl SymbolResolvedTrees {
         self.data_type_parameters(trait_definition.type_parameters)
     }
 
-    pub fn trait_invariants(
-        &self,
-        trait_definition: &crate::trait_definition::TraitDefinition,
-    ) -> &[domain::ProofFact] {
-        self.proof_facts(trait_definition.invariants)
-    }
-
     pub fn trait_requirements(
         &self,
         span: HandleSpan<crate::trait_definition::TraitRequirement>,
@@ -469,7 +459,7 @@ mod tests {
     use crate::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        invariant, machine, name::DiagnosticName, operator, trait_definition,
+        machine, name::DiagnosticName, operator, trait_definition,
     };
     use psi_arena::{HandleSpan, OrderedRootArena};
     use psi_source::{SourceId, SourceSpan, Span};
@@ -479,7 +469,6 @@ mod tests {
     fn symbol_resolved_roots_constructor_keeps_top_level_roots_explicit() {
         let data_definitions = OrderedRootArena::<data::DataDefinition>::default();
         let domain_definitions = OrderedRootArena::<domain::DomainDefinition>::default();
-        let invariant_definitions = OrderedRootArena::<invariant::InvariantDefinition>::default();
         let machines = OrderedRootArena::<machine::Machine>::default();
         let operators = OrderedRootArena::<operator::OperatorDefinition>::default();
         let traits = OrderedRootArena::<trait_definition::TraitDefinition>::default();
@@ -487,7 +476,6 @@ mod tests {
         let roots = SymbolResolvedRoots::with_roots(
             data_definitions.clone(),
             domain_definitions.clone(),
-            invariant_definitions.clone(),
             machines.clone(),
             operators.clone(),
             traits.clone(),
@@ -495,7 +483,6 @@ mod tests {
 
         assert_eq!(roots.data_definitions, data_definitions);
         assert_eq!(roots.domain_definitions, domain_definitions);
-        assert_eq!(roots.invariant_definitions, invariant_definitions);
         assert_eq!(roots.machines, machines);
         assert_eq!(roots.operators, operators);
         assert_eq!(roots.traits, traits);

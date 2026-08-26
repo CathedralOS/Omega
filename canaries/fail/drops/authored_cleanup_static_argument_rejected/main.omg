@@ -1,0 +1,14 @@
+// The reserved owner-attached cleanup hook is compiler-selected. Naming it as
+// a static-machine argument is still an authored selection and must reject.
+data Resource { value: i32; }
+
+machine Resource::drop(&mut self) {}
+
+machine accept<machine Selected>()
+where machine Selected(value: &mut Resource)
+{
+}
+
+machine misuse() {
+    accept<Resource::drop>();
+}

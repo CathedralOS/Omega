@@ -28,10 +28,6 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
         let _ = root_children.next();
     }
 
-    program.invariant_definitions.for_each_mut(|invariant| {
-        invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
-    });
-
     assign_domain_symbols(program, symbols, &mut root_children);
     assign_data_symbols(program, symbols, &mut root_children);
     let conformance_symbols = program

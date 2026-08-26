@@ -24,7 +24,6 @@ data KeywordKind [copy] {
     case Foreign;
     case Host;
     case If;
-    case Invariant;
     case Let;
     case Library;
     case Loop;

@@ -1,5 +1,4 @@
 use crate::data::lower_type_parameters;
-use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature_node;
 use crate::type_reference::lower_child_type_references;
@@ -25,7 +24,6 @@ pub(crate) fn lower_trait_definition(
         syntax_trees,
         &trait_definition.conformance_bounds,
     )?;
-    let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
     let requires = lower_trait_requirements(
         lowerer,
         syntax_trees,
@@ -52,7 +50,6 @@ pub(crate) fn lower_trait_definition(
                 .collect(),
             type_parameters,
             conformance_bounds,
-            invariants,
             requires,
             machines,
         },

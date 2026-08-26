@@ -16,7 +16,6 @@ impl StateGraph {
         state_capacity: usize,
         state_parameter_capacity: usize,
         proof_obligation_capacity: usize,
-        invariant_capacity: usize,
         contract_fact_ref_capacity: usize,
         contract_call_capacity: usize,
         contract_exit_capacity: usize,
@@ -49,7 +48,6 @@ impl StateGraph {
                 StateGraphServiceReachRoots::default(),
                 StateGraphFactRoots::with_roots(
                     Arena::with_capacity(proof_obligation_capacity),
-                    Arena::with_capacity(invariant_capacity),
                     Default::default(),
                 ),
                 StateGraphContractRoots::with_roots(

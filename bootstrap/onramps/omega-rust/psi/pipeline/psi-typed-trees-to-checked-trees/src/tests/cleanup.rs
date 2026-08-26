@@ -124,14 +124,57 @@ fn rejects_authored_qualified_selection_of_reserved_cleanup() {
 }
 
 #[test]
+fn rejects_reserved_cleanup_as_a_static_machine_argument() {
+    rejects(
+        r#"
+            data Resource { value: i32; }
+            machine Resource::drop(&mut self) {}
+            machine accept<machine Selected>()
+            where machine Selected(value: &mut Resource)
+            { }
+            machine misuse() {
+                accept<Resource::drop>();
+            }
+        "#,
+        "machine argument `Resource::drop` for `accept` does not refine `Selected`",
+    );
+}
+
+#[test]
+fn rejects_reserved_cleanup_selected_then_forwarded_through_a_machine_binder() {
+    rejects(
+        r#"
+            data Resource { value: i32; }
+            machine Resource::drop(&mut self) {}
+            machine sink<machine Selected>()
+            where machine Selected(value: &mut Resource)
+            { }
+            machine forward<machine Selected>()
+            where machine Selected(value: &mut Resource)
+            {
+                sink<Selected>();
+            }
+            machine misuse() {
+                forward<Resource::drop>();
+            }
+        "#,
+        "machine argument `Resource::drop` for `forward` does not refine `Selected`",
+    );
+}
+
+#[test]
 fn ordinary_drop_spelling_remains_callable() {
     let source = r#"
         data Resource { value: i32; }
         machine Resource::drop_counter(&mut self) {}
         machine drop(resource: &mut Resource) {}
+        machine accept<machine Selected>()
+        where machine Selected(resource: &mut Resource)
+        { }
         machine use_drop_names(resource: &mut Resource) {
             resource.drop_counter();
             drop(resource);
+            accept<drop>();
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

@@ -269,37 +269,42 @@ mod tests {
             Some((10, "Resource")),
         );
 
-        // Qualified and receiver calls share the checked Call selection kind;
-        // depending on resolution timing they retain the machine or its entry.
-        record_selection(
-            &mut program,
-            1,
-            AuthoredDeclarationSelectionKind::Call,
-            cleanup_machine,
-        );
-        record_selection(
-            &mut program,
-            2,
-            AuthoredDeclarationSelectionKind::Call,
-            cleanup_entry,
-        );
-        record_selection(
-            &mut program,
-            3,
-            AuthoredDeclarationSelectionKind::StaticArgument,
-            cleanup_entry,
-        );
-        record_selection(
-            &mut program,
-            4,
+        // The gate is package-agnostic and declaration-exact, not syntax-kind
+        // specific. Some of these kinds cannot ordinarily resolve to a
+        // machine, but retaining the exhaustive set here prevents a new
+        // authored selection surface from becoming a cleanup escape hatch.
+        let kinds = [
+            AuthoredDeclarationSelectionKind::TypeReference,
             AuthoredDeclarationSelectionKind::StaticPathSegment,
-            cleanup_machine,
-        );
+            AuthoredDeclarationSelectionKind::MemberAccess,
+            AuthoredDeclarationSelectionKind::StructLiteralType,
+            AuthoredDeclarationSelectionKind::StructLiteralCase,
+            AuthoredDeclarationSelectionKind::StructLiteralField,
+            AuthoredDeclarationSelectionKind::CaseReference,
+            AuthoredDeclarationSelectionKind::CaseMembership,
+            AuthoredDeclarationSelectionKind::DomainMembership,
+            AuthoredDeclarationSelectionKind::Call,
+            AuthoredDeclarationSelectionKind::StaticArgument,
+            AuthoredDeclarationSelectionKind::Operator,
+            AuthoredDeclarationSelectionKind::Conformance,
+        ];
+        for (index, kind) in kinds.into_iter().enumerate() {
+            record_selection(
+                &mut program,
+                index + 1,
+                kind,
+                if index % 2 == 0 {
+                    cleanup_machine
+                } else {
+                    cleanup_entry
+                },
+            );
+        }
 
         let mut diagnostics = Vec::new();
         collect_reserved_cleanup_selection_diagnostics(&program, &mut diagnostics);
 
-        assert_eq!(diagnostics.len(), 4);
+        assert_eq!(diagnostics.len(), kinds.len());
         assert!(diagnostics.iter().all(|diagnostic| {
             diagnostic
                 .message
@@ -310,7 +315,10 @@ mod tests {
                 .iter()
                 .map(|diagnostic| diagnostic.source_span)
                 .collect::<Vec<_>>(),
-            (1..=4).map(source_span).map(Some).collect::<Vec<_>>()
+            (1..=kinds.len())
+                .map(source_span)
+                .map(Some)
+                .collect::<Vec<_>>()
         );
     }
 

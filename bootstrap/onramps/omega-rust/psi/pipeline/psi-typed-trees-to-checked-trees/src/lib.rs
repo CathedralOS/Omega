@@ -7,7 +7,6 @@ mod conformance_applications;
 mod context;
 mod facts;
 mod field_domain;
-mod invariants;
 mod labels;
 mod lookup;
 mod lowerer;

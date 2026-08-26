@@ -890,17 +890,6 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     }
 
     for trait_definition in program.traits() {
-        let mut invariant_env = ValueEnv::new();
-        validate_facts(
-            program,
-            program.trait_invariants(trait_definition),
-            &format!("trait `{}` invariant", trait_definition.name),
-            AbstractSpecificationBindings::default(),
-            true,
-            &mut invariant_env,
-            &mut seen,
-            diagnostics,
-        );
         for signature in program.trait_machine_signatures(trait_definition) {
             validate_contracts(
                 program,

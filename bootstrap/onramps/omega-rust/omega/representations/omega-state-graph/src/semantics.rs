@@ -1,6 +1,6 @@
 use crate::{
-    InvariantFact, ProofObligationFact, StateGraphBorrowRoots, StateGraphBoundaryRoots,
-    StateGraphContractRoots, StateGraphOwnershipRoots, StateGraphValueRoots,
+    ProofObligationFact, StateGraphBorrowRoots, StateGraphBoundaryRoots, StateGraphContractRoots,
+    StateGraphOwnershipRoots, StateGraphValueRoots,
 };
 use psi_arena::Arena;
 use psi_language_semantics::{ServiceReachRowTable, ServiceReachTable};
@@ -20,19 +20,16 @@ impl StateGraphServiceReachRoots {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphFactRoots {
     pub proof_obligations: Arena<ProofObligationFact>,
-    pub invariants: Arena<InvariantFact>,
     pub dynamic_conformances: psi_checked_trees::DynamicConformanceBindingFacts,
 }
 
 impl StateGraphFactRoots {
     pub fn with_roots(
         proof_obligations: Arena<ProofObligationFact>,
-        invariants: Arena<InvariantFact>,
         dynamic_conformances: psi_checked_trees::DynamicConformanceBindingFacts,
     ) -> Self {
         Self {
             proof_obligations,
-            invariants,
             dynamic_conformances,
         }
     }

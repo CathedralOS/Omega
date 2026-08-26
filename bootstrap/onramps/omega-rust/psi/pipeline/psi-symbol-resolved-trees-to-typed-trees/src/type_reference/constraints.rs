@@ -1,5 +1,4 @@
 use crate::expression::lower_expression_handle_from_table;
-use crate::lowerer::Lowerer;
 use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
@@ -80,18 +79,6 @@ pub(super) fn lower_type_constraint_node_span_from_table(
     Ok(span)
 }
 
-pub(crate) fn lower_type_constraints(
-    lowerer: &mut Lowerer,
-    constraints: HandleSpan<resolved::types::TypeConstraint>,
-) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
-    lower_type_constraints_with_context(
-        lowerer.source_trees,
-        &mut lowerer.typed_trees,
-        constraints,
-        lowerer.type_reference_exposure,
-    )
-}
-
 pub(crate) fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
@@ -147,34 +134,6 @@ pub(crate) fn lower_element_applicable_constraints(
             typed_trees,
             constraint,
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        )?;
-        typed_trees
-            .type_reference_table
-            .push_constraint(&mut span, constraint);
-    }
-
-    Ok(span)
-}
-
-fn lower_type_constraints_with_context(
-    source_trees: &SymbolResolvedTrees,
-    typed_trees: &mut typed::TypedTrees,
-    constraints: HandleSpan<resolved::types::TypeConstraint>,
-    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
-    let mut span = HandleSpan::empty();
-
-    for constraint in source_trees
-        .tables
-        .types
-        .constraints
-        .span_or_empty(constraints)
-    {
-        let constraint = lower_type_constraint_node_with_context(
-            source_trees,
-            typed_trees,
-            constraint,
-            exposure,
         )?;
         typed_trees
             .type_reference_table

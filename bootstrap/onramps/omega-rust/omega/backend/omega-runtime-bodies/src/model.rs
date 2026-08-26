@@ -11,7 +11,6 @@ use psi_symbols::SymbolHandle;
 pub struct RuntimeDispatchBodyPlan {
     pub bodies: Arena<RuntimeDispatchBody>,
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<Identifier>,
     pub operations: PagedArena<RuntimeDispatchBodyOperation>,
     pub type_references: TypeReferenceTable,
 }
@@ -106,7 +105,6 @@ pub enum RuntimeDispatchBodyOperationKind {
         name: Identifier,
         type_symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
-        invariant_names: HandleSpan<Identifier>,
     },
     Mutation {
         mutation_kind: StateMutationKind,

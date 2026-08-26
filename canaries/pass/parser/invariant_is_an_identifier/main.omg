@@ -1,0 +1,9 @@
+// `invariant` is no longer reserved source syntax. Semantic invariant windows,
+// default-domain facts, and loop reasoning remain independent mechanisms.
+data Main {
+}
+
+machine Main::main(&mut self) -> i32 {
+    let invariant: i32 = 25;
+    invariant
+}

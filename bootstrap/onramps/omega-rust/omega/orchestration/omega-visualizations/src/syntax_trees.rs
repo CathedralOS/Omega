@@ -420,7 +420,6 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             }
             label
         }
-        Item::Invariant(value) => format!("invariant {}", value.name.as_str()),
         Item::Library(value) => {
             let name = value
                 .name

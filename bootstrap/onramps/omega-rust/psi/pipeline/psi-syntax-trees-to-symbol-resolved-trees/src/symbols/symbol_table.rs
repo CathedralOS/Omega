@@ -33,72 +33,69 @@ pub(super) fn build_symbol_table(
         .collect::<Vec<_>>();
     let mut builder = SymbolTableBuilder::with_sources(sources);
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let root_children =
-        builder.insert_children(
-            root,
-            builtin_type_symbols()
-                .into_iter()
-                .chain(builtin_function_symbols())
-                .chain(program.invariant_definitions.iter().map(|invariant| {
-                    symbol_seed(SymbolKind::Invariant, &invariant.name, has_sources)
-                }))
-                .chain(
-                    program
-                        .domain_definitions
-                        .iter()
-                        .map(|domain| symbol_seed(SymbolKind::Domain, &domain.name, has_sources)),
-                )
-                .chain(
-                    program
-                        .data_definitions
-                        .iter()
-                        .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
-                )
-                .chain(program.conformances.iter().filter_map(|conformance| {
-                    conformance
-                        .alias
-                        .as_ref()
-                        .map(|alias| symbol_seed(SymbolKind::Conformance, alias, has_sources))
-                }))
-                .chain(
-                    program.machines.iter().map(|machine| {
-                        symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
+    let root_children = builder.insert_children(
+        root,
+        builtin_type_symbols()
+            .into_iter()
+            .chain(builtin_function_symbols())
+            .chain(
+                program
+                    .domain_definitions
+                    .iter()
+                    .map(|domain| symbol_seed(SymbolKind::Domain, &domain.name, has_sources)),
+            )
+            .chain(
+                program
+                    .data_definitions
+                    .iter()
+                    .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
+            )
+            .chain(program.conformances.iter().filter_map(|conformance| {
+                conformance
+                    .alias
+                    .as_ref()
+                    .map(|alias| symbol_seed(SymbolKind::Conformance, alias, has_sources))
+            }))
+            .chain(
+                program
+                    .machines
+                    .iter()
+                    .map(|machine| symbol_seed(SymbolKind::Machine, &machine.name, has_sources)),
+            )
+            .chain(program.propositions.iter().map(|proposition| {
+                symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)
+            }))
+            .chain(
+                root_operator_names
+                    .iter()
+                    .zip(program.operators.iter())
+                    .map(|(name, operator)| {
+                        operator_symbol_seed(program, operator, name, has_sources)
                     }),
-                )
-                .chain(program.propositions.iter().map(|proposition| {
-                    symbol_seed(SymbolKind::Proposition, &proposition.name, has_sources)
-                }))
-                .chain(
-                    root_operator_names
-                        .iter()
-                        .zip(program.operators.iter())
-                        .map(|(name, operator)| {
-                            operator_symbol_seed(program, operator, name, has_sources)
-                        }),
-                )
-                .chain(program.traits.iter().map(|trait_definition| {
-                    symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)
-                }))
-                .chain(program.wire_schemas.iter().map(|wire_schema| {
-                    symbol_seed(SymbolKind::WireSchema, &wire_schema.name, has_sources)
-                }))
-                .chain(const_declarations.iter().map(|declaration| {
-                    if has_sources {
-                        (
-                            SymbolKind::Const,
-                            SymbolNameRef::OwnedSource {
-                                value: declaration.semantic_name.as_str(),
-                                source_span: declaration.source_span,
-                            },
-                        )
-                    } else {
-                        (
-                            SymbolKind::Const,
-                            SymbolNameRef::Borrowed(declaration.semantic_name.as_str()),
-                        )
-                    }
-                })),
-        );
+            )
+            .chain(program.traits.iter().map(|trait_definition| {
+                symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)
+            }))
+            .chain(program.wire_schemas.iter().map(|wire_schema| {
+                symbol_seed(SymbolKind::WireSchema, &wire_schema.name, has_sources)
+            }))
+            .chain(const_declarations.iter().map(|declaration| {
+                if has_sources {
+                    (
+                        SymbolKind::Const,
+                        SymbolNameRef::OwnedSource {
+                            value: declaration.semantic_name.as_str(),
+                            source_span: declaration.source_span,
+                        },
+                    )
+                } else {
+                    (
+                        SymbolKind::Const,
+                        SymbolNameRef::Borrowed(declaration.semantic_name.as_str()),
+                    )
+                }
+            })),
+    );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
     for builtin_type in builtin_type_symbols() {
@@ -107,9 +104,6 @@ pub(super) fn build_symbol_table(
         }
     }
     for _ in 0..builtin_function_symbols().len() {
-        let _ = root_children.next();
-    }
-    for _ in &program.invariant_definitions {
         let _ = root_children.next();
     }
     for domain in &program.domain_definitions {

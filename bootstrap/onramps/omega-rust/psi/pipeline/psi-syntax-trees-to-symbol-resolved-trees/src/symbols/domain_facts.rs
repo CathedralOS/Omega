@@ -61,12 +61,6 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
         .collect::<Vec<_>>();
     domain_fact_spans.extend(
         program
-            .traits
-            .iter()
-            .map(|trait_definition| trait_definition.invariants),
-    );
-    domain_fact_spans.extend(
-        program
             .tables
             .declarations
             .signature_contracts

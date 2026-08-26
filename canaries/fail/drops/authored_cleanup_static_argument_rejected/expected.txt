@@ -1,0 +1,1 @@
+machine argument `Resource::drop` for `accept` does not refine `Selected`

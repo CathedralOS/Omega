@@ -5097,13 +5097,6 @@ fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
     {
         return domain.name.to_string();
     }
-    if let Some(invariant) = program
-        .invariant_definitions()
-        .iter()
-        .find(|invariant| invariant.symbol == symbol)
-    {
-        return invariant.name.to_string();
-    }
     if let Some(trait_definition) = program
         .traits()
         .iter()
