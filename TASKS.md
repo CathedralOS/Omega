@@ -7621,9 +7621,21 @@ compiler concept is introduced.
   acquisition, then the typed deployment/report transaction without re-owning
   any of their policy. Staging rejection returns those inputs, the deployment
   owner, source count, and build evaluation/observation metadata intact. A
-  progress-free source canary recovers a target-substituted staging request,
-  corrects the same carrier, and crosses staging, the real installation ladder,
-  deployment, publication, and report custody.
+  progress-free source canary crosses staging, the real installation ladder,
+  deployment, publication, and report custody through this composition.
+
+  The connected driver no longer accepts caller-restated checked facts.
+  `TerminalComponentStagingInputs::from_checked` binds the exact selected native
+  target from the owning `CheckedCompilation`; a targetless checked result
+  returns subsystem, admission profile, and every provider settlement intact.
+  The driver likewise projects build evaluation usage and observation summary
+  from that same checked owner instead of accepting parallel report copies.
+  This is an explicitly temporary cutover adapter: it projects target/report
+  facts only and never realizes executable semantics. `stage_terminal_component`
+  remains the sole checked-result consumer that creates the authority-free
+  terminal candidate. A source canary recovers targetless binding inputs, binds
+  them to an exactly targeted checked result, and proves the checked metadata
+  reaches terminal-deployment report custody unchanged.
 
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after a concrete non-test installation/deployment owner
