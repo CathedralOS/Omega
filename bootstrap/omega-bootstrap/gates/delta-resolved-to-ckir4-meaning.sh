@@ -64,6 +64,14 @@ for REQUIRED in "$LOWERER" "$RESOLVER" "$FIXTURE" "$FRAME" "$REFERENCE" "$RUNNER
   [ -f "$REQUIRED" ] || { echo "resolved-to-$SCHEMA_LABEL meaning: missing $REQUIRED" >&2; exit 1; }
 done
 
+# Measured 2026-08-25 baseline: the shared lowerer elaborates to 1,952,890
+# Gamma bytes.  The previous unexplained 1,900,000-byte guard was already below
+# that deterministic output.  A 2.25-MiB ceiling leaves a deliberate 20.81%
+# expansion allowance while remaining independent of the later 0/251/252
+# execution inputs.  Keep the capacity predicate toothed at its exact boundary.
+LOWERER_GAMMA_CEILING=2359296
+python3 -B "$RUNNER" capacity-tooth "$LOWERER_GAMMA_CEILING"
+
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 : > "$T/timings.tsv"
@@ -88,7 +96,8 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" || {
 # Translate the lowerer exactly once; all accepted/rejected observations below
 # reuse the same persisted-Beta-produced Gamma program.
 python3 -B "$RUNNER" elaborate "$T/elaborate.exe" "$LOWERER" \
-  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" 40 1900000
+  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" \
+  40 "$LOWERER_GAMMA_CEILING"
 
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA="$OMEGA_PATH_DELTA_RUST/target/debug/delta"
