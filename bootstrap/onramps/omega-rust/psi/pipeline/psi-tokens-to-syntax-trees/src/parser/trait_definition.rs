@@ -1,4 +1,4 @@
-use crate::parser::data::{parse_machine_type_parameters, parse_proposition_type_parameters};
+use crate::parser::data::{parse_machine_type_parameters, parse_trait_type_parameters};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
@@ -19,7 +19,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, TraitDefinition> {
     let input = input.take_contextual("trait")?;
     let (name, mut input) = input.take_identifier()?;
-    let (generic_parameters, next) = parse_proposition_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, next) = parse_trait_type_parameters(syntax_trees, input)?;
     input = next;
     let type_parameters = generic_parameters.type_parameters;
     let (parents, next) = parse_trait_parents(syntax_trees, input)?;

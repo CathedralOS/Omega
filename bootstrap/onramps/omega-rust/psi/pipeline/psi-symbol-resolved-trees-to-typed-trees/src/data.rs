@@ -129,6 +129,9 @@ pub(crate) fn lower_type_parameter_kind(
         }
         resolved::data::TypeParameterKind::Machine { contract } => {
             let contract = match contract {
+                resolved::data::MachineParameterContract::RequirementIdentity => {
+                    typed::data::MachineParameterContract::RequirementIdentity
+                }
                 resolved::data::MachineParameterContract::Structural(signature) => {
                     typed::data::MachineParameterContract::Structural(
                         crate::state::lower_state_signature(lowerer, signature)?,

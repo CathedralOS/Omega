@@ -7,6 +7,104 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn trait_machine_requirement_identity_reaches_resolved_trees() {
+    let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
+        .tokenize()
+        .expect("tokenize trait machine requirement parameter");
+    let syntax = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
+    let program = lower_syntax_trees(&syntax).expect("resolve trait machine requirement parameter");
+    let trait_definition = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "PrivateCallbackSlot")
+        .expect("PrivateCallbackSlot trait");
+    let [parameter] = program.trait_type_parameters(trait_definition) else {
+        panic!("one resolved trait machine requirement parameter")
+    };
+    assert!(parameter.symbol.is_valid());
+    assert!(matches!(
+        parameter.kind,
+        psi_symbol_resolved_trees::data::TypeParameterKind::Machine {
+            contract:
+                psi_symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+        }
+    ));
+}
+
+#[test]
+fn trait_machine_requirement_argument_resolves_one_exact_requirement() {
+    let source = r#"
+        boundary trait WindowProcedure { machine call(value: u32); }
+        trait PrivateCallbackSlot<machine Requirement> {}
+        data WndClassLayout {}
+        WndClassWindowProcedureSlot:
+            WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize private callback slot");
+    let syntax = parse_syntax_trees(&tokens).expect("parse private callback slot");
+    let program = lower_syntax_trees(&syntax).expect("resolve private callback slot");
+    let window_procedure = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "WindowProcedure")
+        .expect("WindowProcedure trait");
+    let requirement = program
+        .trait_machine_signatures(window_procedure.machines)
+        .first()
+        .expect("WindowProcedure::call");
+    let conformance = program.conformances.first().expect("slot conformance");
+    let [argument] = program.child_type_references(conformance.arguments) else {
+        panic!("one slot requirement argument")
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument else {
+        panic!("requirement argument remains a named identity")
+    };
+    assert_eq!(name.as_str(), "WindowProcedure::call");
+    assert!(name.is_source_backed());
+    assert_eq!(*symbol, requirement.symbol);
+}
+
+#[test]
+fn trait_machine_requirement_argument_rejects_non_requirement_and_overload() {
+    for (source, expected) in [
+        (
+            r#"
+                trait PrivateCallbackSlot<machine Requirement> {}
+                data WndClassLayout {}
+                Bad: WndClassLayout satisfies PrivateCallbackSlot<WndClassLayout>;
+            "#,
+            "expected one exact `Trait::requirement` path",
+        ),
+        (
+            r#"
+                boundary trait WindowProcedure {
+                    machine call(value: u32);
+                    machine call(value: u64);
+                }
+                trait PrivateCallbackSlot<machine Requirement> {}
+                data WndClassLayout {}
+                Bad: WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>;
+            "#,
+            "signature-free references reject overloads",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid slot");
+        let syntax = parse_syntax_trees(&tokens).expect("parse invalid slot");
+        let diagnostics = lower_syntax_trees(&syntax).expect_err("invalid slot must fail closed");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected `{expected}`, got {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn retains_public_conformance_visibility_and_snapshot_shape() {
     let source = "pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}";
     let tokens = Lexer::new(source).tokenize().expect("tokenize conformance");

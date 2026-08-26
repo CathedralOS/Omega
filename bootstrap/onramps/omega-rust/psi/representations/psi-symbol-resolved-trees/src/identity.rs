@@ -359,6 +359,7 @@ fn count_type_parameter(
             );
         }
         crate::data::TypeParameterKind::Machine { contract } => match contract {
+            crate::data::MachineParameterContract::RequirementIdentity => {}
             crate::data::MachineParameterContract::Structural(contract) => {
                 count_declaration_name(&contract.name, counts);
                 for nested in program.data_type_parameters(contract.type_parameters) {

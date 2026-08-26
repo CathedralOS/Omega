@@ -206,6 +206,12 @@ pub(crate) fn lower_type_parameters(
                     ))
                 })?;
                 match contract {
+                    syntax::item::MachineParameterContract::RequirementIdentity => (
+                        TypeParameterKind::Machine {
+                            contract: psi_symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity,
+                        },
+                        None,
+                    ),
                     syntax::item::MachineParameterContract::Structural(contract) => {
                         let lowered_contract = crate::state::lower_state_signature_parts(
                             lowerer,

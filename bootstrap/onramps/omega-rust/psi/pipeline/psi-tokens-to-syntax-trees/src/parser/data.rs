@@ -6,8 +6,8 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
-    QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
+    DataDefinition, DataField, DataMember, DataProperties, DataVariant, MachineParameterContract,
+    QuotientDefinition, QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
 use psi_tokens::{PunctuationKind, TokenKind};
 use std::collections::HashSet;
@@ -842,28 +842,28 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, false, false)
+    parse_type_parameters_in(syntax_trees, input, false, false, false, false)
 }
 
-pub(super) fn parse_proposition_type_parameters<'tokens, 'source>(
+pub(super) fn parse_trait_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, false, true, true)
+    parse_type_parameters_in(syntax_trees, input, true, true, true, true)
 }
 
 pub(super) fn parse_machine_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, false, false)
+    parse_type_parameters_in(syntax_trees, input, true, false, false, false)
 }
 
 pub(super) fn parse_machine_declaration_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
-    parse_type_parameters_in(syntax_trees, input, true, false, true)
+    parse_type_parameters_in(syntax_trees, input, true, false, true, false)
 }
 
 fn parse_type_parameters_in<'tokens, 'source>(
@@ -872,6 +872,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
     allow_machine_parameters: bool,
     allow_proposition_parameters: bool,
     allow_conformance_binders: bool,
+    trait_requirement_parameters: bool,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     if !input.at_punctuation(PunctuationKind::Less) {
         return Ok((ParsedGenericParameters::default(), input));
@@ -954,7 +955,9 @@ fn parse_type_parameters_in<'tokens, 'source>(
             }
             let input = input.take_keyword(psi_tokens::KeywordKind::Machine, "machine")?;
             let (name, input) = input.take_identifier()?;
-            (name, TypeParameterKind::Machine { contract: None }, input)
+            let contract = trait_requirement_parameters
+                .then_some(MachineParameterContract::RequirementIdentity);
+            (name, TypeParameterKind::Machine { contract }, input)
         } else if input.at_contextual("proposition") {
             if !allow_proposition_parameters {
                 return Err(input.error_here(

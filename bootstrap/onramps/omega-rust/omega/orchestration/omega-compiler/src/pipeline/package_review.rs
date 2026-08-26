@@ -4806,6 +4806,11 @@ fn project_machine_parameter_contract(
     depth: usize,
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     match contract {
+        psi_typed_trees::data::MachineParameterContract::RequirementIdentity => {
+            Err(vec![Diagnostic::error(format!(
+                "public {declaration_kind} `{declaration_path}` exposes a trait requirement-identity parameter, but package review does not yet publish that closed parameter kind",
+            ))])
+        }
         psi_typed_trees::data::MachineParameterContract::Structural(signature) => {
             if signature.spelling.is_some() || signature.is_default {
                 return Err(vec![Diagnostic::error(format!(
