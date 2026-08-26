@@ -170,6 +170,52 @@ impl TerminalComponentDeploymentSupply {
     }
 }
 
+/// External owner that can acquire installation and deployment acceptance
+/// inputs for one exact staged terminal candidate.
+///
+/// Implementations remain responsible for real installation/provider policy;
+/// the compiler receives only the resulting authority-bearing supply. A
+/// rejected acquisition must return the owner through
+/// [`TerminalComponentDeploymentInputRejection`] so the driver cannot erase
+/// upstream custody while translating the failure.
+pub trait TerminalComponentDeploymentInputOwner: Sized + std::fmt::Debug {
+    type Error: std::fmt::Debug + std::fmt::Display;
+
+    fn acquire(
+        self,
+        candidate: &omega_terminal_component_candidate::TerminalComponentCandidate,
+    ) -> Result<
+        TerminalComponentDeploymentSupply,
+        TerminalComponentDeploymentInputRejection<Self, Self::Error>,
+    >;
+}
+
+/// A deployment-input acquisition rejection retaining its exact owner.
+#[derive(Debug)]
+#[must_use = "deployment-input rejection retains upstream owner custody"]
+pub struct TerminalComponentDeploymentInputRejection<Owner, Error> {
+    owner: Owner,
+    error: Error,
+}
+
+impl<Owner, Error> TerminalComponentDeploymentInputRejection<Owner, Error> {
+    pub const fn new(owner: Owner, error: Error) -> Self {
+        Self { owner, error }
+    }
+
+    pub const fn owner(&self) -> &Owner {
+        &self.owner
+    }
+
+    pub const fn error(&self) -> &Error {
+        &self.error
+    }
+
+    pub fn into_parts(self) -> (Owner, Error) {
+        (self.owner, self.error)
+    }
+}
+
 /// Exact point reached by a rejected compiler-to-deployment transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalComponentDeploymentOutputStage {
@@ -371,6 +417,94 @@ pub fn deploy_supplied_terminal_component_output(
         build_observation_summary,
     )
     .map_err(|error| Box::new(SuppliedTerminalComponentDeploymentError::Report(error)))
+}
+
+/// A rejected deployment-driver acquisition or typed deployment transaction.
+#[derive(Debug)]
+pub enum OwnedTerminalComponentDeploymentError<Owner>
+where
+    Owner: TerminalComponentDeploymentInputOwner,
+{
+    Acquisition {
+        rejection: TerminalComponentDeploymentInputRejection<Owner, Owner::Error>,
+        candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+        source_file_count: usize,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    },
+    Deployment(Box<SuppliedTerminalComponentDeploymentError>),
+}
+
+impl<Owner> OwnedTerminalComponentDeploymentError<Owner>
+where
+    Owner: TerminalComponentDeploymentInputOwner,
+{
+    pub fn diagnostic(&self) -> String {
+        match self {
+            Self::Acquisition { rejection, .. } => rejection.error().to_string(),
+            Self::Deployment(error) => error.diagnostic().to_owned(),
+        }
+    }
+}
+
+impl<Owner> std::fmt::Display for OwnedTerminalComponentDeploymentError<Owner>
+where
+    Owner: TerminalComponentDeploymentInputOwner,
+{
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Acquisition { rejection, .. } => rejection.error().fmt(formatter),
+            Self::Deployment(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl<Owner> std::error::Error for OwnedTerminalComponentDeploymentError<Owner> where
+    Owner: TerminalComponentDeploymentInputOwner
+{
+}
+
+/// Ask the real deployment-input owner for the exact staged candidate's supply,
+/// then execute the established deployment/report transaction.
+///
+/// This is the production driver's acquisition boundary. It deliberately does
+/// not construct installation authority or infer acceptance from compiler
+/// plans. Acquisition rejection retains the owner, candidate, and report
+/// metadata; later-stage rejection retains the typed transaction carrier.
+pub fn acquire_and_deploy_terminal_component_output<Owner>(
+    options: &CompileOptions,
+    source_file_count: usize,
+    candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+    owner: Owner,
+    build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+) -> Result<super::compile_report::CompileReport, Box<OwnedTerminalComponentDeploymentError<Owner>>>
+where
+    Owner: TerminalComponentDeploymentInputOwner,
+{
+    let supply = match owner.acquire(&candidate) {
+        Ok(supply) => supply,
+        Err(rejection) => {
+            return Err(Box::new(
+                OwnedTerminalComponentDeploymentError::Acquisition {
+                    rejection,
+                    candidate,
+                    source_file_count,
+                    build_evaluation_usage,
+                    build_observation_summary,
+                },
+            ));
+        }
+    };
+    deploy_supplied_terminal_component_output(
+        options,
+        source_file_count,
+        candidate,
+        supply,
+        build_evaluation_usage,
+        build_observation_summary,
+    )
+    .map_err(|error| Box::new(OwnedTerminalComponentDeploymentError::Deployment(error)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

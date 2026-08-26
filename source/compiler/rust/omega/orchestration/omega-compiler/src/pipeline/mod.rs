@@ -100,9 +100,11 @@ pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,
 };
 pub use output::{
-    SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputs,
-    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
-    TerminalComponentDeploymentSupply, deploy_and_write_terminal_component_output,
+    OwnedTerminalComponentDeploymentError, SuppliedTerminalComponentDeploymentError,
+    TerminalComponentDeploymentInputOwner, TerminalComponentDeploymentInputRejection,
+    TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
+    TerminalComponentDeploymentOutputStage, TerminalComponentDeploymentSupply,
+    acquire_and_deploy_terminal_component_output, deploy_and_write_terminal_component_output,
     deploy_supplied_terminal_component_output, write_finalized_terminal_component_output,
 };
 pub use package_compilation::{
