@@ -8046,10 +8046,21 @@ Remaining N6/N8 work:
   transports the exact case and fixed fuel is four units (call, construction,
   callee return, caller return), including resumable exhaustion without replay.
   Omega lowering rejects the unrestricted call itself until tagged sum
-  materialization exists. This rung mints no caller evidence term and has no
-  source selector or validity replay; payload substitution, erased proof-output
-  linkage, caller selected-term binding, source-arm lowering, and validity
-  invalidation remain fail-closed.
+  materialization exists. The first caller selected-term custody carrier is now
+  live on this exact Terminal-only call shape. One optional binding names the
+  exact guarded callee case, dense row position, obligation, public selector,
+  atomic proposition, callee term/interface, distinct caller-local output term,
+  and source-handle-free result-root validity intersection. Codec format 30 /
+  vocabulary 32 retain those coordinates canonically. Validation rejects an
+  unnamed or nonmatching row, identity/interface/dependency drift, missing
+  producer provenance, duplicate output, and any unconditional contract-lane or
+  evidence-projection reuse of the guarded output. Omission remains fact-only,
+  reconstruction still imports only the guarded implication, and the binding
+  adds no runtime operation or fuel. Checked/source structural case-arm planning
+  does not yet exist, so arm-scoped source selection and actual guarded-term use,
+  payload substitution, erased proof-output linkage, wider structural calls,
+  and validity invalidation remain fail-closed rather than being inferred from
+  this Terminal custody rung.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

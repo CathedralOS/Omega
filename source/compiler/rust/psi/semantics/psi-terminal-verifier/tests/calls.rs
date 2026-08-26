@@ -12,7 +12,8 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
     CrashRouteGuard, EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidenceTermDeclaration, InstallationReachDependency, MachineContract, Operation,
-    OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OperationKind, OperationResult, OutcomeSpecificCallEvidence,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
     OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionDeclaration,
     PropositionEvidence, ProviderCandidateConformance, ProviderUnitRefinement,
     ProviderUnitSignature, ServiceDeclaration, StructuralCaseDeclaration, StructuralMultiplicity,
@@ -21,9 +22,9 @@ use psi_terminal::{
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ModuleError, ObligationEvidence, ProofBundle, ReconstructedTerminalObligationOwner,
-    reconstruct_operation_obligations, reconstruct_terminal_obligations, validate_module,
-    verify_module,
+    EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
+    ReconstructedTerminalObligationOwner, VerificationError, reconstruct_operation_obligations,
+    reconstruct_terminal_obligations, validate_module, verify_module,
 };
 
 #[test]
@@ -217,6 +218,186 @@ fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() 
         ModuleError::StructuralResultMustBeOwned(machine_id(1)),
         "a bare structural call cannot satisfy a forwarded erased evidence input"
     );
+}
+
+#[test]
+fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_case_facts() {
+    let mut module = payloadless_guarded_call_module();
+    let proposition = PropositionId::new(1).unwrap();
+    let callee_term = EvidenceTermId::new(1).unwrap();
+    let output = EvidenceTermId::new(2).unwrap();
+    let interface = EvidenceInterfaceIdentity {
+        trait_identity: "ReadyEvidence".into(),
+        arguments: Vec::new(),
+        requirements: Vec::new(),
+    };
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition,
+        name: "ready".into(),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ReadyEvidence".into(),
+        },
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition,
+        declaration: proposition,
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence_interface: Some(interface.clone()),
+    }];
+    module.evidence_terms = vec![
+        EvidenceTermDeclaration {
+            id: callee_term,
+            proposition,
+            interface: interface.clone(),
+        },
+        EvidenceTermDeclaration {
+            id: output,
+            proposition,
+            interface: interface.clone(),
+        },
+    ];
+    let (guard, position, callee_obligation) = {
+        let row = &mut module.machines[1].contract.outcome_specific_ensures[0];
+        row.proposition = Proposition::Atom(proposition);
+        row.evidence = Some(OutcomeSpecificEvidence {
+            term: callee_term,
+            output_field: "selected".into(),
+        });
+        (row.guard, row.position, row.obligation)
+    };
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *selected_evidence = Some(OutcomeSpecificCallEvidence {
+        guard,
+        position,
+        callee_obligation,
+        callee_term,
+        output_field: "selected".into(),
+        proposition,
+        output,
+        validity: OutcomeSpecificCallEvidenceValidity {
+            result: place_id(1),
+            proposition_dependencies: vec![place_id(1)],
+            evidence_interface: interface,
+            interface_dependencies: Vec::new(),
+        },
+    });
+
+    validate_module(&module).expect("exact selected guarded call validates");
+    let reconstructed = reconstruct_terminal_obligations(&module)
+        .expect("selected guarded call reconstructs only conditional facts");
+    assert!(reconstructed.obligations().iter().any(|site| {
+        site.semantic_axioms.iter().any(|axiom| {
+            matches!(
+                axiom,
+                Proposition::Implication { premise, conclusion }
+                    if matches!(premise.as_ref(), Proposition::StructuralCaseMembership { .. })
+                        && conclusion.as_ref() == &Proposition::Atom(proposition)
+            )
+        })
+    }));
+    assert!(!reconstructed.obligations().iter().any(|site| {
+        site.semantic_axioms
+            .iter()
+            .any(|axiom| axiom == &Proposition::Atom(proposition))
+    }));
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(2),
+            route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+        }],
+        evidence_producers: vec![EvidenceProducerProvenance {
+            id: EvidenceIdentity::new(1).unwrap(),
+            term: callee_term,
+            conformance_identity: "ConcreteEvidence".into(),
+            evidence_trait_identity: "ReadyEvidence".into(),
+            rows: Vec::new(),
+        }],
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("selected caller term reuses exact callee provenance");
+    let mut omitted = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut omitted.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *selected_evidence = None;
+    omitted.evidence_terms.retain(|term| term.id != output);
+    validate_module(&omitted).expect("omitting the named selector remains fact-only");
+    verify_module(&omitted, &bundle, &AdmissionProfile::default())
+        .expect("omitted named selector mints no caller term and keeps callee provenance");
+    let mut missing_provenance = bundle;
+    missing_provenance.evidence_producers.clear();
+    assert_eq!(
+        verify_module(&module, &missing_provenance, &AdmissionProfile::default(),).unwrap_err(),
+        VerificationError::MissingEvidenceProducer(callee_term)
+    );
+
+    let baseline = module;
+    let tamper = |mut mutate: Box<dyn FnMut(&mut OutcomeSpecificCallEvidence)>| {
+        let mut module = baseline.clone();
+        let OperationKind::CallStructural {
+            selected_evidence: Some(binding),
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        mutate(binding);
+        assert!(matches!(
+            validate_module(&module),
+            Err(ModuleError::InvalidOutcomeSpecificCallEvidence {
+                caller,
+                operation
+            }) if caller == machine_id(1) && operation == operation_id(1)
+        ));
+    };
+    tamper(Box::new(|binding| {
+        binding.guard.result_case = structural_case_id(2)
+    }));
+    tamper(Box::new(|binding| binding.position = 1));
+    tamper(Box::new(|binding| {
+        binding.callee_obligation = obligation_id(3)
+    }));
+    tamper(Box::new(|binding| binding.output_field = "other".into()));
+    tamper(Box::new(|binding| {
+        binding.proposition = PropositionId::new(2).unwrap()
+    }));
+    tamper(Box::new(|binding| binding.output = binding.callee_term));
+    tamper(Box::new(|binding| binding.validity.result = place_id(2)));
+    tamper(Box::new(|binding| {
+        binding.validity.proposition_dependencies = vec![place_id(2)]
+    }));
+    tamper(Box::new(|binding| {
+        binding.validity.evidence_interface.trait_identity = "OtherEvidence".into()
+    }));
+
+    let mut unconditional_leak = baseline;
+    unconditional_leak
+        .evidence_contract_lanes
+        .push(EvidenceContractLane {
+            machine: machine_id(1),
+            kind: EvidenceContractLaneKind::Requires,
+            position: 0,
+            term: output,
+            output_field: None,
+        });
+    assert!(matches!(
+        validate_module(&unconditional_leak),
+        Err(ModuleError::InvalidOutcomeSpecificCallEvidence {
+            caller,
+            operation
+        }) if caller == machine_id(1) && operation == operation_id(1)
+    ));
 }
 
 #[test]
@@ -872,6 +1053,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                             returned_claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
                             crash_continuations: Vec::new(),
+                            selected_evidence: None,
                         },
                     }],
                     terminator: Terminator::ReturnStructural {

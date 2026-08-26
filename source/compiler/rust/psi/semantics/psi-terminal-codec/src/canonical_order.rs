@@ -355,6 +355,19 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                         "structural-call returned claim transfers",
                     ));
                 }
+                OperationKind::CallStructural {
+                    selected_evidence: Some(binding),
+                    ..
+                } if !strictly_increasing(
+                    binding.validity.proposition_dependencies.iter().copied(),
+                ) || !strictly_increasing(
+                    binding.validity.interface_dependencies.iter().copied(),
+                ) =>
+                {
+                    return Err(CodecError::NonCanonicalOrder(
+                        "guarded-call validity dependency roots",
+                    ));
+                }
                 OperationKind::BoundaryCall {
                     completion_receipts,
                     ..

@@ -6,8 +6,10 @@
 
 use psi_terminal::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
-    OperationKind, OperationResult, StructuralAffineDiscard, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator,
+    OperationKind, OperationResult, OutcomeSpecificCallEvidence,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificGuard, StructuralAffineDiscard,
+    StructuralOperationResult, StructuralResultClaimBinding, StructuralResultClaimTransfer,
+    Terminator,
 };
 
 use super::contract_wire::{
@@ -17,6 +19,7 @@ use super::contract_wire::{
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
+use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
 use super::scalar_wire::{decode_integer_value, encode_integer_value};
 use super::wire::{Reader, Writer};
 use super::{
@@ -146,6 +149,7 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                selected_evidence,
             } => {
                 writer.u8(41);
                 writer.id(callee);
@@ -165,6 +169,36 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 }
                 encode_obligation_ids(writer, &requirement_obligations)?;
                 encode_crash_routes(writer, &crash_continuations)?;
+                match selected_evidence {
+                    None => writer.u8(0),
+                    Some(binding) => {
+                        writer.u8(1);
+                        writer.id(binding.guard.result_type);
+                        writer.id(binding.guard.result_case);
+                        writer.u32(binding.position);
+                        writer.id(binding.callee_obligation);
+                        writer.id(binding.callee_term);
+                        writer.string("guarded call output field", &binding.output_field)?;
+                        writer.id(binding.proposition);
+                        writer.id(binding.output);
+                        writer.id(binding.validity.result);
+                        writer.len(
+                            "guarded call proposition dependencies",
+                            binding.validity.proposition_dependencies.len(),
+                        )?;
+                        for dependency in &binding.validity.proposition_dependencies {
+                            writer.id(*dependency);
+                        }
+                        encode_evidence_interface(writer, &binding.validity.evidence_interface)?;
+                        writer.len(
+                            "guarded call interface dependencies",
+                            binding.validity.interface_dependencies.len(),
+                        )?;
+                        for dependency in &binding.validity.interface_dependencies {
+                            writer.id(*dependency);
+                        }
+                    }
+                }
             }
             OperationKind::BoundaryCall {
                 boundary,
@@ -824,6 +858,30 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                 })?,
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
                 crash_continuations: decode_crash_routes(reader)?,
+                selected_evidence: match reader.u8()? {
+                    0 => None,
+                    1 => Some(OutcomeSpecificCallEvidence {
+                        guard: OutcomeSpecificGuard {
+                            result_type: reader.id("StructuralTypeId")?,
+                            result_case: reader.id("StructuralCaseId")?,
+                        },
+                        position: reader.u32()?,
+                        callee_obligation: reader.id("ObligationId")?,
+                        callee_term: reader.id("EvidenceTermId")?,
+                        output_field: reader.string("guarded call output field")?,
+                        proposition: reader.id("PropositionId")?,
+                        output: reader.id("EvidenceTermId")?,
+                        validity: OutcomeSpecificCallEvidenceValidity {
+                            result: reader.id("PlaceId")?,
+                            proposition_dependencies: decode_ids(reader, "PlaceId")?,
+                            evidence_interface: decode_evidence_interface(reader)?,
+                            interface_dependencies: decode_ids(reader, "PlaceId")?,
+                        },
+                    }),
+                    tag => {
+                        return Err(CodecError::InvalidTag("OutcomeSpecificCallEvidence", tag));
+                    }
+                },
             },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
@@ -928,11 +986,15 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
 
 #[cfg(test)]
 mod tests {
-    use psi_core::{BlockId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+    use psi_core::{
+        BlockId, ClaimId, EdgeId, EvidenceTermId, MachineId, ObligationId, OperationId, PlaceId,
+        PropositionId, StructuralCaseId, StructuralTypeId,
+    };
     use psi_terminal::{
-        Block, Operation, OperationKind, OperationResult, StructuralMultiplicity,
-        StructuralOperationResult, StructuralResultClaimBinding, StructuralResultClaimTransfer,
-        Terminator,
+        Block, EvidenceInterfaceIdentity, Operation, OperationKind, OperationResult,
+        OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity, OutcomeSpecificGuard,
+        StructuralMultiplicity, StructuralOperationResult, StructuralResultClaimBinding,
+        StructuralResultClaimTransfer, Terminator,
     };
 
     use super::{decode_block, encode_block};
@@ -971,6 +1033,7 @@ mod tests {
                     }],
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
+                    selected_evidence: None,
                 },
             }],
             terminator: Terminator::ReturnUnit {
@@ -1010,5 +1073,48 @@ mod tests {
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))
         );
+    }
+
+    #[test]
+    fn guarded_structural_call_selection_round_trips_exact_validity_carrier() {
+        let mut block = structural_call_block();
+        let OperationKind::CallStructural {
+            selected_evidence, ..
+        } = &mut block.operations[0].kind
+        else {
+            unreachable!()
+        };
+        *selected_evidence = Some(OutcomeSpecificCallEvidence {
+            guard: OutcomeSpecificGuard {
+                result_type: id::<StructuralTypeId>(3),
+                result_case: id::<StructuralCaseId>(8),
+            },
+            position: 0,
+            callee_obligation: id::<ObligationId>(9),
+            callee_term: id::<EvidenceTermId>(10),
+            output_field: "selected".into(),
+            proposition: id::<PropositionId>(11),
+            output: id::<EvidenceTermId>(12),
+            validity: OutcomeSpecificCallEvidenceValidity {
+                result: id::<PlaceId>(2),
+                proposition_dependencies: vec![id::<PlaceId>(2)],
+                evidence_interface: EvidenceInterfaceIdentity {
+                    trait_identity: "ReadyEvidence".into(),
+                    arguments: vec!["Outcome".into()],
+                    requirements: Vec::new(),
+                },
+                interface_dependencies: Vec::new(),
+            },
+        });
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("guarded call selection encodes");
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_block(&mut reader), Ok(block));
+        assert_eq!(reader.remaining(), 0);
+
+        let mut truncated = bytes;
+        truncated.pop();
+        assert!(decode_block(&mut Reader::new(&truncated)).is_err());
     }
 }

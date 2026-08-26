@@ -260,6 +260,7 @@ pub(super) fn lower_structural_call_return_machine(
                     }],
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
+                    selected_evidence: None,
                 },
             }],
             terminator: Terminator::ReturnStructural {
