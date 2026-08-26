@@ -655,6 +655,12 @@ complete alpha-normalized lifetime/static telescope, instantiated subject, and
 underlying public-trait application. Proposition/evidence application
 arguments, boundary clauses, and unsupported expression forms remain
 fail-closed.
+Review v64/canonical row v22 also retains proof-only `zero_value<T>()` contract
+expressions by exact package-qualified, alpha-normalized target type.
+Proposition-local type references are symbol-resolved before projection;
+renaming a binder is stable, while changing the observed type changes review
+identity. Quotient targets remain forbidden by the compiler's representation-
+observer fence.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

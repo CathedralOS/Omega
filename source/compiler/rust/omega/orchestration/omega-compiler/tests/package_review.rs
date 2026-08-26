@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 63);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 21);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 64);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 22);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -7279,6 +7279,66 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
         PackageReviewContractExpression::ByteSequence(vec![0xff])
     );
     assert_ne!(escaped_ascii.1, opaque_octet.1);
+}
+
+#[test]
+fn review_projects_exact_zero_value_targets_in_public_contracts() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let source = |binder: &str, family: &str| {
+        format!(
+            r#"pub data Optional<Element> {{ case #0 None; }}
+pub data Alternate<Element> {{ case #0 None; }}
+pub proposition zero_is_none<{binder}>() =
+    zero_value<{family}<{binder}>>() == zero_value<{family}<{binder}>>();
+"#
+        )
+    };
+    let project = |source: String| {
+        package.write("main.omg", &source);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("zero-value public proposition should check");
+        project_checked_package_review(&checked)
+            .expect("zero-value public proposition should project exactly")
+    };
+
+    let first = project(source("Item", "Optional"));
+    let proposition = first
+        .public_propositions()
+        .iter()
+        .find(|shape| shape.identity().path() == "zero_is_none")
+        .expect("public zero-value proposition row");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("one transparent zero-value equality")
+    };
+    let PackageReviewContractExpression::ZeroValue(target_type) = left.as_ref() else {
+        panic!("the proof-only observation retains its exact target type")
+    };
+    assert!(target_type.canonical().contains("Optional"));
+    let first_bytes = first.canonical_review_bytes().unwrap();
+
+    let renamed = project(source("Value", "Optional"));
+    assert_eq!(first_bytes, renamed.canonical_review_bytes().unwrap());
+    let changed = project(source("Item", "Alternate"));
+    assert_ne!(first_bytes, changed.canonical_review_bytes().unwrap());
 }
 
 #[test]

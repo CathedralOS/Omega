@@ -601,6 +601,13 @@ rejoins those semantic declarations rather than trusting display strings.
 Binder renames remain stable, while any changed application argument changes
 canonical identity. Proposition/evidence arguments and non-public selections
 remain fail-closed.
+Review v64 and canonical row v22 admit the proof-only representation
+observation `zero_value<T>()` in public contracts. Its row retains the exact
+package-qualified, alpha-normalized target type; no derived layout bytes,
+diagnostic spelling, or checker verdict become identity. Proposition-local type
+binders receive exact symbols before typed lowering, so renames are stable and
+changing the observed type changes canonical evidence. The existing quotient
+observer fence rejects quotient targets before package review.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,
