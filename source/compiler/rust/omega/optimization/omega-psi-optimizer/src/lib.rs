@@ -31,7 +31,7 @@ pub use registry::{
     RuleRegistryError, RuleScheduleKey,
 };
 pub use rules::{
-    ExactIntegerAddConstantsRule, ExactIntegerDivideConstantsRule,
+    ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, SaturatingIntegerAddConstantsRule,

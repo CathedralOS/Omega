@@ -165,20 +165,25 @@ These facts constrain the work below.
   The independent validation crate re-reads both supported literal facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
-  constant fact, and rejects a wrong result without mutating input. Nineteen
+  constant fact, and rejects a wrong result without mutating input. Twenty
   built-in rules cover add, subtract, multiply, divide, remainder, and shifts
-  across their declared exact/wrapping/saturating policies with distinct stable
-  identities under one ordered SCCP pass group. Shift evaluation retains the
-  operation's distinct count carrier and delegates to Psi integer semantics;
-  it never substitutes host-language shifting. Proof-bearing operations
-  require `ProofCertified`; goal-free wrapping/saturating arithmetic and shifts
-  require `ExactOperationSemantics`. Focused overflow tests produce `4` versus
-  `255` for the same `u8` add operands, all four exact/wrapping shift directions
-  pass independent validation, overflowing exact shift-left and zero-divisor
-  division remain inapplicable. The shared independent validator reconstructs
-  the fact index rather than trusting rule-authored insertions. Rules can
-  propose candidates only when their explicit parent selection is present. No
-  build hook admits that still-incomplete suite.
+  plus exact integer casts across their declared exact/wrapping/saturating
+  policies with distinct stable identities under one ordered SCCP pass group.
+  Candidate identities distinguish unary cast evidence from binary operation
+  evidence, and the validator rejects an operand-shape mismatch. Shift
+  evaluation retains the operation's distinct count carrier and delegates to
+  Psi integer semantics; it never substitutes host-language shifting. Cast
+  evaluation similarly delegates to the source and target Psi integer domains.
+  Proof-bearing operations require `ProofCertified`; goal-free
+  wrapping/saturating arithmetic and shifts require `ExactOperationSemantics`.
+  Focused overflow tests produce `4` versus `255` for the same `u8` add
+  operands, all four exact/wrapping shift directions pass independent
+  validation, a valid `u16` to `u8` exact cast folds, and out-of-domain casts,
+  overflowing exact shift-left, and zero-divisor division remain inapplicable.
+  The shared independent validator reconstructs the fact index rather than
+  trusting rule-authored insertions. Rules can propose candidates only when
+  their explicit parent selection is present. No build hook admits that
+  still-incomplete suite.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,
