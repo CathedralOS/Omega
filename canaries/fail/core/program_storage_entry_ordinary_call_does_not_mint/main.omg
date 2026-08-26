@@ -1,0 +1,18 @@
+use omega::language::core::extent;
+
+data EntryImpl {}
+
+// Satisfying the installed root slot does not make ordinary calls into
+// environment-to-program introduction events. The caller must already own
+// both exact Granted lineages.
+machine EntryImpl::enter(
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+)
+satisfies ProgramStorageEntry::enter
+{
+}
+
+machine ordinary_call_cannot_mint(image: Extent, initial_storage: Extent) {
+    EntryImpl::enter(image, initial_storage);
+}
