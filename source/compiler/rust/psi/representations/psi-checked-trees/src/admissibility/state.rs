@@ -52,7 +52,9 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         AcceptanceSummary::accepted(
             state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits)
                 + self.borrow_compatibility_certificates().count(),
-            state_proof_evidence_count(calls, exits) + operator_proof_evidence,
+            state_proof_evidence_count(calls, exits)
+                + operator_proof_evidence
+                + self.qualification_correspondences().count(),
             service_reach_evidence_count(self.facts, self.state.service_reach),
             suspension_evidence_count(self.state.suspension),
             blocking_evidence_count(self.state.blocking),
@@ -113,6 +115,30 @@ impl<'facts> StateAcceptance<'facts> {
                 (certificate.formation.machine_symbol == self.state.machine_symbol
                     && certificate.formation.state_symbol == self.state.state_symbol)
                     .then_some(certificate)
+            })
+    }
+
+    /// Already-validated qualification correspondences formed in this exact
+    /// state. Checked progress remains their sole validator; this acceptance
+    /// view only publishes the retained proof rows.
+    pub fn qualification_correspondences(
+        &self,
+    ) -> impl Iterator<Item = &'facts psi_facts::QualificationCorrespondence> + '_ {
+        self.facts
+            .semantic
+            .qualification_correspondences
+            .iter()
+            .filter_map(|(_, correspondence)| {
+                matches!(
+                    correspondence.formation,
+                    psi_facts::ProgramPoint::Statement {
+                        machine_symbol,
+                        state_symbol,
+                        ..
+                    } if machine_symbol == self.state.machine_symbol
+                        && state_symbol == self.state.state_symbol
+                )
+                .then_some(correspondence)
             })
     }
 

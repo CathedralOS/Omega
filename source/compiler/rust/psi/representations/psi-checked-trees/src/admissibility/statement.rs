@@ -9,7 +9,7 @@ impl<'facts> AcceptanceView for StatementAcceptance<'facts> {
         AcceptanceSummary::accepted(
             borrow_constraint_count(&self.facts.flow, self.statement.entry_constraints)
                 + self.borrow_compatibility_certificates().count(),
-            0,
+            self.qualification_correspondences().count(),
             0,
             0,
             0,
@@ -58,6 +58,30 @@ impl<'facts> StatementAcceptance<'facts> {
                     && certificate.formation.state_symbol == self.state.state_symbol
                     && certificate.formation.statement_index == self.statement.statement_index)
                     .then_some(certificate)
+            })
+    }
+
+    /// Already-validated qualification correspondences formed by this exact
+    /// state-owned statement. Checked progress remains their sole validator.
+    pub fn qualification_correspondences(
+        &self,
+    ) -> impl Iterator<Item = &'facts psi_facts::QualificationCorrespondence> + '_ {
+        self.facts
+            .semantic
+            .qualification_correspondences
+            .iter()
+            .filter_map(|(_, correspondence)| {
+                matches!(
+                    correspondence.formation,
+                    psi_facts::ProgramPoint::Statement {
+                        machine_symbol,
+                        state_symbol,
+                        statement_index,
+                    } if machine_symbol == self.state.machine_symbol
+                        && state_symbol == self.state.state_symbol
+                        && statement_index == self.statement.statement_index
+                )
+                .then_some(correspondence)
             })
     }
 }

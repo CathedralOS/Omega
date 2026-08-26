@@ -387,6 +387,207 @@ fn acceptance_views_publish_exact_state_owned_borrow_compatibility_certificates(
     );
 }
 
+#[test]
+fn acceptance_views_publish_exact_statement_owned_qualification_correspondences() {
+    let source = r#"
+        data Quantity { value: i32; }
+
+        domain Quantity::Additive;
+
+        operator Quantity::mark(value: &mut Quantity)
+        ensures
+            value in Quantity::Additive;
+
+        data Main {
+            source: Quantity;
+            destination: Quantity;
+        }
+
+        data Other {}
+
+        machine Main::run(&mut self) {
+            Quantity::mark(&mut self.source);
+            self.destination = self.source;
+        }
+
+        machine Other::idle(&mut self) {}
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact checked operator transformation should retain its field transfer");
+    let additive = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Quantity::Additive")
+        .expect("Additive domain");
+    let mark = checked
+        .operators()
+        .iter()
+        .find(|operator| {
+            checked
+                .operator_path_members(operator.name)
+                .last()
+                .is_some_and(|name| name.as_str() == "mark")
+        })
+        .expect("mark operator");
+    let run = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("run machine");
+    let run_state = checked.machine_states(run).first().expect("run state");
+    let run_machine_symbol = run.symbol;
+    let run_state_symbol = run_state.symbol;
+    let run_acceptance = checked
+        .state_acceptance(run_machine_symbol, run_state_symbol)
+        .expect("run state acceptance");
+
+    let correspondences = run_acceptance
+        .qualification_correspondences()
+        .collect::<Vec<_>>();
+    let [correspondence] = correspondences.as_slice() else {
+        panic!("run state should publish exactly one qualification correspondence")
+    };
+    assert_eq!(
+        correspondence.formation,
+        psi_facts::ProgramPoint::Statement {
+            machine_symbol: run_machine_symbol,
+            state_symbol: run_state_symbol,
+            statement_index: 1,
+        }
+    );
+    assert_ne!(correspondence.source_fact, correspondence.destination_fact);
+    assert_ne!(
+        correspondence.source_place,
+        correspondence.destination_place
+    );
+    assert!(checked.facts.semantic.places_equal(
+        correspondence.source_place,
+        correspondence.source_occurrence_place
+    ));
+    assert_eq!(
+        crate::labels::canonical_place_label(
+            &checked,
+            &checked.facts.semantic,
+            checked
+                .facts
+                .semantic
+                .places
+                .get(correspondence.source_place),
+        ),
+        "self.source"
+    );
+    assert_eq!(
+        crate::labels::canonical_place_label(
+            &checked,
+            &checked.facts.semantic,
+            checked
+                .facts
+                .semantic
+                .places
+                .get(correspondence.destination_place),
+        ),
+        "self.destination"
+    );
+    let psi_facts::QualificationPayloadIdentity::DomainMembership {
+        domain,
+        domain_symbol,
+    } = correspondence.payload
+    else {
+        panic!("operator correspondence should retain exact domain membership")
+    };
+    assert_eq!(domain_symbol, additive.symbol);
+    assert_eq!(
+        checked
+            .domain_path_members(domain)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["Quantity", "Additive"]
+    );
+    let source_fact = checked.facts.semantic.facts.get(correspondence.source_fact);
+    let destination_fact = checked
+        .facts
+        .semantic
+        .facts
+        .get(correspondence.destination_fact);
+    assert_eq!(
+        psi_facts::QualificationPayloadIdentity::from_fact_payload(source_fact.payload),
+        Some(correspondence.payload)
+    );
+    assert_eq!(
+        psi_facts::QualificationPayloadIdentity::from_fact_payload(destination_fact.payload),
+        Some(correspondence.payload)
+    );
+    assert_eq!(source_fact.evidence, correspondence.evidence);
+    assert_eq!(destination_fact.evidence, correspondence.evidence);
+    assert_eq!(
+        correspondence.evidence.origin,
+        psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation
+    );
+    assert_eq!(correspondence.evidence.source_symbol, mark.symbol);
+    assert!(!correspondence.evidence.requirement_symbol.is_valid());
+    assert_eq!(correspondence.evidence.receipt_identity, 0);
+
+    let forming_statement = run_acceptance
+        .statement(1)
+        .expect("forming statement acceptance");
+    assert_eq!(forming_statement.qualification_correspondences().count(), 1);
+    assert_eq!(
+        run_acceptance
+            .statement(0)
+            .expect("sibling statement acceptance")
+            .qualification_correspondences()
+            .count(),
+        0,
+        "a correspondence must not leak to a sibling statement"
+    );
+
+    let state_proof_evidence = run_acceptance.summary().proof.evidence_count;
+    let statement_proof_evidence = forming_statement.summary().proof.evidence_count;
+    let mut without_correspondence = checked.clone();
+    without_correspondence
+        .facts
+        .semantic
+        .qualification_correspondences
+        .reset_retain_capacity();
+    let without_state = without_correspondence
+        .state_acceptance(run_machine_symbol, run_state_symbol)
+        .expect("run state acceptance without retained correspondence");
+    assert_eq!(
+        state_proof_evidence,
+        without_state.summary().proof.evidence_count + 1,
+        "state acceptance should count the retained correspondence exactly once"
+    );
+    assert_eq!(
+        statement_proof_evidence,
+        without_state
+            .statement(1)
+            .expect("forming statement without retained correspondence")
+            .summary()
+            .proof
+            .evidence_count
+            + 1,
+        "statement acceptance should count the retained correspondence exactly once"
+    );
+
+    let idle = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Other::idle")
+        .expect("idle machine");
+    let idle_state = checked.machine_states(idle).first().expect("idle state");
+    assert_eq!(
+        checked
+            .state_acceptance(idle.symbol, idle_state.symbol)
+            .expect("idle state acceptance")
+            .qualification_correspondences()
+            .count(),
+        0,
+        "a correspondence must not leak to another state"
+    );
+}
+
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
