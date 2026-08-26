@@ -1006,6 +1006,10 @@ pub enum AtomicAccessOperation {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
+    CompareExchangeOnce {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
 }
 
 impl AtomicAccessOperation {
@@ -1020,6 +1024,9 @@ impl AtomicAccessOperation {
             | Self::FetchAnd(ordering) => AtomicOrderingPlan::ReadModifyWrite(ordering),
             Self::Swap(ordering) => AtomicOrderingPlan::Swap(ordering),
             Self::CompareExchange { success, failure } => {
+                AtomicOrderingPlan::CompareExchange { success, failure }
+            }
+            Self::CompareExchangeOnce { success, failure } => {
                 AtomicOrderingPlan::CompareExchange { success, failure }
             }
         }

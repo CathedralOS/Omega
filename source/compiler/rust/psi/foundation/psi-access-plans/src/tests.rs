@@ -952,6 +952,72 @@ fn compare_exchange_permissions_keep_both_axes_distinct() {
             }
         }
     }
+
+    let layout = LayoutPlanReport {
+        schema_identity: 0xce01,
+        entries: vec![LayoutFieldEntryReport {
+            field: "word".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::At { offset: 0 },
+        }],
+        offsets: Some(vec![0]),
+        size: Some(4),
+        align: 4,
+    };
+    let once_only = validate_access_plan(
+        access_plan(
+            &layout,
+            &[(
+                "word",
+                FieldAccess::Atomic {
+                    transfer_width_bits: 32,
+                    operations: AtomicPermissions {
+                        compare_exchange_once: true,
+                        ..AtomicPermissions::default()
+                    },
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        ),
+        &layout,
+    )
+    .expect("single-attempt compare-exchange access plan");
+    let key = field_key(&once_only, "word");
+    once_only
+        .authorize(
+            key,
+            BorrowPolarity::Shared,
+            BorrowPolarity::Shared,
+            AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce {
+                success: MemoryOrdering::ReceivePublish,
+                failure: MemoryOrdering::Receive,
+            }),
+        )
+        .expect("the exact single-attempt family is independently admitted");
+    let decisive = once_only
+        .authorize(
+            key,
+            BorrowPolarity::Shared,
+            BorrowPolarity::Shared,
+            AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
+                success: MemoryOrdering::ReceivePublish,
+                failure: MemoryOrdering::Receive,
+            }),
+        )
+        .expect_err("single-attempt permission must not admit decisive exchange");
+    assert!(decisive.0.contains("does not permit"));
+    let invalid_ordering = once_only
+        .authorize(
+            key,
+            BorrowPolarity::Shared,
+            BorrowPolarity::Shared,
+            AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce {
+                success: MemoryOrdering::Receive,
+                failure: MemoryOrdering::GlobalOrder,
+            }),
+        )
+        .expect_err("single-attempt exchange uses the exact compare-exchange ordering law");
+    assert!(invalid_ordering.0.contains("invalid ordering"));
 }
 
 #[test]
@@ -3795,7 +3861,7 @@ fn external_specialization_fails_closed_without_losing_corrupt_request_custody()
 }
 
 #[test]
-fn atomic_primitive_specialization_retains_all_nine_families_and_orderings() {
+fn atomic_primitive_specialization_retains_all_ten_families_and_orderings() {
     let plan = atomic_word_placement();
     let extent = uart_extent_with_lineage(0xc000, 4, 156);
     let loan = extent.loan(0, 4).expect("shared Atomic loan");
@@ -3866,6 +3932,18 @@ fn atomic_primitive_specialization_retains_all_nine_families_and_orderings() {
                 failure: MemoryOrdering::Receive,
             },
         ),
+        (
+            head.atomic_compare_exchange_once(
+                MemoryOrdering::ReceivePublish,
+                MemoryOrdering::Receive,
+            )
+            .expect("Atomic single-attempt compare-exchange")
+            .into_primitive_request(),
+            AtomicAccessOperation::CompareExchangeOnce {
+                success: MemoryOrdering::ReceivePublish,
+                failure: MemoryOrdering::Receive,
+            },
+        ),
     ];
     for (request, operation) in requests {
         assert_atomic_specialization(request, operation, plan.identity(), admission_id);
@@ -3890,12 +3968,12 @@ fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
         .project(field_key(plan.access(), "head"))
         .expect("Atomic head projection");
     let request = head
-        .atomic_load(MemoryOrdering::Receive)
-        .expect("Atomic load")
+        .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+        .expect("Atomic single-attempt compare-exchange")
         .into_primitive_request();
     let mut atomic = request
         .into_atomic_primitive_access()
-        .expect("Atomic load specialization");
+        .expect("Atomic single-attempt compare-exchange specialization");
     let expected = primitive_request_snapshot(&atomic.request);
     let profile_receipt = atomic.request.profile_receipt;
 
@@ -3908,20 +3986,32 @@ fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
     atomic.request.profile_receipt = profile_receipt;
 
     atomic.request.operation =
-        AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Publish));
+        AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce {
+            success: MemoryOrdering::Receive,
+            failure: MemoryOrdering::GlobalOrder,
+        });
     let diagnostic = atomic
         .validate_for_lowering()
         .expect_err("outward preflight must reject invalid ordering drift");
     assert!(diagnostic.0.contains("invalid ordering plan"));
     atomic.request.operation =
-        AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Receive));
+        AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        });
 
-    atomic.operation = AtomicAccessOperation::FetchAdd(MemoryOrdering::Receive);
+    atomic.operation = AtomicAccessOperation::CompareExchange {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    };
     let diagnostic = atomic
         .validate_for_lowering()
         .expect_err("outward preflight must reject specialization drift");
     assert!(diagnostic.0.contains("retained specialization"));
-    atomic.operation = AtomicAccessOperation::Load(MemoryOrdering::Receive);
+    atomic.operation = AtomicAccessOperation::CompareExchangeOnce {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    };
 
     atomic
         .validate_for_lowering()
@@ -3929,7 +4019,10 @@ fn atomic_primitive_lowering_replays_authority_and_ordering_without_attempt() {
     assert_eq!(primitive_request_snapshot(&atomic.request), expected);
     assert_eq!(
         atomic.operation(),
-        AtomicAccessOperation::Load(MemoryOrdering::Receive)
+        AtomicAccessOperation::CompareExchangeOnce {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        }
     );
 }
 
@@ -4116,6 +4209,11 @@ fn atomic_specialization_fails_closed_and_returns_exact_request() {
         AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Receive));
     request = expect_exact_atomic_rejection(request, "invalid ordering plan");
     request.operation = AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
+        success: MemoryOrdering::Receive,
+        failure: MemoryOrdering::GlobalOrder,
+    });
+    request = expect_exact_atomic_rejection(request, "invalid ordering plan");
+    request.operation = AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce {
         success: MemoryOrdering::Receive,
         failure: MemoryOrdering::GlobalOrder,
     });

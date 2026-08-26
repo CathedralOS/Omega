@@ -76,6 +76,9 @@ pub(super) fn authorize_descriptor(
         AccessOperation::Atomic(AtomicAccessOperation::CompareExchange { .. }) => {
             descriptor.permissions.atomic.compare_exchange
         }
+        AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce { .. }) => {
+            descriptor.permissions.atomic.compare_exchange_once
+        }
     };
     if permitted {
         Ok(())
