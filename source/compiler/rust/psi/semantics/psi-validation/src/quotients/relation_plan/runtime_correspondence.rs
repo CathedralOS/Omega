@@ -9,7 +9,8 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array to its exact fixed-array representative position.
+//! array or direct Boolean-literal array to its exact fixed-array
+//! representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -55,6 +56,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     FixedByteArray {
         bytes: std::sync::Arc<[u8]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    BooleanArray {
+        values: std::sync::Arc<[bool]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
 }
@@ -292,11 +297,29 @@ pub(super) fn closed_lift_literal_for_representative(
         else {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
         };
-        if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
-            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-        }
         let elements = program.expression_table.expression_handles(*elements);
         if elements.len() != *width {
+            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        }
+        if program.primitive_type_reference(*element_type) == Some(PrimitiveType::Bool) {
+            let values = elements
+                .iter()
+                .map(|element| {
+                    let ExpressionNode::Boolean(value) =
+                        program.expression_table.expression(*element)
+                    else {
+                        return None;
+                    };
+                    Some(*value)
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            return Ok(Some(ClosedLiftLiteral::BooleanArray {
+                values: values.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
+        }
+        if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
         }
         let bytes = elements

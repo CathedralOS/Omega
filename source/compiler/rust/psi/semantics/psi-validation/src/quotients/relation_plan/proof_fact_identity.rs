@@ -79,6 +79,18 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn boolean_array(symbol: SymbolHandle, values: &[bool]) -> Self {
+        Self {
+            symbol,
+            rendered: format!("{values:?}"),
+            trace: values
+                .iter()
+                .map(|value| boolean_trace(*value))
+                .collect::<Vec<_>>()
+                .join(","),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,

@@ -8071,7 +8071,10 @@ Remaining N6/N8 work:
   The canonical retained shape is one unsuffixed decimal `u8` value per array
   element. Its ordered bytes and normalized array identity remain evidence;
   the quotient planner performs no padding, truncation, element coercion, or
-  contextual landing of its own.
+  contextual landing of its own. A direct closed Boolean array may likewise
+  feed only its exact literal-width `[bool; N]` target. Every element must be a
+  Boolean literal; values, order, and normalized array identity remain
+  occurrence and proof-substitution evidence.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8082,7 +8085,8 @@ Remaining N6/N8 work:
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
   undersized or otherwise constrained byte-string targets, raw strings not
   already context-landed for a bare fixed array, noncanonical or heterogeneous
-  arrays, other aggregates, zero-value,
+  byte/Boolean arrays, numeric, nested, or data arrays, other aggregates,
+  zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
