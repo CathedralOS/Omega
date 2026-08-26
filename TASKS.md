@@ -5266,8 +5266,11 @@ Owners:
   admitted for a non-generic checked record with no authored default domain,
   provided every intermediate receiver is likewise a non-generic checked
   record with no authored default domain, every selected field is relevant and
-  unconstrained, and the displaced leaf is an unrestricted primitive. The
-  ordinary mutation summary retains the complete exact field-symbol path.
+  unconstrained, and the displaced leaf is an unrestricted primitive or a whole
+  fixed byte array. The ordinary mutation summary retains the complete exact,
+  ordered field-symbol path; nested array replacement introduces no element or
+  range segment. Element/range projection through that record path, non-byte
+  arrays, constrained or erased fields, and non-discardable leaves still reject.
   Whole-record replacement still requires an unrestricted/discardable root.
   Observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
