@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 56;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 57;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 16;
 
@@ -2178,7 +2178,34 @@ fn encode_provider_row(
     encoder.string(&row.method)?;
     encoder.string(&row.requirement_identity)?;
     match &row.binding {
-        ProviderBinding::Import { library, symbol } => {
+        ProviderBinding::Import { locator } => {
+            encoder.byte(7);
+            encoder.string(locator.target().target_name())?;
+            encoder.u64(locator.normalized_identity());
+            match locator.locator() {
+                omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
+                    encoder.byte(0);
+                    encoder.bytes(library)?;
+                    encoder.bytes(export)?;
+                }
+                omega_effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                    encoder.byte(1);
+                    encoder.bytes(library)?;
+                    encoder.u16(*ordinal);
+                }
+                omega_effects::ForeignLocatorCandidate::ElfVersioned {
+                    object,
+                    symbol,
+                    version,
+                } => {
+                    encoder.byte(2);
+                    encoder.bytes(object)?;
+                    encoder.bytes(symbol)?;
+                    encoder.bytes(version)?;
+                }
+            }
+        }
+        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
             encoder.byte(0);
             encoder.string(library)?;
             encoder.string(symbol)?;
@@ -2220,6 +2247,47 @@ fn encode_provider_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn normalized_import_row(export: &[u8]) -> omega_effects::provider_plan::ProviderPlanRow {
+        omega_effects::provider_plan::ProviderPlanRow {
+            method: "write".to_owned(),
+            requirement_identity: "Console::write#exact".to_owned(),
+            binding: ProviderBinding::Import {
+                locator: omega_effects::normalize_foreign_locator(
+                    omega_effects::ForeignLocatorCandidate::PeByName {
+                        library: b"kernel32.dll".to_vec(),
+                        export: export.to_vec(),
+                    },
+                    omega_target::TargetProfile::WindowsX64,
+                )
+                .expect("normalized import fixture"),
+            },
+        }
+    }
+
+    #[test]
+    fn normalized_import_review_encoding_retains_exact_atomic_locator() {
+        fn encoded(export: &[u8]) -> Vec<u8> {
+            let mut encoder = Encoder::bounded(1024);
+            encode_provider_row(&mut encoder, &normalized_import_row(export))
+                .expect("encode normalized import");
+            encoder.finish().expect("bounded encoding")
+        }
+
+        let write = encoded(b"WriteFile");
+        let read = encoded(b"ReadFile");
+        assert_ne!(write, read);
+        assert!(
+            write
+                .windows(b"kernel32.dll".len())
+                .any(|bytes| bytes == b"kernel32.dll")
+        );
+        assert!(
+            write
+                .windows(b"WriteFile".len())
+                .any(|bytes| bytes == b"WriteFile")
+        );
+    }
 
     fn empty_review() -> CheckedPackageReviewProjection {
         CheckedPackageReviewProjection {

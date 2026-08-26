@@ -7776,10 +7776,16 @@ boundary without its corresponding checked law.
   `PeByOrdinal`, and `ElfVersioned` candidates, rejecting empty/NUL coordinates,
   zero PE ordinals, UEFI/PE conflation, and non-Linux versioned ELF use. Every
   target, case, byte, length boundary, and ordinal participates in its normalized
-  identity. This carrier is evaluated data only: `ProviderBinding::Import`
-  remains string-backed until the coordinated compiler/package-review/calling-
-  convention/TCB/trust-report migration, and source `via` evaluation plus exact
-  fixed-array widths remain later rungs.
+  identity. The first coordinated representation join is now live:
+  `ProviderBinding::Import` owns the whole normalized locator, validates its
+  target against the provider plan, and carries its atomic identity through
+  selected-plan/opaque-TCB facts, package-review format 57, and manifest JSON
+  with exact raw coordinates. Normalized imports fail closed at the still-
+  string-backed ABI and trust-report bridges rather than reconstructing text.
+  The existing source evaluator is isolated behind an explicitly temporary
+  `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
+  array widths, trust realization, calling conventions, object planning, and
+  PE/ELF emission remain engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

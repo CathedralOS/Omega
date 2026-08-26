@@ -322,8 +322,43 @@ fn push_provider_identity_json(json: &mut String, identity: &ProviderIdentity) {
 
 fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding) {
     match binding {
-        OpaqueInProcessBinding::Import { library, symbol } => {
-            json.push_str("{\"kind\": \"import\", \"library\": ");
+        OpaqueInProcessBinding::Import { locator } => {
+            json.push_str("{\"kind\": \"normalized_import\", \"target\": ");
+            push_json_string(json, locator.target().target_name());
+            let _ = write!(
+                json,
+                ", \"normalized_identity\": \"0x{:016x}\", \"locator\": ",
+                locator.normalized_identity(),
+            );
+            match locator.locator() {
+                omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
+                    json.push_str("{\"case\": \"pe_by_name\", \"library\": ");
+                    push_json_bytes(json, library);
+                    json.push_str(", \"export\": ");
+                    push_json_bytes(json, export);
+                }
+                omega_effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                    json.push_str("{\"case\": \"pe_by_ordinal\", \"library\": ");
+                    push_json_bytes(json, library);
+                    let _ = write!(json, ", \"ordinal\": {ordinal}");
+                }
+                omega_effects::ForeignLocatorCandidate::ElfVersioned {
+                    object,
+                    symbol,
+                    version,
+                } => {
+                    json.push_str("{\"case\": \"elf_versioned\", \"object\": ");
+                    push_json_bytes(json, object);
+                    json.push_str(", \"symbol\": ");
+                    push_json_bytes(json, symbol);
+                    json.push_str(", \"version\": ");
+                    push_json_bytes(json, version);
+                }
+            }
+            json.push('}');
+        }
+        OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
+            json.push_str("{\"kind\": \"string_backed_import_bootstrap\", \"library\": ");
             push_json_string(json, library);
             json.push_str(", \"symbol\": ");
             push_json_string(json, symbol);
@@ -345,6 +380,17 @@ fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding)
         }
     }
     json.push('}');
+}
+
+fn push_json_bytes(json: &mut String, bytes: &[u8]) {
+    json.push('[');
+    for (index, byte) in bytes.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        let _ = write!(json, "{byte}");
+    }
+    json.push(']');
 }
 
 fn push_execution_scope_json(json: &mut String, scope: ExecutionScope) {
@@ -395,11 +441,15 @@ mod tests {
     };
 
     fn selected(binding: ProviderBinding) -> SelectedProviderPlanFacts {
+        let target = match &binding {
+            ProviderBinding::Import { locator } => locator.target().target_name(),
+            _ => "test-target",
+        };
         let plan = ProviderPlan {
             name: "selected".into(),
             provider_type: "SelectedProvider".into(),
             provider_type_package_identity: None,
-            target: "test-target".into(),
+            target: target.into(),
             schema: ServiceSchema {
                 trait_name: "Storage".into(),
                 trait_package_identity: None,
@@ -437,10 +487,11 @@ mod tests {
 
     #[test]
     fn artifact_separates_known_entries_from_attributed_completeness() {
-        let json = executable_tcb_manifest_json(&selected(ProviderBinding::Import {
-            library: "opaque.dll".into(),
-            symbol: "read".into(),
-        }));
+        let json =
+            executable_tcb_manifest_json(&selected(ProviderBinding::StringBackedImportBootstrap {
+                library: "opaque.dll".into(),
+                symbol: "read".into(),
+            }));
 
         assert!(json.contains("\"known_entries\": []"));
         assert!(json.contains("\"status\": \"incomplete\""));
@@ -450,8 +501,31 @@ mod tests {
     }
 
     #[test]
-    fn artifact_reports_pinned_opaque_identity_and_independent_receipts() {
+    fn artifact_reports_normalized_import_without_text_reconstruction() {
+        let locator = omega_effects::normalize_foreign_locator(
+            omega_effects::ForeignLocatorCandidate::PeByName {
+                library: b"opaque.dll".to_vec(),
+                export: b"read".to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("normalized import");
         let selected = selected(ProviderBinding::Import {
+            locator: locator.clone(),
+        });
+        let json = executable_tcb_manifest_json(&selected);
+
+        assert!(json.contains("\"kind\": \"normalized_import\""));
+        assert!(json.contains("\"case\": \"pe_by_name\""));
+        assert!(json.contains("[111,112,97,113,117,101,46,100,108,108]"));
+        assert!(json.contains("[114,101,97,100]"));
+        assert!(!json.contains("\"library\": \"opaque.dll\""));
+        assert!(json.contains(&format!("0x{:016x}", locator.normalized_identity())));
+    }
+
+    #[test]
+    fn artifact_reports_pinned_opaque_identity_and_independent_receipts() {
+        let selected = selected(ProviderBinding::StringBackedImportBootstrap {
             library: "platform".into(),
             symbol: "read".into(),
         });
@@ -462,7 +536,7 @@ mod tests {
                     provider_plan_identity: plan_identity,
                     method: "read".into(),
                     requirement_identity: "Storage::read".into(),
-                    binding: OpaqueInProcessBinding::Import {
+                    binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
                         library: "platform".into(),
                         symbol: "read".into(),
                     },

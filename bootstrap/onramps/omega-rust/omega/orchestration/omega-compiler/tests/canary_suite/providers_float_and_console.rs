@@ -306,7 +306,7 @@ fn external_leaf_via_canary_selects_exact_free_import_plan() {
     assert_eq!(shutdown_plan.rows[0].method, "halt");
     assert!(matches!(
         &shutdown_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
             if library == "kernel32.dll" && symbol == "ExitProcess"
     ));
 }
@@ -333,7 +333,7 @@ fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
     assert_eq!(leaf_plan.rows[0].method, "exit");
     assert!(matches!(
         &leaf_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
             if library == "libSystem.B.dylib" && symbol == "_exit"
     ));
 }
@@ -610,7 +610,7 @@ fn runtime_import_call_argument_exit_canary_runs() {
     assert_eq!(leaf_plan.rows[0].method, "exit");
     assert!(matches!(
         &leaf_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
             if library == "libSystem.B.dylib" && symbol == "_exit"
     ));
 

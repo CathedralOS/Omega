@@ -10,6 +10,8 @@
 //! never author-selected plan data -- which is why no trust field exists
 //! on these types.
 
+use super::foreign_locator::NormalizedForeignLocator;
+
 /// The service schema a plan serves: a boundary trait's callable surface,
 /// reified from the typed `TraitDefinition` (today that read is scattered
 /// -- parameter-count walks in the compiler pipeline, Console detection in
@@ -179,8 +181,16 @@ pub struct ServiceResultClaim {
 /// they are deliberately not a second, bodiless provider-binding mechanism.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
-    /// Dynamic-library import (`DllImport { module, symbol }`).
-    Import { library: String, symbol: String },
+    /// One evaluated, target-validated physical foreign locator. Its atomic
+    /// byte coordinates remain sealed together through selection and opaque
+    /// executable accounting.
+    Import { locator: NormalizedForeignLocator },
+    /// Temporary source `via Binding::DllImport("library", "symbol")` bridge.
+    ///
+    /// This is intentionally distinct from [`Self::Import`]: string pairs are
+    /// not normalized evaluated binding data and cannot silently enter the new
+    /// locator path. Remove it with the source evaluator join.
+    StringBackedImportBootstrap { library: String, symbol: String },
     /// Direct system call by number.
     Syscall { number: i64 },
     /// A compiler-known operation furnished by the selected target package.
@@ -941,6 +951,12 @@ impl ProviderPlan {
         });
         for row in rows {
             let binding_identity = match &row.binding {
+                ProviderBinding::Import { locator } => {
+                    format!("NormalizedImport:{:016x}", locator.normalized_identity(),)
+                }
+                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
+                    format!("StringBackedImportBootstrap:{library:?}/{symbol:?}")
+                }
                 ProviderBinding::CompilerIntrinsic { machine, .. } => {
                     format!("CompilerIntrinsic {{ machine: {machine:?} }}")
                 }
@@ -1280,7 +1296,18 @@ impl ProviderPlan {
                 ));
             }
             match &row.binding {
-                ProviderBinding::Import { library, symbol } => {
+                ProviderBinding::Import { locator } => {
+                    if self.target != locator.target().target_name() {
+                        errors.push(format!(
+                            "plan `{}` row `{}` normalized import targets `{}`, but the provider plan targets `{}`",
+                            self.name,
+                            row.method,
+                            locator.target().target_name(),
+                            self.target,
+                        ));
+                    }
+                }
+                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
                     if library.is_empty() {
                         errors.push(format!(
                             "plan `{}` row `{}` import has no exact library identity",
@@ -1445,6 +1472,19 @@ impl ServiceSchema {
 mod tests {
     use super::*;
 
+    fn normalized_windows_import(library: &[u8], export: &[u8]) -> ProviderBinding {
+        ProviderBinding::Import {
+            locator: crate::normalize_foreign_locator(
+                crate::ForeignLocatorCandidate::PeByName {
+                    library: library.to_vec(),
+                    export: export.to_vec(),
+                },
+                omega_target::TargetProfile::WindowsX64,
+            )
+            .expect("valid normalized Windows import"),
+        }
+    }
+
     /// The built-in Console lowering, spelled as a ProviderPlan value --
     /// the PRV4 relocation target (windows.rs insert_platform_lowering's
     /// rows as data). Construction is free; nothing consumes this yet.
@@ -1522,7 +1562,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "write_line".to_owned(),
                     requirement_identity: "Console::write_line".to_owned(),
-                    binding: ProviderBinding::Import {
+                    binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "WriteFile".to_owned(),
                     },
@@ -1530,7 +1570,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "read_byte".to_owned(),
                     requirement_identity: "Console::read_byte".to_owned(),
-                    binding: ProviderBinding::Import {
+                    binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ReadFile".to_owned(),
                     },
@@ -1538,7 +1578,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "exit_process".to_owned(),
                     requirement_identity: "Console::exit_process".to_owned(),
-                    binding: ProviderBinding::Import {
+                    binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ExitProcess".to_owned(),
                     },
@@ -2381,7 +2421,8 @@ mod tests {
         }
 
         let valid_bindings = [
-            ProviderBinding::Import {
+            normalized_windows_import(b"kernel32.dll", b"WriteFile"),
+            ProviderBinding::StringBackedImportBootstrap {
                 library: "kernel32.dll".to_owned(),
                 symbol: "WriteFile".to_owned(),
             },
@@ -2415,8 +2456,18 @@ mod tests {
             );
         }
 
+        let mut wrong_target =
+            plan_with_binding(normalized_windows_import(b"kernel32.dll", b"WriteFile"));
+        wrong_target.target = "linux_x64".to_owned();
+        assert!(
+            wrong_target
+                .validate_candidate_against_schema()
+                .iter()
+                .any(|error| error.contains("normalized import targets `windows_x64`"))
+        );
+
         for binding in [
-            ProviderBinding::Import {
+            ProviderBinding::StringBackedImportBootstrap {
                 library: "kernel32.dll".to_owned(),
                 symbol: "WriteFile".to_owned(),
             },
@@ -2437,14 +2488,14 @@ mod tests {
 
         let corruptions = [
             (
-                ProviderBinding::Import {
+                ProviderBinding::StringBackedImportBootstrap {
                     library: String::new(),
                     symbol: "WriteFile".to_owned(),
                 },
                 "import has no exact library identity",
             ),
             (
-                ProviderBinding::Import {
+                ProviderBinding::StringBackedImportBootstrap {
                     library: "kernel32.dll".to_owned(),
                     symbol: String::new(),
                 },
@@ -2558,5 +2609,21 @@ mod tests {
                 .any(|error| error.contains("has no nominal provider type")),
             "missing nominal-provider rejection in {errors:?}"
         );
+    }
+
+    #[test]
+    fn normalized_import_identity_enters_provider_plan_identity_atomically() {
+        let mut baseline = windows_console_plan();
+        baseline.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"WriteFile");
+        let baseline_identity = baseline.identity_fingerprint();
+
+        let mut changed_library = baseline.clone();
+        changed_library.rows[0].binding =
+            normalized_windows_import(b"kernelbase.dll", b"WriteFile");
+        assert_ne!(baseline_identity, changed_library.identity_fingerprint());
+
+        let mut changed_export = baseline.clone();
+        changed_export.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"ReadFile");
+        assert_ne!(baseline_identity, changed_export.identity_fingerprint());
     }
 }

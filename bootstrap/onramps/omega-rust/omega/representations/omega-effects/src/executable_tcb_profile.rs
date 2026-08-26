@@ -389,7 +389,7 @@ mod tests {
             provider_plan_identity: entry.provider_plan_identity,
             method: "open".into(),
             requirement_identity: "Window::open".into(),
-            binding: OpaqueInProcessBinding::Import {
+            binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "platform".into(),
                 symbol: "open".into(),
             },

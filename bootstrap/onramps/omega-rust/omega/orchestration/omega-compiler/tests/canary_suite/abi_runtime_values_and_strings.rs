@@ -559,7 +559,7 @@ fn windows_external_import_canary_selects_exact_free_import_plan() {
     assert_eq!(beeper_plan.rows[0].method, "beep");
     assert!(matches!(
         &beeper_plan.rows[0].binding,
-        omega_effects::provider_plan::ProviderBinding::Import { library, symbol }
+        omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { library, symbol }
             if library == "msvcrt.dll" && symbol == "abs"
     ));
 }

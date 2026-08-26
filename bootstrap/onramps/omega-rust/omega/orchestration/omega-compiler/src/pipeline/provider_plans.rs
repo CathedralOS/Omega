@@ -2717,10 +2717,12 @@ fn external_provider_binding(
 
     match binding {
         ExternalBindingIdentity::Syscall { number } => ProviderBinding::Syscall { number: *number },
-        ExternalBindingIdentity::Import { library, symbol } => ProviderBinding::Import {
-            library: library.clone(),
-            symbol: symbol.clone(),
-        },
+        ExternalBindingIdentity::Import { library, symbol } => {
+            ProviderBinding::StringBackedImportBootstrap {
+                library: library.clone(),
+                symbol: symbol.clone(),
+            }
+        }
         ExternalBindingIdentity::CompilerIntrinsic => ProviderBinding::CompilerIntrinsic {
             machine: intrinsic_machine_identity.to_owned(),
         },
