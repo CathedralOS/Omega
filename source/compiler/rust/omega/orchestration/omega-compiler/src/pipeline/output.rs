@@ -108,6 +108,68 @@ impl TerminalComponentDeploymentInputs {
     }
 }
 
+/// Independently supplied installation and deployment acceptance inputs.
+///
+/// The compiler's terminal-candidate staging owns none of these values. Keeping
+/// them separate makes the production driver handoff explicit: a caller must
+/// obtain real installation custody and provider/progress/profile decisions,
+/// then bind that supply to the compiler's staged candidate exactly once.
+#[derive(Debug)]
+#[must_use = "terminal deployment supply contains linear installed-code custody"]
+pub struct TerminalComponentDeploymentSupply {
+    installed: omega_executable_installation::InstalledCode,
+    provider_occurrences: Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+    progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+    profile_decision: psi_core::ProfileDecisionId,
+}
+
+impl TerminalComponentDeploymentSupply {
+    pub fn new(
+        installed: omega_executable_installation::InstalledCode,
+        provider_occurrences: Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+        progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+        profile_decision: psi_core::ProfileDecisionId,
+    ) -> Self {
+        Self {
+            installed,
+            provider_occurrences,
+            progress_attestations,
+            profile_decision,
+        }
+    }
+
+    pub const fn installed(&self) -> &omega_executable_installation::InstalledCode {
+        &self.installed
+    }
+
+    pub fn provider_occurrences(&self) -> &[omega_external_roots::ProviderOccurrencePlanBinding] {
+        &self.provider_occurrences
+    }
+
+    pub fn progress_attestations(
+        &self,
+    ) -> &[omega_component_deployment::ComponentProgressAttestationBinding] {
+        &self.progress_attestations
+    }
+
+    pub const fn profile_decision(&self) -> psi_core::ProfileDecisionId {
+        self.profile_decision
+    }
+
+    pub fn bind_candidate(
+        self,
+        candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+    ) -> TerminalComponentDeploymentInputs {
+        TerminalComponentDeploymentInputs::new(
+            candidate,
+            self.installed,
+            self.provider_occurrences,
+            self.progress_attestations,
+            self.profile_decision,
+        )
+    }
+}
+
 /// Exact point reached by a rejected compiler-to-deployment transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalComponentDeploymentOutputStage {
@@ -239,6 +301,76 @@ pub fn deploy_and_write_terminal_component_output(
     };
     write_finalized_terminal_component_output(options, runnable)
         .map_err(|error| Box::new(TerminalComponentDeploymentOutputError::Publication(error)))
+}
+
+/// A rejected production-driver tail with every consumed input retained at
+/// the deepest valid stage.
+#[derive(Debug)]
+pub enum SuppliedTerminalComponentDeploymentError {
+    Deployment {
+        error: Box<TerminalComponentDeploymentOutputError>,
+        source_file_count: usize,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    },
+    Report(Box<super::compile_report::TerminalComponentDeploymentReportError>),
+}
+
+impl SuppliedTerminalComponentDeploymentError {
+    pub fn diagnostic(&self) -> &str {
+        match self {
+            Self::Deployment { error, .. } => error.diagnostic(),
+            Self::Report(error) => error.diagnostic(),
+        }
+    }
+}
+
+impl std::fmt::Display for SuppliedTerminalComponentDeploymentError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic().fmt(formatter)
+    }
+}
+
+impl std::error::Error for SuppliedTerminalComponentDeploymentError {}
+
+/// Finish the production compiler path once an external owner has supplied
+/// installation and deployment acceptance inputs.
+///
+/// This tail deliberately starts after candidate staging and input acquisition.
+/// It runs the typed deployment transaction and admits its non-clonable result
+/// directly into compiler-report custody. Both rejection stages preserve the
+/// exact values needed for recovery rather than reducing them to diagnostics.
+pub fn deploy_supplied_terminal_component_output(
+    options: &CompileOptions,
+    source_file_count: usize,
+    candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+    supply: TerminalComponentDeploymentSupply,
+    build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+) -> Result<super::compile_report::CompileReport, Box<SuppliedTerminalComponentDeploymentError>> {
+    let deployment =
+        match deploy_and_write_terminal_component_output(options, supply.bind_candidate(candidate))
+        {
+            Ok(deployment) => deployment,
+            Err(error) => {
+                return Err(Box::new(
+                    SuppliedTerminalComponentDeploymentError::Deployment {
+                        error,
+                        source_file_count,
+                        build_evaluation_usage,
+                        build_observation_summary,
+                    },
+                ));
+            }
+        };
+    super::compile_report::CompileReport::from_terminal_component_deployment(
+        options.root_path.clone(),
+        source_file_count,
+        deployment,
+        build_evaluation_usage,
+        build_observation_summary,
+    )
+    .map_err(|error| Box::new(SuppliedTerminalComponentDeploymentError::Report(error)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

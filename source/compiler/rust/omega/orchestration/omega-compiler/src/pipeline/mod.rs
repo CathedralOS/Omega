@@ -102,9 +102,10 @@ pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,
 };
 pub use output::{
-    TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
-    TerminalComponentDeploymentOutputStage, deploy_and_write_terminal_component_output,
-    write_finalized_terminal_component_output,
+    SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputs,
+    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
+    TerminalComponentDeploymentSupply, deploy_and_write_terminal_component_output,
+    deploy_supplied_terminal_component_output, write_finalized_terminal_component_output,
 };
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,

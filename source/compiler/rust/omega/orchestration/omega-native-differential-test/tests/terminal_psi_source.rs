@@ -9,11 +9,12 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
-    CompileOptions, CompileReport, TerminalComponentDeploymentInputs,
-    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
+    CompileOptions, CompileReport, SuppliedTerminalComponentDeploymentError,
+    TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
+    TerminalComponentDeploymentOutputStage, TerminalComponentDeploymentSupply,
     TerminalComponentProviderSettlement, compile_to_checked,
-    deploy_and_write_terminal_component_output, stage_terminal_component,
-    write_finalized_terminal_component_output,
+    deploy_and_write_terminal_component_output, deploy_supplied_terminal_component_output,
+    stage_terminal_component, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -808,17 +809,34 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
     };
     let profile_decision =
         ProfileDecisionId::new(0x55f3).expect("compiler deployment profile decision");
-    let error = deploy_and_write_terminal_component_output(
+    let error = deploy_supplied_terminal_component_output(
         &options,
-        TerminalComponentDeploymentInputs::new(
-            candidate,
+        1,
+        candidate,
+        TerminalComponentDeploymentSupply::new(
             wrong_installed,
             Vec::new(),
             Vec::new(),
             profile_decision,
         ),
+        None,
+        None,
     )
-    .expect_err("compiler transaction must reject substituted installed bytes");
+    .expect_err("compiler driver tail must reject substituted installed bytes");
+    let error = match *error {
+        SuppliedTerminalComponentDeploymentError::Deployment {
+            error,
+            source_file_count,
+            build_evaluation_usage,
+            build_observation_summary,
+        } => {
+            assert_eq!(source_file_count, 1);
+            assert!(build_evaluation_usage.is_none());
+            assert!(build_observation_summary.is_none());
+            error
+        }
+        other => panic!("expected deployment-stage driver recovery, got {other:?}"),
+    };
     assert_eq!(error.stage(), TerminalComponentDeploymentOutputStage::Begin);
     assert!(error.diagnostic().contains("exact unrelocated"));
     let (candidate, _wrong_installed) = match *error {
@@ -874,7 +892,12 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
     )
     .expect_err("compiler report must reject drifted terminal output without losing custody");
     assert!(report_error.diagnostic().contains("bytes differ"));
-    let drifted = report_error.into_deployment();
+    let (returned_root_path, returned_source_file_count, drifted, returned_usage, returned_summary) =
+        report_error.into_parts();
+    assert_eq!(returned_root_path, options.root_path);
+    assert_eq!(returned_source_file_count, 1);
+    assert!(returned_usage.is_none());
+    assert!(returned_summary.is_none());
     let (runnable, receipt) = drifted.into_parts();
     drop(receipt);
     let repaired = write_finalized_terminal_component_output(&options, runnable)
@@ -1285,17 +1308,30 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             target_name: Some("linux_x64".into()),
             write_output: true,
         };
-        let published = deploy_and_write_terminal_component_output(
+        let expected_path = options
+            .build_dir()
+            .join(&candidate.image().output().file_name);
+        let report = deploy_supplied_terminal_component_output(
             &options,
-            TerminalComponentDeploymentInputs::new(
-                candidate,
+            1,
+            candidate,
+            TerminalComponentDeploymentSupply::new(
                 installed,
                 provider_bindings,
                 progress_bindings,
                 ProfileDecisionId::new(0x5434).expect("compiler transaction profile decision"),
             ),
+            None,
+            None,
         )
-        .expect("compiler transaction should deploy accepted progress inputs");
+        .expect("compiler driver tail should deploy accepted supplied progress inputs");
+        assert_eq!(
+            report.checked_native_executable_path(),
+            Some(expected_path.as_path())
+        );
+        let published = report
+            .into_terminal_component_deployment()
+            .expect("compiler report should transfer supplied deployment custody");
         assert_eq!(published.runnable().installed_code(), installed_identity);
         assert!(
             published
