@@ -2999,18 +2999,5 @@ machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }
 
-machine terminal_narrow_abort() -> i32
-crashes Trap
-{
-    crash Abort;
-}
-
-machine terminal_guarded_abort(flag: bool) -> i32
-crashes Abort
-    flag
-{
-    crash Abort;
-}
-
 data Main {}
 machine Main::main(&mut self) {}

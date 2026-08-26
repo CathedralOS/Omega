@@ -459,6 +459,7 @@ impl RootAdmission {
             fuel.ceiling_units,
             installed_code,
             None,
+            None,
         )?;
         Self::from_admitted_provider_with_native_fuel(
             identity,
