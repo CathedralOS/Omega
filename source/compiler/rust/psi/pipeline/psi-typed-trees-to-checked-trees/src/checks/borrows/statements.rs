@@ -1,4 +1,7 @@
-use psi_checked_trees::{CheckFacts, FlowStateFact};
+use psi_checked_trees::{
+    BorrowCompatibilityConclusion, BorrowCompatibilityDerivation, BorrowCompatibilityFormation,
+    CheckFacts, CheckedBorrowCompatibilityCertificate, FlowStateFact,
+};
 use psi_diagnostics::Diagnostic;
 
 use crate::flow::{StateMutationSummaryCache, call_mutated_places, statement_mutated_place};
@@ -13,6 +16,7 @@ pub(super) fn check_statement_borrows(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
+    compatibility_certificates: &mut Vec<CheckedBorrowCompatibilityCertificate>,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -41,13 +45,10 @@ pub(super) fn check_statement_borrows(
             continue;
         };
 
-        for loan in facts
-            .borrow
-            .loans
-            .span_or_empty(borrow_state.loans)
-            .iter()
-            .filter(|loan| loan.statement_index == statement.statement_index)
-        {
+        for (forming_loan_handle, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrow_state, *handle)
+                && loan.statement_index == statement.statement_index
+        }) {
             for active_loan_handle in facts
                 .flow
                 .borrow_loan_constraints(statement.entry_constraints)
@@ -59,7 +60,37 @@ pub(super) fn check_statement_borrows(
                     continue;
                 }
 
-                if borrow_loan_compatibility(program, facts, loan, active_loan).non_interfering {
+                let compatibility = borrow_loan_compatibility(program, facts, loan, active_loan);
+                if compatibility.non_interfering {
+                    let certificate = CheckedBorrowCompatibilityCertificate {
+                        formation: BorrowCompatibilityFormation {
+                            machine_symbol: state_flow.machine_symbol,
+                            state_symbol: state_flow.state_symbol,
+                            statement_index: statement.statement_index,
+                        },
+                        forming_loan: forming_loan_handle,
+                        active_loan: active_loan_handle,
+                        forming_place: compatibility.left.clone(),
+                        active_place: compatibility.right.clone(),
+                        conclusion: BorrowCompatibilityConclusion {
+                            disjoint: compatibility.disjoint,
+                            containment: compatibility.containment,
+                            non_interfering: compatibility.non_interfering,
+                        },
+                        derivation: BorrowCompatibilityDerivation::Structural,
+                    };
+                    debug_assert!(
+                        facts
+                            .borrow
+                            .compatibility_certificate_matches_resources(&certificate),
+                        "automatic borrow compatibility must retain exact state-owned resources"
+                    );
+                    if facts
+                        .borrow
+                        .compatibility_certificate_matches_resources(&certificate)
+                    {
+                        compatibility_certificates.push(certificate);
+                    }
                     continue;
                 }
 

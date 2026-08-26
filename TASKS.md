@@ -5400,9 +5400,18 @@ Owners:
   symbolic half-open tactics feed the same judgment, and unknown, mutable,
   computed, ambiguous, cyclic, and inclusive-symbolic selectors remain
   conservative. Access polarity stays in the resource ledger and is only a
-  premise to this transient result. Proof-consuming tactics, durable checked
-  facts, formation events, captured value versions, premise tokens, dominance,
-  proof derivations, and Terminal certificates remain open.
+  premise to this transient result. The first durable checked-only certificate
+  rung now records every automatically admitted loan/loan non-interference
+  result in a proof arena separate from the loan-resource rows. Each
+  zero-premise `Structural` row retains the exact machine/state/statement
+  formation coordinate, both exact state-owned loan handles, both frozen
+  captured places, and the normalized disjointness/containment/non-interference
+  conclusion. Recording deterministically rebuilds on repeated checked-fact
+  validation, and exact resource rejoin rejects changed handles, places, or
+  formation coordinates without changing which programs admit. Proposition-
+  consuming tactics, captured value versions, premise tokens, dominance,
+  richer proof derivations, independent conclusion replay, and Terminal
+  certificates remain open.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the

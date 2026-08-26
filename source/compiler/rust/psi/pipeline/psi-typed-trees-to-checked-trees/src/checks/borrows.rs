@@ -17,9 +17,17 @@ use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
     program: &psi_typed_trees::TypedTrees,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut compatibility_certificates = Vec::new();
+
+    // Checked recording is deliberately idempotent: each run rebuilds this
+    // proof ledger from the unchanged resource/control facts.
+    facts
+        .borrow
+        .compatibility_certificates
+        .reset_retain_capacity();
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
@@ -34,8 +42,19 @@ pub(crate) fn check_flow_call_borrows(
             check_call_borrows(program, facts, state_flow, borrow_call, &mut diagnostics);
         }
 
-        check_statement_borrows(program, facts, state_flow, &mut diagnostics);
+        check_statement_borrows(
+            program,
+            facts,
+            state_flow,
+            &mut diagnostics,
+            &mut compatibility_certificates,
+        );
     }
+
+    facts
+        .borrow
+        .compatibility_certificates
+        .insert_many(compatibility_certificates);
 
     if diagnostics.is_empty() {
         Ok(())
