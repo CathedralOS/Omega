@@ -277,11 +277,11 @@ with no fixed operands. Production and independent replay both assign two
 overlapping flexible intervals to stable views 0 and 1, expire them before a
 later interval reuses view 0, and reject three pairwise-overlapping intervals
 at the same stable VReg because a spill would be required. This is deliberately
-not described as production pressure coverage: the current selected
-instruction catalog has no ordinary two-input arithmetic row capable of
-forming that flexible case from Terminal operations. That target-owned row and
-its end-to-end source/selection validation must land before spill policy is
-enabled.
+not described as production pressure coverage: the target catalogs and joined
+environment now own a flag-transparent, three-address `add_i64` constraint, but
+the selected instruction vocabulary and selector cannot yet form it from
+Terminal operations. That end-to-end source/selection validation must land
+before spill policy is enabled.
 
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,
@@ -837,10 +837,16 @@ views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
 low-half preservation rule is not inflated to all 128 bits. These declarations
 currently include closed scalar call/return rows for System V, Microsoft,
 AAPCS64, and Darwin plus Linux syscall and conservative inline-assembly rows.
-The first ordinary rows cover i64 materialization, i64 copy, compare with zero,
-and conditional branch; compare defines RFLAGS/NZCV, while branch explicitly
-uses that state and updates RIP/PC. They are not yet a complete ordinary-
-instruction or feature-profile inventory.
+The first ordinary rows cover i64 materialization, i64 copy, flag-transparent
+three-address i64 addition, compare with zero, and conditional branch. AArch64
+maps addition directly to its register ADD form; x86-64 can realize the same
+constraint with LEA without inventing a two-address tie. Compare defines
+RFLAGS/NZCV, while branch explicitly uses that state and updates RIP/PC. The
+selected vocabulary does not emit addition yet, and these rows are not yet a
+complete ordinary-instruction or feature-profile inventory. The add constraint
+describes physical shape, not arithmetic policy: exact, wrapping, and trapping
+semantics remain distinct in semantic lowering, and this flag-transparent row
+is usable only after any required overflow obligation has been discharged.
 The current target-owned validators also require the supplied physical model
 to equal the ISA's canonical declaration before constructing or comparing
 constraint rows. This prevents a self-consistent forged model and catalog from
@@ -858,7 +864,7 @@ An active-reservation-profile identity covers a named, strictly sorted subset
 of reservation overlays and the independently recomputed effective unit union;
 declaration alone never activates an overlay. Finally, the environment identity
 binds the exact native target, the three component identities, and the selected
-materialize/compare/branch/return keys. Selection, liveness, live-range, and
+materialize/copy/add/compare/branch/return keys. Selection, liveness, live-range, and
 transitional-assignment custody all retain this joined identity. Those receipts
 also retain the validated pre-physical optimization-manifest identity required
 by a later physical/publication manifest join.

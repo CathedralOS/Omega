@@ -97,13 +97,20 @@ pub const X86_64_CONDITIONAL_BRANCH: RegisterConstraintKey = RegisterConstraintK
     family: RegisterConstraintFamily::Instruction,
     variant: 3,
 };
+/// Flag-transparent three-address i64 addition, realizable with an x86-64 LEA
+/// form without introducing a false two-address tie.
+pub const X86_64_ADD_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 4,
+};
 
 /// Closed v1 inventory owned by the x86-64 target.
 ///
 /// The ordinary rows are deliberately limited to the baseline operations
-/// required by a register-passed scalar conditional-return CFG. This is not a
-/// claim that the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
+/// required by a register-passed scalar conditional-return CFG plus the first
+/// arithmetic row needed by the pressure vertical. This is not a claim that
+/// the target's ordinary instruction inventory is complete.
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -114,6 +121,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
     X86_64_COPY_I64,
     X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH,
+    X86_64_ADD_I64,
 ];
 
 struct ModelBuilder {
@@ -596,6 +604,18 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: view("rip").units.clone(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(10),
+            key: X86_64_ADD_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(2, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -839,6 +859,18 @@ mod tests {
                     .all(|unit| branch.implicit_uses.contains(unit))
             );
         }
+
+        let add = &catalog.constraints[10];
+        assert_eq!(add.key, X86_64_ADD_I64);
+        assert_eq!(add.operands.len(), 3);
+        assert_eq!(add.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(add.operands[1].access, RegisterOperandAccess::Use);
+        assert_eq!(add.operands[2].access, RegisterOperandAccess::Def);
+        assert!(add.operands.iter().all(|operand| operand.class == GPR64));
+        assert!(add.operands.iter().all(|operand| operand.tied_to.is_none()));
+        assert!(add.implicit_uses.is_empty());
+        assert!(add.implicit_defs.is_empty());
+        assert!(add.clobbers.is_empty());
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("rip").unwrap().units
@@ -945,6 +977,17 @@ mod tests {
                 "omitting {clobber} state must reject",
             );
         }
+
+        let mut wrong_add_role = x86_64_register_constraint_catalog(&model);
+        wrong_add_role.constraints[10].operands[1].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(wrong_add_role, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_ADD_I64,
+                )
+            )
+        );
     }
 
     #[test]

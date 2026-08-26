@@ -53,6 +53,7 @@ impl TerminalSelectedInstructionPlanIdentity {
 pub struct TerminalSelectedConstraintKeys {
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
+    pub add_i64: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
