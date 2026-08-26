@@ -456,7 +456,13 @@ These facts constrain the work below.
   untrusted record that must still pass independent manifest validation. It
   explicitly records that physical realization data is unavailable rather
   than publishing zero or guessed code-size, spill, frame, or allocation
-  statistics. The final publication manifest/report remains open for those
+  statistics. A root `build.omg` may now independently request the human
+  projection with `builder.optimizations.emit_report()`: report-only builds
+  retain an empty transformation set, absence suppresses it, and duplicates
+  reject. The pipeline derives a cumulative carrier from validated staged
+  custody, joining the pre-physical and post-allocation records plus the
+  function-relative record when present; suppression changes only whether text
+  is projected. The final publication manifest/report remains open for later
   downstream records and compiler artifact/rebuild-metadata integration.
   The first independently validated post-allocation extension is now retained
   by both strict register-home carriers. It joins the pre-physical manifest to
@@ -639,9 +645,11 @@ dependency.
   independently replayable. The function-relative record supplies truthful
   code-size statistics and the v2 record binds a validated frameless leaf exit
   contract while declaring every later authority unavailable. This task
-  remains open for general frame/call/save-restore data, emission and relocation
-  custody, final artifact/rebuild metadata, and the suppressible compiler
-  report switch.
+  now also includes an explicit suppressible root-build human-report request
+  and a pipeline-owned cumulative carrier over all currently available
+  records. This task remains open for general frame/call/save-restore data,
+  emission and relocation custody, final artifact/rebuild metadata, and
+  materializing the retained request on successful native publication.
 
 ## P1 — Optimization representation and rule engine
 

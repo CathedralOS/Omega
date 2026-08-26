@@ -1002,6 +1002,7 @@ impl BuildObservationSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ComputedBuildConfig {
     pub config: BuildConfig,
+    pub optimization_report_request: omega_optimization_pipeline::OptimizationReportRequest,
     pub evaluation_usage: Option<BuildEvaluationUsage>,
     pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
@@ -2248,6 +2249,8 @@ pub(crate) fn compute_build_config(
     let Some(machine) = build_machines.next() else {
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),
+            optimization_report_request:
+                omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
             evaluation_usage: None,
             observation_summary: None,
             selected_build_machine_symbol: None,
@@ -2377,14 +2380,13 @@ pub(crate) fn compute_build_config(
             "optimizations".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "Optimizations".to_owned(),
-                fields: Optimization::ALL
-                    .into_iter()
-                    .map(|optimization| {
+                fields: std::iter::once(("human_report".to_owned(), BuildTimeValue::Int(0)))
+                    .chain(Optimization::ALL.into_iter().map(|optimization| {
                         (
                             optimization.build_counter_field().to_owned(),
                             BuildTimeValue::Int(0),
                         )
-                    })
+                    }))
                     .collect(),
             },
         ));
@@ -2881,7 +2883,7 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
 
-    let mut config =
+    let (mut config, optimization_report) =
         extract_build_config(&augmented, optimization_vocabulary).map_err(|reason| {
             vec![Diagnostic::error(format!(
                 "`{machine_name}` produced an invalid Build: {reason}"
@@ -2903,6 +2905,7 @@ pub(crate) fn compute_build_config(
     };
     Ok(ComputedBuildConfig {
         config,
+        optimization_report_request: optimization_report,
         evaluation_usage: Some(BuildEvaluationUsage {
             usage_schema_version: usage.schema().schema_version(),
             step_schedule_marker: usage.schedule().marker(),
@@ -3252,7 +3255,13 @@ fn harvest_root_grants(
 fn extract_build_config(
     build: &BuildTimeValue,
     optimization_vocabulary: OptimizationBuildVocabulary,
-) -> Result<BuildConfig, String> {
+) -> Result<
+    (
+        BuildConfig,
+        omega_optimization_pipeline::OptimizationReportRequest,
+    ),
+    String,
+> {
     let BuildTimeValue::Struct { fields, .. } = build else {
         return Err(format!("expected a Build struct, got {build:?}"));
     };
@@ -3297,8 +3306,11 @@ fn extract_build_config(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     };
 
-    let optimizations = match optimization_vocabulary {
-        OptimizationBuildVocabulary::LegacyWithoutField => OptimizationSelections::default(),
+    let (optimizations, optimization_report) = match optimization_vocabulary {
+        OptimizationBuildVocabulary::LegacyWithoutField => (
+            OptimizationSelections::default(),
+            omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+        ),
         OptimizationBuildVocabulary::Canonical => {
             let BuildTimeValue::Struct { type_name, fields } = field("optimizations")? else {
                 return Err("Build.optimizations is not an Optimizations value".to_owned());
@@ -3308,6 +3320,29 @@ fn extract_build_config(
                     "Build.optimizations has nominal type `{type_name}` instead of `Optimizations`"
                 ));
             }
+            let Some((_, report_count)) = fields.iter().find(|(field, _)| field == "human_report")
+            else {
+                return Err(
+                    "Build.optimizations carries no `human_report` request counter".to_owned(),
+                );
+            };
+            let BuildTimeValue::Int(report_count) = report_count else {
+                return Err(format!(
+                    "Build.optimizations.human_report is not an integer request counter: {report_count:?}"
+                ));
+            };
+            let optimization_report = match *report_count {
+                0 => omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+                1 => omega_optimization_pipeline::OptimizationReportRequest::EmitHumanText,
+                count if count > 1 => {
+                    return Err("optimization human report is requested more than once".to_owned());
+                }
+                count => {
+                    return Err(format!(
+                        "Build.optimizations.human_report has invalid negative request count {count}"
+                    ));
+                }
+            };
             let mut selected = Vec::new();
             for optimization in Optimization::ALL {
                 let name = optimization.build_counter_field();
@@ -3337,19 +3372,25 @@ fn extract_build_config(
                     }
                 }
             }
-            OptimizationSelections::new(selected).map_err(|error| error.to_string())?
+            (
+                OptimizationSelections::new(selected).map_err(|error| error.to_string())?,
+                optimization_report,
+            )
         }
     };
 
-    Ok(BuildConfig {
-        subsystem,
-        freestanding,
-        optimizations,
-        grants: Vec::new(),
-        provider_selections: Vec::new(),
-        wire_compatibility_demands: Vec::new(),
-        root_bindings: Vec::new(),
-    })
+    Ok((
+        BuildConfig {
+            subsystem,
+            freestanding,
+            optimizations,
+            grants: Vec::new(),
+            provider_selections: Vec::new(),
+            wire_compatibility_demands: Vec::new(),
+            root_bindings: Vec::new(),
+        },
+        optimization_report,
+    ))
 }
 
 #[cfg(test)]

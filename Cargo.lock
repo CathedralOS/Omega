@@ -1161,6 +1161,7 @@ dependencies = [
  "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-optimization-unit",
+ "omega-optimization-validation",
  "omega-psi-optimizer",
  "omega-regalloc",
  "omega-register-model",

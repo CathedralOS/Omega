@@ -1,6 +1,7 @@
 use omega_compiler::{
-    CompileOptions, Optimization, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile_to_checked, compile_to_checked_with_packages,
+    CompileOptions, Optimization, OptimizationReportRequest, PackageCompilationInputs,
+    PackageDependencyBinding, PackageSourceBinding, compile_to_checked,
+    compile_to_checked_with_packages,
 };
 
 fn compile(
@@ -48,6 +49,10 @@ fn absent_and_role_only_builds_select_no_optimizations() {
     let checked =
         compile_to_checked(&absent.join("main.omg"), None).expect("absent build remains valid");
     assert!(checked.optimization_selections().is_empty());
+    assert_eq!(
+        checked.optimization_report_request(),
+        OptimizationReportRequest::Suppressed
+    );
 
     let role_only = project(
         "role-only",
@@ -58,6 +63,52 @@ fn absent_and_role_only_builds_select_no_optimizations() {
     let checked = compile_to_checked(&role_only.join("main.omg"), None)
         .expect("role-only canonical build remains valid");
     assert!(checked.optimization_selections().is_empty());
+    assert_eq!(
+        checked.optimization_report_request(),
+        OptimizationReportRequest::Suppressed
+    );
+}
+
+#[test]
+fn human_report_is_an_explicit_request_not_an_optimization_selection() {
+    let root = project(
+        "human-report",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-human-report");
+    builder.optimizations.emit_report();
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&root.join("main.omg"), None)
+        .expect("an explicit report-only request should evaluate");
+    assert!(checked.optimization_selections().is_empty());
+    assert_eq!(
+        checked.optimization_report_request(),
+        OptimizationReportRequest::EmitHumanText
+    );
+}
+
+#[test]
+fn duplicate_human_report_requests_reject_during_build_evaluation() {
+    let root = project(
+        "duplicate-human-report",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-duplicate-human-report");
+    builder.optimizations.emit_report();
+    builder.optimizations.emit_report();
+}
+"#,
+        ),
+    );
+    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
+        .expect_err("duplicate human report requests must reject");
+    assert!(
+        diagnostic_messages(&diagnostics)
+            .contains("optimization human report is requested more than once")
+    );
 }
 
 #[test]
@@ -241,6 +292,7 @@ fn dependency_build_selection_cannot_enable_root_package_optimization() {
         dependency.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.optimizations.enable(Optimization::ProofCheckElision);
+    builder.optimizations.emit_report();
 }
 "#,
     )
@@ -264,6 +316,10 @@ fn dependency_build_selection_cannot_enable_root_package_optimization() {
     let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
         .expect("dependency build companion must not join root compilation");
     assert!(checked.optimization_selections().is_empty());
+    assert_eq!(
+        checked.optimization_report_request(),
+        OptimizationReportRequest::Suppressed
+    );
 }
 
 #[test]

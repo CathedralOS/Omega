@@ -11,6 +11,7 @@ pub use omega_optimization_core::{
     OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkloadProfileIdentity,
     TargetCostModelIdentity, TransformationLedgerIdentity,
 };
+pub use omega_optimization_pipeline::OptimizationReportRequest;
 
 pub use psi_checked_interpreter::{
     FilesystemSponsor, FilesystemSponsorError, FilesystemSponsorLimits,

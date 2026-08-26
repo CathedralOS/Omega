@@ -2,6 +2,8 @@ use omega_lowering_optimizer::{
     ValidatedOptimizedAbstractPlan, lower_optimized_to_target_operations_with_provider_executions,
 };
 use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelectionIdentity};
+use omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest;
+use omega_regalloc::ValidatedPostAllocationOptimizationManifest;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
@@ -37,6 +39,38 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
 }
 
 impl StagedOptimizedVerifiedPhysicalPipeline {
+    pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
+        match self {
+            Self::PsiOnly { homes, .. } => homes
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::SelectedLowering { realization } => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+        }
+    }
+
+    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+        match self {
+            Self::PsiOnly { homes, .. } => homes.post_allocation_manifest(),
+            Self::SelectedLowering { realization } => {
+                realization.homes().post_allocation_manifest()
+            }
+        }
+    }
+
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
             Self::PsiOnly { machine, .. } => machine,

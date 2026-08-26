@@ -31,6 +31,7 @@ pub struct CheckedCompilation {
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
+    optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
@@ -133,6 +134,14 @@ impl CheckedCompilation {
         &self,
     ) -> omega_optimization_core::OptimizationSelectionIdentity {
         self.optimization_selection_identity
+    }
+
+    /// Auxiliary report projection requested by the authoritative root build.
+    /// This remains independent of the exact transformation selection.
+    pub const fn optimization_report_request(
+        &self,
+    ) -> omega_optimization_pipeline::OptimizationReportRequest {
+        self.optimization_report
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
@@ -581,6 +590,7 @@ fn compile_to_checked_inner_with_replay(
     } = frontend;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_observation_summary = computed_build_config.observation_summary;
+    let optimization_report = computed_build_config.optimization_report_request;
     let build_config = computed_build_config.config;
     let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
@@ -756,6 +766,7 @@ fn compile_to_checked_inner_with_replay(
         selected_build_machine_symbol,
         optimization_selections,
         optimization_selection_identity,
+        optimization_report,
         selected_provider_plans: selected_provider_plan_facts,
         selected_provider_provenance,
         component_progress,

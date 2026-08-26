@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-machine-optimizer = { path = "../../optimization/omega-machine-optimizer" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-validation = { path = "../../optimization/omega-optimization-validation" }
 omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
 omega-regalloc = { path = "../../optimization/omega-regalloc" }
 omega-register-model = { path = "../../representations/omega-register-model" }
