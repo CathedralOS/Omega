@@ -138,7 +138,18 @@ canonical Terminal Psi semantic + proof sections
          verifier-owned structural frontier snapshots }
     -> build PsiOptimizationUnit (private SSA/CFG + semantic side tables)
     -> target-neutral analyses and verified rewrites
-    -> OptimizedPsiPlan + TransformationLedger
+    -> OptimizationRun
+       { final PsiOptimizationUnit,
+         exact named selections,
+         retained candidate declarations,
+         decision/pass records,
+         TransformationLedger,
+         replay/cache identity bundle }
+    -> independently replay and validate every committed candidate
+    -> ValidatedOptimizedAbstractPlan
+       { clean TerminalAbstractOperationPlan (borrowed access only),
+         retained OptimizationRun,
+         optimized-plan projection validation receipt }
     -> abstract operations and target-independent storage decisions
     -> lowering optimization
     -> target operations with virtual register classes
@@ -164,6 +175,27 @@ An optimized plan is never published as a replacement Terminal Psi artifact.
 The Psi reference interpreter continues to execute the original verified
 module. Native/optimized agreement is evidence about the realization, not a
 new definition of program meaning.
+
+The Rust reference bridge for this cut lives in
+`optimization/omega-lowering-optimizer`. It deliberately does not trust the
+pass manager's final unit or reserialize that unit as a detached lowering
+value. It rebuilds the initial verified unit, replays the retained immutable
+candidate declarations through `omega-optimization-validation`, checks exact
+commit/ledger/pass-manifest/identity-bundle agreement, projects the final unit
+onto the source plan's immutable semantic metadata, and asks the independent
+validator to reconstruct that projection again. Its receipt binds custody of
+the Terminal Psi, fuel schedule, initial and final unit revisions, exact
+selection set, ledger, and composite identity bundle. It is not the later
+target/native realization identity.
+
+The carrier exposes the projected abstract plan only by borrow while retaining
+the verified input and complete optimization run. This prevents an optimized
+consumer from obtaining the plan by consuming and discarding its evidence.
+The ordinary bare-plan lowering API remains for the empty-selection
+compatibility lane. Until optimizer orchestration and publication validation
+are connected, constructing this carrier does not authorize the compiler to
+emit an optimized artifact; the existing nonempty-selection build firewall
+continues to reject that route.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. Compatibility lowering has a separate bare-plan entry; the

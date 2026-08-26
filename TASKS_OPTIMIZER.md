@@ -294,6 +294,20 @@ These facts constrain the work below.
   candidate identities fail closed. The compiler build firewall remains
   unchanged; the top-level manifest/report remains open for selection,
   provenance/fuel, realization, code-size, and later allocator records.
+- `omega-lowering-optimizer` now owns a custody-preserving bridge from a
+  completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
+  Projection replays every retained candidate declaration through the
+  independent rewrite validator, checks commit/ledger/manifest/bundle
+  agreement, revalidates the transformed unit against the immutable verifier
+  context, and independently reconstructs the projected plan shape. The opaque
+  result retains the run, exact named selections, decisions, accepted facts,
+  ledger, and validation receipt; it exposes the plan only by borrow and does
+  not claim native publication authority. Focused tests cover empty-selection
+  identity, proof-certified constant folding, block-parameter copy propagation,
+  deterministic replay, projection corruption, commit corruption, and clean
+  target lowering. The compiler build firewall remains closed until
+  orchestration makes this carrier the only opt-in route to downstream
+  lowering.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
@@ -589,6 +603,14 @@ dependency.
   Acceptance: no checked-tree expression table, legacy state-value simplifier,
   or source binding substitution is needed for supported Terminal slices.
   Unsupported shapes fail at a named boundary.
+
+  Current slice: the independently validated `omega-lowering-optimizer`
+  projection and opaque custody carrier are landed, and SCCP/copy-propagation
+  outputs lower through the clean target-operation path without legacy state.
+  Remaining to close: add the opt-in orchestration entry point, make this
+  carrier its only optimized lowering input, and publish an explicit supported-
+  vocabulary boundary while leaving the empty-selection compatibility route
+  untouched.
 
 - **OPT-VIRTUAL-REGISTERS.** Change instruction selection to produce typed
   virtual registers/classes and explicit register/machine-state uses and defs.

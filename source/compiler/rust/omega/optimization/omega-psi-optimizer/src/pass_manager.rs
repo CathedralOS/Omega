@@ -11,7 +11,7 @@ use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
 };
 use omega_optimization_unit::{
-    InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit,
+    InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
     PsiTransformationLedger, PsiTransformationRecord,
 };
 use omega_optimization_validation::{
@@ -68,6 +68,13 @@ pub struct PsiOptimizationCommit {
     pub output: OptimizationUnitIdentity,
     pub predicted_cost_delta: i64,
     pub provenance: Vec<ProvenanceRewrite>,
+    pub declaration: PsiRewriteCandidate,
+}
+
+impl PsiOptimizationCommit {
+    pub const fn declaration(&self) -> &PsiRewriteCandidate {
+        &self.declaration
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -81,6 +88,7 @@ pub struct OptimizationRunUsage {
 
 #[derive(Debug)]
 pub struct OptimizationRun {
+    pub selections: OptimizationSelections,
     pub session: VerifiedPsiOptimizationSession,
     pub commits: Vec<PsiOptimizationCommit>,
     pub usage: OptimizationRunUsage,
@@ -88,6 +96,40 @@ pub struct OptimizationRun {
     pub pass_manifest: Option<OptimizationPassManifestRecord>,
     pub transformation_ledger: PsiTransformationLedger,
     pub identity_bundle: OptimizationIdentityBundle,
+}
+
+impl OptimizationRun {
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selections
+    }
+
+    pub const fn session(&self) -> &VerifiedPsiOptimizationSession {
+        &self.session
+    }
+
+    pub fn commits(&self) -> &[PsiOptimizationCommit] {
+        &self.commits
+    }
+
+    pub const fn usage(&self) -> OptimizationRunUsage {
+        self.usage
+    }
+
+    pub const fn decisions(&self) -> &BaselineDecisionLog {
+        &self.decisions
+    }
+
+    pub const fn pass_manifest(&self) -> Option<&OptimizationPassManifestRecord> {
+        self.pass_manifest.as_ref()
+    }
+
+    pub const fn transformation_ledger(&self) -> &PsiTransformationLedger {
+        &self.transformation_ledger
+    }
+
+    pub const fn identity_bundle(&self) -> OptimizationIdentityBundle {
+        self.identity_bundle
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,6 +189,7 @@ pub fn run_psi_registry(
         transformation_ledger.identity(),
     );
     Ok(OptimizationRun {
+        selections: selections.clone(),
         session: VerifiedPsiOptimizationSession {
             input: session.input,
             unit,
@@ -344,6 +387,7 @@ fn run_unit(
             output: next.identity,
             predicted_cost_delta: candidate.predicted_cost_delta(),
             provenance,
+            declaration: candidate,
         });
         unit = next;
     }
