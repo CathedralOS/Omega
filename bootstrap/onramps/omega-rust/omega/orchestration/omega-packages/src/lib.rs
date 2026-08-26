@@ -49,9 +49,11 @@ mod update;
 
 pub use capability_conflict::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictDecision,
+    ReviewOnlyCapabilityConflictDisposition, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
     ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyCapabilityResolution, ReviewOnlyCapabilityResolutionError,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole, compare_review_only_capabilities,
 };
 pub use closure_resolution::{

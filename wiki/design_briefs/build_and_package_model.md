@@ -1677,6 +1677,20 @@ before lock mutation. `omega.lock` records the admitted result and references
 the resolution; it remains generated/checked state, not an authored policy
 file.
 
+The current review-only implementation establishes the exact in-memory join:
+one closed accept/reject disposition is required for every blocking conflict,
+the complete set binds the candidate-closure commitment, and that commitment
+covers the source graph plus every candidate package's target, compiler,
+source-consumption, build-observation, and whole-review evidence. Each conflict
+also binds its baseline and candidate package observations. Construction rejects
+missing, duplicate, stale/foreign, wrong-candidate, or non-blocking decisions.
+Accept means only that root policy accepts that exact candidate row;
+the current object reports only whether all blocking rows were accepted and
+does not decide whether the wider transaction may proceed. Neither disposition
+claims that an audit occurred. Durable encoding, policy-origin custody,
+governance metadata, and revalidation while sealing accepted lock state remain
+downstream work.
+
 Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability
 evidence. Retained dangerous authority always produces an audit recommendation.
