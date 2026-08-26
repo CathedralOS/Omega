@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
+use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
 use psi_proof_admission::Obligation;
@@ -99,6 +99,7 @@ impl ReconstructedTerminalObligationSet {
 pub(super) struct ReconstructedMachineSemantics {
     pub(super) operation_obligations: Vec<ReconstructedOperationObligation>,
     pub(super) exit_axioms: Vec<Proposition>,
+    pub(super) outcome_exit_axioms: BTreeMap<OutcomeSpecificGuard, Vec<Proposition>>,
 }
 
 /// Reconstruct proof obligations owned by executable operation sites. This is
@@ -132,17 +133,6 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
     let mut obligations = Vec::new();
     for machine in &module.machines {
-        let guarded_return = if let Some(clause) = machine.contract.outcome_specific_ensures.first()
-        {
-            Some(exact_payloadless_case_return_guard(machine).ok_or(
-                ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
-                    machine: machine.id,
-                    obligation: clause.obligation,
-                },
-            )?)
-        } else {
-            None
-        };
         let semantics = reconstruct_machine_semantics(module, machine)?;
         obligations.extend(semantics.operation_obligations.into_iter().map(|site| {
             ReconstructedTerminalObligation {
@@ -173,7 +163,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                 }
             },
         ));
-        if let Some(guarded_return) = guarded_return {
+        if !machine.contract.outcome_specific_ensures.is_empty() {
             let guarded_position_offset = machine.contract.ensures.len();
             obligations.extend(
                 machine
@@ -181,66 +171,113 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                     .outcome_specific_ensures
                     .iter()
                     .enumerate()
-                    .filter(|(_, clause)| {
-                        clause.guard == guarded_return && clause.evidence.is_none()
-                    })
-                    .map(
-                        |(guarded_position, clause)| ReconstructedTerminalObligation {
-                            owner: ReconstructedTerminalObligationOwner::ContractEnsures {
-                                machine: machine.id,
-                                contract: machine.contract.id,
-                                clause_position: u32::try_from(
-                                    guarded_position_offset + guarded_position,
-                                )
-                                .expect("validated guarded contract clause position fits u32"),
-                            },
-                            obligation: Obligation {
-                                id: clause.obligation,
-                                proposition: clause.proposition.clone(),
-                                class: psi_proof_admission::ObligationClass::Derivable,
-                            },
-                            requirements: machine.contract.requires.clone(),
-                            semantic_axioms: semantics.exit_axioms.clone(),
-                            canonical_certificate: false,
-                        },
-                    ),
+                    .filter_map(|(guarded_position, clause)| {
+                        let exit_axioms = semantics.outcome_exit_axioms.get(&clause.guard)?;
+                        clause
+                            .evidence
+                            .is_none()
+                            .then(|| ReconstructedTerminalObligation {
+                                owner: ReconstructedTerminalObligationOwner::ContractEnsures {
+                                    machine: machine.id,
+                                    contract: machine.contract.id,
+                                    clause_position: u32::try_from(
+                                        guarded_position_offset + guarded_position,
+                                    )
+                                    .expect("validated guarded contract clause position fits u32"),
+                                },
+                                obligation: Obligation {
+                                    id: clause.obligation,
+                                    proposition: clause.proposition.clone(),
+                                    class: psi_proof_admission::ObligationClass::Derivable,
+                                },
+                                requirements: machine.contract.requires.clone(),
+                                semantic_axioms: exit_axioms.clone(),
+                                canonical_certificate: false,
+                            })
+                    }),
             );
         }
     }
     Ok(ReconstructedTerminalObligationSet { obligations })
 }
 
-/// Recognize only the first bounded executable guarded-result carrier. Wider
-/// structural control, calls, payloads, and multiple ordinary exits remain
-/// fail closed until their case-conditioned replay is implemented.
-pub(super) fn exact_payloadless_case_return_guard(
+/// Recognize the bounded executable guarded-result carrier whose ordinary
+/// exits each return an exact, claim-free payloadless case. Calls and payload
+/// substitution remain fail closed until their case-conditioned replay is
+/// implemented.
+pub(super) fn exact_payloadless_case_return_exits(
     machine: &TerminalMachine,
-) -> Option<OutcomeSpecificGuard> {
-    let [block] = machine.blocks.as_slice() else {
-        return None;
-    };
-    let [operation] = block.operations.as_slice() else {
-        return None;
-    };
-    let Terminator::ReturnStructural { source, .. } = block.terminator else {
-        return None;
-    };
+) -> Option<BTreeMap<BlockId, OutcomeSpecificGuard>> {
     let result = machine.result.structural()?;
-    let operation_result = operation.result.structural()?;
-    let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
-        return None;
-    };
-    if operation_result.place != source
-        || operation_result.structural_type != result.structural_type
-        || !operation_result.claims.is_empty()
-        || !operation_result.qualifications.is_empty()
+    if !result.qualifications.is_empty()
+        || result.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            })
     {
         return None;
     }
-    Some(OutcomeSpecificGuard {
-        result_type: result.structural_type,
-        result_case,
-    })
+    let mut exits = BTreeMap::new();
+    for block in &machine.blocks {
+        let Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if !returned_claims.is_empty() {
+            return None;
+        }
+        let producer = machine.structural_places.iter().find_map(|place| {
+            (place.id == *source)
+                .then_some(place.kind)
+                .and_then(|kind| match kind {
+                    psi_core::StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    } if structural_type == result.structural_type => Some(producer),
+                    _ => None,
+                })
+        })?;
+        let operation = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)?;
+        let operation_result = operation.result.structural()?;
+        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+            return None;
+        };
+        if operation_result.place != *source
+            || operation_result.structural_type != result.structural_type
+            || operation_result.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+            || !operation_result.claims.is_empty()
+            || !operation_result.qualifications.is_empty()
+        {
+            return None;
+        }
+        exits.insert(
+            block.id,
+            OutcomeSpecificGuard {
+                result_type: result.structural_type,
+                result_case,
+            },
+        );
+    }
+    (!exits.is_empty()).then_some(exits)
 }
 
 /// Reconstruct facts at each executable obligation site and facts established
@@ -252,6 +289,17 @@ pub(super) fn reconstruct_machine_semantics(
     machine: &TerminalMachine,
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
     let context = machine_context::MachineReconstructionContext::new(module, machine)?;
+    let outcome_exit_guards =
+        if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
+            exact_payloadless_case_return_exits(machine).ok_or(
+                ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
+                    machine: machine.id,
+                    obligation: clause.obligation,
+                },
+            )?
+        } else {
+            BTreeMap::new()
+        };
 
     // Result-content equalities become true only when an exact structural
     // return edge transfers the corresponding live claims.
@@ -259,6 +307,7 @@ pub(super) fn reconstruct_machine_semantics(
     let mut incoming = BTreeMap::<_, Vec<Vec<Proposition>>>::new();
     incoming.insert(machine.entry, vec![base_axioms]);
     let mut exits = Vec::<Vec<Proposition>>::new();
+    let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
     let mut operation_obligations = Vec::new();
     for current in machine_flow::deterministic_block_order(machine) {
         let block = context
@@ -289,12 +338,18 @@ pub(super) fn reconstruct_machine_semantics(
             axioms,
             &mut incoming,
             &mut exits,
+            outcome_exit_guards.get(&current).copied(),
+            &mut outcome_exits,
             &mut operation_obligations,
         );
     }
     Ok(ReconstructedMachineSemantics {
         operation_obligations,
         exit_axioms: machine_flow::guaranteed_exit_facts(exits),
+        outcome_exit_axioms: outcome_exits
+            .into_iter()
+            .map(|(guard, exits)| (guard, machine_flow::guaranteed_exit_facts(exits)))
+            .collect(),
     })
 }
 

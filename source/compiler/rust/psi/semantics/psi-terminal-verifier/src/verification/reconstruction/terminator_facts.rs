@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{BlockId, MachineId, Proposition, ScalarTerm, ValueId};
 use psi_proof_admission::{Obligation, ObligationClass};
+use psi_terminal::OutcomeSpecificGuard;
 use psi_terminal::{Block, TerminalMachine, Terminator};
 
 use super::super::substitution::substitute_proposition_places;
@@ -19,6 +20,8 @@ pub(super) fn append_terminator(
     mut axioms: Vec<Proposition>,
     incoming: &mut BTreeMap<BlockId, Vec<Vec<Proposition>>>,
     exits: &mut Vec<Vec<Proposition>>,
+    outcome_guard: Option<OutcomeSpecificGuard>,
+    outcome_exits: &mut BTreeMap<OutcomeSpecificGuard, Vec<Vec<Proposition>>>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) {
     match terminator {
@@ -149,6 +152,9 @@ pub(super) fn append_terminator(
                     .filter(|reshuffle| returned_claims.contains(&reshuffle.claim))
                     .flat_map(|reshuffle| reshuffle.inferred_propositions()),
             );
+            if let Some(guard) = outcome_guard {
+                outcome_exits.entry(guard).or_default().push(axioms.clone());
+            }
             exits.push(axioms);
         }
         // A crash establishes no normal-return guarantee. Its explicit
