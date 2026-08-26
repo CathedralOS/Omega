@@ -1,6 +1,7 @@
 use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 use omega_regalloc::{
     TerminalAllocationLegalityError, TerminalLiteralFoldError, TerminalLiteralFoldIdentity,
@@ -145,6 +146,7 @@ impl StagedSelectedLoweringOptimizationRun {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
+    identity: SelectedLoweringOptimizationCompletionIdentity,
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
     selections: OptimizationSelectionIdentity,
     selected_lowering_selections: OptimizationSelectionIdentity,
@@ -164,6 +166,9 @@ pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
 }
 
 impl StagedSelectedLoweringOptimizationCustodyReceipt {
+    pub const fn identity(&self) -> SelectedLoweringOptimizationCompletionIdentity {
+        self.identity
+    }
     pub const fn source(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
     }
@@ -1044,7 +1049,8 @@ fn selected_lowering_custody_receipt(
             source.legality().receipt().identity(),
         ),
     };
-    StagedSelectedLoweringOptimizationCustodyReceipt {
+    let mut receipt = StagedSelectedLoweringOptimizationCustodyReceipt {
+        identity: SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"pending"),
         source: source_receipt,
         selections: selections.identity(),
         selected_lowering_selections: selected_lowering_selections.identity(),
@@ -1065,7 +1071,122 @@ fn selected_lowering_custody_receipt(
             .last()
             .map(|step| step.legality.receipt().virtual_register_count())
             .unwrap_or_else(|| source.legality().receipt().virtual_register_count()),
+    };
+    receipt.identity = selected_lowering_completion_identity(&receipt);
+    receipt
+}
+
+fn selected_lowering_completion_identity(
+    receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
+) -> SelectedLoweringOptimizationCompletionIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v1\0");
+    let source = receipt.source;
+    for identity in [
+        source.optimization().bytes(),
+        source.manifest().bytes(),
+        source.register_environment().bytes(),
+        source.allocator_availability().bytes(),
+        source.selected().bytes(),
+        source.liveness().bytes(),
+        source.ranges().bytes(),
+        source.legality().bytes(),
+        receipt.selections.bytes(),
+        receipt.selected_lowering_selections.bytes(),
+    ] {
+        canonical.extend_from_slice(&identity);
     }
+    canonical.push(match receipt.schedule {
+        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1 => 1,
+    });
+    canonical.extend_from_slice(&receipt.budget.encode());
+    canonical.extend_from_slice(&receipt.usage.encode());
+    for count in [
+        receipt.iteration_bound,
+        receipt.action_count,
+        receipt.initial_virtual_register_count,
+        receipt.iterations.len(),
+    ] {
+        encode_count(&mut canonical, count);
+    }
+    for iteration in &receipt.iterations {
+        encode_iteration_receipt(&mut canonical, *iteration);
+    }
+    encode_attempt_receipt(&mut canonical, receipt.terminal_attempt);
+    canonical.extend_from_slice(&receipt.final_selected.bytes());
+    canonical.extend_from_slice(&receipt.final_liveness.bytes());
+    canonical.extend_from_slice(&receipt.final_ranges.bytes());
+    canonical.extend_from_slice(&receipt.final_legality.bytes());
+    encode_count(&mut canonical, receipt.final_virtual_register_count);
+    SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(&canonical)
+}
+
+fn encode_iteration_receipt(
+    canonical: &mut Vec<u8>,
+    iteration: StagedOptimizedLiteralFoldIterationReceipt,
+) {
+    canonical.extend_from_slice(&iteration.source_selected().bytes());
+    canonical.extend_from_slice(&iteration.source_ranges().bytes());
+    canonical.extend_from_slice(&iteration.source_legality().bytes());
+    canonical.extend_from_slice(&iteration.choices().bytes());
+    canonical.push(spill_choice_policy_tag(iteration.choice_policy()));
+    canonical.extend_from_slice(&iteration.choice_usage().encode());
+    canonical.extend_from_slice(&iteration.recovery().bytes());
+    canonical.push(recovery_policy_tag(iteration.recovery_policy()));
+    canonical.extend_from_slice(&iteration.recovery_usage().encode());
+    canonical.extend_from_slice(&iteration.fold().bytes());
+    canonical.push(literal_fold_policy_tag(iteration.fold_policy()));
+    canonical.extend_from_slice(&iteration.fold_usage().encode());
+    canonical.extend_from_slice(&iteration.transformed_selected().bytes());
+    canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
+    canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
+    canonical.extend_from_slice(&iteration.fresh_legality().bytes());
+}
+
+fn encode_attempt_receipt(
+    canonical: &mut Vec<u8>,
+    attempt: StagedOptimizedLiteralFoldAttemptReceipt,
+) {
+    canonical.extend_from_slice(&attempt.source_selected().bytes());
+    canonical.extend_from_slice(&attempt.source_ranges().bytes());
+    canonical.extend_from_slice(&attempt.source_legality().bytes());
+    canonical.extend_from_slice(&attempt.choices().bytes());
+    canonical.push(spill_choice_policy_tag(attempt.choice_policy()));
+    canonical.extend_from_slice(&attempt.choice_usage().encode());
+    canonical.extend_from_slice(&attempt.recovery().bytes());
+    canonical.push(recovery_policy_tag(attempt.recovery_policy()));
+    canonical.extend_from_slice(&attempt.recovery_usage().encode());
+    canonical.extend_from_slice(&attempt.fold().bytes());
+    canonical.push(literal_fold_policy_tag(attempt.fold_policy()));
+    canonical.extend_from_slice(&attempt.fold_usage().encode());
+    encode_count(canonical, attempt.applied_count());
+    canonical.extend_from_slice(&attempt.transformed_selected().bytes());
+}
+
+fn spill_choice_policy_tag(policy: TerminalSpillChoicePolicy) -> u8 {
+    match policy {
+        TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1 => 1,
+    }
+}
+
+fn recovery_policy_tag(policy: TerminalRecoveryClassificationPolicy) -> u8 {
+    match policy {
+        TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1 => 1,
+    }
+}
+
+fn literal_fold_policy_tag(policy: TerminalLiteralFoldPolicy) -> u8 {
+    match policy {
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => 1,
+    }
+}
+
+fn encode_count(canonical: &mut Vec<u8>, count: usize) {
+    canonical.extend_from_slice(
+        &u64::try_from(count)
+            .expect("selected-lowering completion count fits u64")
+            .to_le_bytes(),
+    );
 }
 
 fn attempt_receipt(

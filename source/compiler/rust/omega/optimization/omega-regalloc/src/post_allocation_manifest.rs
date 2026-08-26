@@ -3,6 +3,7 @@ use std::fmt::Write;
 
 use omega_optimization_core::{
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 use omega_register_model::TargetRegisterEnvironmentIdentity;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -16,7 +17,7 @@ use crate::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 3;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -60,6 +61,7 @@ pub struct PostAllocationOptimizationManifest {
     pub pre_physical: PrePhysicalOptimizationManifestIdentity,
     pub target: NativeTarget,
     pub selected: TerminalSelectedInstructionPlanIdentity,
+    pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
     pub selected_transformations: Vec<PostAllocationSelectedTransformation>,
     pub liveness: TerminalLivenessIdentity,
     pub ranges: TerminalLiveRangeIdentity,
@@ -77,7 +79,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v3\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v4\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -115,6 +117,17 @@ impl PostAllocationOptimizationManifest {
         let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
         let selected = TerminalSelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
+        let selected_lowering_completion = match cursor.byte()? {
+            0 => None,
+            1 => Some(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                cursor.array()?,
+            )),
+            tag => {
+                return Err(
+                    PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(tag),
+                );
+            }
+        };
         let transformation_count = cursor.length()?;
         let mut selected_transformations =
             Vec::with_capacity(transformation_count.min(cursor.remaining()));
@@ -167,6 +180,7 @@ impl PostAllocationOptimizationManifest {
             pre_physical,
             target,
             selected,
+            selected_lowering_completion,
             selected_transformations,
             liveness,
             ranges,
@@ -204,6 +218,15 @@ impl PostAllocationOptimizationManifest {
         )
         .unwrap();
         writeln!(output, "selected plan: {}", hex(&self.selected.bytes())).unwrap();
+        match self.selected_lowering_completion {
+            Some(identity) => writeln!(
+                output,
+                "selected-lowering completion: {}",
+                hex(&identity.bytes())
+            )
+            .unwrap(),
+            None => writeln!(output, "selected-lowering completion: not run").unwrap(),
+        }
         writeln!(
             output,
             "selected transformations: {}",
@@ -304,6 +327,7 @@ pub enum PostAllocationOptimizationManifestDecodeError {
     TargetLayoutOverflow,
     LengthOverflow,
     UnknownTransformationTag(u8),
+    UnknownCompletionStatus(u8),
     UnknownSpillStatus(u8),
     UnknownUnavailableStatus(u8),
     IdentityMismatch,
@@ -330,6 +354,26 @@ pub fn project_post_allocation_optimization_manifest(
 ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
     let record = expected_record(
         pre_physical,
+        None,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )?;
+    Ok(ValidatedPostAllocationOptimizationManifest { record })
+}
+
+pub fn project_post_allocation_optimization_manifest_after_selected_lowering(
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    selected_lowering_completion: SelectedLoweringOptimizationCompletionIdentity,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    homes: &ValidatedTerminalRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    let record = expected_record(
+        pre_physical,
+        Some(selected_lowering_completion),
         selected_transformations,
         ranges,
         legality,
@@ -351,6 +395,35 @@ pub fn validate_post_allocation_optimization_manifest(
     }
     let expected = expected_record(
         pre_physical,
+        None,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )?;
+    if candidate != &expected {
+        return Err(PostAllocationOptimizationManifestError::ContentMismatch);
+    }
+    Ok(ValidatedPostAllocationOptimizationManifest {
+        record: candidate.clone(),
+    })
+}
+
+pub fn validate_post_allocation_optimization_manifest_after_selected_lowering(
+    candidate: &PostAllocationOptimizationManifest,
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    selected_lowering_completion: SelectedLoweringOptimizationCompletionIdentity,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    homes: &ValidatedTerminalRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    if candidate.identity != candidate.recomputed_identity() {
+        return Err(PostAllocationOptimizationManifestError::IdentityMismatch);
+    }
+    let expected = expected_record(
+        pre_physical,
+        Some(selected_lowering_completion),
         selected_transformations,
         ranges,
         legality,
@@ -366,6 +439,7 @@ pub fn validate_post_allocation_optimization_manifest(
 
 fn expected_record(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
+    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
     selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedTerminalLiveRanges,
     legality: &ValidatedTerminalAllocationLegality,
@@ -430,6 +504,7 @@ fn expected_record(
         pre_physical,
         target: ranges.plan().target,
         selected: ranges.plan().selected,
+        selected_lowering_completion,
         selected_transformations: selected_transformations.to_vec(),
         liveness: ranges.receipt().liveness(),
         ranges: ranges.receipt().identity(),
@@ -469,6 +544,13 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     canonical.extend_from_slice(&manifest.pre_physical.bytes());
     encode_target(&mut canonical, manifest.target);
     canonical.extend_from_slice(&manifest.selected.bytes());
+    match manifest.selected_lowering_completion {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
     canonical.extend_from_slice(
         &u64::try_from(manifest.selected_transformations.len())
             .expect("post-allocation transformation length fits u64")
@@ -627,6 +709,7 @@ fn hex(bytes: &[u8]) -> String {
 mod tests {
     use omega_optimization_core::{
         PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+        SelectedLoweringOptimizationCompletionIdentity,
     };
     use omega_register_model::TargetRegisterEnvironmentIdentity;
     use omega_target::NativeTarget;
@@ -643,6 +726,7 @@ mod tests {
             pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
             target: NativeTarget::linux_x64(),
             selected: TerminalSelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
+            selected_lowering_completion: None,
             selected_transformations: Vec::new(),
             liveness: TerminalLivenessIdentity([1; 32]),
             ranges: TerminalLiveRangeIdentity::from_bytes([2; 32]),
@@ -679,6 +763,13 @@ mod tests {
             |record| {
                 record.selected =
                     TerminalSelectedInstructionPlanIdentity::from_canonical_bytes(b"other")
+            },
+            |record| {
+                record.selected_lowering_completion = Some(
+                    SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(
+                        b"completed",
+                    ),
+                )
             },
             |record| {
                 record.selected_transformations.push(
@@ -732,6 +823,9 @@ mod tests {
         );
 
         let mut transformed = record();
+        transformed.selected_lowering_completion = Some(
+            SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"),
+        );
         transformed.selected_transformations = vec![
             PostAllocationSelectedTransformation::FixedViewCopy(TerminalFixedViewCopyIdentity(
                 [12; 32],
@@ -769,10 +863,10 @@ mod tests {
             Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(4))
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(3))
         );
         let content_offset = 8 + 4 + 32;
         let mut unknown_architecture = encoded.clone();
@@ -788,7 +882,7 @@ mod tests {
             )];
         one_transformation.identity = one_transformation.recomputed_identity();
         let mut unknown_transformation = one_transformation.encode();
-        let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 8;
+        let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 8;
         unknown_transformation[transformation_tag_offset] = 9;
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&unknown_transformation),

@@ -26,7 +26,8 @@ pub use identities::{
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkloadProfileIdentity, OptimizedAbstractPlanProjectionIdentity,
     OwnershipFrontierFactIdentity, PostAllocationOptimizationManifestIdentity,
-    PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity, TargetCostModelIdentity,
+    PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
+    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
     TransformationLedgerIdentity,
 };
 pub use manifest::{

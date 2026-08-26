@@ -6,17 +6,25 @@ use omega_machine_optimizer::{
 
 use crate::{
     OptimizedMachineEffectPipelineError, OptimizedPostCopyRegisterHomeCustodyError,
-    OptimizedPostLiteralFoldHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    StagedOptimizedMachineEffects, StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedOptimizedRegisterHomesAfterLiteralFolds, stage_optimized_machine_effects,
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedRegisterHomeCustodyError, StagedOptimizedMachineEffects,
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    StagedOptimizedRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomes,
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterSelectedLowering, stage_optimized_machine_effects,
     stage_optimized_machine_effects_after_fixed_view_copies,
-    stage_optimized_machine_effects_after_literal_folds, validate_optimized_machine_effect_custody,
+    stage_optimized_machine_effects_after_literal_folds,
+    stage_optimized_machine_effects_after_selected_lowering,
+    validate_optimized_machine_effect_custody,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
+    validate_optimized_machine_effect_custody_after_selected_lowering,
     validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_selected_lowering_custody,
     validate_optimized_register_home_custody,
 };
 
@@ -81,6 +89,7 @@ pub enum StagedOptimizedPostAllocationMachineSourceCustodyReceipt {
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
     LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
+    SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +97,7 @@ pub enum OptimizedPostAllocationMachinePipelineError {
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     FixedViewCopies(OptimizedPostCopyRegisterHomeCustodyError),
     LiteralFolds(OptimizedPostLiteralFoldHomeCustodyError),
+    SelectedLowering(OptimizedPostSelectedLoweringHomeCustodyError),
     MachineEffects(OptimizedMachineEffectPipelineError),
     PostAllocation(TerminalPostAllocationMachineError),
     ReceiptMismatch,
@@ -210,6 +220,52 @@ pub fn stage_optimized_post_allocation_machine_plan_after_literal_folds(
     ))
 }
 
+pub fn stage_optimized_post_allocation_machine_plan_after_selected_lowering(
+    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
+    let source_receipt = validate_optimized_register_home_after_selected_lowering_custody(source)
+        .map_err(OptimizedPostAllocationMachinePipelineError::SelectedLowering)?;
+    let run = source.selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let effects = stage_optimized_machine_effects_after_selected_lowering(run)
+        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
+    let environment = selected_stage.register_environment();
+    let machine = match run.steps().last() {
+        Some(step) => analyze_terminal_post_allocation_machine_plan(
+            step.fold(),
+            effects.effects(),
+            step.ranges(),
+            step.legality(),
+            source.homes(),
+            source.post_allocation_manifest(),
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+        ),
+        None => analyze_terminal_post_allocation_machine_plan(
+            selected_stage.selected(),
+            effects.effects(),
+            run.source_legality_stage().live_range_stage().ranges(),
+            run.source_legality_stage().legality(),
+            source.homes(),
+            source.post_allocation_manifest(),
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+        ),
+    }
+    .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
+    Ok(staged(
+        StagedOptimizedPostAllocationMachineSourceCustodyReceipt::SelectedLowering(source_receipt),
+        effects,
+        machine,
+    ))
+}
+
 pub fn validate_optimized_post_allocation_machine_plan_custody(
     source: &StagedOptimizedRegisterHomes,
     staged: &StagedOptimizedPostAllocationMachinePlan,
@@ -315,6 +371,54 @@ pub fn validate_optimized_post_allocation_machine_plan_after_literal_fold_custod
     )?;
     Ok(custody(
         StagedOptimizedPostAllocationMachineSourceCustodyReceipt::LiteralFolds(source_receipt),
+        staged.effects.effects(),
+        &machine,
+    ))
+}
+
+pub fn validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    staged: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedPostAllocationMachineCustodyReceipt,
+    OptimizedPostAllocationMachinePipelineError,
+> {
+    let source_receipt = validate_optimized_register_home_after_selected_lowering_custody(source)
+        .map_err(OptimizedPostAllocationMachinePipelineError::SelectedLowering)?;
+    let run = source.selected_lowering_run();
+    validate_optimized_machine_effect_custody_after_selected_lowering(
+        run,
+        staged.effects.effects(),
+    )
+    .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let environment = selected_stage.register_environment();
+    let machine = match run.steps().last() {
+        Some(step) => replay(
+            step.fold(),
+            staged,
+            step.ranges(),
+            step.legality(),
+            source.homes(),
+            source.post_allocation_manifest(),
+            environment,
+        ),
+        None => replay(
+            selected_stage.selected(),
+            staged,
+            run.source_legality_stage().live_range_stage().ranges(),
+            run.source_legality_stage().legality(),
+            source.homes(),
+            source.post_allocation_manifest(),
+            environment,
+        ),
+    }?;
+    Ok(custody(
+        StagedOptimizedPostAllocationMachineSourceCustodyReceipt::SelectedLowering(source_receipt),
         staged.effects.effects(),
         &machine,
     ))
