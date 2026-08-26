@@ -39,8 +39,10 @@ pub use ledger::{
     PsiTransformationRecord,
 };
 pub use observation::{
-    ObservationEventClass, ObservationKnowledge, PsiNodeObservation, PsiObservableEvent,
-    PsiObservationModel, reconstruct_psi_observation_model,
+    ObservationEventClass, ObservationKnowledge, PsiClosedRegionBlockObservation,
+    PsiClosedRegionObservation, PsiClosedRegionSemantics, PsiNodeObservation, PsiObservableEvent,
+    PsiObservationModel, PsiRegionBoundaryEdgeObservation, PsiRegionFrontierObservation,
+    reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
 
 pub use rewrite::{

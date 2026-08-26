@@ -308,18 +308,33 @@ These facts constrain the work below.
   cyclic synthetic CFGs, preparing dead-scalar rules without treating the
   current acyclic Terminal slice as an architectural limitation.
 - The optimization unit now reconstructs an exhaustive observation row for
-  every Terminal abstract operation. Each row retains definitions/uses, the
-  effect token, ownership and cleanup events, exact Psi provenance and logical
-  fuel, conservative crash/suspension knowledge, and full operation payloads
-  for structural state, internal/boundary calls, services, transfers, normal
-  exits, and crash exits. The operation match is exhaustive so new vocabulary
-  cannot compile without classification. Exact integer rewrite validation now
-  independently compares all closed scalar observation axes before acceptance,
-  reconstructs its node-region live-ins and live-outs separately from the
-  optimizer analysis, requires unchanged live-outs, and forbids new live-in
-  dependencies. The two liveness implementations agree on the focused CFG
-  fixture. `OPT-OBSERVATION-MODEL` remains open for multi-node region
-  projection, verifier-frontier joins, and later memory/suspension vocabulary.
+  every Terminal abstract operation. Each row now retains the full operation
+  and CFG successor payload even for pure scalar work, alongside definitions/
+  uses, the effect token, ownership and cleanup events, exact Psi provenance
+  and logical fuel, conservative crash/suspension knowledge, and classified
+  structural, call, service, control, normal-exit, and crash-exit events. The
+  operation match is exhaustive so new vocabulary cannot compile without
+  classification. Exact integer rewrite validation independently compares all
+  closed scalar observation axes before acceptance, reconstructs its node-
+  region live-ins and live-outs separately from optimizer analysis, requires
+  unchanged live-outs, and forbids new live-in dependencies. The two liveness
+  implementations agree on the focused CFG fixture.
+
+  The first multi-block observation slice now guards redundant block-parameter
+  copy propagation. The validator independently derives the complete affected-
+  block roster, performs its own exact typed scalar/binding-slot normalization,
+  and compares canonical whole-block observations across revisions. Those
+  observations retain full operations, parameters, successor/boundary edges,
+  typed live-ins/outs, effects, crash/suspension state, events, ownership/
+  cleanup, provenance/fuel, and explicit present-or-absent verifier-frontier
+  identities. Content outside the derived region must remain exactly equal.
+  Mutation coverage independently changes arithmetic policy, control/exit
+  edges, effects, ownership/cleanup, provenance, fuel, call/crash/suspension
+  behavior, typed liveness, frontier identity, and outside-region state. The
+  rule remains v1 while the strengthened independent validator is v2.
+  `OPT-OBSERVATION-MODEL` remains open for general arbitrary regions, real
+  memory traces, explicit suspension edges, and path-derived current ownership
+  facts.
 - Successful Psi runs now emit a canonical transformation ledger binding the
   exact Terminal-Psi identity, fuel schedule, initial/final unit revisions, and
   every validated rule/candidate/validator revision step. Each step explicitly
@@ -701,6 +716,14 @@ dependency.
   operation. Adding a vocabulary operation fails compilation until its
   observation case and tests land in the same vertical slice.
 
+  Current slice: every current operation has an exhaustive node observation,
+  scalar evaluation has an independently reconstructed one-node boundary, and
+  redundant block-parameter elimination has the first canonical whole-block
+  closed-region boundary. The latter compares full normalized operations and
+  successor edges, typed live-ins/outs, effects/events/exits, ownership/cleanup,
+  provenance/fuel, and retained source-frontier presence. General memory/
+  suspension traces and arbitrary-region composition remain open.
+
 - **OPT-REWRITE-WITNESS.** Define a canonical local transformation witness over
   one closed region.
 
@@ -709,6 +732,11 @@ dependency.
   token, crash edge, cleanup action, or fuel site by leaving it out of its
   witness.
 
+  Current slice: the block-parameter candidate identity binds its canonical
+  blocks, typed substitution, incoming edges, and changed-node provenance/fuel,
+  but the independent validator re-enumerates them before deriving the
+  observation region. No producer-authored observation digest is trusted.
+
 - **OPT-LOCAL-VALIDATOR.** Implement bounded validators for CFG identities,
   constant substitution, copy propagation, dead pure values, and algebraic
   operations under exact typed semantics.
@@ -716,6 +744,12 @@ dependency.
   Acceptance: each validator is shared by multiple rules where possible and
   contains no cost/benefit policy. Mutated witnesses and wrong arithmetic
   domains reject.
+
+  Current slice: exact scalar evaluation and redundant block-parameter
+  structural identity both have patch-specific independent constructors. The
+  latter's v2 validator adds the first multi-block observation comparison and
+  exact outside-region equality gate; general CFG identities and later rewrite
+  classes remain open.
 
 - **OPT-PROOF-BRIDGE.** Generate proof-kernel-checkable propositions and
   derivations for rewrite classes expressible in the current proof vocabulary;

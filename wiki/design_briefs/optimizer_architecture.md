@@ -830,11 +830,31 @@ the typed value bound at that parameter position; two conditional successors
 from one source block remain two rows. The independent validator reconstructs
 that complete set, requires one common dominating replacement, removes the
 parameter and matching binding entries, substitutes uses, and then rechecks the
-whole unit. Operations, edges, proof obligations, provenance, logical fuel,
-effect links, ownership, and cleanup events remain present and unchanged. This
-pass has its own block-parameter-count convergence measure and its own explicit
-`CopyPropagation` selection; it is not a hidden prerequisite of SCCP or an
-optimization-level bundle.
+whole unit.
+
+That structural rewrite also passes a separately reconstructed closed-region
+observation gate. The rule does not supply an observation digest. The validator
+derives the exact changed-block set, independently normalizes only the typed
+`parameter -> replacement` scalar-use slots and the one proved incoming
+binding position, and observes the normalized input against the constructed
+output. The canonical question includes full operations even for pure scalar
+nodes, block parameters, definitions/uses, CFG successor rows and boundary
+edges, typed live-ins/outs, effect links, conservative crash/suspension state,
+boundary/service/control/normal/crash events, ownership and cleanup events,
+proof provenance, logical fuel, and explicit presence or absence of each
+retained verifier-frontier identity. Thus an accidental exact-to-wrapping
+operation change cannot hide behind equal definitions and uses. Everything
+outside the independently derived block set must remain byte-for-byte equal as
+unit content. Pre/post unit revisions differ by design; the normalized
+semantics must not.
+
+This is deliberately the exact contract for structural scalar substitution
+and one block-parameter binding-slot erasure, not a claim of general regional
+equivalence. Real memory traces, explicit suspension edges, arbitrary node-set
+regions, and path-derived current ownership facts remain future vocabulary.
+The pass has its own block-parameter-count convergence measure and its own
+explicit `CopyPropagation` selection; it is not a hidden prerequisite of SCCP
+or an optimization-level bundle.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
@@ -874,6 +894,13 @@ The validator compares:
 Simple canonical rewrites may be correct by a checked constructor plus these
 invariants. Algebraic rewrites attach a derivation that the proof kernel can
 check where the existing proposition vocabulary is sufficient.
+
+For the first multi-block structural rewrite, the validator owns both the
+normalization and the observation question. Candidate-authored affected blocks,
+incoming edges, provenance rows, and fuel rows are checked against independent
+enumeration before the region is constructed; omitting a block or node cannot
+shrink what is observed. The accepted validator identity changes when this
+contract changes even if the proposing rule's semantics do not.
 
 ### Translation validation
 

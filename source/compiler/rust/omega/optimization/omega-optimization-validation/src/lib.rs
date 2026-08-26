@@ -22,7 +22,8 @@ use omega_optimization_unit::{
     SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
     ValueDefinition, ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_observation_model,
+    recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
+    reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -184,6 +185,9 @@ pub enum OptimizationUnitValidationError {
     CandidateEvaluationMismatch,
     CandidateObservationMismatch,
     CandidateLiveBoundaryMismatch,
+    CandidateRegionObservationUnavailable,
+    CandidateRegionObservationMismatch,
+    CandidateOutsideRegionMismatch,
     CandidateBlockParameterMismatch,
     CandidateIncomingBindingMismatch,
     CandidateSubstitutionMismatch,
@@ -705,6 +709,15 @@ pub fn validate_redundant_block_parameter_candidate(
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
 
+    let normalized_input =
+        normalize_redundant_parameter_observation_input(input, patch, candidate.affected_blocks())?;
+    let input_region = reconstruct_psi_closed_region_observation(
+        &normalized_input,
+        patch.machine,
+        candidate.affected_blocks(),
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateRegionObservationUnavailable)?;
+
     let mut output = input.clone();
     let function = output
         .functions
@@ -736,13 +749,244 @@ pub fn validate_redundant_block_parameter_candidate(
     function.facts = reconstruct_fact_index(function);
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
+    if !unchanged_outside_redundant_parameter_region(
+        input,
+        &output,
+        patch.machine,
+        candidate.affected_blocks(),
+    ) {
+        return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
+    }
+    let output_region = reconstruct_psi_closed_region_observation(
+        &output,
+        patch.machine,
+        candidate.affected_blocks(),
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateRegionObservationUnavailable)?;
+    if input_region.semantics != output_region.semantics {
+        return Err(OptimizationUnitValidationError::CandidateRegionObservationMismatch);
+    }
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.redundant-block-parameter.v1",
+            b"omega.validator.redundant-block-parameter.v2",
         ),
     })
+}
+
+/// Construct the validator's normalized pre-rewrite question independently of
+/// the output constructor below. Only the exact scalar substitution and the
+/// one proved incoming binding slot may change.
+fn normalize_redundant_parameter_observation_input(
+    input: &PsiOptimizationUnit,
+    patch: RedundantBlockParameterRewrite,
+    affected_blocks: &[BlockId],
+) -> Result<PsiOptimizationUnit, OptimizationUnitValidationError> {
+    let affected = affected_blocks.iter().copied().collect::<BTreeSet<_>>();
+    let mut normalized = input.clone();
+    let function = normalized
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let target = function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let position = usize::try_from(patch.position).expect("u32 fits usize");
+    let removed = target
+        .parameters
+        .get(position)
+        .copied()
+        .ok_or(OptimizationUnitValidationError::CandidateBlockParameterMismatch)?;
+    if removed.value != patch.parameter
+        || removed.scalar_type != patch.scalar_type
+        || removed.site
+            != (ValueDefinitionSite::BlockParameter {
+                block: patch.block,
+                position: patch.position,
+            })
+    {
+        return Err(OptimizationUnitValidationError::CandidateBlockParameterMismatch);
+    }
+    target.parameters.remove(position);
+    for (new_position, parameter) in target.parameters.iter_mut().enumerate().skip(position) {
+        parameter.site = ValueDefinitionSite::BlockParameter {
+            block: patch.block,
+            position: u32::try_from(new_position).expect("parameter index fits u32"),
+        };
+    }
+
+    for block in function
+        .blocks
+        .iter_mut()
+        .filter(|block| affected.contains(&block.id))
+    {
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            node.operation =
+                normalize_redundant_parameter_observation_operation(&node.operation, patch)?;
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            node.definitions = expected_definitions(&node.operation, block.id, node_index);
+            node.uses = expected_uses(&node.operation, block.id, node_index);
+            node.successors = expected_edges(&node.operation);
+            node.ownership = expected_ownership(&node.operation);
+        }
+    }
+    normalized.identity = recompute_psi_optimization_unit_identity(&normalized);
+    Ok(normalized)
+}
+
+fn normalize_redundant_parameter_observation_operation(
+    operation: &omega_terminal_abstract_operations::TerminalAbstractOperation,
+    patch: RedundantBlockParameterRewrite,
+) -> Result<
+    omega_terminal_abstract_operations::TerminalAbstractOperation,
+    OptimizationUnitValidationError,
+> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+
+    let mut normalized = operation.clone();
+    let replace = |value: &mut ValueId| {
+        if *value == patch.parameter {
+            *value = patch.replacement;
+        }
+    };
+    let normalize_bindings =
+        |target: BlockId,
+         bindings: &mut Vec<omega_terminal_abstract_operations::TerminalValueBinding>|
+         -> Result<(), OptimizationUnitValidationError> {
+            for binding in bindings.iter_mut() {
+                replace(&mut binding.argument);
+            }
+            if target == patch.block {
+                let position = usize::try_from(patch.position).expect("u32 fits usize");
+                let binding = bindings
+                    .get(position)
+                    .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
+                if binding.parameter != patch.parameter
+                    || binding.argument != patch.replacement
+                    || binding.scalar_type != patch.scalar_type
+                {
+                    return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+                }
+                bindings.remove(position);
+            }
+            Ok(())
+        };
+
+    match &mut normalized {
+        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
+            for argument in arguments {
+                replace(argument);
+            }
+        }
+        O::BooleanNot { operand, .. }
+        | O::IntegerBitwiseNot { operand, .. }
+        | O::IntegerWiden { operand, .. }
+        | O::IntegerExactCast { operand, .. } => replace(operand),
+        O::BooleanEqual { left, right, .. }
+        | O::IntegerEqual { left, right, .. }
+        | O::IntegerLessThan { left, right, .. }
+        | O::IntegerLessOrEqual { left, right, .. }
+        | O::IntegerBitwiseAnd { left, right, .. }
+        | O::IntegerBitwiseOr { left, right, .. }
+        | O::IntegerBitwiseXor { left, right, .. }
+        | O::WrappingIntegerAdd { left, right, .. }
+        | O::ExactIntegerAdd { left, right, .. }
+        | O::SaturatingIntegerAdd { left, right, .. }
+        | O::WrappingIntegerSubtract { left, right, .. }
+        | O::ExactIntegerSubtract { left, right, .. }
+        | O::SaturatingIntegerSubtract { left, right, .. }
+        | O::WrappingIntegerMultiply { left, right, .. }
+        | O::ExactIntegerMultiply { left, right, .. }
+        | O::ExactIntegerDivide { left, right, .. }
+        | O::ExactIntegerRemainder { left, right, .. }
+        | O::WrappingIntegerDivide { left, right, .. }
+        | O::WrappingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerDivide { left, right, .. }
+        | O::SaturatingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerMultiply { left, right, .. } => {
+            replace(left);
+            replace(right);
+        }
+        O::WrappingIntegerShiftLeft { value, count, .. }
+        | O::WrappingIntegerShiftRight { value, count, .. }
+        | O::ExactIntegerShiftLeft { value, count, .. }
+        | O::ExactIntegerShiftRight { value, count, .. } => {
+            replace(value);
+            replace(count);
+        }
+        O::Jump {
+            target, bindings, ..
+        } => normalize_bindings(*target, bindings)?,
+        O::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            replace(condition);
+            normalize_bindings(when_true.target, &mut when_true.bindings)?;
+            normalize_bindings(when_false.target, &mut when_false.bindings)?;
+        }
+        O::Return { value, .. } => replace(value),
+        O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::CallUnit { .. }
+        | O::CallStructuralScalar { .. }
+        | O::CallStructural { .. }
+        | O::PortWrite { .. }
+        | O::IntegerConstant { .. }
+        | O::BooleanConstant { .. }
+        | O::BooleanStructuralField { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::Crash { .. } => {}
+    }
+    Ok(normalized)
+}
+
+fn unchanged_outside_redundant_parameter_region(
+    input: &PsiOptimizationUnit,
+    output: &PsiOptimizationUnit,
+    machine: MachineId,
+    affected_blocks: &[BlockId],
+) -> bool {
+    let mut expected = input.clone();
+    let Some(expected_function) = expected
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == machine)
+    else {
+        return false;
+    };
+    let Some(output_function) = output
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+    else {
+        return false;
+    };
+    for block_id in affected_blocks {
+        let Some(expected_block) = expected_function
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == *block_id)
+        else {
+            return false;
+        };
+        let Some(output_block) = output_function
+            .blocks
+            .iter()
+            .find(|block| block.id == *block_id)
+        else {
+            return false;
+        };
+        *expected_block = output_block.clone();
+    }
+    expected.identity = output.identity;
+    expected == *output
 }
 
 fn rewrite_block_parameter_operation(
@@ -3416,7 +3660,8 @@ mod tests {
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
-        TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
+        TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractParameter,
+        TerminalAbstractResult,
     };
     use psi_core::{
         FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType,
@@ -3637,6 +3882,128 @@ mod tests {
             )],
         )
         .unwrap()
+    }
+
+    fn redundant_parameter_region_fixture() -> (
+        PsiOptimizationUnit,
+        PsiOptimizationUnit,
+        RedundantBlockParameterRewrite,
+        Vec<BlockId>,
+    ) {
+        use omega_terminal_abstract_operations::{TerminalAbstractSuccessor, TerminalValueBinding};
+
+        let machine = id(701, MachineId::new);
+        let entry = id(702, BlockId::new);
+        let merge = id(703, BlockId::new);
+        let condition = id(704, ValueId::new);
+        let shared = id(705, ValueId::new);
+        let alternate = id(706, ValueId::new);
+        let parameter = id(707, ValueId::new);
+        let result = id(708, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let binding = || TerminalValueBinding {
+            parameter,
+            argument: shared,
+            scalar_type,
+        };
+        let input = reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([22; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: shared,
+                            scalar_type,
+                        },
+                        TerminalAbstractParameter {
+                            value: alternate,
+                            scalar_type,
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: merge,
+                            parameters: vec![TerminalAbstractParameter {
+                                value: parameter,
+                                scalar_type,
+                            }],
+                            operation_offset: 1,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(709, EdgeId::new),
+                                target: merge,
+                                bindings: vec![binding()],
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(710, EdgeId::new),
+                                target: merge,
+                                bindings: vec![binding()],
+                            },
+                        },
+                        TerminalAbstractOperation::ExactIntegerAdd {
+                            psi_operation: id(711, OperationId::new),
+                            obligation: id(713, psi_core::ObligationId::new),
+                            result,
+                            scalar_type: integer,
+                            left: parameter,
+                            right: alternate,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(712, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let patch = RedundantBlockParameterRewrite {
+            machine,
+            block: merge,
+            position: 0,
+            parameter,
+            replacement: shared,
+            scalar_type,
+        };
+        let affected = vec![entry, merge];
+        let output = normalize_redundant_parameter_observation_input(&input, patch, &affected)
+            .expect("exact structural normalization");
+        (input, output, patch, affected)
     }
 
     fn integer_candidate(
@@ -3948,6 +4315,153 @@ mod tests {
     #[test]
     fn independently_accepts_verified_context_and_frontier_coverage() {
         validate_verified_psi_optimization_unit(&verified_unit()).unwrap();
+    }
+
+    #[test]
+    fn redundant_parameter_region_observation_is_canonical_and_axis_complete() {
+        let (input, output, patch, affected) = redundant_parameter_region_fixture();
+        let normalized = normalize_redundant_parameter_observation_input(&input, patch, &affected)
+            .expect("independent input normalization");
+        let expected = reconstruct_psi_closed_region_observation(
+            &normalized,
+            patch.machine,
+            &[affected[1], affected[0], affected[1]],
+        )
+        .expect("canonical normalized region");
+        let baseline = reconstruct_psi_closed_region_observation(&output, patch.machine, &affected)
+            .expect("canonical output region");
+        assert_eq!(expected.semantics, baseline.semantics);
+        assert_ne!(input.identity, output.identity);
+        assert_eq!(baseline.semantics.blocks.len(), 2);
+        assert!(baseline.semantics.incoming_edges.is_empty());
+        assert!(baseline.semantics.outgoing_edges.is_empty());
+        assert_eq!(baseline.semantics.scalar_live_ins.len(), 3);
+        assert!(baseline.semantics.scalar_live_outs.is_empty());
+        let merge_only =
+            reconstruct_psi_closed_region_observation(&output, patch.machine, &[patch.block])
+                .expect("single-block graph cut");
+        assert_eq!(merge_only.semantics.incoming_edges.len(), 2);
+        assert!(merge_only.semantics.outgoing_edges.is_empty());
+        assert_eq!(merge_only.semantics.scalar_live_ins.len(), 2);
+        assert!(unchanged_outside_redundant_parameter_region(
+            &input,
+            &output,
+            patch.machine,
+            &affected,
+        ));
+        let mut outside_region = output.clone();
+        outside_region.fuel_schedule = FuelScheduleIdentity::new(2).unwrap();
+        assert!(!unchanged_outside_redundant_parameter_region(
+            &input,
+            &outside_region,
+            patch.machine,
+            &affected,
+        ));
+
+        let mut corruptions = Vec::new();
+
+        let mut arithmetic_policy = output.clone();
+        let node = &mut arithmetic_policy.functions[0].blocks[1].nodes[0];
+        let TerminalAbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } = node.operation.clone()
+        else {
+            unreachable!()
+        };
+        node.operation = TerminalAbstractOperation::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        };
+        corruptions.push(("arithmetic policy", arithmetic_policy));
+
+        let mut edge = output.clone();
+        let TerminalAbstractOperation::Conditional { when_true, .. } =
+            &mut edge.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        when_true.psi_edge = id(799, EdgeId::new);
+        corruptions.push(("control edge", edge));
+
+        let mut successor = output.clone();
+        successor.functions[0].blocks[0].nodes[0].successors[0].psi_edge = id(796, EdgeId::new);
+        corruptions.push(("successor row", successor));
+
+        let mut normal_exit = output.clone();
+        let TerminalAbstractOperation::Return { psi_edge, .. } =
+            &mut normal_exit.functions[0].blocks[1].nodes[1].operation
+        else {
+            unreachable!()
+        };
+        *psi_edge = id(798, EdgeId::new);
+        corruptions.push(("normal exit", normal_exit));
+
+        let mut effect = output.clone();
+        effect.functions[0].blocks[1].nodes[0].effect.output += 1;
+        corruptions.push(("effect", effect));
+
+        let mut ownership = output.clone();
+        ownership.functions[0].blocks[1].nodes[0]
+            .ownership
+            .push(OwnershipEvent::ClaimCompletion(Vec::new()));
+        corruptions.push(("ownership/cleanup", ownership));
+
+        let mut provenance = output.clone();
+        provenance.functions[0].blocks[1].nodes[0]
+            .provenance
+            .push(PsiProvenance::Edge(id(797, EdgeId::new)));
+        corruptions.push(("provenance", provenance));
+
+        let mut fuel = output.clone();
+        fuel.functions[0].blocks[1].nodes[0].fuel[0].units += 1;
+        corruptions.push(("fuel", fuel));
+
+        let mut call_and_suspension = output.clone();
+        call_and_suspension.functions[0].blocks[1].nodes[0].operation =
+            TerminalAbstractOperation::Call {
+                psi_operation: id(711, OperationId::new),
+                result: id(708, ValueId::new),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                ),
+                callee: patch.machine,
+                arguments: vec![patch.replacement],
+            };
+        corruptions.push(("call/crash/suspension", call_and_suspension));
+
+        let mut live_boundary = output.clone();
+        live_boundary.functions[0].blocks[1].nodes[0].uses[0].value = id(704, ValueId::new);
+        corruptions.push(("typed scalar boundary", live_boundary));
+
+        let mut frontier = output.clone();
+        frontier
+            .ownership_frontier_facts
+            .push(OwnershipFrontierFact::new(
+                frontier.terminal_psi,
+                patch.machine,
+                OwnershipFrontierSite::BlockEntry(affected[0]),
+                OwnershipFrontierSnapshot {
+                    claims: Vec::new(),
+                    owned_places: Vec::new(),
+                    partial_custody: Vec::new(),
+                },
+            ));
+        corruptions.push(("verifier frontier", frontier));
+
+        for (axis, corrupted) in corruptions {
+            let observed =
+                reconstruct_psi_closed_region_observation(&corrupted, patch.machine, &affected)
+                    .expect("corrupted region remains observable");
+            assert_ne!(baseline.semantics, observed.semantics, "{axis}");
+        }
     }
 
     #[test]
