@@ -276,12 +276,18 @@ The allocator core also has a validated miniature two-register pressure model
 with no fixed operands. Production and independent replay both assign two
 overlapping flexible intervals to stable views 0 and 1, expire them before a
 later interval reuses view 0, and reject three pairwise-overlapping intervals
-at the same stable VReg because a spill would be required. This is deliberately
-not described as production pressure coverage: the target catalogs and joined
-environment now own a flag-transparent, three-address `add_i64` constraint, but
-the selected instruction vocabulary and selector cannot yet form it from
-Terminal operations. That end-to-end source/selection validation must land
-before spill policy is enabled.
+at the same stable VReg because a spill would be required. The production
+vertical now reaches the same flexible ranking mechanics from verified
+Terminal operations: each leaf of an exact three-block conditional materializes
+two u64 constants, performs one proof-bearing exact add through the target-owned
+three-address `add_i64` row, and returns the result. Selection retains both the
+obligation and its accepted verifier-fact identity. Liveness exposes exactly one
+flexible interference pair per leaf; allocation assigns distinct homes and then
+reuses the same pair across mutually exclusive leaves on x86-64 and AArch64.
+The miniature three-way failure remains the exact spill-choice boundary; no
+spill is yet invented. Stable x86-64 ordering currently chooses `rbx` as the
+second home, which is legality evidence only; callee-save and frame cost do not
+exist until the frame/cost-model joins are implemented.
 
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,
@@ -782,11 +788,15 @@ The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-selected-instructions` is the data-only
 representation owner, while
 `omega-terminal-target-operations-to-selected-instructions` produces and
-independently validates two exact three-block runtime conditional forms. The
+independently validates three exact three-block runtime conditional forms. The
 first has leaves that materialize unsigned 64-bit constants and return. The
 second carries a shared unsigned 64-bit entry parameter across both branch
 edges and returns it directly, exposing genuine virtual interference and
-different entry/return fixed sites without inventing a move. Each virtual register retains
+different entry/return fixed sites without inventing a move. The third gives
+each leaf two unsigned 64-bit constants and a verifier-admitted exact addition.
+Its selected semantic kind retains the exact obligation and accepted-fact
+identity while its physical constraint remains the target-owned, flag-neutral
+three-address `add_i64` row. Each virtual register retains
 its exact Psi value and definition site; each instruction retains its catalog
 constraint, explicit and implicit state footprint, and semantic provenance;
 branch-edge fuel remains attached to the corresponding selected successor so
@@ -842,7 +852,7 @@ three-address i64 addition, compare with zero, and conditional branch. AArch64
 maps addition directly to its register ADD form; x86-64 can realize the same
 constraint with LEA without inventing a two-address tie. Compare defines
 RFLAGS/NZCV, while branch explicitly uses that state and updates RIP/PC. The
-selected vocabulary does not emit addition yet, and these rows are not yet a
+selected vocabulary now emits the exact-add base case; these rows are not yet a
 complete ordinary-instruction or feature-profile inventory. The add constraint
 describes physical shape, not arithmetic policy: exact, wrapping, and trapping
 semantics remain distinct in semantic lowering, and this flag-transparent row

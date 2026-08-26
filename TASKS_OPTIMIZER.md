@@ -810,9 +810,13 @@ dependency.
   uses/defs/clobbers, source block/edge/value/operation provenance, and
   path-specific logical-fuel settlements. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and independently validates the first deliberately bounded production shape:
-  one runtime Boolean parameter, a three-block conditional, and two leaf-local
-  unsigned-i64 constants followed by cleanup-free returns. Both x86-64 and
+  and independently validates three deliberately bounded production shapes
+  over one runtime Boolean parameter and a three-block conditional: leaf-local
+  unsigned-i64 constants, one shared returned entry parameter, or two
+  leaf-local constants followed by one proof-bearing exact add and a cleanup-
+  free return. The exact-add selected kind retains both its obligation and the
+  verifier-owned accepted-fact identity while consuming the target-owned
+  flag-transparent `add_i64` row. Both x86-64 and
   AArch64 use ISA-owned constraint rows and fixed-register view resolvers;
   compare/branch explicitly cross RFLAGS/RIP or NZCV/PC, and fixed ABI operands
   remain constraints rather than assigned homes. The opt-in orchestration
@@ -982,18 +986,25 @@ dependency.
   expired third interval reuses view 0, and three pairwise-interfering
   intervals fail identically at VReg 2 with `NoCompatibleHome`. This identifies
   the exact future spill-choice boundary without pretending a spill exists.
-  The target catalogs and retained environment now contain an ordinary
-  three-address `add_i64` row, but the production selected vocabulary and
-  selector do not emit it yet. Flexible pressure therefore remains allocator-
-  core evidence rather than a source-to-selected vertical slice.
+  The production exact-add conditional now carries the ordinary three-address
+  `add_i64` row from verified Terminal operations through selection, liveness,
+  ranges, legality, and deterministic homes on both ISAs. Each leaf contributes
+  one flexible interference pair; the allocator assigns distinct homes and
+  reuses the same pair after the mutually exclusive leaf interval expires.
+  Exact arithmetic policy remains explicit through the obligation and accepted
+  verifier-fact identity rather than being collapsed into the physical row.
+  The x86-64 stable-order fixture currently chooses `rbx` as its second home;
+  this is deterministic legality evidence, not yet a callee-save/frame cost
+  claim.
 
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent
   reconstruction, complete reanalysis, post-copy homes, active expiration, and
   the first real competing pair now exist. Flexible candidate ranking and the
-  deterministic pressure failure are covered at allocator-core level. Next
-  carry the target-owned `add_i64` row into the selected vocabulary and source-
-  to-selection production vertical slice before implementing spill choice.
+  deterministic pressure failure are covered at allocator-core level, and the
+  two-way flexible case now has a production source-to-home vertical. Next
+  implement deterministic spill choice and its independently replayed cost and
+  placement evidence without weakening the current fail-closed pressure result.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 

@@ -7,6 +7,7 @@
 //! constraints, but assign no physical homes and grant no liveness,
 //! allocation, emission, or publication authority.
 
+use omega_optimization_core::AcceptedObligationFactIdentity;
 use omega_optimization_unit::{FuelSettlement, ValueDefinitionSite};
 use omega_register_model::{
     RegisterClassId, RegisterConstraintKey, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
@@ -153,8 +154,17 @@ pub struct TerminalSelectedOperand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalSelectedInstructionKind {
     CompareI64Zero,
-    MaterializeI64 { value: IntegerValue },
+    MaterializeI64 {
+        value: IntegerValue,
+    },
     CopyI64,
+    /// Exact mathematical addition whose Psi proof obligation was discharged
+    /// before target lowering. The obligation remains semantic custody even
+    /// when the target uses the same physical row as wrapping addition.
+    ExactAddI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     ConditionalBranchNonZero,
     ReturnI64,
 }

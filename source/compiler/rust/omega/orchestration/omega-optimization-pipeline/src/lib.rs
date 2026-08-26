@@ -592,6 +592,194 @@ mod tests {
         stage_optimized_instruction_selection(target).unwrap()
     }
 
+    fn conditional_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(5_001).unwrap();
+        let entry = BlockId::new(5_002).unwrap();
+        let when_true = BlockId::new(5_003).unwrap();
+        let when_false = BlockId::new(5_004).unwrap();
+        let condition = ValueId::new(5_005).unwrap();
+        let true_left = ValueId::new(5_006).unwrap();
+        let true_right = ValueId::new(5_007).unwrap();
+        let true_sum = ValueId::new(5_008).unwrap();
+        let false_left = ValueId::new(5_009).unwrap();
+        let false_right = ValueId::new(5_010).unwrap();
+        let false_sum = ValueId::new(5_011).unwrap();
+        let result = ValueId::new(5_012).unwrap();
+        let true_left_operation = OperationId::new(5_021).unwrap();
+        let true_right_operation = OperationId::new(5_022).unwrap();
+        let true_add_operation = OperationId::new(5_023).unwrap();
+        let false_left_operation = OperationId::new(5_024).unwrap();
+        let false_right_operation = OperationId::new(5_025).unwrap();
+        let false_add_operation = OperationId::new(5_026).unwrap();
+        let true_obligation = ObligationId::new(5_031).unwrap();
+        let false_obligation = ObligationId::new(5_032).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let integer_operation = |id, result, kind| Operation {
+            id,
+            result: OperationResult::Scalar(declaration(result, scalar_type)),
+            kind,
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(condition, ScalarType::Boolean)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(5_041).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(5_042).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            integer_operation(
+                                true_left_operation,
+                                true_left,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(7),
+                                },
+                            ),
+                            integer_operation(
+                                true_right_operation,
+                                true_right,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(8),
+                                },
+                            ),
+                            integer_operation(
+                                true_add_operation,
+                                true_sum,
+                                OperationKind::ExactIntegerAdd {
+                                    left: true_left,
+                                    right: true_right,
+                                    obligation: true_obligation,
+                                },
+                            ),
+                        ],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_043).unwrap(),
+                            value: true_sum,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            integer_operation(
+                                false_left_operation,
+                                false_left,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(11),
+                                },
+                            ),
+                            integer_operation(
+                                false_right_operation,
+                                false_right,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(13),
+                                },
+                            ),
+                            integer_operation(
+                                false_add_operation,
+                                false_sum,
+                                OperationKind::ExactIntegerAdd {
+                                    left: false_left,
+                                    right: false_right,
+                                    obligation: false_obligation,
+                                },
+                            ),
+                        ],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_044).unwrap(),
+                            value: false_sum,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(5_051).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: [true_obligation, false_obligation]
+                .into_iter()
+                .map(|obligation| ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                })
+                .collect(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_exact_add_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_exact_add_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
+    }
+
     fn request(selections: OptimizationSelections) -> ExplicitOptimizationRequest {
         ExplicitOptimizationRequest::new(selections, budget()).unwrap()
     }
@@ -1043,6 +1231,258 @@ mod tests {
                 assert!(instruction.operands[0].fixed_view.is_some());
                 assert_eq!(instruction.provenance.fuel.len(), 1);
             }
+        }
+    }
+
+    #[test]
+    fn exact_add_selection_retains_proof_policy_and_target_constraints() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_exact_add_conditional(target);
+            let plan = staged.selected().plan();
+            let function = &plan.functions[0];
+            assert_eq!(function.virtual_registers.len(), 7);
+            assert_eq!(staged.selected().receipt().instruction_count(), 10);
+            let accepted = &staged
+                .optimized_target()
+                .optimized()
+                .unit()
+                .accepted_obligation_facts;
+            assert_eq!(accepted.len(), 2);
+            for (block, expected_obligation) in function.blocks[1..].iter().zip([
+                ObligationId::new(5_031).unwrap(),
+                ObligationId::new(5_032).unwrap(),
+            ]) {
+                assert_eq!(block.instructions.len(), 3);
+                let add = &block.instructions[2];
+                let TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation,
+                    accepted_fact,
+                } = add.kind
+                else {
+                    panic!("leaf arithmetic must retain exact-add semantics")
+                };
+                assert_eq!(obligation, expected_obligation);
+                let fact = accepted
+                    .iter()
+                    .find(|fact| fact.identity == accepted_fact)
+                    .expect("selected fact must remain verifier-owned");
+                assert_eq!(fact.operation, add.provenance.operations[0]);
+                assert_eq!(fact.obligation, obligation);
+                assert_eq!(
+                    add.constraint,
+                    staged.register_environment().selected_keys().add_i64
+                );
+                assert_eq!(
+                    add.operands
+                        .iter()
+                        .map(|operand| operand.access)
+                        .collect::<Vec<_>>(),
+                    vec![
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Def,
+                    ]
+                );
+                assert!(
+                    add.operands
+                        .iter()
+                        .all(|operand| operand.fixed_view.is_none())
+                );
+                assert!(add.operands.iter().all(|operand| operand.tied_to.is_none()));
+                assert!(add.implicit_uses.is_empty());
+                assert!(add.implicit_defs.is_empty());
+                assert!(add.clobbers.is_empty());
+                assert_eq!(add.provenance.operations.len(), 1);
+                assert_eq!(add.provenance.values.len(), 3);
+                assert_eq!(add.provenance.obligations, vec![obligation]);
+                assert_eq!(add.provenance.fuel.len(), 1);
+            }
+
+            let original_identity = staged.selected().receipt().identity();
+            let mut corrupted = plan.clone();
+            let TerminalSelectedInstructionKind::ExactAddI64 { obligation, .. } =
+                &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            else {
+                unreachable!()
+            };
+            *obligation = ObligationId::new(9_501).unwrap();
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&corrupted),
+                original_identity
+            );
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            let false_fact = match corrupted.functions[0].blocks[2].instructions[2].kind {
+                TerminalSelectedInstructionKind::ExactAddI64 { accepted_fact, .. } => accepted_fact,
+                _ => unreachable!(),
+            };
+            let TerminalSelectedInstructionKind::ExactAddI64 { accepted_fact, .. } =
+                &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            else {
+                unreachable!()
+            };
+            *accepted_fact = false_fact;
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&corrupted),
+                original_identity
+            );
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            corrupted.functions[0].blocks[1].instructions[2]
+                .provenance
+                .obligations[0] = ObligationId::new(9_502).unwrap();
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            corrupted.functions[0].blocks[1].instructions[2]
+                .operands
+                .swap(0, 1);
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            corrupted.functions[0].blocks[1].instructions[2].constraint =
+                staged.register_environment().selected_keys().copy_i64;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            corrupted.functions[0].blocks[1].instructions[2]
+                .provenance
+                .operations[0] = OperationId::new(9_503).unwrap();
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            corrupted.functions[0].blocks[1].instructions[2]
+                .provenance
+                .fuel[0]
+                .units += 1;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
+        for (target, expected_homes) in [
+            (
+                NativeTarget::linux_x64(),
+                ["rdi", "rax", "rbx", "rax", "rax", "rbx", "rax"],
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                ["x0", "x0", "x1", "x0", "x0", "x1", "x0"],
+            ),
+        ] {
+            let staged = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(
+                        stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let legality_stage = staged.legality_stage();
+            let ranges_stage = legality_stage.live_range_stage();
+            let liveness_stage = ranges_stage.liveness_stage();
+            let liveness = &liveness_stage.liveness().plan().functions[0];
+            for (block, registers) in liveness.blocks[1..].iter().zip([[1_u32, 2, 3], [4, 5, 6]]) {
+                assert_eq!(block.instructions.len(), 4);
+                assert_eq!(
+                    block.instructions[2].virtual_uses,
+                    registers[..2]
+                        .iter()
+                        .copied()
+                        .map(TerminalVirtualRegisterId)
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    block.instructions[2].virtual_defs,
+                    vec![TerminalVirtualRegisterId(registers[2])]
+                );
+                assert_eq!(
+                    block.instructions[2].virtual_live_out,
+                    vec![TerminalVirtualRegisterId(registers[2])]
+                );
+            }
+
+            let ranges = &ranges_stage.ranges().plan().functions[0];
+            assert_eq!(
+                ranges
+                    .block_domains
+                    .iter()
+                    .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 4), (1, 4, 12), (2, 12, 20)]
+            );
+            assert_eq!(
+                ranges.interference,
+                vec![
+                    TerminalVirtualInterference {
+                        lower: TerminalVirtualRegisterId(1),
+                        higher: TerminalVirtualRegisterId(2),
+                    },
+                    TerminalVirtualInterference {
+                        lower: TerminalVirtualRegisterId(4),
+                        higher: TerminalVirtualRegisterId(5),
+                    },
+                ]
+            );
+            assert!(
+                ranges
+                    .virtual_registers
+                    .iter()
+                    .all(|register| register.edge_connectors.is_empty())
+            );
+            assert_eq!(legality_stage.custody().entry_transition_count(), 0);
+
+            let environment = liveness_stage.selected_stage().register_environment();
+            let model = environment.physical().model();
+            let homes = &staged.homes().plan().functions[0];
+            assert_eq!(homes.assignments.len(), 7);
+            assert_eq!(
+                homes
+                    .assignments
+                    .iter()
+                    .map(|assignment| {
+                        model
+                            .views
+                            .iter()
+                            .find(|view| view.id == assignment.view)
+                            .unwrap()
+                            .name
+                            .as_str()
+                    })
+                    .collect::<Vec<_>>(),
+                expected_homes
+            );
+            assert_eq!(homes.assignments[1].view, homes.assignments[4].view);
+            assert_eq!(homes.assignments[2].view, homes.assignments[5].view);
+            assert_ne!(homes.assignments[1].view, homes.assignments[2].view);
         }
     }
 

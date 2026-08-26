@@ -9,6 +9,7 @@ name = "omega_terminal_selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-unit = { path = "../omega-optimization-unit" }
 omega-register-model = { path = "../omega-register-model" }
 omega-target = { path = "../../foundation/omega-target" }
