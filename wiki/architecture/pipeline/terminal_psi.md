@@ -2180,7 +2180,11 @@ scalar leaves have separate exact-unique tables. The proof-bearing table owns
 direct denotation, exact operand/result shape, six canonical goal shapes, the
 normal-successor equation, crash behavior, fuel, and frontier policy. Artifact
 reconstruction consumes one typed observation rather than reconstructing those
-twelve local equations in operation-specific branches. A separate migration
+twelve local equations in operation-specific branches. The policy join now
+binds eleven rows—exact arithmetic, divide/remainder and shifts plus
+wrapping/saturating divide/remainder—to the shared integer-policy catalog by
+primitive and domain identity; exact cast is the sole table row outside that
+catalog. A separate migration
 dispatcher still chooses the legacy sufficient proposition for eight rows and
 is explicitly hashed into each affected reduction dependency. The four
 wrapping/saturating divide/remainder rows instead select their canonical

@@ -12,6 +12,7 @@ pub enum IntegerPolicyPrimitive {
     Subtract,
     Multiply,
     Divide,
+    Remainder,
     ShiftLeft,
     ShiftRight,
 }
@@ -82,8 +83,8 @@ const TRAP_SHIFT: &[IntegerTrapPredicate] = &[
 ];
 
 /// Return the one settled bridge row for a fixed-width integer primitive and
-/// arithmetic policy. The catalog deliberately names division and shift
-/// exceptions instead of collapsing Trapping into a generic range test.
+/// arithmetic policy. The catalog deliberately names division/remainder and
+/// shift exceptions instead of collapsing Trapping into a generic range test.
 pub const fn integer_policy_bridge(
     primitive: IntegerPolicyPrimitive,
     policy: ArithmeticDomain,
@@ -97,9 +98,12 @@ pub const fn integer_policy_bridge(
         (IntegerPolicyPrimitive::Add, ArithmeticDomain::Exact)
         | (IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact)
         | (IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Exact) => REPRESENTABLE,
-        (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact) => EXACT_DIVIDE,
         (
-            IntegerPolicyPrimitive::Divide,
+            IntegerPolicyPrimitive::Divide | IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Exact,
+        ) => EXACT_DIVIDE,
+        (
+            IntegerPolicyPrimitive::Divide | IntegerPolicyPrimitive::Remainder,
             ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating,
         ) => NONZERO_DIVISOR,
         (IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact) => EXACT_SHIFT,
@@ -117,7 +121,10 @@ pub const fn integer_policy_bridge(
             | IntegerPolicyPrimitive::Multiply,
             ArithmeticDomain::Trapping,
         ) => TRAP_OVERFLOW,
-        (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Trapping) => TRAP_DIVIDE,
+        (
+            IntegerPolicyPrimitive::Divide | IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Trapping,
+        ) => TRAP_DIVIDE,
         (IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Trapping) => TRAP_SHIFT,
         (IntegerPolicyPrimitive::ShiftRight, ArithmeticDomain::Trapping) => {
             &[IntegerTrapPredicate::ShiftCountOutOfRange]
@@ -173,23 +180,26 @@ mod tests {
     }
 
     #[test]
-    fn division_keeps_definedness_and_traps_policy_specific() {
-        assert_eq!(
-            integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
-                .formation_conditions,
-            EXACT_DIVIDE
-        );
-        for policy in [ArithmeticDomain::Wrapping, ArithmeticDomain::Saturating] {
+    fn division_and_remainder_keep_definedness_and_traps_policy_specific() {
+        for primitive in [
+            IntegerPolicyPrimitive::Divide,
+            IntegerPolicyPrimitive::Remainder,
+        ] {
             assert_eq!(
-                integer_policy_bridge(IntegerPolicyPrimitive::Divide, policy).formation_conditions,
-                NONZERO_DIVISOR
+                integer_policy_bridge(primitive, ArithmeticDomain::Exact).formation_conditions,
+                EXACT_DIVIDE,
             );
+            for policy in [ArithmeticDomain::Wrapping, ArithmeticDomain::Saturating] {
+                assert_eq!(
+                    integer_policy_bridge(primitive, policy).formation_conditions,
+                    NONZERO_DIVISOR
+                );
+            }
+            let trapping = integer_policy_bridge(primitive, ArithmeticDomain::Trapping);
+            assert!(trapping.formation_conditions.is_empty());
+            assert_eq!(trapping.trap_predicates, TRAP_DIVIDE);
+            assert_ne!(trapping.trap_predicates, TRAP_OVERFLOW);
         }
-        let trapping =
-            integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Trapping);
-        assert!(trapping.formation_conditions.is_empty());
-        assert_eq!(trapping.trap_predicates, TRAP_DIVIDE);
-        assert_ne!(trapping.trap_predicates, TRAP_OVERFLOW);
     }
 
     #[test]
