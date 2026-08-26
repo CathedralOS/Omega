@@ -242,15 +242,28 @@ and deterministic identity while preserving template custody on rejection.
 The result is a nine-semantic-section view, not a completed section roster or
 `.shstrtab`.
 
-The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
-planned together; this rung does not claim a partial `.dynamic` payload.
+A following semantic `.dynamic` plan now retains the significant exact
+`DT_NEEDED` prefix followed by the complete owned fixed tag roster and one
+trailing `DT_NULL`. Literal rows bind `.rela.plt` and `.dynstr` byte counts,
+the `Elf64_Sym` entry size, RELA kind, and exact version-requirement record
+count. Seven typed zero-address obligations target `.got.plt`, `.hash`,
+`.dynstr`, `.dynsym`, `.rela.plt`, `.gnu.version`, and `.gnu.version_r`
+without assigning a pointer or numeric index. Independent replay checks raw
+library-name offsets and significant order, exact tag multiplicity/order,
+relocation closure, the target-specific future-`.dynamic` GOT policy, every
+literal/obligation, identity, and descriptor custody. General RELA, GNU-hash,
+bind-now, text-relocation, init/fini, runpath, soname, and target-optional tags
+remain absent because the sealed inputs own none of those meanings. The plan
+emits no `Elf64_Dyn` bytes and supplies no `.dynamic` descriptor.
+
 The final section roster and completed `.shstrtab`, numeric
 `sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
-`PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags,
-optional `.gnu.hash`, final descriptors for `.dynamic` and `.shstrtab`,
+`PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` byte
+serialization/address resolution, optional `.gnu.hash`, final descriptors for
+`.dynamic` and `.shstrtab`,
 numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
 application, complete load/program-header layout, image mutation, and
-independent final-byte replay remain open. Validated target templates still
+independent final-byte replay remain open. Validated semantic tags still
 grant no layout, loader, publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a

@@ -8534,16 +8534,28 @@ boundary without its corresponding checked law.
   distinction, and deterministic identity while preserving template custody on
   rejection. This produces a nine-semantic-section address-free view, not a
   final ELF section roster.
-  The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
-  planned together; no partial `.dynamic` payload is claimed. Runnable ELF
+  The next semantic `.dynamic` rung now consumes that nine-section carrier and
+  retains the significant exact `DT_NEEDED` prefix followed by the complete
+  owned fixed tag roster and one final `DT_NULL`. Literal rows bind exact
+  `.rela.plt`/`.dynstr` sizes, `Elf64_Sym` entry size, RELA kind, and version-
+  requirement count. Seven zero-valued typed address obligations name
+  `.got.plt`, `.hash`, `.dynstr`, `.dynsym`, `.rela.plt`, `.gnu.version`, and
+  `.gnu.version_r`; they assign no pointer or numeric section index. The plan
+  independently replays tag order/multiplicity, raw library-name offsets,
+  relocation closure, target-specific future-`.dynamic` GOT policy, every
+  literal and obligation, deterministic identity, and exact descriptor
+  custody. General RELA, GNU-hash, bind-now, text-relocation, init/fini,
+  runpath, soname, and target-optional tags remain absent because the sealed
+  inputs own none of those meanings. No `Elf64_Dyn` bytes or `.dynamic`
+  descriptor are claimed. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
-  `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, final
-  descriptors for `.dynamic` and `.shstrtab`, numeric indexes for
+  `PT_DYNAMIC`, `.dynamic` byte serialization/address resolution, optional
+  `.gnu.hash`, final descriptors for `.dynamic` and `.shstrtab`, numeric indexes for
   `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application, complete
-  load/program-header layout, image mutation, and independent final-byte replay remain
-  unimplemented. Validated target templates do not constitute a dynamic image.
+  load/program-header layout, image mutation, and independent final-byte
+  replay remain unimplemented. Validated semantic tags do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
