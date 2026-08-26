@@ -594,7 +594,16 @@ fn validate_expression(
             }
         },
         ExpressionNode::Member(member) => {
-            if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
+            if member.case_variant.is_none()
+                && member.member.as_str() == "len"
+                && direct_write_only_root(program, member.receiver, roots)
+                    .is_some_and(|root| is_byte_slice(program, root.referee))
+            {
+                // The length belongs to the direct slice descriptor carried by
+                // the reference, not to the referent's byte content. Do not
+                // recurse into the receiver: doing so would misclassify this
+                // one admitted metadata read as referent observation.
+            } else if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
                     member.member, root.name,
