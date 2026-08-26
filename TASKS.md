@@ -1179,6 +1179,11 @@ Owners:
   profile receipt joins return the exact loan and correspondence for retry;
   the exact join then withdraws both unchanged. It likewise stops before a
   placed view or occurrence identity and therefore does not choose Q12's ABI.
+  Source-retained provider-profile admission also covers two exact operation
+  families transactionally: Atomic `load + fetch_add` rejects load-only supply,
+  and External destructive `Take` rejects Repeatable supply. Both failures
+  return the exact loan for corrected-profile retry and unchanged withdrawal;
+  neither path creates placement occurrence or installation authority.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
@@ -5496,9 +5501,9 @@ Owners:
   coordinates, parent state/root lifetime, and restoration obligation.
   Independent checked replay rejects missing, duplicate, state, place, access,
   formation, closure, reason, or restoration drift, and direct-root structural
-  certificates must rejoin their two exact resource rows. Explicit reborrows
-  and borrow-carrying transfers remain excluded until exact parent/source loan
-  lineage is retained; these checked rows grant no Terminal authority.
+  certificates must rejoin their two exact resource rows. This direct-root
+  arena excludes reborrows and borrow-carrying transfers; these checked rows
+  grant no Terminal authority.
   The first exact lineage rung is now live for uniquely resolved explicit
   reference-local reborrows. Each child retains its immediate prior same-state
   parent loan handle, and independent replay reconstructs source owner/path,
@@ -5506,7 +5511,18 @@ Owners:
   remainder. Invalid, self, later, sibling-state, unrelated, ambiguous, tag,
   source, or place substitution rejects. Aggregate/helper transfers remain
   explicitly unretained; reborrow lifetime/restoration resources and Terminal
-  authority are still open.
+  authority were still open at this rung.
+  A separate checked reborrow-resource arena now closes the child side of that
+  lifecycle. Each retained child links by typed handle to its exact direct-root
+  or earlier reborrow resource, retains activation/weakening coordinates and
+  reason, and carries a pending restoration obligation naming the immediate
+  parent. Complete validation precedes an infallible topological rebuild that
+  remaps both resource arenas' handles; missing, duplicate, reordered, parent,
+  child, lifecycle, or restoration drift rejects transactionally. Certificates
+  rejoin through the exact child resource. Reborrows whose parent lineage is
+  unretained remain outside the arena, as do aggregate/helper transfers. The
+  obligation does not prove parent activity, reactivation, temporal
+  containment, completed restoration, or Terminal authority.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
