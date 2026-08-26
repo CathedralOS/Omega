@@ -125,24 +125,14 @@ These are disposition defaults, not final admissions. A later complete source
 checkpoint supplies usage evidence; the general bridge and assurance path
 supplies cost evidence. Final `Ωself` decisions use both.
 
-The names are deliberately non-generational. Delta is an independent language,
-not restricted to valid Omega. `Ωself` is a compositional feature-and-resource
-profile of ordinary Omega with no syntax or semantics of its own. Full Omega is
-the language implemented by the resulting production compiler. Accordingly,
-`omega-bootstrap` is a role, not “Omega 0”; the production compiler is `omega`,
-not “Omega 1”; and an optional self-rebuild creates a better executable of the
-same compiler rather than a new language or rung. O0/O1 are only names for
-already-frozen vertical canaries in the bridge implementation.
+## Closure rules
 
-- **Delta** is an independent, robust compiler-host language. It may resemble
-  Omega in spelling and shape, but it is not required to be an Omega subset.
-- **`Ωself`** is the Omega product-compiler source profile: a compositional subset
-  of ordinary Omega accepted by `omega-bootstrap`. It introduces no syntax or
-  semantics of its own. It is a feature-and-resource contract, not a whitelist
-  of the current compiler files or a collection of recognized AST shapes.
-- **Full Omega** is the language implemented by the resulting production
-  compiler. A compiler can implement a feature without using that feature in
-  its own source.
+The names are deliberately non-generational. `omega-bootstrap` is a compiler
+role, not “Omega 0”; production `omega` is not “Omega 1”; and O0/O1 remain only
+historical names for frozen bridge canaries. Delta is the independent source
+language of the bridge. `Ωself` is a compositional feature-and-resource profile
+of ordinary Omega with no syntax or semantics of its own. Full Omega is the
+language implemented by the resulting production compiler.
 
 Keep these implications one-way:
 
@@ -152,21 +142,13 @@ Keep these implications one-way:
 | `Ωself` omits an Omega feature | the production compiler source cannot use that feature to implement itself | permission for the resulting compiler to omit that feature from full-Omega acceptance |
 | `omega-bootstrap` lowers conservatively | the first production compiler executable may be slow or poorly optimized | the compiler source lacks the optimizer or advanced lowering, or the resulting compiler cannot run them on later inputs |
 
-The first two rows are possible because compiler implementation code can parse,
-check, and lower a feature using more primitive facilities than the feature
-itself. The third separates the quality of the generated compiler executable
-from the capabilities contained in that executable.
-
-Here, “implements full Omega” describes the compiler's accepted language and
-the meaning of the artifacts it produces. It does not require the bootstrap
-source closure to contain every adjacent product tool. A standalone Terminal
-Psi interpreter, REPL, proof explorer, viewer, or debugger belongs in the
-closure only if the production compiler executable actually imports it.
-
-Likewise, excluding a feature from `Ωself` is an authoring restriction, not a
-request to delete its implementation from the production compiler. The
-compiler source may implement that feature with ordinary records, sums,
-tables, procedures, and explicit invariants that remain inside `Ωself`.
+Compiler implementation code can parse, check, and lower a facility without
+using that facility in its own implementation. Therefore an `Ωself` exclusion
+is only an authoring restriction; it never requests removal from full Omega.
+Likewise, “implements full Omega” governs accepted source and artifact meaning,
+not adjacent tools. A standalone Terminal-Psi interpreter, REPL, proof
+explorer, viewer, or debugger enters the closure only when the production
+compiler executable imports it.
 
 The bootstrap closure condition is therefore:
 
@@ -291,51 +273,9 @@ the normative requester-local reach and visibility rules. The final product
 source checkpoint must close under those rules rather than making the bridge
 recreate the deleted Rust on-ramp dependency scanner.
 
-Delta v1 and `Ωself` remain separate contracts even though their discovery can
-co-evolve. Delta is derived from the cost of implementing and assuring the
-complete canonical-compiler and `omega-bootstrap` closures; `Ωself` is derived
-from the cost and robustness of the production compiler source. Neither
-contract should be made artificially resemble the other, and no exact source
-manifest is allowed to stand in for a language/profile definition.
-
-That gives the design loop exactly two source-surface inventories:
-
-1. What literal facilities must Delta provide so its canonical compiler and the
-   bridge can both be implemented robustly?
-2. Which ordinary Omega facilities may the production compiler use in its own
-   source while the bridge remains tractable?
-
-Everything else in the hosted build is implementation, validation, or optional
-optimization work under those two inventories.
-
-The current working baseline is deliberately asymmetric. It is a planning
-baseline, not a premature freeze:
-
-| Contract | Settled floor | Strong working default | Still decided by measured source/bridge cost |
-| --- | --- | --- | --- |
-| Delta v1 | independent, deterministic, specified, C-class compiler host with no undefined behavior or ambient authority | provide regular compiler-building data and control, deterministic storage/allocation with explicit exhaustion, and a sealed byte/artifact/diagnostic/exit boundary | the exact scalar, aggregate, slice, arena, call, module, arithmetic, and representation inventory |
-| `Ωself` | ordinary Omega with exact Omega meaning; the resulting compiler still implements full Omega | retain ordinary compiler-building facilities when used—modules, named records, sums, arrays/views, ownership, mutation/control, calls, basic generics, and concrete domains—unless a measured source refactor is clearly cheaper overall | advanced or proof-coupled facilities, and any ordinary facility whose bridge/assurance cost materially exceeds its source benefit |
-
-The burden is deliberately asymmetric. Proof-program mathematics, proof
-contracts used only for internal implementation, and dependent or proof-indexed
-types (including linear-dependent forms) are presumptive `Ωself` exclusions:
-the compiler can implement those user-facing features without using them in its
-own source. Ordinary compiler facilities are presumptive retentions once real
-source uses them. Basic generics and concrete domains therefore begin on the
-retention side, while domain polymorphism and advanced generic constraints are
-separate cost questions. Numeric/schema field tags, mixed field-plus-case
-declarations, and aggregate transition payloads remain explicit simplification
-candidates. Ordinary named fields and ordinary sum data are not implicated by
-those candidates.
-
-This baseline favors the most expressive profile that remains cheap and
-regular, not the smallest feature count. For an ordinary compiler facility,
-retention is the default after a checkpoint demonstrates real use; exclusion
-must show that a concrete refactor removes material bridge or assurance cost
-without replacing it with duplicated source, invalid intermediate states,
-hand-expanded variants, or private AST permutations. This is an authoring rule
-while the final manifest is incomplete, not premature admission to the frozen
-profile.
+The two contracts may co-evolve, but the [decision-status table](#decision-status)
+continues to govern their separate evidence and asymmetric working defaults.
+Neither an exact manifest nor a nearby bridge canary defines either contract.
 
 Route a question by the subject it changes, not by which compiler happens to
 encounter it:
@@ -354,23 +294,6 @@ refactor used to remove a facility from that source live under the product
 compiler task. Bootstrap work consumes the resulting checkpoint, measures and
 implements the profile, and validates the hosted edge. Neither queue may create
 a third language inventory to avoid coordinating those two responsibilities.
-
-The topology itself is settled: Delta is independent rather than an Omega
-subset; `Ωself` is a profile rather than a rung; production `omega` implements
-full Omega; conservative generation is sufficient; and the Omega→Omega rebuild
-is optional. What remains open is the exact Delta-v1 facility inventory and the
-exact `Ωself` disposition, each closed from its complete sources and measured
-cost rather than intuition.
-
-Until those measurements close, keep proof-program mathematics and dependent
-or proof-indexed typing, including linear-dependent forms, out of the product
-compiler's own source. Retain ordinary compiler data and control when they make
-that source clearer and more robust. Domain polymorphism, advanced generic
-constraints, numeric schema tags, mixed record/sum declarations, and aggregate
-transition payloads remain explicit simplification candidates. Ordinary named
-fields are distinct from numeric tags such as `0:`, and splitting a mixed
-declaration into a record and a sum is an available refactor rather than a
-standing requirement.
 
 For every disputed `Ωself` facility, use one decision procedure:
 

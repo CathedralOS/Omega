@@ -53,6 +53,15 @@ bootstrap/
 is `source/library/`, but package-manager P8 must first remove the hardcoded
 standard-library path.
 
+Compiler directories are named by durable role, not by every implementation
+language that may temporarily occupy that role. `source/compiler/rust/` carries
+the language qualifier because it is the external Rust producer. The permanent
+product owners are `source/compiler/omega/psi/` and
+`source/compiler/omega/omega/`: those paths are for Omega-written source and
+therefore do not receive `-rs` or `-rust` suffixes. If another external-language
+producer is retained, it belongs under its own explicit implementation-language
+owner rather than replacing or renaming the product paths.
+
 ## Ownership rules
 
 - `bootstrap/<rung>/` owns the canonical language definition, lattice-built

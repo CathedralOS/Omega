@@ -129,46 +129,23 @@ steps 1–2.
 
 ## Current language-design blockers
 
-The visibility rule for private access between distinct logical modules in one
-package is unspecified. Until it is ruled, the bridge rejects that case. Public
-cross-package access and same-module private access remain unblocked, including
-the current two-package nominal-data artifact. The selected constant-aggregate,
-runtime-record, and direct-field-receiver slices are deliberately same-module
-and do not depend on this ruling.
+Only unresolved Omega meaning may block a bridge slice. The current boundaries
+are:
 
-Checkpoint 000001's product lexer also conflicts with the current language
-guide: Unicode XID identifiers contradict its ASCII-transparent wording,
-`\u{...}` escapes contradict its explicit prohibition, raw-string semantics
-are absent. The refreshed source uses `u64` for collection coordinates and
-counts, so the former direct `u32` indexing/comparison conflict is closed rather
-than becoming a heterogeneous-conversion ruling. The remaining lexical questions
-are product-language blockers recorded under
-`OMEGA-PRODUCT-COMPILER-SOURCE` in
-[`TASKS.md`](TASKS.md). They do not block bridge implementation for source
-forms whose meaning is already settled, as the closed same-module runtime-
-record tranche demonstrates. No implementation or engineering difficulty below
-is otherwise a design blocker.
+| Unresolved language point | Fail-closed bridge boundary | Work that remains unblocked |
+| --- | --- | --- |
+| private access between distinct logical modules in one package | reject that access | public cross-package access and same-module private access |
+| Unicode XID identifiers, `\u{...}` escapes, and raw-string spelling | checkpoint 000001 records the conflict but does not claim full lexical conformance | bridge work over source forms whose meaning is already settled |
+| evaluation order among effectful or trapping named-record fields | admit only combinations whose relative order is unobservable | pure, non-trapping fields such as `SourceId { value: source_id }` |
+| call-argument evaluation order | admit at most one observably effectful or trapping argument | calls with pure/non-trapping siblings |
+| explicit sum discriminants versus first-case/tag-zero initialization | exclude explicit discriminants from the bounded sum slice; never expose the bridge-private layout as a public ABI | declaration-order payload sums under compiler-controlled layout |
 
-Omega also does not yet specify observable evaluation order among effectful or
-trapping fields of a runtime named-record literal. CKIR4 therefore admits only
-pure, non-trapping leaf fields and canonicalizes them by declaration ordinal;
-broader constructor fields remain design-blocked until the language owner rules
-their order. The exact `SourceId { value: source_id }` dependency does not need
-that ruling.
-
-Call-argument evaluation order is likewise still advisory rather than
-normative in the language guide, while the current bridge lowering evaluates
-arguments left-to-right. Until the language owner rules it, admitted bridge
-calls must have argument expressions whose relative order cannot be observed;
-effectful or trapping argument combinations remain blocked.
-
-The sum specification has one unresolved interaction outside the first bridge
-slice: explicit discriminants can move the first case away from zero despite
-the zero-initialization rule. Default aggregate layout is compiler-controlled,
-so declaration-order case identity must not be described as a unique public
-byte ABI. The first payload-sum tranche remains unblocked by excluding explicit
-discriminants and deriving one bridge-private layout from the checked
-declaration graph.
+The former `u32` collection-index mismatch is closed: product source now uses
+`u64` for collection coordinates and counts. The remaining lexical and
+evaluation/layout rulings are also recorded under
+`OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md). Engineering cost,
+missing implementation, slow gates, and incomplete assurance are not language-
+design blockers.
 
 ## External contract dependency
 
@@ -309,20 +286,18 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
   OMGLOWH/CKIR16, the conservative backend, and persisted lower-rooted OMGRFN18
   close this bounded relation; final `Ωself` admission and the remaining `u64`
   collection surface stay open.
-- [ ] Add an explicit authoritative build-source identity to the compilation
-  envelope, then carry the product build's explicit six-requirement `Console`
-  selection through one complete `ProviderPlan`, checked calls, conservative
-  execution, and lower-rooted reconstruction. The generalized direct-view
-  vector prerequisite is closed; product adapter execution still needs its
-  ranking/reach facts, provider-owned boundary call, and surrounding receiver
-  closure.
-  Structural plan completeness may proceed first, but it must not be presented
-  as the product adapter or as provider admission. OMGCOMP3 closes the first
-  structural conjunct: exactly one source row is explicitly marked as the
-  root-package build source, with native/self, version-cross-pair, role,
-  ownership, and resource teeth. It grants no accepted-lock or compilation
-  authority. Complete six-row plan derivation, calls, execution, and
-  reconstruction remain in this item.
+- [x] Add the authoritative build-source identity required by provider
+  selection. OMGCOMP3 requires exactly one explicitly marked root-package build
+  source and closes native/self, version-cross-pair, role, ownership, and
+  resource teeth. It grants no accepted-lock or compilation authority.
+- [ ] Carry the product build's explicit six-requirement `Console` selection
+  through one complete `ProviderPlan`, checked calls, conservative execution,
+  and lower-rooted reconstruction. The generalized direct-view vector and
+  authoritative build-source prerequisites are closed. Product adapter
+  execution still needs its ranking/reach facts, provider-owned boundary call,
+  and surrounding receiver closure. Structural plan completeness may land as a
+  separately named milestone, but it is not product adapter execution or final
+  provider admission.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.

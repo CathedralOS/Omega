@@ -327,8 +327,9 @@ and may lower the production compiler conservatively. It must compile the
 `Ωself` source that implements the production optimizer and advanced lowering,
 but it does not implement or run those product passes during this build. The
 resulting compiler contains the full production optimizer and advanced lowering
-even if its own binary is not yet optimized. This Delta-compiler → Omega-source edge is not, strictly, an
-Omega self-rebuild. A later production `omega` → `omega` rebuild may optimize
+even if its own binary is not yet optimized. This Delta-compiler → Omega-source
+edge is a cross-language hosted build, not an Omega self-rebuild. A later
+production `omega` → `omega` rebuild may optimize
 that binary and provide fixed-point/reproducibility evidence; it is product
 work, not a second bootstrap task or architectural dependency. As
 with every hosted edge, a defect can reproduce; proof, meaning, and
