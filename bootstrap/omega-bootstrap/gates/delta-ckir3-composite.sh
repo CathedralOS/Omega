@@ -39,8 +39,11 @@ ELF_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_elf_v3_reference.py"
 LOWERMACHINE="$OMEGA_PATH_DELTA/samples/lowermachine.alp"
 FIXTURES="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir3-constant-aggregates"
 UNICODE="$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
+GENERATED_CUSTODY="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/generated_source_custody.py"
+GENERATED_RECIPE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/generated-source-custody/unicode-tables.recipe.json"
 for REQUIRED in "$RESOLVER" "$PRODUCER" "$BACKEND" "$FRAME" "$FIXTURE" \
-  "$IR_REFERENCE" "$ELF_REFERENCE" "$LOWERMACHINE" "$UNICODE"; do
+  "$IR_REFERENCE" "$ELF_REFERENCE" "$LOWERMACHINE" "$UNICODE" \
+  "$GENERATED_CUSTODY" "$GENERATED_RECIPE"; do
   [ -f "$REQUIRED" ] || {
     echo "CKIR3 composite: required input absent: $REQUIRED" >&2
     exit 1
@@ -53,6 +56,11 @@ for SOURCE in "$PRODUCER" "$BACKEND"; do
     exit 1
   }
 done
+
+# The bridge still consumes the committed ordinary source below. This
+# preflight proves that those exact bytes are the deterministic result of the
+# sealed recipe before any compiler artifact is constructed.
+python3 -B "$GENERATED_CUSTODY" reproduce "$GENERATED_RECIPE"
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

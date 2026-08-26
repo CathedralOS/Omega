@@ -374,13 +374,21 @@ step "omega-bootstrap CKIR2 lowering meaning (RUST-FREE) — explicit root/calls
 step "omega-bootstrap CKIR2 backend — reachable call closure, ABI staging, rel32, ELF, and result" omega-bootstrap-gates delta-checked-ir-v2-backend.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap CKIR2 backend meaning (RUST-FREE) — exact ELF/result and 251/252 through Gamma" omega-bootstrap-gates delta-checked-ir-v2-backend-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "omega-bootstrap CKIR2 role-3 producer composite — resolver, lowerer, backend, mixed builds, and exact result" omega-bootstrap-gates delta-role3-ckir2-composite.sh omega-bootstrap-compiler delta-rust
+precise_step "omega-bootstrap generated-source custody — sealed reproduction recipe, exact OMGCOMP1 extent, and no-partial-publication teeth" omega-bootstrap-gates generated-source-custody.sh omega-bootstrap-generated-source
 step "omega-bootstrap CKIR3 resolved-source lowerer — constant DAG, <=, guardless and cyclic control, native/self relation" omega-bootstrap-gates delta-resolved-to-ckir3.sh omega-bootstrap-compiler delta-rust psi
 step "omega-bootstrap CKIR3 greatest source frame — exact canonical 728680-byte input and adjacent exhaustion" omega-bootstrap-gates delta-resolved-to-ckir3-greatest-frame.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap CKIR3 lowering meaning (RUST-FREE) — representative constant DAG, aggregate copy, <=, and 251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir3-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "omega-bootstrap CKIR3 backend — derived read-only image, conditional ELF segments, and exact reconstruction" omega-bootstrap-gates delta-checked-ir-v3-backend.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap CKIR3 resources — canonical graph, wire, image, frame, text, and ELF boundaries" omega-bootstrap-gates delta-checked-ir-v3-resources.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap CKIR3 backend meaning (RUST-FREE) — exact three-segment ELF/result and 251/252 through Gamma" omega-bootstrap-gates delta-checked-ir-v3-backend-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
-step "omega-bootstrap CKIR3 producer composite — native/self/mixed producer-backend pairs and independent result/ELF" omega-bootstrap-gates delta-ckir3-composite.sh omega-bootstrap-compiler delta-rust psi
+step "omega-bootstrap CKIR3 producer composite — native/self/mixed producer-backend pairs and independent result/ELF" omega-bootstrap-gates delta-ckir3-composite.sh omega-bootstrap-compiler delta-rust psi \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md" \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/fixtures/generated-source-custody/unicode-tables.recipe.json" \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/generated_source_custody.py" \
+  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
+  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
+  "$OMEGA_REPO_ROOT/Cargo.toml" "$OMEGA_REPO_ROOT/Cargo.lock" \
+  "$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
 step "omega-bootstrap OMGRFN2 layer 1 — exact frame, OMGCOMP graph, nested bundle, and source custody below Delta" omega-bootstrap-refinement omgrfn2-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN2 layer 2 — independent first-artifact source-to-witness resolution below Delta" omega-bootstrap-refinement omgrfn2-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN2 layer 3 — independent witness-to-CKIR declarations, layout, and root below Delta" omega-bootstrap-refinement omgrfn2-witness-ckir-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -402,7 +410,14 @@ step "omega-bootstrap OMGRFN4 layer 4 lowering — source bodies, operations, co
 step "omega-bootstrap OMGRFN4 layer 4 meaning — physically artifact-free source result below Delta" omega-bootstrap-refinement omgrfn4-source-only-result.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN4 layer 5a — complete CKIR3/result validation below Delta" omega-bootstrap-refinement omgrfn4-ckir3-artifact-result.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN4 layer 5b — exact CKIR3-to-ELF reconstruction below Delta" omega-bootstrap-refinement omgrfn4-ckir3-refinement-elf.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
-step "omega-bootstrap OMGRFN4 composite — all five independent responsibilities consume one exact constant-aggregate frame" omega-bootstrap-refinement omgrfn4-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
+step "omega-bootstrap OMGRFN4 composite — all five independent responsibilities consume one exact constant-aggregate frame" omega-bootstrap-refinement omgrfn4-same-frame-composite.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md" \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/fixtures/generated-source-custody/unicode-tables.recipe.json" \
+  "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/generated_source_custody.py" \
+  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
+  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
+  "$OMEGA_REPO_ROOT/Cargo.toml" "$OMEGA_REPO_ROOT/Cargo.lock" \
+  "$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
 precise_step "omega-bootstrap CKIR4 resolved-source lowerer — runtime records plus versioned direct field receivers" omega-bootstrap-gates delta-resolved-to-ckir4.sh omega-bootstrap-ckir4-7
 precise_step "omega-bootstrap CKIR4 lowering meaning (RUST-FREE) — constructor/field-receiver/Call 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir4-meaning.sh omega-bootstrap-ckir4-7
 precise_step "omega-bootstrap CKIR4 independent reference — constructor objects, result, exact ELF, and mutation sweep" omega-bootstrap-gates delta-checked-ir-v4-reference.sh omega-bootstrap-ckir4-7

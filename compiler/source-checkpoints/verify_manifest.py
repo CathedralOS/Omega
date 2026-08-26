@@ -22,6 +22,16 @@ BUILD_PRELUDE_OWNER = (
     "src/pipeline/stages.rs"
 )
 BUILD_PRELUDE_SNAPSHOT = "compiler/source-checkpoints/inputs/build-prelude.omg"
+GENERATOR_INPUT_ROLES = {
+    "generator_dependency_lock",
+    "generator_package_manifest",
+    "generator_source_input",
+    "generator_workspace_manifest",
+}
+PROVENANCE_ROLES = GENERATOR_INPUT_ROLES | {
+    "generated_source_provider",
+    "virtual_source_provider",
+}
 TOP_LEVEL_KEYS = {
     "schema",
     "checkpoint",
@@ -175,10 +185,25 @@ def verify_source_rows(manifest: dict) -> tuple[dict[str, dict], dict[str, dict]
     return compiled, virtual
 
 
+def cargo_lock_packages(path: Path) -> dict[str, dict[str, str]]:
+    locked: dict[str, dict[str, str]] = {}
+    for section in path.read_text(encoding="utf-8").split("[[package]]")[1:]:
+        fields = {}
+        for key in ("name", "version", "checksum"):
+            match = re.search(rf'^\s*{key}\s*=\s*"([^"]+)"\s*$', section, re.MULTILINE)
+            if match is not None:
+                fields[key] = match.group(1)
+        if set(fields) == {"name", "version", "checksum"}:
+            locked[f"{fields['name']}@{fields['version']}"] = fields
+    return locked
+
+
 def verify_provenance(manifest: dict, compiled: dict[str, dict], virtual: dict[str, dict]) -> None:
     provenance: dict[str, dict] = {}
     for index, row in enumerate(manifest["provenance_inputs"]):
         row = strict_keys(row, {"path", "role", "sha256"}, f"provenance_inputs[{index}]")
+        if row["role"] not in PROVENANCE_ROLES:
+            fail(f"unknown provenance role {row['role']!r} for {row['path']}")
         content = validate_relative_path(row["path"]).read_bytes()
         if row["sha256"] != sha256(content):
             fail(f"provenance digest mismatch for {row['path']}")
@@ -202,30 +227,10 @@ def verify_provenance(manifest: dict, compiled: dict[str, dict], virtual: dict[s
     if list(externals) != sorted(externals):
         fail("external_inputs must be sorted by name and version")
 
-    cargo_lock = (ROOT / "Cargo.lock").read_text(encoding="utf-8")
-    locked = {}
-    for section in cargo_lock.split("[[package]]")[1:]:
-        fields = {}
-        for key in ("name", "version", "checksum"):
-            match = re.search(rf'^\s*{key}\s*=\s*"([^"]+)"\s*$', section, re.MULTILINE)
-            if match is not None:
-                fields[key] = match.group(1)
-        if set(fields) == {"name", "version", "checksum"}:
-            locked[f"{fields['name']}@{fields['version']}"] = fields
-    for identity, row in externals.items():
-        package = locked.get(identity)
-        if package is None or package["checksum"] != row["registry_sha256"]:
-            fail(f"external input {identity} differs from Cargo.lock")
-        generated = (ROOT / "compiler/psi/generated/unicode_tables.omg").read_text(
-            encoding="utf-8"
-        )
-        version_line = (
-            f"// Unicode {row['unicode_version']}; {row['name']} {row['version']}."
-        )
-        if version_line not in generated.splitlines()[:4]:
-            fail(f"generated Unicode header does not bind {identity}")
-
     generated_paths = []
+    generator_references: set[str] = set()
+    input_references: set[str] = set()
+    external_references: set[str] = set()
     for index, row in enumerate(manifest["generated_sources"]):
         row = strict_keys(
             row,
@@ -234,24 +239,73 @@ def verify_provenance(manifest: dict, compiled: dict[str, dict], virtual: dict[s
         )
         if row["path"] not in compiled:
             fail(f"generated source {row['path']} is not compiled")
-        if row["generator"] not in provenance:
+        generator = provenance.get(row["generator"])
+        if generator is None:
             fail(f"generated source {row['path']} has an unpinned generator")
+        if generator["role"] != "generated_source_provider":
+            fail(f"generated source {row['path']} has a non-generator provider")
+        generator_references.add(row["generator"])
         if row["input_paths"] != sorted(set(row["input_paths"])):
             fail(f"generated source {row['path']} inputs must be sorted and unique")
-        if any(path not in provenance for path in row["input_paths"]):
-            fail(f"generated source {row['path']} has an unpinned input")
+        dependency_locks = []
+        for path in row["input_paths"]:
+            source = provenance.get(path)
+            if source is None:
+                fail(f"generated source {row['path']} has an unpinned input")
+            if source["role"] not in GENERATOR_INPUT_ROLES:
+                fail(f"generated source {row['path']} has invalid input role {source['role']}")
+            if source["role"] == "generator_dependency_lock":
+                dependency_locks.append(path)
+            input_references.add(path)
         if row["external_inputs"] != sorted(set(row["external_inputs"])):
             fail(f"generated source {row['path']} external inputs must be sorted and unique")
-        if any(identity not in externals for identity in row["external_inputs"]):
-            fail(f"generated source {row['path']} has an unknown external input")
+        if row["external_inputs"] and len(dependency_locks) != 1:
+            fail(
+                f"generated source {row['path']} with external inputs must reference "
+                "exactly one generator dependency lock"
+            )
+        locked = (
+            cargo_lock_packages(validate_relative_path(dependency_locks[0]))
+            if dependency_locks
+            else {}
+        )
+        # Provenance is generic: bind external package identity/checksum through
+        # the declared lock and bind the generated file through compiled-source
+        # custody. Payload-specific comments or headers are not a verifier rule.
+        for identity in row["external_inputs"]:
+            external = externals.get(identity)
+            if external is None:
+                fail(f"generated source {row['path']} has an unknown external input")
+            package = locked.get(identity)
+            if package is None or package["checksum"] != external["registry_sha256"]:
+                fail(f"external input {identity} differs from the referenced dependency lock")
+            external_references.add(identity)
         generated_paths.append(row["path"])
     if generated_paths != sorted(set(generated_paths)):
         fail("generated_sources must be sorted and unique")
 
+    for path, row in provenance.items():
+        if row["role"] == "generated_source_provider" and path not in generator_references:
+            fail(f"orphan generated-source provider {path}")
+        if row["role"] in GENERATOR_INPUT_ROLES and path not in input_references:
+            fail(f"orphan generated-source input {path}")
+    orphan_externals = set(externals) - external_references
+    if orphan_externals:
+        fail(f"orphan external inputs: {sorted(orphan_externals)}")
+
+    virtual_provider_references = set()
     for identity, row in virtual.items():
         provider = provenance.get(row["provider"])
         if provider is None or provider["role"] != "virtual_source_provider":
             fail(f"virtual source {identity} has an unpinned provider")
+        virtual_provider_references.add(row["provider"])
+    orphan_virtual_providers = {
+        path
+        for path, row in provenance.items()
+        if row["role"] == "virtual_source_provider" and path not in virtual_provider_references
+    }
+    if orphan_virtual_providers:
+        fail(f"orphan virtual-source providers: {sorted(orphan_virtual_providers)}")
 
 
 def bytes_text(expression: dict, context: str) -> str:
@@ -543,6 +597,61 @@ def mutation_teeth(manifest: dict, snapshots: dict[str, dict]) -> None:
         "external checksum",
         lambda value: value["external_inputs"][0].__setitem__("registry_sha256", "0" * 64),
     )
+
+    def wrong_generator_role(value: dict) -> None:
+        generator_path = value["generated_sources"][0]["generator"]
+        generator = next(
+            row for row in value["provenance_inputs"] if row["path"] == generator_path
+        )
+        generator["role"] = "generator_source_input"
+
+    add("wrong generated-source provider role", wrong_generator_role)
+
+    def omit_generated_input(value: dict) -> None:
+        value["generated_sources"][0]["input_paths"].pop()
+
+    add("omitted generated-source input", omit_generated_input)
+
+    def duplicate_generated_input(value: dict) -> None:
+        inputs = value["generated_sources"][0]["input_paths"]
+        inputs.append(inputs[0])
+        inputs.sort()
+
+    add("duplicate generated-source input", duplicate_generated_input)
+
+    def orphan_generated_input(value: dict) -> None:
+        path = "compiler/README.md"
+        value["provenance_inputs"].append(
+            {
+                "path": path,
+                "role": "generator_source_input",
+                "sha256": sha256((ROOT / path).read_bytes()),
+            }
+        )
+        value["provenance_inputs"].sort(key=lambda row: row["path"])
+
+    add("orphan generated-source input", orphan_generated_input)
+
+    def orphan_external_input(value: dict) -> None:
+        existing = {
+            f"{row['name']}@{row['version']}" for row in value["external_inputs"]
+        }
+        identity, package = next(
+            (identity, package)
+            for identity, package in sorted(cargo_lock_packages(ROOT / "Cargo.lock").items())
+            if identity not in existing
+        )
+        value["external_inputs"].append(
+            {
+                "name": package["name"],
+                "registry_sha256": package["checksum"],
+                "unicode_version": "0.0.0",
+                "version": package["version"],
+            }
+        )
+        value["external_inputs"].sort(key=lambda row: (row["name"], row["version"]))
+
+    add("orphan external input", orphan_external_input)
 
     def omit_source(value: dict) -> None:
         value["compiled_sources"].pop(2)

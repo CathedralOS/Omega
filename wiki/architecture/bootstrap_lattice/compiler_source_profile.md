@@ -4,10 +4,11 @@
 [Delta rung](rungs/delta.md) | [Psi/Omega toolchain](omega_toolchain.md)
 
 The final bootstrap makes exactly two bootstrap feature-inventory decisions:
-the literal Delta language used to write the bridge, and the ordinary-Omega
-profile used to write the product compiler. Full Omega is already the product
-language specification; generated-code quality is an artifact property. The
-actual build sequence is:
+the literal Delta language used to write the Delta compiler and bridge, and the
+ordinary-Omega profile used to write the product compiler. The first is a
+language design; the second is an authoring choice inside an existing language.
+Full Omega is already the product language specification; generated-code
+quality is an artifact property. The actual build sequence is:
 
 ```text
 Delta compiler source ∈ Delta v1
@@ -163,8 +164,9 @@ tools, not facilities already voted into the language:
 - explicit references or integer arena handles, checked indexing, and stable
   calling/layout conventions;
 - deterministic trapping or checked arithmetic and explicit boundary I/O;
-- runtime-sized allocation from fixed backing, typed/indexed arenas, and bulk
-  reclamation, with specified exhaustion;
+- runtime-sized allocation from fixed, bump, or paged backing, typed/indexed
+  arenas, and bulk reclamation, with specified exhaustion; this may be general
+  allocation from Delta's point of view without granting an ambient host heap;
 - conservative lowering and auditable code generation.
 
 The non-negotiable properties are deterministic specified behavior, no
@@ -223,8 +225,18 @@ closes the product Psi source-to-token phase;
 mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
 [`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
-explains the evidence and unresolved decisions. This is enough to begin
-evidence-led bridge work for those facilities only. It supplies no evidence for
+explains the evidence and unresolved decisions. The snapshot remains bounded
+evidence for the pinned source it describes, but its fast gate currently
+rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
+`compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
+provenance drift in `Cargo.lock` and
+`bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
+That stages provider also differs from the pinned
+`compiler/source-checkpoints/inputs/build-prelude.omg` snapshot. It must not be
+presented as the current coherent product closure until the product owner
+refreshes the manifest and profile together. The published evidence is enough
+to begin evidence-led bridge work for those facilities only.
+It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
 does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
 general profile. A first record/array/attached-machine cluster now has private
@@ -442,6 +454,7 @@ gates rather than being repeated in this decision document.
 | explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
 | canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
 | program-static shared byte views with a guarded head and one-byte tail | OMGRSW4, OMGLOWD/CKIR12, conservative backend, and OMGRFN14 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V4.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md), and [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) |
+| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md); the product-owned checkpoint refresh over the same tuple remains open |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
 No row admits a facility to final `Ωself`, claims general checkpoint coverage,

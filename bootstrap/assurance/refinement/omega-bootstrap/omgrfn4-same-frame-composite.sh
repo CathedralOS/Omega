@@ -54,17 +54,24 @@ BACKEND="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-checked-ir-v3-to-e
 FIXTURES="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir3-constant-aggregates"
 UNICODE="$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
 HARNESS="$FIXTURES/unicode-harness.omg"
+GENERATED_CUSTODY="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/generated_source_custody.py"
+GENERATED_RECIPE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/generated-source-custody/unicode-tables.recipe.json"
 for REQUIRED in "$ENVELOPE" "$L1" "$L2" "$L3" "$L4BASE" "$L4MODEL" \
   "$L4COMMON" "$L4V3" "$L4LOW" "$L4OPERATIONS" "$L4ROOTS" \
   "$L4INTERVAL" "$L4RESULT" \
   "$L5ARTIFACT" "$L5RESULT" "$L5ELF" "$PACKER" "$BUILDER" "$LOW_FRAME" \
   "$IR_REFERENCE" "$ELF_REFERENCE" "$RESOLVER" "$LOWERER" "$BACKEND" \
-  "$UNICODE" "$HARNESS"; do
+  "$UNICODE" "$HARNESS" "$GENERATED_CUSTODY" "$GENERATED_RECIPE"; do
   [ -f "$REQUIRED" ] || {
     echo "OMGRFN4 same-frame composite: missing $REQUIRED" >&2
     exit 1
   }
 done
+
+# OMGRFN4 continues to reconstruct the canonical committed source frame. This
+# preflight establishes that the generated extent in that frame is exactly and
+# deterministically reproduced by its sealed recipe.
+python3 -B "$GENERATED_CUSTODY" reproduce "$GENERATED_RECIPE"
 
 T=$(mktemp -d)
 cleanup() {

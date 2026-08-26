@@ -41,7 +41,9 @@ artifact view because it is a Delta-written compiler, not a language. The
 bracketed second `omega` is the same product source rebuilt for executable
 quality, not another feature surface or compiler generation.
 
-Only two source contracts remain open:
+There are exactly two remaining feature choices. Only the first creates a
+language specification; the second constrains how one ordinary-Omega program
+is authored:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
@@ -57,7 +59,7 @@ Use this working direction until complete-source measurements overturn it:
 
 | Surface | Default | Deliberate pressure points |
 | --- | --- | --- |
-| Delta v1 | a coherent C-class compiler host with regular data/control, modules, deterministic bounded storage or allocation, explicit exhaustion/failure, and sealed byte/artifact/diagnostic/exit I/O | exact arithmetic, aggregate, call, arena, representation, and module inventory still follows the two complete Delta source closures plus robustness arguments |
+| Delta v1 | a coherent C-class compiler host with regular data/control, modules, deterministic bounded storage or allocation, explicit exhaustion/failure, and sealed byte/artifact/diagnostic/exit I/O | exact arithmetic, aggregate, call, arena, representation, and module inventory still follows the two complete Delta source closures plus robustness arguments; runtime-sized allocation may use fixed, bump, or paged backing, but never inherits an ambient host allocator implicitly |
 | `Ωself` | retain ordinary compiler-building Omega facilities once real source uses them | presumptively omit proof-program mathematics and dependent/proof-indexed forms; measure advanced generics/domains, numeric schema tags, mixed record-plus-sum declarations, and aggregate transition payloads |
 
 For ordinary `Ωself` facilities, a concrete cheaper source refactor is
@@ -291,9 +293,17 @@ independent tasks that can be permanently checked off:
 - For every coherent product-source checkpoint published by
   `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
   deterministic closure and derive or update the distinct compositional
-  candidate feature/resource profile. Checkpoint 000001 already supplies the
-  first closure and normalized-syntax/resource profile; later compiler phases
-  publish later checkpoints from their product owner.
+  candidate feature/resource profile. Checkpoint 000001 supplied the first
+  published closure and normalized-syntax/resource profile, but its fast gate
+  currently rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
+  `compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
+  provenance drift in `Cargo.lock` and
+  `bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
+  The latter also provides the pinned build-prelude snapshot and currently
+  differs from `compiler/source-checkpoints/inputs/build-prelude.omg`. Treat its
+  pinned snapshot as bounded historical evidence until the product-owned
+  refresh passes; later compiler phases publish later checkpoints from their
+  product owner.
 - Measure every used feature's source benefit against the cost of its
   general Delta-written bridge implementation. Record one provisional outcome:
   retain, refactor from product source and preserve a negative canary, or leave
@@ -373,7 +383,7 @@ evidence stay in
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
-| generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
+| generated closure and resource behavior | bridge-side custody is closed for the exact Unicode tuple: generic manifest roles, a sealed locked/offline recipe, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition | the enclosing checkpoint remains stale and must be refreshed by the product owner over the same tuple; generated files are ordinary source, not hard-coded bridge exceptions |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
@@ -400,11 +410,17 @@ evidence stay in
   realization until selection comes from a normative source form. This remains
   product binding support, not admission of general boundary traits to Delta,
   provider admission, or compilation authority.
-- [ ] Close generated-source custody and resource behavior by binding ordinary
-  generated Omega source, its generator and external inputs, rounded ceilings,
-  exhaustion, and no-partial-publication behavior. Reuse already-closed
-  constant-aggregate/Unicode artifact evidence rather than creating a second
-  generated-data lowering path.
+- [ ] Complete the product-checkpoint join for generated-source custody. The
+  bridge-side infrastructure is closed without another source format, checked
+  IR, or lowering path: the generic manifest verifier binds generator roles and
+  complete referenced input/external sets without Unicode-header rules; the
+  sealed recipe reproduces the exact output twice under locked/offline inputs;
+  resource and failure teeth publish nothing; and the exact output extent is
+  composed with the existing OMGCOMP1→CKIR3→ELF and OMGRFN4 same-frame paths.
+  This item remains open only until the product owner refreshes checkpoint
+  000001 and its profile over that same generator/input/output tuple. Do not
+  weaken the checkpoint, duplicate the recipe into a new manifest dialect, or
+  treat bridge-local reproduction as product-owned checkpoint authority.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
