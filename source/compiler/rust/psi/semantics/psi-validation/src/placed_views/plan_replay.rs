@@ -1,5 +1,7 @@
 use psi_access_plans::FieldAccess;
 use psi_diagnostics::Diagnostic;
+use psi_language_core::atomic::AtomicObservingCompareExchangeOperation;
+use psi_language_semantics::Multiplicity;
 use psi_typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -202,6 +204,59 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             if !exact_access.is_some_and(|entry| entry.access() == &field.access) {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` changed its admitted access decision",
+                    view.data_name, field.field_name
+                )));
+                continue;
+            }
+
+            let expected_atomic_resident = match &field.access {
+                FieldAccess::Atomic {
+                    transfer_width_bits,
+                    operations,
+                    ..
+                } if operations.compare_exchange || operations.compare_exchange_once => {
+                    let multiplicity = program.type_multiplicity(schema_field.type_reference);
+                    if multiplicity != Multiplicity::Unrestricted {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "placed view `{}` field `{}` no longer has an unrestricted resident for observing compare-exchange",
+                            view.data_name, field.field_name
+                        )));
+                        continue;
+                    }
+                    let mut observing_results = Vec::new();
+                    if operations.compare_exchange {
+                        let operation = AtomicObservingCompareExchangeOperation::Decisive;
+                        observing_results.push(
+                            psi_typed_trees::typed_trees::PlacedAtomicObservingResultContract {
+                                operation,
+                                result_shape: operation.result_shape(),
+                            },
+                        );
+                    }
+                    if operations.compare_exchange_once {
+                        let operation = AtomicObservingCompareExchangeOperation::SingleAttempt;
+                        observing_results.push(
+                            psi_typed_trees::typed_trees::PlacedAtomicObservingResultContract {
+                                operation,
+                                result_shape: operation.result_shape(),
+                            },
+                        );
+                    }
+                    Some(psi_typed_trees::typed_trees::PlacedAtomicResidentContract {
+                        field_symbol: schema_field.symbol,
+                        resident_type: schema_field.type_reference,
+                        multiplicity,
+                        transfer_width_bits: *transfer_width_bits,
+                        compare_exchange: operations.compare_exchange,
+                        compare_exchange_once: operations.compare_exchange_once,
+                        observing_results,
+                    })
+                }
+                _ => None,
+            };
+            if field.atomic_resident != expected_atomic_resident {
+                diagnostics.push(Diagnostic::error(format!(
+                    "placed view `{}` field `{}` changed its checked Atomic resident/result contract",
                     view.data_name, field.field_name
                 )));
                 continue;

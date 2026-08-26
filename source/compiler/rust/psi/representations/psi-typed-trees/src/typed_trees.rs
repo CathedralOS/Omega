@@ -166,6 +166,37 @@ pub struct PlacedFieldPlan {
     pub accessor_targets: Vec<PlacedAccessorTarget>,
     pub value_type: crate::types::TypeReferenceHandle,
     pub access: psi_access_plans::FieldAccess,
+    /// Checked, non-authorizing resident/result-shape evidence retained only
+    /// when an Atomic placed field admits an observing compare-exchange axis.
+    /// Try-only fields remain `None`; this does not carry a resident value, an
+    /// operation attempt, selected encoding law, or target-lowering authority.
+    /// Current source-formable Atomic scalar residents are unrestricted because
+    /// aggregate fields remain behind the Inaccessible fence, but formation
+    /// still consumes the exact normalized multiplicity rather than assuming it.
+    pub atomic_resident: Option<PlacedAtomicResidentContract>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedAtomicResidentContract {
+    /// Exact source field whose resident type is described.
+    pub field_symbol: psi_symbols::SymbolHandle,
+    /// Exact semantic resident type retained by the source schema field.
+    pub resident_type: crate::types::TypeReferenceHandle,
+    /// Normalized source multiplicity used to admit observing failure arms.
+    pub multiplicity: psi_language_semantics::Multiplicity,
+    /// Exact normalized Atomic transfer width.
+    pub transfer_width_bits: u16,
+    /// Exact independently admitted observing permission axes.
+    pub compare_exchange: bool,
+    pub compare_exchange_once: bool,
+    /// Canonical decisive-then-single-attempt result-shape rows.
+    pub observing_results: Vec<PlacedAtomicObservingResultContract>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedAtomicObservingResultContract {
+    pub operation: psi_language_core::atomic::AtomicObservingCompareExchangeOperation,
+    pub result_shape: psi_language_core::atomic::AtomicObservingCompareExchangeResultShape,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

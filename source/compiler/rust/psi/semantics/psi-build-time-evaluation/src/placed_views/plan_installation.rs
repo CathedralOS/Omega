@@ -2,11 +2,48 @@
 
 use std::collections::BTreeMap;
 
-use psi_access_plans::{FieldAccess, ValidatedPlacementPlan};
+use psi_access_plans::{AtomicPermissions, FieldAccess, ValidatedPlacementPlan};
 use psi_diagnostics::Diagnostic;
+use psi_language_core::atomic::AtomicObservingCompareExchangeOperation;
+use psi_language_semantics::Multiplicity;
 use psi_typed_trees::TypedTrees;
 
 use super::{PlacedViewRecord, accessor_operations};
+
+fn observing_result_contracts(
+    operations: AtomicPermissions,
+    multiplicity: Multiplicity,
+) -> Result<
+    Option<Vec<psi_typed_trees::typed_trees::PlacedAtomicObservingResultContract>>,
+    Multiplicity,
+> {
+    if !operations.compare_exchange && !operations.compare_exchange_once {
+        return Ok(None);
+    }
+    if multiplicity != Multiplicity::Unrestricted {
+        return Err(multiplicity);
+    }
+    let mut observing_results = Vec::new();
+    if operations.compare_exchange {
+        let operation = AtomicObservingCompareExchangeOperation::Decisive;
+        observing_results.push(
+            psi_typed_trees::typed_trees::PlacedAtomicObservingResultContract {
+                operation,
+                result_shape: operation.result_shape(),
+            },
+        );
+    }
+    if operations.compare_exchange_once {
+        let operation = AtomicObservingCompareExchangeOperation::SingleAttempt;
+        observing_results.push(
+            psi_typed_trees::typed_trees::PlacedAtomicObservingResultContract {
+                operation,
+                result_shape: operation.result_shape(),
+            },
+        );
+    }
+    Ok(Some(observing_results))
+}
 
 pub(super) fn install_placed_view_plan(
     typed: &mut TypedTrees,
@@ -189,6 +226,37 @@ pub(super) fn install_placed_view_plan(
                 state_symbol: state.symbol,
             });
         }
+        let atomic_resident = match entry.access() {
+            FieldAccess::Atomic {
+                transfer_width_bits,
+                operations,
+                ..
+            } => {
+                let multiplicity = typed.type_multiplicity(schema_field.type_reference);
+                match observing_result_contracts(*operations, multiplicity) {
+                    Ok(None) => None,
+                    Ok(Some(observing_results)) => {
+                        Some(psi_typed_trees::typed_trees::PlacedAtomicResidentContract {
+                            field_symbol: schema_field.symbol,
+                            resident_type: schema_field.type_reference,
+                            multiplicity,
+                            transfer_width_bits: *transfer_width_bits,
+                            compare_exchange: operations.compare_exchange,
+                            compare_exchange_once: operations.compare_exchange_once,
+                            observing_results,
+                        })
+                    }
+                    Err(multiplicity) => {
+                        return Err(vec![Diagnostic::error(format!(
+                            "placed view `{}` field `{}` cannot admit observing compare-exchange for a {multiplicity:?} resident; failure exposes the resident and requires unrestricted copyability",
+                            record.synthetic_name,
+                            entry.field()
+                        ))]);
+                    }
+                }
+            }
+            _ => None,
+        };
         fields.push(psi_typed_trees::typed_trees::PlacedFieldPlan {
             field_name: entry.field().to_owned(),
             member_identity: schema_field.identity,
@@ -199,6 +267,7 @@ pub(super) fn install_placed_view_plan(
             accessor_targets,
             value_type: schema_field.type_reference,
             access: entry.access().clone(),
+            atomic_resident,
         });
     }
     typed
@@ -215,4 +284,42 @@ pub(super) fn install_placed_view_plan(
             fields,
         });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AtomicPermissions, Multiplicity, observing_result_contracts};
+
+    #[test]
+    fn noncopy_residents_remain_rowless_for_try_only_and_reject_observing_axes() {
+        for multiplicity in [Multiplicity::Affine, Multiplicity::Linear] {
+            let try_only = AtomicPermissions {
+                try_exchange: true,
+                try_exchange_once: true,
+                ..AtomicPermissions::default()
+            };
+            assert_eq!(
+                observing_result_contracts(try_only, multiplicity),
+                Ok(None),
+                "non-observing permissions retain no observing or encoding authority"
+            );
+
+            for observing in [
+                AtomicPermissions {
+                    compare_exchange: true,
+                    ..AtomicPermissions::default()
+                },
+                AtomicPermissions {
+                    compare_exchange_once: true,
+                    ..AtomicPermissions::default()
+                },
+            ] {
+                assert_eq!(
+                    observing_result_contracts(observing, multiplicity),
+                    Err(multiplicity),
+                    "each observing failure axis requires an unrestricted resident"
+                );
+            }
+        }
+    }
 }
