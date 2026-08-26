@@ -372,8 +372,9 @@ Omega/
 - The retired `omega/host` capability scaffold is not a second boundary model.
   Portable host requirements and checked adapters live under
   `omega/language/std`; target-owned implementations/defaults live under
-  `omega/language/std/targets`. `omega/host/README.md` preserves the migration
-  fence for any future dedicated provider package.
+  `omega/language/std/targets`. [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
+  preserves the migration fence for any future dedicated provider package; the
+  `omega/host/` directory itself is gone.
 - Import tables, export tables, loader metadata, startup selection, and final
   fixups are compiler responsibilities because Omega does not assume native
   system linkers.
