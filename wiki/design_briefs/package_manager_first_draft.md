@@ -1,6 +1,6 @@
 # Design Brief: Package Manager First Draft
 
-Status: corrected first design, 2026-08-24. This brief is temporary until the
+Status: corrected first design, 2026-08-26. This brief is temporary until the
 implementation vocabulary is established and the settled model is folded into
 `build_and_package_model.md`.
 
@@ -373,7 +373,7 @@ source closure, nor proves that the observed file is exactly the process image
 already loaded by the operating system. Complete compiler/toolchain source and
 rebuild provenance remain admission work.
 
-Ratified 2026-08-25: implementation should consume the earliest coherent
+Ratified 2026-08-26: implementation should consume the earliest coherent
 compiler-owned representation in which each required fact is semantically
 settled. Exact structural identity may come from private pre-Psi typed or
 resolved state, while checked acceptance, effects, proofs, and realization come
@@ -1039,6 +1039,24 @@ paths. Provider-free replay reconstructs the complete selected checked
 then requires exact event/result exhaustion. Failed and descriptor-backed
 metadata remain outside this rung. This changes neither the `Volatile` verdict
 nor the absence of an audit, authenticity, admission, or receipt claim.
+
+Observation summary v24 and compiler replay-record v6 close one deliberately
+narrow end-to-end case. After one or more admitted Source-input events, the
+only accepted Output suffix is a direct-child ordinary file created with mode
+438, written once in full from one immutable payload, closed with exact
+descriptor retirement, and handed off once as that exact generated source.
+Source observations remain record-served; Output operations execute in a fresh
+virtual namespace. Exact replay equality, exact handoff, namespace quiescence,
+and exact reproduced path/bytes are mandatory. On the initial run, the compiler
+also requires the independently reconstructed one-file tree to equal sponsored
+physical staged-tree custody before the realized class becomes `Receipted`.
+Unsponsored execution cannot publish such a record. Reopened custody repeats
+the no-host execution and reconstructs generated source after host Source and
+Output drift. The static filesystem ceiling remains `Volatile`, and every
+broader operation or tree shape remains outside this receipt. This is build-
+operation evidence; it makes no claim that a human or LLM audit occurred. A
+separate 16 MiB aggregate replay-retention ceiling rejects before cloning, and
+validated attempt custody is shared across evaluator handoff.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

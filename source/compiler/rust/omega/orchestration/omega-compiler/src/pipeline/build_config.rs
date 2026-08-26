@@ -50,7 +50,8 @@ use std::path::{Path, PathBuf};
 use omega_optimization_core::{Optimization, OptimizationSelections};
 
 use super::build_staged_output::{
-    BuildStagedOutputTree, BuildStagedSource, capture, empty, select_included_sources,
+    BuildStagedOutputTree, BuildStagedSource, capture, empty, replayed_single_ordinary_file,
+    select_included_sources,
 };
 
 const BUILD_MACHINE: &str = "build";
@@ -59,7 +60,7 @@ pub(crate) const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIden
         Some(identity) => identity,
         None => panic!("build source root identity must be nonzero"),
     };
-const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+pub(crate) const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
     match BuildMachineFilesystemGrantRootIdentity::new(2) {
         Some(identity) => identity,
         None => panic!("build output root identity must be nonzero"),
@@ -102,9 +103,13 @@ impl BuildMachineFilesystemScope {
         self
     }
 
+    const fn is_replay(&self) -> bool {
+        self.replay.is_some()
+    }
+
     fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         if let Some(replay) = &self.replay {
-            return BuildMachineFilesystemAccess::ReplaySourceInputs(replay.clone());
+            return BuildMachineFilesystemAccess::ReplayFilesystem(replay.clone());
         }
         let grants = BuildMachineFilesystemGrants {
             read_roots: vec![BuildMachineFilesystemGrantRoot::new(
@@ -184,6 +189,9 @@ impl BuildMachineFilesystemScope {
         &self,
         filesystem_reachable: bool,
     ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
+        if self.replay.is_some() {
+            return Ok(None);
+        }
         let Some(sponsor) = &self.sponsor else {
             return Ok(None);
         };
@@ -236,13 +244,13 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 23;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 24;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
-/// The current compiler has no receipted build-host provider. Its scoped real
-/// filesystem provider is therefore conservatively volatile; console output
-/// and pure configuration do not observe external input and remain hermetic.
+/// The static ceiling remains conservative. A realized run becomes receipted
+/// only when a bounded no-host replay reproduces its complete admitted Output
+/// mutation and that tree matches independent sponsored custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BuildObservationClass {
     Hermetic,
@@ -956,6 +964,7 @@ pub struct BuildObservationSummary {
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
     source_inputs_replay_verified: bool,
+    operation_replay_verified: bool,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
@@ -980,20 +989,27 @@ impl BuildObservationSummary {
         self.staged_output_tree.as_ref()
     }
 
-    /// Whether the compiler reran this build with no filesystem provider and
-    /// consumed the complete record using the bounded source-input replay
-    /// executor. This currently covers closed file-read chains and successful
-    /// path metadata reads. It is a partial replay fact, never a `Receipted`
-    /// verdict.
+    /// Whether the compiler reran this build with no host filesystem provider
+    /// and consumed the complete Source-input prefix. This is independently
+    /// useful partial replay evidence; only `operation_replay_verified` can
+    /// support a `Receipted` verdict.
     pub const fn source_inputs_replay_verified(&self) -> bool {
         self.source_inputs_replay_verified
     }
 
+    /// Whether the compiler replayed the complete successful operation record,
+    /// reproduced its Output tree from execution rather than a supplied digest,
+    /// and matched the exact generated-source handoff. Only this complete fact
+    /// can support a `Receipted` realized observation class.
+    pub const fn operation_replay_verified(&self) -> bool {
+        self.operation_replay_verified
+    }
+
     /// Ordered operation/result/error evidence from the successful evaluator
     /// run. Direct scoped path authorizations are compiler-rooted, but this is
-    /// intentionally not a replay transcript: exact path results, file and
-    /// directory regions, and canonical metadata observations are present,
-    /// while replay execution remains incomplete.
+    /// intentionally broader than the currently admitted replay grammar. Exact
+    /// path results, file and directory regions, and canonical metadata
+    /// observations are retained even when no complete replay claim is made.
     pub fn filesystem_operation_attempts(&self) -> &[BuildFilesystemOperationAttempt] {
         &self.filesystem_operation_attempts
     }
@@ -2028,23 +2044,32 @@ fn is_source_input_replay_record(
     observations: &psi_checked_interpreter::EvaluationObservations,
 ) -> bool {
     let attempts = observations.filesystem_operation_attempts();
+    source_input_replay_prefix_end(attempts) == Some(attempts.len())
+}
+
+fn source_input_replay_prefix_end(
+    attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
+) -> Option<usize> {
     let mut cursor = 0;
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < attempts.len() {
+        if attempts[cursor].operation_tag() == 1 {
+            break;
+        }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
             if !source_path_metadata_is_exact(&attempts[cursor]) {
-                return false;
+                return None;
             }
             cursor += 1;
             event_count += 1;
             continue;
         }
         let Some(identity) = source_read_chain_open_identity(&attempts[cursor]) else {
-            return false;
+            return None;
         };
         if identities.contains(&identity) {
-            return false;
+            return None;
         }
         identities.push(identity);
         cursor += 1;
@@ -2052,7 +2077,7 @@ fn is_source_input_replay_record(
         let reads_start = cursor;
         while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
             if !source_read_chain_read_is_exact(&attempts[cursor], identity) {
-                return false;
+                return None;
             }
             cursor += 1;
         }
@@ -2060,12 +2085,36 @@ fn is_source_input_replay_record(
             || cursor == attempts.len()
             || !source_read_chain_close_is_exact(&attempts[cursor], identity)
         {
-            return false;
+            return None;
         }
         cursor += 1;
         event_count += 1;
     }
-    event_count != 0
+    (event_count != 0).then_some(cursor)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReceiptedOutputFile {
+    relative_path: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+fn receipted_output_file(
+    replay: &psi_checked_interpreter::FilesystemReplay,
+) -> Option<ReceiptedOutputFile> {
+    let output = replay.output_write_chain()?;
+    if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
+        || output.output_relative_path().contains(&b'/')
+        || output.create_post_error() != 0
+        || output.write_post_error() != 0
+        || output.close_post_error() != 0
+    {
+        return None;
+    }
+    Some(ReceiptedOutputFile {
+        relative_path: output.output_relative_path().to_vec(),
+        bytes: output.write_bytes().to_vec(),
+    })
 }
 
 fn source_path_metadata_is_exact(
@@ -2511,24 +2560,35 @@ pub(crate) fn compute_build_config(
         ))]
     })?;
     let usage = measured.usage();
-    let replayable_first_rung =
-        filesystem_reachable && is_source_input_replay_record(measured.observations());
-    let source_inputs_replay_verified = if replayable_first_rung {
-        let replay =
-            psi_checked_interpreter::FilesystemReplay::from_source_input_observations(
+    let replay = if filesystem_reachable {
+        let attempts = measured.observations().filesystem_operation_attempts();
+        if source_input_replay_prefix_end(attempts).and_then(|end| end.checked_add(3))
+            == Some(attempts.len())
+        {
+            psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
                 measured.observations(),
             )
-        .map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "build-time evaluation of `{machine_name}` produced an invalid bounded replay record: {reason}"
-            ))]
-        })?;
+            .ok()
+        } else {
+            is_source_input_replay_record(measured.observations())
+                .then(|| {
+                    psi_checked_interpreter::FilesystemReplay::from_source_input_observations(
+                        measured.observations(),
+                    )
+                })
+                .and_then(Result::ok)
+        }
+    } else {
+        None
+    };
+    let receipted_output = replay.as_ref().and_then(receipted_output_file);
+    let source_inputs_replay_verified = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
             &prepared,
             machine_name,
             initial_arguments,
             BuildMachineExecutionMode::Granted {
-                filesystem: BuildMachineFilesystemAccess::ReplaySourceInputs(replay),
+                filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
                 filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
             },
         )
@@ -2548,21 +2608,15 @@ pub(crate) fn compute_build_config(
     } else {
         false
     };
+    let replayed_output_tree = receipted_output
+        .as_ref()
+        .map(|output| replayed_single_ordinary_file(&output.relative_path, &output.bytes))
+        .transpose()?;
     let observation_ceiling = if filesystem_reachable {
         BuildObservationClass::Volatile
     } else {
         BuildObservationClass::Hermetic
     };
-    let realized_observation = if measured.observations().filesystem_host_observed() {
-        BuildObservationClass::Volatile
-    } else {
-        BuildObservationClass::Hermetic
-    };
-    if realized_observation > observation_ceiling {
-        return Err(vec![Diagnostic::error(format!(
-            "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
-        ))]);
-    }
     let filesystem_operation_schema_version = measured
         .observations()
         .filesystem_operation_schema_version();
@@ -2876,6 +2930,7 @@ pub(crate) fn compute_build_config(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let filesystem_host_observed = measured.observations().filesystem_host_observed();
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -2893,7 +2948,39 @@ pub(crate) fn compute_build_config(
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.root_bindings = harvest_root_bindings(typed, machine)?;
-    let staged_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
+    let captured_output_tree = filesystem_scope.staged_output_tree(filesystem_reachable)?;
+    let (staged_output_tree, operation_replay_verified) = match (
+        replayed_output_tree,
+        captured_output_tree,
+        filesystem_scope.is_replay(),
+    ) {
+        (Some(replayed), Some(captured), false) => {
+            if replayed != captured {
+                return Err(vec![Diagnostic::error(format!(
+                    "build-time replay of `{machine_name}` reproduced an Output tree that differs from sponsored staged-output custody"
+                ))]);
+            }
+            (Some(captured), true)
+        }
+        (Some(replayed), None, true) => (Some(replayed), true),
+        (Some(_), None, false) => (None, false),
+        (Some(_), Some(_), true) => {
+            unreachable!("replay scope cannot capture a physical staged-output tree")
+        }
+        (None, captured, _) => (captured, false),
+    };
+    let realized_observation = if operation_replay_verified {
+        BuildObservationClass::Receipted
+    } else if filesystem_host_observed {
+        BuildObservationClass::Volatile
+    } else {
+        BuildObservationClass::Hermetic
+    };
+    if realized_observation > observation_ceiling {
+        return Err(vec![Diagnostic::error(format!(
+            "build-time evaluation of `{machine_name}` observed filesystem host state outside its static observation ceiling"
+        ))]);
+    }
     let generated_sources = match staged_output_tree.as_ref() {
         Some(tree) => select_included_sources(tree, &included_source_paths)?,
         None if included_source_paths.is_empty() => Vec::new(),
@@ -2919,6 +3006,7 @@ pub(crate) fn compute_build_config(
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
             source_inputs_replay_verified,
+            operation_replay_verified,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),

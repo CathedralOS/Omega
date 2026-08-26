@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: corrected implementation plan, 2026-08-25.
+Status: corrected implementation plan, 2026-08-26.
 
 This file tracks the Cargo-like source/package service under `omega`. The
 governing design is:
@@ -61,7 +61,8 @@ complete.
   may draw from different private representations. The lock stores only
   versioned canonical evidence; raw IR and compiler-private identities never
   become lock format.
-- The compiler admission projection may read each evidence fact from the
+- Checker placement (Q5, ratified 2026-08-26): the compiler admission
+  projection may read each evidence fact from the
   earliest coherent compiler-owned representation in which that fact is
   semantically settled. This may be private pre-Psi structure or Psi state;
   structural identity may be joined to later checked acceptance only after the
@@ -1954,6 +1955,28 @@ complete.
   replay-record v5 bind the extension; review-baseline capsule v2 needs no
   framing change because it already treats the embedded versioned record as
   opaque bounded custody. The fact remains review-only and `Volatile`.
+  Milestone 2026-08-26: observation summary v24 and replay-record v6 admit the
+  first complete operation-replay grammar: one or more existing Source-input
+  events, then exactly one Output-rooted direct-child ordinary-file
+  `create(438)` -> full immutable `write` -> retiring `close`, followed by
+  exactly one matching `include_source` handoff. No other filesystem event or
+  output shape is inferred into this rung. Source events are served from the
+  retained record, but the Output chain executes against a fresh virtual
+  namespace. Replay requires exact operation/result/evidence equality, exact
+  handoff, no live descriptor or extra virtual state, and the exact resulting
+  path and bytes. The compiler independently reconstructs the one-file
+  canonical tree from those executed operands. An initial sponsored run
+  becomes `Receipted` only when that tree equals the separately captured
+  physical staged tree. An unsponsored run cannot publish this record.
+  Reopened v6 custody executes the same no-host replay and reconstructs the
+  generated source without consulting changed host Source or Output bytes. The
+  static filesystem ceiling remains `Volatile`; only this realized closed
+  grammar is `Receipted`. Mode, path, payload, lane, descriptor, handoff, and
+  event-order mutations reject. Review-baseline capsule v2 and operation schema
+  v18 remain unchanged. Replay admission applies a separate 16 MiB aggregate
+  retained-evidence ceiling before cloning, and validated attempt custody is
+  shared across evaluator handoff. Broader output trees and filesystem
+  operations remain outside this verdict.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker
@@ -1995,11 +2018,12 @@ complete.
   re-inspects every resulting path, kind, mode, target, and byte before
   returning the original commitment; invalid shape, nonempty or symlink
   destinations, write failure, extra/missing state, and drift reject. Hard-link
-  topology is neither retained nor leaked through the content count. This is
-  staged-tree custody and replay only: complete remaining preparation-failure
-  evidence, full operation replay, retained observed inputs, generated-output
-  handoff, and a `Receipted` verdict remain. Same-user host racing is not solved by this
-  custody rung. Raw byte-valued inputs reject above a
+  topology is neither retained nor leaked through the content count. This tree
+  custody alone is not a receipt; the v24/v6 grammar above is the first narrow
+  case that joins it to complete operation replay and generated-output handoff.
+  Broader operation/output coverage and complete remaining preparation-failure
+  evidence remain. Same-user host racing is not solved by this custody rung.
+  Raw byte-valued inputs reject above a
   compiler-owned 16 MiB ceiling before the provider clone/allocation. Raw
   transfer counts pass one checked
   conversion shared by both providers and reject negative, wrapped, or

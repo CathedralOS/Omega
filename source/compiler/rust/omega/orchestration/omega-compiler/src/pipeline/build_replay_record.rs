@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 5;
+const VERSION: u16 = 6;
 
 /// Resource ceilings for compiler-owned recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -95,6 +95,22 @@ pub fn capture_verified_build_filesystem_replay_record(
     if !summary.source_inputs_replay_verified() {
         return Ok(None);
     }
+    let includes_output = summary
+        .filesystem_operation_attempts()
+        .iter()
+        .any(|attempt| {
+            attempt
+                .rooted_path_operand_resolutions()
+                .iter()
+                .any(|path| path.root() == BuildFilesystemRoot::Output)
+                || attempt
+                    .authorized_paths()
+                    .iter()
+                    .any(|path| path.root() == BuildFilesystemRoot::Output)
+        });
+    if includes_output && !summary.operation_replay_verified() {
+        return Ok(None);
+    }
     let mut encoder = Encoder::new(limits.maximum_bytes);
     encoder.fixed(MAGIC);
     encoder.u16(VERSION);
@@ -127,9 +143,13 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let shapes = decode_shapes(record.canonical_bytes(), limits)?;
+    let output_start = shapes
+        .iter()
+        .position(|shape| shape.operation == 1)
+        .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
-    while cursor < shapes.len() {
+    while cursor < output_start {
         if matches!(shapes[cursor].operation, 38 | 40) {
             events.push(
                 psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::PathMetadata(
@@ -186,7 +206,71 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
                 "filesystem replay source inputs could not be rehydrated",
             )
         })?;
-    Ok(psi_checked_interpreter::FilesystemReplay::from_source_input_record(typed_record))
+    if output_start == shapes.len() {
+        return psi_checked_interpreter::FilesystemReplay::from_source_input_record(typed_record)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay source inputs exceed retained replay policy",
+                )
+            });
+    }
+    let [create, write, close] = &shapes[output_start..] else {
+        unreachable!("validated receipted output is one create-write-close chain")
+    };
+    let Some(output) = create.output else {
+        unreachable!("validated receipted output create has a descriptor")
+    };
+    let [rooted] = create.rooted_paths.as_slice() else {
+        unreachable!("validated receipted output create has one rooted path")
+    };
+    let [(_, payload)] = write.byte_operands.as_slice() else {
+        unreachable!("validated receipted output write has one payload")
+    };
+    let ShapeResult::Scalar(write_result) = write.result else {
+        unreachable!("validated receipted output write returns a scalar")
+    };
+    let output_record = psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::new(
+        super::build_config::BUILD_OUTPUT_ROOT_IDENTITY,
+        clone_bytes(rooted.bytes)?,
+        output.identity,
+        create.post_error,
+        clone_bytes(payload)?,
+        write_result,
+        write.post_error,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay output chain could not be rehydrated",
+        )
+    })?;
+    let expected_included_source = psi_checked_interpreter::BuildIncludedSource::from_coordinate(
+        super::build_config::BUILD_OUTPUT_ROOT_IDENTITY,
+        clone_bytes(rooted.bytes)?,
+        shapes.len(),
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay generated-source handoff could not be rehydrated",
+        )
+    })?;
+    let typed_record = psi_checked_interpreter::FilesystemInputOutputReplayRecord::new(
+        typed_record,
+        output_record,
+        expected_included_source,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay input/output record could not be rehydrated",
+        )
+    })?;
+    psi_checked_interpreter::FilesystemReplay::from_input_output_record(typed_record).map_err(
+        |_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay input/output record exceeds retained replay policy",
+            )
+        },
+    )
 }
 
 fn rehydrate_path_metadata_shape(
@@ -581,7 +665,7 @@ struct AttemptShape<'a> {
     result: ShapeResult,
     post_error: i32,
     scalars: Vec<(u8, ShapeScalar)>,
-    byte_operand_count: usize,
+    byte_operands: Vec<(u8, &'a [u8])>,
     path_like_operand_count: usize,
     rooted_paths: Vec<ShapeRootedPath<'a>>,
     returned_path_count: usize,
@@ -627,7 +711,14 @@ fn decode_attempt<'a>(
         scalars.push((ordinal, value));
     }
 
-    let byte_operand_count = decode_ordinal_bytes_lane(decoder)?;
+    let mut byte_operands = Vec::new();
+    let count = decoder.count()?;
+    byte_operands.try_reserve_exact(count).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("replay byte-operand allocation failed")
+    })?;
+    for _ in 0..count {
+        byte_operands.push((decoder.byte()?, decoder.bytes()?));
+    }
     let path_like_operand_count = decode_ordinal_bytes_lane(decoder)?;
 
     let mut rooted_paths = Vec::new();
@@ -794,7 +885,7 @@ fn decode_attempt<'a>(
         result,
         post_error,
         scalars,
-        byte_operand_count,
+        byte_operands,
         path_like_operand_count,
         rooted_paths,
         returned_path_count,
@@ -830,6 +921,9 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
+        if shapes[cursor].operation == 1 {
+            break;
+        }
         if matches!(shapes[cursor].operation, 38 | 40) {
             validate_path_metadata_shape(&shapes[cursor])?;
             cursor += 1;
@@ -862,6 +956,109 @@ fn validate_first_rung(
     if event_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
             "bounded replay contains no source-input events",
+        ));
+    }
+    if cursor < shapes.len() {
+        let [create, write, close] = &shapes[cursor..] else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output must be one create-write-close chain",
+            ));
+        };
+        if create
+            .output
+            .is_some_and(|output| identities.contains(&output.identity))
+        {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output descriptor overlaps a Source descriptor",
+            ));
+        }
+        validate_output_write_chain(create, write, close)?;
+    }
+    Ok(())
+}
+
+fn validate_output_write_chain(
+    create: &AttemptShape<'_>,
+    write: &AttemptShape<'_>,
+    close: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let Some(output) = create.output else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output create has no descriptor identity",
+        ));
+    };
+    let [rooted] = create.rooted_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output create has no unique rooted path",
+        ));
+    };
+    let [authorized] = create.authorized_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output create has no unique authorization",
+        ));
+    };
+    if create.operation != 1
+        || create.provider != 2
+        || create.result != ShapeResult::Handle(output.identity)
+        || create.post_error != 0
+        || create.scalars.as_slice()
+            != [(
+                1,
+                ShapeScalar::I32(psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE),
+            )]
+        || rooted.ordinal != 0
+        || rooted.root != 1
+        || rooted.bytes.contains(&b'/')
+        || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)
+        || authorized.ordinal != 0
+        || authorized.access != 1
+        || authorized.root != 1
+        || authorized.bytes != rooted.bytes
+        || output.kind != 0
+        || output.source != 0
+        || !only_output_create_lanes(create)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output create is internally inconsistent",
+        ));
+    }
+
+    let [(payload_ordinal, payload)] = write.byte_operands.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output write has no unique immutable payload",
+        ));
+    };
+    let [write_input] = write.inputs.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output write has no unique descriptor input",
+        ));
+    };
+    let payload_length = i64::try_from(payload.len()).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "receipted build output payload exceeds this compiler host",
+        )
+    })?;
+    if write.operation != 5
+        || write.provider != 2
+        || write.result != ShapeResult::Scalar(payload_length)
+        || write.post_error != 0
+        || *payload_ordinal != 1
+        || *write_input
+            != (ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(output.identity),
+            })
+        || !only_output_write_lanes(write)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output write is internally inconsistent",
+        ));
+    }
+    validate_close_shape(close, output.identity)?;
+    if close.post_error != 0 {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output close changed the post-operation error state",
         ));
     }
     Ok(())
@@ -1082,7 +1279,7 @@ fn validate_read_shape(
 }
 
 fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
-    attempt.byte_operand_count == 0
+    attempt.byte_operands.is_empty()
         && attempt.path_like_operand_count == 0
         && attempt.returned_path_count == 0
         && attempt.metadata.is_empty()
@@ -1092,7 +1289,7 @@ fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
 }
 
 fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
-    attempt.byte_operand_count == 0
+    attempt.byte_operands.is_empty()
         && attempt.path_like_operand_count == 0
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
@@ -1133,6 +1330,32 @@ fn only_close_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.output.is_none()
 }
 
+fn only_output_create_lanes(attempt: &AttemptShape<'_>) -> bool {
+    common_empty_lanes(attempt)
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_bytes.is_empty()
+        && attempt.inputs.is_empty()
+        && attempt.retired.is_empty()
+}
+
+fn only_output_write_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.path_like_operand_count == 0
+        && attempt.returned_path_count == 0
+        && attempt.metadata.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_count == 0
+        && attempt.refusal_count == 0
+        && attempt.scalars.is_empty()
+        && attempt.rooted_paths.is_empty()
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_bytes.is_empty()
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+}
+
 fn record_commitment(bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(COMMITMENT_DOMAIN);
@@ -1152,6 +1375,141 @@ fn clone_bytes(bytes: &[u8]) -> Result<Vec<u8>, BuildFilesystemReplayRecordError
         .map_err(|_| BuildFilesystemReplayRecordError::new("replay record allocation failed"))?;
     cloned.extend_from_slice(bytes);
     Ok(cloned)
+}
+
+#[cfg(test)]
+mod first_rung_validation_tests {
+    use super::*;
+
+    fn empty_shape(operation: u16, result: ShapeResult) -> AttemptShape<'static> {
+        AttemptShape {
+            operation,
+            provider: 2,
+            result,
+            post_error: 0,
+            scalars: Vec::new(),
+            byte_operands: Vec::new(),
+            path_like_operand_count: 0,
+            rooted_paths: Vec::new(),
+            returned_path_count: 0,
+            observed_regions: Vec::new(),
+            metadata: Vec::new(),
+            mutable_byte_resolutions: Vec::new(),
+            mutable_i64_resolution_count: 0,
+            mutable_bytes: Vec::new(),
+            mutable_i64_count: 0,
+            authorized_paths: Vec::new(),
+            inputs: Vec::new(),
+            output: None,
+            retired: Vec::new(),
+            refusal_count: 0,
+        }
+    }
+
+    fn exact_input_output_shapes() -> Vec<AttemptShape<'static>> {
+        let mut open = empty_shape(2, ShapeResult::Handle(1));
+        open.scalars = vec![(1, ShapeScalar::I32(0))];
+        open.rooted_paths = vec![ShapeRootedPath {
+            ordinal: 0,
+            root: 0,
+            bytes: b"main.omg",
+        }];
+        open.authorized_paths = vec![ShapeAuthorizedPath {
+            ordinal: 0,
+            access: 0,
+            root: 0,
+            bytes: b"main.omg",
+        }];
+        open.output = Some(ShapeLogicalOutput {
+            kind: 0,
+            identity: 1,
+            source: 0,
+        });
+
+        let mut read = empty_shape(4, ShapeResult::Scalar(0));
+        read.scalars = vec![(2, ShapeScalar::U64(0))];
+        read.observed_regions = vec![ShapeObservedRegion {
+            ordinal: 1,
+            kind: 0,
+            offset: 0,
+            length: 0,
+        }];
+        read.mutable_byte_resolutions = vec![(1, b"")];
+        read.mutable_bytes = vec![ShapeMutableBytes {
+            ordinal: 1,
+            pre: b"",
+            post: b"",
+        }];
+        read.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 0,
+            resolution: Some(1),
+        }];
+
+        let mut source_close = empty_shape(8, ShapeResult::Scalar(0));
+        source_close.inputs = read.inputs.clone();
+        source_close.retired = vec![1];
+
+        let mut create = empty_shape(1, ShapeResult::Handle(2));
+        create.scalars = vec![(
+            1,
+            ShapeScalar::I32(psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE),
+        )];
+        create.rooted_paths = vec![ShapeRootedPath {
+            ordinal: 0,
+            root: 1,
+            bytes: b"generated.omg",
+        }];
+        create.authorized_paths = vec![ShapeAuthorizedPath {
+            ordinal: 0,
+            access: 1,
+            root: 1,
+            bytes: b"generated.omg",
+        }];
+        create.output = Some(ShapeLogicalOutput {
+            kind: 0,
+            identity: 2,
+            source: 0,
+        });
+
+        let mut write = empty_shape(5, ShapeResult::Scalar(7));
+        write.byte_operands = vec![(1, b"payload")];
+        write.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 0,
+            resolution: Some(2),
+        }];
+
+        let mut output_close = empty_shape(8, ShapeResult::Scalar(0));
+        output_close.inputs = write.inputs.clone();
+        output_close.retired = vec![2];
+
+        vec![open, read, source_close, create, write, output_close]
+    }
+
+    #[test]
+    fn output_write_authorization_lane_rejects_during_recovery_validation() {
+        let mut shapes = exact_input_output_shapes();
+        assert!(validate_first_rung(&shapes).is_ok());
+        shapes[4].authorized_paths.push(ShapeAuthorizedPath {
+            ordinal: 0,
+            access: 1,
+            root: 1,
+            bytes: b"generated.omg",
+        });
+        assert!(validate_first_rung(&shapes).is_err());
+    }
+
+    #[test]
+    fn output_descriptor_overlap_rejects_during_recovery_validation() {
+        let mut shapes = exact_input_output_shapes();
+        shapes[3].result = ShapeResult::Handle(1);
+        shapes[3].output.as_mut().unwrap().identity = 1;
+        shapes[4].inputs[0].resolution = Some(1);
+        shapes[5].inputs[0].resolution = Some(1);
+        shapes[5].retired[0] = 1;
+        assert!(validate_first_rung(&shapes).is_err());
+    }
 }
 
 struct Encoder {

@@ -1311,14 +1311,20 @@ pub struct EvaluationObservations {
     build_included_sources: Vec<BuildIncludedSource>,
 }
 
-/// Opaque, compiler-produced operation record for the first filesystem replay
-/// rung. The bounded rung accepts only `open`, one or more sequential or
-/// positioned reads, and `close`; broadening that set requires explicit replay
-/// semantics for the added operation.
+/// Opaque, compiler-produced operation record for the bounded filesystem replay
+/// rung. Source-only records retain their existing event grammar. The extended
+/// grammar permits one or more Source input events followed by one exact
+/// Output create/write/close chain. This remains replay evidence, not a receipt
+/// and not a reconstructed filesystem tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemReplay {
-    attempts: Vec<FilesystemOperationAttempt>,
+    attempts: std::sync::Arc<[FilesystemOperationAttempt]>,
 }
+
+/// Ordinary non-executable create mode admitted by the first Output replay
+/// rung (`0o666`, represented in Omega source as decimal `438`).
+pub const FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE: i32 = 438;
+const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemReplayReadKind {
@@ -1508,7 +1514,185 @@ impl FilesystemSourceInputReplayRecord {
     }
 }
 
+/// One complete write to one freshly created Output-rooted file.
+///
+/// The chain is deliberately narrow: canonical `create` (tag 1), canonical
+/// `write` (tag 5), then canonical `close` (tag 8), all through the scoped real
+/// provider and one fresh descriptor identity. A compiler may reconstruct the
+/// exact attempts from this record, but the record does not claim publication,
+/// receipt strength, or custody of a staged tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemOutputWriteChainReplayRecord {
+    output_root: FilesystemGrantRootIdentity,
+    output_relative_path: Vec<u8>,
+    logical_handle_identity: FilesystemLogicalHandleIdentity,
+    create_post_error: i32,
+    write_bytes: Vec<u8>,
+    write_result: i64,
+    write_post_error: i32,
+    close_post_error: i32,
+}
+
+impl FilesystemOutputWriteChainReplayRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        output_root: FilesystemGrantRootIdentity,
+        output_relative_path: Vec<u8>,
+        logical_handle_identity: u64,
+        create_post_error: i32,
+        write_bytes: Vec<u8>,
+        write_result: i64,
+        write_post_error: i32,
+        close_post_error: i32,
+    ) -> Result<Self, String> {
+        if !filesystem_root_relative_path_is_canonical(&output_relative_path, false) {
+            return Err("filesystem replay output path must be canonical and non-root".to_owned());
+        }
+        let logical_handle_identity = FilesystemLogicalHandleIdentity::new(logical_handle_identity)
+            .ok_or_else(|| "filesystem replay output identity must be nonzero".to_owned())?;
+        let full_write_result = i64::try_from(write_bytes.len())
+            .map_err(|_| "filesystem replay output exceeds i64 write length".to_owned())?;
+        if write_result != full_write_result {
+            return Err(
+                "filesystem replay output write must consume the complete immutable operand"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            output_root,
+            output_relative_path,
+            logical_handle_identity,
+            create_post_error,
+            write_bytes,
+            write_result,
+            write_post_error,
+            close_post_error,
+        })
+    }
+
+    pub const fn output_root(&self) -> FilesystemGrantRootIdentity {
+        self.output_root
+    }
+
+    pub fn output_relative_path(&self) -> &[u8] {
+        &self.output_relative_path
+    }
+
+    pub const fn logical_handle_identity(&self) -> FilesystemLogicalHandleIdentity {
+        self.logical_handle_identity
+    }
+
+    pub const fn create_mode(&self) -> i32 {
+        FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE
+    }
+
+    pub const fn create_post_error(&self) -> i32 {
+        self.create_post_error
+    }
+
+    pub fn write_bytes(&self) -> &[u8] {
+        &self.write_bytes
+    }
+
+    pub const fn write_result(&self) -> i64 {
+        self.write_result
+    }
+
+    pub const fn write_post_error(&self) -> i32 {
+        self.write_post_error
+    }
+
+    pub const fn close_post_error(&self) -> i32 {
+        self.close_post_error
+    }
+}
+
+/// Typed record for the bounded Source-input/Output-write replay grammar.
+/// Source events are replayed first in their authored order, followed by the
+/// single output chain. The expected generated-source handoff must name that
+/// exact Output coordinate; it is not an assertion that publication occurred.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemInputOutputReplayRecord {
+    source_input: FilesystemSourceInputReplayRecord,
+    output_write_chain: FilesystemOutputWriteChainReplayRecord,
+    expected_included_source: BuildIncludedSource,
+}
+
+impl FilesystemInputOutputReplayRecord {
+    pub fn new(
+        source_input: FilesystemSourceInputReplayRecord,
+        output_write_chain: FilesystemOutputWriteChainReplayRecord,
+        expected_included_source: BuildIncludedSource,
+    ) -> Result<Self, String> {
+        if expected_included_source.root() != output_write_chain.output_root()
+            || expected_included_source.relative_path() != output_write_chain.output_relative_path()
+        {
+            return Err(
+                "filesystem replay included-source handoff must match the exact output path"
+                    .to_owned(),
+            );
+        }
+        let expected_handoff_ordinal = source_input
+            .events
+            .iter()
+            .try_fold(0usize, |count, event| {
+                count.checked_add(match event {
+                    FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                        chain.reads.len().checked_add(2)?
+                    }
+                    FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
+                })
+            })
+            .and_then(|count| count.checked_add(3))
+            .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
+        if expected_included_source.filesystem_attempt_ordinal() != expected_handoff_ordinal {
+            return Err(
+                "filesystem replay included-source handoff must follow Output close".to_owned(),
+            );
+        }
+        if source_input.events.iter().any(|event| match event {
+            FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                chain.source_root == output_write_chain.output_root
+                    || chain.logical_handle_identity == output_write_chain.logical_handle_identity
+            }
+            FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
+                metadata.source_root == output_write_chain.output_root
+                    || metadata.authorized_root == output_write_chain.output_root
+            }
+        }) {
+            return Err(
+                "filesystem replay Source and Output roots and descriptors must be distinct"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            source_input,
+            output_write_chain,
+            expected_included_source,
+        })
+    }
+
+    pub const fn source_input(&self) -> &FilesystemSourceInputReplayRecord {
+        &self.source_input
+    }
+
+    pub const fn output_write_chain(&self) -> &FilesystemOutputWriteChainReplayRecord {
+        &self.output_write_chain
+    }
+
+    pub const fn expected_included_source(&self) -> &BuildIncludedSource {
+        &self.expected_included_source
+    }
+}
+
 impl FilesystemReplay {
+    pub(crate) fn executes_output_attempt(&self, attempt_index: usize) -> bool {
+        let Some(output_start) = self.attempts.len().checked_sub(3) else {
+            return false;
+        };
+        self.attempts[output_start].operation_tag() == 1 && attempt_index >= output_start
+    }
+
     pub fn from_source_input_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
@@ -1518,55 +1702,10 @@ impl FilesystemReplay {
             return Err("filesystem replay observation schema is not current".to_owned());
         }
         let attempts = observations.filesystem_operation_attempts();
-        let mut cursor = 0;
-        let mut event_count = 0;
-        while cursor < attempts.len() {
-            if matches!(attempts[cursor].operation_tag(), 38 | 40) {
-                if !source_path_metadata_attempt_is_exact(&attempts[cursor]) {
-                    return Err(
-                        "bounded filesystem replay source metadata is inconsistent".to_owned()
-                    );
-                }
-                cursor += 1;
-                event_count += 1;
-                continue;
-            }
-            if attempts[cursor].operation_tag() != 2 {
-                return Err(
-                    "bounded filesystem replay requires ordered source-input events".to_owned(),
-                );
-            }
-            cursor += 1;
-            let reads_start = cursor;
-            while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
-                cursor += 1;
-            }
-            if cursor == reads_start
-                || cursor == attempts.len()
-                || attempts[cursor].operation_tag() != 8
-            {
-                return Err(
-                    "bounded filesystem replay requires ordered source-input events".to_owned(),
-                );
-            }
-            cursor += 1;
-            event_count += 1;
-        }
-        if event_count == 0 {
-            return Err("bounded filesystem replay requires source-input events".to_owned());
-        }
-        for (index, attempt) in attempts.iter().enumerate() {
-            if !matches!(
-                attempt.outcome,
-                Some(FilesystemOperationAttemptOutcome::Returned { .. })
-            ) {
-                return Err(format!(
-                    "filesystem replay event {index} did not return normally"
-                ));
-            }
-        }
+        validate_filesystem_replay_size(attempts)?;
+        validate_source_input_attempts(attempts)?;
         Ok(Self {
-            attempts: attempts.to_vec(),
+            attempts: attempts.to_vec().into(),
         })
     }
 
@@ -1574,28 +1713,781 @@ impl FilesystemReplay {
         &self.attempts
     }
 
-    pub fn from_source_input_record(record: FilesystemSourceInputReplayRecord) -> Self {
-        let attempt_count = record.events.iter().fold(0usize, |count, event| {
-            count
-                + match event {
-                    FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
-                        chain.reads.len() + 2
-                    }
-                    FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
-                }
-        });
-        let mut attempts = Vec::with_capacity(attempt_count);
-        for event in record.events {
-            match event {
-                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
-                    attempts.extend(source_read_chain_attempts(chain));
-                }
-                FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
-                    attempts.push(source_path_metadata_attempt(metadata));
-                }
+    /// Reconstruct the typed Output chain retained by this replay. Source-only
+    /// records return `None`. Public constructors ensure a present chain is
+    /// exact, so malformed raw attempts are not exposed as typed output data.
+    pub fn output_write_chain(&self) -> Option<FilesystemOutputWriteChainReplayRecord> {
+        let output_start = self.attempts.len().checked_sub(3)?;
+        output_write_chain_record_from_attempts(&self.attempts[output_start..]).ok()
+    }
+
+    /// The one generated-source coordinate expected after an Output replay.
+    /// Source-only records retain the historical empty-handoff behavior.
+    pub fn expected_included_source(&self) -> Option<BuildIncludedSource> {
+        let output_start = self.attempts.len().checked_sub(3)?;
+        let create = &self.attempts[output_start];
+        let [rooted] = create.rooted_path_operand_resolutions.as_slice() else {
+            return None;
+        };
+        (create.operation_tag == 1).then(|| {
+            BuildIncludedSource::new(
+                rooted.root,
+                rooted.relative_path.clone(),
+                self.attempts.len(),
+            )
+        })
+    }
+
+    pub fn from_source_input_record(
+        record: FilesystemSourceInputReplayRecord,
+    ) -> Result<Self, String> {
+        let attempts = source_input_record_attempts(record);
+        validate_filesystem_replay_size(&attempts)?;
+        Ok(Self {
+            attempts: attempts.into(),
+        })
+    }
+
+    /// Validate one observed Source-input prefix followed by exactly one
+    /// create/write/close Output chain and exactly one matching generated-source
+    /// handoff. The returned replay keeps only exact operation attempts; the
+    /// handoff coordinate is losslessly recoverable from the validated create
+    /// row through [`Self::expected_included_source`].
+    pub fn from_input_output_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        if observations.filesystem_operation_schema_version()
+            != FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
+        {
+            return Err("filesystem replay observation schema is not current".to_owned());
+        }
+        let attempts = observations.filesystem_operation_attempts();
+        validate_filesystem_replay_size(attempts)?;
+        let output_start = attempts.len().checked_sub(3).ok_or_else(|| {
+            "bounded filesystem replay requires Source inputs before one Output chain".to_owned()
+        })?;
+        if output_start == 0 {
+            return Err(
+                "bounded filesystem replay requires Source inputs before one Output chain"
+                    .to_owned(),
+            );
+        }
+        validate_source_input_attempts(&attempts[..output_start])?;
+        let output = output_write_chain_record_from_attempts(&attempts[output_start..])?;
+        if source_attempts_overlap_output(
+            &attempts[..output_start],
+            output.output_root,
+            output.logical_handle_identity,
+        ) {
+            return Err(
+                "filesystem replay Source and Output roots and descriptors must be distinct"
+                    .to_owned(),
+            );
+        }
+        let [included_source] = observations.build_included_sources() else {
+            return Err(
+                "bounded filesystem replay requires exactly one included-source handoff".to_owned(),
+            );
+        };
+        if included_source.root() != output.output_root()
+            || included_source.relative_path() != output.output_relative_path()
+            || included_source.filesystem_attempt_ordinal() != attempts.len()
+        {
+            return Err(
+                "filesystem replay included-source handoff must follow close at the exact output path"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            attempts: attempts.to_vec().into(),
+        })
+    }
+
+    /// Construct the same bounded grammar from already typed records.
+    pub fn from_input_output_record(
+        record: FilesystemInputOutputReplayRecord,
+    ) -> Result<Self, String> {
+        let mut attempts = source_input_record_attempts(record.source_input);
+        attempts.extend(output_write_chain_attempts(record.output_write_chain));
+        validate_filesystem_replay_size(&attempts)?;
+        Ok(Self {
+            attempts: attempts.into(),
+        })
+    }
+}
+
+fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Result<(), String> {
+    let mut cursor = 0;
+    let mut event_count = 0;
+    while cursor < attempts.len() {
+        if matches!(attempts[cursor].operation_tag(), 38 | 40) {
+            if !source_path_metadata_attempt_is_exact(&attempts[cursor]) {
+                return Err("bounded filesystem replay source metadata is inconsistent".to_owned());
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+        if attempts[cursor].operation_tag() != 2 {
+            return Err(
+                "bounded filesystem replay requires ordered source-input events".to_owned(),
+            );
+        }
+        cursor += 1;
+        let reads_start = cursor;
+        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
+            cursor += 1;
+        }
+        if cursor == reads_start
+            || cursor == attempts.len()
+            || attempts[cursor].operation_tag() != 8
+        {
+            return Err(
+                "bounded filesystem replay requires ordered source-input events".to_owned(),
+            );
+        }
+        cursor += 1;
+        event_count += 1;
+    }
+    if event_count == 0 {
+        return Err("bounded filesystem replay requires source-input events".to_owned());
+    }
+    for (index, attempt) in attempts.iter().enumerate() {
+        if !matches!(
+            attempt.outcome,
+            Some(FilesystemOperationAttemptOutcome::Returned { .. })
+        ) {
+            return Err(format!(
+                "filesystem replay event {index} did not return normally"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_filesystem_replay_size(attempts: &[FilesystemOperationAttempt]) -> Result<(), String> {
+    let mut retained = attempts
+        .len()
+        .checked_mul(std::mem::size_of::<FilesystemOperationAttempt>());
+    let mut add = |bytes: usize| {
+        retained = retained
+            .and_then(|total| total.checked_add(bytes))
+            .filter(|total| *total <= MAX_FILESYSTEM_REPLAY_RETAINED_BYTES);
+    };
+    let lane_bytes = |length: usize, width: usize| length.checked_mul(width).unwrap_or(usize::MAX);
+    for attempt in attempts {
+        add(lane_bytes(
+            attempt.scalar_operands.len(),
+            std::mem::size_of::<FilesystemScalarOperand>(),
+        ));
+        add(lane_bytes(
+            attempt.byte_operands.len(),
+            std::mem::size_of::<FilesystemByteOperand>(),
+        ));
+        add(lane_bytes(
+            attempt.path_like_operands.len(),
+            std::mem::size_of::<FilesystemPathLikeOperand>(),
+        ));
+        add(lane_bytes(
+            attempt.rooted_path_operand_resolutions.len(),
+            std::mem::size_of::<FilesystemRootedPathOperandResolution>(),
+        ));
+        add(lane_bytes(
+            attempt.returned_paths.len(),
+            std::mem::size_of::<FilesystemReturnedPath>(),
+        ));
+        add(lane_bytes(
+            attempt.observed_byte_regions.len(),
+            std::mem::size_of::<FilesystemObservedByteRegion>(),
+        ));
+        add(lane_bytes(
+            attempt.metadata_observations.len(),
+            std::mem::size_of::<FilesystemMetadataObservation>(),
+        ));
+        add(lane_bytes(
+            attempt.mutable_byte_operand_resolutions.len(),
+            std::mem::size_of::<FilesystemMutableByteOperandResolution>(),
+        ));
+        add(lane_bytes(
+            attempt.mutable_i64_operand_resolutions.len(),
+            std::mem::size_of::<FilesystemMutableI64OperandResolution>(),
+        ));
+        add(lane_bytes(
+            attempt.mutable_byte_operands.len(),
+            std::mem::size_of::<FilesystemMutableByteOperand>(),
+        ));
+        add(lane_bytes(
+            attempt.mutable_i64_operands.len(),
+            std::mem::size_of::<FilesystemMutableI64Operand>(),
+        ));
+        add(lane_bytes(
+            attempt.authorized_paths.len(),
+            std::mem::size_of::<FilesystemAuthorizedPath>(),
+        ));
+        add(lane_bytes(
+            attempt.logical_handle_inputs.len(),
+            std::mem::size_of::<FilesystemLogicalHandleInput>(),
+        ));
+        add(lane_bytes(
+            attempt.retired_logical_handles.len(),
+            std::mem::size_of::<FilesystemLogicalHandleIdentity>(),
+        ));
+        add(lane_bytes(
+            attempt.grant_refusals.len(),
+            std::mem::size_of::<FilesystemGrantRefusal>(),
+        ));
+        for operand in &attempt.byte_operands {
+            add(operand.bytes.len());
+        }
+        for operand in &attempt.path_like_operands {
+            add(operand.bytes.len());
+        }
+        for operand in &attempt.rooted_path_operand_resolutions {
+            add(operand.relative_path.len());
+        }
+        for returned in &attempt.returned_paths {
+            add(returned.bytes.len());
+        }
+        for operand in &attempt.mutable_byte_operand_resolutions {
+            add(operand.bytes.len());
+        }
+        for operand in &attempt.mutable_byte_operands {
+            add(operand.pre_bytes.len());
+            add(operand.post_bytes.len());
+        }
+        for path in &attempt.authorized_paths {
+            add(path.relative_path.len());
+        }
+    }
+    retained
+        .map(|_| ())
+        .ok_or_else(|| format!(
+            "filesystem replay exceeds its {MAX_FILESYSTEM_REPLAY_RETAINED_BYTES}-byte retained-evidence ceiling"
+        ))
+}
+
+fn source_input_record_attempts(
+    record: FilesystemSourceInputReplayRecord,
+) -> Vec<FilesystemOperationAttempt> {
+    let attempt_count = record.events.iter().fold(0usize, |count, event| {
+        count
+            + match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => chain.reads.len() + 2,
+                FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
+            }
+    });
+    let mut attempts = Vec::with_capacity(attempt_count);
+    for event in record.events {
+        match event {
+            FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                attempts.extend(source_read_chain_attempts(chain));
+            }
+            FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
+                attempts.push(source_path_metadata_attempt(metadata));
             }
         }
-        Self { attempts }
+    }
+    attempts
+}
+
+fn source_attempts_overlap_output(
+    attempts: &[FilesystemOperationAttempt],
+    output_root: FilesystemGrantRootIdentity,
+    output_identity: FilesystemLogicalHandleIdentity,
+) -> bool {
+    attempts.iter().any(|attempt| {
+        attempt
+            .rooted_path_operand_resolutions
+            .iter()
+            .any(|path| path.root == output_root)
+            || attempt
+                .authorized_paths
+                .iter()
+                .any(|path| path.root == output_root)
+            || attempt.logical_handle_output.is_some_and(|output| {
+                output.identity == output_identity
+                    || matches!(
+                        output.source,
+                        FilesystemLogicalHandleOutputSource::Duplicated(source)
+                            | FilesystemLogicalHandleOutputSource::Borrowed(source)
+                            if source == output_identity
+                    )
+            })
+            || attempt.logical_handle_inputs.iter().any(|input| {
+                input.resolution
+                    == FilesystemLogicalHandleInputResolution::Resolved(output_identity)
+            })
+            || attempt.retired_logical_handles.contains(&output_identity)
+            || attempt.result() == Some(FilesystemOperationResult::LogicalHandle(output_identity))
+    })
+}
+
+fn output_write_chain_record_from_attempts(
+    attempts: &[FilesystemOperationAttempt],
+) -> Result<FilesystemOutputWriteChainReplayRecord, String> {
+    let [create, write, close] = attempts else {
+        return Err(
+            "bounded filesystem replay requires exactly one create/write/close Output chain"
+                .to_owned(),
+        );
+    };
+
+    let [create_mode] = create.scalar_operands.as_slice() else {
+        return Err("filesystem replay Output create lanes are inconsistent".to_owned());
+    };
+    let [rooted] = create.rooted_path_operand_resolutions.as_slice() else {
+        return Err("filesystem replay Output create lanes are inconsistent".to_owned());
+    };
+    let [authorized] = create.authorized_paths.as_slice() else {
+        return Err("filesystem replay Output create lanes are inconsistent".to_owned());
+    };
+    let Some(logical_output) = create.logical_handle_output else {
+        return Err("filesystem replay Output create lanes are inconsistent".to_owned());
+    };
+    let Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::LogicalHandle(create_result),
+        post_error: create_post_error,
+    }) = create.outcome
+    else {
+        return Err("filesystem replay Output create must succeed".to_owned());
+    };
+    if create.operation_tag != 1
+        || create.provider != FilesystemObservationProvider::RealScoped
+        || create_mode.operand_ordinal != 1
+        || create_mode.value
+            != FilesystemScalarOperandValue::I32(FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE)
+        || rooted.operand_ordinal != 0
+        || !filesystem_root_relative_path_is_canonical(&rooted.relative_path, false)
+        || authorized.operand_ordinal != 0
+        || authorized.access != FilesystemGrantAccess::Write
+        || authorized.root != rooted.root
+        || authorized.relative_path != rooted.relative_path
+        || logical_output.kind != FilesystemLogicalHandleKind::Descriptor
+        || logical_output.identity != create_result
+        || logical_output.source != FilesystemLogicalHandleOutputSource::Created
+        || !create.byte_operands.is_empty()
+        || !create.path_like_operands.is_empty()
+        || !create.returned_paths.is_empty()
+        || !create.observed_byte_regions.is_empty()
+        || !create.metadata_observations.is_empty()
+        || !create.mutable_byte_operand_resolutions.is_empty()
+        || !create.mutable_i64_operand_resolutions.is_empty()
+        || !create.mutable_byte_operands.is_empty()
+        || !create.mutable_i64_operands.is_empty()
+        || !create.logical_handle_inputs.is_empty()
+        || !create.retired_logical_handles.is_empty()
+        || !create.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output create lanes are inconsistent".to_owned());
+    }
+
+    let [write_bytes] = write.byte_operands.as_slice() else {
+        return Err("filesystem replay Output write lanes are inconsistent".to_owned());
+    };
+    let [write_input] = write.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output write lanes are inconsistent".to_owned());
+    };
+    let Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(write_result),
+        post_error: write_post_error,
+    }) = write.outcome
+    else {
+        return Err("filesystem replay Output write must succeed".to_owned());
+    };
+    if write.operation_tag != 5
+        || write.provider != FilesystemObservationProvider::RealScoped
+        || write_bytes.operand_ordinal != 1
+        || write_input.operand_ordinal != 0
+        || write_input.kind != FilesystemLogicalHandleKind::Descriptor
+        || write_input.resolution != FilesystemLogicalHandleInputResolution::Resolved(create_result)
+        || !write.scalar_operands.is_empty()
+        || !write.path_like_operands.is_empty()
+        || !write.rooted_path_operand_resolutions.is_empty()
+        || !write.returned_paths.is_empty()
+        || !write.observed_byte_regions.is_empty()
+        || !write.metadata_observations.is_empty()
+        || !write.mutable_byte_operand_resolutions.is_empty()
+        || !write.mutable_i64_operand_resolutions.is_empty()
+        || !write.mutable_byte_operands.is_empty()
+        || !write.mutable_i64_operands.is_empty()
+        || !write.authorized_paths.is_empty()
+        || write.logical_handle_output.is_some()
+        || !write.retired_logical_handles.is_empty()
+        || !write.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output write lanes are inconsistent".to_owned());
+    }
+
+    let [close_input] = close.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output close lanes are inconsistent".to_owned());
+    };
+    let [retired] = close.retired_logical_handles.as_slice() else {
+        return Err("filesystem replay Output close lanes are inconsistent".to_owned());
+    };
+    let Some(FilesystemOperationAttemptOutcome::Returned {
+        result: FilesystemOperationResult::Scalar(0),
+        post_error: close_post_error,
+    }) = close.outcome
+    else {
+        return Err("filesystem replay Output close must succeed".to_owned());
+    };
+    if close.operation_tag != 8
+        || close.provider != FilesystemObservationProvider::RealScoped
+        || close_input.operand_ordinal != 0
+        || close_input.kind != FilesystemLogicalHandleKind::Descriptor
+        || close_input.resolution != FilesystemLogicalHandleInputResolution::Resolved(create_result)
+        || *retired != create_result
+        || !close.scalar_operands.is_empty()
+        || !close.byte_operands.is_empty()
+        || !close.path_like_operands.is_empty()
+        || !close.rooted_path_operand_resolutions.is_empty()
+        || !close.returned_paths.is_empty()
+        || !close.observed_byte_regions.is_empty()
+        || !close.metadata_observations.is_empty()
+        || !close.mutable_byte_operand_resolutions.is_empty()
+        || !close.mutable_i64_operand_resolutions.is_empty()
+        || !close.mutable_byte_operands.is_empty()
+        || !close.mutable_i64_operands.is_empty()
+        || !close.authorized_paths.is_empty()
+        || close.logical_handle_output.is_some()
+        || !close.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output close lanes are inconsistent".to_owned());
+    }
+
+    FilesystemOutputWriteChainReplayRecord::new(
+        rooted.root,
+        rooted.relative_path.clone(),
+        create_result.get(),
+        create_post_error,
+        write_bytes.bytes.clone(),
+        write_result,
+        write_post_error,
+        close_post_error,
+    )
+}
+
+fn output_write_chain_attempts(
+    record: FilesystemOutputWriteChainReplayRecord,
+) -> [FilesystemOperationAttempt; 3] {
+    let identity = record.logical_handle_identity;
+    let create = FilesystemOperationAttempt {
+        operation_tag: 1,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(identity),
+            post_error: record.create_post_error,
+        }),
+        scalar_operands: vec![FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE),
+        }],
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: record.output_root,
+            relative_path: record.output_relative_path.clone(),
+        }],
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: vec![FilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Write,
+            root: record.output_root,
+            relative_path: record.output_relative_path,
+        }],
+        logical_handle_inputs: Vec::new(),
+        logical_handle_output: Some(FilesystemLogicalHandleOutput {
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            identity,
+            source: FilesystemLogicalHandleOutputSource::Created,
+        }),
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let write = FilesystemOperationAttempt {
+        operation_tag: 5,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(record.write_result),
+            post_error: record.write_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: vec![FilesystemByteOperand {
+            operand_ordinal: 1,
+            bytes: record.write_bytes,
+        }],
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let close = FilesystemOperationAttempt {
+        operation_tag: 8,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.close_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: vec![identity],
+        grant_refusals: Vec::new(),
+    };
+    [create, write, close]
+}
+
+#[cfg(test)]
+mod filesystem_replay_record_tests {
+    use super::*;
+
+    fn root(value: u32) -> FilesystemGrantRootIdentity {
+        FilesystemGrantRootIdentity::new(value).expect("test root is nonzero")
+    }
+
+    fn source_input(identity: u64) -> FilesystemSourceInputReplayRecord {
+        let read = FilesystemReplayReadRecord::new(
+            FilesystemReplayReadKind::Sequential,
+            0,
+            0,
+            0,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("empty successful read is canonical");
+        let chain = FilesystemSourceReadChainReplayRecord::new(
+            root(1),
+            b"inputs/table.txt".to_vec(),
+            identity,
+            0,
+            vec![read],
+            0,
+        )
+        .expect("source chain is canonical");
+        FilesystemSourceInputReplayRecord::new(vec![
+            FilesystemSourceInputReplayEventRecord::ReadChain(chain),
+        ])
+        .expect("source input is nonempty")
+    }
+
+    fn output_chain(identity: u64) -> FilesystemOutputWriteChainReplayRecord {
+        let bytes = b"pub data Generated {}\n".to_vec();
+        FilesystemOutputWriteChainReplayRecord::new(
+            root(2),
+            b"table.generated.omg".to_vec(),
+            identity,
+            0,
+            bytes.clone(),
+            i64::try_from(bytes.len()).unwrap(),
+            0,
+            0,
+        )
+        .expect("full output write is canonical")
+    }
+
+    fn typed_replay() -> FilesystemReplay {
+        let output = output_chain(2);
+        let included = BuildIncludedSource::from_coordinate(
+            output.output_root(),
+            output.output_relative_path().to_vec(),
+            6,
+        )
+        .expect("handoff path is canonical");
+        let record = FilesystemInputOutputReplayRecord::new(source_input(1), output, included)
+            .expect("Source and Output coordinates are distinct");
+        FilesystemReplay::from_input_output_record(record).expect("typed replay fits policy")
+    }
+
+    #[test]
+    fn typed_input_output_record_emits_one_exact_chain_and_handoff() {
+        let source_only = FilesystemReplay::from_source_input_record(source_input(1)).unwrap();
+        assert!(source_only.output_write_chain().is_none());
+        assert!(source_only.expected_included_source().is_none());
+
+        let replay = typed_replay();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 8]
+        );
+        let output = replay.output_write_chain().expect("output chain is typed");
+        assert_eq!(output.output_root(), root(2));
+        assert_eq!(output.output_relative_path(), b"table.generated.omg");
+        assert_eq!(output.logical_handle_identity().get(), 2);
+        assert_eq!(output.create_mode(), 438);
+        assert_eq!(output.write_result(), output.write_bytes().len() as i64);
+        let included = replay
+            .expected_included_source()
+            .expect("one handoff coordinate is retained");
+        assert_eq!(included.root(), output.output_root());
+        assert_eq!(included.relative_path(), output.output_relative_path());
+    }
+
+    #[test]
+    fn typed_output_rejects_partial_noncanonical_and_overlapping_records() {
+        assert!(
+            FilesystemOutputWriteChainReplayRecord::new(
+                root(2),
+                b"../escape.omg".to_vec(),
+                2,
+                0,
+                vec![1],
+                1,
+                0,
+                0,
+            )
+            .is_err()
+        );
+        assert!(
+            FilesystemOutputWriteChainReplayRecord::new(
+                root(2),
+                b"generated.omg".to_vec(),
+                2,
+                0,
+                vec![1, 2],
+                1,
+                0,
+                0,
+            )
+            .is_err()
+        );
+        let output = output_chain(1);
+        let included = BuildIncludedSource::from_coordinate(
+            output.output_root(),
+            output.output_relative_path().to_vec(),
+            6,
+        )
+        .unwrap();
+        assert!(FilesystemInputOutputReplayRecord::new(source_input(1), output, included).is_err());
+
+        let output = output_chain(2);
+        let wrong_handoff =
+            BuildIncludedSource::from_coordinate(root(2), b"other.omg".to_vec(), 6).unwrap();
+        assert!(
+            FilesystemInputOutputReplayRecord::new(source_input(1), output, wrong_handoff).is_err()
+        );
+
+        let output = output_chain(2);
+        let early_handoff = BuildIncludedSource::from_coordinate(
+            output.output_root(),
+            output.output_relative_path().to_vec(),
+            5,
+        )
+        .unwrap();
+        assert!(
+            FilesystemInputOutputReplayRecord::new(source_input(1), output, early_handoff).is_err()
+        );
+    }
+
+    #[test]
+    fn observed_input_output_replay_rejects_nonexact_output_lanes() {
+        let replay = typed_replay();
+        let included = replay.expected_included_source().unwrap();
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            vec![included.clone()],
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(&observations)
+            .expect("exact observed chain is accepted");
+        assert_eq!(decoded.expected_included_source(), Some(included));
+
+        let mut attempts = replay.attempts().to_vec();
+        let output_start = attempts.len() - 3;
+        attempts[output_start].scalar_operands[0].value = FilesystemScalarOperandValue::I32(511);
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            attempts,
+            vec![replay.expected_included_source().unwrap()],
+        );
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let early_handoff = BuildIncludedSource::from_coordinate(
+            root(2),
+            b"table.generated.omg".to_vec(),
+            output_start + 2,
+        )
+        .unwrap();
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            vec![early_handoff],
+        );
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let mut attempts = replay.attempts().to_vec();
+        attempts[output_start + 1].grant_refusals = vec![FilesystemGrantRefusal {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Write,
+            reason: FilesystemGrantRefusalReason::OutsideGrantedRoots,
+        }];
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            attempts,
+            vec![replay.expected_included_source().unwrap()],
+        );
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn replay_retention_has_a_lower_aggregate_clone_ceiling() {
+        let bytes = vec![0; MAX_FILESYSTEM_REPLAY_RETAINED_BYTES + 1];
+        let output = FilesystemOutputWriteChainReplayRecord::new(
+            root(2),
+            b"large.generated.omg".to_vec(),
+            2,
+            0,
+            bytes,
+            i64::try_from(MAX_FILESYSTEM_REPLAY_RETAINED_BYTES + 1).unwrap(),
+            0,
+            0,
+        )
+        .unwrap();
+        let included = BuildIncludedSource::from_coordinate(
+            output.output_root(),
+            output.output_relative_path().to_vec(),
+            6,
+        )
+        .unwrap();
+        let record = FilesystemInputOutputReplayRecord::new(source_input(1), output, included)
+            .expect("large typed record is valid before replay-retention policy");
+        assert!(FilesystemReplay::from_input_output_record(record).is_err());
     }
 }
 
@@ -1889,20 +2781,43 @@ impl EvaluationObservations {
 
 /// One explicit generated-source handoff emitted by the exact toolchain
 /// `BuildOutput::include_source` machine during a successful granted build.
-/// The compiler still has to match this coordinate to its captured staged
-/// tree before the bytes may enter compilation.
+/// The compiler still has to match this coordinate to its captured staged tree
+/// before the bytes may enter compilation. The filesystem-attempt ordinal binds
+/// the handoff after the mutation it publishes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildIncludedSource {
     root: FilesystemGrantRootIdentity,
     relative_path: Vec<u8>,
+    filesystem_attempt_ordinal: usize,
 }
 
 impl BuildIncludedSource {
-    pub(crate) fn new(root: FilesystemGrantRootIdentity, relative_path: Vec<u8>) -> Self {
+    pub(crate) fn new(
+        root: FilesystemGrantRootIdentity,
+        relative_path: Vec<u8>,
+        filesystem_attempt_ordinal: usize,
+    ) -> Self {
         Self {
             root,
             relative_path,
+            filesystem_attempt_ordinal,
         }
+    }
+
+    /// Reconstruct one compiler-supplied handoff coordinate from canonical
+    /// replay/codec data. This names a path and its ordering point only; it does
+    /// not assert that the file exists or belongs to a reconstructed tree.
+    pub fn from_coordinate(
+        root: FilesystemGrantRootIdentity,
+        relative_path: Vec<u8>,
+        filesystem_attempt_ordinal: usize,
+    ) -> Result<Self, String> {
+        if !filesystem_root_relative_path_is_canonical(&relative_path, false) {
+            return Err(
+                "included build source must use a canonical non-root relative path".to_owned(),
+            );
+        }
+        Ok(Self::new(root, relative_path, filesystem_attempt_ordinal))
     }
 
     pub const fn root(&self) -> FilesystemGrantRootIdentity {
@@ -1911,6 +2826,10 @@ impl BuildIncludedSource {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
+    }
+
+    pub const fn filesystem_attempt_ordinal(&self) -> usize {
+        self.filesystem_attempt_ordinal
     }
 }
 
@@ -2241,10 +3160,11 @@ pub enum FilesystemAccess {
         grants: FsGrants,
         sponsor: FilesystemSponsor,
     },
-    /// Consume compiler-produced source-input events without installing
-    /// virtual or real filesystem authority. Every event and lane must match
-    /// exactly and the record must be exhausted.
-    ReplaySourceInputs(FilesystemReplay),
+    /// Consume compiler-produced bounded events without installing host
+    /// filesystem authority. Source observations are record-served; an
+    /// admitted Output suffix executes in a fresh virtual namespace. Every
+    /// event and lane must match exactly and the record must be exhausted.
+    ReplayFilesystem(FilesystemReplay),
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

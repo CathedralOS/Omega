@@ -358,7 +358,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 let replaying = matches!(
                     &options.filesystem,
-                    FilesystemAccess::ReplaySourceInputs(_)
+                    FilesystemAccess::ReplayFilesystem(_)
                 );
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
@@ -390,7 +390,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                             )?,
                         );
                     }
-                    FilesystemAccess::ReplaySourceInputs(replay) => {
+                    FilesystemAccess::ReplayFilesystem(replay) => {
                         evaluator.filesystem_replay = Some(replay);
                     }
                 }
@@ -531,7 +531,7 @@ fn run_on_current_thread(
             };
             evaluator.real_fs = Some(filesystem);
         }
-        FilesystemAccess::ReplaySourceInputs(replay) => {
+        FilesystemAccess::ReplayFilesystem(replay) => {
             evaluator.filesystem_replay = Some(replay);
         }
     }
@@ -802,8 +802,7 @@ struct Evaluator<'program> {
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
     real_fs: Option<real_fs::RealFs>,
-    /// Expected compiler-produced events for the bounded no-host source-input
-    /// replay rung.
+    /// Expected compiler-produced events for bounded no-host filesystem replay.
     filesystem_replay: Option<crate::FilesystemReplay>,
     /// The canonical Build activation carried Source/Output facets. In this
     /// mode path-taking host operations require interpreter-retained rooted

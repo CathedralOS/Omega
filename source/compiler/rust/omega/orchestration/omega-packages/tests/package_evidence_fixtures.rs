@@ -475,19 +475,30 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .expect("fixture package build machine publishes observation evidence");
             let executes_filesystem_build =
                 node.source().key().name().as_str() == "generated-table";
-            let expected_class = if executes_filesystem_build {
-                BuildObservationClass::Volatile
-            } else {
-                BuildObservationClass::Hermetic
-            };
-            assert_eq!(observations.ceiling(), expected_class);
-            assert_eq!(observations.realized(), expected_class);
+            assert_eq!(
+                observations.ceiling(),
+                if executes_filesystem_build {
+                    BuildObservationClass::Volatile
+                } else {
+                    BuildObservationClass::Hermetic
+                }
+            );
+            assert_eq!(
+                observations.realized(),
+                if executes_filesystem_build {
+                    BuildObservationClass::Receipted
+                } else {
+                    BuildObservationClass::Hermetic
+                }
+            );
             assert_eq!(
                 observations.filesystem_operation_attempts().len(),
                 if executes_filesystem_build { 6 } else { 0 },
                 "only generated-table executes its declared filesystem build"
             );
             if executes_filesystem_build {
+                assert!(observations.source_inputs_replay_verified());
+                assert!(observations.operation_replay_verified());
                 let [_, read, _, _, _, _] = observations.filesystem_operation_attempts() else {
                     panic!("generated-table retains its six filesystem attempts")
                 };
