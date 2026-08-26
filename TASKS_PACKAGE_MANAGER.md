@@ -2520,6 +2520,15 @@ standard library by path.
       root build entry's `Build` unambiguously toolchain-owned without making
       the main-source `Build` special. Treating `application` as a magic
       evaluator no-op would mask the collision and is not an acceptable fix.
+
+      Milestone 2026-08-26: the ten malformed-program canaries with canonical
+      free build entries now also declare application roles. Their original
+      duplicate/unknown root, hosted/UEFI entry-contract, and static-machine
+      refinement diagnostics remain the required outcome; role projection no
+      longer has to exempt them. The corpus now contains 1,104 explicit canary
+      applications and only 11 named exceptions: the intrinsically wrong-arity
+      root, five Q4-scoped roots, four target-only fragments, and the
+      main-source `Build` collision.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

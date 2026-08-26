@@ -11,7 +11,8 @@ where machine F(value: u16) -> u16;
     F(value)
 }
 
-machine build(b: &mut Build) {
+machine build(builder: &mut Build) {
+    builder.application("static-machine-parameter-contract-mismatch");
     let selected: u16 = apply<wrong_width>(70);
-    b.subsystem = Subsystem::Unspecified { value: selected };
+    builder.subsystem = Subsystem::Unspecified { value: selected };
 }

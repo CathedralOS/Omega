@@ -2,6 +2,7 @@ target uefi_x64 {
 }
 
 machine build(builder: &mut Build) {
+    builder.application("uefi-program-entry-missing-storage-roots");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, launch);
