@@ -25,6 +25,9 @@ real package fixture demonstrates an irreducible external contract.
 - This repository's root workspace currently names `omega/language/std`,
   `source/compiler/omega/psi`, and `source/compiler/omega`. Each member owns
   its declaration; paths locate members but do not name them.
+- All executable roots under `samples/` declare explicit application roles and
+  use the canonical `builder` receiver. A repository canary discovers the full
+  sample population and projects each role through this package reader.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.
