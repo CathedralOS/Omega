@@ -1,10 +1,25 @@
-//! Read-only target recipe for native logical-fuel instrumentation.
+//! Read-only target recipes for native logical-fuel instrumentation.
 //!
-//! This is plan data, not admission authority. Orchestration validates and
-//! seals a recipe before a backend may consume this projection.
+//! These are plan and report projections, not admission authority. Omega
+//! orchestration seals accepted values; target lowering and image replay use
+//! the structural records here to agree on one exact physical realization.
 
 use omega_calling_conventions::MachineRegister;
 use omega_target::{NativeTarget, TargetProfile};
+
+mod evidence;
+mod fingerprint;
+mod plan;
+
+pub use evidence::{
+    NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan, NativeFuelTransferEvidenceError,
+    TerminalNativeFuelTransferRuntimeEvidence,
+};
+pub use plan::{
+    NativeFuelActivationStateSlot, NativeFuelRuntimeEntryIdentity, NativeFuelSavedValue,
+    NativeFuelSponsorStackPlan, NativeFuelTransferPlanError,
+    NativeFuelTransferRuntimePlanProjection,
+};
 
 /// Target-selected route to the sponsor-owned per-activation fuel context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,7 +29,7 @@ pub enum SponsorContextTransport {
 
 /// Exact byte layout of the private sponsor context consumed by charge and
 /// cold-transfer stubs. Scalar offsets name one aligned native `u64`; the
-/// activation-state interval is an opaque target-owned save area.
+/// activation-state interval is subdivided by the transfer-runtime plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeFuelContextLayout {
     pub byte_size: u32,
@@ -41,3 +56,6 @@ pub struct NativeFuelTargetPlanProjection {
     pub context: NativeFuelContextLayout,
     pub transfer_plan_identity: u64,
 }
+
+#[cfg(test)]
+mod tests;

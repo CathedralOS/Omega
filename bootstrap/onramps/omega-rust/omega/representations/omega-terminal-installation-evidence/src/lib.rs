@@ -11,7 +11,11 @@ use std::collections::BTreeSet;
 
 mod native_fuel;
 pub use native_fuel::{
-    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
+    NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,
+    NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan, NativeFuelSavedValue,
+    NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection, NativeFuelTransferEvidenceError,
+    NativeFuelTransferPlanError, NativeFuelTransferRuntimePlanProjection, SponsorContextTransport,
+    TerminalNativeFuelTransferRuntimeEvidence,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

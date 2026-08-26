@@ -4996,8 +4996,18 @@ Remaining:
   semantic/cold charge catalog. Plain images require that section to be absent.
   Native builders, codecs, and image rejoin validation reject target-policy,
   source, function-map, charge-row, or physical-coordinate drift independently.
-  The remaining native slice is to retain/validate the target-runtime transfer
-  entry's physical state/stack implementation.
+  A dependency-light transfer-runtime owner now defines and validates the exact
+  profile/target/context projection, complete naturally aligned activation save
+  slots, interrupted/saved/restored state sets, independent sponsor-stack
+  ceiling, distinct transfer/resume section-symbol identities, dual
+  unrelocated/final text spans and bytes, physical state footprint, and realized
+  stack peak. Canonical fingerprints change under every valid structural or
+  evidence mutation, while malformed recipes, gaps, overlaps, duplicate saved
+  values, state drift, entry substitution, byte/span drift, and resource
+  overruns reject. These values remain dependency-light plan/report evidence
+  rather than installation authority. The remaining native slice is to make
+  target encoders and image replay produce that evidence, carry it through the
+  installation format, and construct the sealed installed-transfer custody.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
