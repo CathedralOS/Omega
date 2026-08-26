@@ -7204,9 +7204,16 @@ Owners:
   while internal-call operations carry no ABI bridge. Add per-entry root
   schedules with activation-local frame/storage identity and a validated
   boundary-to-internal argument/result recipe before emitting callback
-  functions; placeholder enter/call/return bodies are unsound. This prerequisite
-  is independent of private registration placement and checked resource
-  ceilings. Registration lease/unregister machinery is already complete below
+  functions; placeholder enter/call/return bodies are unsound. The first
+  address-free prerequisite now exists: each private thunk retains one
+  independently replayed canonical entry, activation-local
+  runtime-flow/dispatch/storage/frame identity set, validated boundary plan,
+  and exact internal argument/result bridge. It owns no bytes, native address,
+  relocation, resources, or registration authority. The remaining body rung
+  must consume that schedule while selecting multi-entry/re-entrant target
+  instructions; placeholder enter/call/return bodies remain unsound. This
+  prerequisite is independent of private registration placement and checked
+  resource ceilings. Registration lease/unregister machinery is already complete below
   source binding: an exact provider registration receipt owns an installed-root
   code borrow, and release requires exact provider unregistration plus
   independent root unreachability/quiescence. The remaining durable

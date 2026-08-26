@@ -58,6 +58,8 @@ pub struct CallbackThunkPlan {
     pub entry_key: StateKey,
     pub function_identity: omega_control_flow::MachineFunctionIdentity,
     pub private_symbol: Arc<str>,
+    /// Sole address-free activation and ABI bridge owned by this thunk.
+    pub root_schedule: Arc<crate::CallbackRootSchedule>,
 }
 
 /// Fingerprint the exact ordered checked-placement receipts carried by callback
@@ -319,16 +321,32 @@ mod tests {
     #[test]
     fn callback_thunk_placement_fingerprint_binds_exact_ordered_receipts() {
         let baseline = placement();
+        let entry_key = StateKey {
+            machine: baseline.selected_machine,
+            state: baseline.selected_entry,
+            segment_index: 0,
+        };
+        let function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(entry_key, 0)
+                .expect("callback identity");
+        let private_symbol = canonical_callback_private_symbol(&baseline);
+        let root_schedule = Arc::new(
+            crate::plan_callback_root_schedule(
+                0,
+                &baseline,
+                entry_key,
+                function_identity,
+                Arc::clone(&private_symbol),
+            )
+            .expect("callback root schedule"),
+        );
         let thunk = CallbackThunkPlan {
             placement_index: 0,
             placement_identity: callback_placement_binding_identity(&baseline),
-            entry_key: StateKey {
-                machine: baseline.selected_machine,
-                state: baseline.selected_entry,
-                segment_index: 0,
-            },
-            function_identity: omega_control_flow::MachineFunctionIdentity::default(),
-            private_symbol: canonical_callback_private_symbol(&baseline),
+            entry_key,
+            function_identity,
+            private_symbol,
+            root_schedule,
         };
         let fingerprint =
             callback_thunk_placement_identity_fingerprint(std::slice::from_ref(&thunk));

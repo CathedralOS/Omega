@@ -1555,15 +1555,27 @@ mod tests {
         entry_key: StateKey,
         placement: &omega_backend_plan::BoundNominalCallbackPlacement,
     ) -> omega_backend_plan::CallbackThunkPlan {
+        let function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(entry_key, 0)
+                .unwrap_or_default();
+        let private_symbol = omega_backend_plan::canonical_callback_private_symbol(placement);
+        let root_schedule = Arc::new(
+            omega_backend_plan::plan_callback_root_schedule(
+                0,
+                placement,
+                entry_key,
+                function_identity,
+                Arc::clone(&private_symbol),
+            )
+            .expect("valid callback fixture root schedule"),
+        );
         omega_backend_plan::CallbackThunkPlan {
             placement_index: 0,
             placement_identity: omega_backend_plan::callback_placement_binding_identity(placement),
             entry_key,
-            function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
-                entry_key, 0,
-            )
-            .unwrap_or_default(),
-            private_symbol: omega_backend_plan::canonical_callback_private_symbol(placement),
+            function_identity,
+            private_symbol,
+            root_schedule,
         }
     }
 
@@ -1675,8 +1687,16 @@ mod tests {
     #[test]
     fn callback_thunk_emission_rejects_invalid_or_redirected_entry_keys() {
         let target = NativeTarget::host();
-        let invalid_placement = placement(StateKey::default());
-        let invalid_thunk = thunk(StateKey::default(), &invalid_placement);
+        let mut invalid_placement = placement(state_key(2));
+        let mut invalid_thunk = thunk(state_key(2), &invalid_placement);
+        invalid_placement.selected_machine = StateKey::default().machine;
+        invalid_placement.selected_entry = StateKey::default().state;
+        invalid_thunk.entry_key = StateKey::default();
+        invalid_thunk.function_identity = Default::default();
+        invalid_thunk.placement_identity =
+            omega_backend_plan::callback_placement_binding_identity(&invalid_placement);
+        invalid_thunk.private_symbol =
+            omega_backend_plan::canonical_callback_private_symbol(&invalid_placement);
         let invalid = callback_blockers(
             &[invalid_placement],
             std::slice::from_ref(&invalid_thunk),
@@ -1802,7 +1822,10 @@ mod tests {
         let selected = state_key(2);
         let drifted = state_key(3);
         let placement = placement(selected);
-        let thunk = thunk(drifted, &placement);
+        let mut thunk = thunk(selected, &placement);
+        thunk.entry_key = drifted;
+        thunk.function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(drifted, 0).unwrap();
 
         let blockers = callback_blockers(
             &[placement],
@@ -1824,7 +1847,10 @@ mod tests {
             segment_index: 1,
             ..selected
         };
-        let thunk = thunk(segmented, &placement);
+        let mut thunk = thunk(selected, &placement);
+        thunk.entry_key = segmented;
+        thunk.function_identity =
+            omega_control_flow::MachineFunctionIdentity::callback_thunk(segmented, 0).unwrap();
 
         let blockers = callback_blockers(
             &[placement],
@@ -1861,9 +1887,9 @@ mod tests {
         let target = NativeTarget::host();
         let key = state_key(2);
         let mut placement = placement(key);
+        let thunk = thunk(key, &placement);
         placement.boundary_entry_plan.state.preemption =
             omega_calling_conventions::Preemption::ProviderDefined;
-        let thunk = thunk(key, &placement);
 
         let blockers = callback_blockers(
             &[placement],
