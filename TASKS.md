@@ -5499,6 +5499,14 @@ Owners:
   certificates must rejoin their two exact resource rows. Explicit reborrows
   and borrow-carrying transfers remain excluded until exact parent/source loan
   lineage is retained; these checked rows grant no Terminal authority.
+  The first exact lineage rung is now live for uniquely resolved explicit
+  reference-local reborrows. Each child retains its immediate prior same-state
+  parent loan handle, and independent replay reconstructs source owner/path,
+  formation order, and the parent's captured place plus the direct projection
+  remainder. Invalid, self, later, sibling-state, unrelated, ambiguous, tag,
+  source, or place substitution rejects. Aggregate/helper transfers remain
+  explicitly unretained; reborrow lifetime/restoration resources and Terminal
+  authority are still open.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
