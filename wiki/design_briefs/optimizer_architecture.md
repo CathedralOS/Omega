@@ -344,6 +344,17 @@ validator—not the rule—reconstructs the arithmetic, produces the new unit, a
 attaches its own validator identity. This establishes the pattern future patch
 variants must follow before they become executable.
 
+The initial pass-manager skeleton has a public entry only from
+`VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
+It retains the complete verified input context, charges every bounded work
+axis, restarts canonical rule dispatch after each accepted patch, requires a
+strictly decreasing transformation-specific measure, and commits analysis
+invalidation only after the independent validator constructs an accepted
+output. Exhaustion or rejection returns no optimized session for publication.
+This is still an internal vertical slice: build-level optimization selections
+remain rejected until their complete named pass schedules and publication gate
+exist.
+
 ## Validation and trust
 
 Optimization remains an untrusted producer. Acceptance has layers.

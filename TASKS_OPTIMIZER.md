@@ -138,6 +138,17 @@ These facts constrain the work below.
   constant fact, and rejects a wrong result without mutating input. A built-in
   rule can propose this candidate only when its explicit parent selection is
   present, but no build hook admits that still-incomplete optimization suite.
+- A verified-session-only pass manager now performs canonical rule dispatch,
+  dependency analysis, proposal enumeration, deterministic negative-cost
+  choice with candidate-identity tie breaks, independent validation,
+  monotone exact-operation convergence, atomic analysis invalidation, and hard
+  accounting for rule evaluations, candidates, validation steps, commits, and
+  iterations. Budget exhaustion returns no output, every registered rule is
+  covered before successful convergence, and the verifier-owned optimizer
+  context remains attached to the resulting unit. `OPT-PASS-MANAGER` remains
+  open for named multi-rule pass groups, synthetic oscillation coverage, and a
+  separately owned baseline policy/decision log. The compiler build firewall
+  remains unchanged.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
