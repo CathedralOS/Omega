@@ -9,7 +9,10 @@ use omega_optimization_core::{
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
 };
-use omega_optimization_unit::PsiOptimizationUnit;
+use omega_optimization_unit::{
+    InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiTransformationLedger, PsiTransformationRecord,
+};
 use omega_optimization_validation::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, validate_integer_evaluation_candidate,
     validate_verified_psi_optimization_unit,
@@ -50,7 +53,7 @@ impl VerifiedPsiOptimizationSession {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationCommit {
     pub rule: OptimizationRuleIdentity,
     pub candidate: OptimizationCandidateIdentity,
@@ -58,6 +61,7 @@ pub struct PsiOptimizationCommit {
     pub input: OptimizationUnitIdentity,
     pub output: OptimizationUnitIdentity,
     pub predicted_cost_delta: i64,
+    pub provenance: Vec<ProvenanceRewrite>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -76,6 +80,7 @@ pub struct OptimizationRun {
     pub usage: OptimizationRunUsage,
     pub decisions: BaselineDecisionLog,
     pub pass_manifest: Option<OptimizationPassManifestRecord>,
+    pub transformation_ledger: PsiTransformationLedger,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +101,7 @@ pub enum OptimizationRunError {
     DuplicateCandidate(OptimizationCandidateIdentity),
     PolicySelectionMissing(OptimizationCandidateIdentity),
     InvalidManifest(InvalidOptimizationManifestRecord),
+    InvalidTransformationLedger(InvalidPsiTransformationLedger),
 }
 
 impl std::fmt::Display for OptimizationRunError {
@@ -113,7 +119,7 @@ pub fn run_psi_registry(
 ) -> Result<OptimizationRun, OptimizationRunError> {
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
-    let (unit, commits, usage, decisions, pass_manifest) =
+    let (unit, commits, usage, decisions, pass_manifest, transformation_ledger) =
         run_unit(session.unit, registry, budget)?;
     Ok(OptimizationRun {
         session: VerifiedPsiOptimizationSession {
@@ -124,6 +130,7 @@ pub fn run_psi_registry(
         usage,
         decisions,
         pass_manifest,
+        transformation_ledger,
     })
 }
 
@@ -138,11 +145,14 @@ fn run_unit(
         OptimizationRunUsage,
         BaselineDecisionLog,
         Option<OptimizationPassManifestRecord>,
+        PsiTransformationLedger,
     ),
     OptimizationRunError,
 > {
     let mut analyses = AnalysisManager::new(&unit);
     let initial_identity = unit.identity;
+    let terminal_psi = unit.terminal_psi;
+    let fuel_schedule = unit.fuel_schedule;
     let mut usage = OptimizationRunUsage::default();
     let mut commits = Vec::new();
     let mut candidate_decisions = Vec::new();
@@ -261,11 +271,37 @@ fn run_unit(
                 &candidate_decisions,
                 usage,
             )?;
-            return Ok((unit, commits, usage, decisions, pass_manifest));
+            let transformation_ledger = PsiTransformationLedger::new(
+                terminal_psi,
+                fuel_schedule,
+                initial_identity,
+                unit.identity,
+                commits
+                    .iter()
+                    .map(|commit| PsiTransformationRecord {
+                        rule: commit.rule,
+                        candidate: commit.candidate,
+                        validator: commit.validator,
+                        input: commit.input,
+                        output: commit.output,
+                        provenance: commit.provenance.clone(),
+                    })
+                    .collect(),
+            )
+            .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+            return Ok((
+                unit,
+                commits,
+                usage,
+                decisions,
+                pass_manifest,
+                transformation_ledger,
+            ));
         };
         let input_identity = unit.identity;
         let validator = validated.validator();
         let candidate_identity = validated.candidate();
+        let provenance = candidate.provenance().to_vec();
         let next = validated.into_unit();
         let current_measure = exact_integer_operation_count(&next);
         if current_measure >= previous_measure {
@@ -285,6 +321,7 @@ fn run_unit(
             input: input_identity,
             output: next.identity,
             predicted_cost_delta: candidate.predicted_cost_delta(),
+            provenance,
         });
         unit = next;
     }
@@ -644,7 +681,7 @@ mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        let (output, commits, usage, decisions, pass_manifest) =
+        let (output, commits, usage, decisions, pass_manifest, ledger) =
             run_unit(unit.clone(), &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(commits[0].input, unit.identity);
@@ -671,6 +708,10 @@ mod tests {
             OptimizationPassManifestRecord::decode(&pass_manifest.encode()),
             Ok(pass_manifest)
         );
+        assert_eq!(ledger.input(), unit.identity);
+        assert_eq!(ledger.output(), output.identity);
+        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(ledger.records()[0].provenance, commits[0].provenance);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant { .. }
@@ -683,7 +724,7 @@ mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        let (output, commits, usage, _, pass_manifest) =
+        let (output, commits, usage, _, pass_manifest, ledger) =
             run_unit(dependent_exact_chain_unit(), &registry, budget(8)).unwrap();
 
         assert_eq!(commits.len(), 2);
@@ -706,6 +747,7 @@ mod tests {
         let manifest = pass_manifest.unwrap();
         assert_eq!(manifest.ordered_rules().len(), 3);
         assert_eq!(manifest.decisions().len(), 2);
+        assert_eq!(ledger.records().len(), 2);
     }
 
     #[test]
@@ -729,7 +771,7 @@ mod tests {
             Arc::new(NonProfitableExactRule) as Arc<dyn PsiOptimizationRule>
         ])
         .unwrap();
-        let (unit, commits, _, decisions, pass_manifest) =
+        let (unit, commits, _, decisions, pass_manifest, ledger) =
             run_unit(exact_add_unit(), &registry, budget(2)).unwrap();
 
         assert!(commits.is_empty());
@@ -745,6 +787,8 @@ mod tests {
             OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
         );
         assert!(manifest.decisions()[0].validator().is_some());
+        assert!(ledger.records().is_empty());
+        assert_eq!(ledger.input(), ledger.output());
     }
 
     #[test]
@@ -766,6 +810,7 @@ mod tests {
         let run = run_psi_registry(verified_empty_unit(), &registry, budget(2)).unwrap();
         assert!(run.commits.is_empty());
         assert!(run.pass_manifest.is_none());
+        assert!(run.transformation_ledger.records().is_empty());
         assert_eq!(run.usage.iterations, 1);
         assert_eq!(
             run.session.unit().terminal_psi,
@@ -782,6 +827,7 @@ mod tests {
         let run = run_psi_registry(verified_exact_add_unit(), &registry, budget(8)).unwrap();
 
         assert_eq!(run.commits.len(), 1);
+        assert_eq!(run.transformation_ledger.records().len(), 1);
         assert_eq!(run.pass_manifest.as_ref().unwrap().decisions().len(), 1);
         assert_eq!(run.session.input().context().accepted_facts().len(), 1);
         assert_eq!(

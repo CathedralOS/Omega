@@ -140,6 +140,15 @@ These facts constrain the work below.
   dependencies. The two liveness implementations agree on the focused CFG
   fixture. `OPT-OBSERVATION-MODEL` remains open for multi-node region
   projection, verifier-frontier joins, and later memory/suspension vocabulary.
+- Successful Psi runs now emit a canonical transformation ledger binding the
+  exact Terminal-Psi identity, fuel schedule, initial/final unit revisions, and
+  every validated rule/candidate/validator revision step. Each step explicitly
+  retains its output node, source operation/edge set, and original logical-fuel
+  settlements. Broken chains, duplicate candidates, empty/duplicate
+  provenance, and mismatched fuel sites reject. Empty no-op runs receive a
+  valid identity-preserving ledger. `OPT-FUEL-MAP` remains open for one-to-many
+  rewrites and physical/runtime metering joins, and the publication gate must
+  later consume this ledger rather than trusting its producer.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,
