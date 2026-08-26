@@ -1222,6 +1222,15 @@ and refuses review when any checked-implementation claim was left unjudged. Acce
 opaque supply remains trust-bearing. These rows are currently in-memory review
 state, not sealed lock evidence.
 
+External executable supply is a separate blocking trust row. It binds an exact
+package-qualified callable/conformance application to a closed compiler-owned
+import, syscall, intrinsic, vtable, or table-function identity and makes no
+Terminal or audit claim. The compiler projects it only after successful
+checking, joining facts from their earliest coherent private representations
+and rejecting inconsistent supply-mode, conformance-binding, or binding-table
+state. Only the canonical row crosses this crate boundary; no nominal Chi stage
+or public package IR is introduced for the internal join.
+
 ## Fixtures
 
 The local fixture corpus is under `tests/fixtures/packages/`; exact remote Git pins

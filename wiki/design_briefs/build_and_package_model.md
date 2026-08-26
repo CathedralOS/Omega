@@ -1213,6 +1213,28 @@ proof-status, and build-contract admission does not require complete Terminal
 coverage. A row without Terminal evidence makes no Terminal claim; a generic
 partial/completeness bit must not blur the distinction.
 
+Bodyless external realization therefore projects as a separate blocking
+executable-supply trust row, not as callable API, reach, boundary
+representation, accepted proof, or Terminal evidence. The row binds the exact
+package-qualified callable and conformance application to one closed mechanism:
+import library and symbol, syscall number, compiler intrinsic, vtable slot,
+vtable field, or table-function field. Projection cross-checks the machine
+supply mode, conformance binding, and external-binding table and rejects
+missing, duplicate, mismatched, or unsupported state. It makes no claim that
+the supplied executable was audited or that its implementation satisfies the
+callable contract.
+
+The compiler reads each component from the earliest coherent private
+representation in which it is semantically settled. Structural external-
+binding identity may come from pre-Terminal state and join checked callable and
+conformance identity only after successful compilation. This checker may move
+with compiler internals; only the versioned canonical row is durable. Psi may
+repeat the consistency invariant as a downstream backstop, but no package
+format or public IR depends on it. Nominal Chi is unwarranted unless later work
+discovers an independently useful semantic boundary; an existing coherent
+stage such as Exact should be reused when it carries the same facts more
+simply.
+
 ## Dependencies and the lock artifact
 
 Code imports package-local aliases. `build.omg` records source requests and
