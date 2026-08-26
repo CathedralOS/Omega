@@ -722,6 +722,22 @@ context, row, thunk, or schedule identities. The resulting
 bytes, object relocation, runtime storage, native address, registration
 authority, or lease; those remain later lowering and lifetime steps.
 
+The next prerequisite retains the registrar occurrence through the ordinary
+host-call and abstract-boundary spine without granting any of those later
+authorities. One outbound `HostCallPlan` row records its exact authored
+statement or expression site, resolved registration-operation symbol,
+canonical registrar overload, state/statement/call ordinal, and exact platform
+lowering identity. Its authored arguments retain ordered pairs of formal
+ordinal and compiler-derived `NativeParameterId`; a synthetic result-place
+operand is explicitly outside that list. Abstract lowering reconstructs and
+replays one occurrence row and one ordered native-formal span, and every
+host-operation edge points back to that occurrence. A source boundary edge may
+link only when its resolved target symbol agrees in addition to the ordinary
+state/statement/call coordinates. The target semantic summary preserves these
+rows unchanged. They remain identity-only: they select no `NativePlace`, target
+operand, byte offset, object relocation, address, registration authority, or
+callback lifetime.
+
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
 and entry, unique satisfaction trait/requirement pair, and canonical overload

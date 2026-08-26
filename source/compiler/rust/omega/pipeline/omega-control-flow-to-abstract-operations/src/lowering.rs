@@ -14,7 +14,7 @@ pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> Result<AbstractOperationPlan, psi_diagnostics::Diagnostic> {
     let instruction_plan = build_instruction_plan(&InstructionSelectionInput::from(input))?;
-    let mut semantics = build_abstract_semantic_summary(input);
+    let mut semantics = build_abstract_semantic_summary(input)?;
     let _ = semantics
         .ownership
         .install_permission_realization_candidates(

@@ -1,8 +1,63 @@
-use omega_calling_conventions::HostOperationKey;
+use omega_calling_conventions::{HostOperationKey, NativeParameterId};
 use omega_control_flow::StateKey;
 use psi_arena::{Arena, Handle};
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbstractHostCallSourceSite {
+    Statement(psi_typed_trees::statement::StatementHandle),
+    Expression(psi_typed_trees::expression::ExpressionHandle),
+}
+
+impl Default for AbstractHostCallSourceSite {
+    fn default() -> Self {
+        Self::Expression(psi_typed_trees::expression::ExpressionHandle::invalid())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AbstractHostCallNativeArgument {
+    pub formal_ordinal: u32,
+    pub native_parameter: Option<NativeParameterId>,
+}
+
+/// Identity-only retention of one exact outbound host-call occurrence.
+///
+/// This row deliberately contains no physical place, address, byte offset, or
+/// relocation authority. Those belong to later target-closed stages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractHostCallOccurrence {
+    pub source_call_index: u32,
+    pub source_call_generation: u32,
+    pub source_site: AbstractHostCallSourceSite,
+    pub registration_operation: SymbolHandle,
+    pub requirement_identity: Arc<str>,
+    pub source_key: StateKey,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub lowering_index: u32,
+    pub lowering_generation: u32,
+    pub arguments: psi_arena::HandleSpan<AbstractHostCallNativeArgument>,
+}
+
+impl Default for AbstractHostCallOccurrence {
+    fn default() -> Self {
+        Self {
+            source_call_index: 0,
+            source_call_generation: 0,
+            source_site: AbstractHostCallSourceSite::default(),
+            registration_operation: SymbolHandle::invalid(),
+            requirement_identity: Arc::from(""),
+            source_key: StateKey::default(),
+            statement_index: 0,
+            call_ordinal: 0,
+            lowering_index: 0,
+            lowering_generation: 0,
+            arguments: psi_arena::HandleSpan::empty(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AbstractSourceBoundaryEdge {
@@ -17,6 +72,7 @@ pub struct AbstractSourceBoundaryEdge {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AbstractBoundaryEdge {
+    pub host_call: Handle<AbstractHostCallOccurrence>,
     pub source_key: StateKey,
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -64,6 +120,8 @@ impl Default for AbstractBoundaryPolicyCheck {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AbstractBoundarySummary {
     pub source_edges: Arena<AbstractSourceBoundaryEdge>,
+    pub host_calls: Arena<AbstractHostCallOccurrence>,
+    pub host_call_arguments: Arena<AbstractHostCallNativeArgument>,
     pub edges: Arena<AbstractBoundaryEdge>,
     pub links: Arena<AbstractBoundaryLink>,
     pub policy_checks: Arena<AbstractBoundaryPolicyCheck>,
@@ -88,6 +146,8 @@ impl AbstractBoundarySummary {
     ) -> Self {
         Self {
             source_edges: Arena::with_capacity(source_edge_capacity),
+            host_calls: Arena::with_capacity(edge_capacity),
+            host_call_arguments: Arena::new(),
             edges: Arena::with_capacity(edge_capacity),
             links: Arena::new(),
             policy_checks: Arena::new(),

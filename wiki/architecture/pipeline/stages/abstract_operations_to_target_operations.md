@@ -43,7 +43,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   spine, not a second copy of the same values/boundaries/ownership shape.
 - `omega-target-operations/src/instruction/value.rs` owns target value operands.
 - `omega-target-operations/src/instruction/operand.rs` owns target instruction operands.
-- `tests.rs` owns stage-level preservation canaries for values, ownership, and boundary edges.
+- `tests.rs` owns stage-level preservation canaries for values, ownership,
+  boundary edges, and the exact identity-only outbound host-call/native-formal
+  catalogs. Target legalization preserves those catalogs unchanged and does
+  not reinterpret them as ABI placement or relocation authority.
 
 ## Semantic Ownership
 
@@ -58,7 +61,7 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 | Calls | Host/runtime operation ordinals become target operation keys and ABI bindings. |
 | Transitions | Preserved as target-aware branch/jump/return operations, not re-scheduled. |
 | Effects | Carried through as concrete runtime/host operation choices. |
-| Boundary edges | Preserve abstract source-boundary, host-operation boundary, and source-to-lowered link summaries while recording target policy checks for linked, unlinked, and unbound host operations. |
+| Boundary edges | Preserve abstract source-boundary, exact host-call occurrence/native-formal, host-operation boundary, and source-to-lowered link summaries while recording target policy checks for linked, unlinked, and unbound host operations. |
 
 ## Ownership Rules
 
@@ -74,7 +77,10 @@ copy/cleanup operations.
 Value summaries are preserved through target legalization, but are not yet used
 to drive target storage or ownership policy.
 Boundary-edge summaries are preserved through target legalization, including
-both source-level boundary edges and lowered host-operation edges.
+source-level boundary edges, exact registrar occurrence/native-parameter
+identity rows, target-aware links, and lowered host-operation edges. These rows
+remain address-free; target physical destinations and object relocations are
+not inferred here.
 Boundary policy checks currently validate source-link presence, target host
 binding presence, and whether the binding policy is allowed by the selected ABI
 policy set. Exact source policy path matching is still pending because source
