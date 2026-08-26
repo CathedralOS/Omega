@@ -448,7 +448,9 @@ custody binds the full unrelocated and final image plus independently replayed
 transfer/resume intervals to one `InstalledCodeContext`; it is not itself a
 sponsor-route receipt. Executable transfer authority additionally requires the
 resolved sponsor call target to be joined to the exact installed root/provider
-entry and its fixed, suspension-free provision.
+entry and its fixed, suspension-free provision. The live external-root join
+performs that replay and exposes executable transfer custody only from both
+sealed halves.
 
 The live hard-root precursor composes recomputable entry/segment certificates
 and admitted opaque-provider summaries under one `FuelScheduleIdentity`.

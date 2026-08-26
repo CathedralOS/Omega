@@ -1190,7 +1190,10 @@ exact installed-code context. The latter must bind the resolved sponsor call
 target to the selected root/provider entry and its fixed,
 `FuelSuspensionFree` provision. Possessing the bytes, an arena-local sponsor
 symbol, or compact provider receipt identities alone grants no executable
-transfer authority.
+transfer authority. The external-root implementation preserves those as two
+sealed values and constructs installed transfer-runtime custody only after the
+entry coordinate, code context, artifact, provision, and suspension proof all
+rejoin exactly.
 
 The exhaustion-transfer plan must be executable without scheduling machinery,
 stack, locks, or authority held by the suspended activation. Its minimal
