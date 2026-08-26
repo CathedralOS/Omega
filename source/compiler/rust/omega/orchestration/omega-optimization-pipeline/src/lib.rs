@@ -186,8 +186,8 @@ mod tests {
         TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
         TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
-        TerminalRegisterHomeError, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
-        analyze_terminal_live_ranges, analyze_terminal_liveness,
+        TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
         terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
         terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
         validate_terminal_allocation_legality, validate_terminal_fixed_view_copies,
@@ -1968,6 +1968,23 @@ mod tests {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment();
+            let encoded = staged.homes().plan().encode();
+            let decoded = TerminalRegisterHomePlan::decode(&encoded).unwrap();
+            assert_eq!(&decoded, staged.homes().plan());
+            let legality = staged.legality_stage();
+            let ranges = legality.live_range_stage();
+            let replay = validate_terminal_register_homes(
+                legality.legality(),
+                ranges.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                decoded,
+            )
+            .unwrap();
+            assert_eq!(replay, *staged.homes());
             let model = environment.physical().model();
             assert_eq!(
                 function.assignments[0].view,

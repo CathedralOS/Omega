@@ -7,6 +7,12 @@ pub fn terminal_register_home_identity(
 ) -> TerminalRegisterHomeIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-register-homes.v1\0");
+    bytes.extend_from_slice(&encode_terminal_register_home_content(plan));
+    TerminalRegisterHomeIdentity(Sha256::digest(bytes).into())
+}
+
+pub(crate) fn encode_terminal_register_home_content(plan: &TerminalRegisterHomePlan) -> Vec<u8> {
+    let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
@@ -20,7 +26,7 @@ pub fn terminal_register_home_identity(
             bytes.extend_from_slice(&assignment.view.0.to_le_bytes());
         }
     }
-    TerminalRegisterHomeIdentity(Sha256::digest(bytes).into())
+    bytes
 }
 
 fn encode_len(bytes: &mut Vec<u8>, value: usize) {
@@ -42,7 +48,8 @@ mod tests {
     use super::*;
     use crate::{
         TerminalAllocationLegalityIdentity, TerminalFunctionRegisterHomes,
-        TerminalLiveRangeIdentity, TerminalRegisterHomePlan, TerminalVirtualRegisterHome,
+        TerminalLiveRangeIdentity, TerminalRegisterHomeDecodeError, TerminalRegisterHomePlan,
+        TerminalVirtualRegisterHome,
     };
 
     type Mutation = fn(&mut TerminalRegisterHomePlan);
@@ -85,5 +92,48 @@ mod tests {
             mutate(&mut changed);
             assert_ne!(baseline, terminal_register_home_identity(&changed));
         }
+    }
+
+    #[test]
+    fn canonical_home_codec_rejects_framing_and_identity_corruption() {
+        let plan = plan();
+        let encoded = plan.encode();
+        assert_eq!(TerminalRegisterHomePlan::decode(&encoded), Ok(plan));
+
+        let mut identity_tamper = encoded.clone();
+        identity_tamper[12] ^= 1;
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&identity_tamper),
+            Err(TerminalRegisterHomeDecodeError::IdentityMismatch)
+        );
+        let mut trailing = encoded.clone();
+        trailing.push(0);
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&trailing),
+            Err(TerminalRegisterHomeDecodeError::TrailingBytes)
+        );
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&encoded[..encoded.len() - 1]),
+            Err(TerminalRegisterHomeDecodeError::Truncated)
+        );
+        let mut wrong_magic = encoded.clone();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&wrong_magic),
+            Err(TerminalRegisterHomeDecodeError::WrongMagic)
+        );
+        let mut wrong_version = encoded.clone();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&wrong_version),
+            Err(TerminalRegisterHomeDecodeError::UnsupportedVersion(2))
+        );
+        let mut invalid_machine = encoded;
+        let machine_offset = 8 + 4 + 32 + (3 * 32) + 8;
+        invalid_machine[machine_offset..machine_offset + 8].copy_from_slice(&0_u64.to_le_bytes());
+        assert_eq!(
+            TerminalRegisterHomePlan::decode(&invalid_machine),
+            Err(TerminalRegisterHomeDecodeError::InvalidMachineId(0))
+        );
     }
 }

@@ -905,6 +905,12 @@ dependency.
   checks exact interference and complete write footprints, and is independently
   replayed. It rejects unresolved transitions, empty intersections, and pressure
   requiring a spill; it does not authorize physical emission.
+  The register-home plan now also has a versioned self-authenticating codec
+  binding its legality, live-range, register-environment, machine, VReg, class,
+  and physical-view fields. Its strict decoder rejects malformed framing,
+  invalid machine IDs, identity tampering, truncation, and trailing bytes, and
+  returns only the plain plan; independent home validation remains required
+  before custody can accept artifact or cache bytes.
   The exact named `LeafLocalBeforeFixedUseV1` artifact now closes the admitted
   forwarded-value transition: it binds the selected `copy_i64` key in the target
   environment identity, inserts one copy and fresh VReg per leaf fixed Use,
