@@ -47,6 +47,7 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
     projection: OptimizedAbstractPlanProjectionIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     liveness: omega_regalloc::TerminalLivenessIdentity,
     ranges: TerminalLiveRangeIdentity,
@@ -95,6 +96,12 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
 
     pub const fn selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.selected
+    }
+
+    pub const fn register_environment(
+        self,
+    ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
+        self.register_environment
     }
 
     pub const fn liveness(self) -> omega_regalloc::TerminalLivenessIdentity {
@@ -227,6 +234,7 @@ fn custody_receipt(
         projection: upstream.projection(),
         optimization_unit: upstream.optimization_unit(),
         fuel_schedule: upstream.fuel_schedule(),
+        register_environment: upstream.register_environment(),
         selected: upstream.selected(),
         liveness: upstream.liveness(),
         ranges: ranges.identity(),

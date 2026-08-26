@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-target = { path = "../../foundation/omega-target" }
+sha2 = "0.10.9"

@@ -15,7 +15,8 @@ detached range plan cannot enter orchestration.
 Output: `StagedOptimizedLiveRanges`, nesting the entire input carrier plus an
 opaque validated range plan. Its receipt binds the Terminal Psi program,
 target, entry machine, optimizer/projection/unit/fuel identities, selected and
-liveness identities, range identity, and structural counts.
+liveness identities, the exact target-register-environment identity, range
+identity, and structural counts.
 
 Authority: block-local live fragments, exact live-edge connectors, operand and
 fixed-view occurrences, architectural state/actions, and canonical VReg
@@ -67,9 +68,11 @@ effects and fixed views.
 Use-def operands, ties, and early clobbers remain fail-closed. Loops, calls,
 crashes, cleanup, suspension, block-parameter/parallel-copy edges, loop weights,
 splitting, and allocation remain unsupported until their selected-IR frontiers
-and independent checks exist. The full physical model, constraint catalog, and
-active reservation profile also need explicit replay identities before an
-assignment artifact can be authoritative.
+and independent checks exist. The admitted physical model, constraint catalog,
+and conservative active reservation profile now have explicit replay
+identities, but provider/runtime reservation closure, fixed-home transitions,
+and phase-exact candidate legality remain prerequisites for authoritative
+assignment.
 
 ## Implementation Map
 

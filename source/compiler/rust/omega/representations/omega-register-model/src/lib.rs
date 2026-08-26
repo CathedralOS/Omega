@@ -11,6 +11,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_target::Architecture;
 
+mod identities;
+
+pub use identities::{
+    PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
+    RegisterReservationProfileIdentity, TargetRegisterEnvironmentIdentity,
+    target_register_environment_identity,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegisterUnitId(pub u16);
 
@@ -90,6 +98,55 @@ pub struct RegisterReservationOverlay {
     pub units: Vec<RegisterUnitId>,
 }
 
+/// Exact, named subset of the model's reservation-overlay catalog which is
+/// active for one allocator environment.
+///
+/// Names are strictly sorted in validated form. Keeping selection distinct
+/// from the overlay catalog prevents declarations such as frame-pointer or
+/// metering reservations from silently becoming active policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisterReservationProfile {
+    pub name: String,
+    pub active_overlays: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRegisterReservationProfile {
+    profile: RegisterReservationProfile,
+    reserved_units: Vec<RegisterUnitId>,
+    identity: RegisterReservationProfileIdentity,
+}
+
+impl ValidatedRegisterReservationProfile {
+    pub const fn profile(&self) -> &RegisterReservationProfile {
+        &self.profile
+    }
+
+    pub fn reserved_units(&self) -> &[RegisterUnitId] {
+        &self.reserved_units
+    }
+
+    pub const fn identity(&self) -> RegisterReservationProfileIdentity {
+        self.identity
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegisterReservationProfileValidationError {
+    EmptyName,
+    TargetArchitectureMismatch,
+    NonCanonicalOverlayNames,
+    UnknownOverlay(String),
+}
+
+impl std::fmt::Display for RegisterReservationProfileValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid register reservation profile: {self:?}")
+    }
+}
+
+impl std::error::Error for RegisterReservationProfileValidationError {}
+
 /// Dense, catalog-local identity for an instruction constraint row.
 ///
 /// IDs are canonical only when they match the row's zero-based position in a
@@ -117,6 +174,16 @@ pub enum RegisterConstraintFamily {
 pub struct RegisterConstraintKey {
     pub family: RegisterConstraintFamily,
     pub variant: u32,
+}
+
+/// Exact ordinary instruction keys selected by one target register
+/// environment. Named fields prevent positional key drift in its identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetRegisterEnvironmentConstraintKeys {
+    pub materialize_i64: RegisterConstraintKey,
+    pub compare_i64_zero: RegisterConstraintKey,
+    pub conditional_branch: RegisterConstraintKey,
+    pub return_i64: RegisterConstraintKey,
 }
 
 /// Dataflow access performed by an explicit instruction operand.
@@ -177,6 +244,7 @@ pub struct RegisterConstraintCatalog {
 pub struct ValidatedRegisterConstraintCatalog {
     architecture: Architecture,
     catalog: RegisterConstraintCatalog,
+    identity: RegisterConstraintCatalogIdentity,
 }
 
 impl ValidatedRegisterConstraintCatalog {
@@ -186,6 +254,10 @@ impl ValidatedRegisterConstraintCatalog {
 
     pub const fn catalog(&self) -> &RegisterConstraintCatalog {
         &self.catalog
+    }
+
+    pub const fn identity(&self) -> RegisterConstraintCatalogIdentity {
+        self.identity
     }
 
     pub fn into_catalog(self) -> RegisterConstraintCatalog {
@@ -292,15 +364,22 @@ impl PhysicalRegisterModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedPhysicalRegisterModel(PhysicalRegisterModel);
+pub struct ValidatedPhysicalRegisterModel {
+    model: PhysicalRegisterModel,
+    identity: PhysicalRegisterModelIdentity,
+}
 
 impl ValidatedPhysicalRegisterModel {
     pub const fn model(&self) -> &PhysicalRegisterModel {
-        &self.0
+        &self.model
+    }
+
+    pub const fn identity(&self) -> PhysicalRegisterModelIdentity {
+        self.identity
     }
 
     pub fn into_model(self) -> PhysicalRegisterModel {
-        self.0
+        self.model
     }
 }
 
@@ -462,7 +541,58 @@ pub fn validate_physical_register_model(
         }
         validate_unit_set(&reservation.units, &units)?;
     }
-    Ok(ValidatedPhysicalRegisterModel(model))
+    let identity = identities::physical_register_model_identity(&model);
+    Ok(ValidatedPhysicalRegisterModel { model, identity })
+}
+
+/// Validate one explicit active reservation selection and derive its exact
+/// reserved-unit union. An empty overlay list is valid and means precisely
+/// that no optional overlay is active.
+pub fn validate_register_reservation_profile(
+    profile: RegisterReservationProfile,
+    target: omega_target::NativeTarget,
+    model: &ValidatedPhysicalRegisterModel,
+) -> Result<ValidatedRegisterReservationProfile, RegisterReservationProfileValidationError> {
+    if profile.name.is_empty() {
+        return Err(RegisterReservationProfileValidationError::EmptyName);
+    }
+    if target.architecture != model.model().architecture {
+        return Err(RegisterReservationProfileValidationError::TargetArchitectureMismatch);
+    }
+    if profile
+        .active_overlays
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(RegisterReservationProfileValidationError::NonCanonicalOverlayNames);
+    }
+    let overlays = model
+        .model()
+        .reservations
+        .iter()
+        .map(|overlay| (overlay.name.as_str(), overlay))
+        .collect::<BTreeMap<_, _>>();
+    let mut units = BTreeSet::new();
+    for name in &profile.active_overlays {
+        let Some(overlay) = overlays.get(name.as_str()) else {
+            return Err(RegisterReservationProfileValidationError::UnknownOverlay(
+                name.clone(),
+            ));
+        };
+        units.extend(overlay.units.iter().copied());
+    }
+    let reserved_units = units.into_iter().collect::<Vec<_>>();
+    let identity = identities::register_reservation_profile_identity(
+        target,
+        model.identity(),
+        &profile,
+        &reserved_units,
+    );
+    Ok(ValidatedRegisterReservationProfile {
+        profile,
+        reserved_units,
+        identity,
+    })
 }
 
 /// Validates a closed register-constraint inventory against an independently
@@ -609,9 +739,11 @@ pub fn validate_register_constraint_catalog(
         }
     }
 
+    let identity = identities::register_constraint_catalog_identity(model.identity(), &catalog);
     Ok(ValidatedRegisterConstraintCatalog {
         architecture: catalog.architecture,
         catalog,
+        identity,
     })
 }
 
@@ -836,6 +968,9 @@ fn validate_ordered_views(
 mod tests {
     use super::*;
 
+    type ModelMutation = Box<dyn Fn(&mut PhysicalRegisterModel)>;
+    type CatalogMutation = Box<dyn Fn(&mut RegisterConstraintCatalog)>;
+
     fn miniature_model() -> PhysicalRegisterModel {
         PhysicalRegisterModel {
             architecture: Architecture::X86_64,
@@ -897,7 +1032,18 @@ mod tests {
                 stack_alignment: 16,
                 red_zone_bytes: 0,
             }],
-            reservations: Vec::new(),
+            reservations: vec![
+                RegisterReservationOverlay {
+                    name: "test.reserve-r0".into(),
+                    reason: ReservationReason::Backend,
+                    units: vec![RegisterUnitId(0)],
+                },
+                RegisterReservationOverlay {
+                    name: "test.reserve-v0".into(),
+                    reason: ReservationReason::InlineAssembly,
+                    units: vec![RegisterUnitId(1)],
+                },
+            ],
         }
     }
 
@@ -1213,5 +1359,299 @@ mod tests {
             validate_register_constraint_catalog(wrong_architecture, &validated_miniature_model()),
             Err(RegisterConstraintCatalogValidationError::ArchitectureMismatch)
         );
+    }
+
+    #[test]
+    fn physical_identity_is_deterministic_and_binds_every_declaration_family() {
+        let baseline = validated_miniature_model().identity();
+        assert_eq!(baseline, validated_miniature_model().identity());
+
+        let mutations: Vec<ModelMutation> = vec![
+            Box::new(|model| model.architecture = Architecture::Aarch64),
+            Box::new(|model| model.units.swap(0, 1)),
+            Box::new(|model| model.units[0].id = RegisterUnitId(9)),
+            Box::new(|model| model.units[0].name.push_str(".changed")),
+            Box::new(|model| model.units[0].bits = 128),
+            Box::new(|model| model.units[0].kind = RegisterUnitKind::Flags),
+            Box::new(|model| model.views.swap(0, 1)),
+            Box::new(|model| model.views[0].id = RegisterViewId(9)),
+            Box::new(|model| model.views[0].name.push_str(".changed")),
+            Box::new(|model| model.views[0].class = RegisterClassId(1)),
+            Box::new(|model| model.views[0].units.push(RegisterUnitId(1))),
+            Box::new(|model| model.views[0].write_units.push(RegisterUnitId(1))),
+            Box::new(|model| model.views[0].bits = 32),
+            Box::new(|model| {
+                model.views[0].write_semantics = RegisterWriteSemantics::InstructionDefined
+            }),
+            Box::new(|model| model.views[0].allocatable = false),
+            Box::new(|model| model.classes.swap(0, 1)),
+            Box::new(|model| model.classes[0].id = RegisterClassId(9)),
+            Box::new(|model| model.classes[0].name.push_str(".changed")),
+            Box::new(|model| model.classes[0].views.push(RegisterViewId(1))),
+            Box::new(|model| model.conventions[0].name.push_str(".changed")),
+            Box::new(|model| model.conventions[0].argument_views.push(RegisterViewId(1))),
+            Box::new(|model| model.conventions[0].result_views.push(RegisterViewId(1))),
+            Box::new(|model| model.conventions[0].caller_saved.clear()),
+            Box::new(|model| model.conventions[0].callee_saved.clear()),
+            Box::new(|model| model.conventions[0].fixed.push(RegisterUnitId(0))),
+            Box::new(|model| model.conventions[0].stack_alignment = 32),
+            Box::new(|model| model.conventions[0].red_zone_bytes = 64),
+            Box::new(|model| model.reservations.swap(0, 1)),
+            Box::new(|model| model.reservations[0].name.push_str(".changed")),
+            Box::new(|model| model.reservations[0].reason = ReservationReason::FramePointer),
+            Box::new(|model| model.reservations[0].units.push(RegisterUnitId(1))),
+        ];
+        for mutate in mutations {
+            let mut model = miniature_model();
+            mutate(&mut model);
+            let identity = identities::physical_register_model_identity(&model);
+            assert_ne!(identity, baseline);
+        }
+    }
+
+    #[test]
+    fn catalog_identity_binds_physical_identity_and_every_constraint_family() {
+        let model = validated_miniature_model();
+        let baseline = validate_register_constraint_catalog(miniature_catalog(), &model)
+            .unwrap()
+            .identity();
+        assert_eq!(
+            baseline,
+            validate_register_constraint_catalog(miniature_catalog(), &model)
+                .unwrap()
+                .identity()
+        );
+
+        let mut changed_physical = miniature_model();
+        changed_physical.units[0].name.push_str(".changed");
+        let changed_physical = validate_physical_register_model(changed_physical).unwrap();
+        assert_ne!(
+            baseline,
+            validate_register_constraint_catalog(miniature_catalog(), &changed_physical)
+                .unwrap()
+                .identity()
+        );
+
+        let mutations: Vec<CatalogMutation> = vec![
+            Box::new(|catalog| catalog.architecture = Architecture::Aarch64),
+            Box::new(|catalog| catalog.required[0].family = RegisterConstraintFamily::Return),
+            Box::new(|catalog| {
+                catalog.required[0].variant += 1;
+                catalog.constraints[0].key.variant += 1;
+            }),
+            Box::new(|catalog| catalog.constraints[0].id = RegisterConstraintId(9)),
+            Box::new(|catalog| {
+                catalog.constraints[0].key.family = RegisterConstraintFamily::Return
+            }),
+            Box::new(|catalog| catalog.constraints[0].key.variant += 1),
+            Box::new(|catalog| catalog.constraints[0].operands.swap(0, 1)),
+            Box::new(|catalog| catalog.constraints[0].operands[0].operand = 9),
+            Box::new(|catalog| {
+                catalog.constraints[0].operands[0].access = RegisterOperandAccess::UseDef
+            }),
+            Box::new(|catalog| catalog.constraints[0].operands[0].class = RegisterClassId(1)),
+            Box::new(|catalog| {
+                catalog.constraints[0].operands[0].fixed_view = Some(RegisterViewId(0))
+            }),
+            Box::new(|catalog| catalog.constraints[0].operands[1].fixed_view = None),
+            Box::new(|catalog| catalog.constraints[0].operands[1].tied_to = None),
+            Box::new(|catalog| catalog.constraints[0].operands[1].early_clobber = false),
+            Box::new(|catalog| catalog.constraints[0].implicit_uses.clear()),
+            Box::new(|catalog| catalog.constraints[0].implicit_defs.push(RegisterUnitId(0))),
+            Box::new(|catalog| catalog.constraints[0].clobbers.clear()),
+        ];
+        for mutate in mutations {
+            let mut catalog = miniature_catalog();
+            mutate(&mut catalog);
+            let identity =
+                identities::register_constraint_catalog_identity(model.identity(), &catalog);
+            assert_ne!(identity, baseline);
+        }
+    }
+
+    #[test]
+    fn active_reservation_profile_is_exact_canonical_and_model_bound() {
+        let model = validated_miniature_model();
+        let target = omega_target::NativeTarget::linux_x64();
+        let profile = RegisterReservationProfile {
+            name: "test.policy".into(),
+            active_overlays: vec!["test.reserve-r0".into(), "test.reserve-v0".into()],
+        };
+        let validated = validate_register_reservation_profile(profile.clone(), target, &model)
+            .expect("canonical profile must validate");
+        assert_eq!(
+            validated.reserved_units(),
+            &[RegisterUnitId(0), RegisterUnitId(1)]
+        );
+        assert_eq!(
+            validated.identity(),
+            validate_register_reservation_profile(profile.clone(), target, &model)
+                .unwrap()
+                .identity()
+        );
+
+        let one_overlay = validate_register_reservation_profile(
+            RegisterReservationProfile {
+                name: profile.name.clone(),
+                active_overlays: vec!["test.reserve-r0".into()],
+            },
+            target,
+            &model,
+        )
+        .unwrap();
+        assert_eq!(one_overlay.reserved_units(), &[RegisterUnitId(0)]);
+        assert_ne!(one_overlay.identity(), validated.identity());
+
+        let renamed = validate_register_reservation_profile(
+            RegisterReservationProfile {
+                name: "test.policy-renamed".into(),
+                active_overlays: profile.active_overlays.clone(),
+            },
+            target,
+            &model,
+        )
+        .unwrap();
+        assert_ne!(renamed.identity(), validated.identity());
+        let windows = validate_register_reservation_profile(
+            profile.clone(),
+            omega_target::NativeTarget::windows_x64(),
+            &model,
+        )
+        .unwrap();
+        assert_ne!(windows.identity(), validated.identity());
+        let mut changed_model = miniature_model();
+        changed_model.units[0].name.push_str(".changed");
+        let changed_model = validate_physical_register_model(changed_model).unwrap();
+        let changed_model_profile =
+            validate_register_reservation_profile(profile.clone(), target, &changed_model).unwrap();
+        assert_ne!(changed_model_profile.identity(), validated.identity());
+
+        let mut duplicate = profile.clone();
+        duplicate.active_overlays[1] = duplicate.active_overlays[0].clone();
+        assert_eq!(
+            validate_register_reservation_profile(duplicate, target, &model),
+            Err(RegisterReservationProfileValidationError::NonCanonicalOverlayNames)
+        );
+        let unknown = RegisterReservationProfile {
+            name: profile.name,
+            active_overlays: vec!["unknown".into()],
+        };
+        assert_eq!(
+            validate_register_reservation_profile(unknown, target, &model),
+            Err(RegisterReservationProfileValidationError::UnknownOverlay(
+                "unknown".into()
+            ))
+        );
+        assert_eq!(
+            validate_register_reservation_profile(
+                RegisterReservationProfile {
+                    name: "test.policy".into(),
+                    active_overlays: Vec::new(),
+                },
+                omega_target::NativeTarget::linux_arm64(),
+                &model,
+            ),
+            Err(RegisterReservationProfileValidationError::TargetArchitectureMismatch)
+        );
+    }
+
+    #[test]
+    fn environment_identity_binds_target_components_and_named_selected_keys() {
+        let target = omega_target::NativeTarget::linux_x64();
+        let physical = validated_miniature_model();
+        let constraints =
+            validate_register_constraint_catalog(miniature_catalog(), &physical).unwrap();
+        let reservations = validate_register_reservation_profile(
+            RegisterReservationProfile {
+                name: "test.policy".into(),
+                active_overlays: vec!["test.reserve-r0".into()],
+            },
+            target,
+            &physical,
+        )
+        .unwrap();
+        let keys = TargetRegisterEnvironmentConstraintKeys {
+            materialize_i64: instruction_key(1),
+            compare_i64_zero: instruction_key(2),
+            conditional_branch: instruction_key(3),
+            return_i64: instruction_key(4),
+        };
+        let identity = target_register_environment_identity(
+            target,
+            &physical,
+            &constraints,
+            &reservations,
+            keys,
+        );
+        assert_eq!(
+            identity,
+            target_register_environment_identity(
+                target,
+                &physical,
+                &constraints,
+                &reservations,
+                keys,
+            )
+        );
+
+        for changed_target in [
+            omega_target::NativeTarget {
+                architecture: Architecture::Aarch64,
+                ..target
+            },
+            omega_target::NativeTarget {
+                object_format: omega_target::ObjectFormat::Coff,
+                ..target
+            },
+            omega_target::NativeTarget {
+                pointer_size: 4,
+                ..target
+            },
+            omega_target::NativeTarget {
+                pointer_alignment: 4,
+                ..target
+            },
+        ] {
+            assert_ne!(
+                identity,
+                target_register_environment_identity(
+                    changed_target,
+                    &physical,
+                    &constraints,
+                    &reservations,
+                    keys,
+                )
+            );
+        }
+
+        for changed_keys in [
+            TargetRegisterEnvironmentConstraintKeys {
+                materialize_i64: instruction_key(11),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                compare_i64_zero: instruction_key(12),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                conditional_branch: instruction_key(13),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                return_i64: instruction_key(14),
+                ..keys
+            },
+        ] {
+            assert_ne!(
+                identity,
+                target_register_environment_identity(
+                    target,
+                    &physical,
+                    &constraints,
+                    &reservations,
+                    changed_keys,
+                )
+            );
+        }
     }
 }

@@ -1262,6 +1262,7 @@ name = "omega-register-model"
 version = "0.1.0"
 dependencies = [
  "omega-target",
+ "sha2",
 ]
 
 [[package]]

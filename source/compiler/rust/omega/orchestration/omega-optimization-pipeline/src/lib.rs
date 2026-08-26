@@ -42,6 +42,7 @@ pub use liveness::{
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
     baseline_target_register_environment, validate_target_register_environment,
+    validate_target_register_environment_with_reservations,
 };
 pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
@@ -632,6 +633,10 @@ mod tests {
         );
         assert_eq!(staged.custody().function_count(), 1);
         assert_eq!(
+            staged.custody().register_environment(),
+            staged.register_environment().identity()
+        );
+        assert_eq!(
             staged.custody().optimization(),
             staged
                 .optimized_target()
@@ -941,6 +946,10 @@ mod tests {
                 staged.optimized_target().optimized().unit().identity
             );
             assert_eq!(staged.custody().fuel_schedule(), plan.fuel_schedule);
+            assert_eq!(
+                staged.custody().register_environment(),
+                staged.register_environment().identity()
+            );
             assert_eq!(
                 staged.custody().selected(),
                 staged.selected().receipt().identity()
@@ -1487,6 +1496,10 @@ mod tests {
             assert_eq!(staged.custody().instruction_count(), 6);
             assert_eq!(staged.custody().successor_count(), 2);
             assert_eq!(
+                staged.custody().register_environment(),
+                staged.selected_stage().register_environment().identity()
+            );
+            assert_eq!(
                 staged.custody().liveness(),
                 staged.liveness().receipt().identity()
             );
@@ -1641,6 +1654,14 @@ mod tests {
                     ))
             );
             assert_eq!(staged.custody().interference_count(), 1);
+            assert_eq!(
+                staged.custody().register_environment(),
+                staged
+                    .liveness_stage()
+                    .selected_stage()
+                    .register_environment()
+                    .identity()
+            );
             assert_eq!(
                 staged.custody().ranges(),
                 staged.ranges().receipt().identity()

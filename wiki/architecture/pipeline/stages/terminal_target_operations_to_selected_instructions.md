@@ -14,7 +14,8 @@ the exact independently validated target register environment.
 
 Output: `StagedOptimizedSelectedInstructions`, which owns that input custody,
 the validated selected plan, and identities binding the Terminal Psi program,
-optimization unit, fuel schedule, optimized projection, target, and selection.
+optimization unit, fuel schedule, optimized projection, target, exact joined
+register environment, and selection.
 
 Primary responsibility: turn admitted target operations into typed virtual
 register instructions with exact register constraints, machine-state effects,
@@ -67,7 +68,9 @@ selection.
   production, independent validation, source-custody joins, and content
   identity construction.
 - `orchestration/omega-optimization-pipeline/src/selection.rs` owns the opaque
-  cross-stage carrier and injects exact ISA/ABI constraints.
+  cross-stage carrier, injects exact ISA/ABI constraints, and binds the physical
+  model, constraint catalog, active reservation profile, and selected keys into
+  one environment identity.
 - `omega-terminal-isa-x86_64` and `omega-terminal-isa-aarch64` own the mapping
   from target machine registers to validated physical register views.
 

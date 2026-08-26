@@ -65,6 +65,7 @@ pub struct StagedOptimizedAssignmentCustodyReceipt {
     entry: MachineId,
     optimization: OptimizationIdentityBundleIdentity,
     projection: OptimizedAbstractPlanProjectionIdentity,
+    register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     function_count: usize,
 }
 
@@ -87,6 +88,12 @@ impl StagedOptimizedAssignmentCustodyReceipt {
 
     pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
         self.projection
+    }
+
+    pub const fn register_environment(
+        self,
+    ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
+        self.register_environment
     }
 
     pub const fn function_count(self) -> usize {
@@ -216,6 +223,7 @@ pub fn validate_optimized_assignment_custody(
         entry: target.entry,
         optimization: optimized_target.optimized().identity_bundle().identity(),
         projection: optimized_target.optimized().validation().identity(),
+        register_environment: register_environment.identity(),
         function_count: target.functions.len(),
     })
 }
