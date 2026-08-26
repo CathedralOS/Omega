@@ -1,6 +1,7 @@
 // Darwin time-host canary: select only the target whose calibration it asserts.
 target macos_arm64 { }
 
-machine build(b: &mut Build) {
-    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("runtime-time-host-native-darwin-exit");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

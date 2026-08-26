@@ -14,8 +14,9 @@ where machine F(value: T) -> T;
     F(value)
 }
 
-machine build(b: &mut Build) {
+machine build(builder: &mut Build) {
+    builder.application("static-machine-parameter-config-compile");
     let selected: u16 = apply<chosen_subsystem>(70);
-    b.subsystem = Subsystem::Unspecified { value: selected };
-    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.subsystem = Subsystem::Unspecified { value: selected };
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

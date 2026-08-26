@@ -1,6 +1,7 @@
 target windows_x64 {
 }
 
-machine build(b: &mut Build) {
-    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("win64-large-aggregate-import-compile");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

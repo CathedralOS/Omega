@@ -2,5 +2,6 @@ target linux_arm64 {
 }
 
 machine build(builder: &mut Build) {
+    builder.application("runtime-aarch64-cross-region-frame-indexed-rmw-compile");
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
 }

@@ -8,7 +8,7 @@ fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../..")
 }
 
-fn collect_sample_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
+fn collect_build_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(directory)
         .unwrap_or_else(|error| panic!("read sample directory {}: {error}", directory.display()))
         .collect::<Result<Vec<_>, _>>()
@@ -22,7 +22,7 @@ fn collect_sample_roots(directory: &Path, roots: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.path();
         if path.is_dir() {
-            collect_sample_roots(&path, roots);
+            collect_build_roots(&path, roots);
         }
     }
 }
@@ -39,6 +39,50 @@ fn expected_sample_application_name(root: &Path) -> String {
             .and_then(|name| name.to_str())
             .expect("duplicate sample name must have a UTF-8 category");
         return format!("{category}-vending-machine");
+    }
+    leaf.replace('_', "-")
+}
+
+const ROLE_MIGRATION_EXCEPTIONS: &[&str] = &[
+    "fail/build/build-boundary-rowless",
+    "fail/build/build-effects-undeclared",
+    "fail/build/build-machine-wrong-arity",
+    "fail/build/build-service-name-spoof",
+    "fail/build/duplicate-program-entry-binding",
+    "fail/build/hosted-program-entry-visible-parameter",
+    "fail/build/program-entry-receiver-not-zii",
+    "fail/build/program-entry-returns-value",
+    "fail/build/static-machine-parameter-contract-mismatch",
+    "fail/build/uefi-program-entry-local-physical-contract",
+    "fail/build/uefi-program-entry-missing-storage-roots",
+    "fail/build/uefi-program-entry-unqualified-image",
+    "fail/build/uefi-program-entry-wrong-calling-policy",
+    "fail/build/unknown-program-entry-binding",
+    "pass/build/runtime-main-source-builder-is-ordinary-exit",
+    "pass/filesystem/cross-linux-value-syscalls",
+    "pass/float/runtime-total-order-satisfiers-exit",
+    "pass/providers/component-owner-provider-override-compile",
+    "pass/providers/test-owner-provider-override-compile",
+    "pass/time/cross-darwin-time-host",
+    "pass/time/cross-linux-time-host",
+];
+
+fn canary_migration_key(canaries: &Path, root: &Path) -> String {
+    root.strip_prefix(canaries)
+        .expect("canary root must be beneath the canary corpus")
+        .to_string_lossy()
+        .replace(['_', '\\'], "-")
+}
+
+fn expected_canary_application_name(root: &Path) -> String {
+    let leaf = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("canary root must have a UTF-8 leaf name");
+    if root.ends_with("pass/arithmetic/float_trapping_invalid_traps")
+        || root.ends_with("pass/arithmetic/float_trapping_overflow_traps")
+    {
+        return format!("arithmetic-{}", leaf.replace('_', "-"));
     }
     leaf.replace('_', "-")
 }
@@ -85,7 +129,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
 fn executable_samples_declare_canonical_application_roles() {
     let samples = repository_root().join("samples");
     let mut roots = Vec::new();
-    collect_sample_roots(&samples, &mut roots);
+    collect_build_roots(&samples, &mut roots);
     assert_eq!(roots.len(), 140, "unexpected executable sample population");
 
     for root in roots {
@@ -104,4 +148,45 @@ fn executable_samples_declare_canonical_application_roles() {
             root.display()
         );
     }
+}
+
+#[test]
+fn ordinary_canary_projects_declare_canonical_application_roles() {
+    let canaries = repository_root().join("tests/canaries");
+    let mut roots = Vec::new();
+    collect_build_roots(&canaries, &mut roots);
+    assert_eq!(
+        roots.len(),
+        1_115,
+        "unexpected canary build-root population"
+    );
+
+    let mut exceptions = 0;
+    let mut applications = 0;
+    for root in roots {
+        let migration_key = canary_migration_key(&canaries, &root);
+        if ROLE_MIGRATION_EXCEPTIONS.contains(&migration_key.as_str()) {
+            exceptions += 1;
+            continue;
+        }
+
+        let expected_name = expected_canary_application_name(&root);
+        assert_eq!(
+            extract_build_declaration(&root).unwrap_or_else(|error| {
+                panic!(
+                    "project role projection failed for {}: {error}",
+                    root.display()
+                )
+            }),
+            BuildDeclaration::Application(omega_packages::ApplicationDeclaration {
+                name: PackageName::parse(&expected_name).unwrap(),
+            }),
+            "unexpected canary application declaration in {}",
+            root.display()
+        );
+        applications += 1;
+    }
+
+    assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
+    assert_eq!(applications, 1_094);
 }

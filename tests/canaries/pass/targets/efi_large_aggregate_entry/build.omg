@@ -1,7 +1,8 @@
 target uefi_x64 {
 }
 
-machine build(b: &mut Build) {
-    b.subsystem = Subsystem::EfiApplication;
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("efi-large-aggregate-entry");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
 }

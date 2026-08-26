@@ -2,7 +2,8 @@
 target uefi_x64 {
 }
 
-machine build(b: &mut Build) {
-    b.subsystem = Subsystem::EfiApplication;
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("efi-two-table-function-leaves");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
 }

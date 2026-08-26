@@ -1,6 +1,7 @@
 target linux_x64 {
 }
 
-machine build(b: &mut Build) {
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("sysv-vtable-field-call");
+    builder.freestanding = true;
 }

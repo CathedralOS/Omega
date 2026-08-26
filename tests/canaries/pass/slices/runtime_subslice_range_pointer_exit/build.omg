@@ -4,9 +4,10 @@ target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
-machine build(b: &mut Build) {
-    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
-    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    b.roots.bind(linux_arm64::ProgramEntry, Main::main);
-    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("runtime-subslice-range-pointer-exit");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

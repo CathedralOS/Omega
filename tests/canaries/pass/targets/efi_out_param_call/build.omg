@@ -4,7 +4,8 @@
 target uefi_x64 {
 }
 
-machine build(b: &mut Build) {
-    b.subsystem = Subsystem::EfiApplication;
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("efi-out-param-call");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
 }
