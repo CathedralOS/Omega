@@ -4,7 +4,7 @@ use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2 {
     machine add(a: Self, b: Self) -> Self;
-    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    machine add_assoc(a: Self, b: Self, c: Self)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 machine plus(a: Peano, b: Peano) -> Peano
@@ -15,15 +15,20 @@ terminates by a;
         Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
     }
 }
-machine plus_assoc(a: Peano, b: Peano, c: Peano) -> Peano
+machine plus_assoc(a: Peano, b: Peano, c: Peano)
 satisfies RingOps2::add_assoc
 terminates by a;
 ensures
     (plus(plus(a, b), c)) == (plus(a, plus(b, c)))
 {
     transition a {
-        Peano::Zero -> Peano::Zero
-        Peano::Succ { pred } -> Peano::Succ { pred: plus_assoc(pred, b, c) }
+        Peano::Zero -> base()
+        Peano::Succ { pred } -> step(pred, b, c)
+    }
+    state base() {
+    }
+    state step(pred: Peano, b: Peano, c: Peano) {
+        plus_assoc(pred, b, c);
     }
 }
 data Main { console: Console; }

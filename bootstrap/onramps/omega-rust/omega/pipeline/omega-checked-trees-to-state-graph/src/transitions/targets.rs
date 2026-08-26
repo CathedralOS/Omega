@@ -353,9 +353,15 @@ fn free_machine_self_entry_segment<'segments>(
     machine: &Machine,
     program: &CheckedTrees,
 ) -> Result<Option<(usize, &'segments StateSegment)>, Diagnostic> {
+    let entry_symbol = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.symbol);
     if machine.attached_data.is_some()
         || machine.name.as_str() != name.as_str()
-        || symbol.is_valid() && symbol != machine.symbol
+        || symbol.is_valid()
+            && symbol != machine.symbol
+            && Some(symbol) != entry_symbol
     {
         return Ok(None);
     }
@@ -995,6 +1001,19 @@ mod tests {
             state_target_key(
                 plan_transition_target(free_key, &free_segments, free_target, &free)
                     .expect("free-machine own entry"),
+            ),
+            free_key
+        );
+        let state_symbol_target = named_target(
+            &mut free,
+            &["count"],
+            symbol(SOURCE_MACHINE),
+            symbol(SOURCE_STATE),
+        );
+        assert_eq!(
+            state_target_key(
+                plan_transition_target(free_key, &free_segments, state_symbol_target, &free)
+                    .expect("free-machine entry named by exact entry-state symbol"),
             ),
             free_key
         );

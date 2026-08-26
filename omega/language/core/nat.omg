@@ -91,10 +91,9 @@ satisfies CommutativeSemiring::one
 // the structural entailment judge (N3) discharges each ensures at
 // compile time, so every program importing this module carries machine-
 // checked Peano facts. add_zero_left unfolds add's Zero arm
-// (compute-mode); add_zero_right is STRUCTURAL INDUCTION on `a` (each
-// case arm judged with the self-application assuming this machine's own
-// ensures -- the inductive hypothesis, licensed by the structural
-// descent the recursion check enforces).
+// (compute-mode); add_zero_right is STRUCTURAL INDUCTION on `a` (its step
+// arm cites the smaller theorem application and consumes that checked
+// `ensures` as the inductive hypothesis, licensed by exact-edge descent).
 machine add_zero_left(b: Nat) -> Nat
 ensures
     result == b
@@ -174,11 +173,11 @@ ensures
 // exactly the citations that case needs (ch10 "Citing Proofs", explicit
 // fact injection). The base case cites add_zero_right's law at `b`; the
 // step case cites add_succ_law AT THE CASE PAYLOAD (a frame only the
-// sub-state sees) and takes the inductive hypothesis from its
-// self-application, whose descent flows through the sub-state parameter
+// sub-state sees) and cites the smaller theorem application as its
+// inductive hypothesis, whose descent flows through the sub-state parameter
 // (provenance: every transition into comm_step binds it from `a`'s Succ
 // payload).
-machine add_comm(a: Nat, b: Nat) -> Nat
+machine add_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring::add_comm
 terminates by a;
 ensures
@@ -189,28 +188,34 @@ ensures
         Nat::Succ { prev } -> comm_step(prev, b)
     }
 
-    state comm_base(b: Nat) -> Nat {
+    state comm_base(b: Nat) {
         add_zero_right(b);
-        transition { _ -> (b) }
     }
 
-    state comm_step(prev: Nat, b: Nat) -> Nat {
+    state comm_step(prev: Nat, b: Nat) {
         add_succ_law(b, prev);
-        transition { _ -> Nat::Succ { prev: add_comm(prev, b) } }
+        add_comm(prev, b);
     }
 }
 
 // ASSOCIATIVITY: pure induction on `a`, no citations -- both sides
 // normalize by unfolding plus the inductive hypothesis.
-machine add_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+machine add_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring::add_assoc
 terminates by a;
 ensures
     (add(add(a, b), c)) == (add(a, add(b, c)))
 {
     transition a {
-        Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> Nat::Succ { prev: add_assoc(prev, b, c) }
+        Nat::Zero -> aa_base()
+        Nat::Succ { prev } -> aa_step(prev, b, c)
+    }
+
+    state aa_base() {
+    }
+
+    state aa_step(prev: Nat, b: Nat, c: Nat) {
+        add_assoc(prev, b, c);
     }
 }
 
@@ -268,15 +273,22 @@ ensures
 // licenses flattening both sides into addend multisets and comparing --
 // exactly Lean's `ring` discipline, license by declared instance, never by
 // imports in scope.
-machine mul_distributes(a: Nat, b: Nat, c: Nat) -> Nat
+machine mul_distributes(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring::mul_distributes
 terminates by a;
 ensures
     (mul(a, add(b, c))) == (add(mul(a, b), mul(a, c)))
 {
     transition a {
-        Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> Nat::Succ { prev: mul_distributes(prev, b, c) }
+        Nat::Zero -> md_base()
+        Nat::Succ { prev } -> md_step(prev, b, c)
+    }
+
+    state md_base() {
+    }
+
+    state md_step(prev: Nat, b: Nat, c: Nat) {
+        mul_distributes(prev, b, c);
     }
 }
 
@@ -301,22 +313,25 @@ ensures
 // unfold to Zero); the step case cites RIGHT distributivity at
 // (b, mul(prev, b), c) -- rewriting the unfolded left side
 // `mul(add(b, mul(prev, b)), c)` into `add(mul(b, c), mul(mul(prev, b), c))`
-// -- and takes the inductive hypothesis from its self-application, after
+// -- and takes the inductive hypothesis from its smaller citation, after
 // which both sides meet at `add(mul(b, c), mul(prev, mul(b, c)))`.
-machine mul_assoc(a: Nat, b: Nat, c: Nat) -> Nat
+machine mul_assoc(a: Nat, b: Nat, c: Nat)
 satisfies CommutativeSemiring::mul_assoc
 terminates by a;
 ensures
     (mul(mul(a, b), c)) == (mul(a, mul(b, c)))
 {
     transition a {
-        Nat::Zero -> Nat::Zero
+        Nat::Zero -> ma_base()
         Nat::Succ { prev } -> ma_step(prev, b, c)
     }
 
-    state ma_step(prev: Nat, b: Nat, c: Nat) -> Nat {
+    state ma_base() {
+    }
+
+    state ma_step(prev: Nat, b: Nat, c: Nat) {
         mul_distributes_right(b, mul(prev, b), c);
-        transition { _ -> Nat::Succ { prev: mul_assoc(prev, b, c) } }
+        mul_assoc(prev, b, c);
     }
 }
 
@@ -350,7 +365,7 @@ ensures
 
 // MULTIPLICATION COMMUTES: base cites mul_zero_right; step cites
 // mul_succ_right at (b, prev) plus the inductive hypothesis.
-machine mul_comm(a: Nat, b: Nat) -> Nat
+machine mul_comm(a: Nat, b: Nat)
 satisfies CommutativeSemiring::mul_comm
 terminates by a;
 ensures
@@ -361,14 +376,13 @@ ensures
         Nat::Succ { prev } -> mc_step(prev, b)
     }
 
-    state mc_base(b: Nat) -> Nat {
+    state mc_base(b: Nat) {
         mul_zero_right(b);
-        transition { _ -> Nat::Zero }
     }
 
-    state mc_step(prev: Nat, b: Nat) -> Nat {
+    state mc_step(prev: Nat, b: Nat) {
         mul_succ_right(b, prev);
-        transition { _ -> Nat::Succ { prev: mul_comm(prev, b) } }
+        mul_comm(prev, b);
     }
 }
 

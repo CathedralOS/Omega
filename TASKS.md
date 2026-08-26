@@ -7543,19 +7543,6 @@ Remaining N6/N8 work:
   selected theorem, precondition correspondence, or result-flow edge
   rejects independently; no quotient operation observes representative
   structure or acquires effects/custody beyond the initial integration fence.
-- **RESULTLESS-LAWS — finish removing dummy runtime results from recursive
-  theorem-only slots.** A theorem-only machine publishes parameters,
-  `requires`, and `ensures` but no `Type` result. Both
-  `CommutativeSemiring` identity slots, their Nat/Int satisfiers, and
-  `add_int_respects_eq` now use that surface. Migrate the remaining
-  commutativity, associativity, and distributivity requirements and satisfiers
-  away from dummy result types; retain return types only for machines that
-  genuinely compute an observed value in addition to proving a contract.
-  Resultless recursive proofs cite their smaller theorem application as a
-  statement and consume its checked `ensures`. Exact recursion validation now
-  covers direct resultless citations, explicitly discarded calls, nested value
-  calls, and mutual proof cycles; unchanged edges reject before their
-  conclusion can certify a program.
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient

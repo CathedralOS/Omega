@@ -5,9 +5,9 @@ domain<T, const I: u64> T::Indexed<I>;
 
 trait IndexAdd {
     machine add(a: Self, b: Self) -> Self;
-    machine add_comm(a: Self, b: Self) -> Self
+    machine add_comm(a: Self, b: Self)
     ensures add(a, b) == add(b, a);
-    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    machine add_assoc(a: Self, b: Self, c: Self)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 
@@ -23,22 +23,20 @@ ensures result == 3
     transition { _ -> 3 }
 }
 
-machine plus_index_comm(a: u64, b: u64) -> u64
+machine plus_index_comm(a: u64, b: u64)
 satisfies IndexAdd::add_comm as Canonical
 ensures plus_index(a, b) == plus_index(b, a)
 {
     _ = plus_index(a, b);
     _ = plus_index(b, a);
-    transition { _ -> 0 }
 }
 
-machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
+machine plus_index_assoc(a: u64, b: u64, c: u64)
 satisfies IndexAdd::add_assoc as Canonical
 ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 {
     _ = plus_index(plus_index(a, b), c);
     _ = plus_index(a, plus_index(b, c));
-    transition { _ -> 0 }
 }
 
 machine indexed_left(value: i64) -> i64 in Indexed<1> {
