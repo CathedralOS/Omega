@@ -1,9 +1,9 @@
 //! Non-executable composition of direct quotient correspondence evidence.
 //!
-//! The lift rung here is intentionally bounded to an exact, unique direct
-//! subset of public arguments (including explicit permutations) and structural
-//! fact inclusion. It is not the general implication or adapted-argument
-//! judgment.
+//! The lift rung here is intentionally bounded to exact direct public
+//! arguments, including omission, permutation, and repeated occurrences, plus
+//! structural fact inclusion. It is not the general implication or
+//! adapted-argument judgment.
 
 use super::precondition::{
     DefinePreconditionCorrespondence, RepresentativeContractFactLocation,
@@ -17,6 +17,7 @@ use super::theorem_schema::{
 };
 use super::theorem_schema_verification::VerifiedTheoremSchema;
 use super::{RelationPlanError, RepresentativeTelescope};
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
@@ -73,28 +74,23 @@ pub(super) fn derive_direct_lift_precondition_implication(
         if runtime.positions.len() != application_schema.arguments.len() {
             return Err(RelationPlanError::DirectLiftRuntimeArityMismatch);
         }
-        let public_values = runtime
-            .positions
-            .iter()
-            .zip(&application_schema.arguments)
-            .map(|(position, theorem_position)| {
-                (
-                    position.public_parameter,
-                    format!("$theorem_parameter_{theorem_position}"),
-                )
-            })
-            .collect::<Vec<_>>();
-        let representative_values = runtime
-            .positions
-            .iter()
-            .zip(&application_schema.arguments)
-            .map(|(position, theorem_position)| {
-                (
-                    position.representative_parameter,
-                    format!("$theorem_parameter_{theorem_position}"),
-                )
-            })
-            .collect::<Vec<_>>();
+        let mut public_values = Vec::new();
+        let mut representative_values = Vec::with_capacity(runtime.positions.len());
+        for (position, theorem_position) in
+            runtime.positions.iter().zip(&application_schema.arguments)
+        {
+            let value = public_values
+                .iter()
+                .find_map(|(public, value): &(SymbolHandle, String)| {
+                    (*public == position.public_parameter).then(|| value.clone())
+                })
+                .unwrap_or_else(|| {
+                    let value = format!("$theorem_parameter_{theorem_position}");
+                    public_values.push((position.public_parameter, value.clone()));
+                    value
+                });
+            representative_values.push((position.representative_parameter, value));
+        }
 
         for (representative_position, representative_location) in
             representative_partition.dependent.iter().enumerate()

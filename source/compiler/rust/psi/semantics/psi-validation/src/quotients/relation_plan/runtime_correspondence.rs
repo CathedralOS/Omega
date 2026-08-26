@@ -4,8 +4,8 @@
 //! Both judgments accept only direct public parameters and preserve
 //! mutable/borrow mode while matching quotient carriers through the retained
 //! representative static application. Faithful `define` remains declaration-
-//! order preserving; `lift` may explicitly select and permute a unique subset
-//! of the public telescope but may not duplicate, synthesize, or adapt it.
+//! order preserving; `lift` may explicitly select, permute, and repeat direct
+//! members of the public telescope but may not synthesize or adapt them.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -117,7 +117,7 @@ fn derive_exact_position_runtime_correspondence(
         && input_relations.len() == arguments.len()
         && match policy {
             ExactPositionPolicy::Define => public_parameters.len() == arguments.len(),
-            ExactPositionPolicy::DirectLift => public_parameters.len() >= arguments.len(),
+            ExactPositionPolicy::DirectLift => true,
         };
     if !arity_matches {
         return Err(match policy {
@@ -142,7 +142,6 @@ fn derive_exact_position_runtime_correspondence(
     }
 
     let mut positions = Vec::with_capacity(arguments.len());
-    let mut seen_lift_arguments = Vec::new();
     for (position, ((argument, relation), representative_parameter)) in arguments
         .iter()
         .zip(input_relations)
@@ -166,19 +165,13 @@ fn derive_exact_position_runtime_correspondence(
                 }
                 public
             }
-            ExactPositionPolicy::DirectLift => {
-                if seen_lift_arguments.contains(&argument_symbol) {
-                    return Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique);
-                }
-                seen_lift_arguments.push(argument_symbol);
-                public_parameters
-                    .iter()
-                    .copied()
-                    .find(|parameter| parameter.symbol == argument_symbol)
-                    .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
-                        position,
-                    ))?
-            }
+            ExactPositionPolicy::DirectLift => public_parameters
+                .iter()
+                .copied()
+                .find(|parameter| parameter.symbol == argument_symbol)
+                .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
+                    position,
+                ))?,
         };
         if public.is_mutable != representative_parameter.is_mutable {
             return Err(match policy {

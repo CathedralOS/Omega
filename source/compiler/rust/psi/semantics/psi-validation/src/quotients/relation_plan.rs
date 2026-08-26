@@ -171,7 +171,6 @@ pub(super) enum RelationPlanError {
     DirectLiftOwnerRequiresSubstitution,
     DirectLiftRuntimeArityMismatch,
     DirectLiftParameterIdentityNotUnique,
-    DirectLiftArgumentIdentityNotUnique,
     DirectLiftArgumentIsNotPublicParameter(usize),
     DirectLiftParameterModeMismatch(usize),
     DirectLiftParameterTypeMismatch(usize),
@@ -292,13 +291,10 @@ impl fmt::Display for RelationPlanError {
                 "the direct-lift precondition rung does not yet substitute a generic quotient owner",
             ),
             Self::DirectLiftRuntimeArityMismatch => formatter.write_str(
-                "the bounded direct-lift rung requires equal authored-call, representative, and relation arity; the public telescope may contain omitted parameters",
+                "the bounded direct-lift rung requires equal authored-call, representative, and relation arity; the authored call may omit or repeat public parameters",
             ),
             Self::DirectLiftParameterIdentityNotUnique => formatter.write_str(
                 "the bounded direct-lift rung requires unique public and representative parameter identities",
-            ),
-            Self::DirectLiftArgumentIdentityNotUnique => formatter.write_str(
-                "the bounded direct-lift rung does not yet admit duplicated public arguments",
             ),
             Self::DirectLiftArgumentIsNotPublicParameter(position) => write!(
                 formatter,
