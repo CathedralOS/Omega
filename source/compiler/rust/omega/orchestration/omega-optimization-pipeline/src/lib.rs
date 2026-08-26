@@ -27,6 +27,7 @@ mod literal_folds;
 mod live_ranges;
 mod liveness;
 mod machine_effects;
+mod post_allocation_machine_effects;
 mod register_environment;
 mod register_homes;
 mod selected_reanalysis;
@@ -76,6 +77,17 @@ pub use machine_effects::{
     stage_optimized_machine_effects_after_literal_folds, validate_optimized_machine_effect_custody,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
+};
+pub use post_allocation_machine_effects::{
+    OptimizedPostAllocationMachinePipelineError,
+    StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
+    stage_optimized_post_allocation_machine_plan,
+    stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
+    stage_optimized_post_allocation_machine_plan_after_literal_folds,
+    validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
+    validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
 };
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
@@ -1558,6 +1570,103 @@ mod tests {
             )
             .expect("subtract homes");
             assert_eq!(homes.custody().assignment_count(), 7);
+            let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+            assert_eq!(post.custody().instruction_count(), 10);
+            assert_eq!(
+                post.custody().source(),
+                &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::RegisterHomes(
+                    homes.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_custody(&homes, &post).unwrap(),
+                post.custody()
+            );
+            let subtracts = post
+                .machine()
+                .plan()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .filter(|instruction| {
+                    instruction.alternative.key.family
+                        == omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::ExactSubtractI64
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(subtracts.len(), 2);
+            assert!(subtracts.iter().all(|instruction| {
+                instruction.operands.len() == 3
+                    && instruction
+                        .unit_uses
+                        .windows(2)
+                        .all(|pair| pair[0] < pair[1])
+                    && instruction
+                        .unit_defs
+                        .windows(2)
+                        .all(|pair| pair[0] < pair[1])
+                    && instruction
+                        .operands
+                        .iter()
+                        .filter(|operand| operand.write_semantics.is_some())
+                        .all(|operand| !operand.write_units.is_empty())
+            }));
+            let mut corrupted = post.machine().plan().clone();
+            let subtract = corrupted.functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|instruction| {
+                    instruction.alternative.key.family
+                        == omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::ExactSubtractI64
+                })
+                .unwrap();
+            subtract.alternative.key.variant = u32::MAX;
+            corrupted.identity =
+                omega_machine_optimizer::terminal_post_allocation_machine_identity(&corrupted);
+            assert!(matches!(
+                validate_raw_post_allocation(&homes, &post, corrupted),
+                Err(
+                    omega_machine_optimizer::TerminalPostAllocationMachineError::InstructionMismatch {
+                        ..
+                    }
+                )
+            ));
+
+            let mut corrupted = post.machine().plan().clone();
+            corrupted.functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .flat_map(|instruction| &mut instruction.operands)
+                .find(|operand| operand.write_semantics.is_some())
+                .unwrap()
+                .write_units
+                .clear();
+            corrupted.identity =
+                omega_machine_optimizer::terminal_post_allocation_machine_identity(&corrupted);
+            assert!(matches!(
+                validate_raw_post_allocation(&homes, &post, corrupted),
+                Err(
+                    omega_machine_optimizer::TerminalPostAllocationMachineError::InstructionMismatch {
+                        ..
+                    }
+                )
+            ));
+
+            let mut corrupted = post.machine().plan().clone();
+            corrupted.effects =
+                omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity::from_bytes(
+                    [0x5a; 32],
+                );
+            corrupted.identity =
+                omega_machine_optimizer::terminal_post_allocation_machine_identity(&corrupted);
+            assert_eq!(
+                validate_raw_post_allocation(&homes, &post, corrupted),
+                Err(
+                    omega_machine_optimizer::TerminalPostAllocationMachineError::EffectRootMismatch
+                )
+            );
         }
     }
 
@@ -1732,6 +1841,18 @@ mod tests {
                 choices.receipt().identity()
             );
             let staged = stage_optimized_register_homes(legality).unwrap();
+            let post = stage_optimized_post_allocation_machine_plan(&staged).unwrap();
+            assert_eq!(
+                post.machine().receipt().selected(),
+                staged.custody().selected()
+            );
+            assert!(post.machine().plan().functions.iter().all(|function| {
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .all(|instruction| instruction.alternative.key.variant == 0)
+            }));
             let legality_stage = staged.legality_stage();
             let ranges_stage = legality_stage.live_range_stage();
             let liveness_stage = ranges_stage.liveness_stage();
@@ -2328,6 +2449,21 @@ mod tests {
                 .collect::<Vec<_>>();
             let staged_homes =
                 stage_optimized_register_homes_after_literal_folds(staged_folds).unwrap();
+            let post =
+                stage_optimized_post_allocation_machine_plan_after_literal_folds(&staged_homes)
+                    .unwrap();
+            assert_eq!(
+                post.machine().receipt().selected(),
+                staged_homes.fold_stage().custody().final_selected()
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_after_literal_fold_custody(
+                    &staged_homes,
+                    &post,
+                )
+                .unwrap(),
+                post.custody()
+            );
             assert_eq!(
                 staged_homes
                     .post_allocation_manifest()
@@ -2387,6 +2523,34 @@ mod tests {
             &constraints,
             staged.register_environment().physical(),
             staged.register_environment().constraints(),
+            raw,
+        )
+    }
+
+    fn validate_raw_post_allocation(
+        source: &StagedOptimizedRegisterHomes,
+        staged: &StagedOptimizedPostAllocationMachinePlan,
+        raw: omega_machine_optimizer::TerminalPostAllocationMachinePlan,
+    ) -> Result<
+        omega_machine_optimizer::ValidatedTerminalPostAllocationMachinePlan,
+        omega_machine_optimizer::TerminalPostAllocationMachineError,
+    > {
+        let selected = source
+            .legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage();
+        let environment = selected.register_environment();
+        omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+            selected.selected(),
+            staged.effects().effects(),
+            source.legality_stage().live_range_stage().ranges(),
+            source.legality_stage().legality(),
+            source.homes(),
+            source.post_allocation_manifest(),
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
             raw,
         )
     }
@@ -3722,6 +3886,19 @@ mod tests {
             assert_eq!(reanalyzed.custody().entry_transition_count(), 0);
             assert_eq!(reanalyzed.legality().receipt().entry_transition_count(), 0);
             let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalyzed).unwrap();
+            let post = stage_optimized_post_allocation_machine_plan_after_fixed_view_copies(&homes)
+                .unwrap();
+            assert_eq!(
+                post.machine().receipt().selected(),
+                homes.reanalysis_stage().ranges().receipt().selected()
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
+                    &homes, &post,
+                )
+                .unwrap(),
+                post.custody()
+            );
             let assignments = &homes.homes().plan().functions[0].assignments;
             assert_eq!(assignments.len(), 4);
             assert_eq!(assignments[1].view, entry_view);

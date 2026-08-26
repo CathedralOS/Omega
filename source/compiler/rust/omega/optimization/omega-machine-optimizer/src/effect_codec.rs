@@ -25,7 +25,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalPreAllocationMachineEffectDecodeError {
@@ -278,6 +278,11 @@ fn decode_alternative(
             result: cursor.u16()?,
             left: cursor.u16()?,
             right: cursor.u16()?,
+        },
+        5 => TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
+            left: cursor.u16()?,
+            right: cursor.u16()?,
+            excluded_view: omega_register_model::RegisterViewId(cursor.u16()?),
         },
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -534,6 +539,21 @@ mod tests {
                                 latency:
                                     TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
                             },
+                            TerminalMachineAlternative {
+                                key: TerminalMachineAlternativeKey {
+                                    family: TerminalMachineAlternativeFamily::CompareI64Zero,
+                                    variant: 2,
+                                },
+                                applicability: TerminalMachineAlternativeApplicability::
+                                    AtLeastOneOperandDoesNotAliasView {
+                                        left: 0,
+                                        right: 1,
+                                        excluded_view: omega_register_model::RegisterViewId(12),
+                                    },
+                                size: TerminalMachineSizeKnowledge::ExactBytes(4),
+                                latency:
+                                    TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+                            },
                         ],
                     }],
                 }],
@@ -567,10 +587,10 @@ mod tests {
         );
 
         let mut unsupported_version = encoded.clone();
-        unsupported_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        unsupported_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalPreAllocationMachineEffectPlan::decode(&unsupported_version),
-            Err(TerminalPreAllocationMachineEffectDecodeError::UnsupportedVersion(2))
+            Err(TerminalPreAllocationMachineEffectDecodeError::UnsupportedVersion(3))
         );
 
         let mut stale_identity = encoded.clone();

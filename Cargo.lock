@@ -1047,6 +1047,7 @@ dependencies = [
  "omega-regalloc",
  "omega-register-model",
  "omega-target",
+ "omega-terminal-isa-x86_64",
  "omega-terminal-selected-instructions",
  "psi-core",
  "sha2",

@@ -1185,10 +1185,28 @@ dependency.
   The sidecar also has a strict, versioned, self-authenticating binary codec.
   Decoding rejects wrong framing or version, truncated or trailing data,
   unknown closed-vocabulary tags, and any identity/content mismatch. It grants
-  no rewrite, home, emission, or publication authority. Remaining to close:
-  complete memory/trap/call/cleanup vocabularies as selected IR admits them,
-  post-home physical operand write footprints, alternative choice receipts,
-  and encoder enforcement.
+  no rewrite, home, emission, or publication authority.
+
+  A second immutable post-allocation sidecar now joins the exact selected form,
+  pre-allocation effects, ranges, legality, physical homes, validated post-
+  allocation manifest, register environment, physical model, constraint
+  catalog, and machine-effect catalog. Each operand retains its VReg, class,
+  physical view, access, storage units, exact read/write units, and write
+  semantics. Each instruction retains separate implicit effects plus canonical
+  complete use/def/clobber sets. The resolver requires exactly one applicable
+  catalog alternative; zero or multiple matches fail closed rather than
+  introducing a hidden cost policy. Independent reconstruction rejects root,
+  chosen-alternative, physical-view, and unit-footprint corruption. Borrowed
+  orchestration covers ordinary homes, fixed-view-copy homes, and literal-fold
+  homes without transferring emission authority.
+
+  x86 flag-transparent three-address addition now declares its real LEA form
+  restriction: at least one commutative input must not alias R12, which cannot
+  occupy the SIB index role. Two R12 inputs therefore fail before encoding
+  instead of falling back to an undeclared flag-writing ADD. Remaining to
+  close: complete memory/trap/call/cleanup vocabularies as selected IR admits
+  them, target-owned selected-form encoders, resolved branch/layout evidence,
+  actual encoded-form footprint verification, and encoder enforcement.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.
