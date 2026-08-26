@@ -8,8 +8,8 @@ use omega_optimization_core::{
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness,
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -20,7 +20,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v1";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v2";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,10 +30,10 @@ impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.constant-conditional-fold.v1",
+                b"omega.psi-rule.constant-conditional-fold.v2",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            1,
+            2,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::ScalarConstants,
@@ -101,7 +101,7 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                         block: block.id,
                         node: u32::try_from(node_index).expect("optimization node indices are u32"),
                     };
-                    let fuel = node
+                    let selected_fuel = node
                         .fuel
                         .iter()
                         .copied()
@@ -110,7 +110,16 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                                 == omega_optimization_unit::PsiProvenance::Edge(selected.psi_edge)
                         })
                         .collect::<Vec<_>>();
-                    if fuel.is_empty() {
+                    let rejected_fuel = node
+                        .fuel
+                        .iter()
+                        .copied()
+                        .filter(|settlement| {
+                            settlement.site
+                                == omega_optimization_unit::PsiProvenance::Edge(rejected.psi_edge)
+                        })
+                        .collect::<Vec<_>>();
+                    if selected_fuel.is_empty() || rejected_fuel.is_empty() {
                         continue;
                     }
                     candidates.push(
@@ -118,13 +127,24 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                             unit.identity,
                             Self::contract(),
                             vec![block.id],
-                            vec![ProvenanceRewrite {
-                                output: location,
-                                sources: vec![omega_optimization_unit::PsiProvenance::Edge(
-                                    selected.psi_edge,
-                                )],
-                                fuel,
-                            }],
+                            vec![
+                                ProvenanceRewrite {
+                                    disposition: ProvenanceDisposition::RealizedAt(location),
+                                    sources: vec![omega_optimization_unit::PsiProvenance::Edge(
+                                        selected.psi_edge,
+                                    )],
+                                    fuel: selected_fuel,
+                                },
+                                ProvenanceRewrite {
+                                    disposition: ProvenanceDisposition::ProvenUnreachableAt(
+                                        location,
+                                    ),
+                                    sources: vec![omega_optimization_unit::PsiProvenance::Edge(
+                                        rejected.psi_edge,
+                                    )],
+                                    fuel: rejected_fuel,
+                                },
+                            ],
                             condition_fact,
                             -1,
                             ConstantConditionalRewrite {
@@ -590,7 +610,7 @@ fn propose_boolean_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            output: location,
+                            disposition: ProvenanceDisposition::RealizedAt(location),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -762,7 +782,7 @@ fn propose_integer_unary_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            output: location,
+                            disposition: ProvenanceDisposition::RealizedAt(location),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -832,7 +852,7 @@ fn propose_exact_integer_cast_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            output: location,
+                            disposition: ProvenanceDisposition::RealizedAt(location),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -907,7 +927,7 @@ fn propose_integer_binary_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            output: location,
+                            disposition: ProvenanceDisposition::RealizedAt(location),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -1585,12 +1605,12 @@ fn propose_redundant_block_parameters(
                         if changes_use || changes_binding {
                             affected_blocks.insert(source.id);
                             provenance.push(ProvenanceRewrite {
-                                output: NodeLocation {
+                                disposition: ProvenanceDisposition::RealizedAt(NodeLocation {
                                     machine: function.machine,
                                     block: source.id,
                                     node: u32::try_from(node_index)
                                         .expect("unit node index fits u32"),
-                                },
+                                }),
                                 sources: node.provenance.clone(),
                                 fuel: node.fuel.clone(),
                             });
@@ -3289,11 +3309,35 @@ pub(crate) mod tests {
                 unreachable!()
             };
             assert_eq!(patch.constant, constant);
+            let [realized, proven_unreachable] = candidates[0].provenance() else {
+                panic!("conditional fold carries both source dispositions")
+            };
+            assert_eq!(
+                realized.disposition,
+                ProvenanceDisposition::RealizedAt(patch.location)
+            );
+            assert_eq!(
+                realized.sources,
+                [omega_optimization_unit::PsiProvenance::Edge(
+                    patch.selected_edge
+                )]
+            );
+            assert_eq!(
+                proven_unreachable.disposition,
+                ProvenanceDisposition::ProvenUnreachableAt(patch.location)
+            );
+            assert_eq!(
+                proven_unreachable.sources,
+                [omega_optimization_unit::PsiProvenance::Edge(
+                    patch.rejected_edge
+                )]
+            );
             let accepted = validate_constant_conditional_candidate(&unit, &candidates[0]).unwrap();
+            assert_eq!(accepted.provenance(), candidates[0].provenance());
             assert_eq!(
                 accepted.validator(),
                 omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-                    b"omega.validator.constant-conditional-fold.v1"
+                    b"omega.validator.constant-conditional-fold.v2"
                 )
             );
             let node = &accepted.unit().functions[0].blocks[0].nodes[1];
@@ -3359,6 +3403,50 @@ pub(crate) mod tests {
             .scalar_evaluation_witness()
             .and_then(IntegerEvaluationWitness::unary_operand)
             .unwrap();
+        assert!(matches!(
+            PsiRewriteCandidate::new_constant_conditional(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance()[..1].to_vec(),
+                condition_fact,
+                -1,
+                patch,
+            ),
+            Err(omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
+        ));
+
+        let mut duplicate_source = candidate.provenance().to_vec();
+        duplicate_source[1].sources = duplicate_source[0].sources.clone();
+        duplicate_source[1].fuel = duplicate_source[0].fuel.clone();
+        assert!(matches!(
+            PsiRewriteCandidate::new_constant_conditional(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                duplicate_source,
+                condition_fact,
+                -1,
+                patch,
+            ),
+            Err(omega_optimization_unit::PsiRewriteCandidateError::NonCanonicalProvenance)
+        ));
+
+        let mut zero_fuel = candidate.provenance().to_vec();
+        zero_fuel[1].fuel[0].units = 0;
+        assert!(matches!(
+            PsiRewriteCandidate::new_constant_conditional(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                zero_fuel,
+                condition_fact,
+                -1,
+                patch,
+            ),
+            Err(omega_optimization_unit::PsiRewriteCandidateError::FuelProvenanceMismatch)
+        ));
+
         let swapped = PsiRewriteCandidate::new_constant_conditional(
             unit.identity,
             contract,
@@ -3392,6 +3480,23 @@ pub(crate) mod tests {
         .unwrap();
         assert!(matches!(
             validate_constant_conditional_candidate(&unit, &wrong_fuel),
+            Err(OptimizationUnitValidationError::CandidateFuelMismatch)
+        ));
+
+        let mut provenance = candidate.provenance().to_vec();
+        provenance[1].fuel[0].units += 1;
+        let wrong_unreachable_fuel = PsiRewriteCandidate::new_constant_conditional(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            provenance,
+            condition_fact,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_constant_conditional_candidate(&unit, &wrong_unreachable_fuel),
             Err(OptimizationUnitValidationError::CandidateFuelMismatch)
         ));
     }

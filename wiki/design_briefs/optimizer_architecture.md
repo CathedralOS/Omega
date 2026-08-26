@@ -872,17 +872,28 @@ conditional whose Boolean condition has an independently reconstructible SCCP
 fact may become its selected unconditional jump only if a fresh CFG walk proves
 that removing the rejected exact edge leaves every existing block reachable.
 The candidate identity binds the condition, Boolean value, both edge IDs, and
-the selected edge's provenance/fuel; the rejected edge remains bound by the
-patch and SCCP machine snapshot but is not charged on the realized path. The
-validator independently reconstructs the fact, selected successor and
-bindings, reachability, node metadata, fact index, and output identity before
-total validation. Its convergence measure counts functions, blocks, nodes,
-and successor edges, so every accepted fold strictly decreases it. This does
-not yet authorize block deletion: current Terminal-Psi admission already
-rejects syntactically unreachable blocks, and empty-block threading still
-needs explicit many-to-one edge/fuel and differing-block-roster observation
-semantics. In particular, crash, cleanup, suspension, and boundary-only blocks
-are retained whenever the proposed fold would orphan them.
+two explicit source dispositions. The selected edge is `RealizedAt` the output
+jump and retains its runtime logical charge. The rejected edge is
+`ProvenUnreachableAt` the input conditional: its original scheduled units
+remain durable audit custody but carry no runtime charge. The validator
+independently reconstructs the fact, selected and rejected successors and
+bindings, reachability, both disposition/fuel rows, node metadata, fact index,
+and output identity before total validation; the pass manager records only
+that validator-accepted accounting. Ledger replay rejects unknown disposition
+tags, duplicate cross-disposition sources, noncanonical rows, zero fuel, and
+source/fuel mismatches. Projection validation then proves that the initial
+source/fuel map is the disjoint union of the final realized map and all
+cumulative proven-unreachable rows, with no resurrection. Human reports name
+both cases and distinguish source-scheduled fuel from runtime charge.
+
+The convergence measure counts functions, blocks, nodes, and successor edges,
+so every accepted fold strictly decreases it. This does not yet authorize block
+deletion: current Terminal-Psi admission already rejects syntactically
+unreachable blocks, and empty-block threading still needs path-qualified
+one-to-many edge/fuel and differing-block-roster observation semantics. Whole-
+block deletion also requires validator-owned dense effect-link rebasing for
+later surviving nodes. In particular, crash, cleanup, suspension, and
+boundary-only blocks are retained whenever the proposed fold would orphan them.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed

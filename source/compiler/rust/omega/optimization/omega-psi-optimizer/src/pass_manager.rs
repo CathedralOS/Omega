@@ -489,7 +489,7 @@ fn run_unit(
         let input_identity = unit.identity;
         let validator = validated.validator();
         let candidate_identity = validated.candidate();
-        let provenance = candidate.provenance().to_vec();
+        let provenance = validated.provenance().to_vec();
         let next = validated.into_unit();
         register_revision(&mut seen_revisions, next.identity, usage.iterations)?;
         let current_measure = convergence_measure(&next, registry);
@@ -668,7 +668,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v1",
+        b"omega.psi-pass.control-flow-cleanup.v2",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1042,7 +1042,15 @@ mod tests {
         assert_eq!(usage.iterations, 2);
         assert_eq!(output.functions[0].blocks[0].nodes[1].successors.len(), 1);
         assert_eq!(ledger.records().len(), 1);
-        assert_eq!(ledger.records()[0].provenance.len(), 1);
+        assert_eq!(ledger.records()[0].provenance.len(), 2);
+        assert!(matches!(
+            ledger.records()[0].provenance[0].disposition,
+            omega_optimization_unit::ProvenanceDisposition::RealizedAt(_)
+        ));
+        assert!(matches!(
+            ledger.records()[0].provenance[1].disposition,
+            omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
+        ));
         let manifest = manifest.unwrap();
         assert_eq!(manifest.ordered_rules().len(), 1);
         assert_eq!(manifest.decisions().len(), 1);

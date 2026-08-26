@@ -20,6 +20,39 @@ pub struct NodeLocation {
     pub node: u32,
 }
 
+/// The exact disposition of source semantic work after one accepted rewrite.
+///
+/// A realized row names a node in the output revision. A proven-unreachable
+/// row instead names the node in the input revision that owned a removed source
+/// site; the node itself may survive, as with one rejected conditional edge.
+/// Removal is legal only because the validating rewrite proved that no
+/// execution can reach that source site. Fuel rows retain the source schedule
+/// amount in both cases; only a realized disposition is a logical charge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProvenanceDisposition {
+    RealizedAt(NodeLocation),
+    ProvenUnreachableAt(NodeLocation),
+}
+
+impl ProvenanceDisposition {
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::RealizedAt(_) => 1,
+            Self::ProvenUnreachableAt(_) => 2,
+        }
+    }
+
+    pub const fn location(self) -> NodeLocation {
+        match self {
+            Self::RealizedAt(location) | Self::ProvenUnreachableAt(location) => location,
+        }
+    }
+
+    pub const fn is_realized(self) -> bool {
+        matches!(self, Self::RealizedAt(_))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScalarSubstitution {
     pub from: ValueId,
@@ -29,7 +62,7 @@ pub struct ScalarSubstitution {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvenanceRewrite {
-    pub output: NodeLocation,
+    pub disposition: ProvenanceDisposition,
     pub sources: Vec<PsiProvenance>,
     pub fuel: Vec<FuelSettlement>,
 }
@@ -372,6 +405,7 @@ pub enum PsiRewriteCandidateError {
     NonCanonicalSubstitutions,
     EmptyProvenanceSource,
     NonCanonicalProvenance,
+    FuelProvenanceMismatch,
     PatchDecisionPointMismatch,
     EmptyIncomingBindings,
     NonCanonicalIncomingBindings,
@@ -528,17 +562,45 @@ impl PsiRewriteCandidate {
         if substitutions.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(PsiRewriteCandidateError::NonCanonicalSubstitutions);
         }
-        if provenance.iter().any(|row| row.sources.is_empty()) {
+        if provenance.is_empty() || provenance.iter().any(|row| row.sources.is_empty()) {
             return Err(PsiRewriteCandidateError::EmptyProvenanceSource);
         }
-        if provenance
-            .windows(2)
-            .any(|pair| pair[0].output >= pair[1].output)
-            || provenance.iter().any(|row| {
-                row.sources.iter().copied().collect::<BTreeSet<_>>().len() != row.sources.len()
-            })
-        {
+        if provenance.windows(2).any(|pair| {
+            let left = (
+                pair[0].disposition.canonical_tag(),
+                pair[0].disposition.location(),
+            );
+            let right = (
+                pair[1].disposition.canonical_tag(),
+                pair[1].disposition.location(),
+            );
+            left >= right
+        }) || provenance.iter().any(|row| {
+            row.sources.iter().copied().collect::<BTreeSet<_>>().len() != row.sources.len()
+        }) {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
+        }
+        let mut all_sources = BTreeSet::new();
+        for row in &provenance {
+            let sources = row.sources.iter().copied().collect::<BTreeSet<_>>();
+            let machine = row.disposition.location().machine;
+            if !sources
+                .iter()
+                .all(|source| all_sources.insert((machine, *source)))
+            {
+                return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
+            }
+            let fuel = row
+                .fuel
+                .iter()
+                .map(|settlement| settlement.site)
+                .collect::<BTreeSet<_>>();
+            if fuel.len() != row.fuel.len()
+                || fuel != sources
+                || row.fuel.iter().any(|settlement| settlement.units == 0)
+            {
+                return Err(PsiRewriteCandidateError::FuelProvenanceMismatch);
+            }
         }
         if matches!(
             contract.safety_class(),
@@ -555,15 +617,21 @@ impl PsiRewriteCandidate {
         match patch {
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
             | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
-                if provenance.iter().any(|row| row.output != location) {
+                if provenance
+                    .iter()
+                    .any(|row| row.disposition != ProvenanceDisposition::RealizedAt(location))
+                {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
             PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
                 if provenance.is_empty()
                     || provenance.iter().any(|row| {
-                        row.output.machine != patch.machine
-                            || !affected_blocks.contains(&row.output.block)
+                        let ProvenanceDisposition::RealizedAt(location) = row.disposition else {
+                            return true;
+                        };
+                        location.machine != patch.machine
+                            || !affected_blocks.contains(&location.block)
                     })
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
@@ -579,8 +647,20 @@ impl PsiRewriteCandidate {
                 }
             }
             PsiRewritePatch::FoldConstantConditional(_) => {
-                if provenance.len() != 1
-                    || provenance[0].output != location
+                let realized_at_decision = provenance
+                    .iter()
+                    .filter(|row| row.disposition == ProvenanceDisposition::RealizedAt(location));
+                let unreachable_at_decision = provenance.iter().filter(|row| {
+                    row.disposition == ProvenanceDisposition::ProvenUnreachableAt(location)
+                });
+                if realized_at_decision.count() != 1
+                    || unreachable_at_decision.count() != 1
+                    || !provenance.iter().any(|row| {
+                        matches!(
+                            row.disposition,
+                            ProvenanceDisposition::ProvenUnreachableAt(_)
+                        )
+                    })
                     || !substitutions.is_empty()
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
@@ -732,7 +812,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v7\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v8\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -748,7 +828,16 @@ fn encode_candidate(
     }
     encode_len(&mut bytes, provenance.len());
     for row in provenance {
-        encode_location(&mut bytes, row.output);
+        match row.disposition {
+            ProvenanceDisposition::RealizedAt(location) => {
+                bytes.push(row.disposition.canonical_tag());
+                encode_location(&mut bytes, location);
+            }
+            ProvenanceDisposition::ProvenUnreachableAt(location) => {
+                bytes.push(row.disposition.canonical_tag());
+                encode_location(&mut bytes, location);
+            }
+        }
         encode_len(&mut bytes, row.sources.len());
         for source in &row.sources {
             match source {
