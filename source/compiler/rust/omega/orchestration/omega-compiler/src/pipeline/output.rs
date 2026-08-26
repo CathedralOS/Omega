@@ -31,6 +31,216 @@ pub fn write_finalized_terminal_component_output(
     omega_component_deployment::publish_terminal_component_flat_output(runnable, output_path)
 }
 
+/// Complete independently supplied deployment inputs for one freshly
+/// installed terminal component.
+///
+/// None of these values can be derived from compiler policy. In particular,
+/// selected provider plans are not provider occurrences, a pending component
+/// manifest is not progress acceptance, and a profile decision identity is
+/// not installed-code custody.
+#[derive(Debug)]
+#[must_use = "terminal deployment inputs contain linear installed-code custody"]
+pub struct TerminalComponentDeploymentInputs {
+    candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+    installed: omega_executable_installation::InstalledCode,
+    provider_occurrences: Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+    progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+    profile_decision: psi_core::ProfileDecisionId,
+}
+
+impl TerminalComponentDeploymentInputs {
+    pub fn new(
+        candidate: omega_terminal_component_candidate::TerminalComponentCandidate,
+        installed: omega_executable_installation::InstalledCode,
+        provider_occurrences: Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+        progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+        profile_decision: psi_core::ProfileDecisionId,
+    ) -> Self {
+        Self {
+            candidate,
+            installed,
+            provider_occurrences,
+            progress_attestations,
+            profile_decision,
+        }
+    }
+
+    pub const fn candidate(
+        &self,
+    ) -> &omega_terminal_component_candidate::TerminalComponentCandidate {
+        &self.candidate
+    }
+
+    pub const fn installed(&self) -> &omega_executable_installation::InstalledCode {
+        &self.installed
+    }
+
+    pub fn provider_occurrences(&self) -> &[omega_external_roots::ProviderOccurrencePlanBinding] {
+        &self.provider_occurrences
+    }
+
+    pub fn progress_attestations(
+        &self,
+    ) -> &[omega_component_deployment::ComponentProgressAttestationBinding] {
+        &self.progress_attestations
+    }
+
+    pub const fn profile_decision(&self) -> psi_core::ProfileDecisionId {
+        self.profile_decision
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_terminal_component_candidate::TerminalComponentCandidate,
+        omega_executable_installation::InstalledCode,
+        Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+        Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+        psi_core::ProfileDecisionId,
+    ) {
+        (
+            self.candidate,
+            self.installed,
+            self.provider_occurrences,
+            self.progress_attestations,
+            self.profile_decision,
+        )
+    }
+}
+
+/// Exact point reached by a rejected compiler-to-deployment transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalComponentDeploymentOutputStage {
+    Begin,
+    ProviderClosure,
+    ProgressClosure,
+    Finalization,
+    Publication,
+}
+
+/// A rejected terminal deployment transaction with the exact current custody
+/// and every unconsumed later input retained for stage-correct retry.
+#[derive(Debug)]
+pub enum TerminalComponentDeploymentOutputError {
+    Begin {
+        error: Box<omega_component_deployment::BeginDeploymentError>,
+        provider_occurrences: Vec<omega_external_roots::ProviderOccurrencePlanBinding>,
+        progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+        profile_decision: psi_core::ProfileDecisionId,
+    },
+    ProviderClosure {
+        error: Box<omega_component_deployment::ProviderClosureError>,
+        progress_attestations: Vec<omega_component_deployment::ComponentProgressAttestationBinding>,
+        profile_decision: psi_core::ProfileDecisionId,
+    },
+    ProgressClosure {
+        error: Box<omega_component_deployment::ProgressClosureError>,
+        profile_decision: psi_core::ProfileDecisionId,
+    },
+    Finalization {
+        error: Box<omega_component_deployment::DeploymentFinalizationError>,
+        profile_decision: psi_core::ProfileDecisionId,
+    },
+    Publication(Box<omega_component_deployment::TerminalComponentFlatOutputPublicationError>),
+}
+
+impl TerminalComponentDeploymentOutputError {
+    pub const fn stage(&self) -> TerminalComponentDeploymentOutputStage {
+        match self {
+            Self::Begin { .. } => TerminalComponentDeploymentOutputStage::Begin,
+            Self::ProviderClosure { .. } => TerminalComponentDeploymentOutputStage::ProviderClosure,
+            Self::ProgressClosure { .. } => TerminalComponentDeploymentOutputStage::ProgressClosure,
+            Self::Finalization { .. } => TerminalComponentDeploymentOutputStage::Finalization,
+            Self::Publication(_) => TerminalComponentDeploymentOutputStage::Publication,
+        }
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        match self {
+            Self::Begin { error, .. } => error.diagnostic(),
+            Self::ProviderClosure { error, .. } => error.diagnostic(),
+            Self::ProgressClosure { error, .. } => error.diagnostic(),
+            Self::Finalization { error, .. } => error.diagnostic(),
+            Self::Publication(error) => error.diagnostic(),
+        }
+    }
+}
+
+impl std::fmt::Display for TerminalComponentDeploymentOutputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic().fmt(formatter)
+    }
+}
+
+impl std::error::Error for TerminalComponentDeploymentOutputError {}
+
+/// Consume one complete fresh-install deployment transaction through provider
+/// closure, progress closure, installation finalization, and flat output.
+///
+/// This operation deliberately has no diagnostic-only error conversion: doing
+/// so would discard the exact live stage on failure. Callers must retain or
+/// explicitly recover the corresponding [`TerminalComponentDeploymentOutputError`]
+/// variant.
+pub fn deploy_and_write_terminal_component_output(
+    options: &CompileOptions,
+    inputs: TerminalComponentDeploymentInputs,
+) -> Result<
+    omega_component_deployment::PublishedTerminalComponentFlatOutput,
+    Box<TerminalComponentDeploymentOutputError>,
+> {
+    let (candidate, installed, provider_occurrences, progress_attestations, profile_decision) =
+        inputs.into_parts();
+    let session =
+        match omega_component_deployment::begin_terminal_component_deployment(candidate, installed)
+        {
+            Ok(session) => session,
+            Err(error) => {
+                return Err(Box::new(TerminalComponentDeploymentOutputError::Begin {
+                    error,
+                    provider_occurrences,
+                    progress_attestations,
+                    profile_decision,
+                }));
+            }
+        };
+    let provider_closed = match session.seal_provider_occurrences(provider_occurrences) {
+        Ok(provider_closed) => provider_closed,
+        Err(error) => {
+            return Err(Box::new(
+                TerminalComponentDeploymentOutputError::ProviderClosure {
+                    error,
+                    progress_attestations,
+                    profile_decision,
+                },
+            ));
+        }
+    };
+    let progress_closed = match provider_closed.close_progress(progress_attestations) {
+        Ok(progress_closed) => progress_closed,
+        Err(error) => {
+            return Err(Box::new(
+                TerminalComponentDeploymentOutputError::ProgressClosure {
+                    error,
+                    profile_decision,
+                },
+            ));
+        }
+    };
+    let runnable = match progress_closed.finalize(profile_decision) {
+        Ok(runnable) => runnable,
+        Err(error) => {
+            return Err(Box::new(
+                TerminalComponentDeploymentOutputError::Finalization {
+                    error,
+                    profile_decision,
+                },
+            ));
+        }
+    };
+    write_finalized_terminal_component_output(options, runnable)
+        .map_err(|error| Box::new(TerminalComponentDeploymentOutputError::Publication(error)))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExecutablePublicationEvidence {
     certificate_fingerprint: u64,

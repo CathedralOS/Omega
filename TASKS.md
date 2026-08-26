@@ -7562,16 +7562,27 @@ compiler concept is introduced.
   the exact runnable and derived path through the deployment error; the
   progress-free and progress-bearing source canaries cross this compiler seam.
 
+  A typed compiler deployment transaction now spans the remaining owner APIs
+  without weakening them. `TerminalComponentDeploymentInputs` owns the staged
+  candidate, one real `InstalledCode`, exact provider-occurrence bindings,
+  exact progress attestations, and the profile decision; the compiler consumes
+  it through deployment begin, provider closure, progress closure,
+  finalization, and the established output seam. Its error is stage-typed and
+  retains the exact current deployment carrier plus every unconsumed later
+  input, rather than collapsing a linear failure into diagnostics. Source
+  canaries pin both begin-stage installed-byte rejection/recovery and complete
+  progress-bearing provider/progress/profile publication through this
+  transaction.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
-  output rejection after production output orchestration threads the
-  deployment-owned installed-code, provider-occurrence, progress-attestation,
-  and profile inputs to the staged candidate, finalizes it through
-  `omega-component-deployment`, routes the resulting runnable through the new
-  output seam, and retains its non-clonable runnable and flat publication
-  receipt in the report. The current legacy path still publishes a native
-  executable directly and carries neither the manifest nor an installation
-  acceptance, so removing the fence there would erase the obligation; selected
-  plans and authorized routes remain insufficient.
+  output rejection only after the production driver obtains these real inputs
+  from their installation/deployment owners, invokes the typed transaction for
+  its staged terminal candidate, and retains the returned non-clonable runnable
+  and flat publication receipt in `CompileReport`. The current legacy path
+  still publishes a native executable directly and carries neither the
+  manifest nor an installation acceptance, so removing the fence there would
+  erase the obligation; selected plans and authorized routes remain
+  insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
