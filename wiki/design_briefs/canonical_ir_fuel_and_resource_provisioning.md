@@ -464,7 +464,8 @@ architecture, frozen code, entry stub, and function offset; a segment
 certificate additionally exposes borrowed replay against its exact installed
 code context, artifact, and selected entry while preserving its semantic
 machine/block/edge coordinates. Its distinct type still cannot authorize a
-whole root. Cathedral migration and general
+whole root, and ordinary whole-entry graph composition rejects segment-local
+evidence even when it appears beneath an opaque or entry summary. Cathedral migration and general
 loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
 symbolic complexity language.
 

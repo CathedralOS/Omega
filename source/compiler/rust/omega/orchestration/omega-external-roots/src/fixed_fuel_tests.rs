@@ -267,16 +267,57 @@ fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
     assert_eq!(binding.certificate().machine(), machine);
     assert_eq!(binding.certificate().start_block(), block);
     assert_eq!(binding.certificate().end_edge(), edge);
+    let segment_identity = ProviderFuelSummaryId::from_normalized_identity(0x7330).unwrap();
+    let provider = RootProviderId::from_normalized_identity(0x7331).unwrap();
     let summary = FixedFuelProviderSummary::from_terminal_segment(
-        ProviderFuelSummaryId::from_normalized_identity(0x7330).unwrap(),
-        RootProviderId::from_normalized_identity(0x7331).unwrap(),
+        segment_identity,
+        provider,
         binding.clone(),
         BTreeSet::new(),
     );
     assert!(matches!(
-        summary.local_evidence,
+        &summary.local_evidence,
         FixedFuelLocalEvidence::TerminalSegment(_)
     ));
+    let direct_error = compose_fixed_fuel(segment_identity, [&summary])
+        .expect_err("one path segment cannot stand in for whole-entry work");
+    assert!(direct_error.0.contains("path-segment"));
+
+    let root_identity = ProviderFuelSummaryId::from_normalized_identity(0x7332).unwrap();
+    let root = FixedFuelProviderSummary::from_admitted_provider(
+        root_identity,
+        provider,
+        binding.certificate().schedule(),
+        1,
+        BTreeSet::from([FixedFuelCall {
+            callee: segment_identity,
+            maximum_invocations: 1,
+        }]),
+        ProviderFuelValidationReceiptId::from_normalized_identity(0x7333).unwrap(),
+    );
+    let transitive_error = compose_fixed_fuel(root_identity, [&root, &summary])
+        .expect_err("a whole-entry root cannot absorb a path-segment callee ceiling");
+    assert_eq!(transitive_error.0, direct_error.0);
+    assert_eq!(
+        compose_fixed_fuel(root_identity, [&root, &summary])
+            .expect_err("rejection leaves the input summaries reusable")
+            .0,
+        direct_error.0
+    );
+    let opaque_only = FixedFuelProviderSummary::from_admitted_provider(
+        root_identity,
+        provider,
+        binding.certificate().schedule(),
+        1,
+        BTreeSet::new(),
+        ProviderFuelValidationReceiptId::from_normalized_identity(0x7333).unwrap(),
+    );
+    assert_eq!(
+        compose_fixed_fuel(root_identity, [&opaque_only])
+            .expect("ordinary whole-entry provider summaries remain admissible")
+            .units(),
+        1
+    );
 
     let wrong_occurrence = installed_code(0x7310, 0x7321, selected_entry);
     assert!(
