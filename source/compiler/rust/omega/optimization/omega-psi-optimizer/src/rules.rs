@@ -7,8 +7,9 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite, PsiOptimizationUnit,
-    PsiRewriteCandidate, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
+    IntegerEvaluationWitness, NodeLocation, OptimizationFact, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -690,7 +691,12 @@ fn propose_exact_integer_cast_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        IntegerEvaluationWitness::Unary { operand_fact },
+                        proof_certified_unary_witness(
+                            unit,
+                            function.machine,
+                            psi_operation,
+                            operand_fact,
+                        )?,
                         -1,
                         IntegerConstantRewrite {
                             location,
@@ -760,10 +766,14 @@ fn propose_integer_binary_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        IntegerEvaluationWitness::Binary {
+                        integer_binary_witness(
+                            unit,
+                            function.machine,
+                            shape.source,
+                            contract.safety_class(),
                             left_fact,
                             right_fact,
-                        },
+                        )?,
                         -1,
                         IntegerConstantRewrite {
                             location,
@@ -779,6 +789,78 @@ fn propose_integer_binary_constants(
         }
     }
     Ok(candidates)
+}
+
+fn accepted_obligation_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+) -> Result<omega_optimization_core::AcceptedObligationFactIdentity, RuleProposalError> {
+    let obligation = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .and_then(|function| {
+            function.facts.iter().find_map(|fact| match fact {
+                OptimizationFact::OperationObligationReference {
+                    obligation,
+                    support,
+                } if *support == operation => Some(*obligation),
+                _ => None,
+            })
+        });
+    let Some(obligation) = obligation else {
+        return Err(RuleProposalError::MissingAcceptedObligation {
+            machine,
+            operation,
+            obligation: None,
+        });
+    };
+    unit.accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == machine && fact.operation == operation && fact.obligation == obligation
+        })
+        .map(|fact| fact.identity)
+        .ok_or(RuleProposalError::MissingAcceptedObligation {
+            machine,
+            operation,
+            obligation: Some(obligation),
+        })
+}
+
+fn proof_certified_unary_witness(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    operand_fact: ScalarConstantFactIdentity,
+) -> Result<IntegerEvaluationWitness, RuleProposalError> {
+    Ok(IntegerEvaluationWitness::ProofCertifiedUnary {
+        operand_fact,
+        obligation_fact: accepted_obligation_fact(unit, machine, operation)?,
+    })
+}
+
+fn integer_binary_witness(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    safety: OptimizationSafetyClass,
+    left_fact: ScalarConstantFactIdentity,
+    right_fact: ScalarConstantFactIdentity,
+) -> Result<IntegerEvaluationWitness, RuleProposalError> {
+    if safety == OptimizationSafetyClass::ProofCertified {
+        Ok(IntegerEvaluationWitness::ProofCertifiedBinary {
+            left_fact,
+            right_fact,
+            obligation_fact: accepted_obligation_fact(unit, machine, operation)?,
+        })
+    } else {
+        Ok(IntegerEvaluationWitness::Binary {
+            left_fact,
+            right_fact,
+        })
+    }
 }
 
 struct IntegerBinaryShape {
@@ -1498,7 +1580,10 @@ pub fn built_in_psi_registry(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use omega_optimization_unit::{OptimizationFact, reconstruct_psi_optimization_unit_seed};
+    use omega_optimization_unit::{
+        AcceptedObligationFact, OptimizationFact, attach_accepted_obligation_facts,
+        reconstruct_psi_optimization_unit_seed,
+    };
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
         validate_integer_evaluation_candidate, validate_redundant_block_parameter_candidate,
@@ -1519,6 +1604,30 @@ pub(crate) mod tests {
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
+    }
+
+    fn with_synthetic_accepted_obligations(unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
+        let facts = unit
+            .functions
+            .iter()
+            .flat_map(|function| {
+                function.facts.iter().filter_map(|fact| match fact {
+                    OptimizationFact::OperationObligationReference {
+                        obligation,
+                        support,
+                    } => Some(AcceptedObligationFact::new(
+                        unit.terminal_psi,
+                        [29; 32],
+                        function.machine,
+                        *support,
+                        *obligation,
+                        obligation.get().to_le_bytes().to_vec(),
+                    )),
+                    _ => None,
+                })
+            })
+            .collect();
+        attach_accepted_obligation_facts(unit, facts).unwrap()
     }
 
     pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
@@ -1577,7 +1686,7 @@ pub(crate) mod tests {
             scalar_type: ScalarType::Integer(integer),
             cleanup_actions: Vec::new(),
         });
-        reconstruct_psi_optimization_unit_seed(
+        let unit = reconstruct_psi_optimization_unit_seed(
             &TerminalAbstractOperationPlan {
                 terminal_psi: TerminalPsiIdentity {
                     vocabulary_marker: VocabularyMarker::CURRENT,
@@ -1609,7 +1718,8 @@ pub(crate) mod tests {
             },
             FuelScheduleIdentity::new(1).unwrap(),
         )
-        .unwrap()
+        .unwrap();
+        with_synthetic_accepted_obligations(unit)
     }
 
     pub(crate) fn propagated_block_parameter_unit() -> PsiOptimizationUnit {
@@ -2123,7 +2233,7 @@ pub(crate) mod tests {
         let result = id(324, ValueId::new);
         let source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
         let target_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-        reconstruct_psi_optimization_unit_seed(
+        let unit = reconstruct_psi_optimization_unit_seed(
             &TerminalAbstractOperationPlan {
                 terminal_psi: TerminalPsiIdentity {
                     vocabulary_marker: VocabularyMarker::CURRENT,
@@ -2177,7 +2287,8 @@ pub(crate) mod tests {
             },
             FuelScheduleIdentity::new(1).unwrap(),
         )
-        .unwrap()
+        .unwrap();
+        with_synthetic_accepted_obligations(unit)
     }
 
     fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
@@ -2646,7 +2757,7 @@ pub(crate) mod tests {
         );
         assert!(matches!(
             candidates[0].scalar_evaluation_witness().unwrap(),
-            IntegerEvaluationWitness::Unary { .. }
+            IntegerEvaluationWitness::ProofCertifiedUnary { .. }
         ));
         let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
         let target_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
@@ -2659,8 +2770,10 @@ pub(crate) mod tests {
             } if scalar_type == target_type
         ));
 
-        let IntegerEvaluationWitness::Unary { operand_fact } =
-            candidates[0].scalar_evaluation_witness().unwrap()
+        let IntegerEvaluationWitness::ProofCertifiedUnary {
+            operand_fact,
+            obligation_fact,
+        } = candidates[0].scalar_evaluation_witness().unwrap()
         else {
             unreachable!()
         };
@@ -2675,15 +2788,16 @@ pub(crate) mod tests {
             vec![unit.functions[0].blocks[0].id],
             Vec::new(),
             candidates[0].provenance().to_vec(),
-            IntegerEvaluationWitness::Binary {
+            IntegerEvaluationWitness::ProofCertifiedBinary {
                 left_fact: operand_fact,
                 right_fact: operand_fact,
+                obligation_fact,
             },
             -1,
             patch,
         )
         .unwrap();
-        assert_eq!(binary_witness.consumed_facts().len(), 1);
+        assert_eq!(binary_witness.consumed_facts().len(), 2);
         assert_ne!(binary_witness.identity(), candidates[0].identity());
         assert!(matches!(
             validate_integer_evaluation_candidate(&unit, &binary_witness),

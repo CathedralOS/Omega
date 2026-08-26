@@ -164,6 +164,7 @@ mod tests {
             },
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             entry: functions[0].machine,
+            accepted_obligation_facts: Vec::new(),
             functions,
         }
     }

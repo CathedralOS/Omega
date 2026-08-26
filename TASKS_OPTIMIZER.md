@@ -71,14 +71,15 @@ These facts constrain the work below.
 - `omega-optimization-core` now owns frontend- and encoder-independent stable
   identities, rule contracts, ordered analysis/invalidation sets, safety and
   reason vocabularies, hard work budgets, candidate verdicts, and canonical
-  decision/pass manifest rows. Decision rows use a self-authenticating v2 codec:
+  decision/pass manifest rows. Decision rows use a self-authenticating v3 codec:
   identity is derived from the input revision, candidate, rule, verdict,
   consumed analyses, a canonical duplicate-free typed fact-reference set, and
   optional validator, then recomputed during decode. Applied decisions cannot
   be represented without an independent validator identity; identity tamper,
   unknown fact kinds, and reordered/duplicate facts reject. The Psi pass
   manager projects unary/binary scalar witnesses into these rows, including
-  independently reconstructed propagated block-parameter facts.
+  independently reconstructed propagated block-parameter facts and admitted
+  operation-obligation facts consumed by proof-certified folds.
 - `omega-optimization-unit` now deterministically reconstructs explicit blocks,
   scalar definitions/uses, conservative effect links, structural roots,
   ownership events, literal facts, source provenance, and separately identified
@@ -93,24 +94,31 @@ These facts constrain the work below.
   Terminal abstract, target, and assigned-target operations. Exact add,
   subtract, and multiply remain distinct from wrapping operations until final
   ISA opcode realization. The optimization unit indexes these operation-to-
-  obligation references and its independent validator reconstructs that index;
-  the references are not accepted facts until joined with verifier-owned
-  evidence, so the unit tasks remain open.
+  obligation references and its independent validator reconstructs that index.
+  The verified builder now joins each reference to the exact reconstructed
+  operation owner and admitted proposition, canonically encodes the proposition,
+  binds the Terminal-Psi and proof-bundle fingerprints, and attaches a sorted
+  accepted-obligation fact index to the unit identity. Bare seeds still contain
+  no accepted facts. The unit tasks remain open for the broader proof/range and
+  region-indexed fact vocabulary.
 - The clean artifact boundary now exposes a required
   `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
   bundle and fingerprint, verifier-reconstructed obligation set, and accepted
   facts. The ordinary empty-selection path continues to request only the bare
   plan, so it performs no optimizer-context construction. The unit tasks remain
-  open until the builder projects this context into complete rule-facing
-  indices and the independent validator checks transformations against them.
+  open until the builder projects the remaining context into complete
+  rule-facing region indices and the independent validator checks the broader
+  transformation vocabulary against them.
 - Psi's structural-frontier verifier now exposes deterministic machine/block,
   operation-entry/exit, and edge-entry/exit snapshots with exact live claims,
   owned-place multiplicities, and projected moved paths. The verified optimizer
   carrier retains those snapshots, and the independent unit validator checks
   proof fingerprints, reconstructed-obligation/admitted-fact agreement,
   operation-obligation ownership, and frontier coverage for every retained Psi
-  provenance site. The unit tasks remain open for ordered block-parameter
+  provenance site. It also independently rebuilds the accepted-obligation
+  projection and initial unit identity from the immutable verifier carrier.
+  The unit tasks remain open for ordered block-parameter
   reconstruction, full signatures/effects, total CFG coverage, and projecting
   these capabilities into region-indexed rule facts.
 - The clean abstract-operation plan now retains every block's scalar

@@ -135,6 +135,8 @@ pub enum OptimizationUnitValidationError {
         operation: psi_core::OperationId,
         obligation: psi_core::ObligationId,
     },
+    AcceptedObligationFactIndexMismatch,
+    CandidateAcceptedObligationFactMismatch,
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralOperationFrontier {
         machine: MachineId,
@@ -146,6 +148,7 @@ pub enum OptimizationUnitValidationError {
     },
     ContextIdentity(psi_terminal_codec::CodecError),
     ContextProofFingerprint(psi_terminal_codec::ProofCodecError),
+    VerifiedOptimizationUnitProjectionMismatch,
     CandidateInputMismatch,
     CandidateAnalysisContractMismatch,
     CandidateSafetyClassMismatch,
@@ -286,6 +289,17 @@ pub fn validate_psi_optimization_unit(
     if unit.fuel_schedule != TerminalFuelSchedule::CURRENT.identity() {
         return Err(OptimizationUnitValidationError::WrongFuelSchedule);
     }
+    if unit
+        .accepted_obligation_facts
+        .iter()
+        .any(|fact| fact.terminal_psi != unit.terminal_psi || !fact.has_canonical_identity())
+        || unit.accepted_obligation_facts.windows(2).any(|pair| {
+            (pair[0].machine, pair[0].operation, pair[0].obligation)
+                >= (pair[1].machine, pair[1].operation, pair[1].obligation)
+        })
+    {
+        return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
+    }
     let mut machines = BTreeSet::new();
     for function in &unit.functions {
         if !machines.insert(function.machine) {
@@ -363,6 +377,39 @@ pub fn validate_integer_evaluation_candidate(
     if candidate.safety_class() != safety_class {
         return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
     }
+    match (
+        safety_class,
+        candidate
+            .scalar_evaluation_witness()
+            .and_then(IntegerEvaluationWitness::obligation_fact),
+    ) {
+        (OptimizationSafetyClass::ProofCertified, Some(identity)) => {
+            let fact = input
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.identity == identity
+                        && fact.machine == function.machine
+                        && fact.operation == source_operation
+                })
+                .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+            if !function.facts.iter().any(|reference| {
+                matches!(
+                    reference,
+                    OptimizationFact::OperationObligationReference { obligation, support }
+                        if *support == source_operation && *obligation == fact.obligation
+                )
+            }) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+        }
+        (OptimizationSafetyClass::ProofCertified, None) | (_, Some(_)) => {
+            return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+        }
+        (_, None) => {}
+    }
     if patch
         != (IntegerConstantRewrite {
             location: patch.location,
@@ -426,7 +473,7 @@ pub fn validate_integer_evaluation_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.exact-integer-evaluation.v1",
+            b"omega.validator.exact-integer-evaluation.v2",
         ),
     })
 }
@@ -881,9 +928,9 @@ fn evaluate_boolean_operation(
             result,
             operand,
         } => {
-            let IntegerEvaluationWitness::Unary { operand_fact } = candidate
+            let Some(operand_fact) = candidate
                 .scalar_evaluation_witness()
-                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+                .and_then(IntegerEvaluationWitness::unary_operand)
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
@@ -897,12 +944,9 @@ fn evaluate_boolean_operation(
             left,
             right,
         } => {
-            let IntegerEvaluationWitness::Binary {
-                left_fact,
-                right_fact,
-            } = candidate
+            let Some((left_fact, right_fact)) = candidate
                 .scalar_evaluation_witness()
-                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+                .and_then(IntegerEvaluationWitness::binary_operands)
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
@@ -930,12 +974,9 @@ fn evaluate_boolean_operation(
             left,
             right,
         } => {
-            let IntegerEvaluationWitness::Binary {
-                left_fact,
-                right_fact,
-            } = candidate
+            let Some((left_fact, right_fact)) = candidate
                 .scalar_evaluation_witness()
-                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+                .and_then(IntegerEvaluationWitness::binary_operands)
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
@@ -1416,12 +1457,9 @@ fn evaluate_integer_operation(
         ),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
-    let IntegerEvaluationWitness::Binary {
-        left_fact,
-        right_fact,
-    } = candidate
+    let Some((left_fact, right_fact)) = candidate
         .scalar_evaluation_witness()
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+        .and_then(IntegerEvaluationWitness::binary_operands)
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
@@ -1529,9 +1567,9 @@ fn unary_integer_operand(
     candidate: &PsiRewriteCandidate,
     operand: ValueId,
 ) -> Result<psi_core::IntegerValue, OptimizationUnitValidationError> {
-    let IntegerEvaluationWitness::Unary { operand_fact } = candidate
+    let Some(operand_fact) = candidate
         .scalar_evaluation_witness()
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+        .and_then(IntegerEvaluationWitness::unary_operand)
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
@@ -1956,6 +1994,62 @@ pub fn validate_verified_psi_optimization_unit(
                 *obligation,
             ));
         }
+    }
+
+    let seed = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+        input.plan(),
+        unit.fuel_schedule,
+    )
+    .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
+    let mut projected_facts = Vec::new();
+    for function in &seed.functions {
+        for reference in &function.facts {
+            let OptimizationFact::OperationObligationReference {
+                obligation,
+                support,
+            } = reference
+            else {
+                continue;
+            };
+            let row = reconstructed.get(obligation).filter(|row| {
+                row.owner
+                    == psi_terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
+                        machine: function.machine,
+                        operation: *support,
+                    }
+            });
+            let fact = accepted.get(obligation);
+            let (Some(row), Some(fact)) = (row, fact) else {
+                return Err(
+                    OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
+                );
+            };
+            if row.obligation.proposition != fact.proposition {
+                return Err(
+                    OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
+                );
+            }
+            let proposition =
+                psi_terminal_codec::canonical_proposition_order_key(&fact.proposition)
+                    .map_err(OptimizationUnitValidationError::ContextIdentity)?;
+            projected_facts.push(omega_optimization_unit::AcceptedObligationFact::new(
+                seed.terminal_psi,
+                *proof_fingerprint.as_bytes(),
+                function.machine,
+                *support,
+                *obligation,
+                proposition,
+            ));
+        }
+    }
+    let projected =
+        omega_optimization_unit::attach_accepted_obligation_facts(seed, projected_facts).map_err(
+            |_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
+        )?;
+    if projected.identity != unit.identity
+        || projected.accepted_obligation_facts != unit.accepted_obligation_facts
+    {
+        return Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch);
     }
 
     for function in &unit.functions {
@@ -3250,21 +3344,35 @@ mod tests {
                 ],
             }],
         };
-        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
-            .unwrap()
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+                .unwrap();
+        omega_optimization_unit::attach_accepted_obligation_facts(
+            unit.clone(),
+            vec![omega_optimization_unit::AcceptedObligationFact::new(
+                unit.terminal_psi,
+                [23; 32],
+                machine,
+                id(208, OperationId::new),
+                id(209, psi_core::ObligationId::new),
+                b"validation-test-obligation".to_vec(),
+            )],
+        )
+        .unwrap()
     }
 
     fn integer_candidate(
         unit: &PsiOptimizationUnit,
         constant: IntegerValue,
     ) -> PsiRewriteCandidate {
-        integer_candidate_with_left_fact(unit, constant, None)
+        integer_candidate_with_facts(unit, constant, None, None)
     }
 
-    fn integer_candidate_with_left_fact(
+    fn integer_candidate_with_facts(
         unit: &PsiOptimizationUnit,
         constant: IntegerValue,
         supplied_left_fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+        supplied_obligation_fact: Option<omega_optimization_core::AcceptedObligationFactIdentity>,
     ) -> PsiRewriteCandidate {
         let function = &unit.functions[0];
         let block = &function.blocks[0];
@@ -3304,7 +3412,7 @@ mod tests {
                 sources: node.provenance.clone(),
                 fuel: node.fuel.clone(),
             }],
-            IntegerEvaluationWitness::Binary {
+            IntegerEvaluationWitness::ProofCertifiedBinary {
                 left_fact: supplied_left_fact.unwrap_or_else(|| {
                     literal_scalar_constant_fact_identity(
                         unit.identity,
@@ -3323,6 +3431,8 @@ mod tests {
                     id(207, OperationId::new),
                 )
                 .unwrap(),
+                obligation_fact: supplied_obligation_fact
+                    .unwrap_or(unit.accepted_obligation_facts[0].identity),
             },
             -1,
             IntegerConstantRewrite {
@@ -3404,7 +3514,7 @@ mod tests {
             Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
         ));
 
-        let foreign_fact = integer_candidate_with_left_fact(
+        let foreign_fact = integer_candidate_with_facts(
             &input,
             IntegerValue::Unsigned(15),
             Some(
@@ -3412,15 +3522,38 @@ mod tests {
                     b"fact from another revision",
                 ),
             ),
+            None,
         );
         assert!(matches!(
             validate_integer_evaluation_candidate(&input, &foreign_fact),
             Err(OptimizationUnitValidationError::CandidateOperandFactMismatch)
         ));
+
+        let foreign_obligation = integer_candidate_with_facts(
+            &input,
+            IntegerValue::Unsigned(15),
+            None,
+            Some(
+                omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                    b"fact admitted for another operation",
+                ),
+            ),
+        );
+        assert!(matches!(
+            validate_integer_evaluation_candidate(&input, &foreign_obligation),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        ));
     }
 
     #[test]
     fn corruption_classes_fail_independently() {
+        let mut accepted_fact = exact_add_unit();
+        accepted_fact.accepted_obligation_facts[0].proof_bundle_fingerprint[0] ^= 1;
+        assert!(matches!(
+            validate_psi_optimization_unit(&accepted_fact),
+            Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
+        ));
+
         let mut provenance = unit();
         provenance.functions[0].blocks[0].nodes[0]
             .provenance

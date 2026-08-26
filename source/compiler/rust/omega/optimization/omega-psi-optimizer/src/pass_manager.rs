@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
         assert_eq!(pass_manifest.decisions()[0].input(), unit.identity);
-        assert_eq!(pass_manifest.decisions()[0].consumed_facts().len(), 2);
+        assert_eq!(pass_manifest.decisions()[0].consumed_facts().len(), 3);
         assert_eq!(
             pass_manifest.decisions()[0].verdict(),
             OptimizationCandidateVerdict::Applied
@@ -935,7 +935,7 @@ mod tests {
             OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
         );
         assert!(manifest.decisions()[0].validator().is_some());
-        assert_eq!(manifest.decisions()[0].consumed_facts().len(), 2);
+        assert_eq!(manifest.decisions()[0].consumed_facts().len(), 3);
         assert!(ledger.records().is_empty());
         assert_eq!(ledger.input(), ledger.output());
     }
@@ -986,6 +986,18 @@ mod tests {
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.transformation_ledger.records().len(), 1);
         assert_eq!(run.pass_manifest.as_ref().unwrap().decisions().len(), 1);
+        assert_eq!(
+            run.pass_manifest.as_ref().unwrap().decisions()[0]
+                .consumed_facts()
+                .iter()
+                .filter(|fact| matches!(
+                    fact,
+                    omega_optimization_core::OptimizationFactReference::AcceptedObligation(_)
+                ))
+                .count(),
+            1
+        );
+        assert_eq!(run.session.unit().accepted_obligation_facts.len(), 1);
         assert_eq!(run.session.input().context().accepted_facts().len(), 1);
         assert_eq!(
             run.session.input().context().accepted_facts()[0].obligation,

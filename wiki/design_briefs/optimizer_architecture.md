@@ -351,8 +351,17 @@ payload, and source operation; a raw source operation ID is not sufficient
 rewrite evidence. Its candidate identity covers that canonical declaration;
 the output revision chains the input and candidate identities. The independent
 validator—not the rule—reconstructs each fact identity and the arithmetic,
-produces the new unit, and attaches its own validator identity. This establishes
-the pattern future patch variants must follow before they become executable.
+produces the new unit, and attaches its own validator identity. A
+proof-certified scalar candidate additionally has a distinct witness shape
+that names the admitted operation-obligation fact; a goal-free candidate cannot
+carry one. That fact identity binds the Terminal-Psi identity, proof-bundle
+fingerprint, exact machine/operation/obligation owner, and canonical proposition
+bytes. The verified builder derives the sorted fact index from the immutable
+verifier carrier, binds it into the initial unit identity, and the independent
+validator reconstructs that projection before a public session can run. The
+manifest v3 row therefore records the operand facts and the exact admitted fact
+that authorized removal of a proof-bearing operation. This establishes the
+pattern future patch variants must follow before they become executable.
 
 For a propagated block parameter, the fact identity additionally binds a
 canonical snapshot of the entire machine's coupled SCCP result: every block's
@@ -479,8 +488,11 @@ That identity remains explicit through target and assigned-target operations.
 Two policies may select the same final ISA opcode only at machine realization.
 Likewise, constant folding or instruction selection cannot erase a
 proof-bearing operation's obligation merely because its operands are currently
-known; an accepted transformation must first settle the obligation and record
-that settlement in the transformation ledger.
+known. A proof-certified candidate must consume the exact admitted obligation
+fact owned by that operation; the validator rejects a missing, foreign, or
+goal-free proof witness, and the manifest retains the fact reference after the
+operation becomes a constant. The transformation ledger remains responsible
+for the corresponding semantic settlement record as that vocabulary expands.
 
 ## Lowering optimization
 

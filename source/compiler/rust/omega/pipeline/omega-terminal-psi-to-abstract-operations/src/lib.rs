@@ -11,7 +11,7 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractResult, TerminalAbstractSuccessor, TerminalCompletionClaimSource,
     TerminalValueBinding,
 };
-use psi_core::{BlockId, MachineId, ScalarType, StructuralPlaceKind};
+use psi_core::{BlockId, MachineId, ObligationId, OperationId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
     OperationKind, OperationResult, StructuralMultiplicity, StructuralResultDeclaration,
     TerminalAffineCleanupAction, TerminalMachine, Terminator,
@@ -119,12 +119,116 @@ impl VerifiedPsiOptimizationUnit {
 pub fn build_verified_psi_optimization_unit(
     input: VerifiedTerminalOptimizationInput,
     fuel_schedule: psi_core::FuelScheduleIdentity,
-) -> Result<VerifiedPsiOptimizationUnit, omega_optimization_unit::OptimizationUnitBuildError> {
-    let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+) -> Result<VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError> {
+    let seed = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
         input.plan(),
         fuel_schedule,
     )?;
+    let context = input.context();
+    let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
+    let mut facts = Vec::new();
+    for function in &seed.functions {
+        for reference in &function.facts {
+            let omega_optimization_unit::OptimizationFact::OperationObligationReference {
+                obligation,
+                support,
+            } = reference
+            else {
+                continue;
+            };
+            let reconstructed = context
+                .reconstructed_obligations()
+                .obligations()
+                .iter()
+                .find(|row| {
+                    row.obligation.id == *obligation
+                        && row.owner
+                            == psi_terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
+                                machine: function.machine,
+                                operation: *support,
+                            }
+                })
+                .ok_or(VerifiedPsiOptimizationUnitBuildError::MissingReconstructedObligation {
+                    machine: function.machine,
+                    operation: *support,
+                    obligation: *obligation,
+                })?;
+            let accepted = context
+                .accepted_facts()
+                .iter()
+                .find(|fact| fact.obligation == *obligation)
+                .filter(|fact| fact.proposition == reconstructed.obligation.proposition)
+                .ok_or(
+                    VerifiedPsiOptimizationUnitBuildError::MissingAcceptedObligation {
+                        machine: function.machine,
+                        operation: *support,
+                        obligation: *obligation,
+                    },
+                )?;
+            let proposition =
+                psi_terminal_codec::canonical_proposition_order_key(&accepted.proposition)?;
+            facts.push(omega_optimization_unit::AcceptedObligationFact::new(
+                seed.terminal_psi,
+                proof_fingerprint,
+                function.machine,
+                *support,
+                *obligation,
+                proposition,
+            ));
+        }
+    }
+    let unit = omega_optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
+}
+
+#[derive(Debug)]
+pub enum VerifiedPsiOptimizationUnitBuildError {
+    Unit(omega_optimization_unit::OptimizationUnitBuildError),
+    MissingReconstructedObligation {
+        machine: MachineId,
+        operation: OperationId,
+        obligation: ObligationId,
+    },
+    MissingAcceptedObligation {
+        machine: MachineId,
+        operation: OperationId,
+        obligation: ObligationId,
+    },
+    PropositionCodec(CodecError),
+    FactIndex(omega_optimization_unit::AcceptedObligationFactIndexError),
+}
+
+impl std::fmt::Display for VerifiedPsiOptimizationUnitBuildError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "cannot construct verified Psi optimization unit: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for VerifiedPsiOptimizationUnitBuildError {}
+
+impl From<omega_optimization_unit::OptimizationUnitBuildError>
+    for VerifiedPsiOptimizationUnitBuildError
+{
+    fn from(error: omega_optimization_unit::OptimizationUnitBuildError) -> Self {
+        Self::Unit(error)
+    }
+}
+
+impl From<CodecError> for VerifiedPsiOptimizationUnitBuildError {
+    fn from(error: CodecError) -> Self {
+        Self::PropositionCodec(error)
+    }
+}
+
+impl From<omega_optimization_unit::AcceptedObligationFactIndexError>
+    for VerifiedPsiOptimizationUnitBuildError
+{
+    fn from(error: omega_optimization_unit::AcceptedObligationFactIndexError) -> Self {
+        Self::FactIndex(error)
+    }
 }
 
 /// Canonical-decode and verify terminal-Psi semantic/proof artifact sections

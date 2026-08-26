@@ -19,12 +19,13 @@ pub use contracts::{
     OptimizationWorkBudget,
 };
 pub use identities::{
-    DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError, IdentityDecodeError,
-    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
-    OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity, ScalarConstantFactIdentity,
-    TargetCostModelIdentity, TransformationLedgerIdentity,
+    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError,
+    IdentityDecodeError, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
+    OptimizationDecisionLogIdentity, OptimizationIdentityBundle,
+    OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
+    OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationWorkloadProfileIdentity, ScalarConstantFactIdentity, TargetCostModelIdentity,
+    TransformationLedgerIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
