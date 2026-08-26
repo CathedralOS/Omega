@@ -483,12 +483,22 @@ fn write_only_byte_element_assignment_index(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let collection_type =
+    let (collection_type, direct_byte_slice) =
         if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
-            root.referee
+            (root.referee, is_byte_slice(program, root.referee))
         } else {
-            write_only_record_field_type(program, indexed.collection, roots)?
+            (
+                write_only_record_field_type(program, indexed.collection, roots)?,
+                false,
+            )
         };
+    if direct_byte_slice {
+        return (!matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        ))
+        .then_some(indexed.index);
+    }
     let length = fixed_byte_array_length(program, collection_type)?;
     match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(_) => None,
@@ -529,7 +539,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or whole fixed byte array, or a proven-in-bounds element of a fixed byte array; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or whole fixed byte array, a proven-in-bounds element of a fixed byte array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

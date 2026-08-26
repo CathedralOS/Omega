@@ -490,6 +490,129 @@ fn direct_write_only_byte_slice_content_read_remains_rejected() {
 }
 
 #[test]
+fn direct_write_only_byte_slice_proven_element_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
+                bytes[index] = 7;
+            }
+        "#,
+    ))
+    .expect("a runtime byte-slice index proven against descriptor length should lower");
+}
+
+#[test]
+fn direct_write_only_byte_slice_unproved_element_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(bytes: &write [u8], index: u64) {
+                bytes[index] = 7;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove index `index` is within unknown slice length of `bytes`"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_byte_slice_literal_without_nonempty_proof_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(bytes: &write [u8]) {
+                bytes[0] = 7;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove index `0` is within unknown slice length of `bytes`"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_byte_slice_index_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
+                bytes[bytes[index]] = 7;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `bytes`")
+            && rendered.contains("never observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_byte_slice_rhs_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
+                bytes[index] = bytes[index];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `bytes`")
+            && rendered.contains("never observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_byte_slice_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(bytes: &write [u8]) {
+                bytes[0..1] = [7];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection") && rendered.contains("range"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn nested_write_only_slice_element_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Holder<'data> { view: &'data [u8]; }
+
+            machine fill<'data>(holder: &write Holder<'data>) {
+                holder.view[0] = 7;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("direct byte slice"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn whole_write_only_byte_slice_replacement_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine replace(bytes: &write [u8], replacement: [u8]) {
+                bytes = replacement;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("replaces whole write-only record `bytes`")
+            && rendered.contains("whole-root replacement"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
 fn direct_record_field_observation_remains_rejected() {
     let rendered = rendered_rejection(
         r#"

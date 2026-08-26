@@ -202,6 +202,75 @@ fn write_only_dynamic_byte_call_retains_collection_coarse_mutation() {
 }
 
 #[test]
+fn write_only_dynamic_byte_slice_call_retains_collection_coarse_mutation() {
+    let source = r#"
+        machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
+            bytes[index] = 7;
+        }
+
+        machine forward(bytes: &write [u8], index: u64 [0..bytes.len]) {
+            fill(&write bytes, index);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+    let forward = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward machine");
+    let forward_state = program
+        .machine_states(forward)
+        .first()
+        .expect("forward entry state");
+    let bytes_symbol = program
+        .state_parameters(forward_state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "bytes")
+        .map(|parameter| parameter.symbol)
+        .expect("forward byte-slice parameter");
+
+    let facts = build_borrow_facts(&program);
+    let borrow_state = facts
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.state_symbol == forward_state.symbol)
+        .expect("forward borrow state");
+    let call = facts
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .first()
+        .expect("forwarding call");
+    let mut cache = StateMutationSummaryCache::default();
+    let places = call_mutated_places(
+        &program,
+        forward.symbol,
+        forward_state.symbol,
+        &facts,
+        call,
+        &mut cache,
+    );
+
+    assert_eq!(places.len(), 1, "coarse slice callee write: {places:?}");
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(bytes_symbol));
+    assert!(
+        matches!(
+            places[0].segments.as_slice(),
+            [psi_facts::PlaceSegment::Index { .. }]
+        ),
+        "a dynamic byte-slice store must retain the runtime-index segment that overlap and invalidation conservatively treat as collection-wide: {places:?}"
+    );
+}
+
+#[test]
 fn write_only_record_field_call_retains_exact_common_field() {
     let source = r#"
         data Pair {
