@@ -304,5 +304,5 @@ machine Main::write_u64(&mut self, value: u64 in Trapping) {
 
 machine Main::write_byte(&mut self, value: u8) {
     let mut output: u8 = value;
-    self.console.write_byte(output);
+    self.console.write_byte(output as i32);
 }

@@ -28,9 +28,9 @@ checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
 
-The closure has 12 source units, 115 root items, 178,429 source bytes in total,
+The closure has 12 source units, 116 root items, 178,982 source bytes in total,
 and a largest source unit of 78,952 bytes. Its root items are 24 data
-declarations, 76 machines, four targets, one trait, and ten imports. The machine
+declarations, 77 machines, four targets, one trait, and ten imports. The machine
 surface includes 20 target-qualified machines, 18 `satisfies` clauses, 16
 bodyless target leaves, and 16 `Binding::CompilerIntrinsic` realizations. These
 forms were invisible in snapshot v1 and are retained candidates required by the
@@ -41,8 +41,8 @@ The largest observed compositional resources are:
 
 | Resource | Observed maximum | Provisional general ceiling |
 | --- | ---: | ---: |
-| source units / total bytes / bytes per unit | 12 / 178,429 / 78,952 | 16 / 262,144 / 131,072 |
-| root items / data members / variant payload fields | 115 / 42 / 3 | 128 / 64 / 4 |
+| source units / total bytes / bytes per unit | 12 / 178,982 / 78,952 | 16 / 262,144 / 131,072 |
+| root items / data members / variant payload fields | 116 / 42 / 3 | 128 / 64 / 4 |
 | machine states / state parameters / state statements | 64 / 11 / 43 | 128 / 16 / 64 |
 | call arguments / static arguments / transition arguments | 10 / 2 / 5 | 16 / 2 / 8 |
 | path components / identifier bytes | 6 / 78 | 8 / 128 |
@@ -65,7 +65,7 @@ capacity remain separate gates.
 | payload-free and payload-bearing sum data | token vocabulary, numeric bases, diagnostics, console reads | retain candidate; general tagged layout required |
 | fixed arrays, slices, string/byte literals, runtime indexing | source/decoded/token buffers, Unicode tables, keyword spelling | retain candidate with explicit capacity and exhaustion rules |
 | concrete scalar ranges | source/token lengths and standard-library byte results | measure; currently pays directly for bounded indexing without dependent bounds |
-| concrete Trapping arithmetic and casts | cursor math, UTF-8/scalar arithmetic, byte conversion | measure against narrow checked helpers in the bridge |
+| concrete Trapping arithmetic and explicit exact casts | cursor math, UTF-8/scalar arithmetic, byte conversion, and the explicit `u8 as i32` Console boundary arguments | measure against narrow checked helpers in the bridge; no call context may invent an implicit widening |
 | state machines, scalar state parameters, mutation, and calls | every lexical scan and hosted adapter loop | retain candidate; branching value-machine results are deliberately unnecessary |
 | explicit result fields for branching operations | bounded appends and lexical predicates | retain candidate source convention pending general bridge call-cost evidence |
 | boundary traits and target-selected realizations | hosted byte input and process exit | retain candidate for the product source forms actually used; do not confuse this Omega source facility with Delta's separately sealed bridge-host interface |

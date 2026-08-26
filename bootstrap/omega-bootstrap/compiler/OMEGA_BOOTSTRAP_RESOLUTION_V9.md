@@ -56,6 +56,13 @@ target-qualified candidates are bodyless and have exactly
 `via Binding::CompilerIntrinsic`. Other targets are inert and absent from this
 focused input.
 
+The two helper calls spell their byte argument as exact `output as i32`.
+Omega has no implicit integer widening, so a bare `output`, another target
+carrier, or a conversion inferred only from the callee signature rejects. This
+2026-08-26 source erratum changes no normalized OMGRSW9 row or requirement
+identity; it corrects the selected fixture and parser to the already-ratified
+explicit-coercion rule.
+
 The root app retains six requirement calls separately from provider bindings:
 the helper's two `write_byte` calls plus app calls `read_byte`, `write_byte`,
 and two `exit_process` calls. The two adapter-to-helper calls are ordinary
@@ -179,6 +186,7 @@ input-derived. Readable spellings never repair a mismatched exact identity.
 [`omega-bootstrap-provider-plan.alp`](omega-bootstrap-provider-plan.alp)
 accepts the OMGCOMP envelope on stdin, parses declarations, signatures,
 reaches, bodies, selections, candidates, and calls by structural productions,
+witnesses the explicit exact `u8 as i32` argument at both helper calls,
 writes the witness on stdout only after complete validation, and returns
 0/251/252. It does not select by a source digest, whole-file token census,
 fixed token ordinal, or readable source label. The historical resolver remains

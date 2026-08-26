@@ -27,12 +27,14 @@ Current status: checkpoint 000001 is a coherent snapshot of its refreshed
 product closure. The fast gate pins compiled source and Cargo/provider
 provenance, including the exact `BUILD_PRELUDE` extracted from
 `source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
-The refreshed snapshot includes the prelude's public build vocabulary and
-package-identity declaration, plus the product build's explicit typed Console
-provider selection. Future drift must again refresh the manifest, profile, and
-prelude together; verification must never be weakened or stopped after the
-first mismatch. The hosted adapter publishes the versioned structural
-`OMGLEX1` observation, and the complete gate compares it byte for byte with an
+The refreshed snapshot includes the prelude's public build vocabulary,
+package-identity declaration, and explicit optimization-report operation, plus
+the product build's explicit typed Console provider selection. Its Console
+helper and product output adapter now spell the exact `u8 as i32` boundary
+casts required by the no-implicit-widening rule. Future drift must again refresh
+the manifest, profile, and prelude together; verification must never be
+weakened or stopped after the first mismatch. The hosted adapter publishes the
+versioned structural `OMGLEX1` observation, and the complete gate compares it byte for byte with an
 independent Rust encoder across accepted, rejected-prefix, and capacity cases,
 then proves a tampered stream is rejected. The census remains bounded checkpoint
 evidence for bridge cost work, not authority for later compiler phases.

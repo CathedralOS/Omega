@@ -25,7 +25,7 @@ reaches Console
 
     state emit(console: Console, byte: u8, bytes: &[u8], newline: bool) {
         let mut output: u8 = byte;
-        console.write_byte(output);
+        console.write_byte(output as i32);
         transition bytes.len > 0 {
             true -> emit(console, bytes[0], bytes[1..], newline)
             false -> finish(console, newline)
@@ -41,7 +41,7 @@ reaches Console
 
     state emit_newline(console: Console, byte: u8) {
         let mut output: u8 = byte;
-        console.write_byte(output);
+        console.write_byte(output as i32);
     }
 
     state done() { }

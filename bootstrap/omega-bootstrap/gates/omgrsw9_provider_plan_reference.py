@@ -60,7 +60,7 @@ LABELS = (
 )
 SOURCE_LABELS = (LABELS[2], LABELS[3], LABELS[0], LABELS[1])
 SOURCE_PROFILE_SHA256 = (
-    "967ec23e48c0d10c0f8896e6c1e16ea4d8507ef14a0c200d7cba72518f201b1d",
+    "ef07166771f55045c03dbfaf54f379113c4112d8b215c4deb87318d81b8398af",
     "a6cc1f99f25a588179460c6d16c84e14f6a007de4f9da06b93a2d6e5679581ec",
     "150cc1b2480fa2736878365453582a5517a2571eb0cb85b930400ecc89ffab7b",
     "baf34421ab672cb059f31fddd4d2a8ac22929698035261583dca975d5859f63e",
@@ -291,6 +291,12 @@ def validate_profile(sources: tuple[bytes, ...]) -> tuple[list[Token], ...]:
     require(sequence(tokens[0], ("pub", "boundary", "trait", "Console")), "trait")
     require(len([token for token in tokens[0] if token.value == "reaches"]) == 9,
             "wrong portable reach count")
+    require(len([
+        ordinal for ordinal in range(2)
+        if sequence(tokens[0],
+                    ("console", ".", "write_byte", "(", "output", "as", "i32", ")"),
+                    ordinal)
+    ]) == 2, "helper write_byte arguments must use explicit exact i32 widening")
     require(len([token for token in tokens[1] if token.value == "CompilerIntrinsic"]) == 4,
             "wrong intrinsic leaf count")
     require(sequence(tokens[2], ("builder", ".", "select_provider", "<", "Console", ",",
@@ -765,8 +771,14 @@ def build_outputs(output: Path) -> None:
         ("wrong-binding", 251, semantic_case(
             contents, target_label, b"Binding::CompilerIntrinsic", b"Binding::Checked")),
         ("wrong-call-target", 251, semantic_case(
-            contents, portable_label, b"console.write_byte(output)",
-            b"console.write_line(output)")),
+            contents, portable_label, b"console.write_byte(output as i32)",
+            b"console.write_line(output as i32)")),
+        ("missing-explicit-call-widen", 251, semantic_case(
+            contents, portable_label, b"console.write_byte(output as i32)",
+            b"console.write_byte(output)")),
+        ("wrong-explicit-call-widen", 251, semantic_case(
+            contents, portable_label, b"console.write_byte(output as i32)",
+            b"console.write_byte(output as u32)")),
         ("wrong-version", 251, replace_u16(envelope, 8, 2)),
         ("truncated-eof", 251, envelope[:-1]),
         ("trailing-eof", 251, envelope + b"x"),

@@ -4,7 +4,9 @@ use omega_calling_conventions::PlatformCallData;
 use omega_layout::DataShape;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 
-use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
+use crate::selection::storage_places::{
+    classify_scalar_value_type_in_table, resolve_runtime_storage_place_in_table,
+};
 
 /// std console `read_byte() -> ByteRead` (PlatformCallData::SingleByteRead):
 /// the composite instruction owns the whole result -- it pre-zeroes the sum
@@ -51,8 +53,9 @@ pub(in crate::selection::host_operations) fn runtime_byte_read(
 }
 
 /// std console `write_byte(b)` (PlatformCallData::SingleByteWrite): one byte
-/// to stdout straight from the argument's storage (LE low byte), or from the
-/// staged 1-byte data object for an integer-literal argument.
+/// to stdout straight from the argument's storage (LE low byte), from the
+/// source storage of an exact authored `u8 as i32`, or from the staged 1-byte
+/// data object for an integer-literal argument.
 pub(in crate::selection::host_operations) fn runtime_byte_write(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -85,12 +88,38 @@ pub(in crate::selection::host_operations) fn runtime_byte_write(
         return None;
     };
 
+    // `write_byte` accepts i32 while the checked Console adapters walk u8
+    // views. Omega forbids implicit widening, so this path is deliberately
+    // limited to the exact checked `u8 as i32` source form. The conversion is
+    // value-preserving and the byte operation observes only the low byte;
+    // reading the original u8 place is therefore the exact runtime meaning and
+    // avoids manufacturing an unowned scratch value. Other casts continue to
+    // the serve-or-refuse blocker.
+    let storage_expression = match input.host_calls.expressions.expression(*expression) {
+        psi_checked_trees::expression::ExpressionNode::Cast(cast)
+            if !cast.form.is_recast()
+                && input.program.primitive_type_reference(cast.target_type)
+                    == Some(psi_checked_trees::types::PrimitiveType::I32)
+                && classify_scalar_value_type_in_table(
+                    input,
+                    dispatch_index.unwrap_or(0),
+                    host_call.source_key,
+                    &input.host_calls.expressions,
+                    cast.value,
+                ) == Some(psi_checked_trees::types::PrimitiveType::U8) =>
+        {
+            cast.value
+        }
+        psi_checked_trees::expression::ExpressionNode::Cast(_) => return None,
+        _ => *expression,
+    };
+
     let place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index.unwrap_or(0),
         host_call.source_key,
         &input.host_calls.expressions,
-        *expression,
+        storage_expression,
     )?;
     Some(SelectedInstructionKind::WriteRuntimeByte {
         source_region: place.region,

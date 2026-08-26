@@ -36,6 +36,11 @@ to rows in one complete plan; source syntax never rewrites a requirement call
 directly to the sole visible realization. The selected plan is structural
 policy data, not provider admission.
 
+Both helper calls now retain the exact authored `output as i32` spelling
+required by Omega's no-implicit-widening rule. OMGRFN19 still makes no checked-
+IR claim, but its exact source/profile custody rejects the former bare-`u8`
+call and wrong cast targets.
+
 ## Responsibility ownership
 
 - R1 owns OMGRFN19 identity, flags, extents, component ceilings, complete
