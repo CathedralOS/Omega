@@ -55,7 +55,20 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                 };
                 structural_arguments
                     .iter()
-                    .any(|argument| is_nonempty_field_path(&argument.path))
+                    .any(|argument| {
+                        machine
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == argument.place)
+                            .is_some_and(|parameter| {
+                                parameter.multiplicity == StructuralMultiplicity::Affine
+                                    && is_bounded_partial_affine_path(
+                                        module,
+                                        parameter.structural_type,
+                                        &argument.path,
+                                    )
+                            })
+                    })
                     .then_some((
                         block,
                         operation,

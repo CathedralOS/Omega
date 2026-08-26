@@ -53,6 +53,27 @@ fn append_expected_partial_residuals(
     declarations: &std::collections::BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     output: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
+    if prefix.is_empty()
+        && let [(path, moved_type)] = moved
+        && let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = *path
+    {
+        let declaration = declarations.get(&structural_type)?;
+        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+            return None;
+        };
+        if *moved_type != element
+            || !matches!(
+                declarations
+                    .get(&element)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        output.push((vec![StructuralPathSegment::FixedIndex(1 - index)], element));
+        return Some(());
+    }
     let declaration = declarations.get(&structural_type)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;

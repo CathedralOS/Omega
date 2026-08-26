@@ -351,6 +351,88 @@ fn partial_cleanup_keeps_borrowed_byte_views_fenced() {
 }
 
 #[test]
+fn two_element_affine_array_moves_one_literal_index_and_discards_its_sibling() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::first(values: [Token; 2]) {
+            Sink::take(values[0]);
+        }
+        machine Root::second(values: [Token; 2]) {
+            Sink::take(values[1]);
+        }
+        "#,
+    );
+    for (machine, moved, residual) in [("first", 0, 1), ("second", 1, 0)] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .for_machine(machine_named(&checked, machine))
+            .expect("one literal array move leaves one exact affine sibling");
+        assert_eq!(plan.machine.operations.len(), 2);
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &plan.machine.operations[0]
+        else {
+            panic!("array cleanup starts with one ordinary Unit call")
+        };
+        assert!(claim_transfers.is_empty());
+        assert_eq!(
+            structural_arguments[0].path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(moved)]
+        );
+        assert_eq!(
+            plan.residual_affine_discards[0].path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(residual)]
+        );
+        assert_eq!(plan.residual_affine_discards.len(), 1);
+        assert_eq!(
+            plan.residual_affine_discards[0].type_identity,
+            structural_arguments[0].type_identity
+        );
+    }
+}
+
+#[test]
+fn affine_array_partial_cleanup_fences_other_lengths_and_multiple_moves() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::one(values: [Token; 1]) {
+            Sink::take(values[0]);
+        }
+        machine Root::three(values: [Token; 3]) {
+            Sink::take(values[1]);
+        }
+        machine Root::both(values: [Token; 2]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+        }
+        "#,
+    );
+    for machine in ["one", "three", "both"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` remains outside the one-move/one-residual array slice"
+        );
+    }
+}
+
+#[test]
 fn unit_body_retains_empty_affine_local_prefix_and_reverse_cleanup() {
     let checked = checked(
         r#"

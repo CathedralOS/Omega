@@ -2865,11 +2865,7 @@ fn lower_unit_function(
                     if moved_arguments.is_empty()
                         || moved_arguments.iter().any(|argument| {
                             argument.root_structural_type != parameter.structural_type
-                                || argument.path.is_empty()
-                                || argument.path.iter().any(|segment| {
-                                    !matches!(segment, StructuralPathSegment::Field(identity)
-                                        if !identity.is_empty())
-                                })
+                                || !is_partial_cleanup_path(&argument.path)
                                 || moved_subtrees
                                     .iter()
                                     .any(|(path, _)| path == &argument.path)
@@ -3564,6 +3560,28 @@ fn expected_maximal_residual_subtrees(
     if moved.is_empty() {
         return None;
     }
+    if let [(path, moved_type)] = moved
+        && let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
+    {
+        let declaration = declarations.get(&root_type).copied()?;
+        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+            return None;
+        };
+        if moved_type != &element
+            || !matches!(
+                declarations
+                    .get(&element)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        return Some(vec![(
+            vec![StructuralPathSegment::FixedIndex(1 - index)],
+            element,
+        )]);
+    }
     let borrowed = moved
         .iter()
         .map(|(path, structural_type)| (path.as_slice(), *structural_type))
@@ -3571,6 +3589,13 @@ fn expected_maximal_residual_subtrees(
     let mut residuals = Vec::new();
     append_maximal_residual_subtrees(root_type, &[], &borrowed, declarations, &mut residuals)?;
     (!residuals.is_empty()).then_some(residuals)
+}
+
+fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
+    (!path.is_empty()
+        && path.iter().all(
+            |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
+        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
 }
 
 fn append_maximal_residual_subtrees(

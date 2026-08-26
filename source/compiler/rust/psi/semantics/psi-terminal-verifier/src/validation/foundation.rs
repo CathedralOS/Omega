@@ -1416,13 +1416,59 @@ pub(super) fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {
             .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
 }
 
+pub(super) fn is_bounded_partial_affine_path(
+    module: &TerminalModule,
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    is_nonempty_field_path(path)
+        || (matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
+            && module.structural_types.iter().any(|declaration| {
+                declaration.id == root_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::FixedArray { length: 2, .. }
+                    )
+            }))
+}
+
 pub(super) fn partial_affine_residuals(
     module: &TerminalModule,
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
 ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
-    if moved_paths.is_empty() || moved_paths.iter().any(|path| !is_nonempty_field_path(path)) {
+    if moved_paths.is_empty()
+        || moved_paths
+            .iter()
+            .any(|path| !is_bounded_partial_affine_path(module, root_type, path))
+    {
         return None;
+    }
+    if moved_paths.len() == 1
+        && let Some(path) = moved_paths.first()
+        && let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
+    {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root_type)?;
+        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+            return None;
+        };
+        if !matches!(
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == element)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::Record { .. })
+        ) {
+            return None;
+        }
+        return Some(vec![(
+            vec![StructuralPathSegment::FixedIndex(1 - index)],
+            element,
+        )]);
     }
     if moved_paths.iter().enumerate().any(|(index, path)| {
         moved_paths

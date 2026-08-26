@@ -920,7 +920,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+        partial_affine_pair_structural_signature(program, shapes, machine, state, &binders)?;
     let [source_parameter] = program.state_parameters(state) else {
         return None;
     };
@@ -998,12 +998,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         let [argument] = structural_arguments.as_slice() else {
             return None;
         };
-        if argument.path.is_empty()
-            || argument
-                .path
-                .iter()
-                .any(|segment| !matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-        {
+        if !is_partial_affine_path(&argument.path) {
             return None;
         }
         if argument.source_parameter_index != 0
@@ -1045,19 +1040,46 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     }
 
     let source_shape = shapes.types.get(&checked_parameter.type_identity)?;
-    let CheckedUnitStructuralTypeShape::Record { fields } = &source_shape.shape else {
-        return None;
-    };
-    if fields.len() < 2
-        || fields.iter().enumerate().any(|(index, field)| {
-            field.relevance.is_erased()
-                || !is_partial_affine_field_type(&field.field_type)
-                || fields[..index]
+    match &source_shape.shape {
+        CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.len() >= 2
+                && !fields.iter().enumerate().any(|(index, field)| {
+                    field.relevance.is_erased()
+                        || !is_partial_affine_field_type(&field.field_type)
+                        || fields[..index]
+                            .iter()
+                            .any(|earlier| earlier.identity == field.identity)
+                }) => {}
+        CheckedUnitStructuralTypeShape::FixedArray {
+            element_type_identity,
+            length: 2,
+        } if matches!(moved_paths.as_slice(), [(path, moved_type)]
+        if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)])
+            && moved_type == element_type_identity
+            && matches!(
+                shapes.types.get(element_type_identity).map(|shape| &shape.shape),
+                Some(CheckedUnitStructuralTypeShape::Record { .. })
+            ))
+            && program.machine_contracts(machine).is_empty()
+            && program.state_contracts(state).is_empty()
+            && operations.iter().all(|operation| {
+                let CheckedUnitEffectOperationPlan::CallUnit {
+                    target_machine,
+                    target_state,
+                    ..
+                } = operation
+                else {
+                    return false;
+                };
+                program
+                    .machines()
                     .iter()
-                    .any(|earlier| earlier.identity == field.identity)
-        })
-    {
-        return None;
+                    .find(|candidate| candidate.symbol == *target_machine)
+                    .is_some_and(|target| program.machine_contracts(target).is_empty())
+                    && crate::find_state(program, *target_state)
+                        .is_some_and(|target| program.state_contracts(target).is_empty())
+            }) => {}
+        _ => return None,
     }
     let residual_affine_discards = partial_affine_residuals(
         &shapes.types,
@@ -1105,6 +1127,32 @@ pub(super) fn partial_affine_residuals(
     root_type: &str,
     moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+    if let [(path, moved_type)] = moved_paths
+        && let [CheckedUnitStructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
+    {
+        let declaration = types.get(root_type)?;
+        let CheckedUnitStructuralTypeShape::FixedArray {
+            element_type_identity,
+            length: 2,
+        } = &declaration.shape
+        else {
+            return None;
+        };
+        if moved_type != element_type_identity
+            || !matches!(
+                types.get(element_type_identity).map(|shape| &shape.shape),
+                Some(CheckedUnitStructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        return Some(vec![CheckedUnitPartialAffineDiscardPlan {
+            source_parameter_index: 0,
+            path: vec![CheckedUnitStructuralPathSegment::FixedIndex(1 - index)],
+            type_identity: element_type_identity.clone(),
+        }]);
+    }
+
     fn visit(
         types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
         current_type: &str,
@@ -1199,6 +1247,14 @@ pub(super) fn partial_affine_residuals(
     let mut residuals = Vec::new();
     visit(types, root_type, &borrowed, &mut Vec::new(), &mut residuals)?;
     Some(residuals)
+}
+
+fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    (!path.is_empty()
+        && path
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_))))
+        || matches!(path, [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)])
 }
 
 fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {

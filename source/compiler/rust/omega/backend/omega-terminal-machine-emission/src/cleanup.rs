@@ -1068,6 +1068,32 @@ fn append_expected_partial_residuals(
         psi_core::StructuralTypeId,
     )>,
 ) -> Option<()> {
+    if prefix.is_empty()
+        && let [(path, moved_type)] = moved
+        && let [psi_terminal::StructuralPathSegment::FixedIndex(index @ (0 | 1))] = *path
+    {
+        let declaration = declarations.get(&structural_type)?;
+        let psi_terminal::StructuralTypeShape::FixedArray { element, length: 2 } =
+            declaration.shape
+        else {
+            return None;
+        };
+        if *moved_type != element
+            || !matches!(
+                declarations
+                    .get(&element)
+                    .map(|declaration| &declaration.shape),
+                Some(psi_terminal::StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        output.push((
+            vec![psi_terminal::StructuralPathSegment::FixedIndex(1 - index)],
+            element,
+        ));
+        return Some(());
+    }
     let psi_terminal::StructuralTypeShape::Record { fields } =
         &declarations.get(&structural_type)?.shape
     else {

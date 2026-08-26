@@ -62,6 +62,16 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
     }
 "#;
 
+const PARTIAL_AFFINE_PAIR_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 2]) {
+        Helper::take(values[1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -339,6 +349,23 @@ fn partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstract
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine artifact enters Omega")
+}
+
+fn partial_affine_pair_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(PARTIAL_AFFINE_PAIR_SOURCE)
+        .tokenize()
+        .expect("tokenize partial affine pair source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse partial affine pair source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve partial affine pair source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type partial affine pair source");
+    let checked = lower_typed_trees(typed).expect("check partial affine pair source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower partial affine pair Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode partial affine pair Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine pair proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified partial affine pair artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan()
@@ -756,6 +783,7 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         let mut projection = Vec::new();
         projection.extend_from_slice(&installed_argument.place.get().to_le_bytes());
         projection.extend_from_slice(&1_u32.to_le_bytes());
+        projection.extend_from_slice(&1_u32.to_le_bytes());
         projection.extend_from_slice(&[2, 0, 0, 0]);
         projection.extend_from_slice(&1_u64.to_le_bytes());
         projection.extend_from_slice(&installed_argument.root_structural_type.get().to_le_bytes());
@@ -765,9 +793,9 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         let offset = bytes
             .windows(projection.len())
             .position(|window| window == projection)
-            .expect("format-10 bytes retain the second resolved projection");
+            .expect("format-36 bytes retain the second resolved projection");
         let mut changed_installation = bytes.clone();
-        let source_offset = offset + 48;
+        let source_offset = offset + 52;
         changed_installation[source_offset..source_offset + 4]
             .copy_from_slice(&0_u32.to_le_bytes());
         assert!(decode_terminal_installation_record(&changed_installation).is_err());
@@ -924,6 +952,184 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
         assert_eq!(
             decode_terminal_installation_record(&bytes),
             Ok(installation.clone())
+        );
+    }
+}
+
+#[test]
+fn partial_affine_pair_cleanup_retains_exact_native_and_installed_projection_on_all_targets() {
+    let plan = partial_affine_pair_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let pair_type = caller.structural_parameters[0].structural_type;
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == pair_type)
+        .expect("array declaration remains present");
+    let StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 2,
+    } = declaration.shape
+    else {
+        panic!("caller root remains an exact two-element array")
+    };
+    let residual = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => match cleanup_actions.as_slice() {
+                [TerminalAffineCleanupAction::DiscardResidual(residual)] => Some(residual.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("opposite array element remains one residual cleanup");
+    assert_eq!(residual.path, [StructuralPathSegment::FixedIndex(0)]);
+    assert_eq!(residual.structural_type, element_type);
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("target caller remains present");
+        let TerminalTargetOperation::UnitBody(body) = &target_caller.operation else {
+            panic!("caller remains Unit")
+        };
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(16, 8));
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("caller machine code exists");
+        let [call] = emitted.internal_unit_calls.as_slice() else {
+            panic!("caller has one projected internal call")
+        };
+        let [argument] = call.arguments.as_slice() else {
+            panic!("call has one projected argument")
+        };
+        assert_eq!(argument.path, [StructuralPathSegment::FixedIndex(1)]);
+        assert_eq!(argument.root_structural_type, pair_type);
+        assert_eq!(argument.structural_type, element_type);
+        assert_eq!(argument.shape, ValueShape::integer(8, 8));
+        assert_eq!(argument.source.shape, ValueShape::integer(16, 8));
+        assert_eq!(argument.source_byte_offset, 8);
+        assert_eq!(argument.fixed_array_length, Some(2));
+        assert_eq!(argument.element_stride, Some(8));
+        assert!(call.claim_transfers.is_empty());
+        assert_eq!(
+            emitted
+                .unit_affine_cleanup
+                .as_ref()
+                .expect("caller cleanup ledger")
+                .actions,
+            [TerminalAffineCleanupAction::DiscardResidual(
+                residual.clone()
+            )]
+        );
+
+        for forged in [
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].source_byte_offset = 0;
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].fixed_array_length = Some(3);
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.internal_unit_calls[0].arguments[0].element_stride = Some(16);
+                forged
+            },
+            {
+                let mut forged = machine.clone();
+                let caller = forged
+                    .functions
+                    .iter_mut()
+                    .find(|function| function.machine == caller_machine)
+                    .unwrap();
+                caller.unit_affine_cleanup.as_mut().unwrap().actions[0] =
+                    TerminalAffineCleanupAction::DiscardResidual(
+                        psi_terminal::StructuralAffineDiscard {
+                            path: vec![StructuralPathSegment::FixedIndex(1)],
+                            ..residual.clone()
+                        },
+                    );
+                forged
+            },
+        ] {
+            assert!(build_terminal_object_artifact(&forged).is_err());
+        }
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed_call = installation
+            .internal_unit_calls()
+            .iter()
+            .find(|call| call.machine == caller_machine)
+            .expect("installed caller call");
+        assert_eq!(installed_call.custody.arguments[0].path, argument.path);
+        assert_eq!(
+            installed_call.custody.arguments[0].source_byte_offset,
+            argument.source_byte_offset
+        );
+        let installed_cleanup = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("installed cleanup ledger");
+        assert_eq!(
+            installed_cleanup.actions,
+            [TerminalAffineCleanupAction::DiscardResidual(
+                residual.clone()
+            )]
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation)
         );
     }
 }

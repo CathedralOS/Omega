@@ -177,11 +177,7 @@ pub(super) fn validate_unit_affine_cleanup(
             || residuals.iter().any(|residual| {
                 Some(residual.place) != residual_root
                     || residual.path.is_empty()
-                    || residual.path.iter().any(|segment| {
-                        !matches!(segment,
-                            psi_terminal::StructuralPathSegment::Field(identity)
-                                if !identity.is_empty())
-                    })
+                    || !is_partial_cleanup_path(&residual.path)
                     || parameter_type == Some(residual.structural_type)
             })
             || residuals.iter().enumerate().any(|(index, residual)| {
@@ -193,11 +189,7 @@ pub(super) fn validate_unit_affine_cleanup(
             || moved.is_empty()
             || moved.iter().any(|(path, _)| {
                 path.is_empty()
-                    || path.iter().any(|segment| {
-                        !matches!(segment,
-                            psi_terminal::StructuralPathSegment::Field(identity)
-                                if !identity.is_empty())
-                    })
+                    || !is_partial_cleanup_path(path)
                     || residuals.iter().any(|residual| {
                         path.starts_with(&residual.path) || residual.path.starts_with(path)
                     })
@@ -388,6 +380,18 @@ pub(super) fn validate_unit_affine_cleanup(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool {
+    (!path.is_empty()
+        && path.iter().all(|segment| {
+            matches!(segment,
+                psi_terminal::StructuralPathSegment::Field(identity) if !identity.is_empty())
+        }))
+        || matches!(
+            path,
+            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1)]
+        )
 }
 
 fn bounded_nominal_receiver_shape(shape: omega_calling_conventions::ValueShape) -> bool {

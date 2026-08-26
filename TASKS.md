@@ -7545,8 +7545,23 @@ reach or trust, and private proof improvements do not change public identity.
   reject scalar/float/byte/structural classification drift and preserve the
   bounded carrier's exact capacity and `N + 8` native layout. Borrowed byte
   views, first-class byte roots or byte moves, provider-backed or erased values,
-  arrays, sums, claims or content, qualified roots, contracts, and nominal drop
-  remain fenced from this rung.
+  sums, claims or content, qualified roots, contracts, and nominal drop remain
+  fenced from this rung.
+
+  One independently ordered fixed-array rung is also closed: a claim-free
+  affine unqualified root exactly `[T; 2]`, where `T` is an affine structural
+  checked record with no nominal cleanup, may make one ordinary one-parameter
+  Unit call that moves exactly literal index `0` or `1`; the opposite element
+  is the one exact no-code residual on the one-fuel return edge. Typed and
+  checked planning, Terminal verification/codec/interpreter, target and machine
+  lowering, and object/image/installation replay retain the exact element type,
+  index, length-two native layout, element stride, byte offset, cleanup action,
+  and unchanged fuel. Other lengths, multiple moves, nested/dynamic/mixed
+  projections, scalar/float/byte/linear/nominal/qualified/content elements,
+  arrays with claims, sums, joins, and cycles remain fenced. General array
+  cleanup order remains the language-design question recorded in
+  `OWNER_QUESTIONS.md` Q5; this two-element single-residual rung does not choose
+  that order.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
   selection kind. The package-agnostic selection ledger rejects the exact hook

@@ -123,6 +123,7 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
             validate_unit_call_claim_transfers(
+                module,
                 machine,
                 callee,
                 structural_arguments,
@@ -194,6 +195,7 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
             validate_unit_call_claim_transfers(
+                module,
                 machine,
                 callee,
                 structural_arguments,
@@ -367,6 +369,7 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
             validate_unit_call_claim_transfers(
+                module,
                 machine,
                 callee,
                 structural_arguments,
@@ -637,6 +640,7 @@ fn validate_structural_arguments(
                 argument_index: index as u32,
             });
         }
+        let root_type = actual_type;
         let Some(actual_type) = resolve_structural_path(module, actual_type, &argument.path) else {
             return Err(ModuleError::InvalidStructuralArgumentPath {
                 operation,
@@ -670,7 +674,7 @@ fn validate_structural_arguments(
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
         } else if expected.multiplicity == StructuralMultiplicity::Affine
-            && is_nonempty_field_path(&argument.path)
+            && is_bounded_partial_affine_path(module, root_type, &argument.path)
             && actual_multiplicity == StructuralMultiplicity::Affine
         {
             StructuralMultiplicity::Affine
@@ -758,6 +762,7 @@ pub(super) fn validate_service_reach(
 }
 
 fn validate_unit_call_claim_transfers(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
@@ -775,7 +780,13 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
-            let claim_free_direct_affine = is_nonempty_field_path(&argument.path)
+            let claim_free_direct_affine = caller
+                .structural_parameters
+                .iter()
+                .find(|actual| actual.place == argument.place)
+                .is_some_and(|actual| {
+                    is_bounded_partial_affine_path(module, actual.structural_type, &argument.path)
+                })
                 && parameter.multiplicity == StructuralMultiplicity::Affine
                 && callee_claims.is_empty()
                 && caller

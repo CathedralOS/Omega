@@ -1573,11 +1573,7 @@ fn validate_record_shape(
                             || residuals.iter().any(|residual| {
                                 residual.place != residual_root
                                     || residual.path.is_empty()
-                                    || residual.path.iter().any(|segment| {
-                                        !matches!(segment,
-                                            StructuralPathSegment::Field(identity)
-                                                if !identity.is_empty())
-                                    })
+                                    || !is_partial_cleanup_path(&residual.path)
                                     || parameter_type == Some(residual.structural_type)
                             })
                             || residuals
@@ -1593,11 +1589,7 @@ fn validate_record_shape(
                             || moved.is_empty()
                             || moved.iter().any(|(path, _)| {
                                 path.is_empty()
-                                    || path.iter().any(|segment| {
-                                        !matches!(segment,
-                                            StructuralPathSegment::Field(identity)
-                                                if !identity.is_empty())
-                                    })
+                                    || !is_partial_cleanup_path(path)
                                     || residuals
                                         .iter()
                                         .any(|residual| {
@@ -2489,6 +2481,14 @@ fn validate_record_shape(
     validate_native_fuel_shape(record)?;
     validate_native_fuel_transfer_shape(record)?;
     Ok(())
+}
+
+fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
+    (!path.is_empty()
+        && path.iter().all(|segment| {
+            matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty())
+        }))
+        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
 }
 
 fn validate_native_fuel_transfer_shape(
