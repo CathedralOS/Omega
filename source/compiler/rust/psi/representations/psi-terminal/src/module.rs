@@ -895,8 +895,9 @@ pub struct MachineContract {
 /// Exact nominal result-case guard for one semantic guarantee row.
 ///
 /// This is independent from the proposition and evidence-term identities. It
-/// does not itself authorize executable matching-exit replay; Terminal
-/// verification remains fail closed until an exact-case return carrier exists.
+/// authorizes executable matching-exit replay only when Terminal verification
+/// independently recognizes an exact case-producing return carrier; wider
+/// structural control remains fail closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OutcomeSpecificGuard {
     pub result_type: StructuralTypeId,

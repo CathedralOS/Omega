@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_core::EvidenceIdentity;
 use psi_terminal::TerminalModule;
 
+use super::reconstruction::exact_payloadless_case_return_guard;
 use super::{EvidenceProducerRealization, ProofBundle, VerificationError};
 
 pub(super) fn validate_evidence_producer_provenance(
@@ -36,6 +37,22 @@ pub(super) fn validate_evidence_producer_provenance(
             && !package_outputs.contains(&lane.term)
         {
             *unmatched_ensures.entry(lane.term).or_default() += 1;
+        }
+    }
+    for machine in &module.machines {
+        let Some(active_guard) = exact_payloadless_case_return_guard(machine) else {
+            continue;
+        };
+        for row in &machine.contract.outcome_specific_ensures {
+            let Some(evidence) = &row.evidence else {
+                continue;
+            };
+            if row.guard == active_guard
+                && !required.contains(&(machine.id, evidence.term))
+                && !package_outputs.contains(&evidence.term)
+            {
+                *unmatched_ensures.entry(evidence.term).or_default() += 1;
+            }
         }
     }
     for invocation in &module.proof_output_calls {

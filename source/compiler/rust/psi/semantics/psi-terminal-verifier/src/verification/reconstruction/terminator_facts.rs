@@ -124,8 +124,24 @@ pub(super) fn append_terminator(
             exits.push(axioms)
         }
         Terminator::ReturnStructural {
-            returned_claims, ..
+            source,
+            returned_claims,
+            ..
         } => {
+            let result = machine
+                .result
+                .structural()
+                .expect("validated structural return has a structural machine result");
+            let substitutions = BTreeMap::from([(*source, result.place)]);
+            for proposition in axioms
+                .clone()
+                .into_iter()
+                .map(|proposition| substitute_proposition_places(&proposition, &substitutions))
+            {
+                if !axioms.contains(&proposition) {
+                    axioms.push(proposition);
+                }
+            }
             axioms.extend(
                 machine
                     .content_identity_reshuffles

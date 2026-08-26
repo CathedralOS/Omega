@@ -68,8 +68,9 @@ use psi_terminal::{
     CrashCause as TerminalCrashCause, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     EvidenceTermDeclaration, InstallationReachDependency, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall,
-    ProofOutputRuntimeCall, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    Operation, OperationKind, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -809,12 +810,19 @@ pub fn lower_machine(
     if matches.next().is_some() {
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
-    if checked
+    let exact_guarded_payloadless = checked
         .facts
-        .proof
-        .outcome_specific_guarantees
-        .iter()
-        .any(|(_, guarantee)| guarantee.machine_symbol == selection.machine)
+        .flow
+        .terminal_structural_returns
+        .payloadless_case_for_machine(selection.machine)
+        .is_some();
+    if !exact_guarded_payloadless
+        && checked
+            .facts
+            .proof
+            .outcome_specific_guarantees
+            .iter()
+            .any(|(_, guarantee)| guarantee.machine_symbol == selection.machine)
     {
         return unsupported(
             "outcome-specific guarantees require guarded exit and caller-arm lowering",
@@ -838,7 +846,12 @@ pub fn lower_machine(
         .proof
         .outcome_specific_guarantees
         .iter()
-        .any(|(_, guarantee)| source_machines.contains(&guarantee.machine_symbol))
+        .any(|(_, guarantee)| {
+            source_machines.contains(&guarantee.machine_symbol)
+                && !(exact_guarded_payloadless
+                    && source_machines.as_slice() == [selection.machine]
+                    && guarantee.machine_symbol == selection.machine)
+        })
     {
         return unsupported(
             "outcome-specific guarantees require guarded exit and caller-arm lowering",
