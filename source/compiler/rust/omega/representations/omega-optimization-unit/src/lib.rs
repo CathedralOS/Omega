@@ -23,7 +23,13 @@ use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
+mod observation;
 mod rewrite;
+
+pub use observation::{
+    ObservationEventClass, ObservationKnowledge, PsiNodeObservation, PsiObservableEvent,
+    PsiObservationModel, reconstruct_psi_observation_model,
+};
 
 pub use rewrite::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
@@ -935,6 +941,32 @@ mod tests {
             first.functions[0].blocks[0].nodes[0].fuel[0].site,
             first.functions[0].blocks[0].nodes[1].fuel[0].site
         );
+    }
+
+    #[test]
+    fn observation_projection_keeps_external_events_and_semantic_accounting() {
+        let unit = reconstruct_psi_optimization_unit_seed(
+            &plan(),
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .unwrap();
+        let observations = reconstruct_psi_observation_model(&unit);
+
+        assert_eq!(observations.revision, unit.identity);
+        assert_eq!(observations.nodes.len(), 2);
+        assert!(observations.nodes[0].events.is_empty());
+        assert_eq!(observations.nodes[0].crash, ObservationKnowledge::No);
+        assert_eq!(observations.nodes[0].provenance.len(), 1);
+        assert_eq!(observations.nodes[0].fuel.len(), 1);
+        assert_eq!(observations.nodes[1].events.len(), 1);
+        assert_eq!(
+            observations.nodes[1].events[0].class,
+            ObservationEventClass::NormalExit
+        );
+        assert!(matches!(
+            observations.nodes[1].events[0].operation,
+            TerminalAbstractOperation::Return { .. }
+        ));
     }
 
     #[test]
