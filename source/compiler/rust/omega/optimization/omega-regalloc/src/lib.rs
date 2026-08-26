@@ -30,6 +30,10 @@ mod live_range_validate;
 mod model;
 mod post_allocation_manifest;
 mod selected_analysis_input;
+mod spill_choice_compute;
+mod spill_choice_identity;
+mod spill_choice_model;
+mod spill_choice_validate;
 mod validate;
 
 pub use allocation_legality_identity::terminal_allocation_legality_identity;
@@ -49,6 +53,9 @@ pub use model::*;
 pub use omega_register_model::*;
 pub use post_allocation_manifest::*;
 pub use selected_analysis_input::ValidatedTerminalSelectedAnalysis;
+pub use spill_choice_identity::terminal_spill_choice_identity;
+pub use spill_choice_model::*;
+pub use spill_choice_validate::validate_terminal_spill_choices;
 pub use validate::validate_terminal_liveness;
 
 use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
@@ -170,6 +177,44 @@ pub fn assign_terminal_register_homes(
         selected_keys,
     )?;
     validate_terminal_register_homes(
+        legality,
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
+}
+
+/// Select the deterministic recovery victim at the first supported local
+/// pressure point in each function. This deliberately does not materialize a
+/// spill, reload, rematerialization, stack slot, frame, or machine instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn choose_terminal_spill_victims(
+    legality: &ValidatedTerminalAllocationLegality,
+    ranges: &ValidatedTerminalLiveRanges,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    policy: TerminalSpillChoicePolicy,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedTerminalSpillChoices, TerminalSpillChoiceError> {
+    let plan = spill_choice_compute::compute_terminal_spill_choices(
+        legality,
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        policy,
+        budget,
+    )?;
+    validate_terminal_spill_choices(
         legality,
         ranges,
         register_environment,
