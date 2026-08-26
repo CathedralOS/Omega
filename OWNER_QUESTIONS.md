@@ -171,3 +171,45 @@ under the canonical root.
 - Tempting but wrong: add a no-op free manifest beside the privileged scoped
   build; that restores duplicate build roots rather than one authoritative
   entry.
+
+## Q5 — Fixed-array element cleanup order
+
+### Context
+
+Literal-length fixed arrays expose one canonical ownership path per element.
+Moving one literal-indexed element leaves every unselected sibling obligation
+live, and the cleanup plan must later dispose each remaining cleanup-bearing
+element exactly once. Records already clean structural fields in recursive
+reverse declaration order, but array elements are not declarations and the
+language guide assigns them no cleanup order.
+
+### Problem statement
+
+General fixed-array cleanup, including partial arrays with more than one live
+element, needs one deterministic semantic order before checked cleanup plans,
+fuel, proof traces, and native artifacts can agree. Choosing increasing or
+decreasing index order in the compiler would silently add language semantics.
+The bounded two-element slice with exactly one moved element and one residual
+does not expose this choice, but wider arrays and multiple residuals remain
+blocked on it.
+
+### Proposed direction
+
+Define literal array construction in increasing index order and structural
+cleanup in the reverse order of the live constructed elements: decreasing
+index, skipping moved elements. This matches record cleanup's reverse-source
+principle, makes partial cleanup a filtered suffix/order rather than a new
+schedule, and gives interpretation, fuel, and artifact replay one canonical
+sequence.
+
+### Alternates
+
+- Acceptable if iteration semantics should dominate: clean in increasing index
+  order, but state why arrays intentionally differ from reverse record-field
+  cleanup and pin construction-failure behavior to the same choice.
+- Acceptable if element order must be type-directed: require an explicit
+  collection-owned cleanup policy, but ordinary fixed arrays then need a
+  canonical default before they can contain cleanup-bearing elements.
+- Tempting but wrong: let each backend choose an order or treat order as
+  unobservable. Cleanup calls can carry effects, requirements, guarantees,
+  fuel, and diagnostics, so their sequence is semantic.
