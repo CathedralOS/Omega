@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-24. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-25. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -63,13 +63,16 @@ machine build(builder: &mut Build) {
 error in every reader, not an application in one and a broken package in
 another. The earlier `const PACKAGE: Package` literal — matched statically by a
 bespoke parser over roughly fifteen shape errors — is retired (settled
-2026-08-25). Identity is projected hermetically before build execution from
-exactly one direct root call whose receiver is the canonical `builder: &mut
-Build` parameter. Helpers, control flow, expression use, authored toolchain
-vocabulary, and dependency-dependent declarations reject. This keeps the
-surface ordinary Omega while making identity independent of build authority or
-resolved dependencies. Missing, duplicate, or non-canonical declarations
-reject. Directory and repository names are advisory only.
+2026-08-25). Project role is projected hermetically before build execution from
+direct root calls whose receiver is the canonical `builder: &mut Build`
+parameter: exactly one package or application declaration, or one or more
+workspace members. Mixed kinds, helpers, control flow, expression use, authored
+toolchain vocabulary, and dependency-dependent declarations reject. Package
+dependency projection consumes that same parsed role projection; a role-less
+file cannot produce dependencies or receive an automatic dependency edit. This
+keeps the surface ordinary Omega while making identity independent of build
+authority or resolved dependencies. Missing, duplicate, or non-canonical
+declarations reject. Directory and repository names are advisory only.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.
@@ -1828,10 +1831,11 @@ line, which freestanding builds already demonstrate is optional.
 The scoped filesystem executor and real/virtual filesystem modes are the live
 foundation. The Rust package crate now has reviewed production building blocks
 for immutable source custody, typed identity/closure, compiler handoff/review,
-row conflicts, restart-stable review baselines, and triage, but it is not yet an
-accepted admission implementation. Name-keyed locks, caller-constructed
-manifest JSON, mandatory caller-supplied names/aliases, fingerprint-only
-baselines, and free-form receipts survive only in quarantined crate tests.
+row conflicts, candidate-bound root-policy decisions, restart-stable review
+baselines, and triage, but it is not yet an accepted admission implementation.
+The name-keyed lock, caller-constructed manifest JSON, mandatory caller-supplied
+name/alias, fingerprint-only baseline, and free-form receipt prototypes are
+deleted rather than retained as a parallel test model.
 Legacy standalone compilation also retains a
 syntactic local-Path compatibility scanner that may skip malformed rows;
 package-aware compilation never consults it, and no admission path may treat it

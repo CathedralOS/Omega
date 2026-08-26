@@ -2398,8 +2398,7 @@ standard library by path.
       project all four real declarations through the public reader.
 - [ ] **Migrate project-root build files and enforce roles in every reader.**
       The declaration projector now rejects absence, but standalone compiler
-      build loading and dependency projection still tolerate role-less files,
-      and the dependency editor can synthesize a role-less build machine.
+      build loading still tolerates role-less files.
       Migrate actual corpus/canary/sample project roots to explicit application
       declarations, distinguish virtual build-vocabulary fragments from project
       manifests, then make dependency projection and editing consume the same
@@ -2413,6 +2412,17 @@ standard library by path.
       receiver names with `builder`; deliberately malformed build canaries need
       case-by-case expected-diagnostic preservation so a new missing-role error
       does not mask the behavior each canary exists to test.
+
+      Milestone 2026-08-25: package-side dependency projection now returns the
+      authoritative project role and direct dependency rows from one lexer/
+      parser tree. Immutable package-source binding consumes that combined
+      projection rather than reading `build.omg` once for identity and again for
+      dependencies. Public dependency-only projection still delegates to the
+      same combined reader. The editor therefore rejects role-less files and no
+      longer synthesizes a role-less build machine; malformed dependency
+      canaries retain their more specific diagnostics before the final role
+      gate. Standalone compiler loading and the broader positive-project corpus
+      migration remain.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

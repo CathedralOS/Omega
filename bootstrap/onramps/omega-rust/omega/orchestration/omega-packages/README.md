@@ -235,8 +235,10 @@ wall-clock bound.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
-are projected without executing build code. Known-host lineage normalizes
-GitHub and hosted GitLab HTTPS/SSH clone spellings; GitLab nested namespace
+are projected without executing build code. Role and dependency rows come from
+one parsed `build.omg` projection; absence is not an implicit project kind, and
+the dependency editor cannot synthesize a role-less build machine. Known-host
+lineage normalizes GitHub and hosted GitLab HTTPS/SSH clone spellings; GitLab nested namespace
 paths remain exact and case-sensitive, while self-hosted and unknown hosts
 retain transport distinctions. Workspace-member resolution binds
 the workspace root lineage to a normalized member-relative path, verifies the

@@ -226,15 +226,13 @@ fn plan_addition_from_source(
     let digest = source_digest(&source);
     let statement = canonical_dependency_statement(request);
     let Some(layout) = build_layout(&source)? else {
-        let replacement = append_build_machine(&source, &statement);
-        return validated_automatic_addition(
+        return Ok(manual_patch(
             build_path,
             digest,
-            replacement,
-            requests,
-            request,
+            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
+            None,
             statement,
-        );
+        ));
     };
     let Some(layout) = layout else {
         return Ok(manual_patch(
@@ -344,7 +342,7 @@ fn plan_replacement_from_source(
         return Ok(manual_patch(
             build_path,
             digest,
-            BuildDependencyManualReason::AcceptedRequestMissing,
+            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
             Some(current_statement),
             proposed_statement,
         ));
@@ -635,24 +633,6 @@ fn insert_statement(source: &str, layout: &BuildLayout, statement: &str) -> Opti
     Some(replacement)
 }
 
-fn append_build_machine(source: &str, statement: &str) -> String {
-    let newline = if source.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let separator = if source.is_empty() {
-        String::new()
-    } else if source.ends_with(newline) {
-        newline.to_owned()
-    } else {
-        format!("{newline}{newline}")
-    };
-    format!(
-        "{source}{separator}machine build(builder: &mut Build) {{{newline}    {statement}{newline}}}{newline}"
-    )
-}
-
 fn line_indent(source: &str, offset: usize) -> Option<&str> {
     let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
     let prefix = &source[line_start..offset];
@@ -699,15 +679,21 @@ mod tests {
         root
     }
 
+    fn application_build(statements: &str) -> String {
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"dependency-edit-probe\");\n{statements}}}\n"
+        )
+    }
+
     #[test]
     fn adds_to_empty_canonical_build_without_mutating_input() {
-        let source = "machine build(builder: &mut Build) {}\n".to_owned();
+        let source = application_build("");
         let replacement = automatic(
             plan_addition_from_source(PathBuf::from("build.omg"), source.clone(), &path("../math"))
                 .expect("plan addition"),
         );
 
-        assert_eq!(source, "machine build(builder: &mut Build) {}\n");
+        assert_eq!(source, application_build(""));
         assert_eq!(
             extract_from_source(replacement.replacement_source()).expect("project replacement"),
             vec![path("../math")]
@@ -720,23 +706,20 @@ mod tests {
     }
 
     #[test]
-    fn creates_a_build_machine_when_the_valid_file_has_none() {
+    fn rejects_dependency_edits_without_an_explicit_project_role() {
         let source = "target windows_x64 { }\n".to_owned();
-        let replacement = automatic(
-            plan_addition_from_source(PathBuf::from("build.omg"), source.clone(), &path("vendor"))
-                .expect("plan addition"),
-        );
-
-        assert!(replacement.replacement_source().starts_with(&source));
-        assert_eq!(
-            extract_from_source(replacement.replacement_source()).expect("project replacement"),
-            vec![path("vendor")]
-        );
+        assert!(matches!(
+            plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
+            Err(BuildDependencyEditError::InvalidBuild(
+                DependencyProjectionError::BuildDeclaration(error)
+            )) if matches!(*error, crate::declaration::BuildDeclarationError::MissingBuildDeclaration)
+        ));
     }
 
     #[test]
     fn appends_after_existing_build_work_and_preserves_it() {
         let source = r#"machine build(builder: &mut Build) {
+    builder.application("dependency-edit-probe");
     builder.target(Target::Host);
 }
 "#
@@ -755,7 +738,7 @@ mod tests {
 
     #[test]
     fn noncanonical_signature_yields_generated_manual_patch() {
-        let source = "machine build(builder: &mut Build, profile: u32) {}\n".to_owned();
+        let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency-edit-probe\");\n}\n".to_owned();
         let plan = plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor"))
             .expect("plan addition");
         let BuildDependencyEditPlan::Manual(patch) = plan else {
@@ -777,6 +760,7 @@ mod tests {
         let accepted = git("https://example.test/repo.git", "old");
         let candidate = git("https://example.test/repo.git", "new");
         let source = r#"machine build(builder: &mut Build) {
+    builder.application("dependency-edit-probe");
     builder.depend(
         Source::Git {
             revision: "old",
@@ -802,6 +786,7 @@ mod tests {
         let accepted = path("vendor");
         let candidate = path("vendor-next");
         let source = r#"machine build(builder: &mut Build) {
+    builder.application("dependency-edit-probe");
     builder.depend(/* retained intent */ Source::Path { location: "vendor" });
 }
 "#
@@ -827,7 +812,7 @@ mod tests {
             revision: "main\rnext".to_owned(),
         };
         let statement = canonical_dependency_statement(&request);
-        let source = format!("machine build(builder: &mut Build) {{\n    {statement}\n}}\n");
+        let source = application_build(&format!("    {statement}\n"));
 
         assert!(!statement.contains("\n// injected"));
         assert_eq!(
@@ -839,10 +824,10 @@ mod tests {
     #[test]
     fn exact_existing_request_is_unchanged() {
         let request = path("vendor");
-        let source = format!(
-            "machine build(builder: &mut Build) {{\n    {}\n}}\n",
+        let source = application_build(&format!(
+            "    {}\n",
             canonical_dependency_statement(&request)
-        );
+        ));
 
         assert_eq!(
             plan_addition_from_source(PathBuf::from("build.omg"), source, &request)
@@ -855,8 +840,8 @@ mod tests {
     fn public_file_planner_binds_the_expected_digest_without_writing() {
         let root = fixture_root();
         let build_path = root.join(BUILD_FILE_NAME);
-        let source = "machine build(builder: &mut Build) {}\n";
-        fs::write(&build_path, source).expect("write fixture build");
+        let source = application_build("");
+        fs::write(&build_path, &source).expect("write fixture build");
 
         let replacement = automatic(
             plan_dependency_addition(&root, &path("vendor")).expect("plan file addition"),
@@ -867,7 +852,7 @@ mod tests {
             source
         );
         assert_eq!(replacement.build_path(), build_path);
-        assert_eq!(replacement.expected_sha256(), &source_digest(source));
+        assert_eq!(replacement.expected_sha256(), &source_digest(&source));
         fs::remove_dir_all(root).expect("remove fixture");
     }
 }
