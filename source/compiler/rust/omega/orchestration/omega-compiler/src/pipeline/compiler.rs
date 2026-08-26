@@ -83,16 +83,6 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     compile_request(CompileRequest::new(options))
 }
 
-/// Compile using a complete reconciled package graph. Dependency imports are
-/// resolved only through `package_inputs`; authored `build.omg` dependency
-/// rows are not scanned or combined with this trusted handoff.
-pub fn compile_with_packages(
-    options: CompileOptions,
-    package_inputs: PackageCompilationInputs,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_request(CompileRequest::new(options).with_package_inputs(package_inputs))
-}
-
 /// Test-harness seam for outer schedulers that run independent compilations
 /// concurrently. Production compilation keeps using host parallelism; a
 /// bounded corpus runner can select one worker here and avoid multiplying its
@@ -176,41 +166,10 @@ pub fn compile_with_test_entry_and_artifact_policy(
     })
 }
 
-/// Compile with deployment-owned executable-TCB admissions and profile policy.
-///
-/// The policy is evaluated only after exact provider selection and before any
-/// emitted artifact is installed in the build directory.
-pub fn compile_with_policy(
-    options: CompileOptions,
-    executable_tcb_policy: ExecutableTcbBuildPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    // Run the whole pipeline on a thread with a large explicit stack. The
-    // recursive-descent parser and the recursive tree/layout walks descend once
-    // per nesting level with heavy per-level frames (a full operator-precedence
-    // chain), so on the host's default stack -- as small as ~1 MiB on Windows --
-    // even modestly nested input overflows the stack before the parser's depth
-    // guard (`MAX_NESTING_DEPTH`) can reject it. A large stack guarantees the
-    // guard is what fires, turning pathological nesting into a clean diagnostic
-    // instead of a crash. The size is only reserved address space; pages commit
-    // lazily, so ordinary inputs pay nothing. A genuine panic (a compiler bug)
-    // is re-raised on the calling thread, preserving today's crash-on-bug
-    // behavior.
-    compile_request(CompileRequest::new(options).with_executable_tcb_policy(executable_tcb_policy))
-}
-
-/// Package-aware compilation with an explicit executable-TCB policy.
-pub fn compile_with_policy_and_packages(
-    options: CompileOptions,
-    executable_tcb_policy: ExecutableTcbBuildPolicy,
-    package_inputs: PackageCompilationInputs,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_request(
-        CompileRequest::new(options)
-            .with_executable_tcb_policy(executable_tcb_policy)
-            .with_package_inputs(package_inputs),
-    )
-}
-
+/// Run the whole pipeline on a thread with a large explicit stack. Recursive
+/// parsing and representation walks must reach their explicit depth guards on
+/// hosts whose default thread stacks are small. Pages commit lazily, and a
+/// genuine compiler panic is resumed on the calling thread.
 pub(super) fn run_on_compile_thread<T>(work: impl FnOnce() -> T + Send + 'static) -> T
 where
     T: Send + 'static,

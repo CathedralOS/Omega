@@ -93,11 +93,10 @@ pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt,
+    ExecutablePublicationReceipt, TerminalComponentDeploymentReportError,
 };
 pub use compiler::{
-    CompileRequest, compile, compile_request, compile_with_packages, compile_with_policy,
-    compile_with_policy_and_packages, compile_with_test_entry,
+    CompileRequest, compile, compile_request, compile_with_test_entry,
     compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,

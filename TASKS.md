@@ -1929,12 +1929,13 @@ Remaining:
   real `omega` and `omega-run` command-line callers now construct that request
   directly, including their observation policy. The obsolete
   `compile_with_artifact_policy` permutation is removed; its differential and
-  report canaries construct the typed request too. The remaining public
-  compatibility wrappers cover package/policy migration or explicit harness
-  controls; test entry overrides and worker ceilings stay on separate harness
-  paths and cannot enter the production request. Requested-product stopping,
-  the checked/terminal route, output destination custody, and removal of the
-  remaining compatibility wrappers remain open.
+  report canaries construct the typed request too. Package-aware integration
+  now does the same, and the callsite-free package and executable-policy
+  permutations are removed. The remaining `compile_with_*` operations are
+  explicit entry/worker harness controls; they cannot enter the production
+  request. The legacy `compile(CompileOptions)` migration entry,
+  requested-product stopping, the checked/terminal route, output destination
+  custody, and removal of the harness permutations remain open.
 
   Restore the driver contract:
 
