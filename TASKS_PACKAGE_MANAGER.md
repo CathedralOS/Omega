@@ -247,9 +247,11 @@ complete.
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
-  - the selected Git path/content observation does not certify path ownership,
-    the executable's provenance, its already loaded image, or executables that
-    Git may launch from the fixed helper path;
+  - on Unix the selected Git executable now has resolver/root ownership,
+    non-writable/non-set-id executable mode, and safe owned ancestry checks;
+    macOS ACL custody, Windows executable ownership/DACL custody, provenance,
+    the already loaded image, and executables Git may launch from the fixed
+    helper path remain;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
     hostile Unix process that deliberately changes session; cleanup has its own
@@ -314,6 +316,17 @@ complete.
   instead of silently splitting synchronization across old and new lock
   objects. This does not claim handle-relative cache custody or protection
   against a same-user replacement after the checked observation.
+
+  Milestone 2026-08-25: the Unix Git executor now rejects a selected binary
+  unless its canonical regular file is owned by root or the resolver's
+  effective user, executable, non-set-id, and not group/other-writable. Every
+  concrete ancestor must likewise be root/resolver-owned and may be externally
+  writable only with sticky-entry protection. These conditions are rechecked
+  before and after launches alongside the existing inode/content observation;
+  the Git cache policy advanced to v9 so weaker fetch custody is not silently
+  reused. This closes ordinary cross-user path ownership on Unix, not same-user
+  replacement, macOS ACL custody, executable provenance, loaded-image identity,
+  helper custody, Windows DACL policy, or native confinement.
 
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
