@@ -4,9 +4,12 @@ use omega_optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, OptimizationWorkBudget,
 };
+use omega_optimization_policy::{
+    BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
+};
 use omega_optimization_unit::PsiOptimizationUnit;
 use omega_optimization_validation::{
-    OptimizationUnitValidationError, validate_integer_evaluation_candidate,
+    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_integer_evaluation_candidate,
     validate_verified_psi_optimization_unit,
 };
 use omega_terminal_psi_to_abstract_operations::{
@@ -69,6 +72,7 @@ pub struct OptimizationRun {
     pub session: VerifiedPsiOptimizationSession,
     pub commits: Vec<PsiOptimizationCommit>,
     pub usage: OptimizationRunUsage,
+    pub decisions: BaselineDecisionLog,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +90,7 @@ pub enum OptimizationRunError {
         current: u64,
     },
     RegistryCoverageMismatch,
+    PolicySelectionMissing(OptimizationCandidateIdentity),
 }
 
 impl std::fmt::Display for OptimizationRunError {
@@ -103,7 +108,7 @@ pub fn run_psi_registry(
 ) -> Result<OptimizationRun, OptimizationRunError> {
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
-    let (unit, commits, usage) = run_unit(session.unit, registry, budget)?;
+    let (unit, commits, usage, decisions) = run_unit(session.unit, registry, budget)?;
     Ok(OptimizationRun {
         session: VerifiedPsiOptimizationSession {
             input: session.input,
@@ -111,6 +116,7 @@ pub fn run_psi_registry(
         },
         commits,
         usage,
+        decisions,
     })
 }
 
@@ -123,6 +129,7 @@ fn run_unit(
         PsiOptimizationUnit,
         Vec<PsiOptimizationCommit>,
         OptimizationRunUsage,
+        BaselineDecisionLog,
     ),
     OptimizationRunError,
 > {
@@ -130,10 +137,14 @@ fn run_unit(
     let mut usage = OptimizationRunUsage::default();
     let mut commits = Vec::new();
     let mut dispatched = BTreeSet::new();
+    let mut policy = BaselinePolicy::default();
     loop {
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
         let previous_measure = exact_integer_operation_count(&unit);
-        let mut chosen = None;
+        let mut chosen: Option<(
+            omega_optimization_unit::PsiRewriteCandidate,
+            ValidatedPsiRewrite,
+        )> = None;
         for rule in registry.iter() {
             let contract = rule.contract();
             dispatched.insert(contract.identity());
@@ -148,7 +159,7 @@ fn run_unit(
                 .into_iter()
                 .cloned()
                 .collect::<Vec<_>>();
-            let mut candidates = rule
+            let candidates = rule
                 .propose(&unit, RuleAnalysisView::new(&products))
                 .map_err(|error| OptimizationRunError::Proposal {
                     rule: contract.identity(),
@@ -157,27 +168,48 @@ fn run_unit(
             for _ in &candidates {
                 charge(&mut usage.candidates, budget.candidates(), "candidates")?;
             }
-            candidates.retain(|candidate| candidate.predicted_cost_delta() < 0);
-            candidates.sort_by_key(|candidate| candidate.identity());
-            if let Some(candidate) = candidates.into_iter().next() {
-                chosen = Some(candidate);
-                break;
+            let mut validated = Vec::with_capacity(candidates.len());
+            for candidate in candidates {
+                charge(
+                    &mut usage.validation_steps,
+                    budget.validation_steps(),
+                    "validation steps",
+                )?;
+                let output = validate_integer_evaluation_candidate(&unit, &candidate)
+                    .map_err(OptimizationRunError::CandidateValidation)?;
+                validated.push((candidate, output));
+            }
+            if validated.is_empty() {
+                continue;
+            }
+            let outcome = policy.choose(
+                unit.identity,
+                validated
+                    .iter()
+                    .map(|(candidate, _)| ValidatedCandidateSummary {
+                        candidate: candidate.identity(),
+                        predicted_cost_delta: candidate.predicted_cost_delta(),
+                    }),
+            );
+            match outcome {
+                BaselineDecisionOutcome::Choose(identity) => {
+                    let index = validated
+                        .iter()
+                        .position(|(candidate, _)| candidate.identity() == identity)
+                        .ok_or(OptimizationRunError::PolicySelectionMissing(identity))?;
+                    chosen = Some(validated.swap_remove(index));
+                    break;
+                }
+                BaselineDecisionOutcome::Skip(_) => continue,
             }
         }
-        let Some(candidate) = chosen else {
+        let Some((candidate, validated)) = chosen else {
             if dispatched.len() != registry.len() {
                 return Err(OptimizationRunError::RegistryCoverageMismatch);
             }
-            return Ok((unit, commits, usage));
+            return Ok((unit, commits, usage, policy.finish()));
         };
-        charge(
-            &mut usage.validation_steps,
-            budget.validation_steps(),
-            "validation steps",
-        )?;
         let input_identity = unit.identity;
-        let validated = validate_integer_evaluation_candidate(&unit, &candidate)
-            .map_err(OptimizationRunError::CandidateValidation)?;
         let validator = validated.validator();
         let candidate_identity = validated.candidate();
         let next = validated.into_unit();
@@ -322,7 +354,8 @@ mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        let (output, commits, usage) = run_unit(unit.clone(), &registry, budget(8)).unwrap();
+        let (output, commits, usage, decisions) =
+            run_unit(unit.clone(), &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(commits[0].input, unit.identity);
         assert_eq!(commits[0].output, output.identity);
@@ -330,6 +363,11 @@ mod tests {
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
         assert_eq!(usage.rule_evaluations, 2);
+        assert_eq!(decisions.records.len(), 1);
+        assert_eq!(
+            decisions.records[0].outcome,
+            BaselineDecisionOutcome::Choose(commits[0].candidate)
+        );
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant { .. }
