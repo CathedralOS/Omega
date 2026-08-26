@@ -1,3 +1,4 @@
-machine build(b: &mut Build) {
-    b.depend("units", path("owner"));
+machine build(builder: &mut Build) {
+    builder.application("canonical-qualification-third-party");
+    builder.depend("units", path("owner"));
 }

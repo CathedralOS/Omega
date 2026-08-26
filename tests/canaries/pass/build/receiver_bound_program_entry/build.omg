@@ -2,5 +2,6 @@ target windows_x64 {
 }
 
 machine build(builder: &mut Build) {
+    builder.application("receiver-bound-program-entry");
     builder.roots.bind(windows_x86_64::ProgramEntry, Application::launch);
 }

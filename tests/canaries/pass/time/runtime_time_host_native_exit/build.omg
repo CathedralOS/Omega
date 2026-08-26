@@ -1,6 +1,7 @@
 // Windows time-host canary: select only the target whose calibration it asserts.
 target windows_x64 { }
 
-machine build(b: &mut Build) {
-    b.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("runtime-time-host-native-exit");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

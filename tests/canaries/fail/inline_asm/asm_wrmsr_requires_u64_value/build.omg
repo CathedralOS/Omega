@@ -1,3 +1,4 @@
-machine build(b: &mut Build) {
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("asm-wrmsr-requires-u64-value");
+    builder.freestanding = true;
 }

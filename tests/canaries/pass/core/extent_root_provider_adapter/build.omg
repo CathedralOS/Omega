@@ -1,4 +1,5 @@
-machine build(b: &mut Build) {
-    b.accept_boundary<ExtentRootProvider>();
-    b.select_provider<ExtentRootProvider, ExtentRootProviderImpl>();
+machine build(builder: &mut Build) {
+    builder.application("extent-root-provider-adapter");
+    builder.accept_boundary<ExtentRootProvider>();
+    builder.select_provider<ExtentRootProvider, ExtentRootProviderImpl>();
 }

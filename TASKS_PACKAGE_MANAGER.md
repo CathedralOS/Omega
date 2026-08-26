@@ -2507,6 +2507,19 @@ standard library by path.
       canaries remain the next mechanical cohort; malformed build diagnostics,
       target-only vocabulary fragments, frozen bootstrap inputs, and the five
       scoped roots remain deliberately separate.
+
+      Milestone 2026-08-26: 1,094 ordinary compiler-canary roots now likewise
+      declare explicit application roles and use the canonical `builder`
+      receiver. One corpus-level package-reader test pins all 1,115 canary
+      build roots, the migrated declarations, and 21 explicit exceptions. The
+      exceptions are 11 malformed build diagnostics, five Q4-scoped roots,
+      four target-only vocabulary fragments, and the main-source `Build`
+      collision canary. That last canary remains role-less because standalone
+      compilation currently lets an authored main-source `Build` shadow the
+      toolchain build vocabulary; source-custodied resolution must make the
+      root build entry's `Build` unambiguously toolchain-owned without making
+      the main-source `Build` special. Treating `application` as a magic
+      evaluator no-op would mask the collision and is not an acceptable fix.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

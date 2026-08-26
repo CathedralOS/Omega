@@ -1,3 +1,4 @@
-machine build(b: &mut Build) {
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("asm-read-cr3-requires-u64-destination");
+    builder.freestanding = true;
 }

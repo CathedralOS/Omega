@@ -1,6 +1,7 @@
 // Darwin authored-import runtime canary: select the exact supported entry.
 target macos_arm64 { }
 
-machine build(b: &mut Build) {
-    b.roots.bind(macos_arm64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("runtime-import-call-argument-exit");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

@@ -2,5 +2,6 @@ target linux_x64 {
 }
 
 machine build(builder: &mut Build) {
+    builder.application("sysv-small-aggregate-import-compile");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

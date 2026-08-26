@@ -28,6 +28,10 @@ real package fixture demonstrates an irreducible external contract.
 - All executable roots under `samples/` declare explicit application roles and
   use the canonical `builder` receiver. A repository canary discovers the full
   sample population and projects each role through this package reader.
+- The ordinary compiler-canary corpus is also explicit except where a test is
+  deliberately malformed, contains only target vocabulary, exercises a scoped
+  build root, or pins the unresolved main-source `Build` collision. Those
+  exceptions are enumerated by the same repository canary rather than inferred.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.

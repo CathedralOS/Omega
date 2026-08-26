@@ -1,5 +1,6 @@
-machine build(b: &mut Build) {
-    b.require_wire_compatibility<
+machine build(builder: &mut Build) {
+    builder.application("wire-compatibility-demand-report");
+    builder.require_wire_compatibility<
         RollingChannel,
         MessageLineage,
         LocalMessage,

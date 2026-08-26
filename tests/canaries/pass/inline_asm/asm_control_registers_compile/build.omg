@@ -1,3 +1,4 @@
-machine build(b: &mut Build) {
-    b.freestanding = true;
+machine build(builder: &mut Build) {
+    builder.application("asm-control-registers-compile");
+    builder.freestanding = true;
 }

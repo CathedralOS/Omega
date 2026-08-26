@@ -1,4 +1,5 @@
-machine build(b: &mut Build) {
-    b.accept_boundary<ClaimProvider>();
-    b.select_provider<ClaimProvider, ClaimProviderImpl>();
+machine build(builder: &mut Build) {
+    builder.application("carry-permission-provider-adapter");
+    builder.accept_boundary<ClaimProvider>();
+    builder.select_provider<ClaimProvider, ClaimProviderImpl>();
 }

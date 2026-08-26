@@ -1,6 +1,7 @@
 target linux_x64 { }
 
-machine build(b: &mut Build) {
-    b.select_provider<Scheduler, SchedulerProvider>();
-    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("provider-receiver-progress-installation");
+    builder.select_provider<Scheduler, SchedulerProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

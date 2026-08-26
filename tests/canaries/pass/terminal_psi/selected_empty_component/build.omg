@@ -1,5 +1,6 @@
 target linux_x64 { }
 
-machine build(b: &mut Build) {
-    b.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+machine build(builder: &mut Build) {
+    builder.application("selected-empty-component");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
