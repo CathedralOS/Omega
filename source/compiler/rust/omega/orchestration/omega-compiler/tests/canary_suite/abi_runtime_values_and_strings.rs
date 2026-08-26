@@ -1,5 +1,11 @@
 use super::*;
 
+fn application_target_build(target: &str) -> String {
+    format!(
+        "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"cross-target-canary\");\n}}\n"
+    )
+}
+
 #[test]
 fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     let canary = pass_canary("capabilities/aarch64_scalar_float_import_compile");
@@ -12,8 +18,11 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile_with_auxiliary_artifacts(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -55,8 +64,11 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile_with_auxiliary_artifacts(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -125,8 +137,11 @@ fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -162,8 +177,11 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -199,8 +217,11 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -234,8 +255,11 @@ fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -269,8 +293,11 @@ fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -305,8 +332,11 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     let out_dir = scratch.join("out");
     fs::create_dir_all(&src_dir).expect("scratch source directory");
     fs::copy(canary.join("main.omg"), src_dir.join("main.omg")).expect("copy canary");
-    fs::write(src_dir.join("build.omg"), "target macos_arm64 {\n}\n")
-        .expect("write macos_arm64 target manifest");
+    fs::write(
+        src_dir.join("build.omg"),
+        application_target_build("macos_arm64"),
+    )
+    .expect("write macos_arm64 target manifest");
 
     compile_with_auxiliary_artifacts(CompileOptions {
         root_path: src_dir.join("main.omg"),
@@ -2840,8 +2870,11 @@ fn bounded_carrier_regressions_compile_on_aarch64() {
         fs::create_dir_all(&source).expect("AArch64 carrier scratch source directory");
         fs::copy(canary.join("main.omg"), source.join("main.omg"))
             .expect("copy carrier canary into AArch64 scratch source");
-        fs::write(source.join("build.omg"), "target linux_arm64 {\n}\n")
-            .expect("write AArch64 carrier target manifest");
+        fs::write(
+            source.join("build.omg"),
+            application_target_build("linux_arm64"),
+        )
+        .expect("write AArch64 carrier target manifest");
         compile(CompileOptions {
             root_path: source.join("main.omg"),
             build_dir: Some(scratch.join("out")),
