@@ -28,7 +28,7 @@ checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
 
-The closure has 12 source units, 115 root items, 178,366 source bytes in total,
+The closure has 12 source units, 115 root items, 178,429 source bytes in total,
 and a largest source unit of 78,952 bytes. Its root items are 24 data
 declarations, 76 machines, four targets, one trait, and ten imports. The machine
 surface includes 20 target-qualified machines, 18 `satisfies` clauses, 16
@@ -41,7 +41,7 @@ The largest observed compositional resources are:
 
 | Resource | Observed maximum | Provisional general ceiling |
 | --- | ---: | ---: |
-| source units / total bytes / bytes per unit | 12 / 178,366 / 78,952 | 16 / 262,144 / 131,072 |
+| source units / total bytes / bytes per unit | 12 / 178,429 / 78,952 | 16 / 262,144 / 131,072 |
 | root items / data members / variant payload fields | 115 / 42 / 3 | 128 / 64 / 4 |
 | machine states / state parameters / state statements | 64 / 11 / 43 | 128 / 16 / 64 |
 | call arguments / static arguments / transition arguments | 10 / 2 / 5 | 16 / 2 / 8 |
@@ -69,7 +69,7 @@ capacity remain separate gates.
 | state machines, scalar state parameters, mutation, and calls | every lexical scan and hosted adapter loop | retain candidate; branching value-machine results are deliberately unnecessary |
 | explicit result fields for branching operations | bounded appends and lexical predicates | retain candidate source convention pending general bridge call-cost evidence |
 | boundary traits and target-selected realizations | hosted byte input and process exit | retain candidate for the product source forms actually used; do not confuse this Omega source facility with Delta's separately sealed bridge-host interface |
-| static provider path arguments | sealed `select_provider<Console, ConsoleNativeProvider>` calls in the transitive console closure | measure against a non-generic sealed provider binding; this checkpoint contains no general generic declarations and does not admit them by implication |
+| static provider path arguments | the product build directly selects `ConsoleNativeProvider` for `Console`; the target console closure carries the same sealed selection | measure against a non-generic sealed provider binding; this checkpoint contains no general generic declarations and does not admit them by implication |
 | generated ordinary-Omega data | Unicode XID range arrays | retain generated-source closure rules; generator and external data stay pinned inputs |
 | propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally for this checkpoint; final disposition belongs to the complete source/bridge join |
 | termination/ranking clauses | one ranking clause | retain candidate; ranking is executable compiler control evidence and must not be swept into the proof-surface exclusion |

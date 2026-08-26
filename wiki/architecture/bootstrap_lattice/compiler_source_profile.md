@@ -424,7 +424,7 @@ establishes the implementation and assurance cost.
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
 | boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface; a one-requirement fixture measures the relation but does not establish complete conformance for the six-requirement product `Console` |
-| static provider path arguments and default selection | measure from checkpoint 000001; exact structural carrier closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; its reduced `Console` has only `exit_process`, so it cannot prove the complete product provider plan, and the product's current `Owner::provider_defaults` declaration convention still needs a normative source ruling or refactor to the specified `Build::select_provider` form; semantic selection, realization, lowering, admission, and authority remain open, and the checkpoint is not evidence for general generics |
+| static provider path arguments and default selection | measure from checkpoint 000001; exact structural carrier closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; its reduced `Console` has only `exit_process`, so it cannot prove the complete product provider plan. The product build now directly selects its complete provider with the specified `Build::select_provider<Console, ConsoleNativeProvider>` form and no longer relies observably on the compatibility `Owner::provider_defaults` convention; semantic realization, lowering, admission, and authority remain open, and the checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
 | basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
 | concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
@@ -489,11 +489,13 @@ The OMGCOMP2 provider fixture deliberately reduces `Console` to one requirement.
 It may support a bounded requirement/realization/call-resolution witness, but
 the real standard-library trait contains six requirements and selection admits
 only a complete candidate. The fixture therefore cannot establish product
-provider closure by itself. In addition, the language guide specifies explicit
-`Build::select_provider<Service, Provider>` overrides and target-package
-defaults, but not the current product source's `Owner::provider_defaults`
-declaration convention. Bootstrap work must preserve that distinction instead
-of elevating Rust on-ramp recognition rules into Omega semantics.
+provider closure by itself. Checkpoint 000001 now carries the exact explicit
+`Build::select_provider<Service, Provider>` selection in the product build.
+Target-package sources still contain the compatibility
+`Owner::provider_defaults` convention, which the language guide does not
+specify; bootstrap work must ignore that suffix as authority and preserve the
+distinction instead of elevating Rust on-ramp recognition rules into Omega
+semantics.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
