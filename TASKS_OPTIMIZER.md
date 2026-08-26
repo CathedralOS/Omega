@@ -140,7 +140,7 @@ These facts constrain the work below.
 - `omega-optimization-core` now owns frontend- and encoder-independent stable
   identities, rule contracts, ordered analysis/invalidation sets, safety and
   reason vocabularies, hard work budgets, candidate verdicts, and canonical
-  decision/pass manifest rows. Decision rows use a self-authenticating v3 codec:
+  decision/pass manifest rows. Decision rows use a self-authenticating v4 codec:
   identity is derived from the input revision, candidate, rule, verdict,
   consumed analyses, a canonical duplicate-free typed fact-reference set, and
   optional validator, then recomputed during decode. Applied decisions cannot
@@ -148,7 +148,10 @@ These facts constrain the work below.
   unknown fact kinds, and reordered/duplicate facts reject. The Psi pass
   manager projects unary/binary scalar witnesses into these rows, including
   independently reconstructed propagated block-parameter facts and admitted
-  operation-obligation facts consumed by proof-certified folds.
+  operation-obligation facts consumed by proof-certified folds. The typed fact
+  vocabulary can now also name an exact verifier-derived ownership-frontier
+  identity. No rule consumes that capability yet; adding the reference does not
+  broaden its source-site validity region.
 - `omega-optimization-unit` now deterministically reconstructs explicit blocks,
   scalar definitions/uses, conservative effect links, structural roots,
   ownership events, literal facts, source provenance, and separately identified
@@ -239,6 +242,10 @@ These facts constrain the work below.
   commit even though the underlying verifier catalog is immutable. No rewrite
   consumes these facts yet; current-region/path applicability remains an open
   semantic-analysis task rather than being inferred from a removed source site.
+  The manifest fact-reference codec has a distinct typed
+  `OwnershipFrontierFactIdentity` row, so a future borrow-aware rule can record
+  the exact capability it used without confusing it with a scalar or admitted
+  obligation fact.
 - The Psi optimizer now also has immutable compilation-local rule registries.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set

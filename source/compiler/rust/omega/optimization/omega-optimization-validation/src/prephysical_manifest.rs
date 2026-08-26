@@ -639,6 +639,9 @@ fn render_fact(fact: OptimizationFactReference) -> String {
         OptimizationFactReference::AcceptedObligation(identity) => {
             format!("accepted-obligation:{}", hex(&identity.bytes()))
         }
+        OptimizationFactReference::OwnershipFrontier(identity) => {
+            format!("ownership-frontier:{}", hex(&identity.bytes()))
+        }
     }
 }
 
@@ -646,5 +649,21 @@ fn render_provenance(provenance: PsiProvenance) -> String {
     match provenance {
         PsiProvenance::Operation(operation) => format!("operation:{}", operation.get()),
         PsiProvenance::Edge(edge) => format!("edge:{}", edge.get()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn human_projection_names_ownership_frontier_facts_explicitly() {
+        let identity = omega_optimization_core::OwnershipFrontierFactIdentity::from_canonical_bytes(
+            b"ownership-render-test",
+        );
+        assert_eq!(
+            render_fact(OptimizationFactReference::OwnershipFrontier(identity)),
+            format!("ownership-frontier:{}", hex(&identity.bytes()))
+        );
     }
 }

@@ -450,6 +450,10 @@ revision is part of the analysis region, the manager always invalidates and
 rebinds the product across a commit, even when no rule declares a mutation of
 the underlying immutable catalog. It is not yet a current-CFG ownership solver,
 and no rewrite may broaden a source-site snapshot into a function-wide fact.
+The decision-manifest vocabulary has a separate typed ownership-frontier fact
+reference, allowing a future rule to retain the exact consumed capability and
+its domain-separated identity. This representational support does not itself
+make any ownership rewrite applicable.
 
 Literal-derived constants and ranges name the exact supporting Psi operation
 and are valid only for their `(unit revision, machine, value)` region.
