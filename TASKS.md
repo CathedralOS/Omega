@@ -8400,13 +8400,28 @@ boundary without its corresponding checked law.
   normalized identity, and relocation site; any target drift, string-backed or
   unused input, or canonical-request failure returns the original image and
   interpreter unchanged. These carriers grant no loader, section, publication,
-  or admission authority. Runnable ELF emission remains fail closed before
-  section planning or byte mutation: `PT_INTERP`/`PT_DYNAMIC`, `.dynstr`,
-  `.dynsym`, the selected symbol-hash table, `.gnu.version`/`.gnu.version_r`,
-  `.dynamic`, the selected GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`,
-  architecture-specific relocation lowering, complete load/program-header
-  layout, and independent final-byte replay remain unimplemented. Partial
-  symbol-version sections would not constitute a dynamic image.
+  or admission authority. The first complete address-free table plan now
+  consumes that preflight and independently validates an exact NUL-terminated
+  `PT_INTERP` payload, canonical raw-byte `.dynstr`, the reserved undefined
+  `.dynsym` row plus one sorted undefined global function row per import, one
+  concrete System V `.hash`, parallel `.gnu.version`, grouped
+  `.gnu.version_r`, private import-to-symbol/version indexes, and the exact
+  `DT_NEEDED` string-index roster. Exact byte deduplication and stable sorting
+  make table contents and their fingerprint independent of import insertion
+  order. Its invariants come from the primary System V ABI [program-header
+  rules](https://gabi.xinuos.com/elf/07-pheader.html), [string-table
+  rules](https://gabi.xinuos.com/elf/04-strtab.html), [symbol-table
+  rules](https://gabi.xinuos.com/elf/05-symtab.html), and [dynamic-hash
+  rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), plus the [LSB
+  symbol-version requirement
+  format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
+  Runnable ELF emission remains fail closed before byte mutation: serialization
+  and section-header placement, `PT_INTERP` program-header placement,
+  `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, the selected
+  GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific
+  relocation lowering, complete load/program-header layout, image mutation,
+  and independent final-byte replay remain unimplemented. A validated
+  address-free table plan does not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

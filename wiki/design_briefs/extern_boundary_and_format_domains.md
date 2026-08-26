@@ -146,11 +146,31 @@ handle, raw locator, normalized identity, and relocation site. Target drift,
 string-backed or unused interpreter input, and canonical-request failure return
 the original image and interpreter unchanged. These carriers grant no loader,
 section, publication, or admission authority. Runnable dynamic emission stays
-fail closed: `PT_INTERP`/`PT_DYNAMIC`, `.dynstr`, `.dynsym`, the selected symbol
-hash, `.gnu.version`/`.gnu.version_r`, `.dynamic`, the selected GOT/PLT
-arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific relocation
-lowering, complete load/program-header layout, and independent final-byte
-replay remain open. An owned direct `[u8; N]` destination now contextually
+fail closed. The first complete address-free table plan now consumes that
+preflight and independently replays an exact NUL-terminated `PT_INTERP`
+payload, canonical raw-byte `.dynstr`, the reserved undefined `.dynsym` row
+plus one sorted undefined global function row per import, one concrete System V
+`.hash`, parallel `.gnu.version`, grouped `.gnu.version_r`, private import-to-
+symbol/version indexes, and the exact `DT_NEEDED` string-index roster. Shared
+strings, objects, and object/version requirements deduplicate by exact bytes;
+permuted import insertion cannot change the table contents or their
+deterministic identity. The selected System V hash is sufficient for this
+first table plan; a GNU-hash bloom/bucket policy remains separate.
+
+The table invariants follow the primary [System V ABI program-header
+rules](https://gabi.xinuos.com/elf/07-pheader.html), [string-table
+rules](https://gabi.xinuos.com/elf/04-strtab.html), [symbol-table
+rules](https://gabi.xinuos.com/elf/05-symtab.html), and [dynamic hash
+rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), together with
+the [LSB symbol-version requirement
+format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
+The plan still grants no loader, layout, publication, or runnable-image
+authority. Serialization and section-header placement of the validated
+contents, `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic`
+addresses/tags, optional `.gnu.hash`, the selected GOT/PLT arrangement,
+`.rela.dyn`/`.rela.plt`, architecture-specific relocation lowering, complete
+load/program-header layout, image mutation, and independent final-byte replay
+remain open. An owned direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
