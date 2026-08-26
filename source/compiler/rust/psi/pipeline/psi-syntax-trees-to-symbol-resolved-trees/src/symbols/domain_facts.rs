@@ -54,32 +54,62 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             constituent.domain_symbol = symbol;
         }
     });
-    let mut domain_fact_spans = program
+    let mut proof_fact_scopes = program
         .domain_definitions
         .iter()
-        .map(|domain| domain.facts)
+        .map(|domain| (domain.facts, Vec::new()))
         .collect::<Vec<_>>();
-    domain_fact_spans.extend(
+    proof_fact_scopes.extend(
         program
             .tables
             .declarations
             .signature_contracts
             .iter()
-            .map(|(_, contract)| contract.facts),
+            .map(|(_, contract)| (contract.facts, Vec::new())),
     );
-    domain_fact_spans.extend(
-        program
-            .data_definitions
+    proof_fact_scopes.extend(program.data_definitions.iter().map(|definition| {
+        let mut local_symbols = program
+            .tables
+            .declarations
+            .data_type_parameters
+            .span_or_empty(definition.type_parameters)
             .iter()
-            .map(|definition| definition.where_facts),
-    );
+            .map(|parameter| (parameter.name.as_str().to_owned(), parameter.symbol))
+            .collect::<Vec<_>>();
+        local_symbols.extend(
+            program
+                .tables
+                .declarations
+                .data_members
+                .span_or_empty(definition.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_symbol_resolved_trees::data::DataMember::Field(field) => {
+                        Some((field.name.as_str().to_owned(), field.symbol))
+                    }
+                    psi_symbol_resolved_trees::data::DataMember::Variant(_) => None,
+                }),
+        );
+        (definition.where_facts, local_symbols)
+    }));
     let domain_path_members = &program.tables.declarations.domain_path_members;
     let proof_facts = &mut program.tables.declarations.proof_facts;
 
-    for facts in domain_fact_spans {
+    for (facts, local_symbols) in proof_fact_scopes {
         for fact in proof_facts.span_mut_or_empty(facts) {
             match fact {
                 psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    assign_data_fact_local_symbols(
+                        &local_symbols,
+                        &mut program.tables.bodies.expressions,
+                        membership.value,
+                    );
+                    assign_proof_expression_symbols(
+                        symbols,
+                        &domain_symbols,
+                        &mut program.tables.bodies.expressions,
+                        membership.value,
+                    );
                     let name = domain_path_members
                         .span_or_empty(membership.domain)
                         .iter()
@@ -90,6 +120,11 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         resolve_domain_symbol(symbols, &domain_symbols, &name);
                 }
                 psi_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    assign_data_fact_local_symbols(
+                        &local_symbols,
+                        &mut program.tables.bodies.expressions,
+                        *expression,
+                    );
                     assign_proof_expression_symbols(
                         symbols,
                         &domain_symbols,
@@ -102,6 +137,118 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     }
 
     update_data_membership_zero_gates(program);
+}
+
+/// Data DEFAULT-DOMAIN facts are declaration scope, not machine-body scope.
+/// Stamp their field and static-parameter references here, while the exact
+/// owning declarations are available, so later proof and package passes never
+/// recover authority-bearing identities from authored spelling.
+fn assign_data_fact_local_symbols(
+    local_symbols: &[(String, SymbolHandle)],
+    expression_table: &mut psi_symbol_resolved_trees::expression::ExpressionTable,
+    expression: psi_symbol_resolved_trees::expression::ExpressionHandle,
+) {
+    if local_symbols.is_empty() {
+        return;
+    }
+
+    let expression_node = expression_table.expression(expression).clone();
+    match expression_node {
+        psi_symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, atomic.value);
+            if atomic.result.is_valid() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, atomic.result);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            for value in expression_table.expression_handles(values).to_vec() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, value);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, binary.left);
+            assign_data_fact_local_symbols(local_symbols, expression_table, binary.right);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, call.receiver);
+            }
+            for argument in expression_table.expression_handles(call.arguments).to_vec() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, argument);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, cast.value);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, indexed.collection);
+            assign_data_fact_local_symbols(local_symbols, expression_table, indexed.index);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
+            if range.start.is_valid() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, range.start);
+            }
+            if range.end.is_valid() {
+                assign_data_fact_local_symbols(local_symbols, expression_table, range.end);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, membership.value);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, member.receiver);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, inner.target);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+            assign_data_fact_local_symbols(local_symbols, expression_table, unary.operand);
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            for field in expression_table
+                .struct_fields(struct_literal.fields)
+                .to_vec()
+            {
+                assign_data_fact_local_symbols(local_symbols, expression_table, field.value);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
+            if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                return;
+            }
+            let Some(name) = expression_table.name_path_members(path.members).first() else {
+                return;
+            };
+            let mut matches = local_symbols
+                .iter()
+                .filter(|(candidate, symbol)| candidate == name.as_str() && symbol.is_valid());
+            let Some((_, symbol)) = matches.next() else {
+                return;
+            };
+            if matches.next().is_some() {
+                return;
+            }
+            let symbol = *symbol;
+            let member_symbols = path.member_symbols;
+            let is_single_member = path.members.count() == 1;
+            if let psi_symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+                expression_table.expression_mut(expression)
+            {
+                path.head_symbol = symbol;
+                if is_single_member {
+                    path.symbol = symbol;
+                }
+            }
+            if member_symbols.count() != 0 {
+                expression_table.set_name_path_member_symbol_at_offset(member_symbols, 0, symbol);
+            }
+        }
+        psi_symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
+        | psi_symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | psi_symbol_resolved_trees::expression::ExpressionNode::Integer(_)
+        | psi_symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | psi_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
+    }
 }
 
 /// Membership facts begin conservatively zero-gated during declaration

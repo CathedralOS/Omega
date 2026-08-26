@@ -5,8 +5,8 @@ use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::types::TypeReferenceHandle;
 
 use crate::{
-    BooleanFact, DomainDefinitionFactRecord, DomainMembershipFact, Fact, FactContext,
-    FactContextHandle, FactContextView, FactHandle, FactPayload, FactPlace, FactRef,
+    BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
+    FactContext, FactContextHandle, FactContextView, FactHandle, FactPayload, FactPlace, FactRef,
     InstantiatedExpression, Place, PlaceHandle, PlaceRoot, PlaceSegment, ProgramPoint,
     SymbolFactSet, TypeConstraintFact, effective_member_symbol, resolve_place_member_symbol,
 };
@@ -17,6 +17,7 @@ pub struct FactPlan {
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
     pub domain_definition_facts: Arena<DomainDefinitionFactRecord>,
+    pub data_definition_facts: Arena<DataDefinitionFactRecord>,
     pub instantiated_expressions: Arena<InstantiatedExpression>,
     pub refs: Arena<FactRef>,
     pub contexts: Arena<FactContext>,
@@ -30,6 +31,7 @@ impl FactPlan {
             place_segments: Arena::with_capacity(fact_capacity),
             facts: Arena::with_capacity(fact_capacity),
             domain_definition_facts: Arena::with_capacity(fact_capacity),
+            data_definition_facts: Arena::with_capacity(fact_capacity),
             instantiated_expressions: Arena::with_capacity(fact_capacity),
             refs: Arena::with_capacity(fact_capacity),
             contexts: Arena::with_capacity(context_capacity),

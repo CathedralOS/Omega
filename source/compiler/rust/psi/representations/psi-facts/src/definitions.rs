@@ -1,10 +1,12 @@
 use psi_arena::{Handle, HandleSpan};
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::data::DataMember;
 use psi_typed_trees::domain::ProofFact;
 
 use crate::{
-    DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload,
-    FactPlace, FactPlan, PlaceHandle, ProgramPoint,
+    DataDefinitionFactDependency, DataDefinitionFactRecord, DomainDefinitionFactDependency,
+    DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle,
+    ProgramPoint,
 };
 
 pub fn build_definition_fact_plan(program: &TypedTrees) -> FactPlan {
@@ -14,6 +16,7 @@ pub fn build_definition_fact_plan(program: &TypedTrees) -> FactPlan {
     );
 
     append_domain_definition_facts(program, &mut facts);
+    append_data_definition_facts(program, &mut facts);
 
     facts
 }
@@ -24,11 +27,16 @@ fn estimated_definition_fact_capacity(program: &TypedTrees) -> usize {
         .iter()
         .map(|domain| program.proof_facts(domain).len())
         .sum::<usize>();
-    domain_facts
+    let data_facts = program
+        .data_definitions()
+        .iter()
+        .map(|data| program.proof_facts.span_or_empty(data.where_facts).len())
+        .sum::<usize>();
+    domain_facts + data_facts
 }
 
 fn estimated_definition_context_capacity(program: &TypedTrees) -> usize {
-    program.domain_definitions().len()
+    program.domain_definitions().len() + program.data_definitions().len()
 }
 
 fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
@@ -79,6 +87,352 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
         );
         facts.append_symbol_set(domain.symbol, refs);
     }
+}
+
+fn append_data_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
+    for data in program.data_definitions() {
+        let mut refs = HandleSpan::empty();
+        for fact_handle in proof_fact_handles(data.where_facts) {
+            let proof_fact = program.proof_facts.get(fact_handle);
+            let dependencies = data_fact_dependency_places(program, facts, data, proof_fact);
+            let place = append_data_proof_fact_place(program, facts, data, proof_fact);
+            let payload = match proof_fact {
+                ProofFact::Expression(expression) => FactPayload::BooleanExpression(*expression),
+                ProofFact::Membership(membership) => FactPayload::DomainMembership {
+                    value: membership.value,
+                    domain: membership.domain,
+                    domain_symbol: membership.domain_symbol,
+                },
+                ProofFact::Proposition(application) => FactPayload::PropositionApplication {
+                    fact: fact_handle,
+                    proposition: application.proposition,
+                },
+            };
+            let semantic_fact = facts.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point: ProgramPoint::Definition {
+                    symbol: data.symbol,
+                },
+                origin: FactOrigin::DataDefinition {
+                    data_symbol: data.symbol,
+                },
+                evidence: Default::default(),
+                payload,
+            });
+            facts
+                .data_definition_facts
+                .append(DataDefinitionFactRecord {
+                    data_symbol: data.symbol,
+                    fact: fact_handle,
+                    semantic_fact,
+                    dependencies,
+                });
+            facts.append_ref(&mut refs, semantic_fact);
+        }
+        facts.append_context(
+            ProgramPoint::Definition {
+                symbol: data.symbol,
+            },
+            refs,
+        );
+        facts.append_symbol_set(data.symbol, refs);
+    }
+}
+
+fn data_fact_dependency_places(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    data: &psi_typed_trees::data::DataDefinition,
+    proof_fact: &ProofFact,
+) -> Vec<DataDefinitionFactDependency> {
+    let mut dependencies = Vec::new();
+    match proof_fact {
+        ProofFact::Expression(expression) => append_data_expression_dependency_places(
+            program,
+            facts,
+            data,
+            *expression,
+            &mut dependencies,
+        ),
+        ProofFact::Membership(membership) => append_data_expression_dependency_places(
+            program,
+            facts,
+            data,
+            membership.value,
+            &mut dependencies,
+        ),
+        ProofFact::Proposition(application) => {
+            for argument in program
+                .expression_table
+                .expression_handles(application.arguments)
+            {
+                append_data_expression_dependency_places(
+                    program,
+                    facts,
+                    data,
+                    *argument,
+                    &mut dependencies,
+                );
+            }
+        }
+    }
+    dependencies
+}
+
+fn append_data_expression_dependency_places(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    data: &psi_typed_trees::data::DataDefinition,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    dependencies: &mut Vec<DataDefinitionFactDependency>,
+) {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member)
+            if matches!(
+                program.expression_table.expression(member.receiver),
+                ExpressionNode::Call(_)
+            ) =>
+        {
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                member.receiver,
+                dependencies,
+            );
+        }
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            let place = append_data_expression_place(program, facts, data, expression);
+            dependencies.push(DataDefinitionFactDependency { expression, place });
+        }
+        ExpressionNode::Borrow(inner) => append_data_expression_dependency_places(
+            program,
+            facts,
+            data,
+            inner.target,
+            dependencies,
+        ),
+        ExpressionNode::Atomic(atomic) => {
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                atomic.value,
+                dependencies,
+            );
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                atomic.result,
+                dependencies,
+            );
+        }
+        ExpressionNode::Binary(binary) => {
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                binary.left,
+                dependencies,
+            );
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                binary.right,
+                dependencies,
+            );
+        }
+        ExpressionNode::Cast(cast) => {
+            append_data_expression_dependency_places(program, facts, data, cast.value, dependencies)
+        }
+        ExpressionNode::Call(call) => {
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                call.receiver,
+                dependencies,
+            );
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                append_data_expression_dependency_places(
+                    program,
+                    facts,
+                    data,
+                    *argument,
+                    dependencies,
+                );
+            }
+        }
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                append_data_expression_dependency_places(
+                    program,
+                    facts,
+                    data,
+                    *value,
+                    dependencies,
+                );
+            }
+        }
+        ExpressionNode::Range(range) => {
+            append_data_expression_dependency_places(
+                program,
+                facts,
+                data,
+                range.start,
+                dependencies,
+            );
+            append_data_expression_dependency_places(program, facts, data, range.end, dependencies);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                append_data_expression_dependency_places(
+                    program,
+                    facts,
+                    data,
+                    field.value,
+                    dependencies,
+                );
+            }
+        }
+        ExpressionNode::Unary(unary) => append_data_expression_dependency_places(
+            program,
+            facts,
+            data,
+            unary.operand,
+            dependencies,
+        ),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn append_data_expression_place(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    data: &psi_typed_trees::data::DataDefinition,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> PlaceHandle {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            append_data_expression_place(program, facts, data, inner.target)
+        }
+        ExpressionNode::Name(path) => {
+            let member_names = program.expression_table.name_path_members(path.members);
+            let member_symbols = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols);
+            if member_names.is_empty() {
+                return facts.append_place_from_expression(program, expression);
+            }
+            let resolved_root = path
+                .head_symbol
+                .is_valid()
+                .then_some(path.head_symbol)
+                .or_else(|| {
+                    member_symbols
+                        .first()
+                        .copied()
+                        .filter(|symbol| symbol.is_valid())
+                })
+                .or_else(|| {
+                    (member_names.len() == 1 && path.symbol.is_valid()).then_some(path.symbol)
+                });
+            let first_field =
+                resolved_root.and_then(|symbol| data_field_symbol(program, data, symbol));
+            let Some(first_field) = first_field else {
+                return facts.append_place_from_expression(program, expression);
+            };
+
+            let place = facts.append_symbol_place(data.symbol);
+            facts.push_place_segment(
+                place,
+                crate::PlaceSegment::Field {
+                    symbol: first_field,
+                },
+            );
+            for (offset, member_name) in member_names.iter().enumerate().skip(1) {
+                let exact_symbol = member_symbols
+                    .get(offset)
+                    .copied()
+                    .filter(|symbol| symbol.is_valid())
+                    .or_else(|| {
+                        (offset + 1 == member_names.len() && path.symbol.is_valid())
+                            .then_some(path.symbol)
+                    });
+                let symbol = exact_symbol
+                    .or_else(|| {
+                        crate::resolve_place_member_symbol(
+                            program,
+                            facts,
+                            place,
+                            member_name.as_str(),
+                        )
+                    })
+                    .unwrap_or_else(psi_symbols::SymbolHandle::invalid);
+                if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
+                    facts.push_place_segment(place, crate::PlaceSegment::Case { variant });
+                }
+                facts.push_place_segment(place, crate::PlaceSegment::Field { symbol });
+            }
+            place
+        }
+        ExpressionNode::Member(member) => {
+            let place = append_data_expression_place(program, facts, data, member.receiver);
+            let symbol = crate::effective_member_symbol(program, member.receiver, member);
+            let symbol = if symbol.is_valid() {
+                symbol
+            } else {
+                crate::resolve_place_member_symbol(program, facts, place, member.member.as_str())
+                    .unwrap_or_else(psi_symbols::SymbolHandle::invalid)
+            };
+            if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
+                facts.push_place_segment(place, crate::PlaceSegment::Case { variant });
+            }
+            facts.push_place_segment(place, crate::PlaceSegment::Field { symbol });
+            place
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let place = append_data_expression_place(program, facts, data, indexed.collection);
+            let segment = program
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .and_then(|value| usize::try_from(value).ok())
+                .map(|index| crate::PlaceSegment::FixedIndex { index })
+                .unwrap_or(crate::PlaceSegment::Index {
+                    expression: indexed.index,
+                });
+            facts.push_place_segment(place, segment);
+            place
+        }
+        _ => facts.append_place_from_expression(program, expression),
+    }
+}
+
+fn data_field_symbol(
+    program: &TypedTrees,
+    data: &psi_typed_trees::data::DataDefinition,
+    symbol: psi_symbols::SymbolHandle,
+) -> Option<psi_symbols::SymbolHandle> {
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) if field.symbol == symbol => Some(field.symbol),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
 }
 
 fn domain_fact_dependency_places(
@@ -392,6 +746,23 @@ fn append_proof_fact_place(
         }
         ProofFact::Membership(membership) => {
             facts.append_place_from_expression(program, membership.value)
+        }
+        ProofFact::Proposition(application) => facts.append_symbol_place(application.proposition),
+    }
+}
+
+fn append_data_proof_fact_place(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    data: &psi_typed_trees::data::DataDefinition,
+    proof_fact: &ProofFact,
+) -> PlaceHandle {
+    match proof_fact {
+        ProofFact::Expression(expression) => {
+            append_data_expression_place(program, facts, data, *expression)
+        }
+        ProofFact::Membership(membership) => {
+            append_data_expression_place(program, facts, data, membership.value)
         }
         ProofFact::Proposition(application) => facts.append_symbol_place(application.proposition),
     }

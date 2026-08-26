@@ -29,6 +29,24 @@ pub struct DomainDefinitionFactDependency {
     pub place: PlaceHandle,
 }
 
+/// Exact checked ownership retained for one invariant authored by a data
+/// definition. The semantic fact remains the flow-facing row; this record
+/// binds it to the exact data declaration and typed proof fact while retaining
+/// every structural field place needed to interpret the invariant.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataDefinitionFactRecord {
+    pub data_symbol: SymbolHandle,
+    pub fact: Handle<ProofFact>,
+    pub semantic_fact: FactHandle,
+    pub dependencies: Vec<DataDefinitionFactDependency>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataDefinitionFactDependency {
+    pub expression: ExpressionHandle,
+    pub place: PlaceHandle,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PlaceRoot {
     #[default]
@@ -146,6 +164,9 @@ pub enum FactOrigin {
     Unknown,
     DomainDefinition {
         domain_symbol: SymbolHandle,
+    },
+    DataDefinition {
+        data_symbol: SymbolHandle,
     },
     TypeReference,
     ProofObligation,

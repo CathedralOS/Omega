@@ -580,8 +580,17 @@ with supply, generic shape, properties, stable field/variant identities,
 retired identities, relevance, lifetime arity, and exact lifetime-sensitive
 field/payload types. Numbered ordinary data is the wire contract; the retired
 standalone `wire data` form is not a
-second API row. Quotients, data `where` facts, and proposition parameters
-reject review until exact canonical rows exist. Review v43 and canonical row
+second API row. Public data default-domain `where` facts now give fields and
+static parameters exact local declaration identities during symbol resolution.
+The compiler rederives the complete evidence graph from final typed Psi,
+including ownership records, semantic rows, references, contexts, symbol
+indexes, and structural places. It requires that graph to equal the retained
+checked graph, projects the facts through the same canonical contract vocabulary
+as public domains, and includes them in public-data identity in review
+v59/canonical row v17. Missing, duplicate, altered, malformed-span, or
+path-spoofed custody rejects; unsupported source fact forms remain fail-closed.
+Quotients and proposition parameters still reject until exact canonical rows
+exist. Review v43 and canonical row
 v3 represent static-machine parameters directly: structural contracts retain
 their complete alpha-normalized nested signature and operational envelope,
 while nominal contracts retain exact public trait and requirement identities.
