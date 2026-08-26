@@ -1862,4 +1862,91 @@ mod tests {
             vec!["item"]
         );
     }
+
+    #[test]
+    fn selected_dynamic_argument_retains_its_exact_descriptor_rows() {
+        let source = r#"
+            trait Shape { machine code(&self) -> i32; }
+            data Item {}
+            First: Item satisfies Shape {
+                machine code(&self) -> i32 { transition { _ -> 1 } }
+            }
+            Second: Item satisfies Shape {
+                machine code(&self) -> i32 { transition { _ -> 2 } }
+            }
+            machine dispatch(erased: &dyn Shape) -> i32 {
+                let result: i32 = erased.code();
+                transition { _ -> result }
+            }
+            machine run(item: Item) -> i32 {
+                let erased: &dyn Shape = &item as &dyn Item::First;
+                let result: i32 = dispatch(erased);
+                transition { _ -> result }
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        psi_validation::validate_program(&typed).expect("validate selected pass-through");
+        let checked = lower_typed_trees(typed).expect("check");
+        let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+            panic!("one checked local selection");
+        };
+        let selected_conformance = selection.conformance.expect("named conformance");
+        let dispatch = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "dispatch")
+            .expect("dispatch machine");
+
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        assert_eq!(
+            state_graph.semantics.facts.dynamic_conformances,
+            checked.facts.dynamic_conformances.binding_facts()
+        );
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        assert_eq!(
+            control_flow.semantics.facts.dynamic_conformances,
+            checked.facts.dynamic_conformances.binding_facts()
+        );
+        let run = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "run")
+            .map(|(_, machine)| machine)
+            .expect("run machine");
+        let entry_key = control_flow
+            .states
+            .span(run.states)
+            .and_then(|states| states.first())
+            .map(|state| state.key)
+            .expect("run entry");
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let state_calls = crate::build_state_call_plan(&control_flow, &host_calls, &runtime_flow);
+        let pass_call = state_calls
+            .calls
+            .iter()
+            .find(|(_, call)| call.target_key.machine == dispatch.symbol)
+            .map(|(_, call)| call)
+            .expect("run-to-dispatch call");
+        let [argument] = state_calls.arguments.span_or_empty(pass_call.arguments) else {
+            panic!("one pass-through argument");
+        };
+        let descriptor = argument
+            .dynamic_conformance
+            .as_ref()
+            .expect("exact forwarded descriptor identity");
+        assert_eq!(descriptor.source_binding, selection.binding);
+        assert_eq!(descriptor.source_data, selection.source_data);
+        assert_eq!(descriptor.target_trait, selection.target_trait);
+        assert_eq!(descriptor.conformance, selected_conformance);
+        assert_eq!(descriptor.rows, selection.rows);
+        assert_eq!(descriptor.rows.len(), 1);
+    }
 }

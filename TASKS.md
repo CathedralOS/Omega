@@ -8123,6 +8123,16 @@ checked-result arithmetic decision listed below.
   borrows from the retained exact conformance rows and declaring-trait symbol.
   Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
   boundaries name the exact complete conformance.
+  The first pass-through rung is live for an immutable local selected by one
+  exact closed conformance and forwarded to a compatible bare dynamic
+  parameter. Validation requires the earlier same-trait selection rather than
+  searching visible conformances. Checked selection facts retain the source,
+  trait, conformance, and complete normalized row map through state graph and
+  control flow; state-call argument planning rejoins that exact descriptor
+  identity to the bare parameter's closed candidate catalog. Trait drift,
+  unselected dynamic arguments, bodyless conformances, and ambiguous concrete
+  arguments remain fail closed. Physical table bytes/emission and rebound,
+  stored, joined, escaping, or component-crossing descriptors remain open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

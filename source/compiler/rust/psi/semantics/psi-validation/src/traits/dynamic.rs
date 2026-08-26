@@ -52,13 +52,6 @@ pub fn collect_dynamic_conformance_selections(
                 .iter()
                 .enumerate()
             {
-                validate_dynamic_call_arguments_in_statement(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &mut diagnostics,
-                );
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
@@ -247,6 +240,30 @@ pub fn collect_dynamic_conformance_selections(
         }
     }
 
+    // Validate pass-through only after the complete local-selection catalog is
+    // known. A call may use a selection authored earlier in its state; no
+    // visible-conformance search or source-order guess may reconstruct it.
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                validate_dynamic_call_arguments_in_statement(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    &selections,
+                    &mut diagnostics,
+                );
+            }
+        }
+    }
+
     if diagnostics.is_empty() {
         Ok(selections)
     } else {
@@ -258,7 +275,9 @@ fn validate_dynamic_call_arguments_in_statement(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    statement_index: usize,
     statement: &StatementNode,
+    selections: &[DynamicConformanceSelection],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let StatementNode::Call(call) = statement {
@@ -266,14 +285,24 @@ fn validate_dynamic_call_arguments_in_statement(
             program,
             machine,
             state,
+            statement_index,
             call.target_symbol,
             &call.target,
             call.arguments,
+            selections,
             diagnostics,
         );
     }
     for root in crate::calls::statement_value_expression_roots(program, statement) {
-        validate_dynamic_call_arguments_in_expression(program, machine, state, root, diagnostics);
+        validate_dynamic_call_arguments_in_expression(
+            program,
+            machine,
+            state,
+            statement_index,
+            root,
+            selections,
+            diagnostics,
+        );
     }
 }
 
@@ -281,7 +310,9 @@ fn validate_dynamic_call_arguments_in_expression(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    statement_index: usize,
     expression: ExpressionHandle,
+    selections: &[DynamicConformanceSelection],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
@@ -293,7 +324,9 @@ fn validate_dynamic_call_arguments_in_expression(
                 program,
                 machine,
                 state,
+                statement_index,
                 $child,
+                selections,
                 diagnostics,
             )
         };
@@ -318,9 +351,11 @@ fn validate_dynamic_call_arguments_in_expression(
                 program,
                 machine,
                 state,
+                statement_index,
                 call.target_symbol,
                 &call.target,
                 call.arguments,
+                selections,
                 diagnostics,
             );
             visit!(call.receiver);
@@ -358,9 +393,11 @@ fn validate_dynamic_call_arguments(
     program: &TypedTrees,
     caller: &Machine,
     caller_state: &State,
+    statement_index: usize,
     target_symbol: psi_symbols::SymbolHandle,
     target_name: &Identifier,
     arguments: psi_arena::HandleSpan<ExpressionHandle>,
+    selections: &[DynamicConformanceSelection],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(target_state) = called_state(program, target_symbol, target_name) else {
@@ -402,9 +439,26 @@ fn validate_dynamic_call_arguments(
         let Some(source_type) = source_type else {
             continue;
         };
-        if dynamic_trait_reference(program, source_type).is_some() {
+        if let Some(TypeReferenceNode::DynamicTrait {
+            symbol: source_trait,
+            ..
+        }) = dynamic_trait_reference(program, source_type)
+        {
+            let passed = passed_dynamic_selection(
+                program,
+                caller,
+                caller_state,
+                statement_index,
+                argument,
+                selections,
+            );
+            if *source_trait == *target_trait
+                && passed.is_some_and(|selection| selection.target_trait == *target_trait)
+            {
+                continue;
+            }
             diagnostics.push(Diagnostic::error(format!(
-                "call to `{target_name}` passes an already-erased value to bare dynamic parameter `{}`; physical descriptor lowering is required before dynamic values can pass onward",
+                "call to `{target_name}` cannot pass dynamic value to bare parameter `{}` without one earlier exact compatible local conformance selection",
                 parameter.name
             )));
             continue;
@@ -446,6 +500,33 @@ fn validate_dynamic_call_arguments(
             ))),
         }
     }
+}
+
+fn passed_dynamic_selection<'selections>(
+    program: &TypedTrees,
+    caller: &Machine,
+    caller_state: &State,
+    statement_index: usize,
+    argument: ExpressionHandle,
+    selections: &'selections [DynamicConformanceSelection],
+) -> Option<&'selections DynamicConformanceSelection> {
+    let source = dynamic_source_place(program, strip_mutable(program, argument))?;
+    if source.path.len() != 1 {
+        return None;
+    }
+    selections
+        .iter()
+        .filter(|selection| {
+            selection.machine == caller.symbol
+                && selection.state == caller_state.symbol
+                && selection.statement_index < statement_index
+                && if source.symbol.is_valid() {
+                    selection.binding == source.symbol
+                } else {
+                    selection.binding_name == source.name
+                }
+        })
+        .max_by_key(|selection| selection.statement_index)
 }
 
 fn called_state<'program>(

@@ -247,6 +247,9 @@ pub struct StateCallArgument {
     pub parameter_name: Identifier,
     pub expression: ExpressionHandle,
     pub kind: StateCallArgumentKind,
+    /// Exact selected local dynamic descriptor forwarded into one bare
+    /// dynamic parameter. This is semantic table identity, never an address.
+    pub dynamic_conformance: Option<StateCallDynamicConformance>,
     pub required: bool,
 }
 
@@ -258,9 +261,19 @@ impl Default for StateCallArgument {
             parameter_name: Identifier::default(),
             expression: ExpressionHandle::invalid(),
             kind: StateCallArgumentKind::Value,
+            dynamic_conformance: None,
             required: false,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateCallDynamicConformance {
+    pub source_binding: SymbolHandle,
+    pub source_data: SymbolHandle,
+    pub target_trait: SymbolHandle,
+    pub conformance: SymbolHandle,
+    pub rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

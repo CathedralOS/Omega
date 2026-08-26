@@ -7,7 +7,7 @@ use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
 
 use super::lookups::state_flow_from_key;
-use super::{StateCallArgument, StateCallArgumentKind, StateCallRole};
+use super::{StateCallArgument, StateCallArgumentKind, StateCallDynamicConformance, StateCallRole};
 
 pub(crate) fn build_call_arguments(
     context: &StateCallPlanningContext,
@@ -44,6 +44,15 @@ pub(crate) fn build_call_arguments(
         } else {
             parameters.get(parameter_index)
         };
+        let dynamic_conformance = parameter.and_then(|parameter| {
+            forwarded_dynamic_conformance(
+                context,
+                source_key,
+                statement_index,
+                *expression,
+                parameter,
+            )
+        });
         output_arguments.append_to_span(
             &mut arguments,
             StateCallArgument {
@@ -78,12 +87,73 @@ pub(crate) fn build_call_arguments(
                 } else {
                     StateCallArgumentKind::Value
                 },
+                dynamic_conformance,
                 required,
             },
         );
     }
 
     arguments
+}
+
+fn forwarded_dynamic_conformance(
+    context: &StateCallPlanningContext,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    parameter: &StateParameterFlow,
+) -> Option<StateCallDynamicConformance> {
+    if !parameter.dyn_conformance_rows.is_empty() || parameter.dyn_conformance_candidates.is_empty()
+    {
+        return None;
+    }
+    let (binding, binding_name) =
+        expression_binding(&context.control_flow.expressions, expression)?;
+    let selection = context
+        .control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_receiver(
+            source_key.machine,
+            source_key.state,
+            binding,
+            &binding_name,
+            statement_index,
+        )?;
+    let conformance = selection.conformance?;
+    let candidate = parameter
+        .dyn_conformance_candidates
+        .iter()
+        .find(|candidate| {
+            candidate.source_data == selection.source_data
+                && candidate.conformance == Some(conformance)
+                && candidate.rows == selection.rows
+        })?;
+    if selection.target_trait != parameter.type_symbol || candidate.rows.is_empty() {
+        return None;
+    }
+    Some(StateCallDynamicConformance {
+        source_binding: selection.binding,
+        source_data: selection.source_data,
+        target_trait: selection.target_trait,
+        conformance,
+        rows: selection.rows.clone(),
+    })
+}
+
+fn expression_binding(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Identifier)> {
+    match expressions.expression(expression) {
+        ExpressionNode::Borrow(inner) => expression_binding(expressions, inner.target),
+        ExpressionNode::Name(path) => Some((
+            path.symbol,
+            expressions.name_path_members(path.members).last()?.clone(),
+        )),
+        _ => None,
+    }
 }
 
 fn state_parameters(
