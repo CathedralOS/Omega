@@ -1187,7 +1187,9 @@ recomputable terminal-Psi entry/segment certificates from admitted opaque-
 provider unit claims, and the external-root report retains that distinction.
 Whole-entry certificate rows now bind exact relocation-free frozen executable
 bytes and selected entry offsets, and root installation rechecks the exact
-installed-code context. They remain the implementation precursor to broader
+installed-code context. Segment rows independently replay their exact installed
+occurrence, artifact, and entry stub after carriage without becoming
+whole-entry authority. They remain the implementation precursor to broader
 terminal-Psi maximum-logical-work and safe-point checking in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
 not a general symbolic cost model. Migration of the remaining

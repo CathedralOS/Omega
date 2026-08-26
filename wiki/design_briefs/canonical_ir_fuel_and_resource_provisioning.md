@@ -461,7 +461,10 @@ The live hard-root precursor composes recomputable entry/segment certificates
 and admitted opaque-provider summaries under one `FuelScheduleIdentity`.
 Installation rechecks whole-entry evidence against the exact terminal identity,
 architecture, frozen code, entry stub, and function offset; a segment
-certificate cannot authorize a whole root. Cathedral migration and general
+certificate additionally exposes borrowed replay against its exact installed
+code context, artifact, and selected entry while preserving its semantic
+machine/block/edge coordinates. Its distinct type still cannot authorize a
+whole root. Cathedral migration and general
 loop/build-time coverage remain in `TASKS.md`. This path does not grow into a
 symbolic complexity language.
 

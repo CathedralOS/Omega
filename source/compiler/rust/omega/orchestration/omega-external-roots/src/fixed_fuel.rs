@@ -93,6 +93,13 @@ impl InstalledTerminalSegmentFuelCertificate {
     pub const fn entry(&self) -> EntryStubId {
         self.entry
     }
+
+    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+        self.entry == entry
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
 }
 
 /// Bind a checked terminal-Psi entry theorem to one exact installed function.
@@ -175,6 +182,28 @@ pub fn bind_installed_terminal_segment_fuel<TerminalArtifact: TerminalObjectEvid
         artifact: installed_code.artifact(),
         entry,
     })
+}
+
+/// Recheck a previously sealed path-segment theorem against the exact code and
+/// function entry used when it was installed.
+///
+/// This replay preserves the certificate's semantic machine, start block, and
+/// terminal edge unchanged. It grants no whole-entry, root-admission, native
+/// execution, metering, or publication authority; callers that require a
+/// whole-entry theorem must retain an [`InstalledTerminalEntryFuelCertificate`]
+/// instead.
+pub fn validate_installed_terminal_segment_fuel(
+    binding: &InstalledTerminalSegmentFuelCertificate,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel segment does not bind the selected installed code and function entry"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Exact evidence for the local part of one fixed-fuel summary.
@@ -721,6 +750,10 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
         }
     }
 }
+
+#[cfg(test)]
+#[path = "fixed_fuel_tests.rs"]
+mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalFuelResourceColumn {

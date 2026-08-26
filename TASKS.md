@@ -5049,7 +5049,11 @@ Remaining:
 - **IRFUEL.** Extend entry/segment certificates to loops and build-time use;
   the generic terminal inspection path now independently verifies a selected
   source closure and publishes its recomputed acyclic entry certificate, with
-  Cathedral's first timer root pinning that evidence. Add attributed response
+  Cathedral's first timer root pinning that evidence. Installed segment
+  certificates now have the same borrowed exact-occurrence replay boundary:
+  installed-code context, artifact, and selected entry stub must still match,
+  while the retained machine/start-block/end-edge remain segment evidence and
+  cannot authorize a whole root. Add attributed response
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site attribution rows. Implement the
   settled per-sponsor-region realization: fixed provision elides the meter only
