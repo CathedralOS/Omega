@@ -2,6 +2,32 @@ use crate::{
     AbstractDataObjectHandle, AbstractValueOperandHandle, InstructionOperand, Place,
     RuntimeStorageRegion, RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator,
 };
+use omega_calling_conventions::NativeParameterId;
+use psi_arena::Handle;
+
+/// Selection-time identity for one declared outbound host-call argument and
+/// the exact abstract operand selected from it.
+///
+/// This is produced only for the authored `Unknown`/`Custom` host-call branch.
+/// Result-storage pseudo-arguments and catalog host operations deliberately do
+/// not receive rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractHostFormalOperandBinding {
+    pub formal_ordinal: u32,
+    pub native_parameter: NativeParameterId,
+    pub operand: Handle<InstructionOperand>,
+}
+
+/// Exact source occurrence and lowering identity retained by an opted-in
+/// outbound host operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractHostOperationProvenance {
+    pub source_call_index: u32,
+    pub source_call_generation: u32,
+    pub call_ordinal: usize,
+    pub operation_ordinal: u16,
+    pub formal_operands: std::sync::Arc<[AbstractHostFormalOperandBinding]>,
+}
 use omega_calling_conventions::HostCapability;
 use psi_arena::HandleSpan;
 use std::sync::Arc;
@@ -732,6 +758,7 @@ pub enum AbstractOperationKind {
     HostOperation {
         operation_ordinal: u16,
         operands: HandleSpan<InstructionOperand>,
+        provenance: Option<AbstractHostOperationProvenance>,
     },
     PreparePlatformOutputHandle {
         capability: HostCapability,

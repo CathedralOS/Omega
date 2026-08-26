@@ -81,7 +81,7 @@ pub fn insert_program_storage_entry_wrapper(
             &plan.host_abi,
             &plan.host_calls,
             &abstract_operations,
-        );
+        )?;
     let assigned_target_operations =
         omega_target_operations_to_assigned_target_operations::build_assigned_target_operations(
             &target_operations,
@@ -334,6 +334,7 @@ mod tests {
             callback_private_relocations: Arc::from([]),
             callback_registrar_arguments: Arc::from([]),
             callback_registrar_destinations: Arc::from([]),
+            callback_registrar_assigned_operands: Arc::from([]),
             receiver_bases: Vec::new(),
             state_contexts: Vec::new(),
             phase_timings: Arena::<BackendPlanPhaseTiming>::new(),

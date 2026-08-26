@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 const REQUIREMENT: &str = "package::Registrar::register#exact";
 
-fn field_destination(formal_ordinal: u32, slots: &[u64]) -> NativePlace {
+pub(crate) fn field_destination(formal_ordinal: u32, slots: &[u64]) -> NativePlace {
     NativePlace::Field {
         parameter: callback_native_parameter_id(REQUIREMENT, formal_ordinal),
         layout: LayoutPlanId::new(41).unwrap(),
@@ -31,7 +31,7 @@ fn field_destination(formal_ordinal: u32, slots: &[u64]) -> NativePlace {
     }
 }
 
-fn closed_row(slot: u64, offset: usize) -> TargetClosedPrivateCallbackDemand {
+pub(crate) fn closed_row(slot: u64, offset: usize) -> TargetClosedPrivateCallbackDemand {
     TargetClosedPrivateCallbackDemand {
         data_symbol: SymbolHandle::from_arena_index(71),
         slot_identity: Arc::from(format!("package::Layout::slot_{slot}")),
@@ -46,7 +46,7 @@ fn closed_row(slot: u64, offset: usize) -> TargetClosedPrivateCallbackDemand {
     }
 }
 
-fn layouts(rows: Vec<TargetClosedPrivateCallbackDemand>) -> LayoutPlan {
+pub(crate) fn layouts(rows: Vec<TargetClosedPrivateCallbackDemand>) -> LayoutPlan {
     let mut data_layouts = Arena::new();
     data_layouts.insert(DataLayout {
         symbol: SymbolHandle::from_arena_index(71),

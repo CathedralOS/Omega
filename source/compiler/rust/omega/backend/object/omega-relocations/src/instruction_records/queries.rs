@@ -24,6 +24,7 @@ pub(super) fn selected_host_operation(
     let SelectedInstructionKind::HostOperation {
         operation_key,
         operands,
+        ..
     } = instruction
     else {
         return None;

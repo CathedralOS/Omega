@@ -337,6 +337,7 @@ fn derive_boundary_compiler_body_outbound_direct_import_footprint(
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;

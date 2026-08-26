@@ -261,6 +261,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-arena",
+ "psi-diagnostics",
  "psi-language-semantics",
  "psi-symbols",
 ]

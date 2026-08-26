@@ -894,6 +894,7 @@ fn selected_instruction_name(
         SelectedInstructionKind::HostOperation {
             operation_key,
             operands,
+            ..
         } => {
             format!(
                 "call host operation {}.{}({})",

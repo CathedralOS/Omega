@@ -6,20 +6,22 @@ use crate::{host, remap};
 
 pub(crate) fn translate_instruction(
     host_calls: &HostCallPlan,
+    abstract_operations: &omega_abstract_operations::AbstractOperationPlan,
     instruction: &omega_abstract_operations::AbstractOperation,
-) -> TargetOperation {
-    TargetOperation {
-        kind: translate_instruction_kind(host_calls, instruction),
+) -> Result<TargetOperation, psi_diagnostics::Diagnostic> {
+    Ok(TargetOperation {
+        kind: translate_instruction_kind(host_calls, abstract_operations, instruction)?,
         source_key: instruction.source_key,
         source_statement: instruction.source_statement,
-    }
+    })
 }
 
 fn translate_instruction_kind(
     host_calls: &HostCallPlan,
+    abstract_operations: &omega_abstract_operations::AbstractOperationPlan,
     instruction: &omega_abstract_operations::AbstractOperation,
-) -> TargetOperationKind {
-    match &instruction.kind {
+) -> Result<TargetOperationKind, psi_diagnostics::Diagnostic> {
+    Ok(match &instruction.kind {
         omega_abstract_operations::AbstractOperationKind::DynamicTableCall {
             byte_offset,
             requirement_identity,
@@ -36,12 +38,19 @@ fn translate_instruction_kind(
         omega_abstract_operations::AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands,
+            provenance,
         } => {
-            let operation_key =
-                host::resolve_operation_key(host_calls, instruction, *operation_ordinal);
+            let (operation_key, provenance) = host::resolve_operation(
+                host_calls,
+                abstract_operations,
+                instruction,
+                *operation_ordinal,
+                provenance.as_ref(),
+            )?;
             TargetOperationKind::HostOperation {
                 operation_key,
                 operands: remap::operand_span(*operands),
+                provenance,
             }
         }
         omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle {
@@ -50,6 +59,7 @@ fn translate_instruction_kind(
         } => TargetOperationKind::HostOperation {
             operation_key: HostOperationKey::new(*capability, HostOperation::GetStdHandle),
             operands: remap::operand_span(*operands),
+            provenance: None,
         },
         omega_abstract_operations::AbstractOperationKind::WritePlatformNewline {
             capability,
@@ -65,7 +75,8 @@ fn translate_instruction_kind(
                 },
             ),
             operands: remap::operand_span(*operands),
+            provenance: None,
         },
         kind => TargetOperationKind::from(kind),
-    }
+    })
 }

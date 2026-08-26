@@ -58,7 +58,8 @@ fn preserves_exact_host_call_occurrences_in_target_semantics() {
         &build_host_abi_plan(NativeTarget::linux_arm64()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         target_operations.semantics.boundaries.host_calls,
@@ -94,7 +95,8 @@ fn preserves_generated_function_identity_in_target_plan() {
         &build_host_abi_plan(NativeTarget::host()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     let [function] = target_operations.code.functions.storage_slice() else {
         panic!("one abstract function should produce one target function")
@@ -152,7 +154,8 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
         &build_host_abi_plan(target),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
     let [reserve, write, instruction, release] =
         target_operations.code.instructions.storage_slice()
     else {
@@ -221,7 +224,8 @@ fn preserves_single_word_data_address_write_in_target_plan() {
         &build_host_abi_plan(target),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
     let [instance, table] = target_operations.code.instructions.storage_slice() else {
         panic!("both dynamic descriptor word writes must survive target lowering")
     };
@@ -269,7 +273,8 @@ fn copies_abstract_value_summary_to_target_plan() {
         &build_host_abi_plan(NativeTarget::host()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     assert_eq!(target_operations.semantics.values.values.len(), 1);
     let value = target_operations
@@ -354,7 +359,8 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
         &build_host_abi_plan(NativeTarget::host()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     assert_eq!(target_operations.semantics.boundaries.source_edges.len(), 1);
     let edge = target_operations
@@ -441,7 +447,8 @@ fn validates_linked_boundary_operation_against_host_binding() {
         &build_host_abi_plan(NativeTarget::linux_arm64()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     let checks: Vec<_> = target_operations
         .semantics
@@ -484,7 +491,8 @@ fn records_missing_source_boundary_for_unlinked_host_operation() {
         &build_host_abi_plan(NativeTarget::linux_arm64()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     let check = target_operations
         .semantics
@@ -550,7 +558,8 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
         &build_host_abi_plan(NativeTarget::linux_arm64()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     let check = target_operations
         .semantics
@@ -613,7 +622,8 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
         &host_abi,
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     let check = target_operations
         .semantics
@@ -655,7 +665,8 @@ fn copies_abstract_permission_summary_to_target_plan() {
         &build_host_abi_plan(NativeTarget::host()),
         &HostCallPlan::default(),
         &abstract_operations,
-    );
+    )
+    .unwrap();
 
     assert_eq!(target_operations.semantics.ownership.permissions.len(), 1);
     let event = target_operations

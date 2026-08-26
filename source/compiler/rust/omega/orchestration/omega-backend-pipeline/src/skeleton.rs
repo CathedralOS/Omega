@@ -75,6 +75,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         callback_private_relocations: input.callback_private_relocations,
         callback_registrar_arguments: Arc::from([]),
         callback_registrar_destinations: Arc::from([]),
+        callback_registrar_assigned_operands: Arc::from([]),
         receiver_bases: Vec::new(),
         state_contexts: Vec::new(),
         phase_timings: input.phase_timings,

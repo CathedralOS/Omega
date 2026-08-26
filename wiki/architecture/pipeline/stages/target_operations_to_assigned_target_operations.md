@@ -39,7 +39,9 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - `values.rs` owns runtime value operand home assignment, including stack/runtime homes and scratch-register selection.
 - `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
 - `tests.rs` owns stage-level preservation canaries for value, ownership, and
-  boundary policy-check metadata.
+  boundary policy-check metadata. Assigned operation and operand arenas retain
+  the target arena identity used by the later exact callback registrar binding;
+  this stage does not infer a binding from operand position.
 
 ## Semantic Ownership
 
@@ -68,7 +70,9 @@ Current scratch register assignment is fixed and minimal. Real register allocati
 Ownership summaries are preserved through assignment but not yet lowered into
 assigned copy/cleanup operations.
 Boundary-edge summaries and target boundary policy-check records are preserved
-through assignment.
+through assignment. The callback registrar backend replay separately binds the
+opted-in target host-operation provenance to the identical assigned instruction
+and operand handles before any object relocation is permitted.
 Value summaries are preserved through assignment, but their storage/drop
 consequences are still metadata rather than explicit assigned cleanup or move
 operations.

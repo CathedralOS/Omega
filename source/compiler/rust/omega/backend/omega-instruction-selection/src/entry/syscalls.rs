@@ -97,6 +97,7 @@ pub fn derive_boundary_compiler_body_outbound_syscall_footprint(
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;
@@ -247,6 +248,7 @@ fn derive_boundary_compiler_body_outbound_syscall_relocatable_arguments_footprin
             AbstractOperationKind::HostOperation {
                 operation_ordinal,
                 operands,
+                ..
             } => input
                 .host_calls
                 .calls
@@ -467,6 +469,7 @@ fn derive_boundary_compiler_body_outbound_syscall_timespec_footprint(
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;
@@ -605,6 +608,7 @@ fn derive_boundary_compiler_body_outbound_syscall_result_footprint_for_arguments
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;

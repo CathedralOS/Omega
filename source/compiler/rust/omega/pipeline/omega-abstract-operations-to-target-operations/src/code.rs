@@ -14,7 +14,7 @@ pub(crate) fn build_target_operation_code(
     host_abi: &HostAbiPlan,
     host_calls: &HostCallPlan,
     abstract_operations: &AbstractOperationPlan,
-) -> TargetOperationCode {
+) -> Result<TargetOperationCode, psi_diagnostics::Diagnostic> {
     let mut code = TargetOperationCode {
         functions: Arena::with_capacity(abstract_operations.code.functions.len()),
         instructions: Arena::with_capacity(abstract_operations.code.instructions.len()),
@@ -34,8 +34,11 @@ pub(crate) fn build_target_operation_code(
     }
 
     for (_, instruction) in abstract_operations.code.instructions.iter() {
-        code.instructions
-            .insert(translate_instruction(host_calls, instruction));
+        code.instructions.insert(translate_instruction(
+            host_calls,
+            abstract_operations,
+            instruction,
+        )?);
     }
 
     for (_, function) in abstract_operations.code.functions.iter() {
@@ -47,5 +50,5 @@ pub(crate) fn build_target_operation_code(
     }
 
     host::copy_runtime_text_host_bindings(host_abi, abstract_operations, &mut code);
-    code
+    Ok(code)
 }

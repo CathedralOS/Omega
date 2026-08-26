@@ -12,10 +12,10 @@ pub(crate) fn build_target_operation_plan(
     host_abi: &HostAbiPlan,
     host_calls: &HostCallPlan,
     abstract_operations: &AbstractOperationPlan,
-) -> TargetOperationPlan {
-    TargetOperationPlan::with_roots(
+) -> Result<TargetOperationPlan, psi_diagnostics::Diagnostic> {
+    Ok(TargetOperationPlan::with_roots(
         target,
-        build_target_operation_code(host_abi, host_calls, abstract_operations),
+        build_target_operation_code(host_abi, host_calls, abstract_operations)?,
         build_target_semantic_summary(host_abi, abstract_operations),
-    )
+    ))
 }

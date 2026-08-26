@@ -10,7 +10,8 @@ pub use function::{AbstractFunctionPlan, FunctionInstructionPlan};
 pub use operand::{InstructionOperand, InstructionOperandKind};
 pub use operation::{AbstractOperation, SelectedInstruction};
 pub use operation_kind::{
-    AbstractOperationDomain, AbstractOperationKind, CopyPlacesRole, SelectedInstructionKind,
+    AbstractHostFormalOperandBinding, AbstractHostOperationProvenance, AbstractOperationDomain,
+    AbstractOperationKind, CopyPlacesRole, SelectedInstructionKind,
 };
 pub use place::{PLACE_MAX_STEPS, Place, PlaceStep};
 pub use storage::RuntimeStorageRegion;

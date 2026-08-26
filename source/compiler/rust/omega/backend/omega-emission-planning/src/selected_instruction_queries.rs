@@ -28,6 +28,7 @@ pub(super) fn host_operation(
     let SelectedInstructionKind::HostOperation {
         operation_key,
         operands,
+        ..
     } = kind
     else {
         return None;
