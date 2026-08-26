@@ -189,6 +189,57 @@ pub(super) fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
 }
 
+/// Reconstruct the first receipted Output grammar's complete staged tree from
+/// canonical replay operands. The initial grammar admits exactly one ordinary
+/// direct-child file; broader namespace effects require their own replay
+/// semantics rather than being inferred from a final digest.
+pub(super) fn replayed_single_ordinary_file(
+    relative_path: &[u8],
+    bytes: &[u8],
+) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
+    let native = retained_native_path(relative_path).map_err(|error| {
+        diagnostics(format!(
+            "receipted build output path is not canonical: {error}"
+        ))
+    })?;
+    if native
+        .parent()
+        .is_some_and(|parent| !parent.as_os_str().is_empty())
+    {
+        return Err(diagnostics(
+            "the first receipted build output grammar requires one direct-child file",
+        ));
+    }
+    let byte_length = u64::try_from(bytes.len()).map_err(|_| {
+        diagnostics("receipted build output length cannot be represented canonically")
+    })?;
+    if byte_length > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
+        return Err(diagnostics(format!(
+            "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
+        )));
+    }
+    let entries = vec![RetainedStagedOutputEntry {
+        relative_path: relative_path.to_vec(),
+        kind: RetainedStagedOutputEntryKind::File {
+            bytes: Arc::from(bytes),
+            executable: false,
+        },
+    }];
+    let commitment = commitment_for_retained_entries(&entries).ok_or_else(|| {
+        diagnostics("receipted build output exceeds the staged-output unique-content ceiling")
+    })?;
+    let tree = BuildStagedOutputTree {
+        commitment,
+        entries,
+    };
+    validate_retained_tree(&tree).map_err(|error| {
+        diagnostics(format!(
+            "receipted build output failed canonical tree validation: {error}"
+        ))
+    })?;
+    Ok(tree)
+}
+
 pub(super) fn select_included_sources(
     tree: &BuildStagedOutputTree,
     relative_paths: &[Vec<u8>],

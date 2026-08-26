@@ -186,11 +186,18 @@ impl<'program> Evaluator<'program> {
                 "generated-source handoff path belongs to a different build root".to_owned(),
             ));
         }
-        if !self
+        let scoped_real_output = self
             .real_fs
             .as_ref()
-            .is_some_and(real_fs::RealFs::is_scoped)
-        {
+            .is_some_and(real_fs::RealFs::is_scoped);
+        let replayed_output = self
+            .filesystem_replay
+            .as_ref()
+            .and_then(crate::FilesystemReplay::expected_included_source)
+            .is_some_and(|expected| {
+                expected.root() == included_root && expected.relative_path() == relative_path
+            });
+        if !scoped_real_output && !replayed_output {
             return Err(Halt::Trap(
                 "generated-source handoff requires a scoped build-output grant".to_owned(),
             ));
@@ -213,6 +220,7 @@ impl<'program> Evaluator<'program> {
             .push(crate::BuildIncludedSource::new(
                 included_root,
                 relative_path,
+                self.filesystem_operation_attempts.len(),
             ));
         Ok(true)
     }

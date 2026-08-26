@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-25. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-26. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -846,6 +846,24 @@ field, zero padding, and tail byte before requiring exact stream exhaustion and
 build result equality. Failed metadata and descriptor-backed metadata remain
 outside this rung. The record remains review-only, `Volatile`, and neither an
 authenticity claim nor a receipt.
+
+Summary v24 and replay-record v6 admit the first complete operation receipt for
+one exact generated-source pattern. One or more Source-input events are
+followed by exactly one Output-rooted direct-child ordinary-file
+`create(438)`/full-write/close chain and one matching `include_source`. Replay
+serves Source results from custody but actually executes the Output operations
+against a fresh virtual namespace, verifies the complete event and evidence
+stream, requires descriptor and namespace quiescence, and reconstructs the
+exact one-file tree from the executed path and bytes. Initial issuance requires
+that tree to equal independently sponsored physical staged-tree custody;
+unsponsored execution cannot mint the record. Reopened custody repeats the no-
+host execution and restores the generated source without consulting drifted
+host Source or Output bytes. The filesystem reach ceiling remains `Volatile`,
+while this exact realized grammar is `Receipted`; broader operations and output
+trees remain `Volatile`. This is replay evidence, not proof of audit,
+authenticity, or admission. A separate 16 MiB aggregate replay-retention
+ceiling rejects before cloning, and validated attempt custody is shared across
+evaluator handoff.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -872,9 +890,11 @@ before the host operation and commit only after success. Ceiling refusal has a
 distinct resource-exhaustion outcome. The initial compiler ceiling is 4,096
 entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
-This summary is compiler-issued execution evidence kept outside canonical
-capability/API comparison bytes. It is not a receipt and does not claim either
-replay verdict. Sponsored package review does retain a versioned commitment to
+These summary fields are compiler-issued execution evidence kept outside
+canonical capability/API comparison bytes. In isolation they are not a receipt
+and do not claim either replay verdict; only the exact v24/v6 grammar above may
+join them to verified operation replay and reproduced tree equality.
+Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
 Output-relative portable UTF-8 paths, empty directories, canonical file modes,
@@ -889,11 +909,12 @@ count. The compiler-owned review row retains the complete canonical tree behind
 private fields and can materialize it into an existing empty concrete directory,
 then independently re-inspect exact paths, kinds, modes, targets, and bytes
 before returning the same commitment. Hard-link topology is neither retained
-nor leaked through the count. This is output-tree custody and replay only. A
-`Receipted` row still requires canonical operation replay, retained observed
-inputs, generated-output handoff, and a complete record replay checker. This
-custody rung does not exclude a hostile same-user process racing the review
-session.
+nor leaked through the count. In isolation this is output-tree custody and
+replay only. The exact v24/v6 grammar above supplies canonical operation replay,
+retained observed inputs, generated-output handoff, and a complete record replay
+checker for its one-file case; all broader shapes still require those missing
+pieces. This custody rung does not exclude a hostile same-user process racing
+the review session.
 
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires
@@ -1067,7 +1088,7 @@ supply-chain or incident-response metadata. An admission may cite an exact
 artifact solely to scope the semantic obligation being assumed; the artifact's
 pedigree never proves that obligation.
 
-Ratified 2026-08-24: the implementation should read each fact from the earliest
+Ratified 2026-08-26: the implementation should read each fact from the earliest
 coherent compiler-owned representation in which its semantics are established.
 Exact structural identity may come from private pre-Psi typed or resolved
 state, while checked acceptance, effects, proofs, and realization come from the

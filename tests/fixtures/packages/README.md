@@ -21,7 +21,8 @@ wired.
 Packages:
 
 - `arithmetic-kernels`: pure public helper baseline with no declared host reach.
-- `generated-table`: package-local build input and generated-output fixture.
+- `generated-table`: package-local Source read plus one-file generated output;
+  sponsored review realizes the first bounded `Receipted` grammar.
 - `file-journal`: public API with exact toolchain filesystem reach and
   invocation.
 - `process-exit`: public API with exact toolchain `Console` reach and process

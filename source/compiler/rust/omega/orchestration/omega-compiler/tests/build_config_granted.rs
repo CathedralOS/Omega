@@ -16,6 +16,7 @@ use omega_compiler::{
     BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
     PackageCompilationInputs, PackageSourceBinding,
     capture_verified_build_filesystem_replay_record, compile_to_checked,
+    compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
     recover_review_only_build_filesystem_replay_record,
@@ -236,7 +237,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 23);
+    assert_eq!(checked_observations.schema_version(), 24);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2793,6 +2794,108 @@ fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() 
         std::fs::read_to_string(project.join("sponsored-review/output/generated.omg")).unwrap(),
         "data Generated {}\n"
     );
+
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn receipted_generated_source_reopens_without_host_source_or_output() {
+    let (project, profile) = rooted_build_probe_project(
+        "receipted-generated-source",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Generated { value: u8; }\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let checked = compile_rooted_probe_with_sponsored_output(&project, profile, "receipted-review")
+        .expect("bounded source/output build should compile");
+    let summary = checked
+        .build_observation_summary()
+        .expect("bounded source/output build retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.ceiling(), BuildObservationClass::Volatile);
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 8]
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("receipted source/output record should encode")
+        .expect("receipted source/output record should retain custody");
+    let changed_record_bytes = replace_unique_bytes(
+        record.canonical_bytes(),
+        b"data Generated { value: u8; }\n",
+        b"data Generated { value: u9; }\n",
+    );
+    let changed_record =
+        recover_review_only_build_filesystem_replay_record(&changed_record_bytes, limits)
+            .expect("changed payload remains canonically framed but has different semantics");
+    let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
+    let package_inputs = || {
+        PackageCompilationInputs::new(
+            package,
+            vec![PackageSourceBinding::new(
+                package,
+                "generated-source",
+                project.clone(),
+            )],
+            Vec::new(),
+        )
+        .expect("single-package generated-source input")
+    };
+    let changed_diagnostics = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs(),
+        changed_record,
+    )
+    .expect_err("changed retained output bytes must disagree with authored replay");
+    assert!(changed_diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("replay") && diagnostic.message.contains("changed")
+    }));
+
+    std::fs::write(project.join("main.omg"), "data Main { value: u16; }\n")
+        .expect("change host source after receipt capture");
+    std::fs::write(
+        project.join("receipted-review/output/generated.omg"),
+        "data Spoofed {}\n",
+    )
+    .expect("change host output after receipt capture");
+
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs(),
+        record,
+    )
+    .expect("reopened receipt should reproduce build input and generated output");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened receipt retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    let generated = replayed
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with(".omega/generated/generated.omg"))
+        .expect("replayed generated source enters the final checked program");
+    assert_eq!(generated.source.as_ref(), "data Generated { value: u8; }\n");
 
     let _ = std::fs::remove_dir_all(&project);
 }

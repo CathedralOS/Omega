@@ -485,6 +485,23 @@ canonical relative paths. Provider-free replay reconstructs the checked
 before requiring exact stream exhaustion. Failed and descriptor-backed
 metadata remain outside this rung. Review-baseline capsule v2 needs no framing
 change because the embedded record is already versioned, bounded, and opaque.
+
+Summary v24 and replay-record v6 add the first complete replay verdict without
+claiming broad filesystem coverage. The admitted grammar is one or more of
+those Source-input events followed by one Output-rooted direct-child ordinary
+file: exact `create(438)`, one full immutable `write`, exact retiring `close`,
+and one matching generated-source handoff. Replay serves Source observations
+from the retained record but executes Output mutation in a fresh virtual
+namespace, requires exact event/evidence/result equality and namespace
+quiescence, and reconstructs the canonical one-file tree. Initial package
+review issues `Receipted` only after that independently reproduced tree equals
+the separately sponsored physical staged tree. Unsponsored output cannot mint
+the record. Reopened custody repeats the no-host execution and restores the
+generated source without reading drifted host Source or Output bytes. Static
+reach still has a `Volatile` ceiling; broader operations and output shapes
+remain realized `Volatile`. Operation schema v18 and baseline capsule v2 do not
+change. A separate 16 MiB aggregate retained-evidence ceiling rejects before
+replay cloning; validated attempts are shared across evaluator handoff.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject
@@ -512,9 +529,11 @@ mutation reserves its candidate accounting state before host mutation and
 commits only after success. Ceiling refusal is resource exhaustion rather than
 a host errno or generic evaluator trap. Path-summing and per-package limits are
 intentionally rejected designs.
-Compiler-issued package review carries this summary
-outside canonical capability/API comparison bytes. It is not a receipt and
-makes no replayability or source-rebuildability claim.
+Compiler-issued package review carries these summary fields outside canonical
+capability/API comparison bytes. The summary fields alone are not a receipt and
+make no replayability or source-rebuildability claim; only the exact v24/v6
+grammar above may combine them with verified operation replay and reproduced
+tree equality to issue `Receipted`.
 After a successful sponsored package build has released its filesystem
 provider and descriptors, the compiler also commits the complete fresh Output
 tree before orchestration deletes the disposable review session. A successful
@@ -535,8 +554,10 @@ triage lane. Review now retains that canonical content behind a compiler-owned
 carrier after the physical session is deleted. It can materialize into an
 existing empty concrete directory and independently re-inspect every path,
 kind, mode, symlink target, and file byte before returning the same commitment.
-This is staged-tree replay, not operation replay, a receipt, or generated-output
-handoff; hostile same-user racing remains outside this custody rung.
+In isolation this is staged-tree replay, not operation replay, a receipt, or
+generated-output handoff. The exact v24/v6 grammar above separately joins this
+custody to verified operation replay. Hostile same-user racing remains outside
+this custody rung.
 Checked package compilation now also retains
 the exact root package and selected build-machine symbol and can emit an
 in-memory authority review projection for one explicit target. That projection

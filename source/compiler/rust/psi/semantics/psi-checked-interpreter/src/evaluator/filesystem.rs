@@ -28,6 +28,10 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         let attempt_index = self.filesystem_operation_attempts.len();
         let replay_expected = self.expected_filesystem_replay_attempt(attempt_index, operation)?;
+        let execute_replayed_output = self
+            .filesystem_replay
+            .as_ref()
+            .is_some_and(|replay| replay.executes_output_attempt(attempt_index));
         let provider = replay_expected.as_ref().map_or_else(
             || match self.real_fs.as_ref() {
                 None => FilesystemObservationProvider::Virtual,
@@ -75,6 +79,12 @@ impl<'program> Evaluator<'program> {
                             Err(halt) => Err(halt),
                             Ok(()) => {
                                 let served = match replay_expected.as_ref() {
+                                    Some(expected) if execute_replayed_output => self
+                                        .serve_executed_replay_filesystem_call(
+                                            attempt_index,
+                                            expected,
+                                            call,
+                                        ),
                                     Some(expected) => self.serve_replayed_filesystem_call(
                                         attempt_index,
                                         &mutable_plan,
@@ -214,6 +224,34 @@ impl<'program> Evaluator<'program> {
                 replay.attempts().len()
             ));
         }
+        let Some(output) = replay.output_write_chain() else {
+            if !self.build_included_sources.is_empty() {
+                return trap("source-only filesystem replay observed generated-source handoff");
+            }
+            return Ok(());
+        };
+        let Some(expected_included_source) = replay.expected_included_source() else {
+            return trap("filesystem replay output has no generated-source handoff");
+        };
+        if self.build_included_sources.as_slice() != [expected_included_source] {
+            return trap("filesystem replay generated-source handoff changed");
+        }
+        let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
+        expected_path.push(b'/');
+        expected_path.extend_from_slice(output.output_relative_path());
+        if self.virtual_files.len() != 1
+            || self.virtual_files.get(&expected_path).map(Vec::as_slice)
+                != Some(output.write_bytes())
+            || !self.virtual_fds.is_empty()
+            || !self.virtual_dirs.is_empty()
+            || !self.virtual_finds.is_empty()
+            || !self.virtual_perms.is_empty()
+            || !self.virtual_symlinks.is_empty()
+            || !self.virtual_times.is_empty()
+            || !self.virtual_flocks.is_empty()
+        {
+            return trap("filesystem replay output namespace changed");
+        }
         Ok(())
     }
 
@@ -280,6 +318,26 @@ impl<'program> Evaluator<'program> {
                 })?,
         };
         Ok(Value::Int(raw))
+    }
+
+    fn serve_executed_replay_filesystem_call(
+        &mut self,
+        attempt_index: usize,
+        expected: &FilesystemOperationAttempt,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<Value> {
+        let current = &self.filesystem_operation_attempts[attempt_index];
+        if !replay_prepared_inputs_match(current, expected) {
+            return trap(format!(
+                "filesystem replay event {attempt_index} prepared inputs changed"
+            ));
+        }
+        // The fresh virtual namespace executes the operation. Root authorization
+        // remains compiler-issued evidence from the already validated record;
+        // the virtual provider has no ambient host root from which to derive it.
+        self.filesystem_operation_attempts[attempt_index].authorized_paths =
+            expected.authorized_paths.clone();
+        self.serve_filesystem_call(call)
     }
 
     fn record_operand_observations(
@@ -2300,7 +2358,7 @@ mod tests {
         let expected = returned_attempt(FilesystemHostOperation::Open);
         let mut evaluator = Evaluator::new(&program, &[]);
         evaluator.filesystem_replay = Some(crate::FilesystemReplay {
-            attempts: vec![expected.clone()],
+            attempts: vec![expected.clone()].into(),
         });
 
         assert!(matches!(
