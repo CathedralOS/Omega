@@ -1003,9 +1003,14 @@ Remaining:
   root borrow, and lease returned, releases those old holds, and retries with
   fresh epoch-20 leases. The successful installation retains exactly the two
   original producer schemas, mints only its two expected lineages, and reports
-  epoch 20 on both artifact audit origins. Add source, terminal, artifact, and
-  installation canaries for a one-root introduction, a finite multi-instance
-  aggregate, an unbounded installation shape, and cross-origin composition.
+  epoch 20 on both artifact audit origins. A distinct one-root source canary now
+  carries exactly one verified producer schema through prebinding, lifecycle
+  cohort, aggregate/snapshot/coexistence reporting, runtime establishment,
+  materialization, and audit origin. Terminal-artifact, lifecycle, and
+  materialization-plan substitutions reject transactionally and exact retry
+  mints only one lineage. Add source, terminal, artifact, and installation
+  canaries for a finite multi-instance aggregate, an unbounded installation
+  shape, and cross-origin composition.
   Source, canonical-codec, and verifier canaries now close
   coherent understatement of a producer schema against its independent owner
   projection; retain that invariant through the remaining artifact and
