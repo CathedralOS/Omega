@@ -3619,14 +3619,6 @@ fn project_public_conformances(
                 identity.path, trait_definition.name
             ))]);
         }
-        if !conformance.lifetime_parameters.is_empty()
-            && !compilation.trait_requirements(trait_definition).is_empty()
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "public conformance `{}` combines a lifetime telescope with inherited trait applications whose substituted lifetime topology is not yet represented by package review",
-                identity.path
-            ))]);
-        }
         let trait_arguments = compilation
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -3637,6 +3629,7 @@ fn project_public_conformances(
             conformance.trait_symbol,
             &trait_arguments,
             &binders,
+            Some(&conformance.lifetime_parameters),
             &[],
             &mut Vec::new(),
             &mut requirements,
@@ -3655,13 +3648,6 @@ fn project_public_conformances(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if !conformance.lifetime_parameters.is_empty() {
-            for requirement in &mut requirements {
-                if requirement.declaring_trait == trait_identity {
-                    requirement.declaring_trait_arguments = interface_arguments.clone();
-                }
-            }
-        }
         let interface = PackageReviewEvidenceInterface {
             trait_identity,
             arguments: interface_arguments,
@@ -5962,16 +5948,39 @@ fn review_signature_type_identity_with_binders(
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[psi_typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+    review_signature_type_identity_with_binders_and_substitutions(
+        compilation,
+        type_reference,
+        binders,
+        lifetime_binders,
+        &[],
+    )
+}
+
+fn review_signature_type_identity_with_binders_and_substitutions(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    lifetime_binders: &[psi_typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     validate_package_type_identity_input(&compilation.typed, type_reference, binders)?;
     let runtime = compilation
-        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+        .package_qualified_type_identity_with_binders_substitutions_and_toolchain_sources(
             type_reference,
             binders,
+            substitutions,
             compilation.exact_toolchain_sources(),
         )
         .ok_or_else(missing_exact_toolchain_type_owner)?
         .into_string();
-    let lifetime = review_lifetime_topology(compilation, type_reference, lifetime_binders)?;
+    let lifetime = review_lifetime_topology_with_substitutions(
+        compilation,
+        type_reference,
+        lifetime_binders,
+        substitutions,
+        &mut Vec::new(),
+    )?;
     Ok(PackageReviewTypeIdentity {
         canonical: framed_identity("signature-type", &[runtime, lifetime]),
     })
@@ -6049,10 +6058,12 @@ fn canonical_digest_label(kind: &str, digest: [u8; 32]) -> String {
     label
 }
 
-fn review_lifetime_topology(
+fn review_lifetime_topology_with_substitutions(
     compilation: &CheckedCompilation,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     lifetime_binders: &[psi_typed_trees::name::Identifier],
+    substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
+    active_substitutions: &mut Vec<SymbolHandle>,
 ) -> Result<String, Vec<Diagnostic>> {
     use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -6074,7 +6085,13 @@ fn review_lifetime_topology(
                 "reference",
                 &[
                     lifetime,
-                    review_lifetime_topology(compilation, *referee, lifetime_binders)?,
+                    review_lifetime_topology_with_substitutions(
+                        compilation,
+                        *referee,
+                        lifetime_binders,
+                        substitutions,
+                        active_substitutions,
+                    )?,
                 ],
             )
         }
@@ -6094,10 +6111,12 @@ fn review_lifetime_topology(
                                 .arguments
                                 .iter()
                                 .map(|argument| {
-                                    review_lifetime_topology(
+                                    review_lifetime_topology_with_substitutions(
                                         compilation,
                                         *argument,
                                         lifetime_binders,
+                                        substitutions,
+                                        active_substitutions,
                                     )
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
@@ -6109,28 +6128,34 @@ fn review_lifetime_topology(
                 .collect::<Result<Vec<_>, _>>()?;
             constraint_topologies.sort();
             constraint_topologies.dedup();
-            let mut children = vec![review_lifetime_topology(
+            let mut children = vec![review_lifetime_topology_with_substitutions(
                 compilation,
                 *base_type,
                 lifetime_binders,
+                substitutions,
+                active_substitutions,
             )?];
             children.extend(constraint_topologies);
             framed_identity("constrained", &children)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => framed_identity(
             "array",
-            &[review_lifetime_topology(
+            &[review_lifetime_topology_with_substitutions(
                 compilation,
                 *element_type,
                 lifetime_binders,
+                substitutions,
+                active_substitutions,
             )?],
         ),
         TypeReferenceNode::Slice { element_type } => framed_identity(
             "slice",
-            &[review_lifetime_topology(
+            &[review_lifetime_topology_with_substitutions(
                 compilation,
                 *element_type,
                 lifetime_binders,
+                substitutions,
+                active_substitutions,
             )?],
         ),
         TypeReferenceNode::Generic {
@@ -6151,13 +6176,42 @@ fn review_lifetime_topology(
                     .type_reference_handles(*arguments)
                     .iter()
                     .map(|argument| {
-                        review_lifetime_topology(compilation, *argument, lifetime_binders)
+                        review_lifetime_topology_with_substitutions(
+                            compilation,
+                            *argument,
+                            lifetime_binders,
+                            substitutions,
+                            active_substitutions,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             );
             framed_identity("generic", &children)
         }
-        TypeReferenceNode::Named { .. } => "named".to_owned(),
+        TypeReferenceNode::Named { symbol, .. } => {
+            let Some((_, replacement)) = substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == symbol)
+            else {
+                return Ok("named".to_owned());
+            };
+            if active_substitutions.contains(symbol) {
+                return Err(vec![Diagnostic::error(
+                    "package review rejects a cyclic inherited type substitution",
+                )]);
+            }
+            active_substitutions.push(*symbol);
+            let topology = review_lifetime_topology_with_substitutions(
+                compilation,
+                *replacement,
+                lifetime_binders,
+                substitutions,
+                active_substitutions,
+            );
+            active_substitutions.pop();
+            topology?
+        }
         TypeReferenceNode::DynamicTrait { .. } => "dynamic-trait".to_owned(),
         TypeReferenceNode::ConstExpression(_) => "const-expression".to_owned(),
         TypeReferenceNode::Unit => "unit".to_owned(),
@@ -7384,6 +7438,7 @@ fn project_evidence_interface(
         trait_symbol,
         &arguments,
         proposition_binders,
+        None,
         &[],
         &mut Vec::new(),
         &mut requirements,
@@ -7402,6 +7457,7 @@ fn collect_evidence_requirements(
     trait_symbol: SymbolHandle,
     trait_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     proposition_binders: &[(SymbolHandle, String)],
+    lifetime_binders: Option<&[psi_typed_trees::name::Identifier]>,
     inherited_substitutions: &[(SymbolHandle, psi_typed_trees::types::TypeReferenceHandle)],
     visited: &mut Vec<(PackageReviewNominalIdentity, Vec<PackageReviewTypeIdentity>)>,
     requirements: &mut Vec<PackageReviewEvidenceRequirement>,
@@ -7445,13 +7501,22 @@ fn collect_evidence_requirements(
     }
     let argument_identities = trait_arguments
         .iter()
-        .map(|argument| {
-            review_type_identity_with_binders_and_substitutions(
+        .map(|argument| match lifetime_binders {
+            Some(lifetime_binders) => {
+                review_signature_type_identity_with_binders_and_substitutions(
+                    compilation,
+                    *argument,
+                    proposition_binders,
+                    lifetime_binders,
+                    inherited_substitutions,
+                )
+            }
+            None => review_type_identity_with_binders_and_substitutions(
                 compilation,
                 *argument,
                 proposition_binders,
                 inherited_substitutions,
-            )
+            ),
         })
         .collect::<Result<Vec<_>, _>>()?;
     let visit = (
@@ -7493,6 +7558,7 @@ fn collect_evidence_requirements(
             parent.symbol,
             parent_arguments,
             proposition_binders,
+            lifetime_binders,
             &substitutions,
             visited,
             requirements,

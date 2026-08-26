@@ -213,3 +213,39 @@ sequence.
 - Tempting but wrong: let each backend choose an order or treat order as
   unobservable. Cleanup calls can carry effects, requirements, guarantees,
   fuel, and diagnostics, so their sequence is semantic.
+
+## Q6 — Lifetime application on conformance target traits
+
+### Context
+
+A public conformance may have its own lifetime telescope, and package review now
+retains lifetime-sensitive type arguments through inherited trait requirements.
+The remaining unsupported form is a conformance whose selected trait itself is
+lifetime-parameterized. Current conformance representations retain the target
+trait's type arguments but no target-trait lifetime application.
+
+### Problem statement
+
+The compiler cannot distinguish, validate, or canonically record which
+conformance lifetime supplies each target-trait lifetime. Accepting the form
+would erase public interface identity; reconstructing it from names or expected
+subject shape would make inference and package review disagree.
+
+### Proposed direction
+
+Treat the target as an ordinary complete trait application. Retain each lifetime
+argument in target-trait declaration order and resolve it to an ordinal in the
+conformance lifetime telescope. Require explicit arguments unless the existing
+language-wide lifetime-elision rule yields exactly one result, and retain that
+resolved result identically through typed checking, conformance closure, and
+package review.
+
+### Alternates
+
+- Acceptable and simpler: require every target-trait lifetime argument to be
+  explicit at a conformance declaration, even where callable/type lifetime
+  elision would otherwise be unique.
+- Tempting but wrong: infer target lifetimes from the conformance subject or
+  trait type arguments without retaining the resolved application.
+- Tempting but wrong: erase the target-trait lifetime application because it
+  has no runtime layout effect; it remains proof and public-interface identity.

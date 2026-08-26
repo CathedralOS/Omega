@@ -582,6 +582,14 @@ directly and assigns them no text encoding. Escape-equivalent source spellings
 therefore have identical canonical identity, while changing any octet changes
 the reviewed contract. Unsupported aggregate and advanced call forms remain
 fail-closed.
+Review v62 and canonical row v20 admit inherited requirement surfaces for
+lifetime-generic public conformances when the selected trait has no lifetime
+telescope of its own. Requirement rows apply the complete inherited type
+substitution before deriving alpha-normalized lifetime topology. Renaming
+binders or changing private realization bodies is stable; selecting another
+lifetime ordinal changes canonical identity. Targeting a lifetime-parameterized
+trait remains fail-closed until Omega settles and retains that declaration-site
+lifetime application.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,
