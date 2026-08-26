@@ -672,32 +672,13 @@ impl Compiler {
             workers.handle(),
             &mut timings,
         )?;
-        let program_storage_entry = program_entry_realization
-            .as_ref()
-            .map(|realization| {
-                let source_signature = selected_program_entry_source_signature
-                    .as_ref()
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected program-storage entry lost its checked source signature before backend binding",
-                        )]
-                    })?;
-                let plan = backend.plan.entry_boundary_plan.as_ref().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected program-storage entry lost its retained calling plan before backend binding",
-                    )]
-                })?;
-                crate::pipeline::program_storage_entry::bind_generated_program_storage_entry_plan(
-                    &realization.storage_entry,
-                    plan,
-                    &backend.plan.runtime_storage,
-                    &backend.plan.layouts,
-                    backend.plan.entry_key,
-                    source_signature,
-                )
-                .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
-            })
-            .transpose()?;
+        let program_storage_entry = crate::pipeline::program_storage_entry::bind_compiler_generated_program_storage_entry_plan(
+            program_entry_realization
+                .as_ref()
+                .map(|realization| &realization.storage_entry),
+            selected_program_entry_source_signature.as_ref(),
+            &backend.plan,
+        )?;
         let mut program_storage_entry_bridge = crate::pipeline::program_storage_entry::bind_compiler_generated_program_storage_entry_native_bridge(
             program_storage_entry,
             program_storage_entry_provider,

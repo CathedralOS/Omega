@@ -1989,6 +1989,40 @@ pub fn bind_program_storage_entry_plan(
     })
 }
 
+/// Join an optional compiler selection to its exact checked source and
+/// backend-owned entry plan. Absence does not inspect or require backend
+/// storage; presence projects every generated input through the retained plan.
+pub(super) fn bind_compiler_generated_program_storage_entry_plan(
+    selected: Option<&SelectedProgramStorageEntryPlan>,
+    source_signature: Option<&super::SelectedProgramEntrySourceSignature>,
+    backend: &omega_backend_plan::BackendPlan,
+) -> Result<Option<ProgramStorageEntryPlanBinding>, Vec<Diagnostic>> {
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let source_signature = source_signature.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "selected program-storage entry lost its checked source signature before backend binding",
+        )]
+    })?;
+    let plan = backend.entry_boundary_plan.as_ref().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "selected program-storage entry lost its retained calling plan before backend binding",
+        )]
+    })?;
+
+    bind_generated_program_storage_entry_plan(
+        selected,
+        plan,
+        &backend.runtime_storage,
+        &backend.layouts,
+        backend.entry_key,
+        source_signature,
+    )
+    .map(Some)
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+}
+
 /// Join the selected root slot to the concrete entry-frame captures generated
 /// for its source continuation. Parameter order comes from the checked entry
 /// state; ABI shapes and placements come only from the retained evaluated plan.
@@ -2959,7 +2993,9 @@ impl std::error::Error for ProgramStoragePartitionError {}
 mod tests {
     use super::{
         ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
+        SelectedProgramStorageEntryPlan,
         bind_compiler_generated_program_storage_entry_native_bridge,
+        bind_compiler_generated_program_storage_entry_plan,
         compiler_generated_program_storage_target_profile, validate_encoded_program_storage_entry,
     };
     use omega_backend_plan::{BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming};
@@ -3122,6 +3158,75 @@ mod tests {
             source_signature: with_source.then(checked_source_signature),
             physical_contract: None,
         }
+    }
+
+    fn selected_storage_entry() -> SelectedProgramStorageEntryPlan {
+        let slot = omega_target::TargetProfile::UefiX64.program_entry_slot();
+        let requirement_identity = "ProgramStorageEntry::enter#exact";
+        SelectedProgramStorageEntryPlan::from_target_slot(
+            slot,
+            omega_effects::provider_plan::ServiceSchema {
+                trait_name: slot
+                    .boundary_schema
+                    .expect("UEFI program entry has a source boundary schema")
+                    .into(),
+                methods: vec![omega_effects::provider_plan::ServiceMethod {
+                    name: "enter".into(),
+                    requirement_owner: "ProgramStorageEntry".into(),
+                    requirement_identity: requirement_identity.into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            requirement_identity.into(),
+        )
+        .expect("selected UEFI program-storage entry")
+    }
+
+    #[test]
+    fn absent_compiler_plan_join_has_no_backend_dependency() {
+        let backend = backend_plan();
+
+        let binding = bind_compiler_generated_program_storage_entry_plan(None, None, &backend)
+            .expect("absent program-storage selection");
+
+        assert!(binding.is_none());
+    }
+
+    #[test]
+    fn compiler_plan_join_requires_checked_source_before_backend_plan() {
+        let selected = selected_storage_entry();
+        let backend = backend_plan();
+
+        let diagnostics =
+            bind_compiler_generated_program_storage_entry_plan(Some(&selected), None, &backend)
+                .expect_err("selected program-storage entry must retain its source signature");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "selected program-storage entry lost its checked source signature before backend binding"
+        );
+    }
+
+    #[test]
+    fn compiler_plan_join_requires_retained_backend_entry_plan() {
+        let selected = selected_storage_entry();
+        let source_signature = checked_source_signature();
+        let backend = backend_plan();
+
+        let diagnostics = bind_compiler_generated_program_storage_entry_plan(
+            Some(&selected),
+            Some(&source_signature),
+            &backend,
+        )
+        .expect_err("selected program-storage entry must retain its backend calling plan");
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "selected program-storage entry lost its retained calling plan before backend binding"
+        );
     }
 
     #[test]
