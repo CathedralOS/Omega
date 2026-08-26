@@ -606,8 +606,13 @@ checked graph, projects the facts through the same canonical contract vocabulary
 as public domains, and includes them in public-data identity in review
 v59/canonical row v17. Missing, duplicate, altered, malformed-span, or
 path-spoofed custody rejects; unsupported source fact forms remain fail-closed.
-Public data quotients still reject until exact canonical rows exist. Data
-declarations do not admit proposition parameters. Review v43 and canonical row
+Review v60/canonical row v18 adds a closed ordinary/quotient data discriminant.
+Public quotient rows bind the exact carrier-family type and package-qualified
+public relation declaration only after the compiler independently reruns the
+complete formation judgment. The relation's public-proposition row binds its
+body and evidence interface. The selected equivalence conformance remains
+private package-admission custody and is deliberately absent from quotient API
+identity. Data declarations do not admit proposition parameters. Review v43 and canonical row
 v3 represent static-machine parameters directly: structural contracts retain
 their complete alpha-normalized nested signature and operational envelope,
 while nominal contracts retain exact public trait and requirement identities.

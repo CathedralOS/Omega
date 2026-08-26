@@ -36,6 +36,34 @@ pub(crate) fn type_has_forbidden_denotational_content(
 
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
+/// Exact quotient-formation identity rederived from the complete typed graph.
+///
+/// The selected equivalence conformance licenses formation but is deliberately
+/// absent: changing one valid proof implementation does not change quotient
+/// identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedQuotientFormation {
+    pub data_symbol: SymbolHandle,
+    pub carrier: TypeReferenceHandle,
+    pub relation_symbol: SymbolHandle,
+}
+
+/// Rerun the complete quotient-formation judgment without considering any
+/// quotient-operation requests. Package review uses this instead of trusting
+/// the retained `QuotientDefinition` metadata as checked evidence.
+pub fn validate_quotient_formations(
+    program: &TypedTrees,
+) -> Result<Vec<ValidatedQuotientFormation>, Vec<Diagnostic>> {
+    let proof_only = psi_typed_trees::proof_only::classify(program);
+    let mut diagnostics = Vec::new();
+    let formations = collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
+    if diagnostics.is_empty() {
+        Ok(formations)
+    } else {
+        Err(diagnostics)
+    }
+}
+
 pub(crate) fn validate_quotients(
     program: &TypedTrees,
     proof_only: &ProofOnlyClassification,
@@ -43,10 +71,20 @@ pub(crate) fn validate_quotients(
 ) {
     reject_quotient_operation_requests(program, diagnostics);
 
+    collect_validated_quotient_formations(program, proof_only, diagnostics);
+}
+
+fn collect_validated_quotient_formations(
+    program: &TypedTrees,
+    proof_only: &ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<ValidatedQuotientFormation> {
+    let mut formations = Vec::new();
     for definition in program.data_definitions() {
         let Some(quotient) = &definition.quotient else {
             continue;
         };
+        let diagnostics_before = diagnostics.len();
         let relation_name = quotient
             .relation
             .iter()
@@ -130,7 +168,15 @@ pub(crate) fn validate_quotients(
             carrier_symbol,
             diagnostics,
         );
+        if diagnostics.len() == diagnostics_before {
+            formations.push(ValidatedQuotientFormation {
+                data_symbol: definition.symbol,
+                carrier: quotient.carrier,
+                relation_symbol: relation.symbol,
+            });
+        }
     }
+    formations
 }
 
 /// Reject every retained sealed request while deriving the exact relation plan

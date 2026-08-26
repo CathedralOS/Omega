@@ -219,6 +219,28 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
             &mut candidates,
         );
     }
+    for data_definition in program.data_definitions.iter() {
+        let Some(selection) = data_definition
+            .quotient
+            .as_ref()
+            .and_then(|quotient| quotient.equivalence.as_ref())
+        else {
+            continue;
+        };
+        if selection.conformance_name.is_source_backed() {
+            candidates.push(UnattachedCandidate {
+                source_span: selection.conformance_name.source_span(),
+                // The selected proof implementation licenses formation but is
+                // not quotient API identity.
+                exposure: Exposure::PrivateImplementation,
+                kind: Kind::Conformance,
+                target: resolved_or_late(
+                    selection.conformance_symbol,
+                    LateBinding::CheckedConformance,
+                ),
+            });
+        }
+    }
     candidates
 }
 

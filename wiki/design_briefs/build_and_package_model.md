@@ -1121,8 +1121,13 @@ Public data projects its supply, generic shape, properties,
 fields/variants/payloads, relevance, and stable numbered and retired identities.
 Those numbered ordinary-data identities are
 the wire contract; the retired standalone `wire data` form is not projected as
-a duplicate API. Public data quotients reject until the projection has an exact
-row. Data declarations do not admit proposition parameters; static-machine
+a duplicate API. Public data has a closed ordinary/quotient form. A quotient
+row binds its exact carrier-family type identity and package-qualified public
+relation declaration after package review independently reruns the complete
+formation judgment. The relation's public-proposition row separately binds its
+telescope, body, and evidence classification. The selected equivalence proof
+implementation is private admission custody and does not enter quotient API
+identity. Data declarations do not admit proposition parameters; static-machine
 parameters and the representable default-domain proof fragment have exact
 canonical rows, while unsupported proof forms fail closed.
 Public domain rows likewise retain exact declaring-package identity,

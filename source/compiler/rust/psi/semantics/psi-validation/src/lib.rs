@@ -101,6 +101,7 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
+pub use quotients::{ValidatedQuotientFormation, validate_quotient_formations};
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{
     DynamicConformanceSelection, collect_dynamic_conformance_selections,

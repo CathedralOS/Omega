@@ -806,6 +806,85 @@ where Element satisfies Card::PowerOrder
 }
 
 #[test]
+fn quotient_formation_retains_selected_evidence_as_private_package_custody() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use omega::language::core::relation;
+use leaf::leaf;
+
+pub data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as Evidence;
+"#,
+    );
+    let leaf_source = |visibility: &str| {
+        format!(
+            r#"use omega::language::core::relation;
+
+pub data Representative {{
+    case Zero;
+    case Next(previous: Representative);
+}}
+pub proposition equivalent(a: Representative, b: Representative) = a == b;
+machine equivalent_reflexive(a: Representative) ensures a == a {{}}
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{{}}
+machine equivalent_transitive(a: Representative, b: Representative, c: Representative)
+requires
+    a == b
+    b == c
+ensures a == c
+{{}}
+{visibility}Evidence: satisfies Equivalence<Representative, equivalent> {{
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}}
+"#,
+        )
+    };
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source(""));
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "leaf",
+                identity(2),
+            )],
+        )
+        .expect("direct quotient dependency graph should validate")
+    };
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("quotient formation may not consume a dependency's private proof evidence");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("private conformance")
+                && diagnostic.message.contains("Evidence")
+        }),
+        "unexpected quotient evidence diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
+        |diagnostics| {
+            panic!("public quotient proof evidence should be selectable: {diagnostics:#?}")
+        },
+    );
+}
+
+#[test]
 fn public_dynamic_return_may_carry_private_producer_selected_evidence() {
     let tree = TempTree::new();
     let root = tree.package("root");

@@ -6,14 +6,14 @@
 // renaming them, so selecting a different proof conformance does not change
 // the relation's nominal identity.
 
-trait Reflexive<C, proposition Relation>
+pub trait Reflexive<C, proposition Relation>
 where proposition Relation(left: C, right: C);
 {
     machine reflexive(value: C)
     ensures Relation(value, value);
 }
 
-trait Symmetric<C, proposition Relation>
+pub trait Symmetric<C, proposition Relation>
 where proposition Relation(left: C, right: C);
 {
     machine symmetric(left: C, right: C)
@@ -21,7 +21,7 @@ where proposition Relation(left: C, right: C);
     ensures Relation(right, left);
 }
 
-trait Transitive<C, proposition Relation>
+pub trait Transitive<C, proposition Relation>
 where proposition Relation(left: C, right: C);
 {
     machine transitive(left: C, middle: C, right: C)
@@ -31,7 +31,7 @@ where proposition Relation(left: C, right: C);
     ensures Relation(left, right);
 }
 
-trait Antisymmetric<C, proposition Relation>
+pub trait Antisymmetric<C, proposition Relation>
 where proposition Relation(left: C, right: C);
 {
     machine antisymmetric(left: C, right: C)
@@ -41,7 +41,7 @@ where proposition Relation(left: C, right: C);
     ensures left == right;
 }
 
-trait Equivalence<C, proposition Relation>:
+pub trait Equivalence<C, proposition Relation>:
     Reflexive<C, Relation>
     + Symmetric<C, Relation>
     + Transitive<C, Relation>
@@ -49,14 +49,14 @@ where proposition Relation(left: C, right: C);
 {
 }
 
-trait Preorder<C, proposition Relation>:
+pub trait Preorder<C, proposition Relation>:
     Reflexive<C, Relation>
     + Transitive<C, Relation>
 where proposition Relation(left: C, right: C);
 {
 }
 
-trait PartialOrder<C, proposition Relation>:
+pub trait PartialOrder<C, proposition Relation>:
     Preorder<C, Relation>
     + Antisymmetric<C, Relation>
 where proposition Relation(left: C, right: C);

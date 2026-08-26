@@ -456,9 +456,14 @@ borrows changes package evidence. Public data rows include their complete
 structural surface, lifetime arity, and stable numbered/retired identities.
 Numbered ordinary `data` is also the wire contract—the retired standalone
 `wire data` form does
-not create a parallel package surface. If a public data form contains quotient
-semantics, default-domain proof facts, or static callable/proposition contracts
-that the projection cannot yet encode exactly, projection rejects it.
+not create a parallel package surface. Public data now has a closed
+ordinary/quotient discriminant. Quotient identity contains the exact
+carrier-family type and package-qualified public relation declaration; package
+review reruns the complete quotient-formation judgment before issuing it. The
+relation's existing public-proposition row binds its semantic body. A selected
+equivalence conformance remains private admission custody and does not change
+quotient API identity. Default-domain proof facts or static callable/
+proposition contracts that cannot be encoded exactly still reject.
 Public domain rows retain exact declaring-package identity, alpha-normalized
 type/const binders, carrier type, and closed index arguments. A synthesized
 domain path retains its semantic spelling separately from the authored span
