@@ -438,6 +438,12 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerAdd { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerRemainder { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerRemainder { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerRemainder { .. }
             )
         })
         .count()
@@ -703,7 +709,7 @@ mod tests {
     }
 
     fn budget(iterations: u64) -> OptimizationWorkBudget {
-        OptimizationWorkBudget::new(16, 16, 16, 16, iterations).unwrap()
+        OptimizationWorkBudget::new(64, 64, 64, 64, iterations).unwrap()
     }
 
     #[test]
@@ -721,14 +727,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 10);
+        assert_eq!(usage.rule_evaluations, 16);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-        assert_eq!(pass_manifest.ordered_rules().len(), 9);
+        assert_eq!(pass_manifest.ordered_rules().len(), 15);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -761,7 +767,7 @@ mod tests {
 
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 13);
+        assert_eq!(usage.rule_evaluations, 19);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant {
@@ -777,7 +783,7 @@ mod tests {
             }
         ));
         let manifest = pass_manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 9);
+        assert_eq!(manifest.ordered_rules().len(), 15);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
     }
