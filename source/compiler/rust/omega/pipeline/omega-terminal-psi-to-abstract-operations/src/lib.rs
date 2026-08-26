@@ -1652,6 +1652,7 @@ fn lower_structural_machine(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence: _,
         } = &operation.kind
         && let Some(operation_result) = operation.result.structural()
         && let Terminator::ReturnStructural {
