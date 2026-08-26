@@ -70,6 +70,10 @@ canonical_identity!(
     b"omega.optimization-candidate-identity.v1\0"
 );
 canonical_identity!(
+    ScalarConstantFactIdentity,
+    b"omega.scalar-constant-fact-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -402,6 +406,7 @@ mod tests {
         for identity in [
             OptimizationPassIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationCandidateIdentity::from_canonical_bytes(b"same").bytes(),
+            ScalarConstantFactIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
@@ -424,6 +429,7 @@ mod tests {
         round_trip!(OptimizationRuleIdentity);
         round_trip!(OptimizationPassIdentity);
         round_trip!(OptimizationCandidateIdentity);
+        round_trip!(ScalarConstantFactIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationValidatorIdentity);
         round_trip!(OptimizationUnitIdentity);

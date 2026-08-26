@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_optimization_core::OptimizationUnitIdentity;
+use omega_optimization_core::{OptimizationUnitIdentity, ScalarConstantFactIdentity};
 use omega_optimization_unit::{
-    OptimizationEdge, OptimizationFact, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-    ValueUse,
+    OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiProvenance, ScalarConstantValue, ValueDefinition, ValueUse,
+    literal_scalar_constant_fact_identity,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
@@ -31,6 +32,10 @@ pub struct ValueFactRegion {
 pub struct ScalarConstantFact {
     pub value: ValueId,
     pub constant: ScalarConstant,
+    /// Present only when this fact has a canonical derivation that the
+    /// independent validator can reconstruct. Propagated facts stay
+    /// unavailable to rewrite witnesses until that derivation vocabulary lands.
+    pub identity: Option<ScalarConstantFactIdentity>,
     pub support: ScalarConstantSupport,
     pub valid_in: ValueFactRegion,
 }
@@ -503,9 +508,23 @@ fn sparse_conditional_constants(
             let LatticeValue::Constant(constant, support) = state else {
                 return None;
             };
+            let identity = support.literal_operation().and_then(|operation| {
+                let definition = scalar_value_definition(function, value)?;
+                literal_scalar_constant_fact_identity(
+                    unit.identity,
+                    function.machine,
+                    definition,
+                    match constant {
+                        ScalarConstant::Boolean(value) => ScalarConstantValue::Boolean(value),
+                        ScalarConstant::Integer(value) => ScalarConstantValue::Integer(value),
+                    },
+                    operation,
+                )
+            });
             Some(ScalarConstantFact {
                 value,
                 constant,
+                identity,
                 support,
                 valid_in: ValueFactRegion {
                     revision: unit.identity,
@@ -520,6 +539,25 @@ fn sparse_conditional_constants(
         ScalarConstantAnalysis { facts },
         ExecutableEdgeAnalysis { edges: edge_facts },
     )
+}
+
+fn scalar_value_definition(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<ValueDefinition> {
+    function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.definitions),
+        )
+        .copied()
+        .find(|definition| definition.value == value)
 }
 
 fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
