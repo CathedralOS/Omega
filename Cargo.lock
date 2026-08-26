@@ -1270,6 +1270,7 @@ dependencies = [
  "omega-register-model",
  "omega-target",
  "omega-terminal-selected-instructions",
+ "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-selected-instructions",
  "psi-core",
  "psi-terminal",

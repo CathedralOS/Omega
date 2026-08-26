@@ -1012,9 +1012,19 @@ dependency.
   under an explicit work budget. Its separate replay implementation and
   versioned identity/codec fail closed on cross-block or connected pressure and
   do not weaken the existing home assigner's `NoCompatibleHome` result. Next
-  join selected-value type/ownership/proof custody and target frame policy
-  before any chosen victim can become a typed spill, reload, or
-  rematerialization.
+  the named `SelectedVictimImmediateU64EligibilityV1` policy joins that victim
+  back to the sealed validated selected CFG, exact range/legality roots,
+  scalar/origin/definition data, instruction provenance and logical-fuel
+  anchors, and canonical future flexible uses. It positively classifies only
+  the current cleanup-free non-address u64 literal source; every unsupported
+  victim gets an exact no-admitted-recovery reason, never an inferred spill.
+  The identity-bound codec and structurally separate replay grant no strategy,
+  code mutation, fuel movement, storage, frame, emission, or publication
+  authority. Next add an explicit allocator-availability policy for a
+  production pressure vertical, then implement a separately named literal
+  sink/rematerialization transform with complete reanalysis. Selected-value
+  ownership/proof custody and target frame policy must still join before any
+  victim can become a typed spill or reload.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
@@ -1041,6 +1051,12 @@ dependency.
   incoming view, ranks farthest exclusive end then highest VReg ID, and records
   no memory/rematerialization choice or placement. This closes deterministic
   victim selection, not spill materialization.
+
+  `SelectedVictimImmediateU64EligibilityV1` now closes only the next analysis
+  question: whether that exact victim is a validated flexible-use u64 literal
+  rematerialization candidate. It records the incoming-versus-active role,
+  original instruction/value/provenance/fuel anchors, and future use demands.
+  Eligibility does not select, move, duplicate, or charge an instruction.
 
 - **OPT-STACK-SLOTS.** Assign aligned frame slots with lifetime-based reuse,
   outgoing-call areas, ABI shadow space/red-zone policy, dynamic restrictions,

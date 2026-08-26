@@ -29,6 +29,10 @@ mod live_range_model;
 mod live_range_validate;
 mod model;
 mod post_allocation_manifest;
+mod recovery_classification_compute;
+mod recovery_classification_identity;
+mod recovery_classification_model;
+mod recovery_classification_validate;
 mod selected_analysis_input;
 mod spill_choice_compute;
 mod spill_choice_identity;
@@ -52,6 +56,9 @@ pub use live_range_validate::validate_terminal_live_ranges;
 pub use model::*;
 pub use omega_register_model::*;
 pub use post_allocation_manifest::*;
+pub use recovery_classification_identity::terminal_recovery_classification_identity;
+pub use recovery_classification_model::*;
+pub use recovery_classification_validate::validate_terminal_recovery_classifications;
 pub use selected_analysis_input::ValidatedTerminalSelectedAnalysis;
 pub use spill_choice_identity::terminal_spill_choice_identity;
 pub use spill_choice_model::*;
@@ -224,6 +231,28 @@ pub fn choose_terminal_spill_victims(
         selected_keys,
         plan,
     )
+}
+
+/// Classify the already selected pressure victim under one exact recovery
+/// eligibility policy. The result is analysis evidence only: it neither picks
+/// a recovery strategy nor changes code, fuel, storage, frames, or emission.
+pub fn classify_terminal_pressure_recovery<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    spill_choices: &ValidatedTerminalSpillChoices,
+    policy: TerminalRecoveryClassificationPolicy,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedTerminalRecoveryClassifications, TerminalRecoveryClassificationError> {
+    let plan = recovery_classification_compute::compute_terminal_recovery_classifications(
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        policy,
+        budget,
+    )?;
+    validate_terminal_recovery_classifications(selected, ranges, legality, spill_choices, plan)
 }
 
 #[cfg(test)]

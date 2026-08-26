@@ -19,4 +19,5 @@ psi-core = { path = "../../../psi/foundation/psi-core" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
