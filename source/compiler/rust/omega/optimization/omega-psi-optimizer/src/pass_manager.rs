@@ -2,9 +2,10 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
-    OptimizationDecisionIdentity, OptimizationDecisionRecord, OptimizationPassManifestRecord,
-    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    OptimizationDecisionIdentity, OptimizationDecisionRecord, OptimizationIdentityBundle,
+    OptimizationPassManifestRecord, OptimizationReasonCode, OptimizationRuleIdentity,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationWorkBudget, OptimizationWorkUsage, TargetCostModelIdentity,
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
@@ -22,8 +23,13 @@ use omega_terminal_psi_to_abstract_operations::{
 };
 
 use crate::{
-    AnalysisManager, AnalysisManagerError, OrderedRuleRegistry, RuleAnalysisView, RuleProposalError,
+    AnalysisManager, AnalysisManagerError, OrderedRuleRegistry, RuleAnalysisView,
+    RuleProposalError, RuleRegistryError, built_in_psi_registry,
 };
+
+pub fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
+    TargetCostModelIdentity::from_canonical_bytes(b"omega.psi-baseline-structural-cost-model.v1")
+}
 
 #[derive(Debug)]
 pub struct VerifiedPsiOptimizationSession {
@@ -81,6 +87,7 @@ pub struct OptimizationRun {
     pub decisions: BaselineDecisionLog,
     pub pass_manifest: Option<OptimizationPassManifestRecord>,
     pub transformation_ledger: PsiTransformationLedger,
+    pub identity_bundle: OptimizationIdentityBundle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +109,8 @@ pub enum OptimizationRunError {
     PolicySelectionMissing(OptimizationCandidateIdentity),
     InvalidManifest(InvalidOptimizationManifestRecord),
     InvalidTransformationLedger(InvalidPsiTransformationLedger),
+    RegistryConstruction(RuleRegistryError),
+    SelectionRegistryMismatch,
 }
 
 impl std::fmt::Display for OptimizationRunError {
@@ -114,13 +123,29 @@ impl std::error::Error for OptimizationRunError {}
 
 pub fn run_psi_registry(
     verified: VerifiedPsiOptimizationUnit,
+    selections: &OptimizationSelections,
     registry: &OrderedRuleRegistry,
     budget: OptimizationWorkBudget,
 ) -> Result<OptimizationRun, OptimizationRunError> {
+    let expected =
+        built_in_psi_registry(selections).map_err(OptimizationRunError::RegistryConstruction)?;
+    if expected.identity() != registry.identity()
+        || expected.contracts().collect::<Vec<_>>() != registry.contracts().collect::<Vec<_>>()
+    {
+        return Err(OptimizationRunError::SelectionRegistryMismatch);
+    }
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
     let (unit, commits, usage, decisions, pass_manifest, transformation_ledger) =
         run_unit(session.unit, registry, budget)?;
+    let identity_bundle = OptimizationIdentityBundle::new(
+        selections.identity(),
+        registry.identity(),
+        baseline_psi_cost_model_identity(),
+        Some(decisions.identity),
+        None,
+        transformation_ledger.identity(),
+    );
     Ok(OptimizationRun {
         session: VerifiedPsiOptimizationSession {
             input: session.input,
@@ -131,6 +156,7 @@ pub fn run_psi_registry(
         decisions,
         pass_manifest,
         transformation_ledger,
+        identity_bundle,
     })
 }
 
@@ -806,11 +832,18 @@ mod tests {
 
     #[test]
     fn public_run_requires_and_retains_verified_optimizer_context() {
+        let selections = OptimizationSelections::default();
         let registry = OrderedRuleRegistry::new(Vec::new()).unwrap();
-        let run = run_psi_registry(verified_empty_unit(), &registry, budget(2)).unwrap();
+        let run =
+            run_psi_registry(verified_empty_unit(), &selections, &registry, budget(2)).unwrap();
         assert!(run.commits.is_empty());
         assert!(run.pass_manifest.is_none());
         assert!(run.transformation_ledger.records().is_empty());
+        assert_eq!(run.identity_bundle.selections(), selections.identity());
+        assert_eq!(
+            run.identity_bundle.transformation_ledger(),
+            run.transformation_ledger.identity()
+        );
         assert_eq!(run.usage.iterations, 1);
         assert_eq!(
             run.session.unit().terminal_psi,
@@ -824,7 +857,8 @@ mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        let run = run_psi_registry(verified_exact_add_unit(), &registry, budget(8)).unwrap();
+        let run =
+            run_psi_registry(verified_exact_add_unit(), &selections, &registry, budget(8)).unwrap();
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.transformation_ledger.records().len(), 1);
@@ -840,6 +874,18 @@ mod tests {
                 value: psi_core::IntegerValue::Unsigned(15),
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn public_run_rejects_a_registry_detached_from_named_selections() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let empty = OrderedRuleRegistry::new(Vec::new()).unwrap();
+        assert!(matches!(
+            run_psi_registry(verified_empty_unit(), &selections, &empty, budget(2)),
+            Err(OptimizationRunError::SelectionRegistryMismatch)
         ));
     }
 }

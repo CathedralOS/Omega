@@ -250,6 +250,13 @@ fn integer_constant(
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
+    if let Some(unsupported) = selections
+        .as_slice()
+        .iter()
+        .find(|optimization| **optimization != Optimization::SparseConditionalConstantPropagation)
+    {
+        return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
+    }
     let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
     if selections.contains(Optimization::SparseConditionalConstantPropagation) {
         rules.push(Arc::new(ExactIntegerAddConstantsRule));
@@ -416,5 +423,12 @@ pub(crate) mod tests {
                 AnalysisKind::ScalarConstants
             ))
         );
+        let unsupported = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        assert!(matches!(
+            built_in_psi_registry(&unsupported),
+            Err(RuleRegistryError::UnsupportedOptimization(
+                Optimization::ControlFlowCleanup
+            ))
+        ));
     }
 }

@@ -24,7 +24,7 @@ pub use analyses::{
 };
 pub use pass_manager::{
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    VerifiedPsiOptimizationSession, run_psi_registry,
+    VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity, run_psi_registry,
 };
 pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
