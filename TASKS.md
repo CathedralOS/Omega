@@ -7688,12 +7688,20 @@ compiler concept is introduced.
   removing the fence there would erase the obligation; selected plans and
   authorized routes remain insufficient. This is missing platform/provider
   engineering, not a language-design block.
-  Independently add authored
-  qualification-preserving correspondence beyond direct parameter/field
-  identity. `QualificationEvidence` retains evidence kind and source
-  declaration but not an exact source-place relation; unknown, indexed, local,
-  or generic `CheckedTransformation` correspondence remains fail closed until
-  an exact contract/flow carrier exists.
+  The first checked-only qualification-correspondence carrier is now live for
+  existing statement transfers between exact parameter-rooted structural
+  Field/Case places. A separate deterministic proof ledger retains the source
+  and destination fact handles, the fact's source place, the exact contextual
+  source occurrence, destination place, formation point, unchanged
+  qualification payload/domain, and exact `CheckedTransformation` evidence.
+  Emission and checked-progress replay independently require structural place
+  equality rather than label fallback, source-before-destination construction,
+  exact statement-transfer origin/point, valid formation ownership, and
+  identical payload/evidence. Unknown, expression, type, indexed/ranged, local,
+  generic, invalid-member, or mismatched source occurrences remain fail closed.
+  This carrier grants no admission or Terminal authority. Broader authored
+  qualification-preserving transitions outside this narrow existing flow shape
+  remain engineering work.
 Acceptance: contract axes normalize independently, wrappers cannot launder
 reach or trust, and private proof improvements do not change public identity.
 

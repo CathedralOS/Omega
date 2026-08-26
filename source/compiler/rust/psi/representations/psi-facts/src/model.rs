@@ -10,6 +10,7 @@ pub type FactRefHandle = Handle<FactRef>;
 pub type FactContextHandle = Handle<FactContext>;
 pub type PlaceHandle = Handle<Place>;
 pub type PlaceSegmentHandle = Handle<PlaceSegment>;
+pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
 /// Exact checked ownership retained for one fact authored by a domain
 /// definition. The ordinary semantic fact remains the flow-facing row; this
@@ -356,6 +357,73 @@ impl Default for FactPayload {
     fn default() -> Self {
         Self::BooleanExpression(ExpressionHandle::invalid())
     }
+}
+
+/// Closed identity of a qualification payload conserved by a checked
+/// statement transfer. Expression operands and contract wrappers identify the
+/// source occurrence, not the carried qualification, so they do not enter
+/// correspondence identity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum QualificationPayloadIdentity {
+    DomainMembership {
+        domain: HandleSpan<Identifier>,
+        domain_symbol: SymbolHandle,
+    },
+    CarryPermission {
+        permission: psi_language_semantics::CarryPermission,
+    },
+    #[default]
+    CarryOrigin,
+}
+
+impl QualificationPayloadIdentity {
+    pub const fn from_fact_payload(payload: FactPayload) -> Option<Self> {
+        match payload {
+            FactPayload::DomainMembership {
+                domain,
+                domain_symbol,
+                ..
+            }
+            | FactPayload::ContractDomainMembership {
+                domain,
+                domain_symbol,
+                ..
+            } => Some(Self::DomainMembership {
+                domain,
+                domain_symbol,
+            }),
+            FactPayload::CarryPermission { permission, .. }
+            | FactPayload::ContractCarryPermission { permission, .. } => {
+                Some(Self::CarryPermission { permission })
+            }
+            FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
+            FactPayload::BooleanExpression(_)
+            | FactPayload::PropositionApplication { .. }
+            | FactPayload::TypeConstraint { .. }
+            | FactPayload::ProofObligation { .. }
+            | FactPayload::Contract { .. }
+            | FactPayload::ContractBooleanExpression { .. }
+            | FactPayload::ContractPropositionApplication { .. } => None,
+        }
+    }
+}
+
+/// Checked-only proof ledger row for one qualification-preserving statement
+/// transfer. This is separate from ordinary flow facts and grants no
+/// qualification by itself.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QualificationCorrespondence {
+    pub source_fact: FactHandle,
+    pub destination_fact: FactHandle,
+    /// The exact contextual source occurrence selected by the statement. It
+    /// is retained separately from `source_place`, which is the source fact's
+    /// own place, so replay can prove their structural correspondence.
+    pub source_occurrence_place: PlaceHandle,
+    pub source_place: PlaceHandle,
+    pub destination_place: PlaceHandle,
+    pub formation: ProgramPoint,
+    pub payload: QualificationPayloadIdentity,
+    pub evidence: QualificationEvidence,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

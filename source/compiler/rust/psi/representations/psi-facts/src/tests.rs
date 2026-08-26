@@ -1,5 +1,6 @@
 use super::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
+    QualificationCorrespondence, QualificationEvidence, QualificationPayloadIdentity,
     build_definition_fact_plan,
 };
 use psi_arena::HandleSpan;
@@ -13,6 +14,38 @@ use psi_typed_trees::expression::{
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::proposition::PropositionApplication;
 use psi_typed_trees::types::TypeReferenceHandle;
+
+#[test]
+fn qualification_correspondence_ledger_is_exact_and_idempotent() {
+    let mut facts = FactPlan::default();
+    let source_place = facts.append_symbol_place(SymbolHandle::from_arena_index(10));
+    let destination_place = facts.append_symbol_place(SymbolHandle::from_arena_index(11));
+    let source_fact = facts.append_fact(Fact::default());
+    let destination_fact = facts.append_fact(Fact::default());
+    let row = QualificationCorrespondence {
+        source_fact,
+        destination_fact,
+        source_occurrence_place: source_place,
+        source_place,
+        destination_place,
+        formation: ProgramPoint::Statement {
+            machine_symbol: SymbolHandle::from_arena_index(12),
+            state_symbol: SymbolHandle::from_arena_index(13),
+            statement_index: 2,
+        },
+        payload: QualificationPayloadIdentity::CarryOrigin,
+        evidence: QualificationEvidence::from_origin(
+            psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation,
+            SymbolHandle::from_arena_index(14),
+        ),
+    };
+
+    let first = facts.append_qualification_correspondence(row);
+    let second = facts.append_qualification_correspondence(row);
+    assert_eq!(first, second);
+    assert_eq!(facts.qualification_correspondences.len(), 1);
+    assert_eq!(*facts.qualification_correspondences.get(first), row);
+}
 
 #[test]
 fn builds_definition_fact_plan_for_domains() {
