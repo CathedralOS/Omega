@@ -222,9 +222,9 @@ pub enum BuiltinFunction {
     FloatClassifyF32,
     FloatClassifyF64,
     /// Proof-only callable-entry versioning for content-conservation
-    /// contracts. This is source-nameable only in proof facts and never has a
-    /// runtime implementation.
-    ContentEntry,
+    /// contracts. This is source-nameable as contextual `old(place)` only in
+    /// proof facts and never has a runtime implementation.
+    ContentOld,
     /// Proof-only partial n-ary composition for the compiler-owned content
     /// algebras. Validation selects the algebra from the exact projection
     /// terms; packages cannot implement or override this operation.
@@ -353,7 +353,7 @@ impl BuiltinFunction {
             Self::FloatFusedMultiplyAddTowardNegativeF64 => {
                 "float#fused_multiply_add_toward_negative_f64"
             }
-            Self::ContentEntry => "entry",
+            Self::ContentOld => "old",
             Self::ContentSeparate => "separate",
         }
     }
@@ -393,7 +393,7 @@ impl BuiltinFunction {
             Self::FloatIsSubnormal => 30,
             Self::FloatClassifyF32 => 31,
             Self::FloatClassifyF64 => 32,
-            Self::ContentEntry => 33,
+            Self::ContentOld => 33,
             Self::ContentSeparate => 34,
             Self::FloatAddTowardZeroF32 => 35,
             Self::FloatAddTowardZeroF64 => 36,
@@ -504,7 +504,7 @@ impl BuiltinFunction {
             | Self::FloatFusedMultiplyAddTowardPositiveF64
             | Self::FloatFusedMultiplyAddTowardNegativeF32
             | Self::FloatFusedMultiplyAddTowardNegativeF64
-            | Self::ContentEntry
+            | Self::ContentOld
             | Self::ContentSeparate
             | Self::AsmLoadFence
             | Self::AsmStoreFence
@@ -709,7 +709,7 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         ),
         (
             SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(BuiltinFunction::ContentEntry.name()),
+            SymbolNameRef::Static(BuiltinFunction::ContentOld.name()),
         ),
         (
             SymbolKind::BuiltinFunction,
@@ -933,7 +933,7 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatIsSubnormal,
             BuiltinFunction::FloatClassifyF32,
             BuiltinFunction::FloatClassifyF64,
-            BuiltinFunction::ContentEntry,
+            BuiltinFunction::ContentOld,
             BuiltinFunction::ContentSeparate,
             BuiltinFunction::FloatAddTowardZeroF32,
             BuiltinFunction::FloatAddTowardZeroF64,
@@ -979,6 +979,20 @@ mod builtin_ordinal_tests {
                 function
             );
         }
+    }
+
+    #[test]
+    fn content_old_owns_the_stable_callable_entry_builtin_slot() {
+        let table = builtin_function_symbols();
+        assert_eq!(BuiltinFunction::ContentOld.ordinal(), 33);
+        assert_eq!(BuiltinFunction::ContentOld.name(), "old");
+        assert_eq!(table[33].1.as_str(), "old");
+        assert!(
+            table.iter().all(
+                |(kind, name)| *kind != SymbolKind::BuiltinFunction || name.as_str() != "entry"
+            ),
+            "the retired ContentEntry builtin must not survive under its source spelling"
+        );
     }
 
     #[test]

@@ -242,7 +242,7 @@ pub enum ContentConservationOwnerKind {
 }
 
 /// The version of a structural place observed by a content projection.
-/// `Entry` is available only through proof-only `entry(place)`; there is no
+/// `Entry` is available only through proof-only `old(place)`; there is no
 /// general historical-expression modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentPlaceVersion {

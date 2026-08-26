@@ -630,6 +630,16 @@ Remaining:
   contextual to the proof term form rather than a globally reserved word;
   existing parameters and locals named `old` remain ordinary identifiers.
 
+  The bounded content-conservation migration is implemented. The comparator's
+  stable builtin slot now names contextual `old`, normalization retains the
+  existing callable-entry place revision for parameter and attached-`self`
+  structural paths, and `old(result)`, local/unresolved roots, computed
+  operands, and the retired `entry(place)` spelling reject. Focused parser,
+  checked-content, source-profile, and filesystem canaries pin the new surface
+  while leaving unrelated boundary and internal-entry vocabulary unchanged.
+  The broader library/capability/member/trailing-boundary retirement in this
+  item remains open.
+
   Acceptance: the former passing library-block fixture becomes a directed
   `library_block_retired` failure canary; separate failure canaries reject
   capability-entry, explicit machine-member entry, and both trailing boundary-

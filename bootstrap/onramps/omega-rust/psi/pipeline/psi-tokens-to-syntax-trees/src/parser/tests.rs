@@ -6,6 +6,47 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn old_remains_an_ordinary_parameter_and_local_identifier() {
+    let tokens =
+        Lexer::new("machine migrate(old: u64) -> u64 { let old_copy: u64 = old; old_copy }")
+            .tokenize()
+            .expect("tokenize ordinary old identifiers");
+    let parsed = parse_syntax_trees(&tokens).expect("old must not be a globally reserved word");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("migration machine");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("generated entry state"),
+    );
+    let [parameter] = parsed.items.state_parameters(state.parameters) else {
+        panic!("one ordinary parameter")
+    };
+    assert_eq!(
+        parsed.items.state_parameter(*parameter).name.as_str(),
+        "old"
+    );
+    assert!(
+        parsed
+            .items
+            .statements(state.statements)
+            .iter()
+            .any(|statement| matches!(
+                parsed.statements.statement(*statement),
+                StatementNode::LocalData(local) if local.name.as_str() == "old_copy"
+            ))
+    );
+}
+
+#[test]
 fn trait_machine_parameter_is_requirement_identity() {
     let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
         .tokenize()

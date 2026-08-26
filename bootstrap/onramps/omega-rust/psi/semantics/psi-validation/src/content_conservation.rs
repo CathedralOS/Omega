@@ -1,7 +1,7 @@
 //! Source-visible content-conservation contracts.
 //!
 //! The surface is deliberately closed: exact owner-unique projection calls,
-//! proof-only `entry(place)`, compiler-owned `separate(...)`, and equality.
+//! proof-only `old(place)`, compiler-owned `separate(...)`, and equality.
 //! This module normalizes authored equations for checked facts and semantic
 //! identity; it does not infer sealed introductions or custody exits.
 
@@ -68,6 +68,7 @@ fn collect_content_conservation_plans(
                 &format!("{}::{}", trait_definition.name, signature.name),
                 program.state_signature_parameters(signature),
                 signature.return_type,
+                SymbolHandle::invalid(),
                 &contracts,
                 &mut proof_nodes,
                 &mut plans,
@@ -96,6 +97,7 @@ fn collect_content_conservation_plans(
                 &label,
                 program.state_parameters(state),
                 state.return_type,
+                machine.attached_data_symbol,
                 &contracts,
                 &mut proof_nodes,
                 &mut plans,
@@ -113,12 +115,12 @@ fn collect_content_conservation_plans(
         if proof_nodes.contains(&(handle.arena_index(), handle.generation())) {
             continue;
         }
-        if is_entry_call(program, call)
+        if is_old_call(program, call)
             || is_separate_call(program, call)
             || projection_plan_for_call(program, projections, call).is_some()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "proof-only content operation `{}` is used in executable expression position; `entry`, `separate`, and exact `Content<A>::project` machines are contract-only",
+                "proof-only content operation `{}` is used in executable expression position; `old`, `separate`, and exact `Content<A>::project` machines are contract-only",
                 call.target.as_str(),
             )));
         }
@@ -137,6 +139,7 @@ fn collect_callable_plans(
     label: &str,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
+    self_data: SymbolHandle,
     contracts: &[&SignatureContract],
     proof_nodes: &mut HashSet<(u32, u32)>,
     plans: &mut Vec<ContentConservationSourcePlan>,
@@ -163,7 +166,7 @@ fn collect_callable_plans(
             }
             if contract.kind != SignatureContractKind::Ensures {
                 diagnostics.push(Diagnostic::error(format!(
-                    "callable `{label}` uses proof-only content operations outside an `ensures` contract; entry/current conservation relates callable outcomes",
+                    "callable `{label}` uses proof-only content operations outside an `ensures` contract; callable-entry/current conservation relates callable outcomes",
                 )));
                 continue;
             }
@@ -173,6 +176,7 @@ fn collect_callable_plans(
                 projections,
                 parameters,
                 return_type,
+                self_data,
                 contracts,
             };
             let (algebra, equation) = match normalize_equation(&context, *expression) {
@@ -260,8 +264,8 @@ fn receiver_selects_domain(
     spelled.as_str() == expected.rsplit("::").next().unwrap_or(expected.as_str())
 }
 
-fn is_entry_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
-    is_builtin_call(program, call, BuiltinFunction::ContentEntry)
+fn is_old_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
+    is_builtin_call(program, call, BuiltinFunction::ContentOld)
 }
 
 fn is_separate_call(program: &TypedTrees, call: &TableCallExpression) -> bool {
@@ -291,7 +295,7 @@ fn expression_uses_content_surface(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
-            is_entry_call(program, call)
+            is_old_call(program, call)
                 || is_separate_call(program, call)
                 || projection_plan_for_call(program, projections, call).is_some()
                 || expression_uses_content_surface(program, projections, call.receiver)
@@ -458,7 +462,7 @@ fn structural_place_label(place: &ContentStructuralPlace) -> String {
         }
     }
     if place.version == ContentPlaceVersion::Entry {
-        format!("entry(&{label})")
+        format!("old(&{label})")
     } else {
         format!("&{label}")
     }
