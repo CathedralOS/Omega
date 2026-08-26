@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v8";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v9";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -3940,6 +3940,7 @@ impl GitExecutor {
                     path: path.to_path_buf(),
                     message: error.to_string(),
                 })?;
+        verify_git_executable_custody(&canonical)?;
         let metadata_identity = observe_git_executable_metadata(&canonical)?;
         let content_identity = hash_git_executable(&canonical)?;
         if observe_git_executable_metadata(&canonical)? != metadata_identity {
@@ -3959,13 +3960,12 @@ impl GitExecutor {
     }
 
     fn verify(&self) -> Result<(), SourceResolveError> {
-        if observe_git_executable_metadata(&self.identity.path)? == self.metadata_identity {
-            Ok(())
-        } else {
-            Err(SourceResolveError::GitExecutableChanged {
+        if observe_git_executable_metadata(&self.identity.path)? != self.metadata_identity {
+            return Err(SourceResolveError::GitExecutableChanged {
                 path: self.identity.path.clone(),
-            })
+            });
         }
+        verify_git_executable_custody(&self.identity.path)
     }
 
     fn verify_content(&self) -> Result<(), SourceResolveError> {
@@ -4005,6 +4005,96 @@ impl GitExecutor {
             Ok(self.timeout - elapsed)
         }
     }
+}
+
+#[cfg(unix)]
+fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let effective_user = nix::unistd::Uid::effective().as_raw();
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        }
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "canonical Git executable is not a concrete regular file".to_owned(),
+        });
+    }
+    if metadata.uid() != 0 && metadata.uid() != effective_user {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "Git executable is owned by neither root nor the resolver's effective user"
+                .to_owned(),
+        });
+    }
+    let mode = metadata.mode();
+    if mode & 0o022 != 0 {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "Git executable is writable by group or other users".to_owned(),
+        });
+    }
+    if mode & 0o6000 != 0 {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "Git executable must not carry set-user-ID or set-group-ID authority"
+                .to_owned(),
+        });
+    }
+    if mode & 0o111 == 0 {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "Git executable has no executable mode bit".to_owned(),
+        });
+    }
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "Git executable has no absolute custody ancestry".to_owned(),
+        })?;
+    for ancestor in parent.ancestors() {
+        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
+            SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: error.to_string(),
+            }
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: "Git executable ancestry contains a non-directory or symlink".to_owned(),
+            });
+        }
+        if metadata.uid() != 0 && metadata.uid() != effective_user {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: "Git executable ancestry is owned by an unrelated user".to_owned(),
+            });
+        }
+        let mode = metadata.mode();
+        if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message:
+                    "Git executable ancestry is externally writable without sticky-entry protection"
+                        .to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
+    // Windows ownership and DACL enforcement belongs to the native isolation
+    // backend. The portable floor still commits the concrete file identity.
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -7090,6 +7180,51 @@ mod tests {
             Err(SourceResolveError::GitExecutableChanged { .. })
         ));
 
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_executor_rejects_unsafe_executable_modes_and_ancestry() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_root("git-executable-custody");
+        std::fs::create_dir_all(&root).expect("create executable custody root");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .expect("make executable custody root private");
+        let fake_git = root.join("git");
+        std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
+
+        for unsafe_mode in [0o720, 0o4700, 0o600] {
+            std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(unsafe_mode))
+                .expect("set unsafe Git executable mode");
+            assert!(matches!(
+                GitExecutor::open(&fake_git),
+                Err(SourceResolveError::GitExecutableInvalid { .. })
+            ));
+        }
+
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("restore safe Git executable mode");
+        let executor = GitExecutor::open(&fake_git).expect("capture safe Git executable");
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o720))
+            .expect("make captured Git executable externally writable");
+        assert!(matches!(
+            executor.verify(),
+            Err(SourceResolveError::GitExecutableChanged { .. })
+        ));
+
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("restore Git executable before ancestry check");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o720))
+            .expect("make Git executable ancestry externally writable");
+        assert!(matches!(
+            GitExecutor::open(&fake_git),
+            Err(SourceResolveError::GitExecutableInvalid { .. })
+        ));
+
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .expect("restore executable custody root");
         let _ = std::fs::remove_dir_all(root);
     }
 

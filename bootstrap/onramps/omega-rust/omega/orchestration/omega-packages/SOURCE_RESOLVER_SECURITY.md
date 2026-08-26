@@ -147,12 +147,19 @@ mutation under the same documented same-user race limitation.
 Git subprocesses now select the parent Git binary only from a closed platform
 list of absolute concrete paths; they never search ambient `PATH`. macOS does
 not select Apple's `/usr/bin/git` dispatcher. The resolver canonicalizes the
-selected regular file, hashes it under a 256 MiB ceiling, retains that
-observation on `ResolvedGitSource`, checks stable file identity before and after
-every launch, and re-hashes the bytes when the complete resolution returns.
-Drift rejects. This identifies observed parent bytes; it does not
-certify Git, bind every executable component or helper it may launch, prove
-path ownership, or prove that the file equals an already loaded image.
+selected regular file and, on Unix, requires root/resolver ownership,
+non-writable/non-set-id executable mode, and root/resolver-owned ancestry whose
+externally writable directories have sticky-entry protection. Those custody
+conditions are rechecked around every launch. The resolver hashes the file
+under a 256 MiB ceiling, retains that observation on `ResolvedGitSource`, checks
+stable file identity before and after every launch, and re-hashes the bytes when
+the complete resolution returns. Drift rejects. The Git cache policy is v9, so
+a cache fetched before this executable-custody floor is not silently reused.
+This identifies observed parent bytes and closes ordinary cross-user path
+ownership on Unix; it does not certify Git, bind every executable component or
+helper it may launch, inspect macOS ACL grants, establish Windows ownership/DACL
+custody, protect against same-user replacement, or prove that the file equals
+an already loaded image.
 Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
