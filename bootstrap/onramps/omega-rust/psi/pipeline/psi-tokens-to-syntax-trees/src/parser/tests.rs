@@ -6,6 +6,34 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn trait_machine_parameter_is_requirement_identity() {
+    let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
+        .tokenize()
+        .expect("tokenize trait machine requirement parameter");
+    let parsed = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("PrivateCallbackSlot trait");
+    let [parameter] = parsed
+        .items
+        .type_parameters(trait_definition.type_parameters)
+    else {
+        panic!("one trait machine requirement parameter")
+    };
+    assert_eq!(parameter.name.as_str(), "Requirement");
+    assert!(matches!(
+        parameter.kind,
+        psi_syntax_trees::item::TypeParameterKind::Machine {
+            contract: Some(psi_syntax_trees::item::MachineParameterContract::RequirementIdentity)
+        }
+    ));
+}
+
+#[test]
 fn retains_public_data_visibility_in_syntax() {
     let tokens = Lexer::new("pub data PublicRecord { value: u32; } data PrivateRecord {}")
         .tokenize()

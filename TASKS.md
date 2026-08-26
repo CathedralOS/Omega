@@ -5290,7 +5290,16 @@ Owners:
   native-layout demand catalog, derive its half of the validation context from
   the exact registrar layout, admit the evaluated catalog through the
   context-bound path, and join it to each checked callback use before private
-  relocation emission.
+  relocation emission. The source prerequisite for the compiler-known slot
+  trait is now explicit: trait declarations accept proof-static `machine`
+  parameters as requirement-identity binders, conformance arguments retain a
+  source-backed qualified path, and resolution accepts exactly one
+  signature-free `Trait::requirement` declaration while rejecting ordinary
+  types, concrete machines, unknown traits, and overloads. That distinct kind
+  survives syntax snapshots, resolved and typed trees, checked proof-contract
+  traversal, and private package-review rejection. Public package review still
+  needs its closed representation before the core
+  `PrivateCallbackSlot<machine Requirement>` declaration can be published.
   The declaration shape is now settled. A target package declares one stable
   typed slot as an explicitly named
   `Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and

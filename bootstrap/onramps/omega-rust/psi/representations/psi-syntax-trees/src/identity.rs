@@ -777,6 +777,7 @@ fn count_type_parameter_kind(
         crate::item::TypeParameterKind::Machine { contract } => {
             if let Some(contract) = contract {
                 match contract {
+                    crate::item::MachineParameterContract::RequirementIdentity => {}
                     crate::item::MachineParameterContract::Structural(signature) => {
                         count_state_signature(syntax_trees, signature, counts);
                     }

@@ -1313,6 +1313,9 @@ fn snapshot_type_parameter(
                 None,
             ),
             crate::item::TypeParameterKind::Machine { contract } => match contract {
+                Some(crate::item::MachineParameterContract::RequirementIdentity) => {
+                    ("machine_requirement", None, None, None, None)
+                }
                 Some(crate::item::MachineParameterContract::Structural(signature)) => (
                     "machine",
                     None,

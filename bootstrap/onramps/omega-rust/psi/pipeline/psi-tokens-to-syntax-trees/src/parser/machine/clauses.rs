@@ -793,7 +793,7 @@ pub(in crate::parser) fn parse_optional_satisfies_type_arguments<'tokens, 'sourc
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        let (argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        let (argument, rest) = parse_satisfies_type_argument(syntax_trees, input)?;
         arguments.push(argument);
         input = rest;
 
@@ -810,4 +810,33 @@ pub(in crate::parser) fn parse_optional_satisfies_type_arguments<'tokens, 'sourc
             input,
         ));
     }
+}
+
+pub(in crate::parser) fn parse_satisfies_type_argument<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, psi_syntax_trees::types::TypeReferenceHandle> {
+    if input
+        .tokens
+        .first()
+        .is_some_and(crate::parser::input::is_identifier_token_for_parser)
+    {
+        let (first, mut rest) = input.take_identifier()?;
+        if rest.at_punctuation(PunctuationKind::ColonColon) {
+            let mut members = vec![first];
+            while rest.at_punctuation(PunctuationKind::ColonColon) {
+                rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let (member, next) = rest.take_identifier()?;
+                members.push(member);
+                rest = next;
+            }
+            return Ok((
+                syntax_trees
+                    .type_references
+                    .insert_named(crate::parser::machine::join_path_identifier(&members)),
+                rest,
+            ));
+        }
+    }
+    parse_type_reference_handle(syntax_trees, input)
 }

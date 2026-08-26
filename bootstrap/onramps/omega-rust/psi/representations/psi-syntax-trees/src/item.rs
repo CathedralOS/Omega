@@ -618,8 +618,14 @@ pub enum TypeParameterKind {
 /// resolution binds that path once declarations and trait requirements exist.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineParameterContract {
+    /// A trait-level static parameter whose arguments must name one exact
+    /// signature-free trait requirement. This is declaration identity, not an
+    /// executable machine contract.
+    RequirementIdentity,
     Structural(StateSignature),
-    Nominal { requirement: HandleSpan<Identifier> },
+    Nominal {
+        requirement: HandleSpan<Identifier>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

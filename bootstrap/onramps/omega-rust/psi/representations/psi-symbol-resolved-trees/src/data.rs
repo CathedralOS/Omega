@@ -150,6 +150,7 @@ pub enum TypeParameterKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineParameterContract {
+    RequirementIdentity,
     Structural(crate::signature::StateSignature),
     /// Temporary authored spelling retained until all declarations have
     /// symbols. The syntax-to-resolved finisher must eliminate this variant.
@@ -172,14 +173,14 @@ impl MachineParameterContract {
     pub fn structural(&self) -> Option<&crate::signature::StateSignature> {
         match self {
             Self::Structural(signature) => Some(signature),
-            Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
+            Self::RequirementIdentity | Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
         }
     }
 
     pub fn structural_mut(&mut self) -> Option<&mut crate::signature::StateSignature> {
         match self {
             Self::Structural(signature) => Some(signature),
-            Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
+            Self::RequirementIdentity | Self::AuthoredNominal { .. } | Self::Nominal { .. } => None,
         }
     }
 }

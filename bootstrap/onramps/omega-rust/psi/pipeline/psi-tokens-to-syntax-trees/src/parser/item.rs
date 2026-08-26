@@ -13,9 +13,7 @@ use crate::parser::operator::parse_operator_definition;
 use crate::parser::proposition::parse_proposition_definition;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
-use crate::parser::type_reference::{
-    parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
-};
+use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use crate::parser::use_item::parse_use_item;
 use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
@@ -430,7 +428,8 @@ pub(super) fn parse_conformance_trait_application<'tokens, 'source>(
         rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
         let mut arguments = Vec::new();
         loop {
-            let (argument, next) = parse_type_reference_handle(syntax_trees, rest)?;
+            let (argument, next) =
+                crate::parser::machine::parse_satisfies_type_argument(syntax_trees, rest)?;
             arguments.push(argument);
             rest = next;
             if rest.at_punctuation(PunctuationKind::Comma) {

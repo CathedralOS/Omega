@@ -163,6 +163,7 @@ pub enum TypeParameterKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineParameterContract {
+    RequirementIdentity,
     Structural(crate::signature::StateSignature),
     Nominal {
         trait_definition: SymbolHandle,
@@ -180,14 +181,14 @@ impl MachineParameterContract {
     pub fn structural(&self) -> Option<&crate::signature::StateSignature> {
         match self {
             Self::Structural(signature) => Some(signature),
-            Self::Nominal { .. } => None,
+            Self::RequirementIdentity | Self::Nominal { .. } => None,
         }
     }
 
     pub fn structural_mut(&mut self) -> Option<&mut crate::signature::StateSignature> {
         match self {
             Self::Structural(signature) => Some(signature),
-            Self::Nominal { .. } => None,
+            Self::RequirementIdentity | Self::Nominal { .. } => None,
         }
     }
 }

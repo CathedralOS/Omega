@@ -47,6 +47,9 @@ pub(crate) fn machine_parameter_evidence_signatures<'program>(
             continue;
         };
         match contract {
+            // Trait-level requirement-identity binders are declaration
+            // parameters, not executable machine contracts.
+            psi_typed_trees::data::MachineParameterContract::RequirementIdentity => {}
             psi_typed_trees::data::MachineParameterContract::Structural(signature) => {
                 let target_state = if is_top_level {
                     parameter.symbol

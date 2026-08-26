@@ -4,6 +4,73 @@ use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
+fn trait_machine_requirement_identity_reaches_typed_trees() {
+    let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
+        .tokenize()
+        .expect("tokenize trait machine requirement parameter");
+    let syntax = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
+    let resolved =
+        lower_syntax_trees(&syntax).expect("resolve trait machine requirement parameter");
+    let typed = lower_symbol_resolved_trees(&resolved)
+        .expect("lower trait machine requirement parameter to typed trees");
+    let trait_definition = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "PrivateCallbackSlot")
+        .expect("PrivateCallbackSlot trait");
+    let [parameter] = typed.trait_type_parameters(trait_definition) else {
+        panic!("one typed trait machine requirement parameter")
+    };
+    assert!(parameter.symbol.is_valid());
+    assert!(matches!(
+        parameter.kind,
+        psi_typed_trees::data::TypeParameterKind::Machine {
+            contract: psi_typed_trees::data::MachineParameterContract::RequirementIdentity
+        }
+    ));
+}
+
+#[test]
+fn exact_trait_requirement_argument_reaches_typed_conformance() {
+    let source = r#"
+        boundary trait WindowProcedure { machine call(value: u32); }
+        trait PrivateCallbackSlot<machine Requirement> {}
+        data WndClassLayout {}
+        WndClassWindowProcedureSlot:
+            WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize private callback slot");
+    let syntax = parse_syntax_trees(&tokens).expect("parse private callback slot");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve private callback slot");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type private callback slot");
+    let window_procedure = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "WindowProcedure")
+        .expect("WindowProcedure trait");
+    let requirement = typed
+        .trait_machine_signatures(window_procedure)
+        .first()
+        .expect("WindowProcedure::call");
+    let conformance = typed.conformances().first().expect("slot conformance");
+    let [argument] = typed
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+    else {
+        panic!("one typed slot requirement argument")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+        typed.type_reference_table.type_reference(*argument)
+    else {
+        panic!("typed requirement argument remains a named identity")
+    };
+    assert_eq!(name.as_str(), "WindowProcedure::call");
+    assert_eq!(*symbol, requirement.symbol);
+}
+
+#[test]
 fn retains_public_conformance_visibility_snapshot_and_header_selections() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionTarget,

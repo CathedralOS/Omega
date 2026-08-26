@@ -282,6 +282,10 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        crate::machine_parameter_requirements::normalize_trait_machine_requirement_arguments(
+            &mut self.symbol_resolved_trees,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         bind_evidence_forwarding_owners(&mut self.symbol_resolved_trees);
         assert_eq!(
             self.symbol_resolved_trees.machines.len(),

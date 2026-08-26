@@ -23,6 +23,7 @@ mod clauses;
 
 pub(super) use clauses::parse_generic_conformance_bounds;
 pub(in crate::parser) use clauses::parse_optional_satisfies_type_arguments;
+pub(in crate::parser) use clauses::parse_satisfies_type_argument;
 use clauses::{parse_machine_clauses, parse_satisfies_traits};
 
 pub(super) fn parse_machine<'tokens, 'source>(
@@ -811,7 +812,7 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
     }
 }
 
-fn join_path_identifier(members: &[Identifier]) -> Identifier {
+pub(in crate::parser) fn join_path_identifier(members: &[Identifier]) -> Identifier {
     let mut name = String::new();
 
     for (index, member) in members.iter().enumerate() {
