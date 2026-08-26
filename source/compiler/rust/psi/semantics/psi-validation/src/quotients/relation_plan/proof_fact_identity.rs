@@ -155,6 +155,17 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn recursive_primitive_array(
+        symbol: SymbolHandle,
+        elements: &[super::runtime_correspondence::ClosedRecursiveArrayElement],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: render_recursive_array(elements),
+            trace: array_trace(elements.iter().map(recursive_array_element_trace)),
+        }
+    }
+
     pub(super) fn integer_array(
         symbol: SymbolHandle,
         elements: impl IntoIterator<Item = (String, psi_numerics::literals::IntegerLanding)>,
@@ -262,6 +273,51 @@ impl ProofValueSubstitution {
             symbol,
             rendered: self.rendered.clone(),
             trace: self.trace.clone(),
+        }
+    }
+}
+
+fn render_recursive_array(
+    elements: &[super::runtime_correspondence::ClosedRecursiveArrayElement],
+) -> String {
+    format!(
+        "[{}]",
+        elements
+            .iter()
+            .map(render_recursive_array_element)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn render_recursive_array_element(
+    element: &super::runtime_correspondence::ClosedRecursiveArrayElement,
+) -> String {
+    use super::runtime_correspondence::ClosedRecursiveArrayElement;
+    match element {
+        ClosedRecursiveArrayElement::Boolean(value) => value.to_string(),
+        ClosedRecursiveArrayElement::Byte(value) => value.to_string(),
+        ClosedRecursiveArrayElement::Integer(value) => value.spelling.clone(),
+        ClosedRecursiveArrayElement::Float(value) => value.spelling.clone(),
+        ClosedRecursiveArrayElement::Array(elements) => render_recursive_array(elements),
+    }
+}
+
+fn recursive_array_element_trace(
+    element: &super::runtime_correspondence::ClosedRecursiveArrayElement,
+) -> String {
+    use super::runtime_correspondence::ClosedRecursiveArrayElement;
+    match element {
+        ClosedRecursiveArrayElement::Boolean(value) => boolean_trace(*value),
+        ClosedRecursiveArrayElement::Byte(value) => format!("integer:{value}:unlanded"),
+        ClosedRecursiveArrayElement::Integer(value) => {
+            integer_trace(&value.spelling, value.landing)
+        }
+        ClosedRecursiveArrayElement::Float(value) => {
+            float_trace(&value.spelling, Some(value.landing))
+        }
+        ClosedRecursiveArrayElement::Array(elements) => {
+            array_trace(elements.iter().map(recursive_array_element_trace))
         }
     }
 }

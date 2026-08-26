@@ -127,6 +127,19 @@ fn primitive_type(program: &mut TypedTrees, name: &'static str) -> TypeReference
         })
 }
 
+fn wrap_fixed_array_type(
+    program: &mut TypedTrees,
+    element_type: TypeReferenceHandle,
+    width: usize,
+) -> TypeReferenceHandle {
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(width),
+        })
+}
+
 fn byte_slice_reference_type(
     program: &mut TypedTrees,
     access: psi_language_core::ReferenceAccess,
@@ -298,6 +311,16 @@ fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> Expre
                 ))
             })
             .collect::<Vec<_>>();
+    let elements = program.expression_table.insert_expression_handles(elements);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn wrap_array_literal(
+    program: &mut TypedTrees,
+    elements: impl IntoIterator<Item = ExpressionHandle>,
+) -> ExpressionHandle {
     let elements = program.expression_table.insert_expression_handles(elements);
     program
         .expression_table
@@ -2616,6 +2639,145 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
 }
 
 #[test]
+fn proof_fact_recursive_primitive_arrays_retain_every_container_and_leaf_landing() {
+    use super::proof_fact_identity::{
+        ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
+    };
+    use super::runtime_correspondence::{
+        ClosedFloatArrayElement, ClosedIntegerArrayElement, ClosedRecursiveArrayElement as Value,
+    };
+
+    let mut program = TypedTrees::default();
+    let no_values = Vec::new();
+    let context = |values| ProofFactIdentityContext {
+        values,
+        static_bindings: &[],
+    };
+
+    let boolean_parameter = symbol(1005);
+    let boolean_name = named_argument(&mut program, "deep_flags", boolean_parameter);
+    let tensor = boolean_tensor3_literal(
+        &mut program,
+        vec![vec![vec![true, false], vec![false, true]]],
+    );
+    let exact_boolean = wrap_array_literal(&mut program, [tensor]);
+    let matrix = nested_boolean_array_literal(&mut program, &[&[true, false], &[false, true]]);
+    let flat = boolean_array_literal(&mut program, &[true, false, false, true]);
+    let boolean_value = vec![ProofValueSubstitution::recursive_primitive_array(
+        boolean_parameter,
+        &[Value::Array(Arc::from(vec![Value::Array(Arc::from(
+            vec![
+                Value::Array(Arc::from(vec![Value::Boolean(true), Value::Boolean(false)])),
+                Value::Array(Arc::from(vec![Value::Boolean(false), Value::Boolean(true)])),
+            ],
+        ))]))],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(boolean_name),
+        &ProofFact::Expression(exact_boolean),
+        context(&boolean_value),
+        context(&no_values),
+    ));
+    for collapsed in [tensor, matrix, flat] {
+        assert!(!proof_facts_match(
+            &program,
+            &ProofFact::Expression(boolean_name),
+            &ProofFact::Expression(collapsed),
+            context(&boolean_value),
+            context(&no_values),
+        ));
+    }
+
+    let integer_parameter = symbol(1006);
+    let integer_name = named_argument(&mut program, "deep_offsets", integer_parameter);
+    let exact_integer_landing = IntegerLanding {
+        landed_type: LandedIntegerType::I16,
+        domain: ArithmeticDomain::Exact,
+    };
+    let exact_integer_matrix = nested_integer_array_literal(
+        &mut program,
+        vec![vec![
+            IntegerLiteral::from_value(7).with_landing(exact_integer_landing),
+        ]],
+    );
+    let exact_integer_tensor = wrap_array_literal(&mut program, [exact_integer_matrix]);
+    let wrapping_integer_matrix = nested_integer_array_literal(
+        &mut program,
+        vec![vec![IntegerLiteral::from_value(7).with_landing(
+            IntegerLanding {
+                landed_type: LandedIntegerType::I16,
+                domain: ArithmeticDomain::Wrapping,
+            },
+        )]],
+    );
+    let wrapping_integer_tensor = wrap_array_literal(&mut program, [wrapping_integer_matrix]);
+    let integer_value = vec![ProofValueSubstitution::recursive_primitive_array(
+        integer_parameter,
+        &[Value::Array(Arc::from(vec![Value::Array(Arc::from(
+            vec![Value::Integer(ClosedIntegerArrayElement {
+                spelling: "7".to_owned(),
+                landing: exact_integer_landing,
+            })],
+        ))]))],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(integer_name),
+        &ProofFact::Expression(exact_integer_tensor),
+        context(&integer_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(integer_name),
+        &ProofFact::Expression(wrapping_integer_tensor),
+        context(&integer_value),
+        context(&no_values),
+    ));
+
+    let float_parameter = symbol(1007);
+    let float_name = named_argument(&mut program, "deep_scales", float_parameter);
+    let exact_float_matrix = nested_float_array_literal(
+        &mut program,
+        vec![vec![
+            FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+        ]],
+    );
+    let exact_float_tensor = wrap_array_literal(&mut program, [exact_float_matrix]);
+    let drifted_float_matrix = nested_float_array_literal(
+        &mut program,
+        vec![vec![
+            FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+        ]],
+    );
+    let drifted_float_tensor = wrap_array_literal(&mut program, [drifted_float_matrix]);
+    let float_value = vec![ProofValueSubstitution::recursive_primitive_array(
+        float_parameter,
+        &[Value::Array(Arc::from(vec![Value::Array(Arc::from(
+            vec![Value::Float(ClosedFloatArrayElement {
+                spelling: "1.25".to_owned(),
+                landing: FloatFormat::F32,
+            })],
+        ))]))],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_name),
+        &ProofFact::Expression(exact_float_tensor),
+        context(&float_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_name),
+        &ProofFact::Expression(drifted_float_tensor),
+        context(&float_value),
+        context(&no_values),
+    ));
+}
+
+#[test]
 fn direct_lift_duplication_shares_each_side_value_without_collapsing_legality_coordinates() {
     let mut program = TypedTrees::default();
     let quotient_type = quotient_type(
@@ -3631,6 +3793,167 @@ fn direct_lift_runtime_accepts_exact_boolean_tensor3_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_remaining_recursive_primitive_arrays() {
+    use super::runtime_correspondence::{
+        ClosedFloatArrayElement, ClosedIntegerArrayElement, ClosedRecursiveArrayElement as Value,
+    };
+
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(1003),
+        "RecursivePrimitiveArrayQ",
+        symbol(1004),
+        "RecursivePrimitiveArrayR",
+    );
+    let carrier = carrier_type(&mut program);
+
+    let byte_matrix_type = fixed_nested_byte_array_type(&mut program, 1, 2);
+    let byte_tensor_type = wrap_fixed_array_type(&mut program, byte_matrix_type, 2);
+    let first_bytes = nested_canonical_byte_array_literal(&mut program, &[&[1, 2]]);
+    let second_bytes = nested_canonical_byte_array_literal(&mut program, &[&[3, 4]]);
+    let byte_tensor = wrap_array_literal(&mut program, [first_bytes, second_bytes]);
+
+    let integer_matrix_type = fixed_nested_integer_array_type(&mut program, "i8", 1, 1);
+    let integer_tensor_type = wrap_fixed_array_type(&mut program, integer_matrix_type, 1);
+    let integer_matrix =
+        nested_integer_array_literal(&mut program, vec![vec![IntegerLiteral::from_value(-1)]]);
+    let integer_tensor = wrap_array_literal(&mut program, [integer_matrix]);
+
+    let float_matrix_type = fixed_nested_float_array_type(&mut program, "f32", 1, 1);
+    let float_tensor_type = wrap_fixed_array_type(&mut program, float_matrix_type, 1);
+    let float_matrix = nested_float_array_literal(
+        &mut program,
+        vec![vec![
+            FloatLiteral::parse("1.25").expect("anonymous exact decimal literal"),
+        ]],
+    );
+    let float_tensor = wrap_array_literal(&mut program, [float_matrix]);
+
+    let boolean_tensor_type = fixed_boolean_tensor3_type(&mut program, 1, 1, 1);
+    let boolean_depth_four_type = wrap_fixed_array_type(&mut program, boolean_tensor_type, 1);
+    let boolean_tensor = boolean_tensor3_literal(&mut program, vec![vec![vec![true]]]);
+    let boolean_depth_four = wrap_array_literal(&mut program, [boolean_tensor]);
+
+    let arguments = program.expression_table.insert_expression_handles([
+        byte_tensor,
+        integer_tensor,
+        float_tensor,
+        boolean_depth_four,
+    ]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(
+        &mut program,
+        &[
+            (byte_tensor_type, false, false),
+            (integer_tensor_type, false, false),
+            (float_tensor_type, false, false),
+            (boolean_depth_four_type, false, false),
+        ],
+        carrier,
+    );
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("remaining exact primitive arrays use recursive evidence");
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("recursive primitive-array runtime correspondence");
+    let i8_landing = IntegerLanding {
+        landed_type: LandedIntegerType::I8,
+        domain: ArithmeticDomain::Exact,
+    };
+    let expected = [
+        (
+            vec![
+                Value::Array(Arc::from(vec![Value::Array(Arc::from(vec![
+                    Value::Byte(1),
+                    Value::Byte(2),
+                ]))])),
+                Value::Array(Arc::from(vec![Value::Array(Arc::from(vec![
+                    Value::Byte(3),
+                    Value::Byte(4),
+                ]))])),
+            ],
+            program.normalized_type_identity(byte_tensor_type),
+        ),
+        (
+            vec![Value::Array(Arc::from(vec![Value::Array(Arc::from(
+                vec![Value::Integer(ClosedIntegerArrayElement {
+                    spelling: "-1".to_owned(),
+                    landing: i8_landing,
+                })],
+            ))]))],
+            program.normalized_type_identity(integer_tensor_type),
+        ),
+        (
+            vec![Value::Array(Arc::from(vec![Value::Array(Arc::from(
+                vec![Value::Float(ClosedFloatArrayElement {
+                    spelling: "1.25".to_owned(),
+                    landing: FloatFormat::F32,
+                })],
+            ))]))],
+            program.normalized_type_identity(float_tensor_type),
+        ),
+        (
+            vec![Value::Array(Arc::from(vec![Value::Array(Arc::from(
+                vec![Value::Array(Arc::from(vec![Value::Boolean(true)]))],
+            ))]))],
+            program.normalized_type_identity(boolean_depth_four_type),
+        ),
+    ];
+    for (position, ((expected_elements, expected_type), actual)) in
+        expected.into_iter().zip(&runtime.positions).enumerate()
+    {
+        let super::DirectLiftArgumentSource::Literal(
+            super::runtime_correspondence::ClosedLiftLiteral::RecursivePrimitiveArray {
+                elements,
+                target_type,
+            },
+        ) = &actual.source
+        else {
+            panic!("recursive fallback owns newly admitted position {position}");
+        };
+        assert_eq!(elements.as_ref(), expected_elements);
+        assert_eq!(*target_type, expected_type);
+    }
+
+    assert!(matches!(
+        super::closed_lift_literal_for_representative(
+            &program,
+            boolean_tensor,
+            boolean_tensor_type,
+            4,
+        ),
+        Ok(Some(
+            super::runtime_correspondence::ClosedLiftLiteral::BooleanTensor3 { .. }
+        ))
+    ));
+    assert!(matches!(
+        super::closed_lift_literal_for_representative(&program, float_matrix, float_matrix_type, 5,),
+        Ok(Some(
+            super::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray { .. }
+        ))
+    ));
+    let boolean_depth_five_type = wrap_fixed_array_type(&mut program, boolean_depth_four_type, 1);
+    let boolean_depth_five = wrap_array_literal(&mut program, [boolean_depth_four]);
+    assert!(matches!(
+        super::closed_lift_literal_for_representative(
+            &program,
+            boolean_depth_five,
+            boolean_depth_five_type,
+            6,
+        ),
+        Ok(Some(
+            super::runtime_correspondence::ClosedLiftLiteral::RecursivePrimitiveArray { .. }
+        ))
+    ));
+}
+
+#[test]
 fn direct_lift_runtime_accepts_exact_integer_array_literals() {
     use super::runtime_correspondence::ClosedIntegerArrayElement;
 
@@ -4638,22 +4961,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
                     name: Identifier::generated_static("N"),
                 },
             });
-    let deeper_nested_byte_type = {
-        let matrix = fixed_nested_byte_array_type(&mut program, 1, 1);
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::FixedArray {
-                element_type: matrix,
-                length: FixedArrayLength::Literal(1),
-            })
-    };
-    let deeper_nested_byte_array = {
-        let matrix = nested_canonical_byte_array_literal(&mut program, &[&[1]]);
-        let matrices = program.expression_table.insert_expression_handles([matrix]);
-        program
-            .expression_table
-            .insert(ExpressionNode::ArrayLiteral(matrices))
-    };
     let one_by_one_nested_byte_type = fixed_nested_byte_array_type(&mut program, 1, 1);
     for (position, expression, target) in [
         (
@@ -4673,7 +4980,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (48, exact_nested_byte_array, constrained_nested_byte_type),
         (49, exact_nested_byte_array, unresolved_inner_byte_type),
         (50, exact_nested_byte_array, unresolved_outer_byte_type),
-        (51, deeper_nested_byte_array, deeper_nested_byte_type),
         (52, integer_array, one_by_one_nested_byte_type),
     ] {
         assert_eq!(
@@ -4767,23 +5073,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
                     name: Identifier::generated_static("N"),
                 },
             });
-    let deeper_nested_integer_type = {
-        let matrix = fixed_nested_integer_array_type(&mut program, "i8", 1, 1);
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::FixedArray {
-                element_type: matrix,
-                length: FixedArrayLength::Literal(1),
-            })
-    };
-    let deeper_nested_integer_array = {
-        let matrix =
-            nested_integer_array_literal(&mut program, vec![vec![IntegerLiteral::from_value(1)]]);
-        let matrices = program.expression_table.insert_expression_handles([matrix]);
-        program
-            .expression_table
-            .insert(ExpressionNode::ArrayLiteral(matrices))
-    };
     for (position, expression, target) in [
         (
             53,
@@ -4803,7 +5092,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (60, nested_integer_array, constrained_nested_i8_type),
         (61, nested_integer_array, unresolved_inner_i8_type),
         (62, nested_integer_array, unresolved_outer_i8_type),
-        (63, deeper_nested_integer_array, deeper_nested_integer_type),
         (64, integer_array, one_by_one_nested_i8_type),
     ] {
         assert_eq!(
@@ -4885,23 +5173,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
                     name: Identifier::generated_static("N"),
                 },
             });
-    let deeper_nested_float_type = {
-        let matrix = fixed_nested_float_array_type(&mut program, "f32", 1, 1);
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::FixedArray {
-                element_type: matrix,
-                length: FixedArrayLength::Literal(1),
-            })
-    };
-    let deeper_nested_float_array = {
-        let matrices = program
-            .expression_table
-            .insert_expression_handles([exact_nested_float_array]);
-        program
-            .expression_table
-            .insert(ExpressionNode::ArrayLiteral(matrices))
-    };
     let wrong_outer_width_nested_f32_type =
         fixed_nested_float_array_type(&mut program, "f32", 2, 1);
     for (position, expression, target) in [
@@ -4922,7 +5193,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (71, exact_nested_float_array, constrained_nested_float_type),
         (72, exact_nested_float_array, unresolved_inner_float_type),
         (73, exact_nested_float_array, unresolved_outer_float_type),
-        (74, deeper_nested_float_array, deeper_nested_float_type),
         (75, short_float_array, one_by_one_nested_f32_type),
     ] {
         assert_eq!(
@@ -5040,23 +5310,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
                     name: Identifier::generated_static("N"),
                 },
             });
-    let depth_four_tensor_type = {
-        let tensor = fixed_boolean_tensor3_type(&mut program, 1, 1, 1);
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::FixedArray {
-                element_type: tensor,
-                length: FixedArrayLength::Literal(1),
-            })
-    };
-    let depth_four_tensor = {
-        let tensors = program
-            .expression_table
-            .insert_expression_handles([exact_tensor]);
-        program
-            .expression_table
-            .insert(ExpressionNode::ArrayLiteral(tensors))
-    };
     for (position, expression, target) in [
         (76, exact_tensor, two_plane_tensor_type),
         (77, exact_tensor, tall_plane_tensor_type),
@@ -5070,7 +5323,39 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (85, exact_tensor, unresolved_row_tensor_type),
         (86, exact_tensor, unresolved_plane_tensor_type),
         (87, exact_tensor, unresolved_outer_tensor_type),
-        (88, depth_four_tensor, depth_four_tensor_type),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let byte_tensor_target = {
+        let matrix = fixed_nested_byte_array_type(&mut program, 1, 1);
+        wrap_fixed_array_type(&mut program, matrix, 1)
+    };
+    let noncanonical_byte_tensor = wrap_array_literal(&mut program, [landed_byte_array]);
+    let integer_tensor_target = {
+        let matrix = fixed_nested_integer_array_type(&mut program, "i8", 1, 1);
+        wrap_fixed_array_type(&mut program, matrix, 1)
+    };
+    let out_of_range_integer_tensor =
+        wrap_array_literal(&mut program, [out_of_range_nested_integer_array]);
+    let float_tensor_target = {
+        let matrix = fixed_nested_float_array_type(&mut program, "f32", 1, 1);
+        wrap_fixed_array_type(&mut program, matrix, 1)
+    };
+    let mismatched_float_tensor = wrap_array_literal(&mut program, [mismatched_nested_float_array]);
+    let ragged_depth_four_target = wrap_fixed_array_type(&mut program, two_plane_tensor_type, 1);
+    let ragged_depth_four = wrap_array_literal(&mut program, [ragged_planes_tensor]);
+    let computed_depth_four_target = wrap_fixed_array_type(&mut program, exact_tensor_type, 1);
+    let computed_depth_four = wrap_array_literal(&mut program, [computed_tensor]);
+    for (position, expression, target) in [
+        (89, noncanonical_byte_tensor, byte_tensor_target),
+        (90, out_of_range_integer_tensor, integer_tensor_target),
+        (91, mismatched_float_tensor, float_tensor_target),
+        (92, ragged_depth_four, ragged_depth_four_target),
+        (93, computed_depth_four, computed_depth_four_target),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

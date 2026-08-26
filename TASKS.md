@@ -8168,7 +8168,14 @@ Remaining N6/N8 work:
   tensor may likewise feed only its exact literal-width
   `[[[bool; K]; M]; N]` target. Every plane and row is a direct exact-width
   array literal and every leaf is a Boolean literal. Plane/row boundaries,
-  ordered values, and normalized outer identity remain evidence.
+  ordered values, and normalized outer identity remain evidence. Remaining
+  exact primitive fixed-array literals now close recursively: depth-three
+  canonical-byte, non-`u8` integer, and float arrays plus every exact primitive
+  array at depth four or greater retain every container boundary and the
+  already-settled leaf evidence in one recursive tree with normalized outer
+  identity. Existing flat, matrix, and depth-three Boolean owners retain
+  priority; this fallback neither reclassifies their evidence nor admits data
+  aggregates.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8181,9 +8188,9 @@ Remaining N6/N8 work:
   already context-landed for a bare fixed array, noncanonical or heterogeneous
   byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
   computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-  or computed integer matrices, mismatched or computed float matrices, ragged
-  arrays or arrays deeper than three, other data nested arrays, other
-  aggregates, zero-value,
+  or computed integer matrices, mismatched or computed float matrices,
+  noncanonical or mismatched recursive primitive arrays, ragged arrays, other
+  data nested arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
