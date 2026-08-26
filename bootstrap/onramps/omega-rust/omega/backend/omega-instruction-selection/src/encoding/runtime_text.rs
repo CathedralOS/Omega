@@ -1197,7 +1197,9 @@ fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
 #[cfg(test)]
 mod plan_differential_tests {
     use super::*;
-    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, HostImportLocator, ValueShape, evaluate_call_plan,
+    };
     use std::sync::Arc;
 
     fn syscall_binding() -> HostBindingMechanism {
@@ -1209,8 +1211,10 @@ mod plan_differential_tests {
 
     fn import_binding() -> HostBindingMechanism {
         HostBindingMechanism::Import {
-            library: Arc::from("libSystem.B.dylib"),
-            symbol: Arc::from("_read"),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: Arc::from("libSystem.B.dylib"),
+                symbol: Arc::from("_read"),
+            },
         }
     }
 
@@ -1395,8 +1399,10 @@ mod plan_differential_tests {
     #[test]
     fn win64_runtime_text_imports_require_both_retained_native_subcall_plans() {
         let binding = HostBindingMechanism::Import {
-            library: Arc::from("Kernel32.dll"),
-            symbol: Arc::from("ReadFile"),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: Arc::from("Kernel32.dll"),
+                symbol: Arc::from("ReadFile"),
+            },
         };
         let get_std_handle = win64_plan(&[4], Some(8));
         let file_io = win64_plan(&[8, 8, 4, 8, 8], Some(4));

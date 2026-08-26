@@ -210,14 +210,11 @@ fn extract_external_binding_rows(
     for plan in selected_plans {
         for row in &plan.rows {
             let binding = match &row.binding {
-                ProviderBinding::Import { locator } => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "normalized foreign locator 0x{:016x} reached the legacy string-backed ABI bridge; target object planning must consume its atomic bytes before this row can be emitted",
-                        locator.normalized_identity(),
-                    ))]);
-                }
+                ProviderBinding::Import { locator } => ExternalBindingKind::Import {
+                    locator: locator.clone(),
+                },
                 ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-                    ExternalBindingKind::DllImport {
+                    ExternalBindingKind::StringBackedImportBootstrap {
                         module: library.clone(),
                         symbol: symbol.clone(),
                     }
@@ -1392,11 +1389,62 @@ mod tests {
         assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
         assert_eq!(
             row.binding,
-            omega_calling_conventions::ExternalBindingKind::DllImport {
+            omega_calling_conventions::ExternalBindingKind::StringBackedImportBootstrap {
                 module: "retained-library".to_owned(),
                 symbol: "retained-symbol".to_owned(),
             }
         );
+    }
+
+    #[test]
+    fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically() {
+        let mut fixture = fixture(false);
+        fixture.plans[0].target = "windows_x64".to_owned();
+        let locator = omega_effects::normalize_foreign_locator(
+            omega_effects::ForeignLocatorCandidate::PeByOrdinal {
+                library: b"opaque\xff.dll".to_vec(),
+                ordinal: 17,
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid normalized PE-by-ordinal locator");
+        fixture.plans[0].rows.push(ProviderPlanRow {
+            method: METHOD_NAME.to_owned(),
+            requirement_identity: fixture.requirement_identity.clone(),
+            binding: ProviderBinding::Import {
+                locator: locator.clone(),
+            },
+        });
+
+        let rows = extract_external_binding_rows(
+            Some("windows_x64"),
+            omega_target::NativeTarget::windows_x64(),
+            &fixture.plans,
+            &fixture.realizations,
+            &fixture.typed,
+        )
+        .expect("normalized locator should cross the compiler ABI bridge");
+        assert!(matches!(
+            rows.as_slice(),
+            [omega_calling_conventions::ExternalBindingRow {
+                binding: omega_calling_conventions::ExternalBindingKind::Import {
+                    locator: retained,
+                },
+                ..
+            }] if retained == &locator
+        ));
+
+        let mut host_abi = omega_calling_conventions::build_host_abi_plan(
+            omega_target::NativeTarget::windows_x64(),
+        );
+        omega_calling_conventions::merge_external_binding_rows(&mut host_abi, &rows)
+            .expect("normalized locator should enter the host ABI plan");
+        assert!(host_abi.bindings.iter().any(|(_, binding)| matches!(
+            &binding.mechanism,
+            omega_calling_conventions::HostBindingMechanism::Import {
+                locator: omega_calling_conventions::HostImportLocator::Normalized(retained),
+            } if retained == &locator
+        )));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::{
     CallSignature, CallingPolicy, ConcreteVariadicCallSignature, HostAbiPlan, HostBinding,
-    HostBindingMechanism, HostBoundaryPolicy, PlatformCallData, ValueShape,
+    HostBindingMechanism, HostBoundaryPolicy, HostImportLocator, PlatformCallData, ValueShape,
     evaluate_darwin_aapcs64_variadic_boundary_entry_plan, evaluate_ordinary_boundary_entry_plan,
     host_operation, insert_platform_lowering,
 };
@@ -1048,8 +1048,10 @@ fn darwin_typed_import(
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
-            library: "libSystem.B.dylib".into(),
-            symbol: symbol.into(),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: "libSystem.B.dylib".into(),
+                symbol: symbol.into(),
+            },
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan,
@@ -1092,8 +1094,10 @@ fn darwin_open_create_import(policy: &std::sync::Arc<str>) -> HostBinding {
     HostBinding {
         operation_key: crate::HostOperationKey::from_names("Filesystem", "open_create"),
         mechanism: HostBindingMechanism::Import {
-            library: "libSystem.B.dylib".into(),
-            symbol: "_open".into(),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: "libSystem.B.dylib".into(),
+                symbol: "_open".into(),
+            },
         },
         boundary_policy: std::sync::Arc::clone(policy),
         boundary_entry_plan,

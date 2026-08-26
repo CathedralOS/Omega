@@ -2,7 +2,7 @@ use super::backend_state_name;
 
 use crate::BackendReportInput;
 use omega_calling_conventions::{
-    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
+    HostBinding, HostBindingMechanism, HostImportLocator, PlatformCallData, PlatformCallLowering,
 };
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
@@ -71,7 +71,9 @@ fn unsupported_host_call_reason_text(reason: UnsupportedHostCallReason) -> Strin
 
 fn write_host_binding(output: &mut String, binding: &HostBinding) {
     match &binding.mechanism {
-        HostBindingMechanism::Import { library, symbol } => {
+        HostBindingMechanism::Import {
+            locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+        } => {
             output.push_str(&format!(
                 "- {}.{} import {}!{} boundary `{}`\n",
                 binding.operation_key.capability_name(),
@@ -79,6 +81,19 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
                 library,
                 symbol,
                 binding.boundary_policy
+            ));
+        }
+        HostBindingMechanism::Import {
+            locator: HostImportLocator::Normalized(locator),
+        } => {
+            output.push_str(&format!(
+                "- {}.{} normalized import {:?} [{:016x}] target {} boundary `{}`\n",
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
+                locator.locator(),
+                locator.normalized_identity(),
+                locator.target().target_name(),
+                binding.boundary_policy,
             ));
         }
         HostBindingMechanism::VtableField {

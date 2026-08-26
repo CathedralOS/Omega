@@ -794,8 +794,13 @@ fn compiler_instruction_validation_kind(
                             "compiler runtime line read lost its GetStdHandle binding",
                         )
                     })?;
-                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
-                    &handle_binding.mechanism
+                let omega_calling_conventions::HostBindingMechanism::Import {
+                    locator:
+                        omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                            library,
+                            symbol,
+                        },
+                } = &handle_binding.mechanism
                 else {
                     return Err(Diagnostic::error(
                         "compiler runtime line read retained a non-import GetStdHandle binding",
@@ -849,8 +854,13 @@ fn compiler_instruction_validation_kind(
                             "compiler runtime byte read lost its GetStdHandle binding",
                         )
                     })?;
-                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
-                    &handle_binding.mechanism
+                let omega_calling_conventions::HostBindingMechanism::Import {
+                    locator:
+                        omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                            library,
+                            symbol,
+                        },
+                } = &handle_binding.mechanism
                 else {
                     return Err(Diagnostic::error(
                         "compiler runtime byte read retained a non-import GetStdHandle binding",
@@ -903,8 +913,13 @@ fn compiler_instruction_validation_kind(
                             "compiler runtime byte write lost its GetStdHandle binding",
                         )
                     })?;
-                let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
-                    &handle_binding.mechanism
+                let omega_calling_conventions::HostBindingMechanism::Import {
+                    locator:
+                        omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                            library,
+                            symbol,
+                        },
+                } = &handle_binding.mechanism
                 else {
                     return Err(Diagnostic::error(
                         "compiler runtime byte write retained a non-import GetStdHandle binding",
@@ -979,8 +994,22 @@ fn compiler_instruction_validation_kind(
             else {
                 return Ok(None);
             };
-            if let omega_calling_conventions::HostBindingMechanism::Import { library, symbol } =
-                &binding.mechanism
+            if let omega_calling_conventions::HostBindingMechanism::Import {
+                locator: omega_calling_conventions::HostImportLocator::Normalized(locator),
+            } = &binding.mechanism
+            {
+                return Err(Diagnostic::error(format!(
+                    "normalized foreign locator 0x{:016x} reached string-backed outbound-call machine emission",
+                    locator.normalized_identity(),
+                )));
+            }
+            if let omega_calling_conventions::HostBindingMechanism::Import {
+                locator:
+                    omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                        library,
+                        symbol,
+                    },
+            } = &binding.mechanism
             {
                 let operands = emission_context
                     .assigned_target_operations

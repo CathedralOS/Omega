@@ -7,7 +7,8 @@ use super::super::offsets::{
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_operation;
 use omega_calling_conventions::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationKey, PlatformCallData,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostImportLocator, HostOperationKey,
+    PlatformCallData,
 };
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
@@ -134,7 +135,10 @@ fn collect_host_operation_call_relocation(
     let Some(binding) = find_host_binding(context.input, operation_key) else {
         return;
     };
-    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+    let HostBindingMechanism::Import {
+        locator: HostImportLocator::StringBackedBootstrap { symbol, .. },
+    } = &binding.mechanism
+    else {
         return;
     };
     let plan = binding.call_plan();

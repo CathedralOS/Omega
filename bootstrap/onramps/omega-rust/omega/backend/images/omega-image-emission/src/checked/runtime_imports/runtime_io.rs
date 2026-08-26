@@ -77,10 +77,15 @@ pub(in crate::checked) fn encode_runtime_byte_replay(
     plan: &omega_calling_conventions::CallPlan,
     get_std_handle: Option<&omega_machine_bytes::CompilerRuntimeImportSubcall>,
 ) -> Result<RuntimeTextReplay, Diagnostic> {
-    use omega_calling_conventions::HostBindingMechanism;
+    use omega_calling_conventions::{HostBindingMechanism, HostImportLocator};
 
     let (mut bytes, mut call_sites) = match (architecture, mechanism) {
-        (Architecture::Aarch64, HostBindingMechanism::Import { library, symbol }) => {
+        (
+            Architecture::Aarch64,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+            },
+        ) => {
             if get_std_handle.is_some() {
                 return Err(Diagnostic::error(
                     "final AArch64 runtime-byte replay unexpectedly retained GetStdHandle",
@@ -114,7 +119,12 @@ pub(in crate::checked) fn encode_runtime_byte_replay(
                 )],
             )
         }
-        (Architecture::X86_64, HostBindingMechanism::Import { library, symbol }) => {
+        (
+            Architecture::X86_64,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+            },
+        ) => {
             let handle = get_std_handle.ok_or_else(|| {
                 Diagnostic::error("final Win64 runtime-byte replay lost its GetStdHandle call plan")
             })?;
@@ -150,6 +160,17 @@ pub(in crate::checked) fn encode_runtime_byte_replay(
                     ),
                 ],
             )
+        }
+        (
+            _,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::Normalized(locator),
+            },
+        ) => {
+            return Err(Diagnostic::error(format!(
+                "normalized foreign locator 0x{:016x} reached string-backed runtime-byte replay",
+                locator.normalized_identity(),
+            )));
         }
         (architecture, HostBindingMechanism::Syscall { number, .. }) => {
             if get_std_handle.is_some() {
@@ -258,11 +279,16 @@ pub(in crate::checked) fn encode_runtime_line_read_replay(
     plan: &omega_calling_conventions::CallPlan,
     get_std_handle: Option<&omega_machine_bytes::CompilerRuntimeImportSubcall>,
 ) -> Result<RuntimeTextReplay, Diagnostic> {
-    use omega_calling_conventions::HostBindingMechanism;
+    use omega_calling_conventions::{HostBindingMechanism, HostImportLocator};
     use omega_target_operations::RuntimeTextReadTarget;
 
     let (mut bytes, mut call_sites) = match (architecture, mechanism) {
-        (Architecture::Aarch64, HostBindingMechanism::Import { library, symbol }) => {
+        (
+            Architecture::Aarch64,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+            },
+        ) => {
             if get_std_handle.is_some() {
                 return Err(Diagnostic::error(
                     "final AArch64 runtime line-read replay unexpectedly retained GetStdHandle",
@@ -305,7 +331,12 @@ pub(in crate::checked) fn encode_runtime_line_read_replay(
                 )],
             )
         }
-        (Architecture::X86_64, HostBindingMechanism::Import { library, symbol }) => {
+        (
+            Architecture::X86_64,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+            },
+        ) => {
             let handle = get_std_handle.ok_or_else(|| {
                 Diagnostic::error(
                     "final Win64 runtime line-read replay lost its GetStdHandle call plan",
@@ -351,6 +382,17 @@ pub(in crate::checked) fn encode_runtime_line_read_replay(
                     ),
                 ],
             )
+        }
+        (
+            _,
+            HostBindingMechanism::Import {
+                locator: HostImportLocator::Normalized(locator),
+            },
+        ) => {
+            return Err(Diagnostic::error(format!(
+                "normalized foreign locator 0x{:016x} reached string-backed runtime line-read replay",
+                locator.normalized_identity(),
+            )));
         }
         (architecture, HostBindingMechanism::Syscall { number, .. }) => {
             if get_std_handle.is_some() {

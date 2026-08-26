@@ -5,7 +5,7 @@
 //! later provider-plan join does not reconstruct or independently pair raw
 //! object, symbol, version, or ordinal values.
 
-use omega_target::TargetProfile;
+use crate::TargetProfile;
 use std::fmt;
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;

@@ -1,7 +1,9 @@
 use super::super::lookups::find_host_binding;
 use super::super::offsets::external_call_relocation_kind;
 use super::context::InstructionRelocationContext;
-use omega_calling_conventions::{HostBindingMechanism, HostOperation, HostOperationKey};
+use omega_calling_conventions::{
+    HostBindingMechanism, HostImportLocator, HostOperation, HostOperationKey,
+};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target::Architecture;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
@@ -84,7 +86,10 @@ fn insert_import_call_record(
     let Some(binding) = context.input.instructions.host_binding(operation_key) else {
         return;
     };
-    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+    let HostBindingMechanism::Import {
+        locator: HostImportLocator::StringBackedBootstrap { symbol, .. },
+    } = &binding.mechanism
+    else {
         return;
     };
 
@@ -119,7 +124,10 @@ fn insert_get_std_handle_record(
     let Some(binding) = find_host_binding(context.input, get_std_handle_key) else {
         return;
     };
-    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+    let HostBindingMechanism::Import {
+        locator: HostImportLocator::StringBackedBootstrap { symbol, .. },
+    } = &binding.mechanism
+    else {
         return;
     };
     context
