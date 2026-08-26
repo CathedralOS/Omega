@@ -972,6 +972,13 @@ mod tests {
                 staged.custody().selected(),
                 staged.selected().receipt().identity()
             );
+            let mut copy_tagged = plan.clone();
+            copy_tagged.functions[0].blocks[1].instructions[0].kind =
+                TerminalSelectedInstructionKind::CopyI64;
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&copy_tagged),
+                staged.selected().receipt().identity()
+            );
 
             let entry = &plan.functions[0].blocks[0];
             assert_eq!(

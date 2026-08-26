@@ -48,6 +48,7 @@ impl TerminalSelectedInstructionPlanIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalSelectedConstraintKeys {
     pub materialize_i64: RegisterConstraintKey,
+    pub copy_i64: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
@@ -148,6 +149,7 @@ pub struct TerminalSelectedOperand {
 pub enum TerminalSelectedInstructionKind {
     CompareI64Zero,
     MaterializeI64 { value: IntegerValue },
+    CopyI64,
     ConditionalBranchNonZero,
     ReturnI64,
 }
