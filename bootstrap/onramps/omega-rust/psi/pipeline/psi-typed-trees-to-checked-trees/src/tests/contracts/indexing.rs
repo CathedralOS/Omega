@@ -22,8 +22,6 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -42,7 +40,6 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
     program.push_machine_contract(
@@ -54,7 +51,6 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 3,
-            source_span: Default::default(),
         },
     );
     program.push_machine(machine);
@@ -104,8 +100,6 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -124,7 +118,6 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
     program.push_machine(machine);
@@ -215,7 +208,6 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
     program.push_trait_machine_signature(&mut trait_definition, signature);
@@ -269,8 +261,6 @@ fn indexes_call_contract_facts_by_target_machine() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -289,7 +279,6 @@ fn indexes_call_contract_facts_by_target_machine() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
     program.push_machine_state(
@@ -316,8 +305,6 @@ fn indexes_call_contract_facts_by_target_machine() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -435,7 +422,6 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
     program.push_trait_machine_signature(&mut trait_definition, signature);
@@ -452,8 +438,6 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -500,8 +484,6 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -602,8 +584,6 @@ fn indexes_terminal_state_contract_ensures() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         body_is_present: true,
-        service_reach_clause_spans: Vec::new(),
-        authored_service_reach_selections: Vec::new(),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         owned_data: Default::default(),
@@ -622,7 +602,6 @@ fn indexes_terminal_state_contract_ensures() {
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
-            source_span: Default::default(),
         },
     );
 

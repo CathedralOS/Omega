@@ -110,9 +110,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
            allow_greater: bool = False,
            allow_integer_widen: bool = False,
            require_trapping_add: bool = False,
-           allow_static_byte_view: bool = False,
-           allow_full_u32_subtract: bool = False) -> Module:
-    require(expected_major in (5, 6, 7, 8, 9, 10, 11, 12, 13),
+           allow_static_byte_view: bool = False) -> Module:
+    require(expected_major in (5, 6, 7, 8, 9, 10, 11, 12),
             "internal CKIR schema selection")
     require(allow_logical_not == (expected_major >= 6)
             and allow_logical_binary == (expected_major >= 7)
@@ -120,8 +119,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
             and allow_greater == (expected_major >= 9)
             and allow_integer_widen == (expected_major >= 10)
             and require_trapping_add == (expected_major == 11)
-            and allow_static_byte_view == (expected_major == 12)
-            and allow_full_u32_subtract == (expected_major == 13),
+            and allow_static_byte_view == (expected_major == 12),
             "internal CKIR feature selection")
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
@@ -186,8 +184,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(kind not in (3, 4, 6, 7) or type_flags == 0, "forbidden type flag")
         if kind in (1, 2, 3):
             require(payload0 == payload1 == 0 and low <= high, "bad scalar type")
-            require(high <= (255 if kind == 1 else 1 if kind == 3 else
-                             0xFFFF_FFFF if allow_full_u32_subtract else 0x7FFF_FFFF),
+            require(high <= (255 if kind == 1 else 1 if kind == 3 else 0x7FFF_FFFF),
                     "scalar range")
             if kind == 3:
                 require((low, high) == (0, 1), "bool range")
@@ -348,20 +345,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         if sum_row[4] & 1:
             require(copyable(sum_row[1]), "invalid [copy] sum")
 
-    if allow_full_u32_subtract:
-        canonical_u32 = len(tables["records"]) + len(tables["sums"]) + 1
-        require(canonical_u32 < len(types)
-                and types[canonical_u32][1:] ==
-                (2, 0, 0, 0, 0, 0, 0xFFFF_FFFF),
-                "CKIR13 canonical full u32")
-        declaration_tables = dict(tables)
-        declaration_tables["types"] = [
-            row[:7] + (min(row[7], 0x7FFF_FFFF),) if row[1] == 2 else row
-            for row in types
-        ]
-        _project_declarations(entry, flags, declaration_tables)
-    else:
-        _project_declarations(entry, flags, tables)
+    _project_declarations(entry, flags, tables)
 
     def contains_sum(type_id: int, active: set[int] | None = None) -> bool:
         active = set() if active is None else active
@@ -531,7 +515,6 @@ def decode(contents: bytes, *, expected_major: int = 5,
     greater_count = 0
     integer_widen_count = 0
     trapping_add_count = 0
-    subtract_count = 0
     byte_view_counts = {opcode: 0 for opcode in range(22, 26)}
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
@@ -544,7 +527,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         op_values = operands[operand_start:operand_start + operand_count]
         require(len(op_values) == operand_count, "operation operand extent")
         next_operand += operand_count
-        opcode_limit = 27 if allow_full_u32_subtract else 26 if allow_static_byte_view else 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
+        opcode_limit = 26 if allow_static_byte_view else 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
         require(opcode in range(1, opcode_limit), "opcode")
         if opcode == 10:
             require(imm0 < len(machines), "call target")
@@ -572,7 +555,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         expected_operands = (1 + machines[imm0][7] if opcode == 10 else {
             1: 0, 2: 0, 3: 1, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2,
             11: 1, 12: 2, 15: 1, 16: 2, 17: 2, 18: 2, 19: 2, 20: 2,
-            21: 1, 22: 0, 23: 1, 24: 1, 25: 1, 26: 2,
+            21: 1, 22: 0, 23: 1, 24: 1, 25: 1,
         }.get(opcode))
         if opcode not in (13, 14):
             require(operand_count == expected_operands, "operation arity")
@@ -619,28 +602,21 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     and types[source_type][1] in (4, 5, 6) and copyable(source_type),
                     "copy type")
             require(place_mutable[op_values[0]], "shared place copy")
-        elif opcode in (8, 9, 12, 26):
+        elif opcode in (8, 9, 12):
             require(imm0 == imm1 == 0
                     and all(visible_value(value, owner, block, op_id) for value in op_values),
                     "arithmetic refs")
             require(types[value_types[op_values[0]]][1]
                     == types[value_types[op_values[1]]][1]
                     and types[value_types[op_values[0]]][1] in (1, 2), "arithmetic type")
-            if opcode in (8, 26):
+            if opcode == 8:
                 require(types[result_type][1] == types[value_types[op_values[0]]][1],
-                        "arithmetic result")
-                if (opcode == 8 and expected_major == 11
+                        "add result")
+                if (expected_major == 11
                         and types[result_type][1:] == (2, 1, 0, 0, 0, 0, 0x7FFF_FFFF)
                         and value_types[op_values[0]] == result_type
                         and value_types[op_values[1]] == result_type):
                     trapping_add_count += 1
-                if opcode == 26:
-                    require(expected_major == 13
-                            and types[result_type][1:] == (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
-                            and value_types[op_values[0]] == result_type
-                            and value_types[op_values[1]] == result_type,
-                            "full-u32 Subtract type")
-                    subtract_count += 1
             else:
                 require(types[result_type][1] == 3, "comparison result")
         elif opcode == 15:
@@ -800,8 +776,6 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(trapping_add_count > 0, "CKIR11 requires canonical u32 Trapping Add")
     elif expected_major == 12:
         require(all(byte_view_counts.values()), "CKIR12 requires byte-view operations 22-25")
-    elif expected_major == 13:
-        require(subtract_count > 0, "CKIR13 requires full-u32 Trapping Subtract")
 
     next_arm = next_arm_arg = 0
     predecessors: list[list[tuple[int, int, int, tuple[int, ...]]]] = [
@@ -1102,13 +1076,6 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     value = int(values[args[0]][1]) + int(values[args[1]][1])
                     require(types[result_type][6] <= value <= types[result_type][7],
                             "runtime add range")
-                    values[result_id] = (result_type, value)
-                elif opcode == 26:
-                    left, right = int(values[args[0]][1]), int(values[args[1]][1])
-                    require(left >= right, "runtime subtract underflow")
-                    value = left - right
-                    require(types[result_type][6] <= value <= types[result_type][7],
-                            "runtime subtract range")
                     values[result_id] = (result_type, value)
                 elif opcode in (9, 12):
                     left, right = int(values[args[0]][1]), int(values[args[1]][1])

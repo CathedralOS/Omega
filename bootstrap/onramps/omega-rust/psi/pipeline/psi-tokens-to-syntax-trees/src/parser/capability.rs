@@ -134,7 +134,6 @@ fn parse_capability_contract<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityContract> {
     if input.at_contextual("requires") {
-        let clause_input = input;
         let input = input.take_contextual("requires")?;
         let ((facts, token_count), input) =
             parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
@@ -145,14 +144,12 @@ fn parse_capability_contract<'tokens, 'source>(
                 binding: None,
                 facts,
                 token_count,
-                source_span: clause_input.source_span_until(input),
             },
             input,
         ));
     }
 
     if input.at_contextual("ensures") {
-        let clause_input = input;
         let input = input.take_contextual("ensures")?;
         let ((facts, token_count), input) =
             parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
@@ -163,14 +160,12 @@ fn parse_capability_contract<'tokens, 'source>(
                 binding: None,
                 facts,
                 token_count,
-                source_span: clause_input.source_span_until(input),
             },
             input,
         ));
     }
 
     if input.at_contextual("boundary") {
-        let clause_input = input;
         let input = input.take_contextual("boundary")?;
         let (boundary_level, input) = parse_boundary_level(input)?;
         let input = take_optional_semicolon(input)?;
@@ -180,7 +175,6 @@ fn parse_capability_contract<'tokens, 'source>(
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 1,
-                source_span: clause_input.source_span_until(input),
             },
             input,
         ));

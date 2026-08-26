@@ -1,6 +1,6 @@
 use omega_compiler::{
     PackageCompilationInputs, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRecoveryLimits, PackageReviewSourceLocationRole, PackageSourceBinding,
+    PackageReviewCanonicalRowRecoveryLimits, PackageSourceBinding,
     compile_to_checked_with_packages, decode_package_review_canonical_row,
     decode_package_review_canonical_row_with_limits, encode_package_review_canonical_row,
     project_checked_package_review,
@@ -51,19 +51,7 @@ fn fixture_rows() -> Option<(
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"use omega::language::std::filesystem_host;
-
-pub data Token { value: i64; }
-pub trait Marker { machine Self::touch(&self); }
-pub Primary: Token satisfies Marker { machine touch(&self) { } }
-pub proposition ready();
-pub const LIMIT: u64 = 4;
-pub machine inspect(value: u64)
-reaches FilesystemHost
-requires ready();
-{
-}
-"#,
+        "pub data Token { value: i64; }\npub trait Marker { machine Self::touch(&self); }\npub Primary: Token satisfies Marker { machine touch(&self) { } }\npub proposition ready();\npub const LIMIT: u64 = 4;\n",
     );
     package.write(
         "build.omg",
@@ -121,33 +109,6 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance),
         "the public conformance row kind must survive canonical recovery"
     );
-    let callable_source = rows
-        .iter()
-        .find(|row| {
-            row.kind() == PackageReviewCanonicalRowKind::Callable
-                && row.source().authored_locations().is_some_and(|locations| {
-                    locations.iter().any(|location| {
-                        location.role() == PackageReviewSourceLocationRole::ReachClause
-                    })
-                })
-        })
-        .expect("callable row with nested source roles")
-        .source();
-    for role in [
-        PackageReviewSourceLocationRole::ContractClause,
-        PackageReviewSourceLocationRole::ContractSelectionUse,
-        PackageReviewSourceLocationRole::ContractSelectionDeclaration,
-        PackageReviewSourceLocationRole::ReachClause,
-        PackageReviewSourceLocationRole::ReachServiceUse,
-        PackageReviewSourceLocationRole::ReachServiceDeclaration,
-    ] {
-        assert!(
-            callable_source
-                .authored_locations()
-                .is_some_and(|locations| locations.iter().any(|location| location.role() == role)),
-            "callable fixture must exercise recovery role {role:?}"
-        );
-    }
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");

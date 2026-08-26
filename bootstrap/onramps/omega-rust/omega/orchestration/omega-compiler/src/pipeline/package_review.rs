@@ -2094,35 +2094,6 @@ struct PackageReviewCanonicalRowSources {
 struct ProjectedReviewRow<Row> {
     row: Row,
     declaration: SymbolHandle,
-    source_anchors: Vec<ProjectedReviewSourceAnchor>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum ProjectedReviewSourceAnchor {
-    Declaration {
-        symbol: SymbolHandle,
-        role: PackageReviewSourceLocationRole,
-    },
-    Use {
-        source_span: psi_source::SourceSpan,
-        role: PackageReviewSourceLocationRole,
-    },
-    CompilerDerived(PackageReviewSyntheticSourceKind),
-}
-
-impl<Row> ProjectedReviewRow<Row> {
-    fn declaration(row: Row, declaration: SymbolHandle) -> Self {
-        Self {
-            row,
-            declaration,
-            source_anchors: Vec::new(),
-        }
-    }
-
-    fn with_source_anchors(mut self, source_anchors: Vec<ProjectedReviewSourceAnchor>) -> Self {
-        self.source_anchors = source_anchors;
-        self
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -2186,12 +2157,6 @@ pub enum PackageReviewCanonicalRowRisk {
 pub enum PackageReviewSourceLocationRole {
     Declaration,
     DerivationOrigin,
-    ContractClause,
-    ContractSelectionUse,
-    ContractSelectionDeclaration,
-    ReachClause,
-    ReachServiceUse,
-    ReachServiceDeclaration,
     AuthorityDeclaration,
     AuthorityExposure,
     ProviderSelection,
@@ -2209,7 +2174,6 @@ pub enum PackageReviewSyntheticSourceKind {
     EmptySelectedProviderSet,
     UniqueCoveringProviderSelection,
     FreeExternalProviderType,
-    ContractIntrinsicSelection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2496,13 +2460,10 @@ pub fn project_checked_package_review(
             }
         }
 
-        callables.push(
-            ProjectedReviewRow::declaration(
-                project_callable(compilation, &synchronous_invocations, machine, role, owner)?,
-                machine.symbol,
-            )
-            .with_source_anchors(project_callable_source_anchors(compilation, machine)?),
-        );
+        callables.push(ProjectedReviewRow {
+            row: project_callable(compilation, &synchronous_invocations, machine, role, owner)?,
+            declaration: machine.symbol,
+        });
         projected_build_machine |= role == PackageReviewCallableRole::Build;
     }
 
@@ -2823,14 +2784,14 @@ fn project_representation_tcb(
         if !reviewed_package_owns(&declaration, package)? {
             continue;
         }
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewRepresentationTcb {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewRepresentationTcb {
                 declaration,
                 abi: PackageReviewRepresentationAbiCommitment::Unbound,
                 mechanism: PackageReviewRepresentationMechanism::Unbound,
             },
-            definition.symbol,
-        ));
+            declaration: definition.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.cmp(&right.row));
     rows.dedup_by(|left, right| left.row == right.row && left.declaration == right.declaration);
@@ -2962,48 +2923,9 @@ fn finalize_projected_rows<Row>(
     let mut rows = Vec::with_capacity(projected.len());
     let mut sources = Vec::with_capacity(projected.len());
     for projected in projected {
-        let mut locations = vec![canonical_source_location(
-            compilation,
-            projected.declaration,
-            role,
-        )?];
-        let mut compiler_derivations = Vec::new();
-        for anchor in projected.source_anchors {
-            match anchor {
-                ProjectedReviewSourceAnchor::Declaration { symbol, role } => {
-                    if role == PackageReviewSourceLocationRole::ContractSelectionDeclaration
-                        && compilation
-                            .typed
-                            .symbols
-                            .symbol_provenance_source_span(symbol)
-                            .is_none()
-                    {
-                        compiler_derivations
-                            .push(PackageReviewSyntheticSourceKind::ContractIntrinsicSelection);
-                    } else {
-                        locations.push(canonical_source_location(compilation, symbol, role)?);
-                    }
-                }
-                ProjectedReviewSourceAnchor::Use { source_span, role } => {
-                    locations.push(canonical_source_span_location(
-                        compilation,
-                        source_span,
-                        role,
-                    )?);
-                }
-                ProjectedReviewSourceAnchor::CompilerDerived(reason) => {
-                    compiler_derivations.push(reason);
-                }
-            }
-        }
-        locations.sort();
-        locations.dedup();
-        compiler_derivations.sort();
-        compiler_derivations.dedup();
-        sources.push(PackageReviewCanonicalRowSource::mixed(
-            locations,
-            compiler_derivations,
-        ));
+        sources.push(PackageReviewCanonicalRowSource::authored(vec![
+            canonical_source_location(compilation, projected.declaration, role)?,
+        ]));
         rows.push(projected.row);
     }
     Ok((rows, sources))
@@ -3522,8 +3444,8 @@ fn project_public_traits(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewTraitShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewTraitShape {
                 identity,
                 is_boundary: definition.is_boundary,
                 lifetime_parameter_count: definition.lifetime_parameters.len(),
@@ -3532,8 +3454,8 @@ fn project_public_traits(
                 parents,
                 requirements,
             },
-            definition.symbol,
-        ));
+            declaration: definition.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
@@ -3748,16 +3670,16 @@ fn project_public_conformances(
                 identity.path
             ))]);
         }
-        projected.push(ProjectedReviewRow::declaration(
-            PackageReviewConformanceShape {
+        projected.push(ProjectedReviewRow {
+            row: PackageReviewConformanceShape {
                 identity,
                 lifetime_parameter_count: conformance.lifetime_parameters.len(),
                 type_parameters,
                 subject,
                 interface,
             },
-            conformance.symbol,
-        ));
+            declaration: conformance.symbol,
+        });
     }
     projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(projected)
@@ -4041,15 +3963,15 @@ fn project_public_propositions(
                 PackageReviewPublicPropositionBody::Transparent(expansion)
             }
         };
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewPropositionShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewPropositionShape {
                 identity,
                 binders,
                 parameter_types,
                 body,
             },
-            declaration.symbol,
-        ));
+            declaration: declaration.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
@@ -4075,8 +3997,8 @@ fn project_public_consts(
                 identity.path
             ))]);
         };
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewConstShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewConstShape {
                 identity,
                 declared_type: review_type_identity_with_binders(
                     compilation,
@@ -4085,8 +4007,8 @@ fn project_public_consts(
                 )?,
                 canonical_value_encoding,
             },
-            declaration.symbol,
-        ));
+            declaration: declaration.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
@@ -4174,8 +4096,8 @@ fn project_public_operators(
             &binders,
             ContractProjectionPolicy::PublicOperator,
         )?;
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewOperatorShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewOperatorShape {
                 coordinate,
                 is_boundary: declaration.is_boundary,
                 spelling: declaration.spelling,
@@ -4190,8 +4112,8 @@ fn project_public_operators(
                 )?,
                 contracts,
             },
-            declaration.symbol,
-        ));
+            declaration: declaration.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));
     if rows
@@ -4249,8 +4171,8 @@ fn project_public_domains(
             .collect::<Result<Vec<_>, _>>()?;
         establishment_routes.sort();
         establishment_routes.dedup();
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewDomainShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewDomainShape {
                 identity,
                 type_parameters,
                 target_type: review_type_identity_with_binders(
@@ -4271,8 +4193,8 @@ fn project_public_domains(
                 classification,
                 establishment_routes,
             },
-            definition.symbol,
-        ));
+            declaration: definition.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
@@ -4671,8 +4593,8 @@ fn project_public_data(
         let mut retired_identities = definition.retired_identities.clone();
         retired_identities.sort_unstable();
         retired_identities.dedup();
-        rows.push(ProjectedReviewRow::declaration(
-            PackageReviewDataShape {
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewDataShape {
                 identity,
                 supply: definition.supply_mode,
                 lifetime_parameter_count: definition.lifetime_parameters.len(),
@@ -4682,8 +4604,8 @@ fn project_public_data(
                 retired_identities,
                 members,
             },
-            definition.symbol,
-        ));
+            declaration: definition.symbol,
+        });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
@@ -5963,231 +5885,6 @@ fn project_callable(
         checked_crash: project_crash(compilation, &realized.checked_crash)?,
         mutation: project_mutation(compilation, &realized.mutation)?,
     })
-}
-
-fn project_callable_source_anchors(
-    compilation: &CheckedCompilation,
-    machine: &psi_typed_trees::machine::Machine,
-) -> Result<Vec<ProjectedReviewSourceAnchor>, Vec<Diagnostic>> {
-    use psi_typed_trees::domain::ProofFact;
-
-    let mut anchors = Vec::new();
-    for source_span in &machine.service_reach_clause_spans {
-        anchors.push(ProjectedReviewSourceAnchor::Use {
-            source_span: *source_span,
-            role: PackageReviewSourceLocationRole::ReachClause,
-        });
-    }
-    for selection in &machine.authored_service_reach_selections {
-        anchors.push(ProjectedReviewSourceAnchor::Use {
-            source_span: selection.use_name.source_span(),
-            role: PackageReviewSourceLocationRole::ReachServiceUse,
-        });
-        anchors.push(ProjectedReviewSourceAnchor::Declaration {
-            symbol: selection.declaration,
-            role: PackageReviewSourceLocationRole::ReachServiceDeclaration,
-        });
-    }
-
-    for contract in compilation.machine_contracts(machine) {
-        anchors.push(ProjectedReviewSourceAnchor::Use {
-            source_span: contract.source_span,
-            role: PackageReviewSourceLocationRole::ContractClause,
-        });
-        for fact in compilation.proof_facts.span_or_empty(contract.facts) {
-            match fact {
-                ProofFact::Expression(expression) => collect_contract_expression_source_anchors(
-                    compilation,
-                    *expression,
-                    &mut anchors,
-                )?,
-                ProofFact::Membership(membership) => {
-                    let use_span = membership.domain_use_span;
-                    if use_span == psi_source::SourceSpan::default() {
-                        return Err(vec![Diagnostic::error(
-                            "reviewed contract membership has no authored domain use",
-                        )]);
-                    }
-                    anchors.push(ProjectedReviewSourceAnchor::Use {
-                        source_span: use_span,
-                        role: PackageReviewSourceLocationRole::ContractSelectionUse,
-                    });
-                    anchors.push(ProjectedReviewSourceAnchor::Declaration {
-                        symbol: membership.domain_symbol,
-                        role: PackageReviewSourceLocationRole::ContractSelectionDeclaration,
-                    });
-                    collect_contract_expression_source_anchors(
-                        compilation,
-                        membership.value,
-                        &mut anchors,
-                    )?;
-                }
-                ProofFact::Proposition(application) => {
-                    anchors.push(ProjectedReviewSourceAnchor::Use {
-                        source_span: application.use_span,
-                        role: PackageReviewSourceLocationRole::ContractSelectionUse,
-                    });
-                    anchors.push(ProjectedReviewSourceAnchor::Declaration {
-                        symbol: application.proposition,
-                        role: PackageReviewSourceLocationRole::ContractSelectionDeclaration,
-                    });
-                    for argument in &application.binder_arguments {
-                        if !argument.symbol.is_valid() {
-                            continue;
-                        }
-                        if argument.use_span == psi_source::SourceSpan::default() {
-                            continue;
-                        }
-                        anchors.push(ProjectedReviewSourceAnchor::Use {
-                            source_span: argument.use_span,
-                            role: PackageReviewSourceLocationRole::ContractSelectionUse,
-                        });
-                        anchors.push(ProjectedReviewSourceAnchor::Declaration {
-                            symbol: argument.symbol,
-                            role: PackageReviewSourceLocationRole::ContractSelectionDeclaration,
-                        });
-                    }
-                    for argument in compilation
-                        .expression_table
-                        .expression_handles(application.arguments)
-                    {
-                        collect_contract_expression_source_anchors(
-                            compilation,
-                            *argument,
-                            &mut anchors,
-                        )?;
-                    }
-                }
-            }
-        }
-    }
-
-    // Every expression occurrence above resolves through the checked program's
-    // exact append-only declaration-selection ledger. This final sweep catches
-    // malformed late-bound state before any partial source sidecar is issued.
-    for anchor in &anchors {
-        let ProjectedReviewSourceAnchor::Declaration { symbol, .. } = anchor else {
-            continue;
-        };
-        if !symbol.is_valid() {
-            return Err(vec![Diagnostic::error(
-                "reviewed callable source anchor has an unresolved declaration",
-            )]);
-        }
-    }
-    Ok(anchors)
-}
-
-fn collect_contract_expression_source_anchors(
-    compilation: &CheckedCompilation,
-    root: psi_typed_trees::expression::ExpressionHandle,
-    anchors: &mut Vec<ProjectedReviewSourceAnchor>,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut visited = Vec::new();
-    collect_contract_expression_source_anchors_inner(compilation, root, anchors, &mut visited)
-}
-
-fn collect_contract_expression_source_anchors_inner(
-    compilation: &CheckedCompilation,
-    root: psi_typed_trees::expression::ExpressionHandle,
-    anchors: &mut Vec<ProjectedReviewSourceAnchor>,
-    visited: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
-) -> Result<(), Vec<Diagnostic>> {
-    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-    use psi_typed_trees::expression::ExpressionNode;
-
-    if !root.is_valid() || visited.contains(&root) {
-        return Ok(());
-    }
-    visited.push(root);
-
-    for occurrence in compilation
-        .expression_table
-        .authored_selection_occurrences(root)
-    {
-        let selection = compilation
-            .authored_declaration_selections()
-            .get(occurrence)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "reviewed contract expression refers to an unknown authored selection",
-                )]
-            })?;
-        anchors.push(ProjectedReviewSourceAnchor::Use {
-            source_span: selection.source_span(),
-            role: PackageReviewSourceLocationRole::ContractSelectionUse,
-        });
-        match selection.target() {
-            AuthoredDeclarationSelectionTarget::Resolved(target) => {
-                anchors.push(ProjectedReviewSourceAnchor::Declaration {
-                    symbol: target.selected_symbol(),
-                    role: PackageReviewSourceLocationRole::ContractSelectionDeclaration,
-                });
-            }
-            AuthoredDeclarationSelectionTarget::Intrinsic(_) => {
-                anchors.push(ProjectedReviewSourceAnchor::CompilerDerived(
-                    PackageReviewSyntheticSourceKind::ContractIntrinsicSelection,
-                ));
-            }
-            AuthoredDeclarationSelectionTarget::LateBound(_) => {
-                return Err(vec![Diagnostic::error(
-                    "reviewed contract expression retains an unresolved authored selection",
-                )]);
-            }
-        }
-    }
-
-    let mut visit = |child| {
-        collect_contract_expression_source_anchors_inner(compilation, child, anchors, visited)
-    };
-    match compilation.expression_table.expression(root) {
-        ExpressionNode::ArrayLiteral(values) => {
-            for child in compilation.expression_table.expression_handles(*values) {
-                visit(*child)?;
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            visit(atomic.value)?;
-            visit(atomic.result)?;
-        }
-        ExpressionNode::Binary(binary) => {
-            visit(binary.left)?;
-            visit(binary.right)?;
-        }
-        ExpressionNode::Cast(cast) => visit(cast.value)?,
-        ExpressionNode::Call(call) => {
-            visit(call.receiver)?;
-            for argument in compilation
-                .expression_table
-                .expression_handles(call.arguments)
-            {
-                visit(*argument)?;
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            visit(indexed.collection)?;
-            visit(indexed.index)?;
-        }
-        ExpressionNode::Member(member) => visit(member.receiver)?,
-        ExpressionNode::Borrow(borrow) => visit(borrow.target)?,
-        ExpressionNode::Range(range) => {
-            visit(range.start)?;
-            visit(range.end)?;
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in compilation.expression_table.struct_fields(literal.fields) {
-                visit(field.value)?;
-            }
-        }
-        ExpressionNode::Unary(unary) => visit(unary.operand)?,
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
-    Ok(())
 }
 
 struct ContractProjectionContext<'a> {

@@ -639,7 +639,6 @@ mod tests {
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
-                source_span: Default::default(),
             });
         let ensures = syntax_trees
             .items
@@ -648,7 +647,6 @@ mod tests {
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
-                source_span: Default::default(),
             });
         let return_type = syntax_trees
             .type_references
@@ -764,7 +762,6 @@ mod tests {
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
-                source_span: Default::default(),
             });
         let ensures = syntax_trees
             .items
@@ -773,7 +770,6 @@ mod tests {
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
-                source_span: Default::default(),
             });
 
         syntax_trees.push_root_item(Item::Machine(Machine {

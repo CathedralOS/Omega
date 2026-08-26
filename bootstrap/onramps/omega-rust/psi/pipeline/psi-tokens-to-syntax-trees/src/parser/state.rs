@@ -193,7 +193,6 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
     let mut count = 0u32;
 
     while input.at_contextual("requires") {
-        let clause_input = input;
         input = input.take_contextual("requires")?;
         let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
             && after_binding.at_punctuation(PunctuationKind::Colon)
@@ -231,7 +230,6 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
                 binding,
                 facts,
                 token_count,
-                source_span: clause_input.source_span_until(rest),
             });
         if count == 0 {
             start = handle;

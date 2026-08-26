@@ -127,8 +127,6 @@ pub(crate) fn lower_machine_into(
         termination_plan,
         service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
-        service_reach_clause_spans: machine.service_reach_clause_spans.clone(),
-        authored_service_reach_selections: Vec::new(),
         storage: MachineStorage {
             lifetime_parameters: machine
                 .lifetime_parameters
