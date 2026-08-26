@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 66);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 24);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 67);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 25);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -7621,6 +7621,99 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
         PackageReviewContractExpression::ByteSequence(vec![0xff])
     );
     assert_ne!(escaped_ascii.1, opaque_octet.1);
+}
+
+#[test]
+fn review_projects_ordered_nested_array_contract_expressions() {
+    let project = |literal: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub proposition matrix(values: [[i32; 2]; 2]);
+pub machine consume()
+requires matrix({literal})
+{{ }}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("nested array contract fixture should check");
+        project_checked_package_review(&checked)
+            .expect("nested array contract expression should project in order")
+    };
+
+    let original = project("[[1, 2], [3, 4]]");
+    let consume = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("public array consumer");
+    let [contract] = consume.contracts() else {
+        panic!("one array-bearing requirement")
+    };
+    let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+        panic!("one proposition application")
+    };
+    assert_eq!(
+        application.arguments(),
+        [PackageReviewContractExpression::Array(vec![
+            PackageReviewContractExpression::Array(vec![
+                PackageReviewContractExpression::Integer("1".to_owned()),
+                PackageReviewContractExpression::Integer("2".to_owned()),
+            ]),
+            PackageReviewContractExpression::Array(vec![
+                PackageReviewContractExpression::Integer("3".to_owned()),
+                PackageReviewContractExpression::Integer("4".to_owned()),
+            ]),
+        ])]
+    );
+    let reordered = project("[[2, 1], [3, 4]]");
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        reordered.canonical_review_bytes().unwrap(),
+        "array element order is semantic contract identity",
+    );
+
+    let unsupported = TempPackage::new();
+    unsupported.write(
+        "main.omg",
+        r#"pub data Token [copy] { value: u64; }
+pub proposition tokens(values: [Token; 1]);
+pub machine consume()
+requires tokens([Token { value: 1u64 }])
+{ }
+"#,
+    );
+    unsupported.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &unsupported.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&unsupported.0),
+    )
+    .expect("array containing a struct literal should still check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("an unsupported nested form must keep the complete array fail-closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("contract expression form not yet represented")
+    }));
 }
 
 #[test]

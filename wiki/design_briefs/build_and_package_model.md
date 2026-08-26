@@ -1622,6 +1622,11 @@ buckets retain unconditional truth or canonical structural guard expressions;
 the latter use package-qualified call, member, and selected-overload identity
 rather than textual runtime-predicate fallbacks. Clause/guard ordering and
 duplicates are stable; a changed cause or guard changes the operator row.
+Review v67 and canonical row v25 admit ordered array literals in public
+contracts. Elements recursively use the existing structural contract
+vocabulary and depth/byte limits. Nested arrays are therefore exact and
+ordered; changing or reordering an element changes identity, while an
+unsupported child rejects the complete row rather than becoming opaque.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent
