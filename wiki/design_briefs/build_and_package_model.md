@@ -1599,6 +1599,13 @@ rejoins its semantic declarations and never uses display strings as identity.
 Binder renames are stable, while changing any selected application argument
 changes canonical evidence. Proposition/evidence arguments and non-public
 selections remain fail-closed.
+Review v64 and canonical row v22 admit the proof-only representation
+observation `zero_value<T>()` in public contracts. Canonical identity retains
+the exact package-qualified, alpha-normalized observed type rather than layout
+bytes, source spelling, or a checker verdict. Proposition-local type binders
+receive exact symbols before typed lowering; binder renames are stable, while a
+different observed type changes the row. Quotient targets remain rejected by
+the settled representation-observer fence before package review.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

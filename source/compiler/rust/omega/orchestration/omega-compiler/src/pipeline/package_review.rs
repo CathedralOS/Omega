@@ -969,6 +969,9 @@ pub enum PackageReviewContractExpression {
     Result,
     GenericBinder(u32),
     Nominal(PackageReviewNominalIdentity),
+    /// Proof-only observation of one exact type's normalized all-zero home
+    /// representation. The checker rejects quotient targets before review.
+    ZeroValue(PackageReviewTypeIdentity),
     Member {
         receiver: Box<PackageReviewContractExpression>,
         member: PackageReviewNominalIdentity,
@@ -8085,6 +8088,16 @@ fn project_contract_expression_with_substitutions(
         ExpressionNode::String(value) => Ok(PackageReviewContractExpression::ByteSequence(
             value.to_vec(),
         )),
+        ExpressionNode::ZeroValue(type_reference) => {
+            Ok(PackageReviewContractExpression::ZeroValue(
+                review_signature_type_identity_with_binders(
+                    compilation,
+                    *type_reference,
+                    binders,
+                    context.lifetime_binders,
+                )?,
+            ))
+        }
         ExpressionNode::Binary(binary) => Ok(PackageReviewContractExpression::Binary {
             meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
             operator: project_contract_binary_operator(binary.operator),

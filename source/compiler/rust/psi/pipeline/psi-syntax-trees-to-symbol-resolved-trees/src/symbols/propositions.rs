@@ -1,6 +1,8 @@
-use psi_arena::HandleSpan;
+use psi_arena::{Arena, HandleSpan};
+use psi_symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
 use psi_symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_symbol_resolved_trees::proposition::PropositionBody;
+use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::lookup::{child_symbol_by_kinds, top_level_symbol_by_kinds};
@@ -12,59 +14,106 @@ pub(super) fn assign_proposition_expression_symbols(
     program: &mut psi_symbol_resolved_trees::SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let proposition_binders = &program.tables.declarations.proposition_binders;
+    let child_type_references = &mut program.tables.declarations.child_type_references;
     let expressions = &mut program.tables.bodies.expressions;
     let propositions = &program.roots.propositions;
     for proposition in propositions {
         let PropositionBody::Transparent { proposition: body } = proposition.body else {
             continue;
         };
-        assign_expression_symbols(expressions, symbols, proposition.symbol, body);
+        let local_type_parameters = proposition_binders
+            .span_or_empty(proposition.binders)
+            .iter()
+            .map(|binder| TypeParameter {
+                symbol: binder.symbol,
+                name: binder.name.clone(),
+                kind: TypeParameterKind::Type,
+                bounds: binder.bounds,
+            })
+            .collect::<Vec<_>>();
+        assign_expression_symbols(
+            expressions,
+            child_type_references,
+            symbols,
+            proposition.symbol,
+            &local_type_parameters,
+            body,
+        );
     }
 }
 
 fn assign_expression_span_symbols(
     expressions: &mut ExpressionTable,
+    child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
     proposition_symbol: SymbolHandle,
+    local_type_parameters: &[TypeParameter],
     span: HandleSpan<ExpressionHandle>,
 ) {
     let children = expressions.expression_handles(span).to_vec();
     for child in children {
-        assign_expression_symbols(expressions, symbols, proposition_symbol, child);
+        assign_expression_symbols(
+            expressions,
+            child_type_references,
+            symbols,
+            proposition_symbol,
+            local_type_parameters,
+            child,
+        );
     }
 }
 
 fn assign_expression_symbols(
     expressions: &mut ExpressionTable,
+    child_type_references: &mut Arena<TypeReference>,
     symbols: &SymbolTable,
     proposition_symbol: SymbolHandle,
+    local_type_parameters: &[TypeParameter],
     expression: ExpressionHandle,
 ) {
+    macro_rules! recurse {
+        ($expression:expr) => {
+            assign_expression_symbols(
+                expressions,
+                child_type_references,
+                symbols,
+                proposition_symbol,
+                local_type_parameters,
+                $expression,
+            )
+        };
+    }
     match expressions.expression(expression).clone() {
-        ExpressionNode::ArrayLiteral(values) => {
-            assign_expression_span_symbols(expressions, symbols, proposition_symbol, values)
-        }
+        ExpressionNode::ArrayLiteral(values) => assign_expression_span_symbols(
+            expressions,
+            child_type_references,
+            symbols,
+            proposition_symbol,
+            local_type_parameters,
+            values,
+        ),
         ExpressionNode::Atomic(atomic) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, atomic.value);
+            recurse!(atomic.value);
             if atomic.result.is_valid() {
-                assign_expression_symbols(expressions, symbols, proposition_symbol, atomic.result);
+                recurse!(atomic.result);
             }
         }
         ExpressionNode::Binary(binary) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, binary.left);
-            assign_expression_symbols(expressions, symbols, proposition_symbol, binary.right);
+            recurse!(binary.left);
+            recurse!(binary.right);
         }
-        ExpressionNode::Cast(cast) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, cast.value)
-        }
+        ExpressionNode::Cast(cast) => recurse!(cast.value),
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
-                assign_expression_symbols(expressions, symbols, proposition_symbol, call.receiver);
+                recurse!(call.receiver);
             }
             assign_expression_span_symbols(
                 expressions,
+                child_type_references,
                 symbols,
                 proposition_symbol,
+                local_type_parameters,
                 call.arguments,
             );
             let target_symbol = if call.receiver.is_valid() {
@@ -102,18 +151,12 @@ fn assign_expression_symbols(
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, indexed.collection);
-            assign_expression_symbols(expressions, symbols, proposition_symbol, indexed.index);
+            recurse!(indexed.collection);
+            recurse!(indexed.index);
         }
-        ExpressionNode::Membership(membership) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, membership.value)
-        }
-        ExpressionNode::Member(member) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, member.receiver)
-        }
-        ExpressionNode::Borrow(inner) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, inner.target)
-        }
+        ExpressionNode::Membership(membership) => recurse!(membership.value),
+        ExpressionNode::Member(member) => recurse!(member.receiver),
+        ExpressionNode::Borrow(inner) => recurse!(inner.target),
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             let symbol = if let [name] = members {
@@ -137,25 +180,33 @@ fn assign_expression_symbols(
         }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                assign_expression_symbols(expressions, symbols, proposition_symbol, range.start);
+                recurse!(range.start);
             }
             if range.end.is_valid() {
-                assign_expression_symbols(expressions, symbols, proposition_symbol, range.end);
+                recurse!(range.end);
             }
         }
         ExpressionNode::StructLiteral(struct_literal) => {
             let fields = expressions.struct_fields(struct_literal.fields).to_vec();
             for field in fields {
-                assign_expression_symbols(expressions, symbols, proposition_symbol, field.value);
+                recurse!(field.value);
             }
         }
-        ExpressionNode::Unary(unary) => {
-            assign_expression_symbols(expressions, symbols, proposition_symbol, unary.operand)
+        ExpressionNode::Unary(unary) => recurse!(unary.operand),
+        ExpressionNode::ZeroValue(type_reference) => {
+            let mut target_type = child_type_references.get(type_reference).clone();
+            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                symbols,
+                child_type_references,
+                local_type_parameters,
+                SymbolHandle::invalid(),
+                &mut target_type,
+            );
+            *child_type_references.get_mut(type_reference) = target_type;
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        | ExpressionNode::String(_) => {}
     }
 }

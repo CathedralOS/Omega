@@ -1200,6 +1200,14 @@ complete.
   proposition/evidence arguments reject before canonical evidence. Binder
   renames are stable, while changing any selected application argument changes
   review identity.
+  Review v64 and canonical row v22 add proof-only `zero_value<T>()` to the
+  public contract-expression vocabulary. Transparent propositions and other
+  reviewed contracts retain the exact package-qualified, alpha-normalized
+  target type rather than the diagnostic spelling or the layout result. The
+  proposition resolver now stamps both the nominal family and its local binder
+  arguments before typed lowering. Binder renames are stable, while changing
+  the observed type changes canonical evidence. Quotient targets continue to
+  reject at the existing representation-observer fence before review.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
@@ -2748,6 +2756,18 @@ standard library by path.
       through exact graph nodes, and classify dangerous authority from the
       admitted std/provider identities. `omega::language::core` alone remains
       bundled. Do not preserve the old std namespace through a magic mount.
+
+      Audit 2026-08-26: the remaining production seams are namespace routing in
+      `frontend.rs`, direct filesystem/macOS provider injection in `stages.rs`,
+      toolchain-root source classification, build-service and target-contract
+      admission, dangerous-authority classification, interpreter dispatch, and
+      standalone CLI entrypoints. The ordinary local std graph and import path
+      are already proven. Q7 now records the actual trust-boundary blocker: an
+      ordinary graph needs an explicit exact package-role binding before the
+      compiler may recognize std/provider authority. Q2 separately blocks
+      selecting std from this multi-package Git repository, and Q3 blocks final
+      application-root CLI integration. Neither makes package-root/local-path
+      migration engineering ambiguous.
 - [ ] **Resolve git dependencies by package name.** `declaration.rs` reads
       `build.omg` at the fetched root only, so one git URL means one package at
       the repository root. Read the root manifest, consult its members, and

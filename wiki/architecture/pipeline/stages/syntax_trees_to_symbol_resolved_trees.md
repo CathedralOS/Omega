@@ -47,6 +47,9 @@ Must own:
 - Preserving an explicit named `requires`/`ensures` evidence binding while its
   proposition references acquire ordinary resolved identity. Selection of a
   producer conformance remains a checked proof concern.
+- Resolving every nominal and proposition-local binder leaf in a transparent
+  proposition's proof-only `zero_value<T>()` target. The expression retains the
+  exact type graph; this stage does not decide what all-zero storage denotes.
 - Resolving the declared package-scoped conformance symbol in a nested generic
   application while preserving that application's own argument pack separately
   from the enclosing machine telescope. This stage does not infer missing

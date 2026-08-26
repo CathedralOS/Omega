@@ -1579,6 +1579,58 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
 }
 
 #[test]
+fn transparent_proposition_zero_value_target_resolves_in_its_binder_scope() {
+    let source = r#"
+        data Optional<Element> { case #0 None; }
+        proposition zero_reflexive<Item>() =
+            zero_value<Optional<Item>>() == zero_value<Optional<Item>>();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let optional = program.data_definitions.first().expect("Optional data");
+    let proposition = program.propositions.first().expect("zero proposition");
+    let [binder] = program
+        .tables
+        .declarations
+        .proposition_binders
+        .span_or_empty(proposition.binders)
+    else {
+        panic!("one proposition type binder")
+    };
+
+    let targets = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(target) => {
+                Some(*target)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(targets.len(), 2);
+    for target in targets {
+        let psi_symbol_resolved_trees::types::TypeReference::Generic(target) =
+            program.child_type_reference(target)
+        else {
+            panic!("zero-value target should remain a generic type")
+        };
+        assert_eq!(target.base_symbol, optional.symbol);
+        let [argument] = program.child_type_references(target.arguments) else {
+            panic!("one exact zero-value type argument")
+        };
+        assert!(matches!(
+            argument,
+            psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name }
+                if *symbol == binder.symbol && name.as_str() == "Item"
+        ));
+    }
+}
+
+#[test]
 fn retains_exact_expression_selection_symbols() {
     let source = r#"
         data Token {

@@ -249,3 +249,55 @@ package review.
   trait type arguments without retaining the resolved application.
 - Tempting but wrong: erase the target-trait lifetime application because it
   has no runtime layout effect; it remains proof and public-interface identity.
+
+## Q7 — Authority-bearing roles for ordinary packages
+
+### Context
+
+`omega::language::std` is settled as an ordinary optional package rather than a
+compiler-mounted namespace. Its filesystem, console, target, and platform
+provider declarations nevertheless have compiler-recognized semantic roles:
+they drive sandboxed build services, dangerous-authority classification, and
+target/provider validation. `PackageCompilationInputs` currently carries exact
+package identities, roots, and dependency edges, but no authenticated role
+binding.
+
+### Problem statement
+
+Once std and platform providers arrive through the ordinary graph, the compiler
+must know which exact package is allowed to supply each compiler-recognized
+role. Inferring that authority from a declared package name, requester alias,
+source path, repository location, or same-spelled trait/service would let a
+lookalike package acquire authority. Initial review also needs to classify and
+sandbox a candidate before that candidate has accepted lock evidence, without
+pretending candidate designation is admission.
+
+### Proposed direction
+
+Have package orchestration pass an explicit, exact role-binding set into the
+compiler. Each binding names a closed compiler-owned role and one reachable
+`PackageKeyIdentity`; roles that require a particular interface additionally
+rejoin exact declaration/schema coordinates after checking. Candidate review
+and accepted compilation use distinct provenance: a candidate binding permits
+classification and confined evaluation and becomes review evidence, while an
+accepted binding must come from the consumer's accepted graph policy. The
+compiler validates reachability and exact semantic declarations and passes
+their resolved symbols downstream; Psi and package review never rediscover the
+role from names.
+
+### Alternates
+
+- Acceptable but less flexible: weld one exact std package lineage into each
+  compiler release while still resolving its revisions as ordinary graph
+  nodes. This makes alternate standard-service implementations a compiler
+  configuration change.
+- Acceptable for platform providers: let the root application's accepted build
+  policy bind target/provider roles explicitly, provided candidate review keeps
+  that choice non-authoritative until admission.
+- Tempting but wrong: reserve `omega-language-std`, `omega_language_std`, or a
+  source-directory location as authority.
+- Tempting but wrong: classify any package that implements a same-spelled
+  `FilesystemHost`, `Console`, target, or provider trait.
+- Tempting but wrong: keep std toolchain-owned internally while presenting it
+  as an ordinary package at the import surface; that preserves two identities
+  for one dependency and defeats capability review.
