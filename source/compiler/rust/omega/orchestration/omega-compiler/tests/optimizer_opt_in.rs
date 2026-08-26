@@ -1,4 +1,8 @@
-use omega_compiler::{CompileOptions, Optimization, compile, compile_to_checked};
+use omega_compiler::{
+    CompileOptions, Optimization, PackageCompilationInputs, PackageDependencyBinding,
+    PackageSourceBinding, compile, compile_to_checked, compile_to_checked_with_packages,
+};
+use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -26,6 +30,10 @@ fn diagnostic_messages(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
 }
 
 #[test]
@@ -191,4 +199,81 @@ fn selected_check_only_validates_without_entering_an_optimizer_backend() {
         write_output: false,
     })
     .expect("check-only compilation validates selection without running optimization");
+}
+
+#[test]
+fn dependency_build_selection_cannot_enable_root_package_optimization() {
+    let root = project("dependency-selection", None);
+    std::fs::write(
+        root.join("main.omg"),
+        "use dep::values;\ndata Main { value: u8; }\n",
+    )
+    .expect("write package-aware optimizer root");
+    let dependency = root.with_file_name(format!(
+        "{}-dependency",
+        root.file_name()
+            .and_then(|name| name.to_str())
+            .expect("UTF-8 optimizer test root")
+    ));
+    std::fs::create_dir(&dependency).expect("create optimizer dependency");
+    std::fs::write(dependency.join("values.omg"), "pub const VALUE: u8 = 1;\n")
+        .expect("write optimizer dependency source");
+    std::fs::write(
+        dependency.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.optimizations.enable(Optimization::ProofCheckElision);
+}
+"#,
+    )
+    .expect("write dependency optimizer build");
+    let root_identity = package_identity(1);
+    let dependency_identity = package_identity(2);
+    let inputs = PackageCompilationInputs::new(
+        root_identity,
+        vec![
+            PackageSourceBinding::new(root_identity, "root", root.clone()),
+            PackageSourceBinding::new(dependency_identity, "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            root_identity,
+            "dep",
+            dependency_identity,
+        )],
+    )
+    .expect("optimizer package graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("dependency build companion must not join root compilation");
+    assert!(checked.optimization_selections().is_empty());
+}
+
+#[test]
+fn package_aware_root_build_retains_its_exact_selection() {
+    let root = project(
+        "package-root-selection",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.optimizations.enable(Optimization::GlobalValueNumbering);
+}
+"#,
+        ),
+    );
+    let root_identity = package_identity(3);
+    let inputs = PackageCompilationInputs::new(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("root-only optimizer package graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("root package build selection should check");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::GlobalValueNumbering]
+    );
 }

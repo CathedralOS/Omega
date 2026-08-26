@@ -43,8 +43,9 @@ These facts constrain the work below.
   `BuildConfig` now retains the exact canonical optimization selection set from
   the toolchain build vocabulary. A nonempty set is centrally rejected before
   either the legacy or clean target backend can emit output until the verified
-  optimizer pipeline exists; root-package authority and persistent build/cache
-  identity remain P0 work.
+  optimizer pipeline exists. Package-aware admission permits the exact root
+  build selection and proves that dependency build companions cannot
+  contribute one. Persistent build/cache identity remains P0 work.
 - Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
   and debug maps have separate identities. Optimization must preserve that
   separation and retain source fuel/provenance mappings.
@@ -154,59 +155,6 @@ dependency.
 
 ## P0 — Opt-in and compatibility firewall
 
-- **OPT-SELECTION-VOCABULARY.** Add ordinary, toolchain-provided `Optimization`
-  and `Optimizations` build values. `Optimizations` is empty by default; each
-  `enable` call names one real transformation family. Add
-  `Build.optimizations: Optimizations` to both injected build preludes and
-  project the exact selected set into `BuildConfig`.
-
-  Initial source shape:
-
-  ```omega
-  machine build(builder: &mut Build) {
-      builder.optimizations.enable(Optimization::ControlFlowCleanup);
-      builder.optimizations.enable(
-          Optimization::SparseConditionalConstantPropagation,
-      );
-      builder.optimizations.enable(Optimization::DeadPureScalarElimination);
-  }
-  ```
-
-  Acceptance: absent `build.omg`, an empty build machine, no `enable` calls,
-  dependency build files, and every program compiled through the public API
-  produce an empty selection set. Unknown, duplicate, or conflicting root
-  selections reject. Only the root package can enable optimizations. A
-  provisional program-authored legacy `Build` shape with no optimizations field
-  remains disabled and compatible; an authored field with the wrong nominal
-  type rejects precisely.
-
-- **OPT-NO-BROAD-MODES.** Keep optimization separate from debug information,
-  compiler assertions, diagnostics/report detail, and output packaging.
-
-  Acceptance: no `debug`, `release`, `O1`, `O2`, `O3`, `fast`, `size`, or
-  similarly opaque category selects transformations. A convenience helper may
-  expand to several explicit `enable` calls, but `BuildConfig` and the manifest
-  retain the expanded named set rather than the helper name.
-
-- **OPT-DISABLED-PATH-FIREWALL.** Thread the selected set through orchestration
-  without changing the empty-set control path.
-
-  Acceptance: a test-only tripwire proves that disabled builds do not construct
-  an optimization registry, analysis manager, decision provider, cost model, or
-  optimizer report. Existing check/build canaries produce identical semantic
-  and emitted observations, and native bytes do not change because of an
-  optimization. Any unavoidable build-vocabulary or artifact-schema extension
-  has a canonical disabled value and is reviewed separately from optimizer
-  logic.
-
-- **OPT-SELECTED-FAIL-CLOSED.** Define one central orchestration decision for a
-  nonempty selected-optimization set.
-
-  Acceptance: if a selected entry cannot traverse the verified Terminal Psi
-  lane and every required enabled stage, compilation emits one actionable
-  unsupported-optimizer diagnostic before output installation. No legacy
-  state-graph optimization and no silent O0 fallback occurs.
-
 - **OPT-SELECTION-IDENTITY.** Define canonical identities for the exact selected
   optimizations, normalized ordered rule set, target cost model, optional
   decision log, optional workload profile, and transformation ledger.
@@ -223,14 +171,6 @@ dependency.
   facts, validator identities, fuel/provenance map, code-size statistics, and
   allocator data when applicable. Suppressing the human report changes no
   decision or executable byte.
-
-- **OPT-API-CONTAINMENT.** Keep optimization opt-in rooted in `build.omg` for
-  this experimental phase.
-
-  Acceptance: `CompileOptions`, CLI shortcuts, environment variables,
-  dependency metadata, and package API callers cannot accidentally enable it.
-  A future explicit embedding API is a separate task with the same disabled
-  default and selection identity rules.
 
 ## P1 — Optimization representation and rule engine
 
