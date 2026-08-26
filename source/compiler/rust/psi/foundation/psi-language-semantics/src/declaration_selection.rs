@@ -91,6 +91,10 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// reconstruct semantic identity from the call's diagnostic spelling.
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     BuildProviderSelection,
+    /// Exact toolchain `Optimizations::enable` selection from the root build
+    /// vocabulary. This classifies declaration provenance only; optimization
+    /// policy and execution remain Omega-owned.
+    BuildOptimizationSelection,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
     BuildRootBinding,

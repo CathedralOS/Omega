@@ -312,6 +312,9 @@ fn checked_statement_call_intrinsic(
     if exact_statement_build_output_receiver(program, state, call) {
         return Some(Intrinsic::BuildIncludedSourceHandoff);
     }
+    if exact_statement_build_optimization_receiver(program, state, call) {
+        return Some(Intrinsic::BuildOptimizationSelection);
+    }
     checked_call_intrinsic(
         program,
         call.target.as_str(),
@@ -335,8 +338,13 @@ fn checked_call_intrinsic(
     if target_symbol.is_valid() {
         None
     } else if receiver.is_valid() {
-        exact_build_output_receiver(program, receiver, target)
-            .then_some(Intrinsic::BuildIncludedSourceHandoff)
+        if exact_build_output_receiver(program, receiver, target) {
+            Some(Intrinsic::BuildIncludedSourceHandoff)
+        } else if exact_build_optimization_receiver(program, receiver, target) {
+            Some(Intrinsic::BuildOptimizationSelection)
+        } else {
+            None
+        }
     } else if let Some(predicate) =
         psi_language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
@@ -368,14 +376,42 @@ fn exact_build_output_receiver(
         .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildOutput"))
 }
 
+fn exact_build_optimization_receiver(
+    program: &TypedTrees,
+    receiver: psi_typed_trees::expression::ExpressionHandle,
+    target: &str,
+) -> bool {
+    if target != "enable" {
+        return false;
+    }
+    crate::flow::expression_type_symbol(program, receiver)
+        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "Optimizations"))
+}
+
 fn exact_statement_build_output_receiver(
     program: &TypedTrees,
     state: &psi_typed_trees::state::State,
     call: &psi_typed_trees::statement::TableCall,
 ) -> bool {
-    if call.target.as_str() != "include_source" {
-        return false;
-    }
+    call.target.as_str() == "include_source"
+        && exact_statement_build_member_receiver(program, state, call, "BuildOutput")
+}
+
+fn exact_statement_build_optimization_receiver(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> bool {
+    call.target.as_str() == "enable"
+        && exact_statement_build_member_receiver(program, state, call, "Optimizations")
+}
+
+fn exact_statement_build_member_receiver(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+    expected_receiver: &str,
+) -> bool {
     let [root, members @ ..] = program.statement_table.name_path_members(call.receiver) else {
         return false;
     };
@@ -405,7 +441,7 @@ fn exact_statement_build_output_receiver(
         };
         type_symbol = selected_type;
     }
-    exact_toolchain_data(program, type_symbol, "BuildOutput")
+    exact_toolchain_data(program, type_symbol, expected_receiver)
 }
 
 fn exact_toolchain_data(program: &TypedTrees, type_symbol: SymbolHandle, name: &str) -> bool {
