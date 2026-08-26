@@ -759,6 +759,7 @@ mod tests {
         let snapshot = temp_root("git-binding");
         write_package(&snapshot, "declared-package");
         let source = |locator_identity: &str| ResolvedGitSource {
+            requested_locator: locator_identity.to_owned(),
             locator_identity: locator_identity.to_owned(),
             transport_profile: crate::source::GitTransportProfile::Https,
             requested_rev: "main".to_owned(),
@@ -898,28 +899,36 @@ mod tests {
         assert_ne!(first.resolution(), second.resolution());
         assert_ne!(first.snapshot_root(), second.snapshot_root());
 
+        let source_context = ExternalSourceContext::derive(b"real-custody-reconciliation");
         let root_custody = resolve_external_local_package_source(
             &root,
             cache.join("root"),
             source_limits,
-            ExternalSourceContext::derive(b"real-custody-reconciliation"),
+            source_context.clone(),
         )
         .expect("resolve root custody")
         .into_custody();
         let error = crate::closure_resolution::resolve_package_source_closure::<
             std::convert::Infallible,
             _,
-        >(root_custody, |_, request| {
-            let DependencySourceRequest::Git { revision, .. } = request else {
-                unreachable!("root authors only Git requests")
-            };
-            Ok(if revision == &first_revision {
-                first.clone()
-            } else {
-                assert_eq!(revision, &second_revision);
-                second.clone()
-            })
-        })
+        >(
+            crate::closure_resolution::PackageRootSourceRequest::ExternalLocal {
+                requested_root: root.clone(),
+                source_context,
+            },
+            root_custody,
+            |_, request| {
+                let DependencySourceRequest::Git { revision, .. } = request else {
+                    unreachable!("root authors only Git requests")
+                };
+                Ok(if revision == &first_revision {
+                    first.clone()
+                } else {
+                    assert_eq!(revision, &second_revision);
+                    second.clone()
+                })
+            },
+        )
         .expect_err("one package key cannot reconcile two immutable revisions");
 
         let [conflict] = error.conflicts().expect("exact custody conflict") else {

@@ -85,7 +85,9 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::closure_resolution::{PackageSourceCustody, resolve_package_source_closure};
+    use crate::closure_resolution::{
+        PackageRootSourceRequest, PackageSourceCustody, resolve_package_source_closure,
+    };
     use crate::dependency_projection::DependencySourceRequest;
     use crate::identity::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
@@ -93,6 +95,19 @@ mod tests {
     };
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
+        PackageRootSourceRequest::Git(
+            crate::GitSourceRequest::new(
+                format!(
+                    "https://github.com/CathedralOS/{}.git",
+                    root.key().name().as_str()
+                ),
+                Some("HEAD".to_owned()),
+            )
+            .expect("synthetic root request"),
+        )
+    }
 
     fn temp_root(name: &str) -> PathBuf {
         let stamp = SystemTime::now()
@@ -148,9 +163,10 @@ mod tests {
             }],
         );
         let root_key = root.key().clone();
-        let closure =
-            resolve_package_source_closure(root, |_, _| Ok::<_, &'static str>(dependency.clone()))
-                .expect("resolve source closure");
+        let closure = resolve_package_source_closure(root_request(&root), root, |_, _| {
+            Ok::<_, &'static str>(dependency.clone())
+        })
+        .expect("resolve source closure");
 
         let inputs = package_compilation_inputs(&closure).expect("compiler handoff validates");
 
@@ -184,6 +200,7 @@ mod tests {
         let root = custody("application", 1, roots.join("root"), vec![]);
         let root_path = root.snapshot_root().to_path_buf();
         let closure = resolve_package_source_closure(
+            root_request(&root),
             root,
             |_, _| -> Result<PackageSourceCustody, &'static str> { unreachable!() },
         )
@@ -221,16 +238,17 @@ mod tests {
                 },
             ],
         );
-        let closure = resolve_package_source_closure(root, |_, request| match request {
-            DependencySourceRequest::Path { location, .. } if location == "first" => {
-                Ok::<_, &'static str>(first.clone())
-            }
-            DependencySourceRequest::Path { location, .. } if location == "second" => {
-                Ok(second.clone())
-            }
-            _ => Err("unexpected request"),
-        })
-        .expect("resolve diamond-free sibling closure");
+        let closure =
+            resolve_package_source_closure(root_request(&root), root, |_, request| match request {
+                DependencySourceRequest::Path { location, .. } if location == "first" => {
+                    Ok::<_, &'static str>(first.clone())
+                }
+                DependencySourceRequest::Path { location, .. } if location == "second" => {
+                    Ok(second.clone())
+                }
+                _ => Err("unexpected request"),
+            })
+            .expect("resolve diamond-free sibling closure");
 
         let inputs = package_compilation_inputs_for(&closure, &first_key)
             .expect("leaf package can be compiled as a temporary root");

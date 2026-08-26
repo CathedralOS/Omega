@@ -986,6 +986,18 @@ Decode and fingerprint remain inert until exact local reconstruction succeeds.
 This closes the schema-bound replay-question coordinate, not transitive
 certificate/open-obligation composition or lock admission.
 
+The resolved source closure now retains the exact validated root request beside
+its normalized lineage and immutable resolution. Its read-only request-set view
+joins that root and every dependency request occurrence to the exact selected
+package key and resolution without copying dependency locator strings. The
+dependency join uses requester plus authored ordinal, preserving multiple
+different requests that resolve to one package in a diamond; no primary request
+is inferred. Repository-root Git closure resolution uses the same custody and
+retains the requested locator and `HEAD` selector separately from resolved
+commit/tree/content and transport provenance. A mismatched root request rejects.
+This is bounded resolver state, not compiler evidence, obligation-ledger data,
+accepted-lock encoding, admission, or a `PackageInstance` constructor.
+
 ## Target command surface
 
 ```text

@@ -115,6 +115,7 @@ pub struct ResolvedLocalSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitSourceRequest {
+    requested_locator: String,
     fetch_locator: String,
     locator_identity: String,
     requested_revision: String,
@@ -222,6 +223,7 @@ impl GitSourceRequest {
         validate_git_revision(&requested_revision)?;
         let locator_identity = canonical_git_locator(&lineage);
         Ok(Self {
+            requested_locator: locator.clone(),
             fetch_locator: locator,
             locator_identity,
             requested_revision,
@@ -232,6 +234,15 @@ impl GitSourceRequest {
 
     pub fn locator_identity(&self) -> &str {
         &self.locator_identity
+    }
+
+    /// The exact validated locator spelling supplied by the caller.
+    ///
+    /// This remains distinct from normalized lineage and locator identity so a
+    /// future lock can retain the selector that was actually resolved. Request
+    /// validation rejects embedded credentials before this value exists.
+    pub fn requested_locator(&self) -> &str {
+        &self.requested_locator
     }
 
     pub fn requested_revision(&self) -> &str {
@@ -381,6 +392,7 @@ fn canonical_git_locator(lineage: &SourceLineage) -> String {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
+    pub requested_locator: String,
     pub locator_identity: String,
     pub transport_profile: GitTransportProfile,
     pub requested_rev: String,
@@ -877,6 +889,7 @@ pub fn resolve_git_source(
         let result = resolve_verified_git_cache_entry(
             &executor,
             &entry_root,
+            request.requested_locator(),
             locator_identity,
             request.fetch_locator(),
             requested_rev,
@@ -903,6 +916,7 @@ pub fn resolve_git_source(
 fn resolve_verified_git_cache_entry(
     executor: &GitExecutor,
     entry_root: &Path,
+    requested_locator: &str,
     locator_identity: &str,
     fetch_locator: &str,
     requested_rev: &str,
@@ -979,6 +993,7 @@ fn resolve_verified_git_cache_entry(
     )?;
     executor.verify()?;
     Ok(ResolvedGitSource {
+        requested_locator: requested_locator.to_owned(),
         locator_identity: locator_identity.to_owned(),
         transport_profile: execution_transport.profile(),
         requested_rev: requested_rev.to_owned(),
@@ -7227,6 +7242,7 @@ mod tests {
         let error = resolve_verified_git_cache_entry(
             &executor,
             &entry_root,
+            request.requested_locator(),
             request.locator_identity(),
             request.fetch_locator(),
             request.requested_revision(),

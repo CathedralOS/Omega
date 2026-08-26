@@ -41,11 +41,11 @@ pub use capability_conflict::{
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole, compare_review_only_capabilities,
 };
 pub use closure_resolution::{
-    DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
-    PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
-    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PackageSourceCustody,
-    ResolvedPackageSourceClosure, resolve_package_source_closure,
-    resolve_package_source_closure_with_limits,
+    DependencyRequestPath, DependencyRequestPathStep, PackageRootSourceRequest,
+    PackageSourceClosureConflict, PackageSourceClosureConflictCandidate,
+    PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    PackageSourceCustody, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
+    ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest,
 };
 pub use compiler_handoff::{package_compilation_inputs, package_compilation_inputs_for};
 pub use compiler_review::{
@@ -114,7 +114,8 @@ pub use source::{
 };
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
-    ResolveWorkspacePackageClosureError, resolve_external_local_package_closure,
+    ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
+    resolve_external_local_package_closure, resolve_git_package_closure,
     resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
 };
 pub use source_commands::{

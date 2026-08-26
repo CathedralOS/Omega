@@ -1338,6 +1338,19 @@ establishes a discharge result. This closes a schema-bound subject coordinate
 in the current replay gate, not transitive certificate/open-obligation
 composition or lock authority.
 
+Resolved-source custody separately retains the exact validated root request and
+exposes a zero-copy request-set view that joins the root plus every requester-
+owned dependency row, by authored ordinal, to the selected package key and
+immutable resolution. Distinct selectors converging on one package are
+therefore not collapsed into a fabricated primary request. Aliases remain
+requester-local edge names; transport observations remain provenance rather
+than package identity. The repository-root Git adapter now follows this path
+and preserves its requested locator and `HEAD` selector independently from the
+resolved commit/tree/content tuple. This is resolver custody only—not lock
+encoding, compiler evidence, admission, or `PackageInstance` construction—and
+the ordinary obligation ledger intentionally remains source-selector-free.
+Multi-package Git selection remains a separate open decision.
+
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup
 requirements, and contract guarantees, retaining each exact proposition,
