@@ -16,11 +16,11 @@ pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
     BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, EffectClass,
     EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis, ExecutableEdgeFact,
-    ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, LoopAnalysis, LoopRegion,
-    NodeEffectSummary, NodeLiveness, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
-    ScalarConstantSupport, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis,
-    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
-    analysis_dependencies, compute_analysis,
+    ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, FunctionEffectSummary, LoopAnalysis,
+    LoopRegion, NodeEffectSummary, NodeLiveness, ScalarConstant, ScalarConstantAnalysis,
+    ScalarConstantFact, ScalarConstantSupport, StronglyConnectedComponentAnalysis,
+    UseDefinitionAnalysis, ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock,
+    ValueRangeAnalysis, ValueRangeFact, analysis_dependencies, compute_analysis,
 };
 pub use pass_manager::{
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
@@ -64,7 +64,7 @@ mod tests {
     };
     use psi_core::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ScalarType,
-        ValueId,
+        ServiceId, ValueId,
     };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -381,6 +381,50 @@ mod tests {
         };
         assert_eq!(calls.recursive_components, calls.components);
         assert_eq!(calls.recursive_components.len(), 1);
+    }
+
+    #[test]
+    fn function_effects_propagate_services_and_crashes_through_calls() {
+        let mut caller = function(100, 1, vec![(1, Terminator::Return)]);
+        let mut callee = function(200, 2, vec![(2, Terminator::Crash)]);
+        let call_support = id(510, OperationId::new);
+        let mut call = node(O::CallUnit {
+            psi_operation: call_support,
+            callee: callee.machine,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        });
+        call.provenance = vec![PsiProvenance::Operation(call_support)];
+        caller.blocks[0].nodes.insert(0, call);
+        let service_support = id(511, OperationId::new);
+        let service = id(512, ServiceId::new);
+        let mut write = node(O::PortWrite {
+            psi_operation: service_support,
+            service,
+            port: 7,
+            value: 9,
+        });
+        write.provenance = vec![PsiProvenance::Operation(service_support)];
+        callee.blocks[0].nodes.insert(0, write);
+        let unit = unit(vec![caller, callee], b"transitive-effects");
+
+        let AnalysisProduct::EffectSummaries(effects) =
+            compute_analysis(&unit, AnalysisKind::EffectSummaries).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(effects.functions.len(), 2);
+        for summary in &effects.functions {
+            assert_eq!(summary.observable, EffectKnowledge::Yes);
+            assert_eq!(summary.crash, EffectKnowledge::Yes);
+            assert_eq!(summary.services, vec![service]);
+            assert_eq!(summary.revision, unit.identity);
+            assert!(
+                summary
+                    .support
+                    .contains(&PsiProvenance::Operation(service_support))
+            );
+        }
     }
 
     #[test]

@@ -248,6 +248,13 @@ The baseline set is:
 Analyses never broaden a fact beyond its certificate's region or version. An
 unknown result is conservative, not an invitation for a rule to guess.
 
+Effect analysis has two deliberately separate views. Node rows classify the
+local operation. Function rows form a deterministic call-graph fixed point over
+reachable blocks, carrying transitive service/boundary identity sets and
+observable, structural-state, crash, and suspension knowledge. A callee absent
+from the closed optimization unit produces `May`; recursion converges by
+monotone union and never invents a service or a proof of absence.
+
 The Rust bring-up keeps these products together in `omega-psi-optimizer`.
 Analysis caches are compilation-local ordered maps keyed by the exact unit
 revision; there is no process-global cache. Dependency resolution follows the
