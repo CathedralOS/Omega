@@ -175,6 +175,24 @@ integer_evaluation_rule!(
     IntegerBinaryKind::WrappingShiftRight,
     OptimizationSafetyClass::ExactOperationSemantics
 );
+integer_evaluation_rule!(
+    IntegerBitwiseAndConstantsRule,
+    b"omega.psi-rule.integer-bitwise-and-constants.v1",
+    IntegerBinaryKind::BitwiseAnd,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    IntegerBitwiseOrConstantsRule,
+    b"omega.psi-rule.integer-bitwise-or-constants.v1",
+    IntegerBinaryKind::BitwiseOr,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    IntegerBitwiseXorConstantsRule,
+    b"omega.psi-rule.integer-bitwise-xor-constants.v1",
+    IntegerBinaryKind::BitwiseXor,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ExactIntegerCastConstantsRule;
@@ -523,6 +541,9 @@ enum IntegerBinaryKind {
     ExactShiftRight,
     WrappingShiftLeft,
     WrappingShiftRight,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
 }
 
 impl IntegerBinaryShape {
@@ -563,6 +584,9 @@ impl IntegerBinaryShape {
                 self.count_type.expect("shift count type"),
                 right,
             ),
+            IntegerBinaryKind::BitwiseAnd => self.scalar_type.bitwise_and(left, right),
+            IntegerBinaryKind::BitwiseOr => self.scalar_type.bitwise_or(left, right),
+            IntegerBinaryKind::BitwiseXor => self.scalar_type.bitwise_xor(left, right),
         }
     }
 }
@@ -868,6 +892,48 @@ fn integer_binary_shape(operation: &O) -> Option<IntegerBinaryShape> {
             *right,
             IntegerBinaryKind::SaturatingRemainder,
         ),
+        O::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::BitwiseAnd,
+        ),
+        O::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::BitwiseOr,
+        ),
+        O::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::BitwiseXor,
+        ),
         _ => return None,
     };
     Some(IntegerBinaryShape {
@@ -930,6 +996,9 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(ExactIntegerCastConstantsRule));
         rules.push(Arc::new(IntegerWidenConstantsRule));
         rules.push(Arc::new(IntegerBitwiseNotConstantsRule));
+        rules.push(Arc::new(IntegerBitwiseAndConstantsRule));
+        rules.push(Arc::new(IntegerBitwiseOrConstantsRule));
+        rules.push(Arc::new(IntegerBitwiseXorConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -1107,6 +1176,77 @@ pub(crate) mod tests {
 
     pub(crate) fn wrapping_add_unit() -> PsiOptimizationUnit {
         policy_add_unit(false)
+    }
+
+    #[derive(Clone, Copy)]
+    enum BitwiseFixtureKind {
+        And,
+        Or,
+        Xor,
+    }
+
+    fn bitwise_unit(kind: BitwiseFixtureKind) -> PsiOptimizationUnit {
+        let mut unit = exact_add_unit();
+        let function = &mut unit.functions[0];
+        let block = &mut function.blocks[0];
+        let O::IntegerConstant { value, .. } = &mut block.nodes[0].operation else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(0b1010);
+        let O::IntegerConstant { value, .. } = &mut block.nodes[1].operation else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(0b1100);
+        let O::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } = block.nodes[2].operation
+        else {
+            unreachable!()
+        };
+        block.nodes[2].operation = match kind {
+            BitwiseFixtureKind::And => O::IntegerBitwiseAnd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            BitwiseFixtureKind::Or => O::IntegerBitwiseOr {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            BitwiseFixtureKind::Xor => O::IntegerBitwiseXor {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+        };
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[0] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(0b1010);
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[1] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(0b1100);
+        function.facts.truncate(2);
+        unit.identity =
+            omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(match kind {
+                BitwiseFixtureKind::And => b"bitwise-and-fixture",
+                BitwiseFixtureKind::Or => b"bitwise-or-fixture",
+                BitwiseFixtureKind::Xor => b"bitwise-xor-fixture",
+            });
+        unit
     }
 
     #[derive(Clone, Copy)]
@@ -1399,7 +1539,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 22);
+        assert_eq!(registry.len(), 25);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -1442,6 +1582,39 @@ pub(crate) mod tests {
             );
             let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
             let expected = if saturating { 255 } else { 4 };
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[2].operation,
+                TerminalAbstractOperation::IntegerConstant {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } if value == expected
+            ));
+        }
+    }
+
+    #[test]
+    fn binary_bitwise_rules_fold_with_typed_psi_semantics() {
+        let cases: [(BitwiseFixtureKind, &dyn PsiOptimizationRule, u128); 3] = [
+            (BitwiseFixtureKind::And, &IntegerBitwiseAndConstantsRule, 8),
+            (BitwiseFixtureKind::Or, &IntegerBitwiseOrConstantsRule, 14),
+            (BitwiseFixtureKind::Xor, &IntegerBitwiseXorConstantsRule, 6),
+        ];
+        for (kind, rule, expected) in cases {
+            let unit = bitwise_unit(kind);
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let candidates = rule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(
+                candidates[0].safety_class(),
+                OptimizationSafetyClass::ExactOperationSemantics
+            );
+            assert!(matches!(
+                candidates[0].witness(),
+                IntegerEvaluationWitness::Binary { .. }
+            ));
+            let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
             assert!(matches!(
                 accepted.unit().functions[0].blocks[0].nodes[2].operation,
                 TerminalAbstractOperation::IntegerConstant {

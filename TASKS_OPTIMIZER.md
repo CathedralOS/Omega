@@ -165,26 +165,27 @@ These facts constrain the work below.
   The independent validation crate re-reads both supported literal facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
-  constant fact, and rejects a wrong result without mutating input. Twenty-two
+  constant fact, and rejects a wrong result without mutating input. Twenty-five
   built-in rules cover add, subtract, multiply, divide, remainder, and shifts
-  plus exact integer casts, widening, and bitwise-not across their declared
-  exact/wrapping/saturating policies with distinct stable identities under one
-  ordered SCCP pass group. Candidate identities distinguish unary cast/widen/
-  complement evidence from binary operation evidence, and the validator
-  rejects an operand-shape mismatch. Shift evaluation retains the operation's
-  distinct count carrier and delegates to Psi integer semantics; it never
-  substitutes host-language shifting. Cast, widen, and width-bounded complement
-  evaluation similarly delegate to the source and target Psi integer domains.
-  Proof-bearing operations require `ProofCertified`; goal-free
-  wrapping/saturating arithmetic, shifts, widen, and complement require
-  `ExactOperationSemantics`. Focused overflow tests produce `4` versus `255`
-  for the same `u8` add operands, all four exact/wrapping shift directions pass
-  independent validation, valid cast/widen/complement cases fold, and
-  out-of-domain casts, overflowing exact shift-left, and zero-divisor division
-  remain inapplicable. The shared independent validator reconstructs the fact
-  index rather than trusting rule-authored insertions. Rules can propose
-  candidates only when their explicit parent selection is present. No build
-  hook admits that still-incomplete suite.
+  plus exact integer casts, widening, and unary/binary bitwise operations across
+  their declared exact/wrapping/saturating policies with distinct stable
+  identities under one ordered SCCP pass group. Candidate identities
+  distinguish unary cast/widen/complement evidence from binary operation
+  evidence, and the validator rejects an operand-shape mismatch. Shift
+  evaluation retains the operation's distinct count carrier and delegates to
+  Psi integer semantics; it never substitutes host-language shifting. Cast,
+  widen, width-bounded complement, and bitwise and/or/xor evaluation similarly
+  delegate to the source and target Psi integer domains. Proof-bearing
+  operations require `ProofCertified`; goal-free wrapping/saturating arithmetic,
+  shifts, widen, and bitwise operations require `ExactOperationSemantics`.
+  Focused overflow tests produce `4` versus `255` for the same `u8` add
+  operands, all four exact/wrapping shift directions and three binary bitwise
+  operations pass independent validation, valid cast/widen/complement cases
+  fold, and out-of-domain casts, overflowing exact shift-left, and zero-divisor
+  division remain inapplicable. The shared independent validator reconstructs
+  the fact index rather than trusting rule-authored insertions. Rules can
+  propose candidates only when their explicit parent selection is present. No
+  build hook admits that still-incomplete suite.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,

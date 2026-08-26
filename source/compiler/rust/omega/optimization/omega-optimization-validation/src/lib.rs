@@ -546,6 +546,9 @@ fn evaluate_integer_operation(
         ExactShiftRight(psi_core::IntegerType),
         WrappingShiftLeft(psi_core::IntegerType),
         WrappingShiftRight(psi_core::IntegerType),
+        BitwiseAnd,
+        BitwiseOr,
+        BitwiseXor,
     }
     let (kind, source, result, scalar_type, left, right) = match &node.operation {
         O::ExactIntegerAdd {
@@ -829,6 +832,48 @@ fn evaluate_integer_operation(
             *value,
             *count,
         ),
+        O::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::BitwiseAnd,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::BitwiseOr,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::BitwiseXor,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let IntegerEvaluationWitness::Binary {
@@ -917,6 +962,18 @@ fn evaluate_integer_operation(
         ),
         IntegerOperation::WrappingShiftRight(count_type) => (
             scalar_type.wrapping_shift_right(left_value, count_type, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::BitwiseAnd => (
+            scalar_type.bitwise_and(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::BitwiseOr => (
+            scalar_type.bitwise_or(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::BitwiseXor => (
+            scalar_type.bitwise_xor(left_value, right_value),
             OptimizationSafetyClass::ExactOperationSemantics,
         ),
     };
