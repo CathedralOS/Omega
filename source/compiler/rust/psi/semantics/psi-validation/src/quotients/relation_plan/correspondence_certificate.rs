@@ -115,6 +115,13 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     spelling,
                     *landing,
                 )),
+                DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Float { spelling, landing },
+                ) => representative_values.push(ProofValueSubstitution::float(
+                    position.representative_parameter,
+                    spelling,
+                    *landing,
+                )),
             }
         }
 
