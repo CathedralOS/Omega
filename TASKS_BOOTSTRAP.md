@@ -278,8 +278,8 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views and the product source's same-carrier `u64` collection operations remain open |
-| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14 and composes unchanged into CKIR14, while general views and the product source's same-carrier `u64` collection operations remain open |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through OMGRSW7/OMGLOWF/CKIR14; persisted lower-rooted OMGRFN16 remains open. Calls and transition edges admit at most one potentially trapping argument with pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
@@ -291,8 +291,14 @@ evidence stay in
   closed slice does not claim general indexing, mutable slices, allocation,
   UTF-8 meaning, or same-carrier `u64` collection operations.
 - [ ] Close the remaining unblocked compiler-control/scalar forms one general
-  vertical relation at a time. Preserve the CKIR11 rule that a call may contain
-  at most one potentially trapping argument while every sibling is
+  vertical relation at a time. OMGRSW7/OMGLOWF/CKIR14 now close the checkpoint's
+  recursive pure full-width trapping-`u32` `+`/`-`/`*` tranche with ordinary
+  precedence, exact high-word literals and widening, first-trap behavior,
+  representative contexts, inherited CKIR12 views, native/self production,
+  independent meaning, and conservative artifacts. Finish its persisted-Beta
+  OMGRFN16 R1–R5 carrier before calling the lower-rooted milestone closed.
+  Preserve the rule that a call or transition argument list may contain at
+  most one potentially trapping expression while every sibling is
   pure/total/nontrapping; do not describe the still-unruled observable-order
   combinations as generally supported.
 - [ ] Close the unblocked source-graph/provider forms without waiting on private

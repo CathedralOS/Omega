@@ -77,8 +77,46 @@ class Module:
     place_types: tuple[int, ...]
 
 
+@dataclasses.dataclass(frozen=True)
+class SchemaCapabilities:
+    """Explicit private-schema features; major numbers do not imply ordering."""
+
+    opcodes: frozenset[int]
+    allow_static_byte_view: bool = False
+    require_static_byte_view: bool = False
+    full_width_u32: bool = False
+    require_trapping_add: bool = False
+    require_full_u32_arithmetic: bool = False
+
+
+_BASE_OPCODES = frozenset(range(1, 15))
+SCHEMA_CAPABILITIES = {
+    5: SchemaCapabilities(_BASE_OPCODES),
+    6: SchemaCapabilities(_BASE_OPCODES | {15}),
+    7: SchemaCapabilities(_BASE_OPCODES | {15, 16, 17}),
+    8: SchemaCapabilities(_BASE_OPCODES | {15, 16, 17, 18}),
+    9: SchemaCapabilities(_BASE_OPCODES | {15, 16, 17, 18, 19, 20}),
+    10: SchemaCapabilities(_BASE_OPCODES | set(range(15, 22))),
+    11: SchemaCapabilities(
+        _BASE_OPCODES | set(range(15, 22)), require_trapping_add=True,
+    ),
+    12: SchemaCapabilities(
+        _BASE_OPCODES | set(range(15, 26)),
+        allow_static_byte_view=True,
+        require_static_byte_view=True,
+    ),
+    14: SchemaCapabilities(
+        _BASE_OPCODES | set(range(15, 28)),
+        allow_static_byte_view=True,
+        full_width_u32=True,
+        require_full_u32_arithmetic=True,
+    ),
+}
+
+
 def _project_declarations(
     entry: int, flags: int, tables: dict[str, list[tuple[int, ...]]],
+    *, full_width_u32: bool = False,
 ) -> None:
     """Ask CKIR4's frozen projection to recheck inherited declarations.
 
@@ -90,6 +128,12 @@ def _project_declarations(
         "types", "records", "fields", "machines", "machine_params"
     )}
     rewritten = []
+    projection_keys = {
+        (row[1], row[2], row[4], row[5], row[6], row[7])
+        for row in projected["types"]
+        if not (full_width_u32 and row[1] == 2 and row[7] > 0x7FFF_FFFF)
+    }
+    next_scalar_proxy = 0x7FFF_FFFF
     for row in projected["types"]:
         if row[1] in (6, 7):
             record_id = len(projected["records"])
@@ -97,6 +141,20 @@ def _project_declarations(
                 (record_id, row[0], len(projected["fields"]), 0, 1, 0, 0, 0)
             )
             rewritten.append((row[0], 4, 0, 0, record_id, 0, 0, 0))
+        elif full_width_u32 and row[1] == 2 and row[7] > 0x7FFF_FFFF:
+            # CKIR4's frozen structural projection predates semantic high-bit
+            # words. Give each such row a distinct bounded proxy while
+            # preserving whether zero is in the range; CKIR14 validates and
+            # retains the exact endpoints independently.
+            proxy_low = 0 if row[6] == 0 else next_scalar_proxy
+            while (row[1], row[2], row[4], row[5], proxy_low,
+                   next_scalar_proxy) in projection_keys:
+                next_scalar_proxy -= 1
+                proxy_low = 0 if row[6] == 0 else next_scalar_proxy
+            rewritten.append((*row[:6], proxy_low, next_scalar_proxy))
+            projection_keys.add((row[1], row[2], row[4], row[5],
+                                 proxy_low, next_scalar_proxy))
+            next_scalar_proxy -= 1
         else:
             rewritten.append(row)
     projected["types"] = rewritten
@@ -110,17 +168,32 @@ def decode(contents: bytes, *, expected_major: int = 5,
            allow_greater: bool = False,
            allow_integer_widen: bool = False,
            require_trapping_add: bool = False,
-           allow_static_byte_view: bool = False) -> Module:
-    require(expected_major in (5, 6, 7, 8, 9, 10, 11, 12),
-            "internal CKIR schema selection")
-    require(allow_logical_not == (expected_major >= 6)
-            and allow_logical_binary == (expected_major >= 7)
-            and allow_scalar_equal == (expected_major >= 8)
-            and allow_greater == (expected_major >= 9)
-            and allow_integer_widen == (expected_major >= 10)
-            and require_trapping_add == (expected_major == 11)
-            and allow_static_byte_view == (expected_major == 12),
-            "internal CKIR feature selection")
+           allow_static_byte_view: bool = False,
+           capabilities: SchemaCapabilities | None = None) -> Module:
+    require(expected_major in SCHEMA_CAPABILITIES, "internal CKIR schema selection")
+    selected = SCHEMA_CAPABILITIES[expected_major]
+    if capabilities is None:
+        legacy_opcodes = set(_BASE_OPCODES)
+        if allow_logical_not:
+            legacy_opcodes.add(15)
+        if allow_logical_binary:
+            legacy_opcodes.update((16, 17))
+        if allow_scalar_equal:
+            legacy_opcodes.add(18)
+        if allow_greater:
+            legacy_opcodes.update((19, 20))
+        if allow_integer_widen:
+            legacy_opcodes.add(21)
+        if allow_static_byte_view:
+            legacy_opcodes.update(range(22, 26))
+        capabilities = SchemaCapabilities(
+            frozenset(legacy_opcodes),
+            allow_static_byte_view=allow_static_byte_view,
+            require_static_byte_view=allow_static_byte_view,
+            require_trapping_add=require_trapping_add,
+        )
+    require(capabilities == selected, "internal CKIR feature selection")
+    allow_static_byte_view = capabilities.allow_static_byte_view
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
     require(magic == b"OMGCKIR\0" and (major, minor, target) == (expected_major, 0, 1),
@@ -184,7 +257,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(kind not in (3, 4, 6, 7) or type_flags == 0, "forbidden type flag")
         if kind in (1, 2, 3):
             require(payload0 == payload1 == 0 and low <= high, "bad scalar type")
-            require(high <= (255 if kind == 1 else 1 if kind == 3 else 0x7FFF_FFFF),
+            require(high <= (255 if kind == 1 else 1 if kind == 3 else
+                             0xFFFF_FFFF if capabilities.full_width_u32 else 0x7FFF_FFFF),
                     "scalar range")
             if kind == 3:
                 require((low, high) == (0, 1), "bool range")
@@ -345,7 +419,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         if sum_row[4] & 1:
             require(copyable(sum_row[1]), "invalid [copy] sum")
 
-    _project_declarations(entry, flags, tables)
+    _project_declarations(entry, flags, tables,
+                          full_width_u32=capabilities.full_width_u32)
 
     def contains_sum(type_id: int, active: set[int] | None = None) -> bool:
         active = set() if active is None else active
@@ -493,6 +568,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     place_mutable: list[bool] = []
     place_blocks: list[int] = []
     place_operations: list[int] = []
+    arithmetic_loadable_places: set[int] = set()
     constructor_results: set[int] = set()
     roots: list[int] = []
     call_graph: list[set[int]] = [set() for _ in machines]
@@ -515,6 +591,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
     greater_count = 0
     integer_widen_count = 0
     trapping_add_count = 0
+    full_u32_arithmetic_counts = {opcode: 0 for opcode in (8, 26, 27)}
+    full_u32_arithmetic_values: set[int] = {
+        value_id for value_id, type_id in enumerate(value_types)
+        if (capabilities.require_full_u32_arithmetic
+            and types[type_id][1:] ==
+            (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF))
+    }
     byte_view_counts = {opcode: 0 for opcode in range(22, 26)}
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
@@ -527,8 +610,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         op_values = operands[operand_start:operand_start + operand_count]
         require(len(op_values) == operand_count, "operation operand extent")
         next_operand += operand_count
-        opcode_limit = 26 if allow_static_byte_view else 22 if allow_integer_widen else 21 if allow_greater else 19 if allow_scalar_equal else 18 if allow_logical_binary else 16 if allow_logical_not else 15
-        require(opcode in range(1, opcode_limit), "opcode")
+        require(opcode in capabilities.opcodes, "opcode")
         if opcode == 10:
             require(imm0 < len(machines), "call target")
             expected_kind = 0 if machines[imm0][5] == NO_ID else 1
@@ -555,7 +637,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         expected_operands = (1 + machines[imm0][7] if opcode == 10 else {
             1: 0, 2: 0, 3: 1, 4: 2, 5: 1, 6: 2, 7: 2, 8: 2, 9: 2,
             11: 1, 12: 2, 15: 1, 16: 2, 17: 2, 18: 2, 19: 2, 20: 2,
-            21: 1, 22: 0, 23: 1, 24: 1, 25: 1,
+            21: 1, 22: 0, 23: 1, 24: 1, 25: 1, 26: 2, 27: 2,
         }.get(opcode))
         if opcode not in (13, 14):
             require(operand_count == expected_operands, "operation arity")
@@ -563,16 +645,23 @@ def decode(contents: bytes, *, expected_major: int = 5,
         if opcode == 1:
             require(imm1 == 0 and types[result_type][1] in (1, 2, 3), "const type")
             require(types[result_type][6] <= imm0 <= types[result_type][7], "const range")
+            if (capabilities.require_full_u32_arithmetic and
+                    types[result_type][1:] ==
+                    (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)):
+                full_u32_arithmetic_values.add(result_id)
         elif opcode == 2:
             require(imm0 == imm1 == 0 and result_type == records[machines[owner][1]][1]
                     and types[result_type][1] == 4, "self place")
             place_mutable[result_id] = blocks[block][2] == 2
+            arithmetic_loadable_places.add(result_id)
         elif opcode == 3:
             require(imm0 < len(fields) and imm1 == 0
                     and visible_place(op_values[0], block, op_id), "field place")
             require(place_types[op_values[0]] == records[fields[imm0][1]][1]
                     and result_type == fields[imm0][3], "field type")
             place_mutable[result_id] = place_mutable[op_values[0]]
+            if op_values[0] in arithmetic_loadable_places:
+                arithmetic_loadable_places.add(result_id)
         elif opcode == 4:
             require(imm0 == imm1 == 0 and visible_place(op_values[0], block, op_id)
                     and visible_value(op_values[1], owner, block, op_id), "index refs")
@@ -586,6 +675,11 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     "load ref")
             require(result_type == place_types[op_values[0]]
                     and types[result_type][1] in (1, 2, 3), "load type")
+            if (capabilities.require_full_u32_arithmetic and
+                    types[result_type][1:] ==
+                    (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
+                    and op_values[0] in arithmetic_loadable_places):
+                full_u32_arithmetic_values.add(result_id)
         elif opcode == 6:
             require(imm0 == imm1 == 0 and visible_place(op_values[0], block, op_id)
                     and visible_value(op_values[1], owner, block, op_id), "store refs")
@@ -602,21 +696,38 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     and types[source_type][1] in (4, 5, 6) and copyable(source_type),
                     "copy type")
             require(place_mutable[op_values[0]], "shared place copy")
-        elif opcode in (8, 9, 12):
+        elif opcode in (8, 9, 12, 26, 27):
             require(imm0 == imm1 == 0
                     and all(visible_value(value, owner, block, op_id) for value in op_values),
                     "arithmetic refs")
             require(types[value_types[op_values[0]]][1]
                     == types[value_types[op_values[1]]][1]
                     and types[value_types[op_values[0]]][1] in (1, 2), "arithmetic type")
-            if opcode == 8:
+            if opcode in (8, 26, 27):
                 require(types[result_type][1] == types[value_types[op_values[0]]][1],
-                        "add result")
-                if (expected_major == 11
+                        "arithmetic result")
+                if (capabilities.require_trapping_add
                         and types[result_type][1:] == (2, 1, 0, 0, 0, 0, 0x7FFF_FFFF)
                         and value_types[op_values[0]] == result_type
                         and value_types[op_values[1]] == result_type):
                     trapping_add_count += 1
+                if opcode in (26, 27):
+                    require(capabilities.full_width_u32, "full-width arithmetic opcode")
+                    require(types[result_type][1:] ==
+                            (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
+                            and value_types[op_values[0]] == result_type
+                            and value_types[op_values[1]] == result_type,
+                            "canonical full-width arithmetic")
+                if (capabilities.require_full_u32_arithmetic
+                        and types[result_type][1:] ==
+                        (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
+                        and value_types[op_values[0]] == result_type
+                        and value_types[op_values[1]] == result_type):
+                    require(all(value in full_u32_arithmetic_values
+                                for value in op_values),
+                            "full-width arithmetic leaf custody")
+                    full_u32_arithmetic_counts[opcode] += 1
+                    full_u32_arithmetic_values.add(result_id)
             else:
                 require(types[result_type][1] == 3, "comparison result")
         elif opcode == 15:
@@ -667,9 +778,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
             source_type = value_types[op_values[0]]
             require(types[source_type] == (source_type, 1, 0, 0, 0, 0, 0, 255),
                     "IntegerWiden exact-u8 source")
+            expected_high = (0xFFFF_FFFF if capabilities.full_width_u32
+                             else 0x7FFF_FFFF)
             require(types[result_type] ==
-                    (result_type, 2, 1, 0, 0, 0, 0, 0x7FFF_FFFF),
+                    (result_type, 2, 1, 0, 0, 0, 0, expected_high),
                     "IntegerWiden canonical u32 Trapping result")
+            if capabilities.require_full_u32_arithmetic:
+                full_u32_arithmetic_values.add(result_id)
             integer_widen_count += 1
         elif opcode == 22:
             require(imm1 == 0 and imm0 < len(nodes), "StaticByteView root")
@@ -774,8 +889,18 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(integer_widen_count > 0, "CKIR10 requires IntegerWiden")
     elif expected_major == 11:
         require(trapping_add_count > 0, "CKIR11 requires canonical u32 Trapping Add")
-    elif expected_major == 12:
+    byte_view_selected = (
+        any(type_row[1] == 7 for type_row in types)
+        or any(block[3] & 1 for block in blocks)
+        or any(byte_view_counts.values())
+    )
+    if capabilities.require_static_byte_view:
         require(all(byte_view_counts.values()), "CKIR12 requires byte-view operations 22-25")
+    elif allow_static_byte_view and byte_view_selected:
+        require(all(byte_view_counts.values()), "partial byte-view relation")
+    if capabilities.require_full_u32_arithmetic:
+        require(any(full_u32_arithmetic_counts.values()),
+                "CKIR14 requires selected full-width arithmetic")
 
     next_arm = next_arm_arg = 0
     predecessors: list[list[tuple[int, int, int, tuple[int, ...]]]] = [
@@ -885,7 +1010,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     require(next_arm == len(arms) and next_arm_arg == len(arm_args),
             "unused case arm rows")
 
-    if allow_static_byte_view:
+    if allow_static_byte_view and byte_view_selected:
         synthetic = [block[0] for block in blocks if block[3] & 1]
         require(len(synthetic) == 1, "unique synthetic nonempty-edge block")
         synthetic_id = synthetic[0]
@@ -1076,6 +1201,14 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     value = int(values[args[0]][1]) + int(values[args[1]][1])
                     require(types[result_type][6] <= value <= types[result_type][7],
                             "runtime add range")
+                    values[result_id] = (result_type, value)
+                elif opcode in (26, 27):
+                    left = int(values[args[0]][1])
+                    right = int(values[args[1]][1])
+                    value = left - right if opcode == 26 else left * right
+                    require(types[result_type][6] <= value <= types[result_type][7],
+                            "runtime subtract range" if opcode == 26
+                            else "runtime multiply range")
                     values[result_id] = (result_type, value)
                 elif opcode in (9, 12):
                     left, right = int(values[args[0]][1]), int(values[args[1]][1])

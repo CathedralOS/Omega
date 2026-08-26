@@ -8,6 +8,12 @@ both the one-byte true path and empty false path, reconstruct the exact literal,
 descriptor, nonempty guard, deferred head/tail edge, result 70, and complete ELF
 template.
 
+[`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md) is the provisional CKIR14
+arithmetic successor. Its producer-backed Python reference owners independently
+reconstruct R1–R5, exact full-`u32` results and first traps, and byte-exact ELF
+artifacts. It does not replace OMGRFN14 as the current lower-rooted carrier
+until the corresponding bounded persisted-Beta owners pass the same-frame gate.
+
 The immediately preceding trapping-add carrier remains
 [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md): `OMGRFND\0` / version 13 binds
 exact OMGCOMP and least OMGRSW1/2/3 to CKIR11's selected canonical
