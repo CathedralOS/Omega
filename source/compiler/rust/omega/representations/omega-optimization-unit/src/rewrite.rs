@@ -45,6 +45,18 @@ pub enum ScalarEvaluationWitness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BlockParameterIncomingBinding {
+    pub source: BlockId,
+    pub edge: EdgeId,
+    pub argument: ValueId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RedundantBlockParameterWitness {
+    pub incoming: Vec<BlockParameterIncomingBinding>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarConstantValue {
     Boolean(bool),
     Integer(IntegerValue),
@@ -250,9 +262,26 @@ pub struct BooleanConstantRewrite {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RedundantBlockParameterRewrite {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub position: u32,
+    pub parameter: ValueId,
+    pub replacement: ValueId,
+    pub scalar_type: ScalarType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
     ReplaceBooleanOperationWithConstant(BooleanConstantRewrite),
+    RemoveRedundantBlockParameter(RedundantBlockParameterRewrite),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum PsiRewriteWitness {
+    ScalarEvaluation(ScalarEvaluationWitness),
+    RedundantBlockParameter(RedundantBlockParameterWitness),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -268,7 +297,7 @@ pub struct PsiRewriteCandidate {
     safety_class: OptimizationSafetyClass,
     substitutions: Vec<ScalarSubstitution>,
     provenance: Vec<ProvenanceRewrite>,
-    witness: ScalarEvaluationWitness,
+    witness: PsiRewriteWitness,
     predicted_cost_delta: i64,
     patch: PsiRewritePatch,
 }
@@ -282,6 +311,9 @@ pub enum PsiRewriteCandidateError {
     EmptyProvenanceSource,
     NonCanonicalProvenance,
     PatchDecisionPointMismatch,
+    EmptyIncomingBindings,
+    NonCanonicalIncomingBindings,
+    BlockParameterSubstitutionMismatch,
 }
 
 impl std::fmt::Display for PsiRewriteCandidateError {
@@ -304,13 +336,13 @@ impl PsiRewriteCandidate {
         predicted_cost_delta: i64,
         patch: IntegerConstantRewrite,
     ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new_scalar_evaluation(
+        Self::new(
             input,
             contract,
             affected_blocks,
             substitutions,
             provenance,
-            witness,
+            PsiRewriteWitness::ScalarEvaluation(witness),
             predicted_cost_delta,
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch),
         )
@@ -327,32 +359,74 @@ impl PsiRewriteCandidate {
         predicted_cost_delta: i64,
         patch: BooleanConstantRewrite,
     ) -> Result<Self, PsiRewriteCandidateError> {
-        Self::new_scalar_evaluation(
+        Self::new(
             input,
             contract,
             affected_blocks,
             substitutions,
             provenance,
-            witness,
+            PsiRewriteWitness::ScalarEvaluation(witness),
             predicted_cost_delta,
             PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch),
         )
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn new_scalar_evaluation(
+    pub fn new_redundant_block_parameter(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        witness: RedundantBlockParameterWitness,
+        predicted_cost_delta: i64,
+        patch: RedundantBlockParameterRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        if witness.incoming.is_empty() {
+            return Err(PsiRewriteCandidateError::EmptyIncomingBindings);
+        }
+        if witness
+            .incoming
+            .windows(2)
+            .any(|pair| (pair[0].edge, pair[0].source) >= (pair[1].edge, pair[1].source))
+        {
+            return Err(PsiRewriteCandidateError::NonCanonicalIncomingBindings);
+        }
+        let substitutions = vec![ScalarSubstitution {
+            from: patch.parameter,
+            to: patch.replacement,
+            scalar_type: patch.scalar_type,
+        }];
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            substitutions,
+            provenance,
+            PsiRewriteWitness::RedundantBlockParameter(witness),
+            predicted_cost_delta,
+            PsiRewritePatch::RemoveRedundantBlockParameter(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
         affected_blocks: Vec<BlockId>,
         substitutions: Vec<ScalarSubstitution>,
         provenance: Vec<ProvenanceRewrite>,
-        witness: ScalarEvaluationWitness,
+        witness: PsiRewriteWitness,
         predicted_cost_delta: i64,
         patch: PsiRewritePatch,
     ) -> Result<Self, PsiRewriteCandidateError> {
         let location = match patch {
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => patch.location,
             PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => patch.location,
+            PsiRewritePatch::RemoveRedundantBlockParameter(patch) => NodeLocation {
+                machine: patch.machine,
+                block: patch.block,
+                node: 0,
+            },
         };
         if affected_blocks.is_empty() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
@@ -378,8 +452,32 @@ impl PsiRewriteCandidate {
         {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
-        if provenance.iter().any(|row| row.output != location) {
-            return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+        match patch {
+            PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
+            | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
+                if provenance.iter().any(|row| row.output != location) {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
+            PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
+                if provenance.is_empty()
+                    || provenance.iter().any(|row| {
+                        row.output.machine != patch.machine
+                            || !affected_blocks.contains(&row.output.block)
+                    })
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+                if substitutions.as_slice()
+                    != [ScalarSubstitution {
+                        from: patch.parameter,
+                        to: patch.replacement,
+                        scalar_type: patch.scalar_type,
+                    }]
+                {
+                    return Err(PsiRewriteCandidateError::BlockParameterSubstitutionMismatch);
+                }
+            }
         }
         let decision_point = location;
         let canonical = encode_candidate(
@@ -389,7 +487,7 @@ impl PsiRewriteCandidate {
             &affected_blocks,
             &substitutions,
             &provenance,
-            witness,
+            &witness,
             predicted_cost_delta,
             patch,
         );
@@ -460,22 +558,35 @@ impl PsiRewriteCandidate {
         &self.provenance
     }
 
-    pub const fn witness(&self) -> ScalarEvaluationWitness {
-        self.witness
+    pub const fn scalar_evaluation_witness(&self) -> Option<ScalarEvaluationWitness> {
+        match &self.witness {
+            PsiRewriteWitness::ScalarEvaluation(witness) => Some(*witness),
+            PsiRewriteWitness::RedundantBlockParameter(_) => None,
+        }
+    }
+
+    pub fn redundant_block_parameter_witness(&self) -> Option<&RedundantBlockParameterWitness> {
+        match &self.witness {
+            PsiRewriteWitness::ScalarEvaluation(_) => None,
+            PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
+        }
     }
 
     pub fn consumed_facts(&self) -> Vec<OptimizationFactReference> {
-        let mut facts = match self.witness {
-            ScalarEvaluationWitness::Unary { operand_fact } => {
-                vec![OptimizationFactReference::ScalarConstant(operand_fact)]
+        let mut facts = match &self.witness {
+            PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Unary {
+                operand_fact,
+            }) => {
+                vec![OptimizationFactReference::ScalarConstant(*operand_fact)]
             }
-            ScalarEvaluationWitness::Binary {
+            PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Binary {
                 left_fact,
                 right_fact,
-            } => vec![
-                OptimizationFactReference::ScalarConstant(left_fact),
-                OptimizationFactReference::ScalarConstant(right_fact),
+            }) => vec![
+                OptimizationFactReference::ScalarConstant(*left_fact),
+                OptimizationFactReference::ScalarConstant(*right_fact),
             ],
+            PsiRewriteWitness::RedundantBlockParameter(_) => Vec::new(),
         };
         facts.sort_unstable();
         facts.dedup();
@@ -499,12 +610,12 @@ fn encode_candidate(
     affected_blocks: &[BlockId],
     substitutions: &[ScalarSubstitution],
     provenance: &[ProvenanceRewrite],
-    witness: ScalarEvaluationWitness,
+    witness: &PsiRewriteWitness,
     predicted_cost_delta: i64,
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v3\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v4\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -550,17 +661,26 @@ fn encode_candidate(
         }
     }
     match witness {
-        ScalarEvaluationWitness::Unary { operand_fact } => {
-            bytes.push(1);
+        PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Unary { operand_fact }) => {
+            bytes.extend_from_slice(&[1, 1]);
             bytes.extend_from_slice(&operand_fact.bytes());
         }
-        ScalarEvaluationWitness::Binary {
+        PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Binary {
             left_fact,
             right_fact,
-        } => {
-            bytes.push(2);
+        }) => {
+            bytes.extend_from_slice(&[1, 2]);
             bytes.extend_from_slice(&left_fact.bytes());
             bytes.extend_from_slice(&right_fact.bytes());
+        }
+        PsiRewriteWitness::RedundantBlockParameter(witness) => {
+            bytes.push(2);
+            encode_len(&mut bytes, witness.incoming.len());
+            for incoming in &witness.incoming {
+                bytes.extend_from_slice(&incoming.source.get().to_le_bytes());
+                bytes.extend_from_slice(&incoming.edge.get().to_le_bytes());
+                bytes.extend_from_slice(&incoming.argument.get().to_le_bytes());
+            }
         }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
@@ -579,6 +699,15 @@ fn encode_candidate(
             bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
             bytes.extend_from_slice(&patch.result.get().to_le_bytes());
             bytes.push(u8::from(patch.constant));
+        }
+        PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.block.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.position.to_le_bytes());
+            bytes.extend_from_slice(&patch.parameter.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            encode_scalar_type(&mut bytes, patch.scalar_type);
         }
     }
     bytes

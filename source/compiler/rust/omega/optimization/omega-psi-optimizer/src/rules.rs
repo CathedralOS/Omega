@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, Optimization, OptimizationPassIdentity,
@@ -6,11 +6,12 @@ use omega_optimization_core::{
     OptimizationSelections, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
-    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
+    BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
+    IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiRewriteCandidate, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
-use psi_core::{IntegerValue, MachineId, OperationId, ValueId};
+use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
 
 use crate::{
     AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -18,6 +19,47 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
+const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RedundantBlockParameterRule;
+
+impl RedundantBlockParameterRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.redundant-block-parameter.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(COPY_PROPAGATION_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for RedundantBlockParameterRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_redundant_block_parameters(unit, analyses, Self::contract())
+    }
+}
 
 fn integer_evaluation_contract(
     rule_name: &[u8],
@@ -1231,15 +1273,189 @@ fn integer_value_type(
         })
 }
 
+fn propose_redundant_block_parameters(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ControlFlowGraph(_)) = analyses.get(AnalysisKind::ControlFlowGraph)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ControlFlowGraph,
+        ));
+    };
+    let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+    };
+    let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+        analyses.get(AnalysisKind::UseDefinition)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::UseDefinition,
+        ));
+    };
+
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        let machine_dominators = dominators
+            .functions
+            .iter()
+            .find(|(machine, _)| *machine == function.machine)
+            .map(|(_, rows)| rows.as_slice())
+            .unwrap_or_default();
+        for block in function
+            .blocks
+            .iter()
+            .filter(|block| block.id != function.entry)
+        {
+            for (position, parameter) in block.parameters.iter().enumerate() {
+                let mut incoming = Vec::new();
+                for source in &function.blocks {
+                    for node in &source.nodes {
+                        for edge in &node.successors {
+                            if edge.target != block.id {
+                                continue;
+                            }
+                            let Some(binding) = edge.bindings.get(position) else {
+                                continue;
+                            };
+                            incoming.push(BlockParameterIncomingBinding {
+                                source: source.id,
+                                edge: edge.psi_edge,
+                                argument: binding.argument,
+                            });
+                        }
+                    }
+                }
+                incoming.sort_by_key(|row| (row.edge, row.source));
+                let Some(replacement) = incoming.first().map(|row| row.argument) else {
+                    continue;
+                };
+                if replacement == parameter.value
+                    || incoming.iter().any(|row| row.argument != replacement)
+                    || !replacement_dominates_parameter_uses(
+                        function.machine,
+                        replacement,
+                        parameter.value,
+                        machine_dominators,
+                        use_definitions,
+                    )
+                {
+                    continue;
+                }
+
+                let mut affected_blocks = BTreeSet::from([block.id]);
+                let mut provenance = Vec::new();
+                for source in &function.blocks {
+                    for (node_index, node) in source.nodes.iter().enumerate() {
+                        let changes_use = node
+                            .uses
+                            .iter()
+                            .any(|use_site| use_site.value == parameter.value);
+                        let changes_binding =
+                            node.successors.iter().any(|edge| edge.target == block.id);
+                        if changes_use || changes_binding {
+                            affected_blocks.insert(source.id);
+                            provenance.push(ProvenanceRewrite {
+                                output: NodeLocation {
+                                    machine: function.machine,
+                                    block: source.id,
+                                    node: u32::try_from(node_index)
+                                        .expect("unit node index fits u32"),
+                                },
+                                sources: node.provenance.clone(),
+                                fuel: node.fuel.clone(),
+                            });
+                        }
+                    }
+                }
+                candidates.push(
+                    PsiRewriteCandidate::new_redundant_block_parameter(
+                        unit.identity,
+                        contract,
+                        affected_blocks.into_iter().collect(),
+                        provenance,
+                        RedundantBlockParameterWitness { incoming },
+                        -1,
+                        RedundantBlockParameterRewrite {
+                            machine: function.machine,
+                            block: block.id,
+                            position: u32::try_from(position)
+                                .expect("unit parameter position fits u32"),
+                            parameter: parameter.value,
+                            replacement,
+                            scalar_type: parameter.scalar_type,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
+fn replacement_dominates_parameter_uses(
+    machine: MachineId,
+    replacement: ValueId,
+    parameter: ValueId,
+    dominators: &[(BlockId, Vec<BlockId>)],
+    use_definitions: &crate::UseDefinitionAnalysis,
+) -> bool {
+    let Some((_, definition)) = use_definitions
+        .definitions
+        .iter()
+        .find(|(owner, definition)| *owner == machine && definition.value == replacement)
+    else {
+        return false;
+    };
+    use_definitions
+        .uses
+        .iter()
+        .filter(|(owner, use_site)| *owner == machine && use_site.value == parameter)
+        .all(|(_, use_site)| match definition.site {
+            omega_optimization_unit::ValueDefinitionSite::FunctionParameter(_) => true,
+            omega_optimization_unit::ValueDefinitionSite::BlockParameter {
+                block: defining,
+                ..
+            } => block_dominates(dominators, defining, use_site.block),
+            omega_optimization_unit::ValueDefinitionSite::Node {
+                block: defining,
+                node,
+            } if defining == use_site.block => node < use_site.node,
+            omega_optimization_unit::ValueDefinitionSite::Node {
+                block: defining, ..
+            } => block_dominates(dominators, defining, use_site.block),
+        })
+}
+
+fn block_dominates(
+    dominators: &[(BlockId, Vec<BlockId>)],
+    dominator: BlockId,
+    block: BlockId,
+) -> bool {
+    dominators
+        .iter()
+        .find(|(candidate, _)| *candidate == block)
+        .is_some_and(|(_, rows)| rows.contains(&dominator))
+}
+
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    if let Some(unsupported) = selections
-        .as_slice()
-        .iter()
-        .find(|optimization| **optimization != Optimization::SparseConditionalConstantPropagation)
-    {
+    if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
+        !matches!(
+            optimization,
+            Optimization::SparseConditionalConstantPropagation | Optimization::CopyPropagation
+        )
+    }) {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
+    }
+    if selections.contains(Optimization::SparseConditionalConstantPropagation)
+        && selections.contains(Optimization::CopyPropagation)
+    {
+        return Err(RuleRegistryError::UnsupportedOptimizationCombination);
     }
     let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
     if selections.contains(Optimization::SparseConditionalConstantPropagation) {
@@ -1274,6 +1490,9 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(IntegerLessThanConstantsRule));
         rules.push(Arc::new(IntegerLessOrEqualConstantsRule));
     }
+    if selections.contains(Optimization::CopyPropagation) {
+        rules.push(Arc::new(RedundantBlockParameterRule));
+    }
     OrderedRuleRegistry::new(rules)
 }
 
@@ -1281,7 +1500,8 @@ pub fn built_in_psi_registry(
 pub(crate) mod tests {
     use omega_optimization_unit::{OptimizationFact, reconstruct_psi_optimization_unit_seed};
     use omega_optimization_validation::{
-        validate_boolean_evaluation_candidate, validate_integer_evaluation_candidate,
+        OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
+        validate_integer_evaluation_candidate, validate_redundant_block_parameter_candidate,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -1506,6 +1726,109 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::Return {
                             psi_edge: id(619, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimizationUnit {
+        let machine = id(701, MachineId::new);
+        let entry = id(702, BlockId::new);
+        let merge = id(703, BlockId::new);
+        let condition = id(704, ValueId::new);
+        let shared = id(705, ValueId::new);
+        let alternate = id(706, ValueId::new);
+        let parameter = id(707, ValueId::new);
+        let result = id(708, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let binding = |argument| TerminalValueBinding {
+            parameter,
+            argument,
+            scalar_type,
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([22; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: shared,
+                            scalar_type,
+                        },
+                        TerminalAbstractParameter {
+                            value: alternate,
+                            scalar_type,
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: merge,
+                            parameters: vec![TerminalAbstractParameter {
+                                value: parameter,
+                                scalar_type,
+                            }],
+                            operation_offset: 1,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(709, EdgeId::new),
+                                target: merge,
+                                bindings: vec![binding(shared)],
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(710, EdgeId::new),
+                                target: merge,
+                                bindings: vec![binding(if redundant { shared } else { alternate })],
+                            },
+                        },
+                        TerminalAbstractOperation::ExactIntegerAdd {
+                            psi_operation: id(711, OperationId::new),
+                            obligation: id(713, ObligationId::new),
+                            result,
+                            scalar_type: integer,
+                            left: parameter,
+                            right: alternate,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(712, EdgeId::new),
                             result,
                             value: result,
                             scalar_type,
@@ -2179,7 +2502,7 @@ pub(crate) mod tests {
                 OptimizationSafetyClass::ExactOperationSemantics
             );
             assert!(matches!(
-                candidates[0].witness(),
+                candidates[0].scalar_evaluation_witness().unwrap(),
                 IntegerEvaluationWitness::Binary { .. }
             ));
             let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
@@ -2322,7 +2645,7 @@ pub(crate) mod tests {
             OptimizationSafetyClass::ProofCertified
         );
         assert!(matches!(
-            candidates[0].witness(),
+            candidates[0].scalar_evaluation_witness().unwrap(),
             IntegerEvaluationWitness::Unary { .. }
         ));
         let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
@@ -2336,7 +2659,9 @@ pub(crate) mod tests {
             } if scalar_type == target_type
         ));
 
-        let IntegerEvaluationWitness::Unary { operand_fact } = candidates[0].witness() else {
+        let IntegerEvaluationWitness::Unary { operand_fact } =
+            candidates[0].scalar_evaluation_witness().unwrap()
+        else {
             unreachable!()
         };
         let omega_optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
@@ -2396,7 +2721,7 @@ pub(crate) mod tests {
                 OptimizationSafetyClass::ExactOperationSemantics
             );
             assert!(matches!(
-                candidates[0].witness(),
+                candidates[0].scalar_evaluation_witness().unwrap(),
                 IntegerEvaluationWitness::Unary { .. }
             ));
             let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
@@ -2491,5 +2816,136 @@ pub(crate) mod tests {
                 Optimization::ControlFlowCleanup
             ))
         ));
+        let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+        assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
+        let unsupported_combination = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        assert!(matches!(
+            built_in_psi_registry(&unsupported_combination),
+            Err(RuleRegistryError::UnsupportedOptimizationCombination)
+        ));
+    }
+
+    #[test]
+    fn redundant_block_parameter_rule_binds_both_exact_conditional_edges() {
+        let unit = redundant_block_parameter_unit(true);
+        let contract = RedundantBlockParameterRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidates = RedundantBlockParameterRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        let witness = candidates[0].redundant_block_parameter_witness().unwrap();
+        assert_eq!(witness.incoming.len(), 2);
+        assert_eq!(witness.incoming[0].source, witness.incoming[1].source);
+        assert_ne!(witness.incoming[0].edge, witness.incoming[1].edge);
+        assert!(candidates[0].consumed_facts().is_empty());
+
+        let accepted = validate_redundant_block_parameter_candidate(&unit, &candidates[0]).unwrap();
+        let output = accepted.unit();
+        assert!(output.functions[0].blocks[1].parameters.is_empty());
+        let O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &output.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        assert!(when_true.bindings.is_empty());
+        assert!(when_false.bindings.is_empty());
+        let O::ExactIntegerAdd {
+            obligation, left, ..
+        } = output.functions[0].blocks[1].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        assert_eq!(left, unit.functions[0].parameters[1].value);
+        assert_eq!(obligation, id(713, ObligationId::new));
+        assert_eq!(output.functions[0].facts, unit.functions[0].facts);
+        for (before, after) in unit.functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .zip(
+                output.functions[0]
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes),
+            )
+        {
+            assert_eq!(after.provenance, before.provenance);
+            assert_eq!(after.fuel, before.fuel);
+            assert_eq!(after.effect, before.effect);
+            assert_eq!(after.ownership, before.ownership);
+        }
+    }
+
+    #[test]
+    fn differing_bindings_decline_and_incomplete_edge_witness_rejects() {
+        let unit = redundant_block_parameter_unit(false);
+        let contract = RedundantBlockParameterRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            RedundantBlockParameterRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+
+        let unit = redundant_block_parameter_unit(true);
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = RedundantBlockParameterRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let omega_optimization_unit::PsiRewritePatch::RemoveRedundantBlockParameter(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        let incomplete = PsiRewriteCandidate::new_redundant_block_parameter(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            RedundantBlockParameterWitness {
+                incoming: candidate
+                    .redundant_block_parameter_witness()
+                    .unwrap()
+                    .incoming[..1]
+                    .to_vec(),
+            },
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_ne!(incomplete.identity(), candidate.identity());
+        assert_eq!(
+            validate_redundant_block_parameter_candidate(&unit, &incomplete),
+            Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
+        );
     }
 }

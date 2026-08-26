@@ -15,7 +15,7 @@ use omega_optimization_unit::{
     PsiTransformationLedger, PsiTransformationRecord,
 };
 use omega_optimization_validation::{
-    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_scalar_evaluation_candidate,
+    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_rewrite_candidate,
     validate_verified_psi_optimization_unit,
 };
 use omega_terminal_psi_to_abstract_operations::{
@@ -187,7 +187,7 @@ fn run_unit(
     let mut policy = BaselinePolicy::default();
     loop {
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
-        let previous_measure = integer_evaluation_operation_count(&unit);
+        let previous_measure = convergence_measure(&unit, registry);
         let mut chosen: Option<(
             omega_optimization_unit::PsiRewriteCandidate,
             ValidatedPsiRewrite,
@@ -227,7 +227,7 @@ fn run_unit(
                     budget.validation_steps(),
                     "validation steps",
                 )?;
-                let output = validate_scalar_evaluation_candidate(&unit, &candidate)
+                let output = validate_psi_rewrite_candidate(&unit, &candidate)
                     .map_err(OptimizationRunError::CandidateValidation)?;
                 validated.push((candidate, output));
             }
@@ -325,7 +325,7 @@ fn run_unit(
         let candidate_identity = validated.candidate();
         let provenance = candidate.provenance().to_vec();
         let next = validated.into_unit();
-        let current_measure = integer_evaluation_operation_count(&next);
+        let current_measure = convergence_measure(&next, registry);
         if current_measure >= previous_measure {
             return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
                 previous: previous_measure,
@@ -447,6 +447,25 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .expect("operation count fits u64")
 }
 
+fn block_parameter_count(unit: &PsiOptimizationUnit) -> u64 {
+    unit.functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .map(|block| u64::try_from(block.parameters.len()).expect("parameter count fits u64"))
+        .sum()
+}
+
+fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistry) -> u64 {
+    let copy_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+        b"omega.psi-pass.copy-propagation.v1",
+    );
+    if registry.pass() == Some(copy_pass) {
+        block_parameter_count(unit)
+    } else {
+        integer_evaluation_operation_count(unit)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -462,7 +481,7 @@ mod tests {
         AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
         rules::tests::{
             boolean_unit, dependent_exact_chain_unit, exact_add_unit,
-            propagated_block_parameter_unit, wrapping_add_unit,
+            propagated_block_parameter_unit, redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -496,7 +515,7 @@ mod tests {
                         candidate.affected_blocks().to_vec(),
                         candidate.substitutions().to_vec(),
                         candidate.provenance().to_vec(),
-                        candidate.witness(),
+                        candidate.scalar_evaluation_witness().unwrap(),
                         0,
                         patch,
                     )
@@ -822,6 +841,24 @@ mod tests {
             manifest.unwrap().decisions()[0].consumed_facts(),
             &[OptimizationFactReference::ScalarConstant(derived)]
         );
+    }
+
+    #[test]
+    fn named_copy_propagation_reaches_its_block_parameter_fixed_point() {
+        let unit = redundant_block_parameter_unit(true);
+        let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.commits, 1);
+        assert!(output.functions[0].blocks[1].parameters.is_empty());
+        assert_eq!(ledger.records().len(), 1);
+        let manifest = manifest.unwrap();
+        assert_eq!(manifest.decisions().len(), 1);
+        assert!(manifest.decisions()[0].consumed_facts().is_empty());
+        assert_eq!(manifest.decisions()[0].input(), unit.identity);
+        assert_eq!(manifest.output(), output.identity);
     }
 
     #[test]

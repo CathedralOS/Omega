@@ -374,6 +374,18 @@ This is still an internal vertical slice: build-level optimization selections
 remain rejected until their complete named pass schedules and publication gate
 exist.
 
+The next closed candidate vocabulary covers redundant block parameters without
+folding it into CFG cleanup. Its witness lists every exact incoming edge and
+the typed value bound at that parameter position; two conditional successors
+from one source block remain two rows. The independent validator reconstructs
+that complete set, requires one common dominating replacement, removes the
+parameter and matching binding entries, substitutes uses, and then rechecks the
+whole unit. Operations, edges, proof obligations, provenance, logical fuel,
+effect links, ownership, and cleanup events remain present and unchanged. This
+pass has its own block-parameter-count convergence measure and its own explicit
+`CopyPropagation` selection; it is not a hidden prerequisite of SCCP or an
+optimization-level bundle.
+
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
 outputs, projects only their candidate identities and non-authoritative cost
