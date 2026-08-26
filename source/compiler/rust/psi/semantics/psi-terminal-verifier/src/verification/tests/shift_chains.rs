@@ -1,5 +1,5 @@
 use super::super::*;
-use psi_core::{IntegerType, ScalarType, ValueId};
+use psi_core::{IntegerType, PropositionContext, ScalarType, ValueId};
 
 #[test]
 fn exact_shift_right_chain_counts_reconstruct_without_value_definitions() {
@@ -73,9 +73,17 @@ fn exact_mixed_shift_chain_reconstructs_alternating_prefixes_from_ordered_defini
                 .expect("((root << 1) >> 2) << 3"),
         ),
     ];
+    let context = PropositionContext::from_value_types((301..=305).map(|id| {
+        (
+            ValueId::new(id).expect("shift value"),
+            ScalarType::Integer(value_type),
+        )
+    }))
+    .expect("mixed-shift context");
     let maximum = ScalarTerm::integer(value_type, IntegerValue::Unsigned(31)).expect("31u8");
     assert_eq!(
         exact_integer_mixed_shift_chain_obligation(
+            &context,
             value_type,
             left_three,
             1,
@@ -104,6 +112,7 @@ fn exact_mixed_shift_chain_reconstructs_alternating_prefixes_from_ordered_defini
     let maximum = ScalarTerm::integer(value_type, IntegerValue::Unsigned(31)).expect("31u8");
     assert_eq!(
         exact_integer_mixed_shift_chain_obligation(
+            &context,
             value_type,
             right.clone(),
             4,
@@ -115,6 +124,7 @@ fn exact_mixed_shift_chain_reconstructs_alternating_prefixes_from_ordered_defini
     );
     assert_eq!(
         exact_integer_mixed_shift_chain_obligation(
+            &context,
             value_type,
             right,
             4,
@@ -124,6 +134,184 @@ fn exact_mixed_shift_chain_reconstructs_alternating_prefixes_from_ordered_defini
         ),
         None,
         "a local or unregistered root cannot acquire machine-parameter bounds",
+    );
+}
+
+#[test]
+fn exact_mixed_shift_chain_consumes_only_checked_ordered_count_landings() {
+    let value_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 value");
+    let u16_count_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 count");
+    let i8_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8 count");
+    let root_id = ValueId::new(341).expect("root");
+    let root = ScalarTerm::value(root_id, ScalarType::Integer(value_type));
+    let first = ScalarTerm::value(
+        ValueId::new(342).expect("first shift"),
+        ScalarType::Integer(value_type),
+    );
+    let first_count = ScalarTerm::value(
+        ValueId::new(343).expect("first count"),
+        ScalarType::Integer(u16_count_type),
+    );
+    let second = ScalarTerm::value(
+        ValueId::new(344).expect("second shift"),
+        ScalarType::Integer(value_type),
+    );
+    let second_count = ScalarTerm::value(
+        ValueId::new(345).expect("second count"),
+        ScalarType::Integer(i8_count_type),
+    );
+    let target = ScalarTerm::value(
+        ValueId::new(346).expect("target shift"),
+        ScalarType::Integer(value_type),
+    );
+    let one_u16 = ScalarTerm::integer(u16_count_type, IntegerValue::Unsigned(1)).expect("1u16");
+    let two_i8 = ScalarTerm::integer(i8_count_type, IntegerValue::Signed(2)).expect("2i8");
+    let one_i8 = ScalarTerm::integer(i8_count_type, IntegerValue::Signed(1)).expect("1i8");
+    let first_definition = Proposition::Equal(
+        first.clone(),
+        ScalarTerm::exact_integer_shift_left(
+            value_type,
+            u16_count_type,
+            root.clone(),
+            first_count.clone(),
+        )
+        .expect("root << first count"),
+    );
+    let second_definition = Proposition::Equal(
+        second.clone(),
+        ScalarTerm::exact_integer_shift_right(
+            value_type,
+            i8_count_type,
+            first.clone(),
+            second_count.clone(),
+        )
+        .expect("first >> second count"),
+    );
+    let target_definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::exact_integer_shift_left(value_type, i8_count_type, second.clone(), one_i8)
+            .expect("second << 1"),
+    );
+    let first_landing = Proposition::Equal(first_count.clone(), one_u16);
+    let second_landing = Proposition::Equal(second_count.clone(), two_i8);
+    let axioms = vec![
+        first_landing.clone(),
+        first_definition.clone(),
+        second_landing.clone(),
+        second_definition.clone(),
+        target_definition.clone(),
+    ];
+    let context = PropositionContext::from_value_types([
+        (root_id, ScalarType::Integer(value_type)),
+        (
+            ValueId::new(342).expect("first shift"),
+            ScalarType::Integer(value_type),
+        ),
+        (
+            ValueId::new(343).expect("first count"),
+            ScalarType::Integer(u16_count_type),
+        ),
+        (
+            ValueId::new(344).expect("second shift"),
+            ScalarType::Integer(value_type),
+        ),
+        (
+            ValueId::new(345).expect("second count"),
+            ScalarType::Integer(i8_count_type),
+        ),
+        (
+            ValueId::new(346).expect("target shift"),
+            ScalarType::Integer(value_type),
+        ),
+    ])
+    .expect("mixed-shift context");
+    let reduce = |axioms: &[Proposition]| {
+        exact_integer_mixed_shift_chain_obligation(
+            &context,
+            value_type,
+            target.clone(),
+            1,
+            axioms,
+            axioms.len(),
+            &BTreeSet::from([root_id]),
+        )
+    };
+    assert_eq!(
+        reduce(&axioms),
+        Some(Proposition::LessOrEqual(
+            root.clone(),
+            ScalarTerm::integer(value_type, IntegerValue::Unsigned(127)).expect("127u8"),
+        )),
+        "the checked left/right/left word alone drives the preimage",
+    );
+
+    assert_eq!(
+        reduce(&[
+            first_landing.clone(),
+            first_definition.clone(),
+            second_definition.clone(),
+            target_definition.clone(),
+        ]),
+        None,
+        "a missing second count landing cannot be inferred",
+    );
+    assert_eq!(
+        reduce(&[
+            first_landing.clone(),
+            first_definition.clone(),
+            second_definition.clone(),
+            second_landing.clone(),
+            target_definition.clone(),
+        ]),
+        None,
+        "a count landing later than its definition is unavailable",
+    );
+    assert_eq!(
+        reduce(&[
+            first_landing.clone(),
+            first_definition.clone(),
+            Proposition::Equal(
+                first_count,
+                ScalarTerm::integer(u16_count_type, IntegerValue::Unsigned(2)).expect("2u16"),
+            ),
+            second_definition.clone(),
+            target_definition.clone(),
+        ]),
+        None,
+        "one count index cannot be reused for a distinct count identity",
+    );
+    assert_eq!(
+        reduce(&[
+            first_landing.clone(),
+            second_landing.clone(),
+            second_definition.clone(),
+            first_definition.clone(),
+            target_definition.clone(),
+        ]),
+        None,
+        "definitions must remain ordered from root to target",
+    );
+    let drifted_target_definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::exact_integer_shift_left(
+            value_type,
+            i8_count_type,
+            root.clone(),
+            ScalarTerm::integer(i8_count_type, IntegerValue::Signed(1)).expect("1i8"),
+        )
+        .expect("drifted target"),
+    );
+    assert_eq!(
+        reduce(&[
+            first_landing,
+            first_definition,
+            second_landing,
+            second_definition,
+            target_definition,
+            drifted_target_definition,
+        ]),
+        None,
+        "the latest target definition cannot drift away from the selected chain",
     );
 }
 
@@ -143,10 +331,18 @@ fn exact_mixed_shift_chain_handles_signed_preimages_and_stale_definitions() {
         ScalarTerm::exact_integer_shift_right(signed_type, count_type, signed_root.clone(), one)
             .expect("signed root >> 1"),
     )];
+    let context = PropositionContext::from_value_types((311..=312).map(|id| {
+        (
+            ValueId::new(id).expect("shift value"),
+            ScalarType::Integer(signed_type),
+        )
+    }))
+    .expect("mixed-shift context");
     let minimum = ScalarTerm::integer(signed_type, IntegerValue::Signed(-32)).expect("-32i8");
     let maximum = ScalarTerm::integer(signed_type, IntegerValue::Signed(31)).expect("31i8");
     assert_eq!(
         exact_integer_mixed_shift_chain_obligation(
+            &context,
             signed_type,
             right.clone(),
             3,
@@ -161,6 +357,7 @@ fn exact_mixed_shift_chain_handles_signed_preimages_and_stale_definitions() {
     );
     assert_eq!(
         exact_integer_mixed_shift_chain_obligation(
+            &context,
             signed_type,
             right,
             3,

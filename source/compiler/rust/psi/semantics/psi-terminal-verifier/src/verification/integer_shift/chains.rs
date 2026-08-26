@@ -6,7 +6,13 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{
+    IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+};
+use psi_proof_admission::{
+    IntegerShiftChainWitness, IntegerShiftDirection, IntegerShiftStepWitness,
+    check_integer_shift_chain_witness,
+};
 
 use super::super::{
     IntegerOffset, canonical_conjunction, exact_integer_source_interval_obligation,
@@ -176,6 +182,7 @@ pub(in crate::verification) fn exact_integer_mixed_shift_chain_cast_obligation(
 }
 
 pub(in crate::verification) fn exact_integer_mixed_shift_chain_obligation(
+    proposition_context: &PropositionContext,
     value_type: psi_core::IntegerType,
     mut value: ScalarTerm,
     count: u128,
@@ -189,8 +196,10 @@ pub(in crate::verification) fn exact_integer_mixed_shift_chain_obligation(
     let Some(mut interval) = exact_integer_shift_left_input_interval(value_type, count) else {
         return Some(Proposition::Falsehood);
     };
+    let target = value.clone();
     let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
     let mut saw_right = false;
+    let mut reverse_steps = Vec::new();
     for _ in 0..=prior_axiom_count {
         let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
             .iter()
@@ -201,57 +210,39 @@ pub(in crate::verification) fn exact_integer_mixed_shift_chain_obligation(
                 _ => None,
             })?;
         match definition {
-            definition @ ScalarTerm::ExactIntegerShiftLeft {
+            ScalarTerm::ExactIntegerShiftLeft {
                 value_type: nested_value_type,
                 count_type,
                 value: nested_value,
                 count: nested_count,
             } if *nested_value_type == value_type => {
-                let nested_count = landed_exact_shift_count(
-                    value_type,
-                    *count_type,
+                let count_axiom = selected_exact_shift_count_axiom(
                     nested_count,
                     semantic_axioms,
                     definition_index,
                 )?;
-                let mapped = match exact_integer_mixed_shift_preimage(
-                    value_type,
-                    interval,
-                    definition,
-                    nested_count,
-                ) {
-                    Ok(Some(mapped)) => mapped,
-                    Ok(None) => return Some(Proposition::Falsehood),
-                    Err(()) => return None,
-                };
-                interval = mapped;
+                reverse_steps.push(IntegerShiftStepWitness {
+                    definition_axiom: definition_index,
+                    count_axiom,
+                });
                 value = (**nested_value).clone();
                 prior_axiom_count = definition_index;
             }
-            definition @ ScalarTerm::ExactIntegerShiftRight {
+            ScalarTerm::ExactIntegerShiftRight {
                 value_type: nested_value_type,
                 count_type,
                 value: nested_value,
                 count: nested_count,
             } if *nested_value_type == value_type => {
-                let nested_count = landed_exact_shift_count(
-                    value_type,
-                    *count_type,
+                let count_axiom = selected_exact_shift_count_axiom(
                     nested_count,
                     semantic_axioms,
                     definition_index,
                 )?;
-                let mapped = match exact_integer_mixed_shift_preimage(
-                    value_type,
-                    interval,
-                    definition,
-                    nested_count,
-                ) {
-                    Ok(Some(mapped)) => mapped,
-                    Ok(None) => return Some(Proposition::Falsehood),
-                    Err(()) => return None,
-                };
-                interval = mapped;
+                reverse_steps.push(IntegerShiftStepWitness {
+                    definition_axiom: definition_index,
+                    count_axiom,
+                });
                 value = (**nested_value).clone();
                 prior_axiom_count = definition_index;
                 saw_right = true;
@@ -267,12 +258,70 @@ pub(in crate::verification) fn exact_integer_mixed_shift_chain_obligation(
                 } if *root_type == value_type && machine_parameter_values.contains(id)
             )
         {
-            return Some(exact_integer_source_interval_obligation(
-                value_type, value, interval.0, interval.1,
-            ));
+            break;
         }
     }
-    None
+    if !saw_right
+        || !matches!(
+            &value,
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(root_type),
+            } if *root_type == value_type && machine_parameter_values.contains(id)
+        )
+    {
+        return None;
+    }
+    reverse_steps.reverse();
+    let checked = check_integer_shift_chain_witness(
+        proposition_context,
+        semantic_axioms,
+        &IntegerShiftChainWitness {
+            root: value.clone(),
+            target,
+            steps: reverse_steps,
+        },
+    )
+    .ok()?;
+    for step in checked.steps().iter().rev() {
+        interval = match exact_integer_mixed_shift_preimage_for_direction(
+            checked.value_type(),
+            interval,
+            step.direction(),
+            step.count(),
+        ) {
+            Ok(Some(mapped)) => mapped,
+            Ok(None) => return Some(Proposition::Falsehood),
+            Err(()) => return None,
+        };
+    }
+    Some(exact_integer_source_interval_obligation(
+        checked.value_type(),
+        checked.root().clone(),
+        interval.0,
+        interval.1,
+    ))
+}
+
+fn selected_exact_shift_count_axiom(
+    count: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom: usize,
+) -> Option<Option<usize>> {
+    if count.integer_value().is_some() {
+        return Some(None);
+    }
+    semantic_axioms[..definition_axiom.min(semantic_axioms.len())]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, axiom)| match axiom {
+            Proposition::Equal(left, right) if left == count && right.integer_value().is_some() => {
+                Some(index)
+            }
+            _ => None,
+        })
+        .map(Some)
 }
 
 pub(super) fn exact_integer_shift_left_input_interval(
@@ -307,19 +356,33 @@ pub(in crate::verification) fn exact_integer_mixed_shift_preimage(
     definition: &ScalarTerm,
     count: u128,
 ) -> Result<Option<(i128, i128)>, ()> {
+    let direction = match definition {
+        ScalarTerm::ExactIntegerShiftLeft { .. } => IntegerShiftDirection::Left,
+        ScalarTerm::ExactIntegerShiftRight { .. } => IntegerShiftDirection::Right,
+        _ => return Err(()),
+    };
+    exact_integer_mixed_shift_preimage_for_direction(value_type, interval, direction, count)
+}
+
+fn exact_integer_mixed_shift_preimage_for_direction(
+    value_type: psi_core::IntegerType,
+    interval: (i128, i128),
+    direction: IntegerShiftDirection,
+    count: u128,
+) -> Result<Option<(i128, i128)>, ()> {
     let count = u32::try_from(count).map_err(|_| ())?;
     if count >= u32::from(value_type.bits()) {
         return Err(());
     }
     let scale = 1_i128.checked_shl(count).ok_or(())?;
-    let mapped = match definition {
-        ScalarTerm::ExactIntegerShiftLeft { .. } => {
+    let mapped = match direction {
+        IntegerShiftDirection::Left => {
             let minimum =
                 interval.0.div_euclid(scale) + i128::from(interval.0.rem_euclid(scale) != 0);
             let maximum = interval.1.div_euclid(scale);
             (minimum, maximum)
         }
-        ScalarTerm::ExactIntegerShiftRight { .. } => match value_type.sign() {
+        IntegerShiftDirection::Right => match value_type.sign() {
             IntegerSign::Signed => (
                 interval.0.checked_mul(scale).ok_or(())?,
                 interval
@@ -350,7 +413,6 @@ pub(in crate::verification) fn exact_integer_mixed_shift_preimage(
                 )
             }
         },
-        _ => return Err(()),
     };
     let carrier_minimum = integer_value_as_i128(value_type.minimum_value()).ok_or(())?;
     let carrier_maximum = integer_value_as_i128(value_type.maximum_value()).ok_or(())?;
