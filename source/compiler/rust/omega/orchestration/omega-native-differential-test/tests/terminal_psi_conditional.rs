@@ -868,6 +868,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -927,6 +928,7 @@ fn conditional_call_arm_module() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     });
     module
@@ -1053,6 +1055,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -1197,6 +1200,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -1318,6 +1322,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }

@@ -91,6 +91,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let module = TerminalModule {
@@ -376,6 +377,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
             }],
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let module = TerminalModule {
@@ -480,6 +482,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let module = TerminalModule {

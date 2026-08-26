@@ -980,6 +980,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 crash_routes,
                 requires: runtime_requirements.clone(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         });
     }

@@ -199,6 +199,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -256,6 +257,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -389,6 +391,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -429,6 +432,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -459,6 +463,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -878,6 +883,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -909,6 +915,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
             crash_routes: Vec::new(),
             requires: callee_requires,
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 

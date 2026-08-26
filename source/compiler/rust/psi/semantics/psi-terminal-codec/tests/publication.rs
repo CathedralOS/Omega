@@ -29,8 +29,8 @@ fn canonical_bytes() -> Vec<u8> {
         .collect();
     // This publication canary deliberately retains the bootstrap program body.
     // Its canonical envelope follows the current terminal format and vocabulary.
-    bytes[8..10].copy_from_slice(&27_u16.to_le_bytes());
-    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
+    bytes[8..10].copy_from_slice(&28_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&30_u16.to_le_bytes());
     bytes
 }
 

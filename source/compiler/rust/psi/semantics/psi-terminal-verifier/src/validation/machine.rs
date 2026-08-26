@@ -765,6 +765,29 @@ pub(super) fn validate_machine(
         )?;
         crash::validate_structural_case_memberships(module, machine, &clause.proposition)?;
     }
+    for row in &machine.contract.outcome_specific_ensures {
+        insert_unique(
+            &mut registry.obligations,
+            row.obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        contracts::validate_contract_clause_kind(
+            &row.proposition,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        context
+            .validate(&row.proposition)
+            .map_err(ModuleError::MalformedProposition)?;
+        contracts::validate_contract_scope(
+            &row.proposition,
+            &ensures_values,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
+        crash::validate_structural_case_memberships(module, machine, &row.proposition)?;
+        super::evidence::validate_outcome_guard(module, machine, row.guard)?;
+    }
     if machine
         .contract
         .ensures

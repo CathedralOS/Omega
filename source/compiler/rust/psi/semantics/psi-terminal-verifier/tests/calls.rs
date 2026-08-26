@@ -449,6 +449,7 @@ fn boundary_call_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -517,6 +518,7 @@ fn provider_candidate_module() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     });
     module
@@ -594,6 +596,7 @@ fn call_module() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -630,6 +633,7 @@ fn call_module() -> TerminalModule {
                         obligation: obligation_id(2),
                         proposition: Proposition::Equal(boolean_value(5), boolean_value(4)),
                     }],
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],

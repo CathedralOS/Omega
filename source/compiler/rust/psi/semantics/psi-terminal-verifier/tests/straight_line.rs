@@ -15,7 +15,9 @@ use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
     ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle,
     ContentPartitionComposition, ContentPlaceSubstitution, ContractClause, CrashCause, EntryClaim,
-    MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+    EvidenceInterfaceIdentity, EvidenceTermDeclaration, MachineContract, Operation, OperationKind,
+    OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    PropositionApplicationIdentity, PropositionDeclaration, PropositionEvidence, StructuralAccess,
     StructuralArgument, StructuralCaseDeclaration, StructuralContentProjection,
     StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
@@ -261,6 +263,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -363,6 +366,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -502,6 +506,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -644,6 +649,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -808,6 +814,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                         obligation,
                         proposition: goal.clone(),
                     }],
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         };
@@ -961,6 +968,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                         obligation,
                         proposition: goal.clone(),
                     }],
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         };
@@ -1087,6 +1095,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1199,6 +1208,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                     obligation,
                     proposition: goal.clone(),
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1329,6 +1339,7 @@ fn preserves_address_carrier_identity() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1407,6 +1418,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1514,6 +1526,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1604,6 +1617,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1678,6 +1692,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1752,6 +1767,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1826,6 +1842,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1900,6 +1917,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1974,6 +1992,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2047,6 +2066,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2120,6 +2140,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2193,6 +2214,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2266,6 +2288,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2382,6 +2405,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                         obligation,
                         proposition: goal.clone(),
                     }],
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         };
@@ -2975,6 +2999,135 @@ fn payloadless_sum_case_membership_resolves_exact_case_identity() {
 }
 
 #[test]
+fn outcome_specific_contract_carrier_is_exact_and_replay_stays_fail_closed() {
+    let (mut module, _, _) = identity_reshuffle_module();
+    let result_type = module.structural_types[0].id;
+    let success = StructuralCaseId::new(90).expect("success case");
+    let failure = StructuralCaseId::new(91).expect("failure case");
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![
+            StructuralCaseDeclaration {
+                id: success,
+                identity: "Success".to_owned(),
+                fields: Vec::new(),
+            },
+            StructuralCaseDeclaration {
+                id: failure,
+                identity: "Failure".to_owned(),
+                fields: Vec::new(),
+            },
+        ],
+    };
+    let proposition = psi_core::PropositionId::new(1).expect("proposition");
+    let term = psi_core::EvidenceTermId::new(1).expect("term");
+    let interface = EvidenceInterfaceIdentity {
+        trait_identity: "ReadyEvidence".to_owned(),
+        arguments: Vec::new(),
+        requirements: Vec::new(),
+    };
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition,
+        name: "ready".to_owned(),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ReadyEvidence".to_owned(),
+        },
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition,
+        declaration: proposition,
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence_interface: Some(interface.clone()),
+    }];
+    module.evidence_terms = vec![EvidenceTermDeclaration {
+        id: term,
+        proposition,
+        interface,
+    }];
+    let executable_shape = module.machines[0].blocks.clone();
+    let operation_count = executable_shape
+        .iter()
+        .map(|block| block.operations.len())
+        .sum::<usize>();
+    let guard = OutcomeSpecificGuard {
+        result_type,
+        result_case: success,
+    };
+    module.machines[0].contract.outcome_specific_ensures = vec![
+        OutcomeSpecificEnsure {
+            guard,
+            position: 0,
+            obligation: ObligationId::new(91).expect("named obligation"),
+            proposition: Proposition::Atom(proposition),
+            evidence: Some(OutcomeSpecificEvidence {
+                term,
+                output_field: "selected".to_owned(),
+            }),
+        },
+        OutcomeSpecificEnsure {
+            guard,
+            position: 1,
+            obligation: ObligationId::new(92).expect("unnamed obligation"),
+            proposition: Proposition::Truth,
+            evidence: None,
+        },
+    ];
+
+    assert_eq!(module.machines[0].blocks, executable_shape);
+    assert_eq!(
+        module.machines[0]
+            .blocks
+            .iter()
+            .map(|block| block.operations.len())
+            .sum::<usize>(),
+        operation_count,
+        "guarded rows add no runtime operations or fuel-bearing sites",
+    );
+
+    validate_module(&module).expect("guarded rows have a valid exact sum/case carrier");
+    assert_eq!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect_err("guarded executable replay remains fail closed"),
+        VerificationError::Module(ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
+            machine: module.machines[0].id,
+            obligation: ObligationId::new(91).unwrap(),
+        })
+    );
+
+    let mut wrong_case = module.clone();
+    wrong_case.machines[0].contract.outcome_specific_ensures[0]
+        .guard
+        .result_case = StructuralCaseId::new(92).unwrap();
+    assert!(matches!(
+        validate_module(&wrong_case),
+        Err(ModuleError::InvalidOutcomeSpecificGuard { .. })
+    ));
+
+    let mut mismatched_term = module.clone();
+    mismatched_term.machines[0]
+        .contract
+        .outcome_specific_ensures[0]
+        .proposition = Proposition::Truth;
+    assert!(matches!(
+        validate_module(&mismatched_term),
+        Err(ModuleError::OutcomeSpecificEvidenceMismatch { .. })
+    ));
+
+    let mut non_dense = module;
+    non_dense.machines[0].contract.outcome_specific_ensures[1].position = 2;
+    assert!(matches!(
+        validate_module(&non_dense),
+        Err(ModuleError::NonDenseOutcomeSpecificEnsures { .. })
+    ));
+}
+
+#[test]
 fn partition_composition_is_available_after_its_exact_successful_call() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
@@ -3499,6 +3652,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -3654,6 +3808,7 @@ fn structural_call_module() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let callee_machine = TerminalMachine {
@@ -3701,6 +3856,7 @@ fn structural_call_module() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     TerminalModule {
@@ -3992,6 +4148,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let boundary = BoundaryMachineDeclaration {
@@ -4161,6 +4318,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -4668,6 +4826,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -4758,6 +4917,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -4848,6 +5008,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -4938,6 +5099,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -5028,6 +5190,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -5118,6 +5281,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 obligation,
                 proposition: goal.clone(),
             }],
+            outcome_specific_ensures: Vec::new(),
         },
     };
     (
@@ -5190,6 +5354,7 @@ fn unit_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -5274,6 +5439,7 @@ impl Fixture {
                     obligation,
                     proposition: goal,
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         };
         Self {

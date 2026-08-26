@@ -130,6 +130,12 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 ) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
     let mut obligations = Vec::new();
     for machine in &module.machines {
+        if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
+            return Err(ModuleError::OutcomeSpecificGuaranteeReplayUnavailable {
+                machine: machine.id,
+                obligation: clause.obligation,
+            });
+        }
         let semantics = reconstruct_machine_semantics(module, machine)?;
         obligations.extend(semantics.operation_obligations.into_iter().map(|site| {
             ReconstructedTerminalObligation {

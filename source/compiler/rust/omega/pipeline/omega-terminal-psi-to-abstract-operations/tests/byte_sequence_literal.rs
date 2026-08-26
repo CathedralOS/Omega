@@ -154,6 +154,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }

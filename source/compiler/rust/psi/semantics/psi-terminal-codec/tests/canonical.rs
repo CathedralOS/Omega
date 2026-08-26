@@ -11,14 +11,15 @@ use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    EntryClaim, EvidenceInterfaceIdentity, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatProjectionInput, FloatProjectionInputId,
-    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
-    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
-    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, MachineContract,
+    NominalAffineCleanup, Operation, OperationKind, OperationResult, OutcomeSpecificEnsure,
+    OutcomeSpecificEvidence, OutcomeSpecificGuard, ProofOnlyValueType, ProofPropositionId,
+    ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -37,7 +38,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -45,7 +46,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "c9090db105e2015ef25f3bb69bd7ebea41132bfbe8d27f92d7ccdbdedd29403c"
+        "ac86a6f2b90a71ee2632a946341d417bcdfc16c18b538b6ca796d5dea9a914b6"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -312,8 +313,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -322,8 +323,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -354,7 +355,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -784,6 +785,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let module = TerminalModule {
@@ -940,7 +942,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1702,6 +1704,105 @@ fn proposition_vocabulary_round_trips_and_enters_identity() {
 }
 
 #[test]
+fn outcome_specific_guarantees_round_trip_and_guard_enters_identity() {
+    let mut module = structural_call_fixture();
+    let result_type = module.structural_types[0].id;
+    let success = structural_case_id(1);
+    let failure = structural_case_id(2);
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![
+            StructuralCaseDeclaration {
+                id: success,
+                identity: "Success".to_owned(),
+                fields: Vec::new(),
+            },
+            StructuralCaseDeclaration {
+                id: failure,
+                identity: "Failure".to_owned(),
+                fields: Vec::new(),
+            },
+        ],
+    };
+    let proposition = proposition_id(1);
+    let term = psi_core::EvidenceTermId::new(1).unwrap();
+    let interface = EvidenceInterfaceIdentity {
+        trait_identity: "ReadyEvidence".to_owned(),
+        arguments: Vec::new(),
+        requirements: Vec::new(),
+    };
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition,
+        name: "ready".to_owned(),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ReadyEvidence".to_owned(),
+        },
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition,
+        declaration: proposition,
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence_interface: Some(interface.clone()),
+    }];
+    module.evidence_terms = vec![EvidenceTermDeclaration {
+        id: term,
+        proposition,
+        interface,
+    }];
+    let guard = OutcomeSpecificGuard {
+        result_type,
+        result_case: success,
+    };
+    module.machines[0].contract.outcome_specific_ensures = vec![
+        OutcomeSpecificEnsure {
+            guard,
+            position: 0,
+            obligation: obligation_id(2),
+            proposition: Proposition::Atom(proposition),
+            evidence: Some(OutcomeSpecificEvidence {
+                term,
+                output_field: "selected".to_owned(),
+            }),
+        },
+        OutcomeSpecificEnsure {
+            guard,
+            position: 1,
+            obligation: obligation_id(3),
+            proposition: Proposition::Truth,
+            evidence: None,
+        },
+    ];
+
+    let bytes = encode_module(&module).expect("guarded rows encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let baseline = semantic_fingerprint(&module).expect("guarded identity");
+
+    let mut changed_case = module.clone();
+    for row in &mut changed_case.machines[0].contract.outcome_specific_ensures {
+        row.guard.result_case = failure;
+    }
+    assert_ne!(
+        semantic_fingerprint(&changed_case).expect("sibling guard identity"),
+        baseline
+    );
+
+    let mut changed_selector = module;
+    changed_selector.machines[0]
+        .contract
+        .outcome_specific_ensures[0]
+        .evidence
+        .as_mut()
+        .unwrap()
+        .output_field = "other".to_owned();
+    assert_ne!(
+        semantic_fingerprint(&changed_selector).expect("selector identity"),
+        baseline
+    );
+}
+
+#[test]
 fn proposition_vocabulary_is_category_checked() {
     let mut module = fixture();
     module.proposition_declarations = vec![PropositionDeclaration {
@@ -1815,10 +1916,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&28_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&29_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(28))
+        Err(CodecError::UnsupportedFormatMarker(29))
     );
 
     let mut stale_format = bytes.clone();
@@ -2062,6 +2163,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -2105,6 +2207,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],
@@ -2271,6 +2374,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -2300,6 +2404,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],
@@ -2459,6 +2564,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -2531,6 +2637,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],
@@ -2542,8 +2649,8 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 27_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -3088,6 +3195,7 @@ fn unit_fixture() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -3210,6 +3318,7 @@ fn fixture() -> TerminalModule {
                         proposition: Proposition::Truth,
                     },
                 ],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -3309,6 +3418,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                     obligation: obligation_id(80),
                     proposition,
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -3526,6 +3636,7 @@ fn call_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -3556,6 +3667,7 @@ fn call_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],

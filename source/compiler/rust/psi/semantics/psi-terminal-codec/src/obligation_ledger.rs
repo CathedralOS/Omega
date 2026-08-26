@@ -420,6 +420,7 @@ mod tests {
                         obligation: ObligationId::new(1).unwrap(),
                         proposition: Proposition::Truth,
                     }],
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         }

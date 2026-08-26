@@ -133,6 +133,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -318,6 +319,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -509,6 +511,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -685,6 +688,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -838,6 +842,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -998,6 +1003,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1158,6 +1164,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1328,6 +1335,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1469,6 +1477,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -1588,6 +1597,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
