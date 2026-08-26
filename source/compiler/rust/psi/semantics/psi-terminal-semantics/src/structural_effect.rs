@@ -1,6 +1,6 @@
 //! Exact structural/effect leaf schemas and their local observations.
 
-use psi_core::{PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId};
+use psi_core::{PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseSubject};
 use psi_terminal::{Operation, OperationKind, OperationResult};
 
 use super::{OperationSemanticError, OperationSemanticTag};
@@ -8,6 +8,7 @@ use super::{OperationSemanticError, OperationSemanticTag};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectResultShape {
     Boolean,
+    Structural,
     Unit,
 }
 
@@ -17,6 +18,7 @@ pub enum StructuralEffectCustody {
     ExactLiveBooleanField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
+    ExactPayloadlessCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,6 +27,7 @@ pub enum StructuralEffectAction {
     ReadBooleanField,
     EmitPortWrite,
     EstablishAffinePlace,
+    EstablishPayloadlessCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,6 +47,7 @@ pub enum StructuralEffectFrontierPolicy {
     RequiresAndKeepsAffinePlace,
     KeepsPlaceFrontier,
     AddsAffinePlace,
+    AddsOwnedPlace,
 }
 
 /// One structural/effect leaf row. This cohort remains separate from scalar
@@ -109,7 +113,17 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
+        Self {
+            tag: OperationSemanticTag::EstablishPayloadlessCase,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactPayloadlessCase,
+                StructuralEffectAction::EstablishPayloadlessCase,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::AddsOwnedPlace,
+            ),
+        },
         Self {
             tag: OperationSemanticTag::EstablishByteSequenceLiteral,
             schema: structural_effect_leaf(
@@ -164,7 +178,8 @@ impl StructuralEffectSemanticRow {
 const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
     matches!(
         tag,
-        OperationSemanticTag::EstablishByteSequenceLiteral
+        OperationSemanticTag::EstablishPayloadlessCase
+            | OperationSemanticTag::EstablishByteSequenceLiteral
             | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::PortWrite
             | OperationSemanticTag::EstablishTrivialAffineLocal
@@ -209,6 +224,7 @@ pub fn validate_structural_effect_semantic_rows(
         }
     }
     for tag in [
+        OperationSemanticTag::EstablishPayloadlessCase,
         OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::PortWrite,
@@ -235,12 +251,14 @@ pub enum StructuralEffectObservation {
     AffinePlaceEstablished {
         destination: PlaceId,
     },
+    PayloadlessCaseEstablished(Proposition),
 }
 
 impl StructuralEffectObservation {
     pub fn local_equation(&self) -> Option<&Proposition> {
         match self {
-            Self::BooleanFieldEquation(proposition) => Some(proposition),
+            Self::BooleanFieldEquation(proposition)
+            | Self::PayloadlessCaseEstablished(proposition) => Some(proposition),
             Self::ByteSequencePlaceEstablished { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
@@ -260,6 +278,9 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EmitPortWrite => OperationSemanticTag::PortWrite,
         StructuralEffectAction::EstablishAffinePlace => {
             OperationSemanticTag::EstablishTrivialAffineLocal
+        }
+        StructuralEffectAction::EstablishPayloadlessCase => {
+            OperationSemanticTag::EstablishPayloadlessCase
         }
     };
     let valid = action_tag == tag
@@ -289,6 +310,12 @@ fn validate_structural_effect_schema(
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
             }
+            StructuralEffectAction::EstablishPayloadlessCase => {
+                schema.result == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactPayloadlessCase
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
+            }
         }
         && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
     valid
@@ -306,6 +333,7 @@ fn validate_structural_effect_result(
             .result
             .scalar_ref()
             .is_some_and(|result| result.scalar_type == ScalarType::Boolean),
+        StructuralEffectResultShape::Structural => operation.result.structural().is_some(),
         StructuralEffectResultShape::Unit => matches!(operation.result, OperationResult::Unit),
     };
     valid
@@ -333,6 +361,21 @@ pub fn structural_effect_leaf_observation_in(
     let schema = row.schema;
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
+        (
+            StructuralEffectAction::EstablishPayloadlessCase,
+            OperationKind::EstablishPayloadlessCase { result_case },
+        ) => {
+            let result = operation
+                .result
+                .structural()
+                .expect("validated payloadless-case structural result");
+            StructuralEffectObservation::PayloadlessCaseEstablished(
+                Proposition::StructuralCaseMembership {
+                    subject: StructuralCaseSubject::new(result.place, Vec::new()),
+                    case: *result_case,
+                },
+            )
+        }
         (
             StructuralEffectAction::EstablishByteSequencePlace,
             OperationKind::EstablishByteSequenceLiteral { destination, .. },
@@ -396,13 +439,14 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 4);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 5);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
                 .map(|row| row.tag())
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([
+                OperationSemanticTag::EstablishPayloadlessCase,
                 OperationSemanticTag::EstablishByteSequenceLiteral,
                 OperationSemanticTag::BooleanStructuralField,
                 OperationSemanticTag::PortWrite,

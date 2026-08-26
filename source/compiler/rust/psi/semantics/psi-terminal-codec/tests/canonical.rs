@@ -38,7 +38,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 29_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -46,7 +46,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "ac86a6f2b90a71ee2632a946341d417bcdfc16c18b538b6ca796d5dea9a914b6"
+        "f4e34ba536d9f455be9eaa00858e5eff359dc24eb2023f84718e0646c7d84d22"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -313,8 +313,8 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 31_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -323,8 +323,8 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 31_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -355,7 +355,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 29_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -942,7 +942,7 @@ fn structural_effect_foundation_round_trips_and_has_stable_identity() {
     let module = structural_effect_fixture();
     let bytes = encode_module(&module).expect("structural/effect foundation should encode");
 
-    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 31_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -1296,11 +1296,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&28_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&30_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(28))
+        Err(CodecError::UnsupportedVocabularyMarker(30))
     );
 }
 
@@ -1803,6 +1803,75 @@ fn outcome_specific_guarantees_round_trip_and_guard_enters_identity() {
 }
 
 #[test]
+fn payloadless_case_establishment_round_trips_and_case_enters_identity() {
+    let mut module = structural_call_fixture();
+    module.root_service_reach.concrete.clear();
+    let success = structural_case_id(10);
+    let failure = structural_case_id(11);
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![
+            StructuralCaseDeclaration {
+                id: success,
+                identity: "Success".into(),
+                fields: Vec::new(),
+            },
+            StructuralCaseDeclaration {
+                id: failure,
+                identity: "Failure".into(),
+                fields: Vec::new(),
+            },
+        ],
+    };
+    let operation = &mut module.machines[0].blocks[0].operations[0];
+    operation.kind = OperationKind::EstablishPayloadlessCase {
+        result_case: success,
+    };
+    let OperationResult::Structural(result) = &mut operation.result else {
+        panic!("fixture operation must have a structural result")
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    result.qualifications.clear();
+    result.claims.clear();
+    let machine = &mut module.machines[0];
+    machine.structural_parameters.clear();
+    machine.entry_claims.clear();
+    machine.published_service_ceiling.clear();
+    machine.structural_places.retain(|place| {
+        matches!(
+            place.kind,
+            StructuralPlaceKind::OperationResult { .. } | StructuralPlaceKind::Result
+        )
+    });
+    let TerminalMachineResult::Structural(machine_result) = &mut machine.result else {
+        unreachable!()
+    };
+    machine_result.multiplicity = StructuralMultiplicity::Unrestricted;
+    machine_result.qualifications.clear();
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    returned_claims.clear();
+
+    let bytes = encode_module(&module).expect("payloadless case should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let success_identity = semantic_fingerprint(&module).expect("case has identity");
+
+    let OperationKind::EstablishPayloadlessCase { result_case } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *result_case = failure;
+    assert_ne!(
+        semantic_fingerprint(&module).expect("alternate case has identity"),
+        success_identity,
+    );
+}
+
+#[test]
 fn proposition_vocabulary_is_category_checked() {
     let mut module = fixture();
     module.proposition_declarations = vec![PropositionDeclaration {
@@ -1916,10 +1985,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&29_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&30_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(29))
+        Err(CodecError::UnsupportedFormatMarker(30))
     );
 
     let mut stale_format = bytes.clone();
@@ -2649,8 +2718,8 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 28_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 30_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 29_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], 31_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }

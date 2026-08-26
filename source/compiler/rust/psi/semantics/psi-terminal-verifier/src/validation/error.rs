@@ -306,6 +306,17 @@ pub enum ModuleError {
     },
     TrivialAffineLocalEstablishmentMismatch(MachineId),
     NonCanonicalTrivialAffineLocals(MachineId),
+    PayloadlessCaseResultMismatch(OperationId),
+    PayloadlessCaseRequiresSum {
+        operation: OperationId,
+        structural_type: psi_core::StructuralTypeId,
+        result_case: psi_core::StructuralCaseId,
+    },
+    PayloadlessCaseRequiresPayloadlessMember {
+        operation: OperationId,
+        structural_type: psi_core::StructuralTypeId,
+        result_case: psi_core::StructuralCaseId,
+    },
     TrivialAffineLocalAlreadyLive {
         operation: OperationId,
         place: PlaceId,

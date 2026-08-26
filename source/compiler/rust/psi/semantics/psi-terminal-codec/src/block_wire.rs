@@ -65,6 +65,10 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
         }
         match operation.kind.clone() {
+            OperationKind::EstablishPayloadlessCase { result_case } => {
+                writer.u8(42);
+                writer.id(result_case);
+            }
             OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                 writer.u8(40);
                 writer.id(destination);
@@ -586,6 +590,9 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
+            42 => OperationKind::EstablishPayloadlessCase {
+                result_case: reader.id("StructuralCaseId")?,
+            },
             40 => OperationKind::EstablishByteSequenceLiteral {
                 destination: reader.id("PlaceId")?,
                 bytes: {
@@ -998,10 +1005,10 @@ mod tests {
         );
 
         let mut invalid_call = bytes;
-        invalid_call[62] = 42;
+        invalid_call[62] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
-            Err(CodecError::InvalidTag("OperationKind", 42))
+            Err(CodecError::InvalidTag("OperationKind", 255))
         );
     }
 }

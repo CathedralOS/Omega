@@ -170,6 +170,7 @@ pub(super) fn append_operation(
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
         OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. } => {

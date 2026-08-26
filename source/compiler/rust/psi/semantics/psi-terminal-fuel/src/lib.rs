@@ -36,7 +36,8 @@ impl TerminalFuelSchedule {
 
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
-            OperationKind::EstablishByteSequenceLiteral { .. }
+            OperationKind::EstablishPayloadlessCase { .. }
+            | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }

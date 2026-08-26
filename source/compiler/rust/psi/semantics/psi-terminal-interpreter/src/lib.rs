@@ -9,8 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
-    ValueId,
+    PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
@@ -145,6 +145,16 @@ pub struct TerminalStructuralValue {
     pub structural_type: StructuralTypeId,
     pub qualifications: Vec<StructuralDomainId>,
     pub path: Vec<StructuralPathSegment>,
+}
+
+/// Exact target-neutral runtime carrier for a payloadless structural sum case.
+///
+/// This is deliberately distinct from an opaque host structural value: a
+/// producer-created case has no host identity to preserve or invent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalPayloadlessCaseValue {
+    pub structural_type: StructuralTypeId,
+    pub result_case: StructuralCaseId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -292,6 +302,7 @@ pub enum TerminalExecutionResult {
     Unit,
     Scalar(TerminalScalarValue),
     Structural(TerminalStructuralResult),
+    PayloadlessCase(TerminalPayloadlessCaseResult),
 }
 
 /// A structural value returned with the exact live claims transferred into it.
@@ -299,6 +310,13 @@ pub enum TerminalExecutionResult {
 pub struct TerminalStructuralResult {
     pub value: TerminalStructuralValue,
     pub claims: Vec<ClaimId>,
+}
+
+/// A returned payloadless sum case. Such a value carries no runtime payload
+/// and therefore cannot carry structural claims.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalPayloadlessCaseResult {
+    pub value: TerminalPayloadlessCaseValue,
 }
 
 impl TerminalScalarValue {
@@ -325,6 +343,7 @@ pub struct TerminalExecution {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     /// Immutable exact literal payloads keyed by invocation-independent
     /// terminal machine/place identity. Literal operations are canonical and
     /// idempotently establish the same bytes on every invocation.
@@ -361,6 +380,7 @@ struct SuspendedCall {
     blocks: BTreeMap<BlockId, Block>,
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     current_machine: MachineId,
@@ -558,6 +578,7 @@ impl TerminalExecution {
             blocks,
             values,
             structural_values,
+            payloadless_case_values: BTreeMap::new(),
             byte_sequence_literals: BTreeMap::new(),
             structural_boolean_fields,
             live_affine_frontier,
@@ -619,6 +640,40 @@ impl TerminalExecution {
                     return meter_status(error);
                 }
                 match operation.kind.clone() {
+                    OperationKind::EstablishPayloadlessCase { result_case } => {
+                        let psi_terminal::OperationResult::Structural(result) = &operation.result
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if self.structural_values.contains_key(&result.place)
+                            || self.payloadless_case_values.contains_key(&result.place)
+                            || result.multiplicity != StructuralMultiplicity::Unrestricted
+                            || !result.qualifications.is_empty()
+                            || !result.claims.is_empty()
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let Some(StructuralTypeDeclaration {
+                            shape: StructuralTypeShape::Sum { cases },
+                            ..
+                        }) = self.structural_types.get(&result.structural_type)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if !cases
+                            .iter()
+                            .any(|case| case.id == result_case && case.fields.is_empty())
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.payloadless_case_values.insert(
+                            result.place,
+                            TerminalPayloadlessCaseValue {
+                                structural_type: result.structural_type,
+                                result_case,
+                            },
+                        );
+                    }
                     OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                         if !matches!(operation.result, psi_terminal::OperationResult::Unit)
                             || self.structural_values.contains_key(&destination)
@@ -778,6 +833,9 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: caller_structural_values,
+                            payloadless_case_values: std::mem::take(
+                                &mut self.payloadless_case_values,
+                            ),
                             live_affine_frontier: caller_affine_frontier,
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
@@ -877,6 +935,9 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: caller_structural_values,
+                            payloadless_case_values: std::mem::take(
+                                &mut self.payloadless_case_values,
+                            ),
                             live_affine_frontier: caller_affine_frontier,
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
@@ -989,6 +1050,9 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: caller_structural_values,
+                            payloadless_case_values: std::mem::take(
+                                &mut self.payloadless_case_values,
+                            ),
                             live_affine_frontier: caller_affine_frontier,
                             live_claims: remaining_claims,
                             current_machine: self.current_machine,
@@ -1060,6 +1124,9 @@ impl TerminalExecution {
                                 blocks: std::mem::take(&mut self.blocks),
                                 values: std::mem::take(&mut self.values),
                                 structural_values: std::mem::take(&mut self.structural_values),
+                                payloadless_case_values: std::mem::take(
+                                    &mut self.payloadless_case_values,
+                                ),
                                 live_affine_frontier: std::mem::take(
                                     &mut self.live_affine_frontier,
                                 ),
@@ -1210,6 +1277,9 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
+                            payloadless_case_values: std::mem::take(
+                                &mut self.payloadless_case_values,
+                            ),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
@@ -1859,6 +1929,7 @@ impl TerminalExecution {
                         blocks: std::mem::take(&mut self.blocks),
                         values: std::mem::take(&mut self.values),
                         structural_values: std::mem::take(&mut self.structural_values),
+                        payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
                         live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                         live_claims: std::mem::take(&mut self.live_claims),
                         current_machine: self.current_machine,
@@ -1960,6 +2031,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
+                        self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.current_machine = caller.current_machine;
@@ -2092,6 +2164,9 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
+                            payloadless_case_values: std::mem::take(
+                                &mut self.payloadless_case_values,
+                            ),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             current_machine: self.current_machine,
@@ -2121,6 +2196,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.values.insert(result_value, result);
                         self.structural_values = caller.structural_values;
+                        self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.current_machine = caller.current_machine;
@@ -2160,6 +2236,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
+                        self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.current_machine = caller.current_machine;
@@ -2197,6 +2274,9 @@ impl TerminalExecution {
                                         values: std::mem::take(&mut self.values),
                                         structural_values: std::mem::take(
                                             &mut self.structural_values,
+                                        ),
+                                        payloadless_case_values: std::mem::take(
+                                            &mut self.payloadless_case_values,
                                         ),
                                         live_affine_frontier: std::mem::take(
                                             &mut self.live_affine_frontier,
@@ -2237,6 +2317,7 @@ impl TerminalExecution {
                                     self.values = caller.values;
                                     self.values.insert(result_value, returned);
                                     self.structural_values = caller.structural_values;
+                                    self.payloadless_case_values = caller.payloadless_case_values;
                                     self.live_affine_frontier = caller.live_affine_frontier;
                                     self.live_claims = caller.live_claims;
                                     self.current_machine = caller.current_machine;
@@ -2274,6 +2355,36 @@ impl TerminalExecution {
                     let Some(signature) = machine.result.structural() else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     };
+                    if let Some(value) = self.payloadless_case_values.get(source).copied() {
+                        if value.structural_type != signature.structural_type
+                            || !signature.qualifications.is_empty()
+                            || !returned_claims.is_empty()
+                            || !self.live_claims.is_empty()
+                            || self.call_stack.last().is_some()
+                            || trivial_affine_discards.iter().any(|place| {
+                                *place == *source
+                                    || (!self.structural_values.contains_key(place)
+                                        && !self.payloadless_case_values.contains_key(place))
+                            })
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        if let Err(error) = meter.charge_terminator(&terminator) {
+                            return meter_status(error);
+                        }
+                        self.payloadless_case_values.remove(source);
+                        remove_affine_root(&mut self.live_affine_frontier, *source);
+                        for place in trivial_affine_discards {
+                            self.structural_values.remove(place);
+                            self.payloadless_case_values.remove(place);
+                            remove_affine_root(&mut self.live_affine_frontier, *place);
+                        }
+                        let result = TerminalExecutionResult::PayloadlessCase(
+                            TerminalPayloadlessCaseResult { value },
+                        );
+                        self.result = Some(result.clone());
+                        return Ok(TerminalExecutionStatus::Complete(result));
+                    }
                     let value = self.structural_values.get(source).cloned().ok_or(
                         TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
                     )?;
@@ -2368,6 +2479,7 @@ impl TerminalExecution {
                         self.blocks = caller.blocks;
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
+                        self.payloadless_case_values = caller.payloadless_case_values;
                         if self.structural_values.insert(result.place, value).is_some() {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }

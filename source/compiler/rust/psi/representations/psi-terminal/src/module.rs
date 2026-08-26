@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        30
+        31
     }
 }
 
@@ -1157,6 +1157,13 @@ pub struct CompletionReceipt {
 /// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
+    /// Establish one exact payloadless case of a declared structural sum. The
+    /// destination and structural type are carried by the structural operation
+    /// result; this row contributes the exact case-membership fact without
+    /// inventing payload fields or runtime scalar work.
+    EstablishPayloadlessCase {
+        result_case: StructuralCaseId,
+    },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
     EstablishByteSequenceLiteral {

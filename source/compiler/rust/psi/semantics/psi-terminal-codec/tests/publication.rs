@@ -12,14 +12,12 @@ use psi_terminal_codec::{
 static TEST_NONCE: AtomicU64 = AtomicU64::new(0);
 
 fn canonical_bytes() -> Vec<u8> {
-    let hex = include_str!(
-        "../../../../../../../bootstrap/omega-bootstrap/gates/fixtures/omega-bootstrap-terminal-v28.hex"
-    );
+    let hex = include_str!("fixtures/terminal_ledger_structural_effect.hex");
     let compact: String = hex
         .chars()
         .filter(|character| !character.is_whitespace())
         .collect();
-    let mut bytes: Vec<u8> = compact
+    let bytes: Vec<u8> = compact
         .as_bytes()
         .chunks_exact(2)
         .map(|pair| {
@@ -27,10 +25,6 @@ fn canonical_bytes() -> Vec<u8> {
                 .expect("hex fixture")
         })
         .collect();
-    // This publication canary deliberately retains the bootstrap program body.
-    // Its canonical envelope follows the current terminal format and vocabulary.
-    bytes[8..10].copy_from_slice(&28_u16.to_le_bytes());
-    bytes[10..12].copy_from_slice(&30_u16.to_le_bytes());
     bytes
 }
 
@@ -152,9 +146,9 @@ fn valid_but_substituted_terminal_meaning_rejects_when_expected_is_bound() {
     let expected = canonical_bytes();
     let mut substituted = expected.clone();
     let literal = substituted
-        .windows(b"Hello, Omega.".len())
-        .position(|window| window == b"Hello, Omega.")
-        .expect("fixture retains the exact O0 literal");
+        .windows(b"Spike::BooleanBox".len())
+        .position(|window| window == b"Spike::BooleanBox")
+        .expect("fixture retains the exact structural type identity");
     substituted[literal] = b'J';
     decode_module(&substituted).expect("the substituted literal remains canonical terminal Psi");
 

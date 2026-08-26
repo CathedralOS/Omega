@@ -91,6 +91,133 @@ fn verifier_rejects_a_scalar_operation_with_a_unit_result_without_panicking() {
 }
 
 #[test]
+fn payloadless_case_establishment_validates_exact_member_and_surface() {
+    let mut module = unit_module();
+    let operation = OperationId::new(902).unwrap();
+    let place = PlaceId::new(902).unwrap();
+    let result_place = PlaceId::new(903).unwrap();
+    let structural_type = StructuralTypeId::new(902).unwrap();
+    let payloadless = StructuralCaseId::new(902).unwrap();
+    let payload_bearing = StructuralCaseId::new(903).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "PayloadlessResult".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: payloadless,
+                    identity: "Done".into(),
+                    fields: Vec::new(),
+                },
+                StructuralCaseDeclaration {
+                    id: payload_bearing,
+                    identity: "Value".into(),
+                    fields: vec![StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(902).unwrap(),
+                        identity: "value".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    }],
+                },
+            ],
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation,
+            structural_type,
+        },
+    });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: result_place,
+        kind: StructuralPlaceKind::Result,
+    });
+    machine.blocks[0].operations.push(Operation {
+        id: operation,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishPayloadlessCase {
+            result_case: payloadless,
+        },
+    });
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: EdgeId::new(902).unwrap(),
+        source: place,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let machine_id = machine.id;
+    validate_module(&module).expect("exact payloadless member validates");
+
+    let mut unknown = module.clone();
+    let OperationKind::EstablishPayloadlessCase { result_case } =
+        &mut unknown.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *result_case = StructuralCaseId::new(904).unwrap();
+    assert!(matches!(
+        validate_module(&unknown),
+        Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember { .. })
+    ));
+
+    let mut bearing = module.clone();
+    let OperationKind::EstablishPayloadlessCase { result_case } =
+        &mut bearing.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *result_case = payload_bearing;
+    assert!(matches!(
+        validate_module(&bearing),
+        Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember { .. })
+    ));
+
+    let mut non_sum = module.clone();
+    non_sum.structural_types.last_mut().unwrap().shape =
+        StructuralTypeShape::Record { fields: Vec::new() };
+    assert!(matches!(
+        validate_module(&non_sum),
+        Err(ModuleError::PayloadlessCaseRequiresSum { .. })
+    ));
+
+    let mut generic_unrestricted = module.clone();
+    generic_unrestricted.machines[0].blocks[0].operations[0].kind =
+        OperationKind::BooleanConstant { value: true };
+    assert_eq!(
+        validate_module(&generic_unrestricted).unwrap_err(),
+        ModuleError::StructuralResultMustBeOwned(machine_id)
+    );
+
+    let mut qualified = module;
+    let OperationResult::Structural(result) =
+        &mut qualified.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    result
+        .qualifications
+        .push(psi_core::StructuralDomainId::new(902).unwrap());
+    assert_eq!(
+        validate_module(&qualified).unwrap_err(),
+        ModuleError::StructuralResultMustBeOwned(machine_id)
+    );
+}
+
+#[test]
 fn unit_machine_cannot_declare_a_result_structural_place() {
     let mut module = unit_module();
     module.machines[0]

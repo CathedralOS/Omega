@@ -132,6 +132,13 @@ pub(super) fn validate_machine(
             }
             if matches!(
                 operation.kind,
+                OperationKind::EstablishPayloadlessCase { .. }
+            ) {
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                continue;
+            }
+            if matches!(
+                operation.kind,
                 OperationKind::CallUnit { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
@@ -197,6 +204,7 @@ pub(super) fn validate_machine(
                 OperationKind::CallUnit { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallStructural { .. }
+                | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {

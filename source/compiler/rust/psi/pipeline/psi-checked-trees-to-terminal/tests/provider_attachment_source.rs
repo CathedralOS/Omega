@@ -106,10 +106,12 @@ fn fixture_bytes() -> Vec<u8> {
         })
         .collect::<Vec<_>>();
     // The bootstrap fixture body remains the frozen vocabulary-28 input for
-    // the Delta on-ramp. This source-owner canary compares that same body under
-    // the current canonical Terminal envelope.
-    bytes[8..10].copy_from_slice(&28_u16.to_le_bytes());
-    bytes[10..12].copy_from_slice(&30_u16.to_le_bytes());
+    // the Delta on-ramp. This source-owner canary upgrades its one trailing
+    // machine contract with the current empty outcome-specific carrier while
+    // leaving the independently consumed bootstrap bytes untouched.
+    bytes[8..10].copy_from_slice(&29_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&31_u16.to_le_bytes());
+    bytes.extend_from_slice(&0_u32.to_le_bytes());
     bytes
 }
 
@@ -255,8 +257,8 @@ fn source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed() {
         "source projection must own the O0 fixture"
     );
     assert_eq!(&canonical[..8], b"PSITERM\0");
-    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 27);
-    assert_eq!(u16::from_le_bytes([canonical[10], canonical[11]]), 29);
+    assert_eq!(u16::from_le_bytes([canonical[8], canonical[9]]), 29);
+    assert_eq!(u16::from_le_bytes([canonical[10], canonical[11]]), 31);
     let decoded = psi_terminal_codec::decode_module(&canonical).expect("decode O0 fixture");
     psi_terminal_verifier::validate_module(&decoded).expect("validate O0 fixture");
     assert_eq!(

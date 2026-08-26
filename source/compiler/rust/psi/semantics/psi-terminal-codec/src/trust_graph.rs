@@ -487,7 +487,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            4
+            5
         );
         assert_eq!(
             graph
@@ -497,13 +497,13 @@ mod tests {
                 .count(),
             5
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 41);
+        assert_eq!(OperationSemanticRow::ALL.len(), 42);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            36
+            37
         );
         assert_eq!(
             OperationSemanticRow::ALL
