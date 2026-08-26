@@ -1,7 +1,6 @@
 use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
 use crate::domain_constraints::normalize_domain_constraints;
-use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
 use crate::qualification_casts::normalize_qualification_casts;
@@ -78,13 +77,6 @@ pub fn lower_symbol_resolved_trees(
             },
         )
         .collect();
-
-    for invariant_definition in &symbol_resolved_trees.invariant_definitions {
-        let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
-        lowerer
-            .typed_trees
-            .push_invariant_definition(invariant_definition);
-    }
 
     for data_definition in &symbol_resolved_trees.data_definitions {
         let data_definition = lowerer.with_type_reference_exposure(

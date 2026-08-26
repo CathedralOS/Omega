@@ -463,8 +463,7 @@ machine Lexer::classify_keyword(&mut self) {
     state false_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "false"); let matched: bool = self.predicate_result; transition matched { true -> false_yes() _ -> foreign_kw() } }
     state foreign_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "foreign"); let matched: bool = self.predicate_result; transition matched { true -> foreign_yes() _ -> host_kw() } }
     state host_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "host"); let matched: bool = self.predicate_result; transition matched { true -> host_yes() _ -> if_kw() } }
-    state if_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "if"); let matched: bool = self.predicate_result; transition matched { true -> if_yes() _ -> invariant_kw() } }
-    state invariant_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "invariant"); let matched: bool = self.predicate_result; transition matched { true -> invariant_yes() _ -> let_kw() } }
+    state if_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "if"); let matched: bool = self.predicate_result; transition matched { true -> if_yes() _ -> let_kw() } }
     state let_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "let"); let matched: bool = self.predicate_result; transition matched { true -> let_yes() _ -> library_kw() } }
     state library_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "library"); let matched: bool = self.predicate_result; transition matched { true -> library_yes() _ -> loop_kw() } }
     state loop_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "loop"); let matched: bool = self.predicate_result; transition matched { true -> loop_yes() _ -> machine_kw() } }
@@ -497,7 +496,6 @@ machine Lexer::classify_keyword(&mut self) {
     state foreign_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Foreign }); }
     state host_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Host }); }
     state if_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::If }); }
-    state invariant_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Invariant }); }
     state let_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Let }); }
     state library_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Library }); }
     state loop_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Loop }); }

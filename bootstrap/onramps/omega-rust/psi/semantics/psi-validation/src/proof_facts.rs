@@ -18,9 +18,6 @@ pub(crate) enum ProofFactOwner<'program> {
         machine: &'program str,
         kind: &'static str,
     },
-    TraitInvariant {
-        trait_definition: &'program str,
-    },
     StateSignatureContract {
         owner: StateSignatureOwner<'program>,
         state: &'program str,
@@ -312,9 +309,6 @@ impl fmt::Display for ProofFactOwner<'_> {
             Self::Domain(domain) => write!(formatter, "domain `{domain}`"),
             Self::MachineContract { machine, kind } => {
                 write!(formatter, "machine `{machine}` {kind} contract")
-            }
-            Self::TraitInvariant { trait_definition } => {
-                write!(formatter, "trait `{trait_definition}` invariant")
             }
             Self::StateSignatureContract { owner, state, kind } => {
                 write!(formatter, "{owner} state `{state}` {kind} contract")
@@ -739,7 +733,6 @@ fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
         } => Some(machine),
         ProofFactOwner::DataDefaultDomain(_)
         | ProofFactOwner::Domain(_)
-        | ProofFactOwner::TraitInvariant { .. }
         | ProofFactOwner::StateSignatureContract { .. } => None,
     }
 }

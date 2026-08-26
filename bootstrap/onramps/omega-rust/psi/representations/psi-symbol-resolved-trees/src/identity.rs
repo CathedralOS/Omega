@@ -49,10 +49,6 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     let child_type_references = &program.tables.declarations.child_type_references;
     let expression_table = &program.tables.bodies.expressions;
 
-    for invariant in &program.invariant_definitions {
-        count_declaration_name(&invariant.name, &mut counts);
-    }
-
     for domain in &program.domain_definitions {
         count_declaration_name(&domain.name, &mut counts);
         count_type_reference(
@@ -141,9 +137,6 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in program.trait_type_parameters(trait_definition) {
             count_declaration_name(&parameter.name, &mut counts);
-        }
-        for fact in program.trait_invariants(trait_definition) {
-            count_proof_fact(program, fact, expression_table, &mut counts);
         }
         for signature in program.trait_machine_signatures(trait_definition.machines) {
             count_declaration_name(&signature.name, &mut counts);

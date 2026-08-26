@@ -1,7 +1,6 @@
 mod borrow;
 mod boundaries;
 mod contracts;
-mod invariants;
 mod operations;
 mod ownership;
 mod plan;
@@ -14,7 +13,6 @@ mod values;
 pub use borrow::*;
 pub use boundaries::*;
 pub use contracts::*;
-pub use invariants::*;
 pub use operations::*;
 pub use ownership::*;
 pub use plan::*;

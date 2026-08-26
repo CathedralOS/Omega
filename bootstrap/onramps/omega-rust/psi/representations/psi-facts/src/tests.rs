@@ -9,15 +9,13 @@ use psi_typed_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
 use psi_typed_trees::expression::{
     ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
 };
-use psi_typed_trees::invariant::InvariantDefinition;
 use psi_typed_trees::name::Identifier;
-use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use psi_typed_trees::types::TypeReferenceHandle;
 
 #[test]
-fn builds_definition_fact_plan_for_domains_and_invariants() {
+fn builds_definition_fact_plan_for_domains() {
     let valid_domain_symbol = SymbolHandle::from_arena_index(10);
     let alive_domain_symbol = SymbolHandle::from_arena_index(11);
-    let invariant_symbol = SymbolHandle::from_arena_index(12);
 
     let mut program = TypedTrees::default();
     let expression = program
@@ -69,31 +67,18 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         establishment_routes: Vec::new(),
     });
 
-    let constraint = program
-        .type_reference_table
-        .insert_constraints([TypeConstraintNode::Named(Identifier::generated("finite"))]);
-    program.push_invariant_definition(InvariantDefinition {
-        symbol: invariant_symbol,
-        name: Identifier::generated("Finite"),
-        constraints: constraint,
-    });
-
     let facts = build_definition_fact_plan(&program);
 
-    assert_eq!(facts.places.len(), 3);
-    assert_eq!(facts.facts.len(), 3);
+    assert_eq!(facts.places.len(), 2);
+    assert_eq!(facts.facts.len(), 2);
     assert_eq!(facts.domain_definition_facts.len(), 2);
-    assert_eq!(facts.contexts.len(), 3);
-    assert_eq!(facts.symbol_sets.len(), 3);
+    assert_eq!(facts.contexts.len(), 2);
+    assert_eq!(facts.symbol_sets.len(), 2);
     assert_eq!(
         facts.boolean_facts_for_symbol(alive_domain_symbol).count(),
         1
     );
     assert!(facts.symbol_references_domain(alive_domain_symbol, valid_domain_symbol));
-    assert_eq!(
-        facts.type_constraints_for_symbol(invariant_symbol).count(),
-        1
-    );
     assert_eq!(
         facts
             .facts_at_point(super::ProgramPoint::Definition {
@@ -121,14 +106,6 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
         );
         assert!(record.dependencies.is_empty());
     }
-
-    let invariant_context = facts
-        .contexts_at_point(super::ProgramPoint::Definition {
-            symbol: invariant_symbol,
-        })
-        .next()
-        .expect("invariant context");
-    assert_eq!(invariant_context.type_constraints().count(), 1);
 }
 
 #[test]
@@ -341,6 +318,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        generic_instance: None,
         members: HandleSpan::empty(),
     });
     let mut main_data = psi_typed_trees::data::DataDefinition {
@@ -355,6 +333,7 @@ fn expression_places_resolve_attached_data_members() {
         where_facts: Default::default(),
         zero_gated: false,
         retired_identities: Vec::new(),
+        generic_instance: None,
         members: HandleSpan::empty(),
     };
     program.push_data_member(
@@ -380,6 +359,7 @@ fn expression_places_resolve_attached_data_members() {
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
+        attached_data_symbol: main_data_symbol,
         is_public: false,
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),

@@ -2,7 +2,7 @@ use omega_control_flow::StateKey;
 use omega_layout::TypeLayoutDescriptor;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use psi_arena::{Arena, HandleSpan};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
@@ -11,7 +11,6 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<Identifier>,
     pub frame_slots: Arena<RuntimeFrameSlot>,
     pub writes: Arena<RuntimeStorageWrite>,
     /// Byte offset of a reserved frame SCRATCH region used to stage transition
@@ -60,13 +59,11 @@ pub struct RuntimeStoragePlan {
 impl RuntimeStoragePlan {
     pub(crate) fn with_capacities(
         expression_capacity: ExpressionTableCapacity,
-        invariant_name_capacity: usize,
         frame_slot_capacity: usize,
         write_capacity: usize,
     ) -> Self {
         Self {
             expressions: ExpressionTable::with_capacities(expression_capacity),
-            invariant_names: Arena::with_capacity(invariant_name_capacity),
             frame_slots: Arena::with_capacity(frame_slot_capacity),
             writes: Arena::with_capacity(write_capacity),
             frame_scratch_base: 0,
@@ -351,7 +348,6 @@ pub struct RuntimeFrameSlot {
     pub type_symbol: SymbolHandle,
     pub type_name: Arc<str>,
     pub type_descriptor: TypeLayoutDescriptor,
-    pub invariant_names: HandleSpan<Identifier>,
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,

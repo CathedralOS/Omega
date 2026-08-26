@@ -32,6 +32,11 @@ fn tokenizes_keywords_and_identifiers_distinctly() {
 }
 
 #[test]
+fn tokenizes_retired_invariant_word_as_identifier() {
+    assert_eq!(semantic_kinds("invariant"), vec![TokenKind::Identifier]);
+}
+
+#[test]
 fn tokenizes_unicode_identifiers() {
     let tokens = Lexer::new("变量 café μέτρο")
         .tokenize()

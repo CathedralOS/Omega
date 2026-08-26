@@ -1,4 +1,4 @@
-use omega_control_flow::{InvariantFact, ProofFactKind, ProofObligationFact, ProofObligationOwner};
+use omega_control_flow::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
 
 pub(crate) fn remap_proof_obligation_owned(
     obligation: omega_state_graph::ProofObligationFact,
@@ -8,14 +8,6 @@ pub(crate) fn remap_proof_obligation_owned(
         machine_symbol: obligation.machine_symbol,
         state_symbol: obligation.state_symbol,
         owner: remap_proof_owner(&obligation.owner),
-    }
-}
-
-pub(crate) fn remap_invariant_owned(invariant: omega_state_graph::InvariantFact) -> InvariantFact {
-    InvariantFact {
-        symbol: invariant.symbol,
-        name: invariant.name,
-        constraint_count: invariant.constraint_count,
     }
 }
 

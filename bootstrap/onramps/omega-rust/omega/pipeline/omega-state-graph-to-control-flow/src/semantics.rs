@@ -23,9 +23,7 @@ use crate::contracts::{
     remap_contract_call_owned, remap_contract_calls, remap_contract_exit_owned,
     remap_contract_exits, remap_contract_fact_ref_owned, remap_contract_fact_refs,
 };
-use crate::facts::{
-    remap_invariant_owned, remap_invariants, remap_proof_obligation_owned, remap_proof_obligations,
-};
+use crate::facts::{remap_proof_obligation_owned, remap_proof_obligations};
 use crate::ownership::{remap_permission_event_owned, remap_permission_events};
 use crate::values::{remap_value_owned, remap_values};
 
@@ -77,7 +75,6 @@ fn remap_service_reach_roots_owned(
 fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {
     ControlFlowFactRoots::with_roots(
         remap_proof_obligations(state_graph),
-        remap_invariants(state_graph),
         state_graph.semantics.facts.dynamic_conformances.clone(),
     )
 }
@@ -85,7 +82,6 @@ fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {
 fn remap_fact_roots_owned(facts: SourceFactRoots) -> ControlFlowFactRoots {
     ControlFlowFactRoots::with_roots(
         facts.proof_obligations.map(remap_proof_obligation_owned),
-        facts.invariants.map(remap_invariant_owned),
         facts.dynamic_conformances,
     )
 }

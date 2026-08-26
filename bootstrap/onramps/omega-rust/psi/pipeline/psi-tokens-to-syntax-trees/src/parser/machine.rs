@@ -174,7 +174,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
         } else if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
             parse_state(syntax_trees, input2, StateKind::State)?
-        } else if input.at_keyword(KeywordKind::Invariant) {
+        } else if starts_retired_invariant_member(input) {
             return Err(input.error_here(
                 "the `invariant` machine member is retired: state arrival facts use \
                  `requires`, result facts use `ensures`, and loop facts are derived from \
@@ -481,7 +481,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
         && !input.at_keyword(KeywordKind::Pub)
         && !input.at_keyword(KeywordKind::Entry)
         && !starts_state_member(input)
-        && !input.at_keyword(KeywordKind::Invariant)
+        && !starts_retired_invariant_member(input)
 }
 
 fn starts_machine_member(input: Input<'_, '_>) -> bool {
@@ -489,7 +489,28 @@ fn starts_machine_member(input: Input<'_, '_>) -> bool {
         || input.at_keyword(KeywordKind::Pub)
         || input.at_keyword(KeywordKind::Entry)
         || starts_state_member(input)
-        || input.at_keyword(KeywordKind::Invariant)
+        || starts_retired_invariant_member(input)
+}
+
+fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {
+    if !input.at_contextual("invariant") {
+        return false;
+    }
+
+    let after_keyword = Input::new(input.source_id, input.tokens.get(1..).unwrap_or_default());
+    if !after_keyword
+        .tokens
+        .first()
+        .is_some_and(crate::parser::input::is_identifier_token_for_parser)
+    {
+        return false;
+    }
+
+    Input::new(
+        input.source_id,
+        after_keyword.tokens.get(1..).unwrap_or_default(),
+    )
+    .at_punctuation(PunctuationKind::LeftBrace)
 }
 
 fn starts_state_member(input: Input<'_, '_>) -> bool {

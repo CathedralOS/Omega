@@ -1,4 +1,4 @@
-//! Proof surface collection, proof obligation building, and invariant checking.
+//! Proof surface collection and proof-obligation building.
 
 use psi_arena::Arena;
 use psi_syntax_trees::SyntaxTrees;
@@ -15,7 +15,6 @@ pub mod obligations;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProofSurfaceReport {
-    pub invariants: Arena<InvariantSurface>,
     pub domains: Arena<DomainSurface>,
     pub propositions: Arena<PropositionSurface>,
     pub contracts: Arena<ContractSurface>,
@@ -36,12 +35,6 @@ pub enum PropositionBodySurface {
     Primitive,
     Witness,
     Transparent,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct InvariantSurface {
-    pub name: String,
-    pub constraints: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -132,12 +125,6 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                         ),
                     );
                 }
-            }
-            Item::Invariant(invariant) => {
-                report.invariants.insert(InvariantSurface {
-                    name: invariant.name.to_string(),
-                    constraints: constraint_handle_name(syntax_trees, invariant.constraints),
-                });
             }
             Item::Library(library) => {
                 for function in syntax_trees.items.library_functions(library.functions) {
@@ -594,8 +581,8 @@ mod tests {
     use psi_syntax_trees::SyntaxTrees;
     use psi_syntax_trees::identifier::Identifier;
     use psi_syntax_trees::item::{
-        CapabilityContract, CapabilityContractKind, DomainDefinition, InvariantDefinition, Item,
-        Machine, OperatorDefinition, State, StateParameterNode,
+        CapabilityContract, CapabilityContractKind, DomainDefinition, Item, Machine,
+        OperatorDefinition, State, StateParameterNode,
     };
     use psi_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -696,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn collects_invariants_and_bounded_type_sites() {
+    fn collects_bounded_type_sites() {
         let mut syntax_trees = SyntaxTrees::new(Default::default());
         let base_type = syntax_trees
             .type_references
@@ -727,14 +714,6 @@ mod tests {
             statements: HandleSpan::empty(),
         });
         let state_handle = syntax_trees.items.append_state_handle(state);
-        let constraint = syntax_trees
-            .type_references
-            .append_constraint(TypeConstraintNode::Named(Identifier::generated("finite")));
-
-        syntax_trees.push_root_item(Item::Invariant(InvariantDefinition {
-            name: Identifier::generated("speed_range"),
-            constraints: HandleSpan::from_parts(constraint, 1),
-        }));
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
@@ -762,7 +741,6 @@ mod tests {
 
         let report = build_proof_surface_report(&syntax_trees);
 
-        assert_eq!(report.invariants.len(), 1);
         assert_eq!(report.bounded_sites.len(), 1);
 
         let (_, bounded_site) = report

@@ -96,7 +96,6 @@ fn syntax_trees_extend_from_preserves_trait_and_wire_visibility() {
         type_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
         parents: HandleSpan::empty(),
-        invariants: HandleSpan::empty(),
         requires: HandleSpan::empty(),
         machines: HandleSpan::empty(),
     }));

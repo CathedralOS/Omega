@@ -7279,10 +7279,18 @@ reach or trust, and private proof improvements do not change public identity.
   wider structural partial values, repeated-cycle resource composition, and
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Reject every authored
-  selection of the exact owner-attached `T::drop` hook, including method and
-  qualified calls, static-machine arguments, references, and forwarding. Add
-  the ordinary consuming `omega::core::drop<T>(value)` machine after generic
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
+  exact owner-attached `T::drop` hook is now closed for every retained source
+  selection kind. The package-agnostic selection ledger rejects the exact hook
+  machine or one of its states independent of how source reached it; method and
+  qualified calls, static-machine arguments, static paths, and forwarded
+  selections are covered, while unrelated free `drop` machines and same-owner
+  nonreserved names remain ordinary declarations. Receiver-bearing static
+  machine arguments currently fail even earlier at refinement, and the exact
+  ledger canary keeps the cleanup gate closed when that restriction is later
+  relaxed.
+
+  Add the ordinary consuming `omega::core::drop<T>(value)` machine after generic
   cleanup-row lowering is available. Its empty body is checked once against a
   symbolic contextual-cleanup row; concrete death edges substitute exact
   prerequisites, effects, reach, work, guarantees, Type-side eligibility, and
@@ -7372,18 +7380,6 @@ and allocation handles expose no compiler-owned stack/control storage.
 Owner: `wiki/design_briefs/law_bearing_relations_and_quotients.md`.
 
 Remaining N6/N8 work:
-
-- **INVARIANT-SOURCE-RETIREMENT — delete unreachable declaration scaffolding.**
-  Source admission is closed: top-level, trait, and machine `invariant` forms
-  reject with direction, and trait requirement contracts reject structural
-  `self.member` paths because abstract `Self` has no field namespace. Remove
-  the now-unreachable keyword/token, standalone-invariant item and symbol kinds,
-  trait-invariant spans and proof-owner rows, snapshot/identity/census fields,
-  package-review fence, and self-hosted lexer route. Preserve default-domain
-  facts, derived invariant-window tracking, and loop reasoning; those semantic
-  concepts do not consume authored invariant syntax. Acceptance: `invariant`
-  is available as an ordinary identifier, no published artifact contains a
-  trait-invariant row, and the two retirement fail canaries remain pinned.
 
 - **SELECTED-WITNESS-EVIDENCE — finish executable proof-output calls.** The
   unconditional lane is implemented. `let (value; public_slot: local_term) =

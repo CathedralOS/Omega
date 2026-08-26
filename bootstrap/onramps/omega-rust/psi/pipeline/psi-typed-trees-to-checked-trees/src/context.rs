@@ -13,9 +13,8 @@ pub(crate) use psi_checked_trees::{
     FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowBoundaryEdgeFact, FlowBoundaryFacts,
     FlowCallFact, FlowConstraintKind, FlowConstraintRef, FlowContextFacts, FlowControlFacts,
     FlowExitFact, FlowFacts, FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource,
-    FlowOwnershipFacts, FlowSemanticContextRef, FlowStateFact, FlowStatementFact, InvariantFact,
-    InvariantFacts, ProofFactKind, ProofFacts, ProofObligationFact, ProofObligationOwner,
-    StateBorrowFact,
+    FlowOwnershipFacts, FlowSemanticContextRef, FlowStateFact, FlowStatementFact, ProofFactKind,
+    ProofFacts, ProofObligationFact, ProofObligationOwner, StateBorrowFact,
 };
 pub(crate) use psi_facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,

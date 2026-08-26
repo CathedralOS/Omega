@@ -147,9 +147,6 @@ pub enum FactOrigin {
     DomainDefinition {
         domain_symbol: SymbolHandle,
     },
-    InvariantDefinition {
-        invariant_symbol: SymbolHandle,
-    },
     TypeReference,
     ProofObligation,
     MachineContract {
@@ -335,9 +332,6 @@ pub enum FactPayload {
         fact: Handle<ProofFact>,
         value: ExpressionHandle,
         permission: psi_language_semantics::CarryPermission,
-    },
-    InvariantDefinition {
-        constraint_count: usize,
     },
 }
 

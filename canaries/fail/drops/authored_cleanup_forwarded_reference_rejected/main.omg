@@ -1,0 +1,21 @@
+// Forwarding a static-machine binder does not erase the authored selection
+// which supplied it. The exact reserved cleanup hook must still reject at the
+// outer application.
+data Resource { value: i32; }
+
+machine Resource::drop(&mut self) {}
+
+machine sink<machine Selected>()
+where machine Selected(value: &mut Resource)
+{
+}
+
+machine forward<machine Selected>()
+where machine Selected(value: &mut Resource)
+{
+    sink<Selected>();
+}
+
+machine misuse() {
+    forward<Resource::drop>();
+}

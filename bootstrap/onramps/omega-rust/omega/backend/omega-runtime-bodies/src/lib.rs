@@ -52,55 +52,47 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
             key,
             dispatch_index,
             expressions,
-            invariant_names,
             operations,
             type_references,
         } = collected_body;
-        let operations = plan
-            .operations
-            .insert_many(operations.into_items().map(|operation| {
-                RuntimeDispatchBodyOperation {
-                    kind: match operation.kind {
-                        RuntimeDispatchBodyOperationKind::LocalStorage {
-                            symbol,
-                            name,
-                            type_symbol,
-                            type_reference,
-                            invariant_names: local_invariant_names,
-                        } => RuntimeDispatchBodyOperationKind::LocalStorage {
-                            symbol,
-                            name,
-                            type_symbol,
-                            type_reference: plan.type_references.copy_from(
-                                &type_references,
-                                &expressions,
-                                &mut plan.expressions,
+        let operations =
+            plan.operations
+                .insert_many(operations.into_items().map(|operation| {
+                    RuntimeDispatchBodyOperation {
+                        kind: match operation.kind {
+                            RuntimeDispatchBodyOperationKind::LocalStorage {
+                                symbol,
+                                name,
+                                type_symbol,
                                 type_reference,
-                            ),
-                            invariant_names: plan.invariant_names.insert_many(
-                                invariant_names
-                                    .span_or_empty(local_invariant_names)
-                                    .iter()
-                                    .cloned(),
-                            ),
+                            } => RuntimeDispatchBodyOperationKind::LocalStorage {
+                                symbol,
+                                name,
+                                type_symbol,
+                                type_reference: plan.type_references.copy_from(
+                                    &type_references,
+                                    &expressions,
+                                    &mut plan.expressions,
+                                    type_reference,
+                                ),
+                            },
+                            RuntimeDispatchBodyOperationKind::StateCallResult {
+                                role,
+                                call_ordinal,
+                                target_key,
+                                value,
+                            } => RuntimeDispatchBodyOperationKind::StateCallResult {
+                                role,
+                                call_ordinal,
+                                target_key,
+                                value: plan.expressions.copy_from(&expressions, value),
+                            },
+                            kind => kind,
                         },
-                        RuntimeDispatchBodyOperationKind::StateCallResult {
-                            role,
-                            call_ordinal,
-                            target_key,
-                            value,
-                        } => RuntimeDispatchBodyOperationKind::StateCallResult {
-                            role,
-                            call_ordinal,
-                            target_key,
-                            value: plan.expressions.copy_from(&expressions, value),
-                        },
-                        kind => kind,
-                    },
-                    source_key: operation.source_key,
-                    statement_index: operation.statement_index,
-                }
-            }));
+                        source_key: operation.source_key,
+                        statement_index: operation.statement_index,
+                    }
+                }));
 
         plan.bodies.insert(RuntimeDispatchBody {
             key,

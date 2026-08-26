@@ -9,7 +9,6 @@ mod equality;
 mod equatable;
 mod exhaustiveness;
 mod expression;
-mod invariant;
 mod lowerer;
 mod machine;
 mod measure;

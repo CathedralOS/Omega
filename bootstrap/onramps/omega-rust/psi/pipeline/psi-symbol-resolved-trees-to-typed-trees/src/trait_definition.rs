@@ -1,5 +1,4 @@
 use crate::data::lower_type_parameter;
-use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature;
 use psi_diagnostics::Diagnostic;
@@ -22,7 +21,6 @@ pub(crate) fn lower_trait_definition(
             .collect(),
         type_parameters: psi_arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        invariants: psi_arena::HandleSpan::empty(),
         requires: psi_arena::HandleSpan::empty(),
         machines: psi_arena::HandleSpan::empty(),
     };
@@ -58,8 +56,6 @@ pub(crate) fn lower_trait_definition(
                 conformance_name: bound.conformance_name.as_ref().map(crate::name::lower_name),
             });
     }
-
-    typed_trait.invariants = lower_proof_facts(lowerer, trait_definition.invariants)?;
 
     for requirement in lowerer
         .source_trees

@@ -40,26 +40,6 @@ pub(super) fn write_checked_semantics_section(
         }
     }
 
-    output.push_str(&format!(
-        "invariants: {}\n",
-        backend_plan.control_flow.semantics.facts.invariants.len()
-    ));
-    if backend_plan
-        .control_flow
-        .semantics
-        .facts
-        .invariants
-        .is_empty()
-    {
-        output.push_str("none\n");
-    } else {
-        for (_, invariant) in backend_plan.control_flow.semantics.facts.invariants.iter() {
-            output.push_str(&format!(
-                "- `{}` constraints {}\n",
-                invariant.name, invariant.constraint_count
-            ));
-        }
-    }
     output.push('\n');
 }
 

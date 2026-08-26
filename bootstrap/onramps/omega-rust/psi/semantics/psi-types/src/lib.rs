@@ -26,7 +26,6 @@ pub enum TypeDeclarationKind {
     Capability,
     Data,
     Domain,
-    Invariant,
     Library,
     Machine,
     Operator,
@@ -125,15 +124,6 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     &format!("domain `{}` target type", domain.name),
                 );
                 collect_domain_operators(&mut report, syntax_trees, domain);
-            }
-            Item::Invariant(invariant) => {
-                insert_declaration(&mut report, &invariant.name, TypeDeclarationKind::Invariant);
-                collect_constraints(
-                    &mut report,
-                    syntax_trees,
-                    invariant.constraints,
-                    &format!("invariant `{}`", invariant.name),
-                );
             }
             Item::Library(library) => {
                 if let Some(name) = &library.name {

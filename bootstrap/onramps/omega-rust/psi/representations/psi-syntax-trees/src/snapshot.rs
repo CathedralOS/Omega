@@ -122,10 +122,6 @@ pub enum ItemSnapshot {
         operators: Vec<OperatorSnapshot>,
         semantic_clause_token_count: usize,
     },
-    Invariant {
-        name: IdentifierSnapshot,
-        constraints: Vec<TypeConstraintSnapshot>,
-    },
     Library {
         name: Option<IdentifierSnapshot>,
         path: String,
@@ -199,7 +195,6 @@ pub enum ItemSnapshot {
         type_parameters: Vec<TypeParameterSnapshot>,
         conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
         parents: Vec<TypeReferenceSnapshot>,
-        invariants: Vec<ProofFactSnapshot>,
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
     },
@@ -998,15 +993,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
             semantic_clause_token_count: value.semantic_clause_token_count,
         },
-        Item::Invariant(value) => ItemSnapshot::Invariant {
-            name: snapshot_identifier(&value.name),
-            constraints: syntax_trees
-                .type_references
-                .constraints(value.constraints)
-                .iter()
-                .map(|constraint| snapshot_type_constraint(syntax_trees, constraint))
-                .collect(),
-        },
         Item::Library(value) => ItemSnapshot::Library {
             name: value.name.as_ref().map(snapshot_identifier),
             path: value.path.clone(),
@@ -1181,7 +1167,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|parent| snapshot_type_reference_handle(syntax_trees, *parent))
                 .collect(),
-            invariants: snapshot_proof_facts(syntax_trees, value.invariants),
             requires: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.requires),
             ),

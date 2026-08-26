@@ -79,7 +79,6 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::Foreign => "foreign",
         KeywordKind::Host => "host",
         KeywordKind::If => "if",
-        KeywordKind::Invariant => "invariant",
         KeywordKind::Let => "let",
         KeywordKind::Library => "library",
         KeywordKind::Loop => "loop",

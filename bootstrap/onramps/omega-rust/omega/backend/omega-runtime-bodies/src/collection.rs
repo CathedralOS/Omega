@@ -10,7 +10,6 @@ use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
 use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use psi_checked_trees::types::TypeReferenceTable;
 
@@ -19,7 +18,6 @@ pub(super) struct CollectedRuntimeDispatchBody {
     pub key: StateKey,
     pub dispatch_index: u32,
     pub expressions: ExpressionTable,
-    pub invariant_names: Arena<Identifier>,
     pub operations: Arena<RuntimeDispatchBodyOperation>,
     pub type_references: TypeReferenceTable,
 }
@@ -81,10 +79,6 @@ pub(super) fn build_dispatch_body(
     let operation_capacity = estimated_body_operation_capacity(context, dispatch_state.key);
     let mut operations = Arena::with_capacity(operation_capacity);
     let mut expressions = ExpressionTable::with_expression_capacity(operation_capacity);
-    let mut invariant_names = Arena::with_capacity(estimated_body_invariant_name_capacity(
-        context,
-        dispatch_state.key,
-    ));
     let mut type_references = TypeReferenceTable::new();
     // A dispatch state may be one SEGMENT of a control-flow state that was split
     // at its dispatched-call boundaries (segment_index > 0). Its body is the slice
@@ -102,7 +96,6 @@ pub(super) fn build_dispatch_body(
         segment,
         &mut operations,
         &mut expressions,
-        &mut invariant_names,
         &mut type_references,
         &mut BodyVisitingStates::with_capacity(context.control_flow.states.len()),
     );
@@ -111,7 +104,6 @@ pub(super) fn build_dispatch_body(
         key: dispatch_state.key,
         dispatch_index: dispatch_state.dispatch_index,
         expressions,
-        invariant_names,
         operations,
         type_references,
     }
@@ -128,19 +120,6 @@ fn estimated_body_operation_capacity(
             .iter()
             .filter(|(_, state_call)| state_call.source_key == state_key)
             .count()
-}
-
-fn estimated_body_invariant_name_capacity(
-    context: &RuntimeDispatchBodyContext,
-    state_key: StateKey,
-) -> usize {
-    context
-        .state_storage
-        .locals
-        .iter()
-        .filter(|(_, local)| local.source_key == state_key)
-        .map(|(_, local)| local.invariant_names.len())
-        .sum()
 }
 
 /// The slice of a control-flow state's operations owned by one segment, plus
@@ -235,7 +214,6 @@ fn append_state_body_operations(
     segment: Option<SegmentSlice>,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
-    invariant_names: &mut Arena<Identifier>,
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
@@ -268,7 +246,6 @@ fn append_state_body_operations(
                 slice,
                 operations,
                 expressions,
-                invariant_names,
                 type_references,
                 visiting,
             );
@@ -471,7 +448,6 @@ fn append_state_body_operations(
             }),
             operations,
             expressions,
-            invariant_names,
             type_references,
             visiting,
         );
@@ -503,7 +479,6 @@ fn append_state_body_operations(
                 state_call,
                 operations,
                 expressions,
-                invariant_names,
                 type_references,
                 visiting,
             );
@@ -532,7 +507,6 @@ fn append_state_body_operations(
                     state_call,
                     operations,
                     expressions,
-                    invariant_names,
                     type_references,
                     visiting,
                 );
@@ -554,14 +528,6 @@ fn append_state_body_operations(
                         &context.state_storage.expressions,
                         expressions,
                         local_storage.type_reference,
-                    ),
-                    invariant_names: invariant_names.insert_many(
-                        context
-                            .state_storage
-                            .invariant_names
-                            .span_or_empty(local_storage.invariant_names)
-                            .iter()
-                            .cloned(),
                     ),
                 },
             ));
@@ -608,7 +574,6 @@ fn append_state_body_operations(
                     state_call,
                     operations,
                     expressions,
-                    invariant_names,
                     type_references,
                     visiting,
                 );
@@ -627,7 +592,6 @@ fn append_call_argument_operations_for_segment(
     segment: SegmentSlice,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
-    invariant_names: &mut Arena<Identifier>,
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
@@ -657,7 +621,6 @@ fn append_call_argument_operations_for_segment(
                 state_call,
                 operations,
                 expressions,
-                invariant_names,
                 type_references,
                 visiting,
             );
@@ -836,7 +799,6 @@ fn append_state_call_body_operation(
     state_call: &StateCall,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
-    invariant_names: &mut Arena<Identifier>,
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
@@ -857,7 +819,6 @@ fn append_state_call_body_operation(
             None,
             operations,
             expressions,
-            invariant_names,
             type_references,
             visiting,
         );
@@ -883,7 +844,6 @@ fn append_state_call_body_operation(
             None,
             operations,
             expressions,
-            invariant_names,
             type_references,
             visiting,
         );
@@ -928,7 +888,6 @@ fn append_state_call_body_operation(
             None,
             operations,
             expressions,
-            invariant_names,
             type_references,
             visiting,
         );

@@ -16,7 +16,6 @@ pub enum Item {
     Const(ConstDefinition),
     Data(DataDefinition),
     Domain(DomainDefinition),
-    Invariant(InvariantDefinition),
     Library(LibraryDefinition),
     Measure(MeasureDefinition),
     Module(ModuleDeclaration),
@@ -185,12 +184,6 @@ pub enum PropositionBody {
     Transparent {
         proposition: crate::expression::ExpressionHandle,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InvariantDefinition {
-    pub name: Identifier,
-    pub constraints: HandleSpan<crate::types::TypeConstraintNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -855,7 +848,6 @@ pub struct TraitDefinition {
     /// same requirement graph as body-level `requires A;`, while preserving
     /// generic arguments for policy identity and later substitution.
     pub parents: HandleSpan<crate::types::TypeReferenceHandle>,
-    pub invariants: HandleSpan<ProofFact>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }

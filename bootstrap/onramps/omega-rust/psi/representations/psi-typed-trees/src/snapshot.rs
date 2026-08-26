@@ -2,7 +2,6 @@ use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::domain::{DomainDefinition, ProofFact};
 use crate::expression::{ExpressionHandle, ExpressionNode};
-use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::name::Identifier;
 use crate::operator::OperatorDefinition;
@@ -103,11 +102,6 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|domain| domain_definition_snapshot(program, domain))
                     .collect(),
-                invariant_definitions: program
-                    .invariant_definitions()
-                    .iter()
-                    .map(|invariant| invariant_definition_snapshot(program, invariant))
-                    .collect(),
                 machines: program
                     .machines()
                     .iter()
@@ -139,7 +133,6 @@ impl TypedTreesSnapshot {
                 data_type_parameter_count: program.data_type_parameters.len(),
                 data_member_count: program.data_members.len(),
                 domain_definition_count: program.domain_definitions.len(),
-                invariant_definition_count: program.invariant_definitions.len(),
                 machine_count: program.machines.len(),
                 operator_count: program.operators.len(),
                 proposition_count: program.propositions.len(),
@@ -267,7 +260,6 @@ pub struct TypedRootsSnapshot {
     pub conformances: Vec<ConformanceSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
-    pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub propositions: Vec<PropositionSnapshot>,
@@ -346,7 +338,6 @@ pub struct TypedTableSnapshot {
     pub data_type_parameter_count: usize,
     pub data_member_count: usize,
     pub domain_definition_count: usize,
-    pub invariant_definition_count: usize,
     pub machine_count: usize,
     pub operator_count: usize,
     pub proposition_count: usize,
@@ -668,12 +659,6 @@ pub enum ProofFactSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct InvariantDefinitionSnapshot {
-    pub name: String,
-    pub constraints: Vec<TypeConstraintSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
@@ -791,7 +776,6 @@ pub struct TraitSnapshot {
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
-    pub invariants: Vec<ProofFactSnapshot>,
     pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
 }
@@ -1300,21 +1284,6 @@ fn domain_fact_snapshots(
         .collect()
 }
 
-fn invariant_definition_snapshot(
-    program: &TypedTrees,
-    invariant: &InvariantDefinition,
-) -> InvariantDefinitionSnapshot {
-    InvariantDefinitionSnapshot {
-        name: invariant.name.to_string(),
-        constraints: program
-            .type_reference_table
-            .constraints(invariant.constraints)
-            .iter()
-            .map(|constraint| type_constraint_snapshot(program, constraint))
-            .collect(),
-    }
-}
-
 fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
@@ -1492,7 +1461,6 @@ fn trait_definition_snapshot(
                 conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
             })
             .collect(),
-        invariants: contract_fact_snapshots(program, trait_definition.invariants),
         requires: program
             .trait_requirements(trait_definition)
             .iter()

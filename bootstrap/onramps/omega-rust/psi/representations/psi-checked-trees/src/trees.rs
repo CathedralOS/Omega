@@ -1,8 +1,8 @@
 use crate::{
     BlockingFacts, BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts,
-    DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, InvariantFacts,
-    MachineContractPlans, MutationFacts, NominalMachineUseFacts, ProofFacts, QualificationFacts,
-    ServiceReachFacts, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
+    DynamicConformanceFacts, FlowFacts, IndexCompatibilityFacts, MachineContractPlans,
+    MutationFacts, NominalMachineUseFacts, ProofFacts, QualificationFacts, ServiceReachFacts,
+    SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -11,7 +11,6 @@ pub struct CheckFacts {
     pub borrow: BorrowFacts,
     pub proof: ProofFacts,
     pub values: CheckedValueFacts,
-    pub invariants: InvariantFacts,
     pub domains: DomainFacts,
     /// Exact complete nominal conformance selected by each admitted local
     /// dynamic coercion.
@@ -61,7 +60,6 @@ impl CheckFacts {
         borrow: BorrowFacts,
         proof: ProofFacts,
         values: CheckedValueFacts,
-        invariants: InvariantFacts,
         domains: DomainFacts,
         dynamic_conformances: DynamicConformanceFacts,
         nominal_machine_uses: NominalMachineUseFacts,
@@ -84,7 +82,6 @@ impl CheckFacts {
             borrow,
             proof,
             values,
-            invariants,
             domains,
             dynamic_conformances,
             nominal_machine_uses,

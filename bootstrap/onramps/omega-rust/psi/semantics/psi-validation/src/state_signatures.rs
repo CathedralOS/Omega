@@ -85,14 +85,6 @@ pub(crate) fn validate_callable_state_signatures(
     }
 
     for trait_definition in program.traits() {
-        validate_proof_facts(
-            program,
-            program.trait_invariants(trait_definition),
-            diagnostics,
-            ProofFactOwner::TraitInvariant {
-                trait_definition: trait_definition.name.as_str(),
-            },
-        );
         for machine in program.trait_machine_signatures(trait_definition) {
             let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
             type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));

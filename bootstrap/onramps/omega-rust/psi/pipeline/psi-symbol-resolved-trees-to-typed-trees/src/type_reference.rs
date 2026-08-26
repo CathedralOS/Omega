@@ -8,7 +8,6 @@ mod direct;
 mod table;
 
 pub(crate) use constraints::lower_element_applicable_constraints;
-pub(crate) use constraints::lower_type_constraints;
 use direct::lower_type_reference_handle_with_context;
 use table::lower_type_reference_handle_from_table_with_context;
 

@@ -2,7 +2,6 @@ use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::domain::{DomainDefinition, ProofFact};
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::operator::OperatorDefinition;
 use crate::proposition::{PropositionBinderKind, PropositionBody, PropositionDefinition};
@@ -88,13 +87,6 @@ impl SymbolResolvedTreesSnapshot {
                     .iter()
                     .map(|domain| domain_definition_snapshot(symbol_resolved_trees, domain))
                     .collect(),
-                invariant_definitions: symbol_resolved_trees
-                    .invariant_definitions
-                    .iter()
-                    .map(|invariant| {
-                        invariant_definition_snapshot(symbol_resolved_trees, invariant)
-                    })
-                    .collect(),
                 machines: symbol_resolved_trees
                     .machines
                     .iter()
@@ -179,7 +171,6 @@ pub struct SymbolResolvedRootsSnapshot {
     pub conformances: Vec<ConformanceSnapshot>,
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
-    pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     pub measures: Vec<MeasureDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
@@ -457,12 +448,6 @@ pub enum ProofFactSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct InvariantDefinitionSnapshot {
-    pub name: String,
-    pub constraints: Vec<TypeConstraintSnapshot>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
@@ -564,7 +549,6 @@ pub struct TraitSnapshot {
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
-    pub invariants: Vec<ProofFactSnapshot>,
     pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
 }
@@ -1090,23 +1074,6 @@ fn domain_fact_snapshots(
         .collect()
 }
 
-fn invariant_definition_snapshot(
-    program: &SymbolResolvedTrees,
-    invariant: &InvariantDefinition,
-) -> InvariantDefinitionSnapshot {
-    InvariantDefinitionSnapshot {
-        name: invariant.name.to_string(),
-        constraints: program
-            .tables
-            .types
-            .constraints
-            .span_or_empty(invariant.constraints)
-            .iter()
-            .map(|constraint| type_constraint_snapshot(program, constraint))
-            .collect(),
-    }
-}
-
 fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
@@ -1284,7 +1251,6 @@ fn trait_definition_snapshot(
                 conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
             })
             .collect(),
-        invariants: domain_fact_snapshots(program, trait_definition.invariants),
         requires: program
             .trait_requirements(trait_definition.requires)
             .iter()

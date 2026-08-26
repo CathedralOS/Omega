@@ -14,7 +14,6 @@ pub struct TraitDefinition {
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
-    pub invariants: HandleSpan<crate::domain::ProofFact>,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
 }
@@ -29,7 +28,6 @@ impl Default for TraitDefinition {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             conformance_bounds: Vec::new(),
-            invariants: HandleSpan::empty(),
             requires: HandleSpan::empty(),
             machines: HandleSpan::empty(),
         }

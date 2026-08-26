@@ -38,7 +38,6 @@ struct StateGraphSemanticCapacity {
 #[derive(Debug, Clone, Copy, Default)]
 struct StateGraphFactCapacity {
     proof_obligations: usize,
-    invariants: usize,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -99,7 +98,6 @@ impl StateGraphCapacity {
             self.code.states,
             self.code.state_parameters,
             self.semantics.facts.proof_obligations,
-            self.semantics.facts.invariants,
             self.semantics.contracts.contract_fact_refs,
             self.semantics.contracts.contract_calls,
             self.semantics.contracts.contract_exits,
@@ -170,7 +168,6 @@ impl StateGraphSemanticCapacity {
         Self {
             facts: StateGraphFactCapacity {
                 proof_obligations: program.facts.proof.obligations.len(),
-                invariants: program.facts.invariants.definitions.len(),
             },
             contracts: StateGraphContractCapacity {
                 contract_fact_refs: program.facts.proof.contract_fact_refs.len(),
@@ -192,7 +189,6 @@ impl StateGraphSemanticCapacity {
         Self {
             facts: StateGraphFactCapacity {
                 proof_obligations: 0,
-                invariants: 0,
             },
             contracts: StateGraphContractCapacity {
                 contract_fact_refs: machine_contract_fact_ref_count(program, machine),

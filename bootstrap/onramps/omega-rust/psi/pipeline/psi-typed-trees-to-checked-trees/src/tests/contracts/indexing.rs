@@ -181,7 +181,6 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         conformance_bounds: Vec::new(),
-        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };
@@ -396,7 +395,6 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
         conformance_bounds: Vec::new(),
-        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };

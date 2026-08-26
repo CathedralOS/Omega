@@ -4,7 +4,6 @@ use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_storage::{StateLocalStorage, StateMutation, StateMutationLowering};
-use psi_arena::HandleSpan;
 use psi_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::StatementNode;
@@ -86,15 +85,6 @@ pub(super) fn build_runtime_storage_body_plan(
         .state_by_key(body.key)
         .map(|state| context.control_flow.state_parameters(state).len())
         .unwrap_or(0);
-    let local_count = operations
-        .iter()
-        .filter(|operation| {
-            matches!(
-                operation.kind,
-                RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-            )
-        })
-        .count();
     let write_count = operations
         .iter()
         .filter(|operation| {
@@ -110,7 +100,6 @@ pub(super) fn build_runtime_storage_body_plan(
             expressions: write_count.saturating_mul(2),
             ..ExpressionTableCapacity::default()
         },
-        local_count,
         parameter_count.saturating_add(operations.len()),
         write_count,
     );
@@ -133,7 +122,6 @@ pub(super) fn build_runtime_storage_body_plan(
                 name,
                 type_symbol,
                 type_reference,
-                invariant_names,
             } => {
                 // Dispatch-root locals take this direct arm instead of the
                 // branch/straight-line helper below. Preserve the same recast
@@ -167,12 +155,6 @@ pub(super) fn build_runtime_storage_body_plan(
                         .display_name(*type_reference)
                         .into(),
                     type_descriptor(&context.runtime_bodies.type_references, *type_reference),
-                    context
-                        .runtime_bodies
-                        .invariant_names
-                        .span_or_empty(*invariant_names)
-                        .iter()
-                        .cloned(),
                     layout.size,
                     layout.alignment,
                     is_static_boundary_capability(context, *type_symbol),
@@ -299,7 +281,6 @@ pub(super) fn build_straight_line_runtime_storage_plan(
             expressions: write_count.saturating_mul(2),
             ..ExpressionTableCapacity::default()
         },
-        local_count,
         parameter_count
             .saturating_add(local_count)
             .saturating_add(context.state_calls.calls.len()),
@@ -551,7 +532,6 @@ fn append_parameter_slots_for_state(
                 &context.program.type_reference_table,
                 parameter.type_reference,
             ),
-            invariant_names: HandleSpan::empty(),
             byte_offset,
             byte_size: layout.size,
             alignment: layout.alignment,
@@ -574,7 +554,6 @@ fn append_local_slot(
     type_symbol: SymbolHandle,
     type_name: Arc<str>,
     type_descriptor: omega_layout::TypeLayoutDescriptor,
-    invariant_names: impl IntoIterator<Item = Identifier>,
     byte_size: usize,
     alignment: usize,
     is_static_boundary_capability: bool,
@@ -599,7 +578,6 @@ fn append_local_slot(
         type_symbol,
         type_name,
         type_descriptor,
-        invariant_names: plan.invariant_names.insert_many(invariant_names),
         byte_offset,
         byte_size,
         alignment,
@@ -818,12 +796,6 @@ fn append_branch_local_slot(
             &context.state_storage.type_references,
             local_storage.type_reference,
         ),
-        context
-            .state_storage
-            .invariant_names
-            .span_or_empty(local_storage.invariant_names)
-            .iter()
-            .cloned(),
         layout.size,
         layout.alignment,
         is_static_boundary_capability(context, local_storage.type_symbol),
@@ -1124,7 +1096,6 @@ fn append_state_call_result_slot(
         type_symbol,
         type_name: type_name.into(),
         type_descriptor: type_descriptor(&context.program.type_reference_table, return_type),
-        invariant_names: HandleSpan::empty(),
         byte_offset,
         byte_size: layout.size,
         alignment: layout.alignment,

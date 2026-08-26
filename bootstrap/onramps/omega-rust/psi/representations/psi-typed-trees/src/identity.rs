@@ -4,9 +4,7 @@ use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
 use crate::typed_trees::TypedTrees;
-use crate::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
-};
+use crate::types::{TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
@@ -46,10 +44,6 @@ impl IdentityStorageCounts {
 
 pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
-
-    for invariant in typed_trees.invariant_definitions() {
-        count_declaration_name(&invariant.name, &mut counts);
-    }
 
     for domain in typed_trees.domain_definitions() {
         count_declaration_name(&domain.name, &mut counts);
@@ -130,9 +124,6 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in typed_trees.trait_type_parameters(trait_definition) {
             count_declaration_name(&parameter.name, &mut counts);
-        }
-        for fact in typed_trees.trait_invariants(trait_definition) {
-            count_proof_fact(typed_trees, fact, &mut counts);
         }
         for signature in typed_trees.trait_machine_signatures(trait_definition) {
             count_declaration_name(&signature.name, &mut counts);
@@ -248,15 +239,6 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
                     &mut counts,
                 );
             }
-        }
-    }
-
-    for invariant in typed_trees.invariant_definitions() {
-        for constraint in typed_trees
-            .type_reference_table
-            .constraints(invariant.constraints)
-        {
-            count_type_constraint(&typed_trees.expression_table, constraint, &mut counts);
         }
     }
 
@@ -675,22 +657,6 @@ fn count_static_argument(
         for nested in &application.arguments {
             count_static_argument(nested, counts);
         }
-    }
-}
-
-fn count_type_constraint(
-    expressions: &ExpressionTable,
-    constraint: &TypeConstraintNode,
-    counts: &mut IdentityStorageCounts,
-) {
-    match constraint {
-        TypeConstraintNode::Named(name) => count_type_name(name, counts),
-        TypeConstraintNode::Domain(domain) => count_type_name(&domain.name, counts),
-        TypeConstraintNode::Range { minimum, maximum } => {
-            count_expression_handle(expressions, *minimum, counts);
-            count_expression_handle(expressions, *maximum, counts);
-        }
-        TypeConstraintNode::ArithmeticDomain(_) => {}
     }
 }
 

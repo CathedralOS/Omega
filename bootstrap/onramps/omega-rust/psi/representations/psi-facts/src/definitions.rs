@@ -1,7 +1,6 @@
 use psi_arena::{Handle, HandleSpan};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::types::TypeConstraintNode;
 
 use crate::{
     DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload,
@@ -15,7 +14,6 @@ pub fn build_definition_fact_plan(program: &TypedTrees) -> FactPlan {
     );
 
     append_domain_definition_facts(program, &mut facts);
-    append_invariant_definition_facts(program, &mut facts);
 
     facts
 }
@@ -26,20 +24,11 @@ fn estimated_definition_fact_capacity(program: &TypedTrees) -> usize {
         .iter()
         .map(|domain| program.proof_facts(domain).len())
         .sum::<usize>();
-    let invariant_constraints = program
-        .invariant_definitions()
-        .iter()
-        .map(|invariant| invariant.constraints.len())
-        .sum::<usize>();
-
-    domain_facts.saturating_add(invariant_constraints)
+    domain_facts
 }
 
 fn estimated_definition_context_capacity(program: &TypedTrees) -> usize {
-    program
-        .domain_definitions()
-        .len()
-        .saturating_add(program.invariant_definitions().len())
+    program.domain_definitions().len()
 }
 
 fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
@@ -391,34 +380,6 @@ fn append_proof_fact_place(
     }
 }
 
-fn append_invariant_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
-    for invariant in program.invariant_definitions() {
-        let mut refs = HandleSpan::empty();
-        let place = facts.append_symbol_place(invariant.symbol);
-        for constraint in type_constraint_handles(invariant.constraints) {
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Place(place),
-                point: ProgramPoint::Definition {
-                    symbol: invariant.symbol,
-                },
-                origin: FactOrigin::InvariantDefinition {
-                    invariant_symbol: invariant.symbol,
-                },
-                evidence: Default::default(),
-                payload: FactPayload::TypeConstraint { constraint },
-            });
-            facts.append_ref(&mut refs, fact);
-        }
-        facts.append_context(
-            ProgramPoint::Definition {
-                symbol: invariant.symbol,
-            },
-            refs,
-        );
-        facts.append_symbol_set(invariant.symbol, refs);
-    }
-}
-
 fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Handle<ProofFact>> {
     (0..facts.count()).map(move |offset| {
         Handle::from_parts(
@@ -428,21 +389,6 @@ fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Hand
                 .checked_add(offset)
                 .expect("proof fact handle index overflow"),
             facts.start().generation(),
-        )
-    })
-}
-
-fn type_constraint_handles(
-    constraints: HandleSpan<TypeConstraintNode>,
-) -> impl Iterator<Item = Handle<TypeConstraintNode>> {
-    (0..constraints.count()).map(move |offset| {
-        Handle::from_parts(
-            constraints
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("type constraint handle index overflow"),
-            constraints.start().generation(),
         )
     })
 }
