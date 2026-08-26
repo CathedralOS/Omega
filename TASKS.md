@@ -4079,12 +4079,18 @@ Remaining:
   covering the complete interval yield falsehood; partial safety rejects.
   Stale definition, literal, or bound identity; correlation/order/type/root
   drift; constant collapse; one-sided bounds; and checked arithmetic failure
-  reject. The result remains custody only: it accepts no proof authority and
-  neither its bounds nor conclusion are certificate premises. The general
-  affine-bound rule does not certify this two-branch lattice result; a dedicated
+  reject. The legacy trusted exact divide/remainder reducer now deterministically
+  retains the exact definition/literal and tight-bound axiom coordinates,
+  constructs this complete witness, invokes the independent checker, and uses
+  only the checker's reconstructed sufficient conclusion. Its former duplicate
+  lattice-root/value computation is gone. This consumes checked custody without
+  promoting trust: the reducer remains trusted, the result accepts no proof
+  authority, and neither its bounds nor conclusion are certificate premises.
+  The general affine-bound rule does not certify this two-branch lattice result;
+  a dedicated
   certificate conversion for the checked correlated result remains. No trusted
-  reducer proposition is imported as proof
-  authority and no partial exact row migrated. No schema, reducer,
+  reducer proposition is imported as proof authority and no partial exact row
+  migrated. No schema, reducer,
   semantic-operation, or other trust status is promoted; the current terminal
   semantic, proof-bundle, and installation encodings remain unchanged, and the
   accepted trust closure remains `fully-derived false`.

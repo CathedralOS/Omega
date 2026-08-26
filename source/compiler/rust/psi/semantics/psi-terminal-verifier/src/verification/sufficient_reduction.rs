@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{Proposition, ScalarTerm, ValueId};
+use psi_core::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use psi_terminal_semantics::{
     CanonicalScalarGoal, ProofBearingScalarLeafSemantics, ScalarLeafDenotation,
 };
@@ -25,6 +25,7 @@ use super::integer_multiply::exact_integer_multiply_obligation_with_definitions;
 use super::integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
 
 pub(super) fn reduce_proof_bearing_scalar_goal(
+    proposition_context: &PropositionContext,
     semantics: &ProofBearingScalarLeafSemantics,
     semantic_axioms: &[Proposition],
     machine_requirements: &[Proposition],
@@ -136,6 +137,7 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
                 right,
             },
         ) => exact_integer_divide_obligation_with_definitions(
+            proposition_context,
             *integer_type,
             left.clone(),
             right.clone(),
@@ -151,6 +153,7 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
                 right,
             },
         ) => exact_integer_remainder_obligation_with_definitions(
+            proposition_context,
             *integer_type,
             left.clone(),
             right.clone(),

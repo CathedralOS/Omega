@@ -6,7 +6,13 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{
+    IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+};
+use psi_proof_admission::{
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
+    IntegerCorrelatedForbiddenRootWitness, check_integer_correlated_forbidden_root_witness,
+};
 
 use super::{
     ExactIntegerOffsetOperation, IntegerOffset, canonical_conjunction,
@@ -17,9 +23,38 @@ use super::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExactIntegerAffineForkBranch {
     root: ScalarTerm,
+    target: ScalarTerm,
     coefficient: IntegerOffset,
     offset: IntegerOffset,
     definition_indices: BTreeSet<usize>,
+    steps: Vec<CorrelatedAffineStepWitness>,
+}
+
+fn landed_integer_constant_axiom_index(
+    integer_type: psi_core::IntegerType,
+    term: &ScalarTerm,
+    semantic_axioms: &[Proposition],
+    prior_axiom_count: usize,
+) -> Option<Option<usize>> {
+    if term
+        .integer_value()
+        .is_some_and(|(known_type, value)| known_type == integer_type && integer_type.admits(value))
+    {
+        return Some(None);
+    }
+    semantic_axioms[..prior_axiom_count.min(semantic_axioms.len())]
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(index, axiom)| match axiom {
+            Proposition::Equal(left, right) if left == term => right
+                .integer_value()
+                .filter(|(known_type, value)| {
+                    *known_type == integer_type && integer_type.admits(*value)
+                })
+                .map(|_| Some(index)),
+            _ => None,
+        })
 }
 
 fn exact_integer_affine_fork_branch(
@@ -30,10 +65,12 @@ fn exact_integer_affine_fork_branch(
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Option<ExactIntegerAffineForkBranch> {
     fixed_integer_type_interval(integer_type)?;
+    let target = variable.clone();
     let mut coefficient = IntegerOffset::Nonnegative(1);
     let mut offset = IntegerOffset::Nonnegative(0);
     let mut prior_axiom_count = definition_axiom_count.min(semantic_axioms.len());
     let mut definition_indices = BTreeSet::new();
+    let mut steps = Vec::new();
     for _ in 0..=prior_axiom_count {
         if !definition_indices.is_empty()
             && matches!(
@@ -46,9 +83,11 @@ fn exact_integer_affine_fork_branch(
         {
             return Some(ExactIntegerAffineForkBranch {
                 root: variable,
+                target,
                 coefficient,
                 offset,
                 definition_indices,
+                steps: steps.into_iter().rev().collect(),
             });
         }
         let (definition_index, definition) = semantic_axioms[..prior_axiom_count]
@@ -115,6 +154,15 @@ fn exact_integer_affine_fork_branch(
         {
             return None;
         }
+        steps.push(CorrelatedAffineStepWitness {
+            definition_axiom: definition_index,
+            literal_axiom: landed_integer_constant_axiom_index(
+                integer_type,
+                right,
+                semantic_axioms,
+                definition_index,
+            )?,
+        });
         offset = nested_offset
             .checked_multiply_offset(coefficient)
             .and_then(|nested| nested.checked_add(offset))?;
@@ -175,6 +223,8 @@ pub(super) fn exact_integer_affine_fork_join_obligation(
 struct ExactIntegerSignatureInterval {
     interval: (i128, i128),
     selected_bounds: Vec<Proposition>,
+    lower_bound_index: Option<usize>,
+    upper_bound_index: Option<usize>,
 }
 
 fn exact_integer_signature_interval(
@@ -192,7 +242,11 @@ fn exact_integer_signature_interval(
             .then(|| integer_value_as_i128(value))
             .flatten()
     };
-    for axiom in &semantic_axioms[definition_axiom_count.min(semantic_axioms.len())..] {
+    for (index, axiom) in semantic_axioms
+        .iter()
+        .enumerate()
+        .skip(definition_axiom_count.min(semantic_axioms.len()))
+    {
         let Proposition::LessOrEqual(left, right) = axiom else {
             continue;
         };
@@ -201,25 +255,27 @@ fn exact_integer_signature_interval(
             && candidate > minimum
         {
             minimum = candidate;
-            lower_bound = Some(axiom.clone());
+            lower_bound = Some((index, axiom.clone()));
         }
         if left == root
             && let Some(candidate) = constant(right)
             && candidate < maximum
         {
             maximum = candidate;
-            upper_bound = Some(axiom.clone());
+            upper_bound = Some((index, axiom.clone()));
         }
     }
     if minimum > maximum {
         return None;
     }
     let mut selected_bounds = Vec::with_capacity(2);
-    selected_bounds.extend(lower_bound);
-    selected_bounds.extend(upper_bound);
+    selected_bounds.extend(lower_bound.as_ref().map(|(_, bound)| bound.clone()));
+    selected_bounds.extend(upper_bound.as_ref().map(|(_, bound)| bound.clone()));
     Some(ExactIntegerSignatureInterval {
         interval: (minimum, maximum),
         selected_bounds,
+        lower_bound_index: lower_bound.map(|(index, _)| index),
+        upper_bound_index: upper_bound.map(|(index, _)| index),
     })
 }
 
@@ -359,26 +415,8 @@ pub(super) fn exact_integer_same_root_affine_product_join_obligation(
     Some(canonical_conjunction(signature.selected_bounds))
 }
 
-fn exact_integer_affine_equation_root(
-    coefficient: i128,
-    offset: i128,
-    target: i128,
-) -> Option<Option<i128>> {
-    if coefficient == 0 {
-        return None;
-    }
-    let numerator = target.checked_sub(offset)?;
-    if numerator.checked_rem(coefficient)? != 0 {
-        return Some(None);
-    }
-    Some(Some(numerator.checked_div(coefficient)?))
-}
-
-fn exact_integer_affine_value(coefficient: i128, offset: i128, root: i128) -> Option<i128> {
-    coefficient.checked_mul(root)?.checked_add(offset)
-}
-
 pub(super) fn exact_integer_same_root_affine_divide_remainder_join_obligation(
+    proposition_context: &PropositionContext,
     integer_type: psi_core::IntegerType,
     left: ScalarTerm,
     right: ScalarTerm,
@@ -422,38 +460,40 @@ pub(super) fn exact_integer_same_root_affine_divide_remainder_join_obligation(
     if signature.selected_bounds.len() != 2 {
         return None;
     }
-    let left_coefficient = integer_offset_as_i128(left.coefficient)?;
-    let left_offset = integer_offset_as_i128(left.offset)?;
-    let right_coefficient = integer_offset_as_i128(right.coefficient)?;
-    let right_offset = integer_offset_as_i128(right.offset)?;
-    let mut forbidden_roots = BTreeSet::new();
-    if let Some(root) = exact_integer_affine_equation_root(right_coefficient, right_offset, 0)?
-        && root >= signature.interval.0
-        && root <= signature.interval.1
-    {
-        forbidden_roots.insert(root);
+    let lower_bound_axiom = signature.lower_bound_index?;
+    let upper_bound_axiom = signature.upper_bound_index?;
+    let dividend = CorrelatedAffineBranchWitness {
+        root: left.root.clone(),
+        target: left.target,
+        steps: left.steps,
+    };
+    let divisor = CorrelatedAffineBranchWitness {
+        root: right.root,
+        target: right.target,
+        steps: right.steps,
+    };
+    for conclusion in [
+        canonical_conjunction(signature.selected_bounds),
+        Proposition::Falsehood,
+    ] {
+        let witness = IntegerCorrelatedForbiddenRootWitness {
+            dividend: dividend.clone(),
+            divisor: divisor.clone(),
+            definition_axiom_count,
+            lower_bound_axiom,
+            upper_bound_axiom,
+            conclusion,
+        };
+        if let Ok(checked) = check_integer_correlated_forbidden_root_witness(
+            proposition_context,
+            semantic_axioms,
+            machine_parameter_values,
+            &witness,
+        ) {
+            return Some(checked.conclusion().clone());
+        }
     }
-    if let Some(root) = exact_integer_affine_equation_root(right_coefficient, right_offset, -1)?
-        && root >= signature.interval.0
-        && root <= signature.interval.1
-        && exact_integer_affine_value(left_coefficient, left_offset, root)?
-            == integer_value_as_i128(integer_type.minimum_value())?
-    {
-        forbidden_roots.insert(root);
-    }
-    if forbidden_roots.is_empty() {
-        return Some(canonical_conjunction(signature.selected_bounds));
-    }
-    let interval_size = signature
-        .interval
-        .1
-        .checked_sub(signature.interval.0)?
-        .checked_add(1)?;
-    if interval_size == i128::try_from(forbidden_roots.len()).ok()? {
-        Some(Proposition::Falsehood)
-    } else {
-        None
-    }
+    None
 }
 
 pub(super) fn exact_integer_distinct_root_affine_fork_join_obligation(

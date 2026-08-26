@@ -2831,13 +2831,21 @@ falsehood; partial safety rejects. Stale definitions or landed siblings,
 branch/correlation/order/type/root drift, one-sided or redirected bounds,
 constant branches, and checked arithmetic failure reject.
 
+The legacy trusted exact divide/remainder reducer now selects the complete
+branch-definition and landed-literal coordinates plus the deterministic tight
+lower/upper axiom indexes, constructs this witness, calls the independent
+checker, and returns only its reconstructed sufficient conclusion. The prior
+duplicate divisor-root and dividend-value lattice calculation has been removed.
+This is checker consumption, not proof promotion: the reducer remains trusted
+and its exact divide/remainder certificate routing is unchanged.
+
 This forbidden-root checker accepts no proposition as authority and does not
 turn its checked sufficient conclusion or selected bounds into a certificate
 premise. `IntegerAffineBound` covers one mapped affine target bound, not this
 correlated two-branch lattice conclusion. Producer selection of complete affine
-root proofs/definition words and a dedicated correlated conversion still
-remain. Until those conversions cover every accepted family, neither exact row
-switches reconstruction or gains an
+root proofs/definition words is now live in the legacy reducer; a dedicated
+correlated certificate conversion still remains. Until that conversion covers
+every accepted family, neither exact row switches reconstruction or gains an
 evidence-dependent fallback. No proof vocabulary, schema, or reducer node is
 further promoted by the correlated custody form, and terminal closure remains
 `fully-derived false`.

@@ -44,6 +44,7 @@ pub(super) fn append_operation(
         )
         .then(|| {
             reduce_proof_bearing_scalar_goal(
+                proposition_context,
                 &semantics,
                 axioms,
                 &machine.contract.requires,
@@ -80,6 +81,7 @@ pub(super) fn append_operation(
         } else {
             literal_aware_exact_reduction.unwrap_or_else(|| {
                 reduce_proof_bearing_scalar_goal(
+                    proposition_context,
                     &semantics,
                     axioms,
                     &machine.contract.requires,
