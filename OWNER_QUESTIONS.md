@@ -70,19 +70,26 @@ aliases are local and may be explicitly renamed.
 
 ### Proposed direction
 
-Make the expected canonical package name explicit in the authored Git source
-request. Treat it only as selection intent: after authenticating the repository
-root, project its workspace members, project each member's own declaration, and
-require exactly one declaration to match. The package-authored declaration—not
-the request string—continues to establish the name joined into `PackageKey`.
-A repository-root package follows the same match rule, avoiding two resolution
-models.
+Keep the existing `Source::Git` case for an unambiguous repository-root package;
+the resolver reads that package's own declaration, so the caller does not
+repeat its name. Add ordinary `Source::GitPackage { repository, revision,
+package }` data—not grammar—for selecting a package from a workspace Git
+source. Treat `package` only as selection intent:
+after authenticating the repository root, project its declared member paths and
+require exactly one member's own package declaration to match. That fetched
+declaration—not the request string—establishes the name joined into
+`PackageKey`. Using root-package `Source::Git` on a workspace rejects as
+ambiguous.
 
 ### Alternates
 
-- Acceptable: a concise ordinary Omega wrapper operation may carry the expected
-  name separately from `Source::Git`, provided it is mandatory, survives
-  dependency projection, and has the same exact-match semantics.
+- Acceptable: add an optional selector to the existing Git source data if Omega
+  construction remains concise and omission is permitted only for a
+  repository-root package. A separate source case is clearer with the current
+  explicit data model.
+- Tempting but wrong: require a package-name field for every Git source. A
+  repository-root package is already unambiguous, so this makes every ordinary
+  package declare the same name twice.
 - Tempting but wrong: select by member directory path; repository relocation
   would become package replacement and callers would duplicate workspace
   layout.
