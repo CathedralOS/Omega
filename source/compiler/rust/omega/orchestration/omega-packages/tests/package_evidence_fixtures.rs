@@ -8,7 +8,8 @@ use omega_compiler::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use omega_packages::{
-    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
+    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageAdvisoryReviewOutput,
+    PackageAdvisoryReviewRequest, PackageAdvisoryReviewer, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError,
     ReviewOnlyBaselineLimits, ReviewOnlyBaselineName, ReviewOnlyBaselineNameError,
@@ -16,10 +17,12 @@ use omega_packages::{
     assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    resolve_workspace_package_closure, triage_initial_install, triage_review_update,
-    triage_review_update_from_baseline, triage_update_without_admission_baseline,
+    invoke_package_advisory_review, resolve_workspace_package_closure, triage_initial_install,
+    triage_review_update, triage_review_update_from_baseline,
+    triage_update_without_admission_baseline,
 };
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -36,6 +39,33 @@ const PACKAGES: &[&str] = &[
     "capability-vault",
     "graph-workbench",
 ];
+
+struct NoAdditionalAuditReviewer;
+
+impl PackageAdvisoryReviewer for NoAdditionalAuditReviewer {
+    type Error = Infallible;
+
+    fn review(
+        &mut self,
+        request: &PackageAdvisoryReviewRequest,
+        output: &mut PackageAdvisoryReviewOutput,
+    ) -> Result<(), Self::Error> {
+        assert!(request.instructions().contains("untrusted data"));
+        assert!(
+            request
+                .review_input()
+                .starts_with("OMEGA_PACKAGE_REVIEW_INPUT_V1\n")
+        );
+        assert!(
+            request
+                .response_schema()
+                .contains("recommend_audit|no_additional_audit")
+        );
+        let response = "OMEGA_PACKAGE_ADVISORY_RESULT_V1\nrecommendation no_additional_audit\nend_advisory_result\n";
+        output.write(response.as_bytes()).expect("bounded response");
+        Ok(())
+    }
+}
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -612,6 +642,23 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .render_bounded(8 * 1024 * 1024)
             .expect("fixture initial review input stays bounded");
         assert!(!rendered_initial.contains(&cache.display().to_string()));
+        let advisory = invoke_package_advisory_review(
+            &initial_review,
+            &mut NoAdditionalAuditReviewer,
+            8 * 1024 * 1024,
+            256,
+        )
+        .expect("fixture review crosses the bounded advisory boundary");
+        assert_eq!(
+            advisory.deterministic_disposition(),
+            initial_triage.disposition(),
+            "advisory output cannot change {package} compiler disposition"
+        );
+        assert_eq!(
+            advisory.audit_recommended(),
+            initial_review.deterministic_audit_recommended(),
+            "no-additional-audit cannot suppress {package} compiler policy"
+        );
 
         let unchanged_triage = triage_review_update(&reviews, &reviews, &BTreeSet::new());
         let unchanged_root = unchanged_triage

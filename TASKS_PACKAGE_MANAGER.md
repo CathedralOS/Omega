@@ -2618,9 +2618,21 @@ complete.
   standalone candidate packet, and new packages follow initial-admission risk
   policy.
   One aggregate ceiling frames compiler-only triage separately from hostile
-  source lanes. Advisory model invocation, row-specific capability conflicts,
-  sealed accepted-baseline loading, and policy application of the advisory
-  result remain.
+  source lanes.
+
+  Progress 2026-08-26: the runner-neutral advisory boundary is implemented.
+  It supplies fixed system instructions separately from the bounded rendered
+  evidence and response schema; the package library selects no model and
+  supplies no ambient network authority. The caller sets an output ceiling and
+  the runner streams response bytes into an Omega-owned bounded sink. Only the
+  exact canonical result envelope with one of two tokens—`recommend_audit`
+  or `no_additional_audit`—is accepted.
+  Advice is monotone: it may add an audit recommendation, but cannot suppress a
+  compiler recommendation or alter a blocker. It emits no prose and has no
+  authority to prove an audit, resolve a conflict, admit a package or evidence,
+  set policy, or mutate project state. Provider/configuration and CLI wiring,
+  row-specific capability conflicts, sealed accepted-baseline loading, and
+  policy application of the input-bound advisory result remain.
 
 - **AUDIT-RESULT-STATES.** Represent at least `admitted`,
   `admitted-with-audit-recommended`,

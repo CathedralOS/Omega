@@ -129,9 +129,11 @@ pub use source_patch::{
     render_package_source_patch,
 };
 pub use source_review::{
-    PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewInput,
-    PackageSourceReviewLimits, PackageSourceReviewRenderError, assemble_initial_source_review,
-    assemble_update_source_review,
+    PackageAdvisoryRecommendation, PackageAdvisoryReviewError, PackageAdvisoryReviewOutcome,
+    PackageAdvisoryReviewOutput, PackageAdvisoryReviewOutputError, PackageAdvisoryReviewRequest,
+    PackageAdvisoryReviewer, PackageSourceReviewCustodyRole, PackageSourceReviewError,
+    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
+    assemble_initial_source_review, assemble_update_source_review, invoke_package_advisory_review,
 };
 pub use source_triage::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
