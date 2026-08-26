@@ -372,6 +372,20 @@ fn callback_private_materialization_rejects_duplicate_source_placement() {
 }
 
 #[test]
+fn callback_private_materialization_rejects_overlapping_named_slots() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",
+        "Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 8)",
+    );
+    let rendered = compile_std_negative("overlapping-slots", &source);
+
+    assert!(
+        rendered.contains("private callback slots") && rendered.contains("overlap"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
 fn callback_private_materialization_rejects_a_machine_as_slot_identity() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
         "Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
