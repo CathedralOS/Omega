@@ -33,6 +33,10 @@ pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
     pub(super) files: Vec<crate::pipeline::source::SourceFile>,
     pub(super) sources: Arc<psi_source::SourceMap>,
+    /// Exact companion `build.omg` selected during project discovery. Build
+    /// authority is attached to this source, never reconstructed from a leaf
+    /// filename after imports have expanded the source frontier.
+    pub(super) build_source_id: Option<psi_source::SourceId>,
 }
 
 pub(super) fn append_retained_generated_sources(
@@ -166,8 +170,21 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+    let project_roots = project_roots(root_path);
+    let selected_build_path = project_roots
+        .build
+        .as_deref()
+        .map(|path| {
+            path.canonicalize().map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "failed to establish exact build source {}: {error}",
+                    path.display()
+                ))]
+            })
+        })
+        .transpose()?;
     let mut imports = ImportQueue::default();
-    for root in project_roots(root_path) {
+    for root in project_roots.sources {
         imports.seed(root);
     }
 
@@ -214,7 +231,28 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         timings,
     )?;
 
-    let build_requires_filesystem_layout = inject_build_prelude(&mut source_storage, timings)?;
+    let build_source_id = selected_build_path
+        .as_deref()
+        .map(|selected| {
+            source_storage
+                .files
+                .iter()
+                .find(|(_, file)| {
+                    file.path
+                        .canonicalize()
+                        .is_ok_and(|loaded| loaded == selected)
+                })
+                .map(|(_, file)| file.source_id)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "selected build source {} disappeared from the loaded frontier",
+                        selected.display()
+                    ))]
+                })
+        })
+        .transpose()?;
+    let build_requires_filesystem_layout =
+        inject_build_prelude(&mut source_storage, build_source_id, timings)?;
     if build_requires_filesystem_layout {
         imports.seed(
             crate::pipeline::frontend::bundled_omega_root().join("language/std/filesystem.omg"),
@@ -244,7 +282,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
 
     validate_selected_target(&source_storage, target_name)?;
     let source_file_count = source_storage.file_count();
-    let syntax = assemble_syntax(source_storage)?;
+    let syntax = assemble_syntax(source_storage, build_source_id)?;
 
     Ok((source_file_count, syntax))
 }
@@ -540,14 +578,14 @@ pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
 
 fn inject_build_prelude(
     source_storage: &mut SourceStorage,
+    build_source_id: Option<psi_source::SourceId>,
     timings: &mut CompileTimings,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut has_build_data = false;
     let mut build_reaches_filesystem = false;
     for (_, file) in source_storage.files.iter() {
-        let is_build_file =
-            file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg");
+        let is_build_file = Some(file.source_id) == build_source_id;
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
                 psi_syntax_trees::item::Item::Machine(machine)
@@ -762,12 +800,16 @@ fn substitute_native_gui_provider(
     Ok(())
 }
 
-fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+fn assemble_syntax(
+    sources: SourceStorage,
+    build_source_id: Option<psi_source::SourceId>,
+) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let files = sources.files.storage_slice().to_vec();
     Ok(AssembledSyntax {
         syntax_trees: sources.syntax_trees,
         files,
         sources: Arc::new(sources.sources),
+        build_source_id,
     })
 }
 

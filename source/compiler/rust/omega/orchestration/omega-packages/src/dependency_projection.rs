@@ -1,22 +1,18 @@
-use crate::declaration::{
-    BuildDeclaration, BuildDeclarationError, extract_build_from_syntax_trees,
-};
+use crate::declaration::{BuildDeclaration, BuildDeclarationError, convert_shared_declaration};
 use crate::identity::{AliasName, PackageName};
+use omega_build_declarations as shared;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::item::Item;
 use psi_syntax_trees::statement::{StatementHandle, StatementNode};
-use psi_syntax_trees::types::TypeReferenceNode;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const BUILD_FILE_NAME: &str = "build.omg";
-const BUILD_MACHINE_NAME: &str = "build";
 const BUILD_TYPE_NAME: &str = "Build";
-const BUILDER_PARAMETER_NAME: &str = "builder";
 const SOURCE_TYPE_NAME: &str = "Source";
 const DEPEND_MACHINE_NAME: &str = "depend";
 const DEPEND_AS_MACHINE_NAME: &str = "depend_as";
@@ -252,89 +248,19 @@ fn extract_build_projection_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDependencyProjection, DependencyProjectionError> {
     reject_authored_toolchain_vocabulary(syntax_trees)?;
-
-    let named_builds = syntax_trees
-        .root_items()
-        .filter_map(|item| match item {
-            Item::Machine(machine)
-                if machine_leaf_name(machine.name.as_str()) == BUILD_MACHINE_NAME =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    if let Some(scoped) = named_builds
-        .iter()
-        .find(|machine| machine.attached_data.is_some())
-    {
-        return Err(DependencyProjectionError::ScopedBuildMachine {
-            scope: scoped
-                .attached_data
-                .as_ref()
-                .expect("scoped build has an owner")
-                .as_str()
-                .to_owned(),
-        });
-    }
-    if named_builds.len() > 1 {
-        return Err(DependencyProjectionError::DuplicateBuildMachines {
-            count: named_builds.len(),
-        });
-    }
-
-    let Some(build) = named_builds.first() else {
-        reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
-        validate_build_declaration(syntax_trees)?;
-        unreachable!("a valid build declaration has one authoritative build machine")
+    let build_entry = match shared::project_build_entry_syntax(syntax_trees) {
+        Ok(projection) => projection,
+        Err(error @ shared::BuildDeclarationError::MissingBuildDeclaration) => {
+            reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
+            return Err(map_build_declaration_error(error));
+        }
+        Err(error) => return Err(map_build_declaration_error(error)),
     };
-    if build.bodyless
-        || build.boundary
-        || build.target.is_some()
-        || !build.lifetime_parameters.is_empty()
-        || !build.type_parameters.is_empty()
-    {
-        return Err(DependencyProjectionError::InvalidBuildMachine);
-    }
-    let entry_handle = *syntax_trees
-        .items
-        .state_handles(build.states)
-        .first()
-        .ok_or(DependencyProjectionError::MissingBuildEntry)?;
+    let entry_handle = build_entry.build_entry();
     let entry = syntax_trees.items.state(entry_handle);
     let builder_parameter = syntax_trees
         .items
-        .state_parameters(entry.parameters)
-        .first()
-        .map(|handle| syntax_trees.items.state_parameter(*handle))
-        .ok_or(DependencyProjectionError::InvalidBuildParameter)?;
-    if builder_parameter.name.as_str() != BUILDER_PARAMETER_NAME
-        || builder_parameter.is_const
-        || builder_parameter.is_self
-    {
-        return Err(DependencyProjectionError::InvalidBuildParameter);
-    }
-    let TypeReferenceNode::Reference {
-        referee,
-        access,
-        lifetime,
-    } = syntax_trees
-        .type_references
-        .type_reference(builder_parameter.type_reference)
-    else {
-        return Err(DependencyProjectionError::InvalidBuildParameter);
-    };
-    if lifetime.is_some() || !access.is_exclusive() || !access.is_readable() {
-        return Err(DependencyProjectionError::InvalidBuildParameter);
-    }
-    if !matches!(
-        syntax_trees.type_references.type_reference(*referee),
-        TypeReferenceNode::Named(name) if name.as_str() == BUILD_TYPE_NAME
-    ) {
-        return Err(DependencyProjectionError::InvalidBuildParameter);
-    }
-
+        .state_parameter(build_entry.builder_parameter());
     let builder_name = builder_parameter.name.as_str();
     let mut requests = Vec::new();
     let mut accepted_statements = Vec::new();
@@ -395,18 +321,32 @@ fn extract_build_projection_from_syntax_trees(
         &accepted_sources,
         &accepted_aliases,
     )?;
-    let declaration = validate_build_declaration(syntax_trees)?;
+    let role_projection = shared::project_build_declaration_in_entry(syntax_trees, build_entry)
+        .map_err(map_build_declaration_error)?;
+    let declaration = convert_shared_declaration(role_projection.into_declaration());
     Ok(BuildDependencyProjection {
         declaration,
         dependencies: requests,
     })
 }
 
-fn validate_build_declaration(
-    syntax_trees: &SyntaxTrees,
-) -> Result<BuildDeclaration, DependencyProjectionError> {
-    extract_build_from_syntax_trees(syntax_trees)
-        .map_err(|error| DependencyProjectionError::BuildDeclaration(Box::new(error)))
+fn map_build_declaration_error(error: BuildDeclarationError) -> DependencyProjectionError {
+    match error {
+        BuildDeclarationError::ScopedBuildMachine { scope } => {
+            DependencyProjectionError::ScopedBuildMachine { scope }
+        }
+        BuildDeclarationError::DuplicateBuildMachines { count } => {
+            DependencyProjectionError::DuplicateBuildMachines { count }
+        }
+        BuildDeclarationError::InvalidBuildMachine => {
+            DependencyProjectionError::InvalidBuildMachine
+        }
+        BuildDeclarationError::MissingBuildEntry => DependencyProjectionError::MissingBuildEntry,
+        BuildDeclarationError::InvalidBuildParameter => {
+            DependencyProjectionError::InvalidBuildParameter
+        }
+        error => DependencyProjectionError::BuildDeclaration(Box::new(error)),
+    }
 }
 
 fn reject_authored_toolchain_vocabulary(

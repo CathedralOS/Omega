@@ -1720,23 +1720,28 @@ impl Default for BuildConfig {
 }
 
 /// Whether a machine is the program's build machine: named `build` (the
-/// FREE pure-config shape) or `<Component>::build` (the dependency-
-/// injection shape, owner answer #2) AND declared at a build.omg root --
-/// the FILE is the identity (owner answer #3: build.omg is the home;
-/// `MazeBuilder::build` in ordinary source is just a machine). The caller
-/// threads the build-file machine names from the syntax stage, where
-/// per-file item attribution exists; typed machines carry no source file.
+/// FREE pure-config shape) or `<Component>::build` (the Q4 compatibility
+/// shape) AND declared in the exact companion `build.omg` selected by project
+/// discovery. Typed symbols retain authored source identity, so neither a
+/// filename scan nor a machine-name handoff is authority.
 /// A wrong-arity build machine still refuses at evaluation with the arity
 /// error (pinned by fail/build/build_machine_wrong_arity).
 pub(crate) fn is_build_machine(
+    typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
-    build_file_machines: &[String],
+    build_source_id: Option<psi_source::SourceId>,
 ) -> bool {
     let name = machine.name.as_str();
     if name != BUILD_MACHINE && !name.ends_with("::build") {
         return false;
     }
-    build_file_machines.iter().any(|declared| declared == name)
+    let Some(build_source_id) = build_source_id else {
+        return false;
+    };
+    typed
+        .symbols
+        .symbol_source_span(machine.symbol)
+        .is_some_and(|span| span.source_id == build_source_id)
 }
 
 fn is_exact_toolchain_build_service(
@@ -2071,7 +2076,7 @@ fn is_source_open_read_close_replay_record(
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(
     typed: &TypedTrees,
-    build_file_machines: &[String],
+    build_source_id: Option<psi_source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
@@ -2080,7 +2085,7 @@ pub(crate) fn compute_build_config(
     let mut build_machines = typed
         .machines()
         .iter()
-        .filter(|machine| is_build_machine(machine, build_file_machines));
+        .filter(|machine| is_build_machine(typed, machine, build_source_id));
     let Some(machine) = build_machines.next() else {
         return Ok(ComputedBuildConfig {
             config: BuildConfig::default(),

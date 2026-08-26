@@ -317,7 +317,7 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
 struct CheckedFrontend {
     typed: psi_typed_trees::TypedTrees,
     target_default_machine_names: Vec<String>,
-    build_file_machine_names: Vec<String>,
+    build_source_id: Option<psi_source::SourceId>,
     boundary_calling_plan_realizations:
         Vec<crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization>,
 }
@@ -346,18 +346,7 @@ fn lower_checked_frontend(
         &mut syntax.syntax_trees,
         target_name,
     )?;
-    let build_file_machine_names = syntax
-        .files
-        .iter()
-        .filter(|file| file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
-        .flat_map(|file| file.root_items.iter())
-        .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
-            psi_syntax_trees::item::Item::Machine(machine) => {
-                Some(machine.name.as_str().to_owned())
-            }
-            _ => None,
-        })
-        .collect();
+    let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
     match package_inputs {
@@ -386,7 +375,7 @@ fn lower_checked_frontend(
     Ok(CheckedFrontend {
         typed,
         target_default_machine_names,
-        build_file_machine_names,
+        build_source_id,
         boundary_calling_plan_realizations,
     })
 }
@@ -471,7 +460,7 @@ fn compile_to_checked_inner_with_replay(
     }
     let computed_build_config = crate::pipeline::build_config::compute_build_config(
         &frontend.typed,
-        &frontend.build_file_machine_names,
+        frontend.build_source_id,
         &build_machine_filesystem_scope,
     )?;
     let prepass_build_identity = computed_build_config
