@@ -499,6 +499,13 @@ accounts are established, and both artifact audit origins retain the original
 schema identity with epoch 20. The test does not mint replacement schemas or
 recover lifetime capacity from the retired epoch.
 
+The complementary one-root canary now proves the cardinality-one boundary
+without borrowing facts from the two-root bridge. One source producer schema
+becomes one installed prebinding, cohort member, aggregate, coexistence row,
+account, lineage, and audit origin. Terminal-artifact, lifecycle-ledger, and
+materialization-plan substitution each return their exact custody for retry;
+none can introduce a second schema or lineage.
+
 The selected provider schema retains the canonical carrier of each routed
 entry claim separately from both the complete qualified parameter type and the
 domain identity. Installation joins that carrier directly to the verified

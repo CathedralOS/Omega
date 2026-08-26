@@ -147,6 +147,55 @@ where machine Enter satisfies ProgramStorageEntry::enter;
     verified_source_terminal(&source, None, "ProgramLocalProducer::handoff")
 }
 
+fn verified_one_root_terminal(
+    directory: &Path,
+) -> (
+    psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog,
+    TestTerminalObject,
+) {
+    let source = directory.join("one_program_local_root_producer.omg");
+    fs::write(
+        &source,
+        r#"use omega::language::core::content;
+
+pub data Region [linear] {
+    base: addr;
+    length: u64;
+}
+
+pub boundary machine no_wrap(base: addr, length: u64) -> bool;
+
+pub domain Region::Owned
+requires
+    no_wrap(self.base, self.length)
+established by
+    OneRootEntry::enter;
+
+pub boundary trait OneRootEntry {
+    machine enter(root: Region in Owned);
+}
+
+machine Owned::content(region: &Region) -> IntervalSet<Nat>
+satisfies Content<IntervalSet<Nat>>::project
+{
+    IntervalSet {
+        start: embed(region.base) as Nat,
+        end: (embed(region.base) + embed(region.length)) as Nat
+    }
+}
+
+data OneRootProducer {}
+machine OneRootProducer::handoff<machine Enter>(root: Region in Owned)
+where machine Enter satisfies OneRootEntry::enter;
+{
+    Enter(root);
+}
+"#,
+    )
+    .expect("write one-root source producer");
+    verified_source_terminal(&source, None, "OneRootProducer::handoff")
+}
+
 fn normalized<T, E: std::fmt::Debug>(identity: u64, constructor: fn(u64) -> Result<T, E>) -> T {
     constructor(identity).expect("normalized test identity")
 }
@@ -306,6 +355,17 @@ fn boundary() -> omega_calling_conventions::ValidatedBoundaryEntryPlan {
     .expect("two-position boundary")
 }
 
+fn one_root_boundary() -> omega_calling_conventions::ValidatedBoundaryEntryPlan {
+    evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(16, 8)],
+            result: None,
+        },
+    )
+    .expect("one-position boundary")
+}
+
 fn fixed_fuel() -> ComposedFuelDemand {
     let schedule = FuelScheduleIdentity::new(1).expect("fuel schedule");
     let summary = FixedFuelProviderSummary::from_admitted_provider(
@@ -384,16 +444,12 @@ fn install_program_entry_root<'code>(
     requirement_identity: &str,
 ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
     let boundary = boundary();
-    let root = root_id(1, ExternalRootId::from_normalized_identity);
-    let provider = root_id(2, RootProviderId::from_normalized_identity);
-    let relation = root_id(6, NestingRelationId::from_normalized_identity);
-    let candidate = ExternalRootCandidate {
-        identity: root,
+    install_program_entry_root_with_claims(
+        code,
         entry,
-        provider,
-        provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
-        requirement_identity: requirement_identity.into(),
-        entry_claims: vec![
+        requirement_identity,
+        boundary,
+        vec![
             ExternalRootEntryClaim {
                 parameter_index: 0,
                 domain: "Extent::Granted".into(),
@@ -405,6 +461,45 @@ fn install_program_entry_root<'code>(
                 effective_carry: psi_language_semantics::CarryPolicy::STRICT,
             },
         ],
+    )
+}
+
+fn install_one_program_entry_root<'code>(
+    code: &'code mut InstalledCode,
+    entry: EntryStubId,
+    requirement_identity: &str,
+    qualification_identity: &str,
+) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+    install_program_entry_root_with_claims(
+        code,
+        entry,
+        requirement_identity,
+        one_root_boundary(),
+        vec![ExternalRootEntryClaim {
+            parameter_index: 0,
+            domain: qualification_identity.into(),
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+        }],
+    )
+}
+
+fn install_program_entry_root_with_claims<'code>(
+    code: &'code mut InstalledCode,
+    entry: EntryStubId,
+    requirement_identity: &str,
+    boundary: omega_calling_conventions::ValidatedBoundaryEntryPlan,
+    entry_claims: Vec<ExternalRootEntryClaim>,
+) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
+    let root = root_id(1, ExternalRootId::from_normalized_identity);
+    let provider = root_id(2, RootProviderId::from_normalized_identity);
+    let relation = root_id(6, NestingRelationId::from_normalized_identity);
+    let candidate = ExternalRootCandidate {
+        identity: root,
+        entry,
+        provider,
+        provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
+        requirement_identity: requirement_identity.into(),
+        entry_claims,
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
         service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
@@ -521,12 +616,20 @@ fn tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
 }
 
 fn lifecycle(installed_code: u64, requirement_identity: &str) -> ComponentEraEntryLedger {
+    lifecycle_with_identity(730, installed_code, requirement_identity)
+}
+
+fn lifecycle_with_identity(
+    ledger_identity: u64,
+    installed_code: u64,
+    requirement_identity: &str,
+) -> ComponentEraEntryLedger {
     let mut ledger = ComponentEraEntryLedger::new(
-        ComponentEraLedgerId::from_normalized_identity(730).expect("lifecycle ledger"),
+        ComponentEraLedgerId::from_normalized_identity(ledger_identity).expect("lifecycle ledger"),
         "ProgramStorageBinding/v1".into(),
         requirement_identity.into(),
         2,
-        tcb_acceptance(730),
+        tcb_acceptance(ledger_identity),
     )
     .expect("lifecycle");
     publish_lifecycle_era(
@@ -736,6 +839,64 @@ fn extent_plan(base: u64, length: u64, domain: &str) -> ProgramLocalExtentMateri
         extent_id(1004, MappingEraId::from_normalized_identity),
     )
     .expect("extent materialization plan")
+}
+
+fn one_root_subject<'root, 'code>(
+    root: &'root InstalledExternalRoot<'code>,
+    qualification_identity: &str,
+    carrier_identity: &str,
+    place: u64,
+    base: u64,
+    length: u64,
+) -> InstalledProgramLocalRootSubject<'root, 'code> {
+    InstalledProgramLocalRootSubject::from_generated_entry(
+        root,
+        ProgramLocalRootEntryInvocationId::from_normalized_identity(1900)
+            .expect("one-root invocation"),
+        0,
+        0,
+        qualification_identity,
+        carrier_identity,
+        ProgramLocalRootSubjectPlaceId::from_normalized_identity(place)
+            .expect("one-root subject place"),
+        [
+            ProgramLocalRootScalarBinding::runtime_scalar_embedding(
+                ["base"],
+                psi_numerics::bignum::BigInt::from_u64(base),
+            )
+            .expect("one-root base scalar"),
+            ProgramLocalRootScalarBinding::runtime_scalar_embedding(
+                ["length"],
+                psi_numerics::bignum::BigInt::from_u64(length),
+            )
+            .expect("one-root length scalar"),
+        ],
+    )
+    .expect("one-root installed subject")
+}
+
+fn one_root_extent_plan(
+    carrier_identity: &str,
+    qualification_identity: &str,
+    algebra_parameter: &str,
+    base: u64,
+    length: u64,
+) -> ProgramLocalExtentMaterializationPlan {
+    ProgramLocalExtentMaterializationPlan::new(
+        carrier_identity,
+        qualification_identity,
+        algebra_parameter,
+        base,
+        length,
+        extent_id(1100, AddressSpaceId::from_normalized_identity),
+        ExtentRights::from_normalized_identities([extent_id(
+            1101,
+            ExtentRightId::from_normalized_identity,
+        )]),
+        extent_id(1102, ExtentProvenanceId::from_normalized_identity),
+        extent_id(1103, MappingEraId::from_normalized_identity),
+    )
+    .expect("one-root Extent materialization plan")
 }
 
 fn assert_origin(
@@ -1211,6 +1372,309 @@ fn stale_program_local_epoch_rejects_atomically_then_fresh_epoch_completes_hando
 
     fs::remove_dir_all(&artifact_directory).expect("remove stale-epoch artifacts");
     fs::remove_dir_all(compiled_directory).expect("remove compiled stale-epoch fixture");
+}
+
+#[test]
+fn source_derived_one_root_introduction_retains_exact_installation_account_and_origin() {
+    let source_directory = temp_directory("source-one-root");
+    fs::create_dir_all(&source_directory).expect("create one-root source directory");
+    let (catalog, terminal) = verified_one_root_terminal(&source_directory);
+    let [schema] = catalog.schemas() else {
+        panic!("the source call must derive exactly one program-local root schema")
+    };
+    assert_eq!(schema.schema().argument_index, 0);
+    assert_eq!(schema.schema().source_parameter_position, 0);
+    assert_eq!(
+        schema.schema().algebra.kind,
+        psi_core::ContentAlgebraKind::IntervalSet
+    );
+    let requirement_identity = schema.boundary_requirement_identity().to_owned();
+    let qualification_identity = schema.qualification_identity().to_owned();
+    let carrier_identity = schema.carrier_identity().to_owned();
+    let algebra_parameter = schema.schema().algebra.parameter.clone();
+    let capacity = schema.schema().capacity.clone();
+
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let installed_artifact = code.artifact();
+    let (mut root_ledger, root) = install_one_program_entry_root(
+        &mut code,
+        entry,
+        &requirement_identity,
+        &qualification_identity,
+    );
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("one-root installation ledger");
+
+    let substituted_terminal = TestTerminalObject {
+        identity: psi_terminal::TerminalPsiIdentity {
+            vocabulary_marker: terminal.identity.vocabulary_marker,
+            program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x91; 32]),
+        },
+        entry: terminal.entry,
+        bytes: terminal.bytes.clone(),
+    };
+    assert!(
+        installation
+            .prebind(&catalog, &substituted_terminal, &root)
+            .expect_err("terminal artifact substitution must reject transactionally")
+            .0
+            .contains("terminal artifact identity")
+    );
+    assert_eq!(installation.prebindings().count(), 0);
+    let [prebinding]: [_; 1] = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("the exact terminal artifact remains prebindable")
+        .try_into()
+        .expect("one verified source schema yields one installed prebinding");
+    let prebinding_identity = prebinding.identity();
+    assert_eq!(prebinding.terminal_psi(), catalog.terminal_psi());
+    assert_eq!(prebinding.artifact(), installed_artifact);
+    assert_eq!(prebinding.requirement_identity(), requirement_identity);
+    assert_eq!(prebinding.argument_index(), 0);
+    assert_eq!(prebinding.source_parameter_position(), 0);
+    assert_eq!(prebinding.qualification_identity(), qualification_identity);
+    assert_eq!(prebinding.carrier_identity(), carrier_identity);
+    assert_eq!(prebinding.algebra(), &schema.schema().algebra);
+    assert_eq!(prebinding.per_occurrence_capacity(), &capacity);
+    let counts = installation.counts();
+    let [count] = counts.as_slice() else {
+        panic!("the installed catalog must retain exactly one count row")
+    };
+    assert_eq!(count.terminal_psi, catalog.terminal_psi());
+    assert_eq!(
+        count.installed_code.normalized_identity(),
+        installed_code_identity
+    );
+    assert_eq!(count.artifact, installed_artifact);
+    assert_eq!(count.requirement_identity, requirement_identity);
+    assert_eq!(count.argument_index, 0);
+    assert_eq!(count.source_parameter_position, 0);
+    assert_eq!(count.qualification_identity, qualification_identity);
+    assert_eq!(count.carrier_identity, carrier_identity);
+    assert_eq!(count.schema_identity, prebinding_identity.schema_identity());
+    assert_eq!(count.algebra, schema.schema().algebra);
+    assert_eq!(count.per_occurrence_capacity, capacity);
+    assert_eq!(count.installed_slot_count.get(), 1);
+    assert_eq!(count.prebinding_identities, [prebinding_identity]);
+
+    let mut lifecycle = lifecycle(installed_code_identity, &requirement_identity);
+    let mut substituted_lifecycle =
+        lifecycle_with_identity(731, installed_code_identity, &requirement_identity);
+    let substituted_lease = substituted_lifecycle
+        .acquire_program_local_root_epoch_lease(
+            ProgramLocalRootEpochLeaseId::from_normalized_identity(890)
+                .expect("substituted lease identity"),
+            10,
+            &requirement_identity,
+        )
+        .expect("substituted lifecycle lease");
+    let substituted = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding_identity,
+                &root,
+                substituted_lease,
+            )],
+        )
+        .expect_err("a substituted lifecycle ledger cannot seal the one-root cohort");
+    assert!(
+        substituted
+            .diagnostic()
+            .0
+            .contains("exact current epoch ledger")
+    );
+    let [substituted_member]: [_; 1] = substituted
+        .into_members()
+        .try_into()
+        .expect("cohort rejection returns its exact one member");
+    let (recovered_prebinding, recovered_root, recovered_lease) = substituted_member.into_parts();
+    assert_eq!(recovered_prebinding, prebinding_identity);
+    assert!(std::ptr::eq(recovered_root, &root));
+    assert_eq!(recovered_lease.identity().normalized_identity(), 890);
+    assert_eq!(recovered_lease.ledger().normalized_identity(), 731);
+    substituted_lifecycle
+        .release_program_local_root_epoch_lease(recovered_lease)
+        .expect("cohort substitution returns the foreign lifecycle hold");
+    assert_eq!(
+        substituted_lifecycle.program_local_root_authority_holds(10),
+        Some(0)
+    );
+
+    let exact_lease = lifecycle
+        .acquire_program_local_root_epoch_lease(
+            ProgramLocalRootEpochLeaseId::from_normalized_identity(891)
+                .expect("exact lease identity"),
+            10,
+            &requirement_identity,
+        )
+        .expect("exact lifecycle lease");
+    let cohort = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding_identity,
+                &root,
+                exact_lease,
+            )],
+        )
+        .expect("the exact returned prebinding and a matching lease seal one cohort");
+    assert_eq!(
+        cohort.identity().installed_code().normalized_identity(),
+        installed_code_identity
+    );
+    assert_eq!(cohort.identity().lifecycle_ledger(), lifecycle.identity());
+    assert_eq!(cohort.identity().lifecycle_epoch(), 10);
+    assert_eq!(cohort.installed_required_slots().slots().count(), 1);
+    assert_eq!(cohort.occurrences().len(), 1);
+    let aggregates = cohort.aggregates().collect::<Vec<_>>();
+    let [aggregate] = aggregates.as_slice() else {
+        panic!("one cohort occurrence must derive one aggregate row")
+    };
+    assert_eq!(aggregate.terminal_psi(), catalog.terminal_psi());
+    assert_eq!(aggregate.artifact(), installed_artifact);
+    assert_eq!(aggregate.requirement_identity(), requirement_identity);
+    assert_eq!(aggregate.argument_index(), 0);
+    assert_eq!(aggregate.source_parameter_position(), 0);
+    assert_eq!(aggregate.qualification_identity(), qualification_identity);
+    assert_eq!(aggregate.carrier_identity(), carrier_identity);
+    assert_eq!(
+        aggregate.schema_identity(),
+        prebinding_identity.schema_identity()
+    );
+    assert_eq!(aggregate.algebra(), &schema.schema().algebra);
+    assert_eq!(aggregate.per_occurrence_capacity(), &capacity);
+    assert_eq!(aggregate.cardinality().get(), 1);
+    let snapshot = cohort.aggregate_snapshot();
+    assert_eq!(snapshot.identity(), cohort.identity());
+    assert_eq!(
+        snapshot.installed_required_slots(),
+        cohort.installed_required_slots()
+    );
+    assert_eq!(snapshot.aggregates().collect::<Vec<_>>(), aggregates);
+    let coexistence = compose_program_local_root_coexistence_report(&lifecycle, [&snapshot])
+        .expect("one exact live epoch snapshot composes");
+    assert_eq!(coexistence.lifecycle_ledger(), lifecycle.identity());
+    assert_eq!(
+        coexistence.epoch_snapshots().collect::<Vec<_>>(),
+        vec![&snapshot]
+    );
+    assert_eq!(coexistence.aggregates().count(), 1);
+
+    let mut runtime = cohort.into_runtime();
+    assert_eq!(runtime.aggregate_snapshot(), snapshot);
+    assert_eq!(runtime.pending_occurrences().len(), 1);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            one_root_subject(
+                &root,
+                &qualification_identity,
+                &carrier_identity,
+                1901,
+                0x6000,
+                0x800,
+            ),
+        )
+        .expect("the exact one-root subject establishes one account");
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    assert_eq!(
+        established.lineage().occurrence().prebinding(),
+        prebinding_identity
+    );
+    assert_eq!(
+        established.lineage().occurrence().lifecycle_ledger(),
+        lifecycle.identity()
+    );
+    assert_eq!(established.lineage().occurrence().lifecycle_epoch(), 10);
+    assert_eq!(established.invocation().normalized_identity(), 1900);
+    assert_eq!(established.subject_place().normalized_identity(), 1901);
+
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let rejected = registry
+        .materialize(
+            established,
+            one_root_extent_plan(
+                &carrier_identity,
+                "Region::Substituted",
+                &algebra_parameter,
+                0x6000,
+                0x800,
+            ),
+        )
+        .expect_err("qualification substitution cannot mint an Extent lineage");
+    assert!(rejected.diagnostic().0.contains("substituted"));
+    assert_eq!(registry.held_accounts(), 0);
+    let [(established, rejected_plan)]: [_; 1] = (*rejected)
+        .into_inputs()
+        .try_into()
+        .expect("materialization rejection returns the exact account and plan");
+    assert_eq!(
+        established.lineage().occurrence().prebinding(),
+        prebinding_identity
+    );
+    assert_eq!(rejected_plan.carrier_identity(), carrier_identity);
+    assert_eq!(
+        rejected_plan.qualification_identity(),
+        "Region::Substituted"
+    );
+    assert_eq!(
+        (rejected_plan.base(), rejected_plan.length()),
+        (0x6000, 0x800)
+    );
+
+    let extent = registry
+        .materialize(
+            established,
+            one_root_extent_plan(
+                &carrier_identity,
+                &qualification_identity,
+                &algebra_parameter,
+                0x6000,
+                0x800,
+            ),
+        )
+        .expect("the returned account remains materializable with the exact plan");
+    assert_eq!(registry.held_accounts(), 1);
+    assert_eq!((extent.base(), extent.length()), (0x6000, 0x800));
+    assert_eq!(extent.lineage_root().normalized_identity(), 1);
+    let origin = extent
+        .origin()
+        .program_local()
+        .expect("one-root Extent retains its installation origin");
+    assert_eq!(origin.installed_code(), installed_code_identity);
+    assert_eq!(
+        origin.external_root(),
+        prebinding_identity.root().normalized_identity()
+    );
+    assert_eq!(
+        origin.root_slot(),
+        prebinding_identity.slot().normalized_identity()
+    );
+    assert_eq!(
+        origin.schema_identity(),
+        prebinding_identity.schema_identity()
+    );
+    assert_eq!(
+        origin.lifecycle_ledger(),
+        lifecycle.identity().normalized_identity()
+    );
+    assert_eq!(origin.lifecycle_epoch(), 10);
+    assert_eq!(origin.entry_invocation(), 1900);
+    assert_eq!(origin.subject_place(), 1901);
+
+    let retired = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("the exact one-root Extent releases its retained account");
+    assert_eq!(retired.identity().prebinding(), prebinding_identity);
+    assert_eq!(retired.epoch_lease().normalized_identity(), 891);
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    fs::remove_dir_all(source_directory).expect("remove one-root source fixture");
 }
 
 #[test]
