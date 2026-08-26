@@ -8576,13 +8576,21 @@ boundary without its corresponding checked law.
   `.dynstr`, and no info relationship. Independent replay checks the complete
   102-byte seed, raw name, unique semantic link, every metadata field,
   deterministic identity, and payload custody. It assigns no final numeric
-  `sh_name`/`sh_link`, section index, address, or placement authority. Runnable ELF
-  emission remains fail closed before image mutation: the final section roster
-  and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
+  `sh_name`/`sh_link`, section index, address, or placement authority. The
+  section-name-table rung now consumes the unchanged exact 102-byte seed as its
+  complete payload: the `.shstrtab\0` name reserved once at offset 59 remains
+  the unique name, and `.dynamic\0` ends the table at byte 102. Its semantic
+  descriptor uses `SHT_STRTAB`, no flags, size 102, alignment one, zero entry
+  size, and no link/info relationship. Independent bounded replay walks every
+  contiguous NUL-framed name, rejects any byte or metadata drift, and preserves
+  exact `.dynamic`-descriptor custody. It still assigns no numeric index,
+  `e_shstrndx`, address, or placement. Runnable ELF emission remains fail
+  closed before image mutation: the final section roster, numeric
+  `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
-  `.gnu.hash`, the final descriptor for `.shstrtab`, numeric indexes for
-  `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application, complete
+  `.gnu.hash`, numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
+  resolved fixup application, complete
   load/program-header layout, image mutation, and independent final-byte
   replay remain unimplemented. Validated semantic tags do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
