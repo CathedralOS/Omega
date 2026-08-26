@@ -16,7 +16,9 @@ use psi_diagnostics::Diagnostic;
 use super::{
     LINUX_X86_SCALAR_EXIT_SHIM_BYTES, TerminalLinuxX86ScalarExitShim, TerminalObjectArtifact,
     ValidatedTerminalNativeFuelArtifact, ValidatedTerminalNativeFuelTransferRuntimeArtifact,
-    native_fuel_runtime::replay_terminal_native_fuel_transfer_runtime_artifact,
+    native_fuel_runtime::{
+        NativeFuelTransferRuntimeEncoding, replay_terminal_native_fuel_transfer_runtime_artifact,
+    },
 };
 
 pub(super) fn validate_terminal_image(
@@ -316,7 +318,7 @@ pub(super) fn validate_terminal_native_fuel_transfer_runtime_image(
         &output.final_text_bytes,
         artifact.relocations(),
     )?;
-    validate_runtime_rel32_targets(artifact, output, &encoding)?;
+    validate_runtime_relocation_targets(artifact, output, &encoding)?;
 
     let transfer_text = runtime_text_evidence(artifact, output, artifact.transfer())?;
     let resume_text = runtime_text_evidence(artifact, output, artifact.resume())?;
@@ -358,7 +360,22 @@ fn validate_exact_compiler_region(
     Ok(())
 }
 
-fn validate_runtime_rel32_targets(
+fn validate_runtime_relocation_targets(
+    artifact: &ValidatedTerminalNativeFuelTransferRuntimeArtifact,
+    output: &EmittedImageOutput,
+    encoding: &NativeFuelTransferRuntimeEncoding,
+) -> Result<(), Diagnostic> {
+    match encoding {
+        NativeFuelTransferRuntimeEncoding::X86_64(encoding) => {
+            validate_runtime_x86_rel32_targets(artifact, output, encoding)
+        }
+        NativeFuelTransferRuntimeEncoding::Aarch64(encoding) => {
+            validate_runtime_aarch64_targets(artifact, output, encoding)
+        }
+    }
+}
+
+fn validate_runtime_x86_rel32_targets(
     artifact: &ValidatedTerminalNativeFuelTransferRuntimeArtifact,
     output: &EmittedImageOutput,
     encoding: &omega_terminal_isa_x86_64::X86NativeFuelTransferRuntimeEncoding,
@@ -394,6 +411,141 @@ fn validate_runtime_rel32_targets(
         0,
         "retry text base",
     )
+}
+
+fn validate_runtime_aarch64_targets(
+    artifact: &ValidatedTerminalNativeFuelTransferRuntimeArtifact,
+    output: &EmittedImageOutput,
+    encoding: &omega_terminal_isa_aarch64::Aarch64NativeFuelTransferRuntimeEncoding,
+) -> Result<(), Diagnostic> {
+    let text_address = output.executable_regions.text_address;
+    let sponsor_offset = artifact
+        .object()
+        .layout
+        .symbols
+        .get(artifact.sponsor_symbol())
+        .offset;
+    let sponsor_address = text_address
+        .checked_add(u64::try_from(sponsor_offset).map_err(|_| {
+            Diagnostic::error("native fuel AArch64 sponsor offset is not addressable")
+        })?)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 sponsor address overflows"))?;
+    let branch_offset = artifact
+        .transfer()
+        .span()
+        .text_offset
+        .checked_add(encoding.sponsor_call_branch26_offset())
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 sponsor branch overflows"))?;
+    validate_aarch64_branch26_target(
+        &output.final_text_bytes,
+        text_address,
+        branch_offset,
+        sponsor_address,
+    )?;
+
+    let page21_offset = artifact
+        .resume()
+        .span()
+        .text_offset
+        .checked_add(encoding.retry_text_page21_offset())
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 retry Page21 field overflows"))?;
+    let page_offset12_offset = artifact
+        .resume()
+        .span()
+        .text_offset
+        .checked_add(encoding.retry_text_page_offset12_offset())
+        .ok_or_else(|| {
+            Diagnostic::error("native fuel AArch64 retry PageOffset12 field overflows")
+        })?;
+    validate_aarch64_page_address_target(
+        &output.final_text_bytes,
+        text_address,
+        page21_offset,
+        page_offset12_offset,
+        text_address,
+    )
+}
+
+fn validate_aarch64_branch26_target(
+    final_text: &[u8],
+    text_address: u64,
+    instruction_offset: usize,
+    expected_target_address: u64,
+) -> Result<(), Diagnostic> {
+    let instruction = read_aarch64_instruction(final_text, instruction_offset, "sponsor branch")?;
+    if instruction & 0xfc00_0000 != 0x9400_0000 {
+        return Err(Diagnostic::error(
+            "native fuel AArch64 sponsor relocation no longer names a BL instruction",
+        ));
+    }
+    let instruction_address = text_address
+        .checked_add(u64::try_from(instruction_offset).map_err(|_| {
+            Diagnostic::error("native fuel AArch64 sponsor branch offset is not addressable")
+        })?)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 branch address overflows"))?;
+    let delta = sign_extend(u64::from(instruction & 0x03ff_ffff), 26)
+        .checked_mul(4)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 branch delta overflows"))?;
+    if instruction_address.checked_add_signed(delta) != Some(expected_target_address) {
+        return Err(Diagnostic::error(
+            "native fuel AArch64 sponsor relocation does not resolve to its exact .text target",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_aarch64_page_address_target(
+    final_text: &[u8],
+    text_address: u64,
+    page21_offset: usize,
+    page_offset12_offset: usize,
+    expected_target_address: u64,
+) -> Result<(), Diagnostic> {
+    let adrp = read_aarch64_instruction(final_text, page21_offset, "retry Page21")?;
+    let add = read_aarch64_instruction(final_text, page_offset12_offset, "retry PageOffset12")?;
+    if adrp & 0x9f00_001f != 0x9000_0010 || add & 0xffc0_03ff != 0x9100_0210 {
+        return Err(Diagnostic::error(
+            "native fuel AArch64 retry-base relocation pair changed instruction shape",
+        ));
+    }
+    let instruction_address = text_address
+        .checked_add(u64::try_from(page21_offset).map_err(|_| {
+            Diagnostic::error("native fuel AArch64 Page21 offset is not addressable")
+        })?)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 Page21 address overflows"))?;
+    let immediate = u64::from(((adrp >> 29) & 0b11) | (((adrp >> 5) & 0x7ffff) << 2));
+    let page_delta = sign_extend(immediate, 21)
+        .checked_mul(4096)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 Page21 delta overflows"))?;
+    let target_page = (instruction_address & !0xfff)
+        .checked_add_signed(page_delta)
+        .ok_or_else(|| Diagnostic::error("native fuel AArch64 retry page address overflows"))?;
+    let page_offset = u64::from((add >> 10) & 0xfff);
+    if target_page.checked_add(page_offset) != Some(expected_target_address) {
+        return Err(Diagnostic::error(
+            "native fuel AArch64 retry relocation pair does not resolve to the exact .text base",
+        ));
+    }
+    Ok(())
+}
+
+fn read_aarch64_instruction(
+    final_text: &[u8],
+    offset: usize,
+    kind: &str,
+) -> Result<u32, Diagnostic> {
+    let end = offset
+        .checked_add(4)
+        .ok_or_else(|| Diagnostic::error(format!("native fuel AArch64 {kind} overflows")))?;
+    final_text
+        .get(offset..end)
+        .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+        .map(u32::from_le_bytes)
+        .ok_or_else(|| Diagnostic::error(format!("native fuel AArch64 {kind} is truncated")))
+}
+
+fn sign_extend(value: u64, bits: u32) -> i64 {
+    ((value << (64 - bits)) as i64) >> (64 - bits)
 }
 
 fn validate_rel32_target(
@@ -446,4 +598,47 @@ fn runtime_text_evidence(
         final_bytes.to_vec(),
     )
     .map_err(|error| Diagnostic::error(format!("invalid native fuel text evidence: {error}")))
+}
+
+#[cfg(test)]
+mod native_fuel_runtime_target_tests {
+    use super::*;
+
+    #[test]
+    fn aarch64_branch26_replay_requires_the_exact_sponsor_target() {
+        let text_address = 0x401000;
+        let instruction_offset = 0x100;
+        let sponsor_address = 0x401080;
+        let mut text = vec![0; instruction_offset + 4];
+        // BL from 0x401100 back 128 bytes to 0x401080.
+        text[instruction_offset..instruction_offset + 4]
+            .copy_from_slice(&0x97ff_ffe0_u32.to_le_bytes());
+        validate_aarch64_branch26_target(&text, text_address, instruction_offset, sponsor_address)
+            .expect("exact Branch26 target");
+
+        assert!(
+            validate_aarch64_branch26_target(
+                &text,
+                text_address,
+                instruction_offset,
+                sponsor_address + 4,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn aarch64_page_pair_replay_requires_the_exact_text_base() {
+        let text_address = 0x401234;
+        let mut text = vec![0; 8];
+        text[0..4].copy_from_slice(&0x9000_0010_u32.to_le_bytes());
+        text[4..8].copy_from_slice(&0x9108_d210_u32.to_le_bytes());
+        validate_aarch64_page_address_target(&text, text_address, 0, 4, text_address)
+            .expect("exact Page21/PageOffset12 target");
+
+        text[4..8].copy_from_slice(&0x9108_d610_u32.to_le_bytes());
+        assert!(
+            validate_aarch64_page_address_target(&text, text_address, 0, 4, text_address).is_err()
+        );
+    }
 }

@@ -309,6 +309,9 @@ pub fn emit_terminal_native_fuel_transfer_runtime_executable_image(
         (ObjectFormat::Elf, Architecture::X86_64) => {
             omega_image_elf::emit_elf_x86_64_executable(image)
         }
+        (ObjectFormat::Elf, Architecture::Aarch64) => {
+            omega_image_elf::emit_elf_aarch64_executable(image)
+        }
         _ => {
             return Err(Diagnostic::error(format!(
                 "native fuel transfer runtime has no terminal image emitter for {target:?}"
