@@ -93,6 +93,148 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
 
+const CALLBACK_MATERIALIZATION_POLICY: &str = r#"
+target windows_x64 {
+}
+
+use omega::language::core::layout;
+use omega::language::std::calling;
+
+boundary trait WindowProcedure {
+    machine call(message: u64) -> u64;
+}
+
+data Spread {
+    entries: [FieldEntry; 64];
+}
+
+WndClassWindowProcedureSlot:
+    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+
+machine Spread::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    let plan: Plan = Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 16,
+        size_is_dynamic: false,
+        align: 8,
+    };
+    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)
+}
+
+data ForeignRecord {
+    payload: u64;
+}
+
+data RegistrarPolicy { }
+RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
+
+machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> select_catalog(signature)
+        _ -> reject()
+    }
+
+    state select_catalog(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.callback_demand_count == 0 {
+            true -> check_root(signature, signature.parameters[0])
+            _ -> select_one_demand(signature)
+        }
+    }
+
+    state select_one_demand(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.callback_demand_count == 1 {
+            true -> check_root(signature, signature.parameters[0])
+            _ -> reject()
+        }
+    }
+
+    state check_root(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::MicrosoftX64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+        };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        output.call.callback_materialization_count = signature.callback_demand_count;
+        transition signature.callback_demand_count == 1 {
+            true -> bind_callback(signature, output)
+            _ -> accept(output)
+        }
+    }
+
+    state bind_callback(
+        signature: BoundarySignature,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
+        let mut bound: BoundaryEntryPlan = output;
+        bound.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+        bound.call.callback_materializations[0].destination =
+            signature.callback_demands[0].destination;
+        BoundaryPlanResult::Accepted { plan: bound }
+    }
+
+    state accept(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid callback catalog" },
+        }
+    }
+}
+
+boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
+    machine register<machine Selected>(specification: &Spread<ForeignRecord>)
+    where machine Selected satisfies WindowProcedure::call;
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+
+#[test]
+fn target_selected_callback_policy_consumes_closed_layout_demand_catalog() {
+    let main_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .unwrap()
+        .join("omega/language/std/tests/callback_materialization_closure.omg");
+    assert_eq!(
+        fs::read_to_string(&main_path).unwrap(),
+        CALLBACK_MATERIALIZATION_POLICY.trim_start_matches('\n'),
+        "the source canary and its readable test fixture must remain identical"
+    );
+    compile_to_checked(&main_path, Some("windows_x64"))
+        .expect("target-selected registrar should consume its exact closed demand catalog");
+}
+
 const INTERRUPT_POLICY: &str = r#"
 use omega::language::std::calling;
 use omega::language::core::interrupt;

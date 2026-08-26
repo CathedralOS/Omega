@@ -7161,8 +7161,15 @@ Owners:
   exact occupancy; validated stride padding remains padding. Domain-separated
   nonzero layout, slot, and callback-requirement identities publish in the
   exact `LayoutPlan` demand catalog, with the requirement constructor shared
-  by boundary binders. The outbound `BoundarySignature` publication/context
-  join and private relocation/emission remain subsequent.
+  by boundary binders. The outbound publication/context-join rung is complete.
+  `BoundarySignature` publishes exact compiler-issued binder and target-closed
+  private native-place demand catalogs. Selected-target checked/native paths
+  re-evaluate the source policy against that catalog and retain the exact
+  `CallbackMaterializationContext`; the later nominal callback consumer replays
+  the same context and rejects missing, duplicate, wrong-requirement,
+  wrong-destination, or fingerprint-drifted rows. Target-neutral planning
+  remains demand-free, and only the authoritative `LayoutPlan` may close it.
+  Private relocation/emission remains subsequent.
 
   Add pass canaries for direct parameters, one nested slot, multiple explicitly
   named slots, an inert uncited third-party conformance, and the same

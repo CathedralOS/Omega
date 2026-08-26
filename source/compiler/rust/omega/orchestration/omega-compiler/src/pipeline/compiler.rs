@@ -594,7 +594,7 @@ impl Compiler {
                 &placed_view_records,
             ),
         }?;
-        let boundary_calling_plan_realizations =
+        let mut boundary_calling_plan_realizations =
             crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
                 &mut typed,
                 self.package_inputs.as_ref(),
@@ -745,6 +745,13 @@ impl Compiler {
                 package_inputs,
             )?;
         }
+        crate::pipeline::calling_policy_plans::close_outbound_callback_materializations(
+            Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before callback closure"),
+            &mut boundary_calling_plan_realizations,
+            selected_native_target,
+            self.package_inputs.as_ref(),
+        )?;
         checked.callback_placements = Arc::from(
             crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
                 &checked.program,
@@ -1314,6 +1321,16 @@ mod tests {
             fingerprint,
             boundary_entry_plan: expected.clone(),
             callback_binders: Vec::new(),
+            callback_demands: Vec::new(),
+            callback_context_closed: false,
+            policy_machine: String::new(),
+            relationship_span: psi_source::SourceSpan::default(),
+            native_parameters: Vec::new(),
+            materialized_signature:
+                crate::pipeline::calling_policy_plans::materialized_boundary_signature_from_abi(
+                    &CallSignature::default(),
+                )
+                .unwrap(),
         };
         Fixture {
             typed,
