@@ -1005,6 +1005,19 @@ build-host reach recommends audit;
 the exact capability, claim, compatibility, or root-policy row determines
 whether admission also blocks.
 
+The first review-only root-policy object requires one closed accept/reject
+decision for every exact blocking fingerprint and binds the canonical decision
+set to the complete candidate-closure commitment. That commitment covers the
+source graph plus every candidate package's target, compiler,
+source-consumption, build-observation, and whole-review evidence; each conflict
+also binds its baseline and candidate package observations. Missing, duplicate,
+stale/foreign, wrong-candidate, and non-blocking decisions reject. Accepting a
+row is policy for that exact candidate delta, not proof that a human or model
+performed an audit. The object reports only whether all blocking rows were
+accepted; it cannot decide whether the wider transaction may proceed or issue
+accepted evidence or lock state. Durable encoding, policy custody, optional
+governance metadata, and install/update transaction revalidation remain.
+
 An update derives candidate evidence and compares it with the normalized
 accepted baseline in `omega.lock`:
 

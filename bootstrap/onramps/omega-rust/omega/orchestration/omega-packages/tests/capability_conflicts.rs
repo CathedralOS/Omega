@@ -4,8 +4,10 @@ use omega_compiler::{
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictDecision,
+    ReviewOnlyCapabilityConflictDisposition, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityResolution,
+    ReviewOnlyCapabilityResolutionError, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
     resolve_external_local_package_closure, triage_review_update,
     triage_review_update_from_baseline,
@@ -238,6 +240,50 @@ pub proposition ready();
     assert_eq!(candidate_locations[0].relative_path(), "main.omg");
     assert!(conflict.is_blocking());
     assert_ne!(conflict.fingerprint().digest(), [0; 32]);
+    let accepted_decision = ReviewOnlyCapabilityConflictDecision::new(
+        conflict.fingerprint(),
+        ReviewOnlyCapabilityConflictDisposition::AcceptCandidate,
+    );
+    let accepted_resolution = ReviewOnlyCapabilityResolution::from_decisions(
+        &conflicts,
+        package.candidate_closure(),
+        vec![accepted_decision],
+    )
+    .expect("root policy resolves every exact blocking row");
+    assert_eq!(
+        accepted_resolution.candidate_closure(),
+        package.candidate_closure()
+    );
+    assert_eq!(accepted_resolution.decisions(), &[accepted_decision]);
+    assert!(accepted_resolution.all_blocking_rows_accepted());
+
+    let rejected_resolution = ReviewOnlyCapabilityResolution::from_decisions(
+        &conflicts,
+        package.candidate_closure(),
+        vec![ReviewOnlyCapabilityConflictDecision::new(
+            conflict.fingerprint(),
+            ReviewOnlyCapabilityConflictDisposition::RejectCandidate,
+        )],
+    )
+    .expect("root policy may reject the exact candidate row");
+    assert!(!rejected_resolution.all_blocking_rows_accepted());
+
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            package.candidate_closure(),
+            vec![accepted_decision, accepted_decision],
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::TooManyDecisions { maximum: 1 })
+    ));
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            package.candidate_closure(),
+            Vec::new(),
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::MissingDecision { .. })
+    ));
     assert_eq!(
         triage_review_update(&baseline_reviews, &candidate_reviews, &BTreeSet::new()).disposition(),
         PackageTriageDisposition::BlockedCapabilityChange
@@ -255,7 +301,7 @@ pub proposition ready();
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -337,6 +383,14 @@ pub proposition ready();
     )
     .expect("unchanged rows compare cleanly");
     assert!(unchanged.is_empty());
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &unchanged,
+            package.candidate_closure(),
+            Vec::new(),
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::NoConflicts)
+    ));
 
     write_package(
         &live,
@@ -380,6 +434,33 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
         PackageReviewCanonicalRowRisk::AuditRecommended
     );
     assert!(!representation_conflict.is_blocking());
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &representation_conflicts,
+            representation_package.candidate_closure(),
+            vec![ReviewOnlyCapabilityConflictDecision::new(
+                representation_conflict.fingerprint(),
+                ReviewOnlyCapabilityConflictDisposition::AcceptCandidate,
+            )],
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::NonBlockingDecision { .. })
+    ));
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &representation_conflicts,
+            representation_package.candidate_closure(),
+            Vec::new(),
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::NoBlockingConflicts)
+    ));
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            representation_package.candidate_closure(),
+            vec![accepted_decision],
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::CandidateClosureMismatch { .. })
+    ));
     assert_eq!(
         triage_review_update(&baseline_reviews, &representation_reviews, &BTreeSet::new())
             .disposition(),
@@ -526,6 +607,17 @@ ensures result == 1;
         PackageReviewCanonicalRowRisk::Blocking
     );
     assert!(accepted_claim_conflict.is_blocking());
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            package.candidate_closure(),
+            vec![ReviewOnlyCapabilityConflictDecision::new(
+                accepted_claim_conflict.fingerprint(),
+                ReviewOnlyCapabilityConflictDisposition::AcceptCandidate,
+            )],
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::UnknownDecision { .. })
+    ));
     assert!(
         accepted_claim_conflict
             .candidate_source()
@@ -552,6 +644,109 @@ ensures result == 1;
     let _ = std::fs::remove_dir_all(dangerous_slack_cache);
     let _ = std::fs::remove_dir_all(accepted_claim_baseline_cache);
     let _ = std::fs::remove_dir_all(accepted_claim_candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn resolution_requires_every_blocking_row_and_canonicalizes_decision_order() {
+    let live = temp_root("complete-resolution-live");
+    let baseline_cache = temp_root("complete-resolution-baseline");
+    let candidate_cache = temp_root("complete-resolution-candidate");
+    let build_root = temp_root("complete-resolution-build");
+    let context = ExternalSourceContext::derive(b"complete-conflict-resolution-test");
+
+    write_package(&live, "machine private_probe() { }\n");
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve complete-resolution baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile complete-resolution baseline");
+
+    write_package(
+        &live,
+        "machine private_probe() { }\npub proposition first();\npub proposition second();\n",
+    );
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve complete-resolution candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile complete-resolution candidate");
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare two blocking public rows");
+    let [package] = conflicts.packages() else {
+        panic!("one package should contain the blocking rows")
+    };
+    assert_eq!(package.conflicts().len(), 2);
+    assert!(
+        package
+            .conflicts()
+            .iter()
+            .all(|conflict| conflict.is_blocking())
+    );
+
+    let mut decisions = package
+        .conflicts()
+        .iter()
+        .rev()
+        .map(|conflict| {
+            ReviewOnlyCapabilityConflictDecision::new(
+                conflict.fingerprint(),
+                ReviewOnlyCapabilityConflictDisposition::AcceptCandidate,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            package.candidate_closure(),
+            vec![decisions[0], decisions[0]],
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::DuplicateDecision { .. })
+    ));
+    let omitted = decisions.pop().expect("two blocking decisions");
+    assert!(matches!(
+        ReviewOnlyCapabilityResolution::from_decisions(
+            &conflicts,
+            package.candidate_closure(),
+            decisions.clone(),
+        ),
+        Err(ReviewOnlyCapabilityResolutionError::MissingDecision { .. })
+    ));
+    decisions.push(omitted);
+    let resolution = ReviewOnlyCapabilityResolution::from_decisions(
+        &conflicts,
+        package.candidate_closure(),
+        decisions,
+    )
+    .expect("every blocking row has one exact decision");
+    assert!(resolution.all_blocking_rows_accepted());
+    assert!(
+        resolution
+            .decisions()
+            .windows(2)
+            .all(|pair| pair[0].fingerprint() < pair[1].fingerprint())
+    );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);
 }
 

@@ -890,9 +890,20 @@ Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
-closed reasons. Exact nested clause/use-site coordinates and durable root-policy
-resolutions remain unfinished engineering work; none independently motivates
-nominal Chi.
+closed reasons. Review-only root-policy resolution now binds one closed
+accept/reject disposition to every exact blocking fingerprint and to the
+candidate-closure commitment. The commitment covers the complete source graph
+and every candidate package's target, compiler, source-consumption,
+build-observation, and whole-review evidence; each row fingerprint also binds
+the baseline and candidate package observations. Conflict fingerprint v5 and
+the fixed-vocabulary v4 renderer identify this stronger subject. Resolution
+canonicalizes order and rejects missing, duplicate, stale/foreign,
+wrong-candidate, and non-blocking decisions. This is
+not proof of audit, reports only whether all blocking rows were accepted, and
+cannot permit the wider transaction or issue accepted evidence or lock state.
+Exact nested clause/use-site coordinates, durable resolution encoding and
+custody, and install/update transaction revalidation remain unfinished
+engineering work; none independently motivates nominal Chi.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,
@@ -953,10 +964,10 @@ omega-packages/
 |   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
 |   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.
-|   |-- capability_conflict.rs # Bounded review-only exact row conflicts.
+|   |-- capability_conflict.rs # Bounded row conflicts and review-only exact resolutions.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
-|   |-- conflict.rs        # Future durable root-policy resolutions.
+|   |-- conflict.rs        # Future durable root-policy resolution encoding/custody.
 |   |-- audit.rs           # Source/provenance/capability audit rendering.
 |   |-- install.rs         # Fetch, derive, admit, then edit/write.
 |   |-- update.rs          # Candidate reconciliation and admission.

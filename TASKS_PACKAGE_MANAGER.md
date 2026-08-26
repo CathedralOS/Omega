@@ -1949,6 +1949,23 @@ complete.
   resolutions remain engineering work. They do not require nominal Chi or a
   new owner decision.
 
+  Milestone 2026-08-25: the review-only conflict model now accepts one closed
+  root-policy disposition for each exact blocking fingerprint and binds the
+  complete decision set to the candidate-closure commitment. That commitment
+  covers the complete source graph plus every candidate package's target,
+  compiler, source-consumption, build-observation, and whole-review evidence;
+  each conflict also binds the baseline and candidate package observations.
+  Conflict fingerprint v5 and fixed-vocabulary rendering v4 make that stronger
+  evidence subject explicit. Construction canonicalizes decision order and
+  rejects empty, incomplete, duplicate,
+  stale/foreign, wrong-candidate, and non-blocking decisions. The exact result
+  reports whether all blocking rows were accepted; it does not claim that the
+  wider transaction may proceed. An accepted row means only that root policy
+  accepts that exact candidate delta. Neither disposition certifies an audit.
+  The object cannot mint accepted evidence or lock state. Durable encoding,
+  governance metadata, root-policy custody, and install/update transaction
+  revalidation remain.
+
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
 
