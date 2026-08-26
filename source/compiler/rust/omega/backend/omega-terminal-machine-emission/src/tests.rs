@@ -316,7 +316,18 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
                         field_type: psi_terminal::StructuralFieldType::Structural(moved_type),
                     },
                     psi_terminal::StructuralFieldDeclaration {
-                        id: psi_core::StructuralFieldId::new(2).expect("residual field"),
+                        id: psi_core::StructuralFieldId::new(2).expect("scalar field"),
+                        identity: "count".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                            psi_core::ScalarType::Integer(
+                                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+                                    .expect("u64"),
+                            ),
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: psi_core::StructuralFieldId::new(3).expect("residual field"),
                         identity: "residual".into(),
                         relevance: psi_terminal::BindingRelevance::Relevant,
                         field_type: psi_terminal::StructuralFieldType::Structural(residual_type),
@@ -346,6 +357,54 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
 
     assert!(exact_partial_cleanup_partition(
         &declarations,
+        root_type,
+        &moved,
+        &residuals,
+    ));
+
+    let scalar_path = vec![StructuralPathSegment::Field("count".into())];
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &[(scalar_path.as_slice(), residual_type)],
+            &residuals,
+        ),
+        "a scalar field cannot become a moved affine structural path"
+    );
+    let scalar_residual = psi_terminal::StructuralAffineDiscard {
+        place: PlaceId::new(1).expect("place"),
+        path: scalar_path,
+        structural_type: residual_type,
+    };
+    assert!(
+        !exact_partial_cleanup_partition(
+            &declarations,
+            root_type,
+            &moved,
+            &[&scalar_residual, &residual],
+        ),
+        "a scalar field cannot acquire an affine residual cleanup"
+    );
+
+    let mut scalar_as_structural = declarations.clone();
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut scalar_as_structural[0].shape
+    else {
+        unreachable!()
+    };
+    fields[1].field_type = psi_terminal::StructuralFieldType::Structural(residual_type);
+    assert!(
+        !exact_partial_cleanup_partition(&scalar_as_structural, root_type, &moved, &residuals,),
+        "changing scalar classification changes the exact partition"
+    );
+
+    let mut moved_as_scalar = declarations.clone();
+    let psi_terminal::StructuralTypeShape::Record { fields } = &mut moved_as_scalar[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = fields[1].field_type.clone();
+    assert!(!exact_partial_cleanup_partition(
+        &moved_as_scalar,
         root_type,
         &moved,
         &residuals,

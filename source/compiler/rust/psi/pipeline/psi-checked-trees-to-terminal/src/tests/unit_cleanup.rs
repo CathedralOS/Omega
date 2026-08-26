@@ -398,7 +398,15 @@ fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_acti
 fn partial_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token { value: u64; }
-        data Quartet { first: Token; second: Token; third: Token; fourth: Token; }
+        data Quartet {
+            before: u8;
+            first: Token;
+            between: bool;
+            second: Token;
+            third: Token;
+            fourth: Token;
+            after: u64;
+        }
         data Sink {}
         machine Sink::take(token: Token) {}
         data Root {}
@@ -741,13 +749,99 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
     let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
         unreachable!()
     };
-    let mut extra = fields[0].clone();
+    let mut extra = fields
+        .iter()
+        .find(|field| {
+            matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::Structural { .. }
+            )
+        })
+        .cloned()
+        .expect("partial source retains a structural field");
     extra.identity = "extra".to_owned();
     fields.push(extra);
     assert!(matches!(
         lower_partial_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
         Err(LoweringError::Unsupported(
             "partial affine Unit residual field partition drifted"
+        ))
+    ));
+
+    let mut scalar_as_structural = partial_affine_unit_checked_fixture();
+    let scalar_plan = scalar_as_structural
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines[0]
+        .clone();
+    let source_identity = scalar_plan.machine.structural_parameters[0]
+        .type_identity
+        .clone();
+    let shape = scalar_as_structural
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.identity == source_identity)
+        .expect("partial source shape");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+        unreachable!()
+    };
+    let token_identity = fields
+        .iter()
+        .find_map(|field| match &field.field_type {
+            CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                Some(type_identity.clone())
+            }
+            _ => None,
+        })
+        .expect("token type identity");
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "between")
+        .expect("interleaved scalar field")
+        .field_type = CheckedUnitStructuralFieldType::Structural {
+        type_identity: token_identity,
+    };
+    assert!(matches!(
+        lower_partial_affine_unit_cleanup_machine(&scalar_as_structural, &scalar_plan),
+        Err(LoweringError::Unsupported(
+            "partial affine Unit residual field partition drifted"
+        ))
+    ));
+
+    let mut moved_as_scalar = partial_affine_unit_checked_fixture();
+    let moved_plan = moved_as_scalar
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines[0]
+        .clone();
+    let source_identity = moved_plan.machine.structural_parameters[0]
+        .type_identity
+        .clone();
+    let shape = moved_as_scalar
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.identity == source_identity)
+        .expect("partial source shape");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "third")
+        .expect("moved structural field")
+        .field_type = CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64);
+    assert!(matches!(
+        lower_partial_affine_unit_cleanup_machine(&moved_as_scalar, &moved_plan),
+        Err(LoweringError::Unsupported(
+            "partial affine Unit field path or type identity drifted"
         ))
     ));
 

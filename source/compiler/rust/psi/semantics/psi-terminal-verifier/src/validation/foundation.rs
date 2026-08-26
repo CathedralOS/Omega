@@ -1461,16 +1461,16 @@ fn collect_partial_affine_residuals(
     if fields.is_empty()
         || fields.iter().any(|field| {
             field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+                || !matches!(
+                    field.field_type,
+                    StructuralFieldType::Structural(_) | StructuralFieldType::Scalar(_)
+                )
         })
     {
         return None;
     }
     let mut matched = 0_usize;
     for field in fields.iter().rev() {
-        let StructuralFieldType::Structural(field_type) = field.field_type else {
-            unreachable!("record field shape was checked above")
-        };
         prefix.push(StructuralPathSegment::Field(field.identity.clone()));
         let descendants = moved_paths
             .iter()
@@ -1484,6 +1484,13 @@ fn collect_partial_affine_residuals(
             })
             .collect::<Vec<_>>();
         matched += descendants.len();
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            if !descendants.is_empty() {
+                return None;
+            }
+            prefix.pop();
+            continue;
+        };
         if descendants.is_empty() {
             residuals.push((prefix.clone(), field_type));
         } else if descendants.iter().all(|path| !path.is_empty()) {

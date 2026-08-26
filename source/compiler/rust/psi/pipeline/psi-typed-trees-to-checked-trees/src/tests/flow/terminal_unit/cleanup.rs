@@ -173,7 +173,6 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
         data Inner { right: Token; }
         data Outer { left: Token; inner: Inner; }
         data Pair { left: Token; right: Token; }
-        data Mixed { left: Token; count: u64; right: Token; }
         data Sink {}
         machine Sink::take(token: Token) {}
         data Root {}
@@ -184,13 +183,10 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
             Sink::take(value.right);
             Sink::take(value.left);
         }
-        machine Root::scalar(value: Mixed) {
-            Sink::take(value.right);
-        }
         "#,
     );
 
-    for machine in ["missing", "complete", "scalar"] {
+    for machine in ["missing", "complete"] {
         assert!(
             checked
                 .facts
@@ -201,6 +197,74 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
             "`{machine}` must remain outside the exact partial-cleanup slice"
         );
     }
+}
+
+#[test]
+fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Mixed {
+            before: u8;
+            left: Token;
+            between: bool;
+            right: Token;
+            after: u64;
+        }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(value: Mixed) {
+            Sink::take(value.right);
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("scalar fields participate in shape identity without acquiring cleanup");
+    let root_identity = &plan.machine.structural_parameters[0].type_identity;
+    let root = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+        .iter()
+        .find(|shape| &shape.identity == root_identity)
+        .expect("mixed root shape");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &root.shape else {
+        panic!("mixed root remains a record")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| {
+                (
+                    field.identity.as_str(),
+                    matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            ("before", true),
+            ("left", false),
+            ("between", true),
+            ("right", false),
+            ("after", true),
+        ]
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| discard.path.clone())
+            .collect::<Vec<_>>(),
+        vec![vec![CheckedUnitStructuralPathSegment::Field(
+            "left".to_owned()
+        )]],
+        "unrestricted scalar fields are cleanup-free even before, between, and after affine fields"
+    );
 }
 
 #[test]

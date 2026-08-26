@@ -60,15 +60,16 @@ fn append_expected_partial_residuals(
     if fields.is_empty()
         || fields.iter().any(|field| {
             field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+                || !matches!(
+                    field.field_type,
+                    StructuralFieldType::Structural(_) | StructuralFieldType::Scalar(_)
+                )
         })
     {
         return None;
     }
+    let mut matched = 0_usize;
     for field in fields.iter().rev() {
-        let StructuralFieldType::Structural(field_type) = field.field_type else {
-            return None;
-        };
         let matching = moved
             .iter()
             .filter(|(path, _)| {
@@ -77,8 +78,15 @@ fn append_expected_partial_residuals(
             })
             .copied()
             .collect::<Vec<_>>();
+        matched += matching.len();
         let mut field_path = prefix.to_vec();
         field_path.push(StructuralPathSegment::Field(field.identity.clone()));
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            if !matching.is_empty() {
+                return None;
+            }
+            continue;
+        };
         if matching.is_empty() {
             output.push((field_path, field_type));
             continue;
@@ -99,5 +107,5 @@ fn append_expected_partial_residuals(
             .collect::<Vec<_>>();
         append_expected_partial_residuals(field_type, &field_path, &nested, declarations, output)?;
     }
-    Some(())
+    (matched == moved.len()).then_some(())
 }

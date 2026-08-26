@@ -19,7 +19,7 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction, Terminator,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
@@ -59,6 +59,24 @@ const PARTIAL_AFFINE_SOURCE: &str = r#"
     data Root {}
     machine Root::enter(pair: Pair) {
         Helper::take(pair.right);
+    }
+"#;
+
+const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
+    data LeftToken { value: u32; }
+    data RightToken { value: u64; }
+    data Mixed {
+        before: u8;
+        left: LeftToken;
+        between: bool;
+        right: RightToken;
+        after: u16;
+    }
+    data Helper {}
+    machine Helper::take(token: RightToken) {}
+    data Root {}
+    machine Root::enter(mixed: Mixed) {
+        Helper::take(mixed.right);
     }
 "#;
 
@@ -311,6 +329,26 @@ fn partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstract
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine artifact enters Omega")
+}
+
+fn mixed_scalar_partial_affine_plan()
+-> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(MIXED_SCALAR_PARTIAL_AFFINE_SOURCE)
+        .tokenize()
+        .expect("tokenize mixed scalar partial affine source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse mixed scalar partial affine source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve mixed scalar partial affine source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type mixed scalar partial affine source");
+    let checked = lower_typed_trees(typed).expect("check mixed scalar partial affine source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower mixed scalar partial affine Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode mixed scalar partial affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode mixed scalar partial affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified mixed scalar partial affine artifact enters Omega")
 }
 
 fn wide_partial_affine_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
@@ -877,6 +915,166 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
             decode_terminal_installation_record(&bytes),
             Ok(installation.clone())
         );
+    }
+}
+
+#[test]
+fn mixed_scalar_partial_affine_cleanup_preserves_identity_on_all_targets() {
+    let plan = mixed_scalar_partial_affine_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("mixed-scalar caller remains present");
+    let root_type = caller.structural_parameters[0].structural_type;
+    let root_declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("mixed-scalar root type remains declared");
+    let StructuralTypeShape::Record { fields } = &root_declaration.shape else {
+        panic!("mixed-scalar root remains a record")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| (field.identity.as_str(), &field.field_type))
+            .collect::<Vec<_>>(),
+        [
+            (
+                "before",
+                &StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+                    psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+                ))
+            ),
+            ("left", &fields[1].field_type),
+            (
+                "between",
+                &StructuralFieldType::Scalar(psi_core::ScalarType::Boolean)
+            ),
+            ("right", &fields[3].field_type),
+            (
+                "after",
+                &StructuralFieldType::Scalar(psi_core::ScalarType::Integer(
+                    psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 16).unwrap(),
+                ))
+            ),
+        ]
+    );
+    let left_type = match fields[1].field_type {
+        StructuralFieldType::Structural(structural_type) => structural_type,
+        _ => panic!("left field remains structural"),
+    };
+    assert!(matches!(
+        fields[3].field_type,
+        StructuralFieldType::Structural(_)
+    ));
+    let cleanup_actions = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => Some(cleanup_actions.clone()),
+            _ => None,
+        })
+        .expect("mixed-scalar return retains cleanup actions");
+    let [TerminalAffineCleanupAction::DiscardResidual(residual)] = cleanup_actions.as_slice()
+    else {
+        panic!("only the live affine left field requires cleanup")
+    };
+    assert_eq!(residual.path, [StructuralPathSegment::Field("left".into())]);
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+
+        let mut forged_assigned = assigned.clone();
+        let forged_caller = forged_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(body) =
+            &mut forged_caller.operation
+        else {
+            panic!("mixed-scalar caller remains a Unit body")
+        };
+        let forged_root = body
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.id == root_type)
+            .unwrap();
+        let StructuralTypeShape::Record { fields } = &mut forged_root.shape else {
+            panic!("mixed-scalar root remains a record")
+        };
+        fields
+            .iter_mut()
+            .find(|field| field.identity == "between")
+            .unwrap()
+            .field_type = StructuralFieldType::Structural(left_type);
+        assert!(emit_machine_code(&forged_assigned).is_err());
+
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup_actions
+        );
+
+        let mut forged_machine = machine.clone();
+        let forged_cleanup = forged_machine
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap();
+        let forged_root = forged_cleanup
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.id == root_type)
+            .unwrap();
+        let StructuralTypeShape::Record { fields } = &mut forged_root.shape else {
+            panic!("mixed-scalar cleanup root remains a record")
+        };
+        fields
+            .iter_mut()
+            .find(|field| field.identity == "between")
+            .unwrap()
+            .field_type = StructuralFieldType::Structural(left_type);
+        assert!(build_terminal_object_artifact(&forged_machine).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        assert_eq!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap()
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions,
+            cleanup_actions
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
     }
 }
 

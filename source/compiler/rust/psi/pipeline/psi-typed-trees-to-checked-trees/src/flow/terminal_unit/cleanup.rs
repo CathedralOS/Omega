@@ -1051,7 +1051,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     if fields.len() < 2
         || fields.iter().enumerate().any(|(index, field)| {
             field.relevance.is_erased()
-                || structural_field_type_identity(field).is_none()
+                || !is_partial_affine_field_type(&field.field_type)
                 || fields[..index]
                     .iter()
                     .any(|earlier| earlier.identity == field.identity)
@@ -1129,7 +1129,7 @@ pub(super) fn partial_affine_residuals(
         if fields.is_empty()
             || fields.iter().enumerate().any(|(index, field)| {
                 field.relevance.is_erased()
-                    || structural_field_type_identity(field).is_none()
+                    || !is_partial_affine_field_type(&field.field_type)
                     || fields[..index]
                         .iter()
                         .any(|earlier| earlier.identity == field.identity)
@@ -1137,8 +1137,8 @@ pub(super) fn partial_affine_residuals(
         {
             return None;
         }
+        let mut matched = 0_usize;
         for field in fields.iter().rev() {
-            let field_type = structural_field_type_identity(field)?;
             let matching = moved_paths
                 .iter()
                 .filter(|(path, _)| {
@@ -1147,14 +1147,23 @@ pub(super) fn partial_affine_residuals(
                 })
                 .copied()
                 .collect::<Vec<_>>();
+            matched += matching.len();
             prefix.push(CheckedUnitStructuralPathSegment::Field(
                 field.identity.clone(),
             ));
+            let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type
+            else {
+                if !matching.is_empty() {
+                    return None;
+                }
+                prefix.pop();
+                continue;
+            };
             if matching.is_empty() {
                 residuals.push(CheckedUnitPartialAffineDiscardPlan {
                     source_parameter_index: 0,
                     path: prefix.clone(),
-                    type_identity: field_type.clone(),
+                    type_identity: type_identity.clone(),
                 });
                 prefix.pop();
                 continue;
@@ -1164,7 +1173,7 @@ pub(super) fn partial_affine_residuals(
                 .filter(|(path, _)| path.len() == 1)
                 .collect::<Vec<_>>();
             if !whole.is_empty() {
-                if whole.len() != 1 || matching.len() != 1 || whole[0].1 != field_type {
+                if whole.len() != 1 || matching.len() != 1 || whole[0].1 != type_identity {
                     return None;
                 }
                 prefix.pop();
@@ -1174,10 +1183,10 @@ pub(super) fn partial_affine_residuals(
                 .iter()
                 .map(|(path, moved_type)| (&path[1..], *moved_type))
                 .collect::<Vec<_>>();
-            visit(types, field_type, &nested, prefix, residuals)?;
+            visit(types, type_identity, &nested, prefix, residuals)?;
             prefix.pop();
         }
-        Some(())
+        (matched == moved_paths.len()).then_some(())
     }
 
     if moved_paths.is_empty() {
@@ -1192,16 +1201,23 @@ pub(super) fn partial_affine_residuals(
     Some(residuals)
 }
 
-pub(super) fn structural_field_type_identity(
-    field: &CheckedUnitStructuralFieldPlan,
-) -> Option<&String> {
-    match &field.field_type {
-        CheckedUnitStructuralFieldType::Structural { type_identity } => Some(type_identity),
-        CheckedUnitStructuralFieldType::Scalar(_)
-        | CheckedUnitStructuralFieldType::ByteSequence(_)
-        | CheckedUnitStructuralFieldType::ProviderBacked { .. }
-        | CheckedUnitStructuralFieldType::Erased { .. } => None,
-    }
+fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    matches!(
+        field_type,
+        CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::Scalar(
+                PrimitiveType::Bool
+                    | PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::Addr
+            )
+    )
 }
 
 pub(super) fn machine_has_content_evidence(

@@ -3587,7 +3587,10 @@ fn append_maximal_residual_subtrees(
     if fields.is_empty()
         || fields.iter().any(|field| {
             field.relevance.is_erased()
-                || !matches!(field.field_type, StructuralFieldType::Structural(_))
+                || !matches!(
+                    field.field_type,
+                    StructuralFieldType::Structural(_) | StructuralFieldType::Scalar(_)
+                )
         })
         || moved
             .iter()
@@ -3595,10 +3598,8 @@ fn append_maximal_residual_subtrees(
     {
         return None;
     }
+    let mut matched = 0_usize;
     for field in fields.iter().rev() {
-        let StructuralFieldType::Structural(field_type) = field.field_type else {
-            return None;
-        };
         let matching = moved
             .iter()
             .filter(|(path, _)| {
@@ -3607,8 +3608,15 @@ fn append_maximal_residual_subtrees(
             })
             .copied()
             .collect::<Vec<_>>();
+        matched += matching.len();
         let mut field_path = prefix.to_vec();
         field_path.push(StructuralPathSegment::Field(field.identity.clone()));
+        let StructuralFieldType::Structural(field_type) = field.field_type else {
+            if !matching.is_empty() {
+                return None;
+            }
+            continue;
+        };
         if matching.is_empty() {
             residuals.push((field_path, field_type));
             continue;
@@ -3635,7 +3643,7 @@ fn append_maximal_residual_subtrees(
             residuals,
         )?;
     }
-    Some(())
+    (matched == moved.len()).then_some(())
 }
 
 fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
