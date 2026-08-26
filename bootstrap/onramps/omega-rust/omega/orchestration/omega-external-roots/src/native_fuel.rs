@@ -640,7 +640,7 @@ fn fingerprint_dynamic_fuel_attribution_basis(
     rows: &[TerminalFuelAttributionEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.dynamic-fuel-attribution-basis.v1");
+    hash.bytes(b"omega.dynamic-fuel-attribution-basis.v2");
     hash.u64(u64::from(terminal_psi.vocabulary_marker.get()));
     hash.bytes(terminal_psi.program_fingerprint.as_bytes());
     hash.u64(source_text_fingerprint);
@@ -649,6 +649,10 @@ fn fingerprint_dynamic_fuel_attribution_basis(
     hash_native_fuel_target_policy(&mut hash, plan.target_policy.projection());
     hash.u64(plan.exhaustion_transfer.normalized_identity());
     hash.u64(plan.validation_receipt.normalized_identity());
+    hash.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
+    hash.u64(plan.sponsor_path.fixed.provision.normalized_identity());
+    hash.u64(plan.sponsor_path.fixed.granted_units);
+    hash.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
     hash.u64(rows.len() as u64);
     for row in rows {
         hash.u64(row.machine.get());
@@ -1301,8 +1305,17 @@ mod tests {
         .expect("fixed sponsor path");
         let sponsor_free = derive_fuel_suspension_free(&sponsor_demand, [sponsor_suspension])
             .expect("sponsor path cannot suspend for fuel");
-        let sponsor_path = bind_suspension_free_fixed_fuel(sponsor_fixed, sponsor_free)
+        let sponsor_path = bind_suspension_free_fixed_fuel(sponsor_fixed, sponsor_free.clone())
             .expect("exact fixed/suspension join");
+        let alternate_sponsor_fixed = admit_fixed_native_fuel(
+            &sponsor_demand,
+            id(230, FuelProvisionId::from_normalized_identity),
+            4,
+        )
+        .expect("alternate exact fixed sponsor path");
+        let alternate_sponsor_path =
+            bind_suspension_free_fixed_fuel(alternate_sponsor_fixed, sponsor_free)
+                .expect("alternate fixed/suspension join");
         let profile = TargetProfile::WindowsX64;
         let target = profile.native_target();
         let mismatched_transfer = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
@@ -1330,6 +1343,18 @@ mod tests {
             ),
         )
         .expect("target policy and exhaustion transfer identity agree");
+        let alternate_sponsor_plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
+            x86_target_policy(profile),
+            schedule(),
+            id(24, NativeFuelMeterPlanId::from_normalized_identity),
+            id(26, FuelExhaustionTransferPlanId::from_normalized_identity),
+            alternate_sponsor_path,
+            id(
+                27,
+                DynamicFuelMeterValidationReceiptId::from_normalized_identity,
+            ),
+        )
+        .expect("alternate sponsor still matches the target transfer identity");
         let machine = psi_core::MachineId::new(1).unwrap();
         let rows = vec![
             TerminalFuelAttributionEvidence {
@@ -1361,6 +1386,14 @@ mod tests {
         let basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &artifact)
             .expect("zero-code and byte-bearing attribution sites are valid meter inputs");
         assert_eq!(basis.attributions(), rows);
+        let alternate_sponsor_basis =
+            validate_dynamic_fuel_attribution_basis(alternate_sponsor_plan, &artifact)
+                .expect("alternate sponsor path remains structurally valid");
+        assert_ne!(
+            basis.fingerprint(),
+            alternate_sponsor_basis.fingerprint(),
+            "the published basis identity must bind the exact sponsor provision"
+        );
         let changed_source = TestTerminalArtifact {
             target,
             rows: rows.clone(),

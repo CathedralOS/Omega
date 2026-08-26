@@ -4983,8 +4983,10 @@ Remaining:
   metered-artifact attribution and sealed installed executable-transfer custody;
   that custody deliberately has no public constructor until the physical
   transfer/runtime replay lands, so opaque validation receipt identifiers cannot
-  admit an incomplete dynamic path. Fixed/interpreted paths reject stray dynamic
-  evidence. Runtime root custody
+  admit an incomplete dynamic path. Dynamic attribution identity now also binds
+  the exact fixed sponsor provision and `FuelSuspensionFree` composition, so a
+  different sponsor path cannot retain the same published summary.
+  Fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
   publishes its kind and replay-bound fingerprint. Terminal installation format
   36 now takes the explicit dual-coordinate route: ordinary function, effect,
