@@ -62,10 +62,41 @@ pub(in crate::quotients) struct DirectLiftPreconditionImplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum FixedRepresentativeCallProof {
+    ExactMatch {
+        public: RepresentativeContractFactLocation,
+    },
+    ArithmeticEntailment {
+        /// Complete authored fixed-Q roster, in source contract order. The
+        /// strict kernel consumes this exact list and accepts only when every
+        /// row is an integer expression inside its language.
+        premises: Vec<RepresentativeContractFactLocation>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct FixedRepresentativeCallFactRow {
+    /// One proof discharges the one representative call performed at runtime.
+    pub(super) proof: FixedRepresentativeCallProof,
+    pub(super) representative: RepresentativeContractFactLocation,
+    /// The selected theorem independently retains the same legality fact for
+    /// both hypothetical representative applications. Both coordinates are
+    /// retained here so replay cannot collapse or substitute either side.
+    pub(super) theorem_left: TheoremContractFactLocation,
+    pub(super) theorem_right: TheoremContractFactLocation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::quotients) struct FixedRepresentativeCallPreconditions {
+    pub(super) rows: Vec<FixedRepresentativeCallFactRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum QuotientCorrespondenceEvidence {
     DirectLift {
         runtime: DirectLiftRuntimeCorrespondence,
         precondition: DirectLiftPreconditionImplication,
+        fixed: FixedRepresentativeCallPreconditions,
     },
     Define {
         runtime: DefineRuntimeCorrespondence,
@@ -100,144 +131,13 @@ pub(super) fn derive_direct_lift_precondition_implication(
         if runtime.positions.len() != application_schema.arguments.len() {
             return Err(RelationPlanError::DirectLiftRuntimeArityMismatch);
         }
-        let mut public_values = Vec::new();
-        let mut representative_values = Vec::with_capacity(runtime.positions.len());
-        for (position, theorem_position) in
-            runtime.positions.iter().zip(&application_schema.arguments)
-        {
-            match &position.source {
-                DirectLiftArgumentSource::PublicParameter(public_parameter) => {
-                    let value = public_values
-                        .iter()
-                        .find_map(|value: &ProofValueSubstitution| {
-                            (value.symbol == *public_parameter).then(|| value.clone())
-                        })
-                        .unwrap_or_else(|| {
-                            let value = ProofValueSubstitution::symbolic(
-                                *public_parameter,
-                                format!("$theorem_parameter_{theorem_position}"),
-                            );
-                            public_values.push(value.clone());
-                            value
-                        });
-                    representative_values.push(value.rebound(position.representative_parameter));
-                }
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::Boolean(value),
-                ) => representative_values.push(ProofValueSubstitution::boolean(
-                    position.representative_parameter,
-                    *value,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
-                ) => representative_values.push(ProofValueSubstitution::integer(
-                    position.representative_parameter,
-                    spelling,
-                    *landing,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::Float { spelling, landing },
-                ) => representative_values.push(ProofValueSubstitution::float(
-                    position.representative_parameter,
-                    spelling,
-                    *landing,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::ByteString { bytes, .. },
-                ) => representative_values.push(ProofValueSubstitution::byte_string(
-                    position.representative_parameter,
-                    bytes,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::FixedByteArray {
-                        bytes, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::fixed_byte_array(
-                    position.representative_parameter,
-                    bytes,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::BooleanArray {
-                        values, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::boolean_array(
-                    position.representative_parameter,
-                    values,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::NestedFixedByteArray {
-                        rows,
-                        ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::nested_fixed_byte_array(
-                    position.representative_parameter,
-                    rows,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::NestedBooleanArray {
-                        rows,
-                        ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::nested_boolean_array(
-                    position.representative_parameter,
-                    rows,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::BooleanTensor3 {
-                        planes, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::boolean_tensor3(
-                    position.representative_parameter,
-                    planes,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::RecursivePrimitiveArray {
-                        elements,
-                        ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::recursive_primitive_array(
-                    position.representative_parameter,
-                    elements,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
-                        elements, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::integer_array(
-                    position.representative_parameter,
-                    elements
-                        .iter()
-                        .map(|element| (element.spelling.clone(), element.landing)),
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::NestedIntegerArray {
-                        rows,
-                        ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::nested_integer_array(
-                    position.representative_parameter,
-                    rows,
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
-                        elements, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::float_array(
-                    position.representative_parameter,
-                    elements
-                        .iter()
-                        .map(|element| (element.spelling.clone(), element.landing)),
-                )),
-                DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray {
-                        rows, ..
-                    },
-                ) => representative_values.push(ProofValueSubstitution::nested_float_array(
-                    position.representative_parameter,
-                    rows,
-                )),
-            }
-        }
+        let (public_values, representative_values) =
+            proof_value_substitutions(runtime, |position| {
+                format!(
+                    "$theorem_parameter_{}",
+                    application_schema.arguments[position]
+                )
+            });
         let arithmetic_bindings = arithmetic_bindings_for_application(
             program,
             representative,
@@ -335,6 +235,263 @@ pub(super) fn derive_direct_lift_precondition_implication(
     Ok(DirectLiftPreconditionImplication { rows })
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn derive_fixed_representative_call_preconditions(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    representative: &RepresentativeTelescope,
+    public: &RepresentativePreconditionPartition,
+    representative_partition: &RepresentativePreconditionPartition,
+    runtime: &DirectLiftRuntimeCorrespondence,
+    expected_theorem: &ExpectedTheoremSchema,
+    verified_theorem: &VerifiedTheoremSchema,
+) -> Result<FixedRepresentativeCallPreconditions, RelationPlanError> {
+    let (public_values, representative_values) =
+        proof_value_substitutions(runtime, |position| format!("$runtime_parameter_{position}"));
+    let arithmetic_bindings = arithmetic_bindings_for_runtime(program, representative, runtime);
+    let public_expression_hypotheses = public
+        .fixed
+        .iter()
+        .map(|location| {
+            let ProofFact::Expression(expression) = precondition_fact_at(
+                program,
+                public_machine.contracts,
+                public_state.contracts,
+                *location,
+            )?
+            else {
+                return None;
+            };
+            Some(*expression)
+        })
+        .collect::<Option<Vec<_>>>();
+    let mut rows = Vec::with_capacity(representative_partition.fixed.len());
+    for (representative_position, representative_location) in
+        representative_partition.fixed.iter().enumerate()
+    {
+        let representative_fact = precondition_fact_at(
+            program,
+            representative.machine_contracts,
+            representative.state_contracts,
+            *representative_location,
+        )
+        .ok_or(RelationPlanError::DirectLiftFixedPreconditionNotImplied(
+            representative_position,
+        ))?;
+        let exact_public = public.fixed.iter().copied().find(|location| {
+            precondition_fact_at(
+                program,
+                public_machine.contracts,
+                public_state.contracts,
+                *location,
+            )
+            .is_some_and(|public_fact| {
+                proof_facts_match(
+                    program,
+                    public_fact,
+                    representative_fact,
+                    ProofFactIdentityContext {
+                        values: &public_values,
+                        static_bindings: &[],
+                    },
+                    ProofFactIdentityContext {
+                        values: &representative_values,
+                        static_bindings: &representative.static_application.bindings,
+                    },
+                )
+            })
+        });
+        let proof = if let Some(public) = exact_public {
+            FixedRepresentativeCallProof::ExactMatch { public }
+        } else {
+            let (Some(hypotheses), ProofFact::Expression(goal)) =
+                (public_expression_hypotheses.as_deref(), representative_fact)
+            else {
+                return Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(
+                    representative_position,
+                ));
+            };
+            if strict_arithmetic_expression_implication(
+                program,
+                public_machine,
+                hypotheses,
+                *goal,
+                &arithmetic_bindings,
+            ) != StrictArithmeticImplicationJudgment::Proven
+            {
+                return Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(
+                    representative_position,
+                ));
+            }
+            FixedRepresentativeCallProof::ArithmeticEntailment {
+                premises: public.fixed.clone(),
+            }
+        };
+        let theorem_left = verified_legality_coordinate(
+            expected_theorem,
+            verified_theorem,
+            TheoremApplicationSide::Left,
+            *representative_location,
+        )
+        .ok_or(RelationPlanError::DirectLiftFixedTheoremLegalityMismatch)?;
+        let theorem_right = verified_legality_coordinate(
+            expected_theorem,
+            verified_theorem,
+            TheoremApplicationSide::Right,
+            *representative_location,
+        )
+        .ok_or(RelationPlanError::DirectLiftFixedTheoremLegalityMismatch)?;
+        rows.push(FixedRepresentativeCallFactRow {
+            proof,
+            representative: *representative_location,
+            theorem_left,
+            theorem_right,
+        });
+    }
+    Ok(FixedRepresentativeCallPreconditions { rows })
+}
+
+fn proof_value_substitutions(
+    runtime: &DirectLiftRuntimeCorrespondence,
+    public_identity: impl Fn(usize) -> String,
+) -> (Vec<ProofValueSubstitution>, Vec<ProofValueSubstitution>) {
+    let mut public_values = Vec::new();
+    let mut representative_values = Vec::with_capacity(runtime.positions.len());
+    for (position_index, position) in runtime.positions.iter().enumerate() {
+        let value = match &position.source {
+            DirectLiftArgumentSource::PublicParameter(public_parameter) => {
+                let value = public_values
+                    .iter()
+                    .find_map(|value: &ProofValueSubstitution| {
+                        (value.symbol == *public_parameter).then(|| value.clone())
+                    })
+                    .unwrap_or_else(|| {
+                        let value = ProofValueSubstitution::symbolic(
+                            *public_parameter,
+                            public_identity(position_index),
+                        );
+                        public_values.push(value.clone());
+                        value
+                    });
+                value.rebound(position.representative_parameter)
+            }
+            DirectLiftArgumentSource::Literal(literal) => {
+                proof_value_for_literal(position.representative_parameter, literal)
+            }
+        };
+        representative_values.push(value);
+    }
+    (public_values, representative_values)
+}
+
+fn proof_value_for_literal(
+    symbol: SymbolHandle,
+    literal: &super::runtime_correspondence::ClosedLiftLiteral,
+) -> ProofValueSubstitution {
+    use super::runtime_correspondence::ClosedLiftLiteral;
+
+    match literal {
+        ClosedLiftLiteral::Boolean(value) => ProofValueSubstitution::boolean(symbol, *value),
+        ClosedLiftLiteral::Integer { spelling, landing } => {
+            ProofValueSubstitution::integer(symbol, spelling, *landing)
+        }
+        ClosedLiftLiteral::Float { spelling, landing } => {
+            ProofValueSubstitution::float(symbol, spelling, *landing)
+        }
+        ClosedLiftLiteral::ByteString { bytes, .. } => {
+            ProofValueSubstitution::byte_string(symbol, bytes)
+        }
+        ClosedLiftLiteral::FixedByteArray { bytes, .. } => {
+            ProofValueSubstitution::fixed_byte_array(symbol, bytes)
+        }
+        ClosedLiftLiteral::BooleanArray { values, .. } => {
+            ProofValueSubstitution::boolean_array(symbol, values)
+        }
+        ClosedLiftLiteral::NestedFixedByteArray { rows, .. } => {
+            ProofValueSubstitution::nested_fixed_byte_array(symbol, rows)
+        }
+        ClosedLiftLiteral::NestedBooleanArray { rows, .. } => {
+            ProofValueSubstitution::nested_boolean_array(symbol, rows)
+        }
+        ClosedLiftLiteral::BooleanTensor3 { planes, .. } => {
+            ProofValueSubstitution::boolean_tensor3(symbol, planes)
+        }
+        ClosedLiftLiteral::RecursivePrimitiveArray { elements, .. } => {
+            ProofValueSubstitution::recursive_primitive_array(symbol, elements)
+        }
+        ClosedLiftLiteral::IntegerArray { elements, .. } => ProofValueSubstitution::integer_array(
+            symbol,
+            elements
+                .iter()
+                .map(|element| (element.spelling.clone(), element.landing)),
+        ),
+        ClosedLiftLiteral::NestedIntegerArray { rows, .. } => {
+            ProofValueSubstitution::nested_integer_array(symbol, rows)
+        }
+        ClosedLiftLiteral::FloatArray { elements, .. } => ProofValueSubstitution::float_array(
+            symbol,
+            elements
+                .iter()
+                .map(|element| (element.spelling.clone(), element.landing)),
+        ),
+        ClosedLiftLiteral::NestedFloatArray { rows, .. } => {
+            ProofValueSubstitution::nested_float_array(symbol, rows)
+        }
+    }
+}
+
+fn arithmetic_bindings_for_runtime(
+    program: &TypedTrees,
+    representative: &RepresentativeTelescope,
+    runtime: &DirectLiftRuntimeCorrespondence,
+) -> Vec<StrictArithmeticSymbolBinding> {
+    let mut bindings = Vec::new();
+    for (position_index, (position, representative_parameter)) in runtime
+        .positions
+        .iter()
+        .zip(&representative.parameters)
+        .enumerate()
+    {
+        let Some((primitive, unsigned)) =
+            exact_integer_parameter(program, representative_parameter.type_reference)
+        else {
+            continue;
+        };
+        match &position.source {
+            DirectLiftArgumentSource::PublicParameter(public_symbol) => {
+                let value = bindings
+                    .iter()
+                    .find_map(|binding: &StrictArithmeticSymbolBinding| {
+                        (binding.symbol == *public_symbol).then(|| binding.value.clone())
+                    })
+                    .unwrap_or_else(|| StrictArithmeticBindingValue::Atom {
+                        identity: format!("$runtime_parameter_{position_index}"),
+                        unsigned,
+                    });
+                push_arithmetic_binding(&mut bindings, *public_symbol, value.clone());
+                push_arithmetic_binding(&mut bindings, representative_parameter.symbol, value);
+            }
+            DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
+            ) if landing.domain == ArithmeticDomain::Exact
+                && landed_primitive(landing.landed_type) == primitive =>
+            {
+                if let Some(value) = integer_spelling_value(spelling) {
+                    push_arithmetic_binding(
+                        &mut bindings,
+                        representative_parameter.symbol,
+                        StrictArithmeticBindingValue::Integer(value),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    append_static_integer_bindings(&mut bindings, representative);
+    bindings
+}
+
 fn arithmetic_bindings_for_application(
     program: &TypedTrees,
     representative: &RepresentativeTelescope,
@@ -387,6 +544,14 @@ fn arithmetic_bindings_for_application(
             _ => {}
         }
     }
+    append_static_integer_bindings(&mut bindings, representative);
+    bindings
+}
+
+fn append_static_integer_bindings(
+    bindings: &mut Vec<StrictArithmeticSymbolBinding>,
+    representative: &RepresentativeTelescope,
+) {
     for binding in &representative.static_application.bindings {
         if binding.kind != super::RepresentativeStaticBindingKind::Const {
             continue;
@@ -400,12 +565,11 @@ fn arithmetic_bindings_for_application(
             continue;
         };
         push_arithmetic_binding(
-            &mut bindings,
+            bindings,
             binding.parameter,
             StrictArithmeticBindingValue::Integer(value),
         );
     }
-    bindings
 }
 
 fn push_arithmetic_binding(
@@ -521,12 +685,23 @@ pub(super) fn compose_lift_correspondence_certificate(
     theorem: &Result<VerifiedTheoremSchema, RelationPlanError>,
     runtime: &DirectLiftRuntimeCorrespondence,
     precondition: &DirectLiftPreconditionImplication,
+    fixed: &FixedRepresentativeCallPreconditions,
+    representative_partition: &RepresentativePreconditionPartition,
 ) -> Option<QuotientCorrespondenceCertificate> {
+    if fixed
+        .rows
+        .iter()
+        .map(|row| row.representative)
+        .ne(representative_partition.fixed.iter().copied())
+    {
+        return None;
+    }
     Some(QuotientCorrespondenceCertificate {
         theorem: theorem.as_ref().ok()?.clone(),
         evidence: QuotientCorrespondenceEvidence::DirectLift {
             runtime: runtime.clone(),
             precondition: precondition.clone(),
+            fixed: fixed.clone(),
         },
     })
 }
@@ -535,7 +710,16 @@ pub(super) fn compose_define_correspondence_certificate(
     theorem: &Result<VerifiedTheoremSchema, RelationPlanError>,
     runtime: &DefineRuntimeCorrespondence,
     precondition: &DefinePreconditionCorrespondence,
+    representative_partition: &RepresentativePreconditionPartition,
 ) -> Option<QuotientCorrespondenceCertificate> {
+    if precondition
+        .fixed
+        .iter()
+        .map(|pair| pair.representative)
+        .ne(representative_partition.fixed.iter().copied())
+    {
+        return None;
+    }
     Some(QuotientCorrespondenceCertificate {
         theorem: theorem.as_ref().ok()?.clone(),
         evidence: QuotientCorrespondenceEvidence::Define {

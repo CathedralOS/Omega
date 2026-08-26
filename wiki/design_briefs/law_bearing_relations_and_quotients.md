@@ -858,7 +858,17 @@ retains the full ordered public premise coordinates plus its representative
 and distinct theorem-side legality coordinates for later replay. Unknown,
 refuted, mixed membership/proposition, float, member-path, proof-view,
 operator/domain, or identity-drifted judgments remain fail-closed.
-Literal-only facts stay fixed ordinary call obligations. Mismatched or
+Fixed representative call preconditions use a separate bounded certificate.
+One exact substituted fixed-`Q` match, or one strict integer `Expression`
+proof from the complete ordered fixed-`Q` roster, discharges the one
+representative call performed at runtime; this proof is never duplicated into
+two calls. Each row nevertheless retains both distinct verified theorem-
+legality coordinates, so later replay cannot collapse the theorem's left/right
+hypothetical applications. Direct resolved symbols, exact representative-
+static `const` values, and exact integer literals are the only arithmetic
+bindings, and only `Proven` succeeds. `define` permits no such weakening: its
+fixed facts join the same exact one-to-one position/static-substituted `Q <=>
+P` bijection as its dependent facts. Mismatched or
 out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
@@ -872,9 +882,11 @@ constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
 position-preserving at exact public arity and continues to use its exact `Q <=>
-P` bijection. Fixed representative facts remain ordinary call obligations,
-while generic owner substitution, general adapted arguments, non-arithmetic
-logical implication, and canonical Terminal replay remain fail closed.
+P` bijection. Fixed facts without an exact match that require membership/
+proposition transport, float or computed implication, a mixed premise roster,
+unresolved identity, or argument adaptation remain fail closed, while generic
+owner substitution, general adapted arguments, non-arithmetic logical
+implication, and canonical Terminal replay remain fail closed.
 Arithmetic `Expression` entailment is implemented; transport of quotient-domain
 membership and opaque proposition families is language-design blocked on
 **OWNER_QUESTIONS Q9**. Q9 must settle the explicit selection locus, per-side

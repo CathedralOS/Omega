@@ -1,6 +1,7 @@
 use super::correspondence_certificate::{
-    DirectLiftPreconditionProof, QuotientCorrespondenceEvidence,
-    compose_lift_correspondence_certificate,
+    DirectLiftPreconditionProof, FixedRepresentativeCallPreconditions,
+    FixedRepresentativeCallProof, QuotientCorrespondenceEvidence,
+    compose_lift_correspondence_certificate, derive_fixed_representative_call_preconditions,
 };
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeContractFactLocation,
@@ -1809,6 +1810,230 @@ struct DirectLiftImplicationFixture {
     verified_theorem: super::VerifiedTheoremSchema,
 }
 
+struct FixedCallFixture {
+    program: TypedTrees,
+    public_machine: Machine,
+    public_state: State,
+    representative: RepresentativeTelescope,
+    public_partition: super::RepresentativePreconditionPartition,
+    representative_partition: super::RepresentativePreconditionPartition,
+    runtime: super::DirectLiftRuntimeCorrespondence,
+    expected_theorem: super::theorem_schema::ExpectedTheoremSchema,
+    verified_theorem: super::VerifiedTheoremSchema,
+}
+
+fn fixed_call_fixture(
+    literal_fixed_argument: bool,
+    build_facts: impl FnOnce(
+        &mut TypedTrees,
+        SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
+    ) -> (Vec<ProofFact>, ProofFact),
+) -> FixedCallFixture {
+    let mut program = TypedTrees::default();
+    let integer_type = primitive_type(&mut program, "i32");
+    let quotient_symbol = symbol(1100);
+    let relation_symbol = symbol(1101);
+    let quotient = quotient_type_over(
+        &mut program,
+        quotient_symbol,
+        "FixedCallQ",
+        relation_symbol,
+        "FixedCallR",
+        integer_type,
+    );
+    let public_quotient_symbol = symbol(1102);
+    let public_fixed_symbol = symbol(1103);
+    let representative_quotient_symbol = symbol(1104);
+    let representative_fixed_symbol = symbol(1105);
+    let static_const_symbol = symbol(1106);
+    let (public_facts, representative_fact) = build_facts(
+        &mut program,
+        public_fixed_symbol,
+        representative_fixed_symbol,
+        static_const_symbol,
+    );
+    let public_facts = program.proof_facts.insert_many(public_facts);
+    let mut public_machine = Machine {
+        symbol: symbol(1107),
+        ..Default::default()
+    };
+    program.push_machine_contract(
+        &mut public_machine,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: public_facts,
+            ..Default::default()
+        },
+    );
+    let mut public_state = State::default();
+    for (symbol, name, type_reference) in [
+        (public_quotient_symbol, "quotient", quotient),
+        (public_fixed_symbol, "fixed", integer_type),
+    ] {
+        program.push_state_parameter(
+            &mut public_state,
+            StateParameter {
+                symbol,
+                name: Identifier::generated_static(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    let representative_facts = program.proof_facts.insert_many([representative_fact]);
+    let representative_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: representative_facts,
+        ..Default::default()
+    }]);
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(1108),
+        state_symbol: symbol(1109),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: representative_quotient_symbol,
+                type_reference: integer_type,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: representative_fixed_symbol,
+                type_reference: integer_type,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: integer_type,
+        machine_contracts: representative_contracts,
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: vec![RepresentativeStaticBinding {
+                parameter: static_const_symbol,
+                kind: RepresentativeStaticBindingKind::Const,
+                argument: StaticMachineArgument {
+                    path: Box::default(),
+                    application: None,
+                    const_literal: Some(IntegerLiteral::from_value(1)),
+                    evidence_projection: None,
+                    symbol: SymbolHandle::invalid(),
+                },
+            }],
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type: quotient,
+        quotient_symbol,
+        relation_symbol,
+    };
+    let input_relations = [
+        InputRelation::Quotient(relation),
+        InputRelation::ExactEquality(integer_type),
+    ];
+    let fixed_source = if literal_fixed_argument {
+        super::DirectLiftArgumentSource::Literal(
+            super::runtime_correspondence::ClosedLiftLiteral::Integer {
+                spelling: "2".to_owned(),
+                landing: IntegerLanding {
+                    landed_type: LandedIntegerType::I32,
+                    domain: ArithmeticDomain::Exact,
+                },
+            },
+        )
+    } else {
+        super::DirectLiftArgumentSource::PublicParameter(public_fixed_symbol)
+    };
+    let runtime = super::DirectLiftRuntimeCorrespondence {
+        positions: vec![
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_quotient_symbol),
+                representative_parameter: representative_quotient_symbol,
+            },
+            super::DirectLiftRuntimePosition {
+                source: fixed_source,
+                representative_parameter: representative_fixed_symbol,
+            },
+        ],
+    };
+    let public_partition = derive_direct_lift_public_precondition_partition(
+        &program,
+        &public_machine,
+        &public_state,
+        &input_relations,
+        &runtime,
+    )
+    .expect("fixed public Q partitions exactly");
+    let representative_partition =
+        derive_representative_precondition_partition(&program, &input_relations, &representative)
+            .expect("fixed representative P partitions exactly");
+    let expected_theorem =
+        derive_expected_theorem_schema(&program, &input_relations, relation, &representative)
+            .expect("fixed-call theorem schema");
+    let verified_theorem = super::VerifiedTheoremSchema {
+        theorem_machine_symbol: symbol(1110),
+        theorem_state_symbol: symbol(1111),
+        parameters: expected_theorem
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(expected_position, _)| {
+                super::theorem_schema_verification::VerifiedTheoremParameter {
+                    expected_position,
+                    theorem_symbol: symbol(1120 + u32::try_from(expected_position).unwrap()),
+                }
+            })
+            .collect(),
+        relation_premises: expected_theorem
+            .relation_premises
+            .iter()
+            .enumerate()
+            .map(
+                |(expected_position, _)| super::theorem_schema_verification::VerifiedTheoremFact {
+                    expected_position,
+                    actual: TheoremContractFactLocation {
+                        owner: TheoremContractOwner::Machine,
+                        contract_position: 0,
+                        fact_position: 10 + expected_position,
+                    },
+                },
+            )
+            .collect(),
+        legality_premises: expected_theorem
+            .legality_premises
+            .iter()
+            .enumerate()
+            .map(
+                |(expected_position, _)| super::theorem_schema_verification::VerifiedTheoremFact {
+                    expected_position,
+                    actual: TheoremContractFactLocation {
+                        owner: TheoremContractOwner::Machine,
+                        contract_position: 0,
+                        fact_position: 20 + expected_position,
+                    },
+                },
+            )
+            .collect(),
+        conclusion: TheoremContractFactLocation {
+            owner: TheoremContractOwner::State,
+            contract_position: 0,
+            fact_position: 0,
+        },
+    };
+    FixedCallFixture {
+        program,
+        public_machine,
+        public_state,
+        representative,
+        public_partition,
+        representative_partition,
+        runtime,
+        expected_theorem,
+        verified_theorem,
+    }
+}
+
 fn baseline_arithmetic_implication_fixture() -> ArithmeticImplicationFixture {
     arithmetic_implication_fixture(
         |program, public_symbol, representative_symbol, literal_symbol, static_symbol| {
@@ -1835,6 +2060,366 @@ fn baseline_arithmetic_implication_fixture() -> ArithmeticImplicationFixture {
             )
         },
     )
+}
+
+#[test]
+fn fixed_representative_call_exact_match_is_one_runtime_proof_with_both_theorem_sides() {
+    let fixture = fixed_call_fixture(false, |program, public, representative, _| {
+        let public = named_argument(program, "fixed", public);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let q = binary_expression(program, public, BinaryOperator::Greater, zero);
+        let representative = named_argument(program, "fixed", representative);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let p = binary_expression(program, representative, BinaryOperator::Greater, zero);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    assert!(fixture.public_partition.dependent.is_empty());
+    assert_eq!(fixture.public_partition.fixed.len(), 1);
+    assert!(fixture.representative_partition.dependent.is_empty());
+    assert_eq!(fixture.representative_partition.fixed.len(), 1);
+
+    let fixed = derive_fixed_representative_call_preconditions(
+        &fixture.program,
+        &fixture.public_machine,
+        &fixture.public_state,
+        &fixture.representative,
+        &fixture.public_partition,
+        &fixture.representative_partition,
+        &fixture.runtime,
+        &fixture.expected_theorem,
+        &fixture.verified_theorem,
+    )
+    .expect("one exact fixed-Q proof discharges the singular representative call");
+    assert_eq!(fixed.rows.len(), 1);
+    let FixedRepresentativeCallProof::ExactMatch { public } = fixed.rows[0].proof else {
+        panic!("identical direct-name fixed facts must retain exact-match priority")
+    };
+    assert_eq!(public, fixture.public_partition.fixed[0]);
+    assert_ne!(fixed.rows[0].theorem_left, fixed.rows[0].theorem_right);
+
+    let dependent = super::DirectLiftPreconditionImplication { rows: Vec::new() };
+    let certificate = compose_lift_correspondence_certificate(
+        &Ok(fixture.verified_theorem.clone()),
+        &fixture.runtime,
+        &dependent,
+        &fixed,
+        &fixture.representative_partition,
+    )
+    .expect("the fixed-call rows join the bounded lift certificate");
+    let QuotientCorrespondenceEvidence::DirectLift {
+        fixed: retained, ..
+    } = certificate.evidence
+    else {
+        panic!("direct lift certificate")
+    };
+    assert_eq!(retained, fixed);
+    assert!(
+        compose_lift_correspondence_certificate(
+            &Ok(fixture.verified_theorem.clone()),
+            &fixture.runtime,
+            &dependent,
+            &FixedRepresentativeCallPreconditions { rows: Vec::new() },
+            &fixture.representative_partition,
+        )
+        .is_none(),
+        "a certificate cannot omit one fixed representative call obligation",
+    );
+}
+
+#[test]
+fn fixed_representative_call_strict_arithmetic_retains_full_fixed_q_and_literals() {
+    let direct = fixed_call_fixture(false, |program, public, representative, static_symbol| {
+        let public_value = named_argument(program, "fixed", public);
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let lower = binary_expression(program, public_value, BinaryOperator::Greater, two);
+        let public_value = named_argument(program, "fixed", public);
+        let ten = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(10)));
+        let upper = binary_expression(program, public_value, BinaryOperator::LessOrEqual, ten);
+        let representative = named_argument(program, "fixed", representative);
+        let static_value = named_argument(program, "K", static_symbol);
+        let adjusted =
+            binary_expression(program, representative, BinaryOperator::Add, static_value);
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let goal = binary_expression(program, adjusted, BinaryOperator::Greater, two);
+        (
+            vec![ProofFact::Expression(lower), ProofFact::Expression(upper)],
+            ProofFact::Expression(goal),
+        )
+    });
+    let proof = derive_fixed_representative_call_preconditions(
+        &direct.program,
+        &direct.public_machine,
+        &direct.public_state,
+        &direct.representative,
+        &direct.public_partition,
+        &direct.representative_partition,
+        &direct.runtime,
+        &direct.expected_theorem,
+        &direct.verified_theorem,
+    )
+    .expect("fixed > 2 entails fixed + 1 > 2");
+    let FixedRepresentativeCallProof::ArithmeticEntailment { premises } = &proof.rows[0].proof
+    else {
+        panic!("non-identical fixed facts require strict arithmetic evidence")
+    };
+    assert_eq!(premises, &direct.public_partition.fixed);
+    assert_eq!(premises.len(), 2);
+
+    let literal = fixed_call_fixture(true, |program, _, representative, static_symbol| {
+        let three = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(3)));
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let q = binary_expression(program, three, BinaryOperator::Greater, two);
+        let representative = named_argument(program, "fixed", representative);
+        let static_value = named_argument(program, "K", static_symbol);
+        let adjusted =
+            binary_expression(program, representative, BinaryOperator::Add, static_value);
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let p = binary_expression(program, adjusted, BinaryOperator::Greater, two);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    assert!(
+        derive_fixed_representative_call_preconditions(
+            &literal.program,
+            &literal.public_machine,
+            &literal.public_state,
+            &literal.representative,
+            &literal.public_partition,
+            &literal.representative_partition,
+            &literal.runtime,
+            &literal.expected_theorem,
+            &literal.verified_theorem,
+        )
+        .is_ok(),
+        "the exact i32 literal and static const discharge a closed fixed call fact"
+    );
+}
+
+#[test]
+fn fixed_representative_call_rejects_unknown_refuted_mixed_and_identity_drift() {
+    for (operator, bound) in [
+        (BinaryOperator::Greater, 5),
+        (BinaryOperator::LessOrEqual, 2),
+    ] {
+        let fixture = fixed_call_fixture(false, |program, public, representative, _| {
+            let public = named_argument(program, "fixed", public);
+            let two = program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+            let q = binary_expression(program, public, BinaryOperator::Greater, two);
+            let representative = named_argument(program, "fixed", representative);
+            let bound = program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(bound)));
+            let p = binary_expression(program, representative, operator, bound);
+            (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+        });
+        assert_eq!(
+            derive_fixed_representative_call_preconditions(
+                &fixture.program,
+                &fixture.public_machine,
+                &fixture.public_state,
+                &fixture.representative,
+                &fixture.public_partition,
+                &fixture.representative_partition,
+                &fixture.runtime,
+                &fixture.expected_theorem,
+                &fixture.verified_theorem,
+            ),
+            Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(0)),
+        );
+    }
+
+    let mixed = fixed_call_fixture(false, |program, public, representative, _| {
+        let public_value = named_argument(program, "fixed", public);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let q = binary_expression(program, public_value, BinaryOperator::Greater, zero);
+        let membership_value = named_argument(program, "fixed", public);
+        let representative = named_argument(program, "fixed", representative);
+        let minus_one = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(-1)));
+        let p = binary_expression(program, representative, BinaryOperator::Greater, minus_one);
+        (
+            vec![
+                ProofFact::Expression(q),
+                ProofFact::Membership(ProofMembershipFact {
+                    value: membership_value,
+                    domain: HandleSpan::empty(),
+                    domain_symbol: symbol(1140),
+                }),
+            ],
+            ProofFact::Expression(p),
+        )
+    });
+    assert_eq!(
+        derive_fixed_representative_call_preconditions(
+            &mixed.program,
+            &mixed.public_machine,
+            &mixed.public_state,
+            &mixed.representative,
+            &mixed.public_partition,
+            &mixed.representative_partition,
+            &mixed.runtime,
+            &mixed.expected_theorem,
+            &mixed.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(0)),
+    );
+
+    let exact = fixed_call_fixture(false, |program, public, representative, _| {
+        let public = named_argument(program, "fixed", public);
+        let representative = named_argument(program, "fixed", representative);
+        (
+            vec![ProofFact::Expression(public)],
+            ProofFact::Expression(representative),
+        )
+    });
+    let mut missing_side = exact.verified_theorem.clone();
+    missing_side.legality_premises.pop();
+    assert_eq!(
+        derive_fixed_representative_call_preconditions(
+            &exact.program,
+            &exact.public_machine,
+            &exact.public_state,
+            &exact.representative,
+            &exact.public_partition,
+            &exact.representative_partition,
+            &exact.runtime,
+            &exact.expected_theorem,
+            &missing_side,
+        ),
+        Err(RelationPlanError::DirectLiftFixedTheoremLegalityMismatch),
+    );
+}
+
+#[test]
+fn fixed_representative_call_rejects_member_proof_view_and_literal_domain_drift() {
+    let member = fixed_call_fixture(false, |program, public, representative, _| {
+        let public = named_argument(program, "fixed", public);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let q = binary_expression(program, public, BinaryOperator::Greater, zero);
+        let mut members = HandleSpan::empty();
+        for name in ["fixed", "member"] {
+            program
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated_static(name));
+        }
+        let view = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                head_symbol: representative,
+                symbol: representative,
+                ..Default::default()
+            }));
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let p = binary_expression(program, view, BinaryOperator::Greater, zero);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    assert_eq!(
+        derive_fixed_representative_call_preconditions(
+            &member.program,
+            &member.public_machine,
+            &member.public_state,
+            &member.representative,
+            &member.public_partition,
+            &member.representative_partition,
+            &member.runtime,
+            &member.expected_theorem,
+            &member.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(0)),
+    );
+
+    let proof_view = fixed_call_fixture(false, |program, public, representative, _| {
+        let public = named_argument(program, "fixed", public);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let q = binary_expression(program, public, BinaryOperator::Greater, zero);
+        let argument = named_argument(program, "fixed", representative);
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([argument]);
+        let mut call = call_with_arguments(arguments);
+        call.target = Identifier::generated_static("Bag");
+        let view = program.expression_table.insert(ExpressionNode::Call(call));
+        let p = binary_expression(program, view, BinaryOperator::Equal, view);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    assert_eq!(
+        derive_fixed_representative_call_preconditions(
+            &proof_view.program,
+            &proof_view.public_machine,
+            &proof_view.public_state,
+            &proof_view.representative,
+            &proof_view.public_partition,
+            &proof_view.representative_partition,
+            &proof_view.runtime,
+            &proof_view.expected_theorem,
+            &proof_view.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(0)),
+    );
+
+    let mut domain = fixed_call_fixture(true, |program, _, representative, _| {
+        let three = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(3)));
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let q = binary_expression(program, three, BinaryOperator::Greater, two);
+        let representative = named_argument(program, "fixed", representative);
+        let zero = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        let p = binary_expression(program, representative, BinaryOperator::Greater, zero);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    let super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::Integer { landing, .. },
+    ) = &mut domain.runtime.positions[1].source
+    else {
+        panic!("fixed integer literal fixture")
+    };
+    landing.domain = ArithmeticDomain::Wrapping;
+    assert_eq!(
+        derive_fixed_representative_call_preconditions(
+            &domain.program,
+            &domain.public_machine,
+            &domain.public_state,
+            &domain.representative,
+            &domain.public_partition,
+            &domain.representative_partition,
+            &domain.runtime,
+            &domain.expected_theorem,
+            &domain.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftFixedPreconditionNotImplied(0)),
+    );
 }
 
 #[test]
@@ -2321,17 +2906,21 @@ fn direct_lift_q_implies_p_retains_both_exact_theorem_coordinates_and_allows_ext
         &Ok(fixture.verified_theorem.clone()),
         &fixture.runtime,
         &implication,
+        &FixedRepresentativeCallPreconditions { rows: Vec::new() },
+        &fixture.representative_partition,
     )
     .expect("verified theorem plus exact implication composes");
     let QuotientCorrespondenceEvidence::DirectLift {
         runtime,
         precondition,
+        fixed,
     } = certificate.evidence
     else {
         panic!("direct lift evidence")
     };
     assert_eq!(runtime, fixture.runtime);
     assert_eq!(precondition, implication);
+    assert!(fixed.rows.is_empty());
 }
 
 #[test]
@@ -2375,6 +2964,8 @@ fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tampe
             &Err(RelationPlanError::TheoremSchemaConclusionMismatch),
             &exact.runtime,
             &super::DirectLiftPreconditionImplication { rows: Vec::new() },
+            &FixedRepresentativeCallPreconditions { rows: Vec::new() },
+            &exact.representative_partition,
         )
         .is_none()
     );
@@ -7021,12 +7612,24 @@ fn define_preconditions_require_one_exact_alpha_renamed_bijection() {
                 right,
             }))
     };
-    let public_facts = program
-        .proof_facts
-        .insert_many([ProofFact::Expression(public_fact)]);
-    let representative_facts = program
-        .proof_facts
-        .insert_many([ProofFact::Expression(representative_fact)]);
+    let public_fixed = {
+        let left = named_argument(&mut program, "public_right", public_right);
+        let right = named_argument(&mut program, "public_right", public_right);
+        binary_expression(&mut program, left, BinaryOperator::Equal, right)
+    };
+    let representative_fixed = {
+        let left = named_argument(&mut program, "representative_right", representative_right);
+        let right = named_argument(&mut program, "representative_right", representative_right);
+        binary_expression(&mut program, left, BinaryOperator::Equal, right)
+    };
+    let public_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(public_fact),
+        ProofFact::Expression(public_fixed),
+    ]);
+    let representative_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(representative_fact),
+        ProofFact::Expression(representative_fixed),
+    ]);
     let mut public_machine = Machine::default();
     program.push_machine_contract(
         &mut public_machine,
@@ -7053,7 +7656,10 @@ fn define_preconditions_require_one_exact_alpha_renamed_bijection() {
     };
     let partition = super::RepresentativePreconditionPartition {
         dependent: vec![location],
-        fixed: Vec::new(),
+        fixed: vec![RepresentativeContractFactLocation {
+            fact_position: 1,
+            ..location
+        }],
     };
     let representative = RepresentativeTelescope {
         machine_symbol: symbol(744),
@@ -7091,6 +7697,7 @@ fn define_preconditions_require_one_exact_alpha_renamed_bijection() {
     )
     .expect("parameter names may differ while exact positions agree");
     assert_eq!(exact.dependent.len(), 1);
+    assert_eq!(exact.fixed.len(), 1);
 
     let redirected = super::DefineRuntimeCorrespondence {
         positions: vec![
@@ -7115,6 +7722,52 @@ fn define_preconditions_require_one_exact_alpha_renamed_bijection() {
             &redirected,
         ),
         Err(RelationPlanError::DefinePreconditionMismatch)
+    );
+}
+
+#[test]
+fn define_fixed_preconditions_reject_arithmetic_weakening() {
+    let fixture = fixed_call_fixture(false, |program, public, representative, _| {
+        let public = named_argument(program, "fixed", public);
+        let two = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let q = binary_expression(program, public, BinaryOperator::Greater, two);
+        let representative = named_argument(program, "fixed", representative);
+        let one = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let p = binary_expression(program, representative, BinaryOperator::Greater, one);
+        (vec![ProofFact::Expression(q)], ProofFact::Expression(p))
+    });
+    let positions = fixture
+        .runtime
+        .positions
+        .iter()
+        .map(|position| {
+            let super::DirectLiftArgumentSource::PublicParameter(public_parameter) =
+                position.source
+            else {
+                panic!("define fixture must use only direct public parameters")
+            };
+            super::DefineRuntimePosition {
+                public_parameter,
+                representative_parameter: position.representative_parameter,
+            }
+        })
+        .collect();
+    assert_eq!(
+        derive_define_precondition_correspondence(
+            &fixture.program,
+            &fixture.public_machine,
+            &fixture.public_state,
+            &fixture.representative,
+            &fixture.public_partition,
+            &fixture.representative_partition,
+            &super::DefineRuntimeCorrespondence { positions },
+        ),
+        Err(RelationPlanError::DefinePreconditionMismatch),
+        "define fixed Q<=>P remains an exact bijection, never arithmetic weakening",
     );
 }
 
@@ -7191,6 +7844,7 @@ fn define_correspondence_applies_closed_representative_type_substitution() {
         plan.define_precondition_correspondence,
         Some(super::DefinePreconditionCorrespondence {
             dependent: Vec::new(),
+            fixed: Vec::new(),
         })
     );
     assert_eq!(
@@ -7312,7 +7966,11 @@ fn derived_direct_terminal_plan_remains_non_executable() {
     assert!(diagnostics[0].message.contains("define-runtime=[0]"));
     assert!(diagnostics[0].message.contains("Q=[dependent:0, fixed:0]"));
     assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
-    assert!(diagnostics[0].message.contains("Q<->P=[dependent:0]"));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("Q<->P=[dependent:0, fixed:0]")
+    );
     assert!(diagnostics[0].message.contains(
         "theorem-schema=[parameters:2, relations:1, legality:0, applications:2, conclusion:1]"
     ));

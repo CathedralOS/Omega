@@ -28,9 +28,10 @@ mod theorem_schema;
 mod theorem_schema_verification;
 
 use correspondence_certificate::{
-    DirectLiftPreconditionImplication, QuotientCorrespondenceCertificate,
-    compose_define_correspondence_certificate, compose_lift_correspondence_certificate,
-    derive_direct_lift_precondition_implication,
+    DirectLiftPreconditionImplication, FixedRepresentativeCallPreconditions,
+    QuotientCorrespondenceCertificate, compose_define_correspondence_certificate,
+    compose_lift_correspondence_certificate, derive_direct_lift_precondition_implication,
+    derive_fixed_representative_call_preconditions,
 };
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
@@ -114,10 +115,13 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) direct_lift_precondition_implication: Option<DirectLiftPreconditionImplication>,
+    pub(super) fixed_representative_call_preconditions:
+        Option<FixedRepresentativeCallPreconditions>,
     pub(super) define_precondition_correspondence: Option<DefinePreconditionCorrespondence>,
-    /// Exact theorem + bounded correspondence composition only. Fixed call
-    /// obligations, general implication/adaptation, and Terminal replay remain
-    /// outside this non-executable certificate.
+    /// Exact theorem + bounded correspondence composition only. The admitted
+    /// fixed call obligations are retained, while general implication/
+    /// adaptation and Terminal replay remain outside this non-executable
+    /// certificate.
     pub(super) correspondence_certificate: Option<QuotientCorrespondenceCertificate>,
 }
 
@@ -182,6 +186,8 @@ pub(super) enum RelationPlanError {
     DirectLiftLeftPreconditionNotImplied(usize),
     DirectLiftRightPreconditionNotImplied(usize),
     DirectLiftTheoremLegalityMismatch,
+    DirectLiftFixedPreconditionNotImplied(usize),
+    DirectLiftFixedTheoremLegalityMismatch,
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -329,6 +335,13 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::DirectLiftTheoremLegalityMismatch => formatter.write_str(
                 "the direct-lift implication row does not join to one exact verified theorem-legality coordinate",
+            ),
+            Self::DirectLiftFixedPreconditionNotImplied(position) => write!(
+                formatter,
+                "public fixed Q does not discharge representative fixed call precondition {position} after exact runtime substitution"
+            ),
+            Self::DirectLiftFixedTheoremLegalityMismatch => formatter.write_str(
+                "the fixed representative call-precondition row does not join to both exact verified theorem-legality coordinates",
             ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
@@ -561,25 +574,54 @@ pub(super) fn derive_direct_terminal_plan(
         }
         _ => None,
     };
+    let fixed_representative_call_preconditions = match (
+        direct_lift_correspondence.as_ref(),
+        public_precondition.as_ref(),
+        representative_precondition.as_ref(),
+        theorem_schema_verification.as_ref().ok(),
+    ) {
+        (Some(runtime), Some(public), Some(representative_partition), Some(verified_theorem)) => {
+            Some(derive_fixed_representative_call_preconditions(
+                program,
+                machine,
+                state,
+                &representative,
+                public,
+                representative_partition,
+                runtime,
+                &expected_theorem_schema,
+                verified_theorem,
+            )?)
+        }
+        _ => None,
+    };
     let correspondence_certificate = match request.kind {
         QuotientOperationKind::Lift => direct_lift_correspondence
             .as_ref()
             .zip(direct_lift_precondition_implication.as_ref())
-            .and_then(|(runtime, precondition)| {
-                compose_lift_correspondence_certificate(
-                    &theorem_schema_verification,
-                    runtime,
-                    precondition,
-                )
-            }),
+            .zip(fixed_representative_call_preconditions.as_ref())
+            .zip(representative_precondition.as_ref())
+            .and_then(
+                |(((runtime, precondition), fixed), representative_partition)| {
+                    compose_lift_correspondence_certificate(
+                        &theorem_schema_verification,
+                        runtime,
+                        precondition,
+                        fixed,
+                        representative_partition,
+                    )
+                },
+            ),
         QuotientOperationKind::Define => define_correspondence
             .as_ref()
             .zip(define_precondition_correspondence.as_ref())
-            .and_then(|(runtime, precondition)| {
+            .zip(representative_precondition.as_ref())
+            .and_then(|((runtime, precondition), representative_partition)| {
                 compose_define_correspondence_certificate(
                     &theorem_schema_verification,
                     runtime,
                     precondition,
+                    representative_partition,
                 )
             }),
     };
@@ -599,6 +641,7 @@ pub(super) fn derive_direct_terminal_plan(
         public_precondition,
         representative_precondition,
         direct_lift_precondition_implication,
+        fixed_representative_call_preconditions,
         define_precondition_correspondence,
         correspondence_certificate,
     })
@@ -773,10 +816,23 @@ impl DirectTerminalRelationPlan {
         })
     }
 
-    pub(super) fn has_fixed_representative_preconditions(&self) -> bool {
-        self.representative_precondition
-            .as_ref()
-            .is_some_and(|partition| !partition.fixed.is_empty())
+    pub(super) fn has_undischarged_fixed_representative_preconditions(&self) -> bool {
+        let Some(partition) = self.representative_precondition.as_ref() else {
+            return false;
+        };
+        if self.direct_lift_correspondence.is_some() {
+            return self
+                .fixed_representative_call_preconditions
+                .as_ref()
+                .is_none_or(|proof| proof.rows.len() != partition.fixed.len());
+        }
+        if self.define_correspondence.is_some() {
+            return self
+                .define_precondition_correspondence
+                .as_ref()
+                .is_none_or(|proof| proof.fixed.len() != partition.fixed.len());
+        }
+        !partition.fixed.is_empty()
     }
 
     pub(super) fn render_public_precondition(&self) -> Option<String> {
@@ -792,7 +848,13 @@ impl DirectTerminalRelationPlan {
     pub(super) fn render_define_precondition_correspondence(&self) -> Option<String> {
         self.define_precondition_correspondence
             .as_ref()
-            .map(|correspondence| format!("Q<->P=[dependent:{}]", correspondence.dependent.len()))
+            .map(|correspondence| {
+                format!(
+                    "Q<->P=[dependent:{}, fixed:{}]",
+                    correspondence.dependent.len(),
+                    correspondence.fixed.len()
+                )
+            })
     }
 
     pub(super) fn render_direct_lift_precondition_implication(&self) -> Option<String> {
@@ -816,6 +878,27 @@ impl DirectTerminalRelationPlan {
                     })
                     .count();
                 format!("Q=>P=[left:{left}, right:{right}, arithmetic:{arithmetic}]")
+            })
+    }
+
+    pub(super) fn render_fixed_representative_call_preconditions(&self) -> Option<String> {
+        self.fixed_representative_call_preconditions
+            .as_ref()
+            .map(|preconditions| {
+                let arithmetic = preconditions
+                    .rows
+                    .iter()
+                    .filter(|row| {
+                        matches!(
+                            row.proof,
+                            correspondence_certificate::FixedRepresentativeCallProof::ArithmeticEntailment { .. }
+                        )
+                    })
+                    .count();
+                format!(
+                    "fixed-call-P=[rows:{}, arithmetic:{arithmetic}]",
+                    preconditions.rows.len()
+                )
             })
     }
 
