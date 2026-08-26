@@ -9,6 +9,11 @@ impl ArtifactWriter {
     /// boundary report does not carry. Written even when empty (an empty
     /// report is the honest "no semantic commitments admitted" statement).
     pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+        for row in &trust_report.provider_requirements {
+            row.realization
+                .validate_reported_target(&row.target)
+                .map_err(Diagnostic::error)?;
+        }
         let mut output = String::new();
         output.push_str("# Omega Trust\n\n");
         output.push_str(&format!(

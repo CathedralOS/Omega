@@ -215,8 +215,7 @@ pub(super) fn write_trust_report(
                             subject_projections: premise.subject_projections.clone(),
                         })
                         .collect(),
-                    realization: trust_provider_realization(&row.binding)
-                        .map_err(|diagnostic| vec![diagnostic])?,
+                    realization: trust_provider_realization(&row.binding),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
                     standing_warning: !granted,
@@ -676,18 +675,15 @@ fn accepted_machine_crash_routes(
 
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
-) -> Result<TrustProviderRealization, Diagnostic> {
+) -> TrustProviderRealization {
     use omega_effects::provider_plan::ProviderBinding;
 
     let realization = match binding {
-        ProviderBinding::Import { locator } => {
-            return Err(Diagnostic::error(format!(
-                "normalized foreign locator 0x{:016x} reached the legacy string-backed trust report; the trust artifact must carry its atomic locator before this plan can be reported",
-                locator.normalized_identity(),
-            )));
-        }
+        ProviderBinding::Import { locator } => TrustProviderRealization::Import {
+            locator: locator.clone(),
+        },
         ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
-            TrustProviderRealization::Import {
+            TrustProviderRealization::StringBackedImportBootstrap {
                 library: library.clone(),
                 symbol: symbol.clone(),
             }
@@ -721,12 +717,14 @@ fn trust_provider_realization(
             machine_package_identity: *machine_package_identity,
         },
     };
-    Ok(realization)
+    realization
 }
 
 #[cfg(test)]
 mod tests {
-    use omega_artifacts::{TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard};
+    use omega_artifacts::{
+        TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustProviderRealization,
+    };
     use psi_checked_trees::{
         CheckedTrees, CrashCause, CrashPlan, CrashPredicateIdentity, CrashRouteBucket,
         CrashRouteGuard, MachineBlockingFact, MachineContractPlan, MachineContractPlans,
@@ -747,8 +745,50 @@ mod tests {
         accepted_instance_contract_fingerprint, accepted_machine_crash_routes,
         accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
         accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
-        exact_machine_contract_plan,
+        exact_machine_contract_plan, trust_provider_realization,
     };
+
+    #[test]
+    fn trust_realization_retains_normalized_locator_and_keeps_bootstrap_distinct() {
+        let locator = omega_effects::normalize_foreign_locator(
+            omega_effects::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libopaque.so".to_vec(),
+                symbol: b"invoke_raw".to_vec(),
+                version: b"OPAQUE_2.0".to_vec(),
+            },
+            omega_target::TargetProfile::LinuxX64,
+        )
+        .expect("valid normalized Linux import");
+        let normalized =
+            trust_provider_realization(&omega_effects::provider_plan::ProviderBinding::Import {
+                locator: locator.clone(),
+            });
+        assert_eq!(
+            normalized,
+            TrustProviderRealization::Import {
+                locator: locator.clone(),
+            }
+        );
+        assert_eq!(
+            normalized.normalized_foreign_locator_identity(),
+            Some(locator.normalized_identity()),
+        );
+
+        let bootstrap = trust_provider_realization(
+            &omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+                library: "libopaque.so".to_owned(),
+                symbol: "invoke_raw".to_owned(),
+            },
+        );
+        assert_eq!(
+            bootstrap,
+            TrustProviderRealization::StringBackedImportBootstrap {
+                library: "libopaque.so".to_owned(),
+                symbol: "invoke_raw".to_owned(),
+            }
+        );
+        assert_eq!(bootstrap.normalized_foreign_locator_identity(), None);
+    }
 
     #[test]
     fn accepted_template_classification_fails_closed_on_missing_and_duplicate_symbols() {

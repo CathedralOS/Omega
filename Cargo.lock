@@ -186,6 +186,7 @@ dependencies = [
  "omega-backend-report-types",
  "omega-calling-conventions",
  "omega-core",
+ "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
  "omega-image",

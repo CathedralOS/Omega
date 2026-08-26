@@ -9,6 +9,7 @@ use omega_calling_conventions::{
     StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_realization,
 };
+use omega_effects::{ForeignLocatorCandidate, normalize_foreign_locator};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
     ArtifactId, CodePlacementAuthority, CodePlacementId, ContainerLimits, DecodedArtifactContainer,
@@ -31,7 +32,7 @@ use omega_external_roots::{
     StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
     bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
 };
-use omega_target::Architecture;
+use omega_target::{Architecture, TargetProfile};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::name::Identifier;
@@ -53,6 +54,54 @@ use super::{
     TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
     TrustReportRow, build_backend_surface_report, value_placement_json,
 };
+
+fn normalized_windows_import(library: &[u8], export: &[u8]) -> TrustProviderRealization {
+    TrustProviderRealization::Import {
+        locator: normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: library.to_vec(),
+                export: export.to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid normalized Windows import"),
+    }
+}
+
+fn trust_provider_requirement(
+    target: &str,
+    realization: TrustProviderRealization,
+) -> TrustProviderRequirementRow {
+    TrustProviderRequirementRow {
+        provider_plan: "ForeignProvider::satisfies::Foreign".to_owned(),
+        provider_plan_fingerprint: 0x1234,
+        provider_type: String::new(),
+        provider_type_package_identity: None,
+        target: target.to_owned(),
+        provider_origin_package_identity: None,
+        provider_origin_package: String::new(),
+        service_schema: "Foreign".to_owned(),
+        service_schema_package_identity: None,
+        calling_plan_fingerprint: None,
+        selected: true,
+        requirement_owner: "Foreign".to_owned(),
+        requirement_owner_package_identity: None,
+        requirement_identity: "Foreign::invoke".to_owned(),
+        method: "invoke".to_owned(),
+        parameter_type_identities: Vec::new(),
+        result_type_identity: None,
+        service_reach: Vec::new(),
+        synchronous_invocations: Vec::new(),
+        may_suspend: false,
+        may_block: false,
+        terminates_guarantee: false,
+        termination_premises: Vec::new(),
+        realization,
+        provenance: "root grant (build.omg)".to_owned(),
+        grant_selectors: vec!["Foreign".to_owned()],
+        standing_warning: false,
+    }
+}
 
 #[test]
 fn accepted_machine_service_reach_distinguishes_public_empty_from_non_machine_rows() {
@@ -355,6 +404,72 @@ fn trust_provider_realizations_distinguish_checked_and_opaque_leaves() {
         TrustProviderRealization::Syscall { number: 60 }.report_text(),
         "syscall 60"
     );
+}
+
+#[test]
+fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output() {
+    let baseline = normalized_windows_import(b"opaque\xff.dll", b"invoke_raw");
+    let changed_library = normalized_windows_import(b"opaque\xfe.dll", b"invoke_raw");
+    let changed_export = normalized_windows_import(b"opaque\xff.dll", b"invoke_next");
+
+    assert_ne!(
+        baseline.normalized_foreign_locator_identity(),
+        changed_library.normalized_foreign_locator_identity(),
+    );
+    assert_ne!(
+        baseline.normalized_foreign_locator_identity(),
+        changed_export.normalized_foreign_locator_identity(),
+    );
+
+    let text = baseline.report_text();
+    let identity = baseline
+        .normalized_foreign_locator_identity()
+        .expect("normalized import identity");
+    assert!(text.contains(&format!("PeByName [{identity:016x}]")));
+    assert!(text.contains("target `windows_x64`"));
+    assert!(text.contains("library bytes 0x6f7061717565ff2e646c6c"));
+    assert!(text.contains("export bytes 0x696e766f6b655f726177"));
+    assert!(!text.contains("opaque.dll"));
+
+    let bootstrap = TrustProviderRealization::StringBackedImportBootstrap {
+        library: "opaque.dll".to_owned(),
+        symbol: "invoke_raw".to_owned(),
+    };
+    assert_eq!(bootstrap.normalized_foreign_locator_identity(), None);
+    assert!(
+        bootstrap
+            .report_text()
+            .starts_with("string-backed import bootstrap")
+    );
+}
+
+#[test]
+fn trust_report_rejects_normalized_locator_under_a_different_target() {
+    let root = std::env::temp_dir().join(format!(
+        "omega-trust-foreign-target-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let writer = ArtifactWriter::new(&root).expect("artifact writer");
+    let report = TrustReport {
+        provider_requirements: vec![trust_provider_requirement(
+            "linux_x64",
+            normalized_windows_import(b"opaque.dll", b"invoke_raw"),
+        )],
+        ..Default::default()
+    };
+
+    let diagnostic = writer
+        .write_trust_report(&report)
+        .expect_err("mismatched target must fail before artifact installation");
+    assert!(diagnostic.message.contains("targets `windows_x64`"));
+    assert!(diagnostic.message.contains("reports target `linux_x64`"));
+    assert!(!root.join("trust_report.md").exists());
+    std::fs::remove_dir_all(root).expect("remove test artifact directory");
 }
 
 #[test]
