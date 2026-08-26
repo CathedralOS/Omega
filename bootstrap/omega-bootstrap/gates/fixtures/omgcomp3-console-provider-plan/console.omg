@@ -1,0 +1,62 @@
+pub data ByteRead {
+    case Eof;
+    case Byte(value: i32 [0..=255]);
+}
+
+pub boundary trait Console {
+    machine write_line(text: &[u8]) reaches Console;
+    machine write(text: &[u8]) reaches Console;
+    machine read_line(out_line: &mut [u8]) reaches Console;
+    machine read_byte() -> ByteRead reaches Console;
+    machine write_byte(byte: i32) reaches Console;
+    machine exit_process(return_code: i32) reaches Console;
+}
+
+data ConsoleNativeProvider { }
+
+machine console_write_bytes(console: Console, bytes: &[u8], newline: bool)
+terminates by bytes -> Slice::Length;
+reaches Console
+{
+    transition bytes.len > 0 {
+        true -> emit(console, bytes[0], bytes[1..], newline)
+        false -> finish(console, newline)
+    }
+
+    state emit(console: Console, byte: u8, bytes: &[u8], newline: bool) {
+        let mut output: u8 = byte;
+        console.write_byte(output);
+        transition bytes.len > 0 {
+            true -> emit(console, bytes[0], bytes[1..], newline)
+            false -> finish(console, newline)
+        }
+    }
+
+    state finish(console: Console, newline: bool) {
+        transition newline {
+            true -> emit_newline(console, 10)
+            false -> done()
+        }
+    }
+
+    state emit_newline(console: Console, byte: u8) {
+        let mut output: u8 = byte;
+        console.write_byte(output);
+    }
+
+    state done() { }
+}
+
+machine ConsoleNativeProvider::write(console: Console, text: &[u8])
+    satisfies Console::write
+    reaches Console
+{
+    console_write_bytes(console, text, false);
+}
+
+machine ConsoleNativeProvider::write_line(console: Console, text: &[u8])
+    satisfies Console::write_line
+    reaches Console
+{
+    console_write_bytes(console, text, true);
+}

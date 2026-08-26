@@ -1,6 +1,7 @@
-// Structural checker for the private OMGCOMP version-1 and version-2
-// compilation envelopes. V2 retains the V1 tables and binds only the exact
-// selected target/configuration; source contents remain opaque here.
+// Structural checker for the private OMGCOMP version-1 through version-3
+// compilation envelopes. V2 retains the V1 tables and binds the exact selected
+// target/configuration. V3 additionally marks exactly one root-package source
+// as the authoritative build input. Source contents remain opaque here.
 // This checker grants no resolver authority and performs no source-semantic
 // validation.  It emits no bytes.  Status 251 is malformed/noncanonical input;
 // status 252 is exhaustion of a declared public transport ceiling.
@@ -19,6 +20,7 @@ data Main {
     string_count: i32; package_count: i32; source_count: i32; alias_count: i32;
     root_package: i32; root_source: i32; root_owner_string: i32;
     root_machine_string: i32; schema_major: i32;
+    build_source: i32; build_seen: i32;
     package_table: i32; source_table: i32;
     alias_table: i32; string_table: i32; bundle_start: i32;
     total_string_payload: i32; total_label_payload: i32;
@@ -105,7 +107,7 @@ machine Main::check_header(&mut self) {
     state magic6() { transition self.input[6] == 80 { true -> magic7() _ -> bad() } }
     state magic7() { transition self.input[7] == 0 { true -> fixed0() _ -> bad() } }
     state fixed0() { self.schema_major = self.input[8]; transition self.schema_major >= 1 { true -> fixed0_high() _ -> bad() } }
-    state fixed0_high() { transition self.schema_major <= 2 { true -> fixed1() _ -> bad() } }
+    state fixed0_high() { transition self.schema_major <= 3 { true -> fixed1() _ -> bad() } }
     state fixed1() { transition self.input[9] == 0 { true -> fixed2() _ -> bad() } }
     state fixed2() { transition self.input[10] == 0 { true -> fixed3() _ -> bad() } }
     state fixed3() { transition self.input[11] == 0 { true -> fixed4() _ -> bad() } }
@@ -114,9 +116,9 @@ machine Main::check_header(&mut self) {
     state fixed6() { transition self.input[14] == 0 { true -> fixed7() _ -> bad() } }
     state fixed7() { transition self.input[15] == 0 { true -> reserved() _ -> bad() } }
     state reserved() { self.read_u32(60); transition self.status == 0 { true -> reserved_value() _ -> done() } }
-    state reserved_value() { transition self.schema_major == 1 { true -> reserved_v1() _ -> reserved_v2() } }
+    state reserved_value() { transition self.schema_major == 1 { true -> reserved_v1() _ -> reserved_v2_v3() } }
     state reserved_v1() { transition self.decoded == 0 { true -> lengths() _ -> bad() } }
-    state reserved_v2() { transition self.decoded == 1 { true -> lengths() _ -> bad() } }
+    state reserved_v2_v3() { transition self.decoded == 1 { true -> lengths() _ -> bad() } }
     state lengths() { self.read_u32(16); self.total_length = self.decoded; self.read_u32(20); self.bundle_length = self.decoded; self.read_u32(24); self.string_table_length = self.decoded; transition self.status == 0 { true -> counts() _ -> done() } }
     state counts() { self.read_u32(28); self.string_count = self.decoded; self.read_u32(32); self.package_count = self.decoded; self.read_u32(36); self.source_count = self.decoded; self.read_u32(40); self.alias_count = self.decoded; transition self.status == 0 { true -> roots() _ -> done() } }
     state roots() { self.read_u32(44); self.root_package = self.decoded; self.read_u32(48); self.root_source = self.decoded; self.read_u32(52); self.root_owner_string = self.decoded; self.read_u32(56); self.root_machine_string = self.decoded; transition self.status == 0 { true -> minimum_package() _ -> done() } }
@@ -192,12 +194,20 @@ machine Main::check_sources(&mut self) {
     state bundle_mark() { self.bundle_seen[self.source_bundles[self.i]] = 1; self.read_u32(self.pos + 12); self.source_modules[self.i] = self.decoded; transition self.status == 0 { true -> module_range() _ -> done() } }
     state module_range() { transition self.source_modules[self.i] < self.string_count { true -> flags() _ -> bad() } }
     state flags() { self.read_u32(self.pos + 16); transition self.status == 0 { true -> flags_value() _ -> done() } }
-    state flags_value() { transition self.decoded == 0 { true -> advance() _ -> bad() } }
+    state flags_value() { transition self.schema_major == 3 { true -> flags_v3() _ -> flags_legacy() } }
+    state flags_legacy() { transition self.decoded == 0 { true -> advance() _ -> bad() } }
+    state flags_v3() { transition self.decoded == 0 { true -> advance() _ -> flags_v3_build() } }
+    state flags_v3_build() { transition self.decoded == 1 { true -> build_unique() _ -> bad() } }
+    state build_unique() { transition self.build_seen == 0 { true -> build_save() _ -> bad() } }
+    state build_save() { self.build_seen = 1; self.build_source = self.i; transition 0 { _ -> advance() } }
     state advance() { self.i = self.i + 1; transition 0 { _ -> loop() } }
     state permutation() { self.i = 0; transition 0 { _ -> permutation_loop() } }
-    state permutation_loop() { transition self.i < self.source_count { true -> permutation_value() _ -> root_owner() } }
+    state permutation_loop() { transition self.i < self.source_count { true -> permutation_value() _ -> build_required() } }
     state permutation_value() { transition self.bundle_seen[self.i] == 1 { true -> permutation_advance() _ -> bad() } }
     state permutation_advance() { self.i = self.i + 1; transition 0 { _ -> permutation_loop() } }
+    state build_required() { transition self.schema_major == 3 { true -> build_present() _ -> root_owner() } }
+    state build_present() { transition self.build_seen == 1 { true -> build_owner() _ -> bad() } }
+    state build_owner() { transition self.source_owners[self.build_source] == self.root_package { true -> root_owner() _ -> bad() } }
     state root_owner() { transition self.source_owners[self.root_source] == self.root_package { true -> done() _ -> bad() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
     state done() { }

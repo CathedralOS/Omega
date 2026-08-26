@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("omega-bootstrap-provider-plan");
+    builder.select_provider<Console, ConsoleNativeProvider>();
+}

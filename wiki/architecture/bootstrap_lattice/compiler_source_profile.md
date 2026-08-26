@@ -433,7 +433,7 @@ establishes the implementation and assurance cost.
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
 | boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface; a one-requirement fixture measures the relation but does not establish complete conformance for the six-requirement product `Console` |
-| static provider path arguments and default selection | measure from checkpoint 000001; exact structural and resolution-only cost closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; OMGRSW6 resolves its one exact requirement, applicable bodyless intrinsic candidate, and receiver call without selecting that candidate. Its reduced `Console` has only `exit_process`, so it cannot prove the complete product provider plan. The product build now directly selects its complete provider with the specified `Build::select_provider<Console, ConsoleNativeProvider>` form and no longer relies observably on the compatibility `Owner::provider_defaults` convention. A selection successor must receive the authoritative build-source identity explicitly because OMGCOMP2 source labels are custody-only, and product checked-adapter execution follows the generalized recurrent view/pass-through cut. Complete-plan checking, lowering, admission, and authority remain open, and the checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
+| static provider path arguments and default selection | measure from checkpoint 000001; build-role custody plus exact one-row resolution cost closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; OMGRSW6 resolves its one exact requirement, applicable bodyless intrinsic candidate, and receiver call without selecting that candidate. OMGCOMP3 now marks exactly one root-package source as the build input without deriving the role from a filename, readable machine name, declaration order, provider defaults, or candidate uniqueness. Its four-source carrier already transports the explicit `Build::select_provider<Console, ConsoleNativeProvider>` bytes and the six-requirement source closure opaquely. The next resolver must harvest selection only from that role and derive one complete plan. Complete-plan checking, lowering, admission, accepted-closure authority, and execution remain open, and the checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
 | basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
 | concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
@@ -507,14 +507,15 @@ Target-package sources still contain the compatibility
 `Owner::provider_defaults` convention, which the language guide does not
 specify; bootstrap work must ignore that suffix as authority and preserve the
 distinction instead of elevating Rust on-ramp recognition rules into Omega
-semantics. The structural OMGCOMP2 envelope does not identify which source is
-the authoritative build input: source labels are custody/order metadata and
-the Rust product path receives an explicit `build_source_id` from project
-discovery. The bounded complete-plan successor therefore needs an explicit
-build-source identity in a compilation-envelope successor (or an equally
-explicit sealed sidecar), then retains the selecting machine and exact source
-span. Uniqueness of a readable `build` name, filename convention, declaration
-order, or provider candidate cannot manufacture that authority.
+semantics. The structural OMGCOMP2 envelope did not identify which source was
+the build input: source labels are custody/order metadata and the Rust product
+path receives an explicit `build_source_id` from project discovery. OMGCOMP3
+closes that transport gap by assigning one exact root-package source row the
+build role. The complete-plan resolver must retain that row, the selecting
+machine, and exact source span. Uniqueness of a readable `build` name, filename
+convention, declaration order, provider default, or candidate still cannot
+manufacture the role. Accepted-lock/closure evidence must separately join the
+exact envelope before the role has package or compilation authority.
 
 The complete plan has two checked adapters (`write`, `write_line`) and four
 compiler-intrinsic leaves. Static completeness can be checked before every row

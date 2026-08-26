@@ -1,0 +1,51 @@
+{
+  "target": "linux_x86_64",
+  "configuration": {
+    "native_provider_substitution": true
+  },
+  "packages": [
+    {
+      "key": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sources": [
+        {
+          "label": "app/build.omg",
+          "module": "app"
+        },
+        {
+          "label": "app/main.omg",
+          "module": "app"
+        }
+      ]
+    },
+    {
+      "key": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sources": [
+        {
+          "label": "omega/std/console.omg",
+          "module": "console"
+        },
+        {
+          "label": "omega/std/targets/linux_x64/console_impl.omg",
+          "module": "console"
+        }
+      ]
+    }
+  ],
+  "aliases": [
+    {
+      "requester": "2222222222222222222222222222222222222222222222222222222222222222",
+      "alias": "omega_std",
+      "target": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ],
+  "root": {
+    "package": "2222222222222222222222222222222222222222222222222222222222222222",
+    "source": "app/main.omg",
+    "owner": "Main",
+    "machine": "main"
+  },
+  "build": {
+    "package": "2222222222222222222222222222222222222222222222222222222222222222",
+    "source": "app/build.omg"
+  }
+}

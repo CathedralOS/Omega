@@ -268,7 +268,7 @@ beside the linked contracts:
 | Responsibility | Current closure | Canonical detail |
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
-| multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
+| multi-unit structural custody | closed for generic `OMGCOMP1`, the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`, and exactly one explicit root-package build-source role in `OMGCOMP3`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, accepted-closure, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_COMPILATION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
 | generated ordinary-source custody | closed for checkpoint 000001's exact Unicode tuple through a sealed locked/offline recipe, generic provenance roles, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, CKIR3/OMGRFN4 preflight composition, and the refreshed product-owned checkpoint join | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md), [`source checkpoint status`](source/compiler/omega/source-checkpoints/README.md) |
 | source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
@@ -317,7 +317,12 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
   ranking/reach facts, provider-owned boundary call, and surrounding receiver
   closure.
   Structural plan completeness may proceed first, but it must not be presented
-  as the product adapter or as provider admission.
+  as the product adapter or as provider admission. OMGCOMP3 closes the first
+  structural conjunct: exactly one source row is explicitly marked as the
+  root-package build source, with native/self, version-cross-pair, role,
+  ownership, and resource teeth. It grants no accepted-lock or compilation
+  authority. Complete six-row plan derivation, calls, execution, and
+  reconstruction remain in this item.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.
