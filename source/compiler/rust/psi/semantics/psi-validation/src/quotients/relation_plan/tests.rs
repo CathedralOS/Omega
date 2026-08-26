@@ -16,7 +16,9 @@ use super::{
 };
 use psi_arena::HandleSpan;
 use psi_numerics::arithmetic::ArithmeticDomain;
-use psi_numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+use psi_numerics::literals::{
+    FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, LandedIntegerType,
+};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{
@@ -1817,6 +1819,44 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&true_value),
         context(&no_values),
     ));
+
+    let float_parameter = symbol(954);
+    let float_name = named_argument(&mut program, "scale", float_parameter);
+    let f32_literal = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+    ));
+    let f64_literal = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+    ));
+    let other_f32_literal = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.5f32").expect("format-landed f32 literal"),
+    ));
+    let float_value = vec![ProofValueSubstitution::float(
+        float_parameter,
+        "1.25",
+        FloatFormat::F32,
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_name),
+        &ProofFact::Expression(f32_literal),
+        context(&float_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_name),
+        &ProofFact::Expression(f64_literal),
+        context(&float_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(float_name),
+        &ProofFact::Expression(other_f32_literal),
+        context(&float_value),
+        context(&no_values),
+    ));
 }
 
 #[test]
@@ -2349,6 +2389,91 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_only_format_landed_float_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(970),
+        "FloatLiteralQ",
+        symbol(971),
+        "FloatLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let f32_type = primitive_type(&mut program, "f32");
+    let f64_type = primitive_type(&mut program, "f64");
+    let f32_literal = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+    ));
+    let f64_literal = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+    ));
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([f32_literal, f64_literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(
+        &mut program,
+        &[(f32_type, false, false), (f64_type, false, false)],
+        carrier,
+    );
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("format-landed floats have exact representative types");
+    assert_eq!(
+        plan.input_relations,
+        [
+            InputRelation::ExactEquality(f32_type),
+            InputRelation::ExactEquality(f64_type),
+        ]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("float literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Float {
+                        spelling: "1.25".to_owned(),
+                        landing: FloatFormat::F32,
+                    },
+                ),
+                representative_parameter: symbol(100),
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Float {
+                        spelling: "1.25".to_owned(),
+                        landing: FloatFormat::F64,
+                    },
+                ),
+                representative_parameter: symbol(101),
+            },
+        ]
+    );
+    assert_ne!(
+        runtime.positions[0].source, runtime.positions[1].source,
+        "float format landing remains runtime-evidence identity"
+    );
+    let mut spelling_drift = runtime.clone();
+    spelling_drift.positions[0].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
+        super::runtime_correspondence::ClosedScalarLiteral::Float {
+            spelling: "1.5".to_owned(),
+            landing: FloatFormat::F32,
+        },
+    );
+    assert_ne!(
+        runtime, spelling_drift,
+        "float spelling remains runtime-evidence identity"
+    );
+}
+
+#[test]
 fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positions() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -2441,6 +2566,8 @@ fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
     let mut program = TypedTrees::default();
     let i8_type = primitive_type(&mut program, "i8");
     let bool_type = primitive_type(&mut program, "bool");
+    let f32_type = primitive_type(&mut program, "f32");
+    let f64_type = primitive_type(&mut program, "f64");
     let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let cases = [
         (
@@ -2501,9 +2628,32 @@ fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
             Err(expected),
         );
     }
-    let float = program
+    let anonymous_float = program
         .expression_table
         .insert(ExpressionNode::Float(Default::default()));
+    let landed_float = program.expression_table.insert(ExpressionNode::Float(
+        FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+    ));
+    for (position, (expression, target)) in [
+        (anonymous_float, f32_type),
+        (landed_float, f64_type),
+        (landed_float, i8_type),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(
+            super::closed_scalar_literal_for_representative(
+                &program,
+                expression,
+                target,
+                position + 6,
+            ),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                position + 6
+            )),
+        );
+    }
     let zero = program
         .expression_table
         .insert(ExpressionNode::ZeroValue(bool_type));
@@ -2530,7 +2680,6 @@ fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
         .expression_table
         .insert(ExpressionNode::Call(call_with_arguments(call_arguments)));
     for (position, (expression, target)) in [
-        (float, i8_type),
         (zero, bool_type),
         (string, bool_type),
         (array, bool_type),
@@ -2545,7 +2694,7 @@ fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
                 &program,
                 expression,
                 target,
-                position + 6,
+                position + 9,
             ),
             Ok(None),
         );

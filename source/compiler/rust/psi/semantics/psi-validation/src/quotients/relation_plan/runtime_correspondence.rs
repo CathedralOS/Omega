@@ -5,8 +5,9 @@
 //! mutable/borrow mode while matching quotient carriers through the retained
 //! representative static application. Faithful `define` remains declaration-
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
-//! members of the public telescope or supply a closed boolean / explicitly
-//! landed integer to an exact immutable scalar representative position.
+//! members of the public telescope or supply a closed boolean, explicitly
+//! landed integer, or format-landed float to an exact immutable scalar
+//! representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -14,7 +15,7 @@ use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
     RepresentativeTelescope,
 };
-use psi_numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+use psi_numerics::literals::{FloatFormat, IntegerLanding, IntegerLiteral, LandedIntegerType};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -41,6 +42,10 @@ pub(super) enum ClosedScalarLiteral {
     Integer {
         spelling: String,
         landing: IntegerLanding,
+    },
+    Float {
+        spelling: String,
+        landing: FloatFormat,
     },
 }
 
@@ -271,7 +276,7 @@ pub(super) fn closed_scalar_literal_for_representative(
         .type_reference(representative_type)
     else {
         return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
                 Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
             }
             _ => Ok(None),
@@ -279,7 +284,7 @@ pub(super) fn closed_scalar_literal_for_representative(
     };
     let Some(primitive) = PrimitiveType::from_name(name.as_str()) else {
         return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
                 Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
             }
             _ => Ok(None),
@@ -289,7 +294,7 @@ pub(super) fn closed_scalar_literal_for_representative(
     // only the exact scalar spelling, never an adapted wrapper.
     if name.as_str() != primitive.name() {
         return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
                 Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
             }
             _ => Ok(None),
@@ -314,6 +319,25 @@ pub(super) fn closed_scalar_literal_for_representative(
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
             Ok(Some(ClosedScalarLiteral::Integer {
+                spelling: literal.text().to_owned(),
+                landing,
+            }))
+        }
+        ExpressionNode::Float(literal) => {
+            let landing = literal
+                .landing()
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            let expected = match primitive {
+                PrimitiveType::F32 => FloatFormat::F32,
+                PrimitiveType::F64 => FloatFormat::F64,
+                _ => {
+                    return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+                }
+            };
+            if landing != expected {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            }
+            Ok(Some(ClosedScalarLiteral::Float {
                 spelling: literal.text().to_owned(),
                 landing,
             }))

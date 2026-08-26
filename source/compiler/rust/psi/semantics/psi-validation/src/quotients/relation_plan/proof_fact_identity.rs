@@ -47,6 +47,18 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn float(
+        symbol: SymbolHandle,
+        spelling: &str,
+        landing: psi_numerics::literals::FloatFormat,
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: spelling.to_owned(),
+            trace: float_trace(spelling, Some(landing)),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,
@@ -207,7 +219,8 @@ fn expression_symbol_trace(
             || format!("integer:{}:unlanded", value.text()),
             |landing| integer_trace(value.text(), landing),
         ),
-        ExpressionNode::Float(_) | ExpressionNode::String(_) => String::new(),
+        ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
+        ExpressionNode::String(_) => String::new(),
     }
 }
 
@@ -220,6 +233,13 @@ fn integer_trace(spelling: &str, landing: psi_numerics::literals::IntegerLanding
         "integer:{spelling}:{}:{}",
         landing.landed_type.name(),
         landing.domain.name(),
+    )
+}
+
+fn float_trace(spelling: &str, landing: Option<psi_numerics::literals::FloatFormat>) -> String {
+    landing.map_or_else(
+        || format!("float:{spelling}:unlanded"),
+        |landing| format!("float:{spelling}:{}", landing.name()),
     )
 }
 
