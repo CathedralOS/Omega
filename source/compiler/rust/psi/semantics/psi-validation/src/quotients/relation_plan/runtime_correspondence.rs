@@ -1,12 +1,12 @@
-//! Exact positional runtime correspondence for faithful quotient definitions
-//! and the bounded direct-lift inclusion rung.
+//! Exact runtime correspondence for faithful quotient definitions and the
+//! bounded direct-lift inclusion rung.
 //!
-//! This judgment accepts only direct public parameters in declaration order,
-//! preserves mutable/borrow mode, and matches quotient carriers through the
-//! already-retained representative static application. The lift policy is
-//! intentionally no wider: reorder, duplication, constants, and adaptation
-//! remain for the general implication rung. Neither policy infers or selects a
-//! relation, contract proof, or representative operation.
+//! Both judgments accept only direct public parameters and preserve
+//! mutable/borrow mode while matching quotient carriers through the retained
+//! representative static application. Faithful `define` remains declaration-
+//! order preserving; `lift` may explicitly permute unique parameters but may
+//! not duplicate, omit, synthesize, or adapt them. Neither policy infers or
+//! selects a relation, contract proof, or representative operation.
 
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
@@ -139,9 +139,8 @@ fn derive_exact_position_runtime_correspondence(
 
     let mut positions = Vec::with_capacity(arguments.len());
     let mut seen_lift_arguments = Vec::new();
-    for (position, (((public, argument), relation), representative_parameter)) in public_parameters
+    for (position, ((argument, relation), representative_parameter)) in arguments
         .iter()
-        .zip(arguments)
         .zip(input_relations)
         .zip(&representative.parameters)
         .enumerate()
@@ -155,22 +154,28 @@ fn derive_exact_position_runtime_correspondence(
                     RelationPlanError::DirectLiftArgumentIsNotPublicParameter(position)
                 }
             })?;
-        if matches!(policy, ExactPositionPolicy::DirectLift)
-            && seen_lift_arguments.contains(&argument_symbol)
-        {
-            return Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique);
-        }
-        seen_lift_arguments.push(argument_symbol);
-        if argument_symbol != public.symbol {
-            return Err(match policy {
-                ExactPositionPolicy::Define => {
-                    RelationPlanError::DefineArgumentOrderMismatch(position)
+        let public = match policy {
+            ExactPositionPolicy::Define => {
+                let public = public_parameters[position];
+                if argument_symbol != public.symbol {
+                    return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
                 }
-                ExactPositionPolicy::DirectLift => {
-                    RelationPlanError::DirectLiftArgumentOrderMismatch(position)
+                public
+            }
+            ExactPositionPolicy::DirectLift => {
+                if seen_lift_arguments.contains(&argument_symbol) {
+                    return Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique);
                 }
-            });
-        }
+                seen_lift_arguments.push(argument_symbol);
+                public_parameters
+                    .iter()
+                    .copied()
+                    .find(|parameter| parameter.symbol == argument_symbol)
+                    .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
+                        position,
+                    ))?
+            }
+        };
         if public.is_mutable != representative_parameter.is_mutable {
             return Err(match policy {
                 ExactPositionPolicy::Define => {

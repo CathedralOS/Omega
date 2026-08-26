@@ -767,16 +767,19 @@ general `lift` implication/correspondence and canonical Terminal retention with
 independent replay remain fail closed.
 
 The first bounded `lift` correspondence certificate is also live for unique
-direct public arguments in exact declaration order. It checks structural
+direct public arguments, including explicit permutations. Each runtime row
+retains the actual public symbol at its representative position, and public
+`Q` dependency partitioning consumes that map rather than declaration order;
+heterogeneous relation/type drift rejects. The certificate checks structural
 `Q => P` inclusion separately after the selected theorem's left and right
 representative substitutions, permits additional public `Q` facts, and retains
 the exact public, representative, and verified-theorem legality coordinate for
 every included row. The non-executable certificate composes those rows with the
-exact runtime correspondence and verified theorem. `define` continues to use
-its exact `Q <=> P` bijection. Fixed representative facts remain ordinary call
-obligations, while generic owner substitution, adapted/reordered/duplicated
-arguments, general logical implication, and canonical Terminal replay remain
-fail closed.
+exact runtime correspondence and verified theorem. `define` remains strictly
+position-preserving and continues to use its exact `Q <=> P` bijection. Fixed
+representative facts remain ordinary call obligations, while generic owner
+substitution, adapted/duplicated arguments, general logical implication, and
+canonical Terminal replay remain fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

@@ -46,7 +46,6 @@ use representative::{
     RepresentativeTelescope, RepresentativeTermination, derive_representative_telescope,
     representative_machine_state, unconditional_representative_termination,
 };
-#[cfg(test)]
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftRuntimeCorrespondence,
@@ -174,7 +173,6 @@ pub(super) enum RelationPlanError {
     DirectLiftParameterIdentityNotUnique,
     DirectLiftArgumentIdentityNotUnique,
     DirectLiftArgumentIsNotPublicParameter(usize),
-    DirectLiftArgumentOrderMismatch(usize),
     DirectLiftParameterModeMismatch(usize),
     DirectLiftParameterTypeMismatch(usize),
     DirectLiftResultTypeMismatch,
@@ -305,10 +303,6 @@ impl fmt::Display for RelationPlanError {
             Self::DirectLiftArgumentIsNotPublicParameter(position) => write!(
                 formatter,
                 "direct-lift argument {position} is adapted or constant; this bounded rung accepts only direct public parameters"
-            ),
-            Self::DirectLiftArgumentOrderMismatch(position) => write!(
-                formatter,
-                "direct-lift argument {position} is reordered; this bounded rung accepts only position-preserving public parameters"
             ),
             Self::DirectLiftParameterModeMismatch(position) => write!(
                 formatter,
@@ -460,15 +454,30 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
-    let has_runtime_correspondence =
-        direct_lift_correspondence.is_some() || define_correspondence.is_some();
-    let representative_precondition = has_runtime_correspondence
+    let runtime_positions = direct_lift_correspondence
+        .as_ref()
+        .map(|runtime| runtime.positions.as_slice())
+        .or_else(|| {
+            define_correspondence
+                .as_ref()
+                .map(|runtime| runtime.positions.as_slice())
+        });
+    let representative_precondition = runtime_positions
+        .is_some()
         .then(|| {
             derive_representative_precondition_partition(program, &input_relations, &representative)
         })
         .transpose()?;
-    let public_precondition = has_runtime_correspondence
-        .then(|| derive_public_precondition_partition(program, machine, state, &input_relations))
+    let public_precondition = runtime_positions
+        .map(|runtime_positions| {
+            derive_public_precondition_partition(
+                program,
+                machine,
+                state,
+                &input_relations,
+                runtime_positions,
+            )
+        })
         .transpose()?;
     let define_precondition_correspondence = match (
         define_correspondence.as_ref(),
