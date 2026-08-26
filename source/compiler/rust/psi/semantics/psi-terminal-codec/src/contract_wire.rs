@@ -6,7 +6,8 @@
 
 use psi_terminal::{
     ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-    MachineContract, SuccessorEdge,
+    MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    SuccessorEdge,
 };
 
 use super::wire::{Reader, Writer};
@@ -46,6 +47,24 @@ pub(super) fn encode_contract(
     for clause in &contract.ensures {
         writer.id(clause.obligation);
         encode_proposition(writer, &clause.proposition, 0)?;
+    }
+    writer.len(
+        "outcome-specific ensures",
+        contract.outcome_specific_ensures.len(),
+    )?;
+    for row in &contract.outcome_specific_ensures {
+        encode_outcome_guard(writer, row.guard);
+        writer.u32(row.position);
+        writer.id(row.obligation);
+        encode_proposition(writer, &row.proposition, 0)?;
+        writer.boolean(row.evidence.is_some());
+        if let Some(evidence) = &row.evidence {
+            writer.id(evidence.term);
+            writer.string(
+                "outcome-specific evidence output field",
+                &evidence.output_field,
+            )?;
+        }
     }
     Ok(())
 }
@@ -113,11 +132,46 @@ pub(super) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
             proposition: decode_proposition(reader, 0)?,
         });
     }
+    let outcome_specific_ensures = decode_counted(reader, |reader| {
+        let guard = decode_outcome_guard(reader)?;
+        let position = reader.u32()?;
+        let obligation = reader.id("ObligationId")?;
+        let proposition = decode_proposition(reader, 0)?;
+        let evidence = reader
+            .boolean()?
+            .then(|| {
+                Ok(OutcomeSpecificEvidence {
+                    term: reader.id("EvidenceTermId")?,
+                    output_field: reader.string("outcome-specific evidence output field")?,
+                })
+            })
+            .transpose()?;
+        Ok(OutcomeSpecificEnsure {
+            guard,
+            position,
+            obligation,
+            proposition,
+            evidence,
+        })
+    })?;
     Ok(MachineContract {
         id,
         crash_routes,
         requires,
         ensures,
+        outcome_specific_ensures,
+    })
+}
+
+fn encode_outcome_guard(writer: &mut Writer, guard: OutcomeSpecificGuard) {
+    writer.id(guard.result_type);
+    writer.id(guard.result_case);
+}
+
+fn decode_outcome_guard(reader: &mut Reader<'_>) -> Result<OutcomeSpecificGuard, CodecError> {
+    Ok(OutcomeSpecificGuard {
+        result_type: reader.id("StructuralTypeId")?,
+        result_case: reader.id("StructuralCaseId")?,
     })
 }
 

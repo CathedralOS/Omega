@@ -74,6 +74,62 @@ pub(super) fn validate_evidence_contract_lanes(
                 kind: lane.kind,
             })?;
     }
+    for machine in machines.values().copied() {
+        let mut next_positions = BTreeMap::new();
+        let mut previous_key = None;
+        for row in &machine.contract.outcome_specific_ensures {
+            validate_outcome_guard(module, machine, row.guard)?;
+            let key = (row.guard.result_type, row.guard.result_case, row.position);
+            if previous_key.is_some_and(|previous| previous >= key) {
+                return Err(ModuleError::NonCanonicalOutcomeSpecificEnsures(machine.id));
+            }
+            previous_key = Some(key);
+            let expected = next_positions.entry(row.guard).or_insert(0_u32);
+            if row.position != *expected {
+                return Err(ModuleError::NonDenseOutcomeSpecificEnsures {
+                    machine: machine.id,
+                    guard: row.guard,
+                    expected: *expected,
+                    actual: row.position,
+                });
+            }
+            *expected =
+                expected
+                    .checked_add(1)
+                    .ok_or(ModuleError::OutcomeSpecificEnsureOverflow {
+                        machine: machine.id,
+                        guard: row.guard,
+                    })?;
+            if let Some(evidence) = &row.evidence {
+                if evidence.output_field.is_empty()
+                    || evidence.output_field == "value"
+                    || !output_fields.insert((machine.id, evidence.output_field.as_str()))
+                {
+                    return Err(ModuleError::InvalidOutcomeSpecificEvidenceField {
+                        machine: machine.id,
+                        position: row.position,
+                    });
+                }
+                let Some(term) = terms.get(&evidence.term) else {
+                    return Err(ModuleError::UnknownEvidenceContractTerm(evidence.term));
+                };
+                let application = module
+                    .proposition_applications
+                    .iter()
+                    .find(|application| application.id == term.proposition)
+                    .expect("evidence terms were validated before guarded rows");
+                if row.proposition != Proposition::Atom(term.proposition)
+                    || application.evidence_interface.as_ref() != Some(&term.interface)
+                    || !used_terms.insert(evidence.term)
+                {
+                    return Err(ModuleError::OutcomeSpecificEvidenceMismatch {
+                        machine: machine.id,
+                        position: row.position,
+                    });
+                }
+            }
+        }
+    }
     let mut next_package_ordinals = BTreeMap::new();
     for invocation in &module.proof_output_calls {
         let expected = next_package_ordinals
@@ -314,6 +370,34 @@ pub(super) fn validate_evidence_contract_lanes(
         return Err(ModuleError::OrphanEvidenceTerm(term));
     }
     Ok(())
+}
+
+pub(super) fn validate_outcome_guard(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    guard: psi_terminal::OutcomeSpecificGuard,
+) -> Result<(), ModuleError> {
+    let valid = machine
+        .result
+        .structural()
+        .is_some_and(|result| result.structural_type == guard.result_type)
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == guard.result_type
+                && matches!(
+                    &declaration.shape,
+                    StructuralTypeShape::Sum { cases }
+                        if cases.iter().any(|case| case.id == guard.result_case)
+                )
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err(ModuleError::InvalidOutcomeSpecificGuard {
+            machine: machine.id,
+            result_type: guard.result_type,
+            result_case: guard.result_case,
+        })
+    }
 }
 
 pub(super) fn validate_proposition_vocabulary(module: &TerminalModule) -> Result<(), ModuleError> {

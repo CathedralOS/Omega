@@ -93,6 +93,7 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };

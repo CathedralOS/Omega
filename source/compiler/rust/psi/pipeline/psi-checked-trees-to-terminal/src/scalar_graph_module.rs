@@ -1080,6 +1080,7 @@ pub(super) fn build_scalar_graph_module(
                     crash_routes,
                     requires,
                     ensures,
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         },

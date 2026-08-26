@@ -115,6 +115,34 @@ pub enum ModuleError {
         machine: MachineId,
         position: u32,
     },
+    InvalidOutcomeSpecificGuard {
+        machine: MachineId,
+        result_type: psi_core::StructuralTypeId,
+        result_case: psi_core::StructuralCaseId,
+    },
+    NonCanonicalOutcomeSpecificEnsures(MachineId),
+    NonDenseOutcomeSpecificEnsures {
+        machine: MachineId,
+        guard: psi_terminal::OutcomeSpecificGuard,
+        expected: u32,
+        actual: u32,
+    },
+    OutcomeSpecificEnsureOverflow {
+        machine: MachineId,
+        guard: psi_terminal::OutcomeSpecificGuard,
+    },
+    InvalidOutcomeSpecificEvidenceField {
+        machine: MachineId,
+        position: u32,
+    },
+    OutcomeSpecificEvidenceMismatch {
+        machine: MachineId,
+        position: u32,
+    },
+    OutcomeSpecificGuaranteeReplayUnavailable {
+        machine: MachineId,
+        obligation: ObligationId,
+    },
     MissingEvidenceOutputField {
         machine: MachineId,
         position: u32,

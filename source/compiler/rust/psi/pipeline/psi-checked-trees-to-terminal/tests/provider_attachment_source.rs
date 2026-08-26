@@ -108,8 +108,8 @@ fn fixture_bytes() -> Vec<u8> {
     // The bootstrap fixture body remains the frozen vocabulary-28 input for
     // the Delta on-ramp. This source-owner canary compares that same body under
     // the current canonical Terminal envelope.
-    bytes[8..10].copy_from_slice(&27_u16.to_le_bytes());
-    bytes[10..12].copy_from_slice(&29_u16.to_le_bytes());
+    bytes[8..10].copy_from_slice(&28_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&30_u16.to_le_bytes());
     bytes
 }
 

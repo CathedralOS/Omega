@@ -113,6 +113,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -372,6 +373,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -657,6 +659,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                     crash_routes: Vec::new(),
                     requires: vec![caller_requirement.clone()],
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -689,6 +692,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                         ScalarTerm::boolean_field(cleanup_receiver, field),
                     )],
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],

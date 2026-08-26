@@ -7761,7 +7761,21 @@ Remaining N6/N8 work:
   in independent contexts. Intersecting result/reference writes invalidate the
   affected fact and selected term; unrelated writes and sibling arms preserve
   only their own applicable rows. Exact Terminal retention/replay remains
-  fail-closed until stage 5 lands.
+  fail-closed until stage 5 lands. The first bounded stage-5 carrier rung is
+  now live: Terminal contracts retain outcome-specific guarantees in a table
+  disjoint from unconditional `ensures` and evidence lanes. Every row carries
+  its exact structural result type, nominal case, dense per-case position,
+  obligation, and proposition; a named row additionally embeds its exact
+  evidence term and public selector while an unnamed row has no evidence
+  endpoint. Terminal format 28/vocabulary 30 preserve that guard independently
+  in canonical identity. Structural validation rejects a foreign/non-sum case,
+  noncanonical or non-dense rows, cross-table obligation or selector collisions,
+  mismatched named terms/interfaces, and orphan terms. Guarded rows add no
+  operation or fuel-bearing site. Executable matching-exit reconstruction,
+  vacuity/forwarding-aware derivation provenance, caller import, and validity
+  replay remain explicitly fail-closed: Terminal has no independently justified
+  exact-case structural-return carrier yet, so verification rejects rather than
+  trusting a producer-authored exit label.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

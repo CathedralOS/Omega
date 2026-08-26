@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        29
+        30
     }
 }
 
@@ -887,6 +887,37 @@ pub struct MachineContract {
     pub crash_routes: Vec<CrashRouteBucket>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
+    /// Outcome-specific guarantees remain disjoint from unconditional lanes.
+    /// Canonical order is `(result_type, result_case, position)`.
+    pub outcome_specific_ensures: Vec<OutcomeSpecificEnsure>,
+}
+
+/// Exact nominal result-case guard for one semantic guarantee row.
+///
+/// This is independent from the proposition and evidence-term identities. It
+/// does not itself authorize executable matching-exit replay; Terminal
+/// verification remains fail closed until an exact-case return carrier exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OutcomeSpecificGuard {
+    pub result_type: StructuralTypeId,
+    pub result_case: StructuralCaseId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutcomeSpecificEnsure {
+    pub guard: OutcomeSpecificGuard,
+    /// Dense zero-based order within one exact result-case group.
+    pub position: u32,
+    pub obligation: ObligationId,
+    pub proposition: Proposition,
+    /// Present exactly for a named witness-bearing guarantee.
+    pub evidence: Option<OutcomeSpecificEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutcomeSpecificEvidence {
+    pub term: EvidenceTermId,
+    pub output_field: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

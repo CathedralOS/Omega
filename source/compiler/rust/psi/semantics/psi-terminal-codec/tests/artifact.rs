@@ -1992,6 +1992,7 @@ fn semantic_module() -> TerminalModule {
                     obligation: obligation_id(1),
                     proposition: goal,
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }

@@ -278,6 +278,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     lowered.semantic_module.entry = caller.id;
@@ -861,6 +862,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let mut lowered = LoweredTerminalPsi {

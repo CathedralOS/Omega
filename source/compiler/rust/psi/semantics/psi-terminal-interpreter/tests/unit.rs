@@ -2242,6 +2242,7 @@ fn empty_contract(id: ContractId) -> MachineContract {
         crash_routes: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
     }
 }
 
@@ -2297,6 +2298,7 @@ fn unit_module() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -3397,6 +3399,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                 .unwrap_or_default(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     let callee = TerminalMachine {
@@ -3466,6 +3469,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             crash_routes: crashes.then(|| vec![crash_route]).unwrap_or_default(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     TerminalModule {

@@ -513,6 +513,7 @@ mod tests {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             }],
         }

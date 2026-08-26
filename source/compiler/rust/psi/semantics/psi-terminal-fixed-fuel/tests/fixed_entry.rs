@@ -146,6 +146,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     });
 
@@ -1345,6 +1346,7 @@ fn unit_fixture() -> TerminalModule {
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     }
@@ -1406,6 +1408,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
 
@@ -1675,6 +1678,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         crash_routes: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
     };
     let token_type = structural_type_id(900);
     let helper_type = structural_type_id(901);
@@ -1835,6 +1839,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     });
     module
@@ -1959,6 +1964,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
             TerminalMachine {
@@ -1998,6 +2004,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
                 },
             },
         ],
@@ -2086,6 +2093,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     obligation,
                     proposition: goal,
                 }],
+                outcome_specific_ensures: Vec::new(),
             },
         }],
     };
@@ -2110,6 +2118,7 @@ fn call_fixture() -> TerminalModule {
         crash_routes: Vec::new(),
         requires: Vec::new(),
         ensures: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
     };
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,

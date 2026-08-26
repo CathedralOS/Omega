@@ -274,6 +274,7 @@ pub(super) fn lower_structural_call_return_machine(
             crash_routes: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
         },
     };
     module.entry = caller.id;
