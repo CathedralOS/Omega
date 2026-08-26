@@ -187,6 +187,7 @@ Current deliberate gaps:
 - [Control Flow To Abstract Operations](stages/control_flow_to_abstract_operations.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
 - [Terminal Target Operations To Selected Instructions](stages/terminal_target_operations_to_selected_instructions.md)
+- [Selected Instructions To Liveness](stages/selected_instructions_to_liveness.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
 - [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)

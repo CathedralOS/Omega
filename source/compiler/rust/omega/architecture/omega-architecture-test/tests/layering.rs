@@ -880,7 +880,7 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
     assert!(
         facade.contains("pub use omega_register_model::*;"),
-        "omega-regalloc must remain a compatibility facade until allocation lands"
+        "omega-regalloc must retain the register-model compatibility surface"
     );
     assert!(
         !facade.contains("pub struct PhysicalRegisterModel")
@@ -986,7 +986,19 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         graph["omega-regalloc"]
             .deps
             .contains(&"omega-register-model".to_string()),
-        "the omega-regalloc facade must consume the canonical representation"
+        "omega-regalloc must consume the canonical register-model representation"
+    );
+    assert!(
+        graph["omega-regalloc"]
+            .deps
+            .contains(&"omega-terminal-target-operations-to-selected-instructions".to_string()),
+        "bounded liveness must consume the opaque validated selected-instruction carrier"
+    );
+    assert!(
+        graph["omega-optimization-pipeline"]
+            .deps
+            .contains(&"omega-regalloc".to_string()),
+        "optimizer orchestration must retain liveness custody above omega-regalloc"
     );
 
     for root_name in graph

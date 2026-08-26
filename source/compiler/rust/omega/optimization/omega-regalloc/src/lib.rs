@@ -1,13 +1,33 @@
 #![forbid(unsafe_code)]
 
-//! Compatibility facade for the register-allocation subsystem.
+//! Register-allocation subsystem bring-up.
 //!
 //! The declarative physical-register and instruction-constraint model is owned
-//! by `omega-register-model`. This crate deliberately performs no allocation
-//! yet and re-exports that vocabulary so existing consumers do not have to
-//! migrate atomically.
+//! by `omega-register-model` and remains re-exported for compatibility. The
+//! first production analysis computes and independently validates bounded
+//! selected-instruction liveness. It performs no allocation.
 
+mod compute;
+mod identity;
+mod model;
+mod validate;
+
+pub use identity::terminal_liveness_identity;
+pub use model::*;
 pub use omega_register_model::*;
+pub use validate::validate_terminal_liveness;
+
+use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
+
+/// Compute and then independently replay the bounded selected-CFG liveness
+/// analysis. The result grants no interval, allocation, emission, or
+/// publication authority.
+pub fn analyze_terminal_liveness(
+    selected: &ValidatedTerminalSelectedInstructions,
+) -> Result<ValidatedTerminalLiveness, TerminalLivenessError> {
+    let plan = compute::compute_terminal_liveness(selected)?;
+    validate_terminal_liveness(selected, plan)
+}
 
 #[cfg(test)]
 mod tests {

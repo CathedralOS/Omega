@@ -19,8 +19,9 @@ optimization unit, fuel schedule, optimized projection, target, and selection.
 Primary responsibility: turn admitted target operations into typed virtual
 register instructions with exact register constraints, machine-state effects,
 Psi provenance, and path-specific logical-fuel placement. It does not compute
-liveness, choose physical homes, emit machine instructions, or authorize
-publication.
+liveness itself, choose physical homes, emit machine instructions, or authorize
+publication. The separate opt-in liveness stage may consume only this validated
+carrier.
 
 ## Current Admitted Shape
 
@@ -66,7 +67,8 @@ from their independently validated ISA-owned catalog rows.
 
 The selected CFG must expand to the complete legalized instruction vocabulary,
 including calls, memory, cleanup, suspension, proof-bearing operations, loops,
-and general value flow. Liveness, interval construction, allocation, spills,
-frame assignment, and independent physical-realization validation remain later
-stages. The existing scratch-cycling assigned-operation route is transitional
-and is not evidence for any of those properties.
+and general value flow. Bounded block/instruction liveness now exists for this
+exact three-block shape, but interval construction, general liveness,
+allocation, spills, frame assignment, and independent physical-realization
+validation remain later stages. The existing scratch-cycling assigned-operation
+route is transitional and is not evidence for any of those properties.
