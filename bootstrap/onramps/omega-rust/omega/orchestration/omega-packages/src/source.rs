@@ -5076,7 +5076,7 @@ fn format_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::PackageName;
+    use crate::identity::PackageName;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     const PACKAGE_FIXTURES: &[&str] = &[

@@ -17,14 +17,6 @@ impl JsonValue {
             _ => None,
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn as_array(&self) -> Option<&[JsonValue]> {
-        match self {
-            JsonValue::Array(values) => Some(values),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
