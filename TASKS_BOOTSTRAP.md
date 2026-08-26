@@ -129,7 +129,7 @@ Current state, without extrapolating from bounded canaries:
 | Delta language | executable corpus, native compiler path, self-host evidence, and a growing Delta→Gamma meaning route | a frozen v1 specification justified by both complete required Delta source closures, plus complete lower-rung coverage |
 | canonical Delta compiler | a Delta-written self-hosting compiler and bounded lower-rung executions | publication of the exact final compiler artifact from its complete source through Gamma, joined to refinement |
 | `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→artifact→refinement slices, indexed by the bridge-local versioned contracts | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
-| production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
+| production Omega source | the first Psi source-to-token source slice and its published checkpoint-000001 evidence; the checkpoint gate is stale against current `main` pending a product-owned refresh | a current coherent checkpoint, then the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
 | hosted production build | bounded bridge canaries only | the first validated build of full production `omega`; no optional self-rebuild is required to close bootstrap |
 
 This table is the stopping-point summary. A row is not promoted by a nearby
@@ -145,8 +145,10 @@ Two lanes co-evolve until their join:
 
 The execution order is:
 
-1. continue general checkpoint-000001 capabilities one compositional vertical
-   slice at a time, consuming later product-source checkpoints as published;
+1. continue general capabilities evidenced by the published checkpoint-000001
+   snapshot one compositional vertical slice at a time, while the product owner
+   refreshes that checkpoint against current `main`; consume the refreshed and
+   later product-source checkpoints as they are published;
 2. at the completed Delta-compiler/bridge/product-source join, publish `Ωself`
    from the complete production source plus measured bridge cost and Delta v1
    from both complete required Delta closures plus its compiler-host arguments;
@@ -291,9 +293,14 @@ independent tasks that can be permanently checked off:
 - For every coherent product-source checkpoint published by
   `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
   deterministic closure and derive or update the distinct compositional
-  candidate feature/resource profile. Checkpoint 000001 already supplies the
-  first closure and normalized-syntax/resource profile; later compiler phases
-  publish later checkpoints from their product owner.
+  candidate feature/resource profile. Checkpoint 000001 supplied the first
+  published closure and normalized-syntax/resource profile, but its fast gate
+  currently rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
+  `compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
+  provenance drift in `Cargo.lock` and
+  `omega-compiler/src/pipeline/stages.rs`. Treat its pinned snapshot as bounded
+  historical evidence until the product-owned refresh passes; later compiler
+  phases publish later checkpoints from their product owner.
 - Measure every used feature's source benefit against the cost of its
   general Delta-written bridge implementation. Record one provisional outcome:
   retain, refactor from product source and preserve a negative canary, or leave
@@ -315,9 +322,11 @@ independent tasks that can be permanently checked off:
   omission from the compiler it implements.
 
 Checkpoint 000001's manifest, normalized census, provisional profile digest,
-resource bounds, admission canaries, and mutation teeth are already gated.
-Typed semantics, lowering, capacity, and general artifact coverage remain
-section-2 work.
+resource bounds, admission canaries, and mutation teeth passed at publication.
+Current `main` no longer passes that exact-closure gate, so no task may describe
+it as the current coherent product closure until the product owner refreshes
+the manifest and profile together. Typed semantics, lowering, capacity, and
+general artifact coverage remain section-2 work independently.
 
 Its current resolver replay maps `use` components onto repository files and the
 product sources generally omit explicit `module` items. That is exact evidence
@@ -373,7 +382,7 @@ evidence stay in
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
-| generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs, rounded profile ceilings, exhaustion, and no-partial-publication behavior | generated files are ordinary source, not hard-coded bridge exceptions |
+| generated closure and resource behavior | generated ordinary-Omega Unicode data, pinned generator/external inputs and reproduction recipe, rounded profile ceilings, exhaustion, and no-partial-publication behavior | the generated bytes and generator tuple still reproduce, but the enclosing checkpoint is stale; generated files are ordinary source, not hard-coded bridge exceptions |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
@@ -400,11 +409,18 @@ evidence stay in
   realization until selection comes from a normative source form. This remains
   product binding support, not admission of general boundary traits to Delta,
   provider admission, or compilation authority.
-- [ ] Close generated-source custody and resource behavior by binding ordinary
-  generated Omega source, its generator and external inputs, rounded ceilings,
-  exhaustion, and no-partial-publication behavior. Reuse already-closed
-  constant-aggregate/Unicode artifact evidence rather than creating a second
-  generated-data lowering path.
+- [ ] Close generated-source custody without adding another source format,
+  checked IR, or lowering path. Generalize the manifest verifier so each
+  generated source binds a generator with the
+  `generated_source_provider` role, its complete referenced input/external set,
+  and a sealed deterministic reproduction recipe; reject duplicate, missing,
+  or orphaned rows without hard-coding Unicode header semantics. Compose that
+  fast reproduction/custody preflight with the already-closed Unicode
+  OMGCOMP1→CKIR3→ELF and OMGRFN4 same-frame evidence. Retain the existing
+  rounded source/aggregate ceilings and prove that failed or oversized
+  generation publishes nothing. The infrastructure may land while checkpoint
+  000001 is stale, but this item closes only after the product-owned checkpoint
+  refresh joins the same exact generated tuple.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another

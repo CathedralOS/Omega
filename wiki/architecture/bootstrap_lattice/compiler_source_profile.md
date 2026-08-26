@@ -216,15 +216,22 @@ provisionally from versioned deterministic snapshots while that source is being
 written. The working policy is specific enough to guide the first snapshot;
 each later snapshot reruns the same feature census and retain/refactor analysis.
 
-The first measured snapshot now exists:
+The first measured snapshot was published as:
 [`checkpoint-000001.json`](../../../compiler/source-checkpoints/checkpoint-000001.json)
-closes the product Psi source-to-token phase;
+for the product Psi source-to-token phase;
 [`profile-000001.json`](../../../compiler/source-checkpoints/profile-000001.json)
 mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
 [`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
-explains the evidence and unresolved decisions. This is enough to begin
-evidence-led bridge work for those facilities only. It supplies no evidence for
+explains the evidence and unresolved decisions. The snapshot remains bounded
+evidence for the pinned source it describes, but its fast gate currently
+rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
+`compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
+provenance drift in `Cargo.lock` and `omega-compiler/src/pipeline/stages.rs`.
+It must not be presented as the current coherent product closure until the
+product owner refreshes the manifest and profile together. The published
+evidence is enough to begin evidence-led bridge work for those facilities only.
+It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
 does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
 general profile. A first record/array/attached-machine cluster now has private

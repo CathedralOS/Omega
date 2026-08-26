@@ -100,11 +100,12 @@ The distinction is architectural:
 - `bootstrap/onramps/omega-rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
   `bootstrap/onramps/omega-rust/apps/omega-cli/` is its user-facing executable.
-- `compiler/{psi,omega}/` owns the Omega-written product source. Checkpoint
-  000001 implements the complete Psi source-to-token spelling phase under
-  `compiler/psi/`; later Psi phases and `compiler/omega/` remain open. Hosted
-  product entrypoints live under `apps/omega-compiler/`, and exact closure and
-  profile snapshots live under `compiler/source-checkpoints/`.
+- `compiler/{psi,omega}/` owns the Omega-written product source. The first Psi
+  source-to-token spelling slice exists under `compiler/psi/`; its published
+  checkpoint-000001 evidence is stale against current `main` pending a
+  product-owned refresh. Later Psi phases and `compiler/omega/` remain open.
+  Hosted product entrypoints live under `apps/omega-compiler/`, and exact
+  closure and profile snapshots live under `compiler/source-checkpoints/`.
 - `bootstrap/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation.
 - `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
