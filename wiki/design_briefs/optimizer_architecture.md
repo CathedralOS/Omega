@@ -197,8 +197,9 @@ new definition of program meaning.
 The Rust reference orchestration entry lives in
 `orchestration/omega-optimization-pipeline`; it accepts only a nonempty exact
 selection set and an explicit per-pass work ceiling. It derives the canonical
-named-pass schedule. The currently supported combined schedule is SCCP followed
-by copy propagation. Each pass emits a distinct chained manifest, even when it
+named-pass schedule. The currently supported combined schedule is SCCP,
+constant-conditional CFG cleanup, then copy propagation. Each pass emits a
+distinct chained manifest, even when it
 commits no rewrite. The aggregate decision log and transformation ledger cover
 the entire initial-to-final execution, while the replay/cache bundle binds the
 exact selections, flattened ordered rule identities, cost model, decision log,
@@ -776,7 +777,8 @@ contributions separately carry source-declared contiguous schedule ordinals;
 their private assembler sorts by those ordinals before constructing the
 ordered registry. Thus contribution arrival order cannot perturb the declared
 schedule, while no opaque identity sort silently invents policy. A direct
-second sweep of the currently supported SCCP then copy-propagation schedule
+second sweep of the currently supported SCCP, CFG-cleanup, then
+copy-propagation schedule
 must produce an empty delta; composing that delta preserves the first sweep's
 ledger exactly.
 
@@ -856,6 +858,23 @@ The pass has its own block-parameter-count convergence measure and its own
 explicit `CopyPropagation` selection; it is not a hidden prerequisite of SCCP
 or an optimization-level bundle.
 
+The first `ControlFlowCleanup` rule has an equally narrow contract. A
+conditional whose Boolean condition has an independently reconstructible SCCP
+fact may become its selected unconditional jump only if a fresh CFG walk proves
+that removing the rejected exact edge leaves every existing block reachable.
+The candidate identity binds the condition, Boolean value, both edge IDs, and
+the selected edge's provenance/fuel; the rejected edge remains bound by the
+patch and SCCP machine snapshot but is not charged on the realized path. The
+validator independently reconstructs the fact, selected successor and
+bindings, reachability, node metadata, fact index, and output identity before
+total validation. Its convergence measure counts functions, blocks, nodes,
+and successor edges, so every accepted fold strictly decreases it. This does
+not yet authorize block deletion: current Terminal-Psi admission already
+rejects syntactically unreachable blocks, and empty-block threading still
+needs explicit many-to-one edge/fuel and differing-block-roster observation
+semantics. In particular, crash, cleanup, suspension, and boundary-only blocks
+are retained whenever the proposed fold would orphan them.
+
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
 outputs, projects only their candidate identities and non-authoritative cost
@@ -926,8 +945,9 @@ finds implementation defects but never substitutes for the admission gate.
 
 The initial exact pipeline should grow in this order:
 
-1. CFG cleanup: unreachable blocks, jump threading, branch folding, empty-block
-   elimination, and unreachable private-machine removal.
+1. CFG cleanup: constant branch folding first, then observation-supported
+   unreachable blocks, jump threading, empty-block elimination, and unreachable
+   private-machine removal.
 2. Sparse conditional constant propagation using the exact integer/Boolean
    operation semantics.
 3. copy propagation, constant propagation, local common-subexpression

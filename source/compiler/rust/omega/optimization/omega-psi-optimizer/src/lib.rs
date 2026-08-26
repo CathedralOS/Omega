@@ -33,8 +33,8 @@ pub use registry::{
     RuleRegistryError, RuleScheduleKey,
 };
 pub use rules::{
-    BooleanEqualConstantsRule, BooleanNotConstantsRule, ExactIntegerAddConstantsRule,
-    ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
+    BooleanEqualConstantsRule, BooleanNotConstantsRule, ConstantConditionalFoldRule,
+    ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,

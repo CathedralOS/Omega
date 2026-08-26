@@ -281,7 +281,7 @@ mod tests {
         Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     };
     use omega_optimization_unit::ValueDefinitionSite;
-    use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
+    use omega_psi_optimizer::OptimizationRunError;
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
         PostAllocationSelectedTransformation, TerminalAllocationLegalityError,
@@ -951,11 +951,12 @@ mod tests {
     }
 
     #[test]
-    fn canonical_two_pass_suite_retains_each_manifest_and_one_ledger() {
+    fn canonical_three_pass_suite_retains_each_manifest_and_one_ledger() {
         let (semantic, proof) = artifact();
         let selections = OptimizationSelections::new([
             Optimization::CopyPropagation,
             Optimization::SparseConditionalConstantPropagation,
+            Optimization::ControlFlowCleanup,
         ])
         .unwrap();
         let optimized = optimize_artifact_sections(
@@ -968,11 +969,15 @@ mod tests {
 
         assert_eq!(optimized.selections(), &selections);
         assert_eq!(optimized.commits().len(), 3);
-        assert_eq!(optimized.pass_manifests().len(), 2);
+        assert_eq!(optimized.pass_manifests().len(), 3);
         assert_eq!(optimized.transformation_ledger().records().len(), 3);
         assert_eq!(
             optimized.pass_manifests()[0].output(),
             optimized.pass_manifests()[1].input()
+        );
+        assert_eq!(
+            optimized.pass_manifests()[1].output(),
+            optimized.pass_manifests()[2].input()
         );
         assert!(matches!(
             optimized.plan().functions[0].operations[2],
@@ -1046,10 +1051,11 @@ mod tests {
     }
 
     #[test]
-    fn two_pass_artifact_orchestration_is_deterministic() {
+    fn three_pass_artifact_orchestration_is_deterministic() {
         let (semantic, proof) = artifact();
         let selections = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
+            Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
         ])
         .unwrap();
@@ -1076,21 +1082,20 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_selection_fails_without_compatibility_fallback() {
+    fn control_flow_cleanup_selection_runs_as_its_own_exact_pass() {
         let (semantic, proof) = artifact();
-        let error = optimize_artifact_sections(
+        let optimized = optimize_artifact_sections(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
             request(OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap()),
         )
-        .unwrap_err();
-        assert!(matches!(
-            error,
-            OptimizationPipelineError::Run(OptimizationRunError::RegistryConstruction(
-                RuleRegistryError::UnsupportedOptimization(Optimization::ControlFlowCleanup)
-            ))
-        ));
+        .unwrap();
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(
+            optimized.selections().as_slice(),
+            [Optimization::ControlFlowCleanup]
+        );
     }
 
     #[test]

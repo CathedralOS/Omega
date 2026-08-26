@@ -321,11 +321,24 @@ pub struct RedundantBlockParameterRewrite {
     pub scalar_type: ScalarType,
 }
 
+/// Replace one Boolean-proven conditional with its exact selected edge. Both
+/// edge identities are bound so replay cannot silently swap or discard a
+/// different successor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ConstantConditionalRewrite {
+    pub location: NodeLocation,
+    pub condition: ValueId,
+    pub constant: bool,
+    pub selected_edge: EdgeId,
+    pub rejected_edge: EdgeId,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
     ReplaceBooleanOperationWithConstant(BooleanConstantRewrite),
     RemoveRedundantBlockParameter(RedundantBlockParameterRewrite),
+    FoldConstantConditional(ConstantConditionalRewrite),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -459,6 +472,30 @@ impl PsiRewriteCandidate {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub fn new_constant_conditional(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        condition_fact: ScalarConstantFactIdentity,
+        predicted_cost_delta: i64,
+        patch: ConstantConditionalRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Unary {
+                operand_fact: condition_fact,
+            }),
+            predicted_cost_delta,
+            PsiRewritePatch::FoldConstantConditional(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn new(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -477,6 +514,7 @@ impl PsiRewriteCandidate {
                 block: patch.block,
                 node: 0,
             },
+            PsiRewritePatch::FoldConstantConditional(patch) => patch.location,
         };
         if affected_blocks.is_empty() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
@@ -538,6 +576,14 @@ impl PsiRewriteCandidate {
                     }]
                 {
                     return Err(PsiRewriteCandidateError::BlockParameterSubstitutionMismatch);
+                }
+            }
+            PsiRewritePatch::FoldConstantConditional(_) => {
+                if provenance.len() != 1
+                    || provenance[0].output != location
+                    || !substitutions.is_empty()
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
         }
@@ -686,7 +732,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v6\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v7\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -797,6 +843,14 @@ fn encode_candidate(
             bytes.extend_from_slice(&patch.parameter.get().to_le_bytes());
             bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
+        }
+        PsiRewritePatch::FoldConstantConditional(patch) => {
+            bytes.push(4);
+            encode_location(&mut bytes, patch.location);
+            bytes.extend_from_slice(&patch.condition.get().to_le_bytes());
+            bytes.push(u8::from(patch.constant));
+            bytes.extend_from_slice(&patch.selected_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.rejected_edge.get().to_le_bytes());
         }
     }
     bytes
