@@ -66,6 +66,28 @@ Use this rule when a pass starts to sprawl:
 - If it chooses storage, ABI, instruction, relocation, or image form, it belongs
   in the backend lowering stages.
 
+## Cross-Stage Compiler Projections
+
+Some compiler-owned consumers are total observations assembled after successful
+checking rather than transformation stages. Package admission is the principal
+example. Its projector reads each fact from the earliest existing representation
+where that fact is semantically complete, then joins structural identity to any
+later checked acceptance, effect, proof, or realization evidence it requires.
+"Earliest" does not mean unchecked or merely convenient: unresolved syntax and
+diagnostic renderings are never admission evidence.
+
+No single IR must contain the complete package report. The versioned canonical
+projection is the compiler/package boundary; the representations and handles
+used to derive it stay compiler-private and may evolve with the compiler. A
+downstream Psi stage may repeat an invariant as a backstop without becoming the
+mandatory place from which the projector reconstructs an already-settled fact.
+
+Do not introduce a nominal `Chi` stage merely to collect these queries or give
+them an internally stable interface. Add a named representation only when work
+discovers a reusable semantic invariant boundary with its own consumers or
+transformations. Prefer an existing coherent representation, including `Exact`,
+when it already carries the required meaning.
+
 ## Operational Artifact Emission
 
 Pipeline viewers and diagnostic reports are observations of a compilation, not

@@ -60,14 +60,14 @@ real package fixture demonstrates an irreducible external contract.
   build code receives any host provider.
 - The compiler, not the package or CLI caller, derives package capability/API
   evidence from checked source and build results.
-- Ordinary admission uses a total internal projection from checked semantic
-  state into versioned canonical evidence. Raw compiler IR is never a lock
-  format. The projection may read each fact from the earliest coherent
-  compiler-owned representation in which it is semantically settled, including
-  private pre-Psi structure, and joins required checked facts only after
-  successful compilation. Totality belongs to the final projection, not one
-  frozen source stage. No nominal Chi stage is introduced merely to collect or
-  stabilize compiler internals.
+- Ordinary admission uses a total internal projection from compiler-owned
+  semantic state after successful checking into versioned canonical evidence.
+  Raw compiler IR is never a lock format. The projection may read each fact
+  from the earliest coherent compiler-owned representation in which it is
+  semantically settled, including private pre-Psi structure, and joins required
+  checked facts only after successful compilation. Totality belongs to the
+  final projection, not one frozen source stage. No nominal Chi stage is
+  introduced merely to collect or stabilize compiler internals.
 - Checked flow now owns the first package-neutral carried-semantic-dependency
   sidecar. It retains exact nominal, layout, ownership, and automatic-cleanup
   declaration symbols with private/public disposition. The compiler review
