@@ -24,6 +24,13 @@ use omega_optimization_unit::{
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
 
+mod projection;
+
+pub use projection::{
+    OptimizedAbstractPlanProjectionError, ValidatedOptimizedAbstractPlanProjection,
+    validate_optimized_abstract_plan_projection,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
     WrongFuelSchedule,
@@ -1948,9 +1955,29 @@ fn validator_integer_value_type(
 pub fn validate_verified_psi_optimization_unit(
     verified: &omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let unit = verified.unit();
+    validate_psi_optimization_unit_with_context(verified.input(), verified.unit(), true)
+}
+
+/// Validate a committed optimization revision while retaining the immutable
+/// verifier context that authorized its proof and ownership facts.
+///
+/// Unlike [`validate_verified_psi_optimization_unit`], this permits the unit's
+/// revision identity and executable shape to differ from the initial verified
+/// seed. The admitted-fact projection and every surviving provenance frontier
+/// must still match the original artifact exactly.
+pub fn validate_transformed_psi_optimization_unit(
+    input: &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    validate_psi_optimization_unit_with_context(input, unit, false)
+}
+
+fn validate_psi_optimization_unit_with_context(
+    input: &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput,
+    unit: &PsiOptimizationUnit,
+    require_initial_revision: bool,
+) -> Result<(), OptimizationUnitValidationError> {
     validate_psi_optimization_unit(unit)?;
-    let input = verified.input();
     let context = input.context();
     let terminal_identity = psi_terminal_codec::terminal_psi_identity(context.terminal_module())
         .map_err(OptimizationUnitValidationError::ContextIdentity)?;
@@ -2046,7 +2073,7 @@ pub fn validate_verified_psi_optimization_unit(
         omega_optimization_unit::attach_accepted_obligation_facts(seed, projected_facts).map_err(
             |_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
         )?;
-    if projected.identity != unit.identity
+    if (require_initial_revision && projected.identity != unit.identity)
         || projected.accepted_obligation_facts != unit.accepted_obligation_facts
     {
         return Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch);

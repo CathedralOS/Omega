@@ -951,6 +951,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-lowering-optimizer"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-policy",
+ "omega-optimization-unit",
+ "omega-optimization-validation",
+ "omega-psi-optimizer",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-psi-to-abstract-operations",
+ "psi-core",
+ "psi-proof-admission",
+ "psi-terminal",
+ "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-verifier",
+]
+
+[[package]]
 name = "omega-machine-bytes"
 version = "0.1.0"
 dependencies = [
@@ -1116,6 +1137,7 @@ name = "omega-optimization-validation"
 version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
+ "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-terminal-abstract-operations",
  "omega-terminal-psi-to-abstract-operations",
