@@ -22,6 +22,12 @@ use psi_core::{
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
+mod machine_effect_identities;
+mod machine_effects;
+
+pub use machine_effect_identities::terminal_machine_effect_catalog_identity;
+pub use machine_effects::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalVirtualRegisterId(pub u32);
 

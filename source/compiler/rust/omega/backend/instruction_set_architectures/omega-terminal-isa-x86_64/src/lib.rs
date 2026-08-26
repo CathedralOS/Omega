@@ -4,9 +4,14 @@
 //! installation facts. It does not depend on either legacy operation graph or
 //! any source-shaped Psi representation.
 
+mod machine_effects;
 mod native_fuel_runtime;
 mod register_model;
 
+pub use machine_effects::{
+    X86_64TerminalMachineEffectCatalogValidationError,
+    validate_x86_64_terminal_machine_effect_catalog, x86_64_terminal_machine_effect_catalog,
+};
 pub use native_fuel_runtime::{
     X86NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
 };
