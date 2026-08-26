@@ -15,7 +15,7 @@ pub fn terminal_recovery_classification_identity(
     plan: &TerminalRecoveryClassificationPlan,
 ) -> TerminalRecoveryClassificationIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v2\0");
     bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
     TerminalRecoveryClassificationIdentity(Sha256::digest(bytes).into())
 }
@@ -29,6 +29,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
@@ -249,6 +250,9 @@ mod tests {
             ranges: TerminalLiveRangeIdentity::from_bytes([3; 32]),
             legality: TerminalAllocationLegalityIdentity::from_bytes([4; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([5; 32]),
+            allocator_availability: crate::TerminalAllocatorAvailabilityIdentity::from_bytes(
+                [9; 32],
+            ),
             optimization_unit: OptimizationUnitIdentity::from_bytes([6; 32]),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             policy: TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
@@ -322,6 +326,14 @@ mod tests {
         );
 
         let mut changed = plan();
+        changed.allocator_availability =
+            crate::TerminalAllocatorAvailabilityIdentity::from_bytes([21; 32]);
+        assert_ne!(
+            baseline,
+            terminal_recovery_classification_identity(&changed)
+        );
+
+        let mut changed = plan();
         changed.usage.validation_steps += 1;
         assert_ne!(
             baseline,
@@ -376,10 +388,10 @@ mod tests {
         );
 
         let mut wrong_version = encoded;
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalRecoveryClassificationPlan::decode(&wrong_version),
-            Err(TerminalRecoveryClassificationDecodeError::UnsupportedVersion(2))
+            Err(TerminalRecoveryClassificationDecodeError::UnsupportedVersion(3))
         );
     }
 }

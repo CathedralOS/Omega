@@ -52,6 +52,7 @@ pub(crate) fn compute_terminal_recovery_classifications<S: ValidatedTerminalSele
         ranges: ranges.receipt().identity(),
         legality: legality.receipt().identity(),
         register_environment: legality.receipt().register_environment(),
+        allocator_availability: legality.receipt().allocator_availability(),
         optimization_unit: selected.optimization_unit_identity(),
         fuel_schedule: selected.fuel_schedule_identity(),
         policy,

@@ -341,9 +341,45 @@ change logical-fuel placement, allocate private storage, or emit code. A later
 literal-sinking policy must say whether an incoming definition moves or an
 already executed resident is physically reconstructed with zero new logical
 fuel, reconstruct the selected CFG independently, and rerun liveness, ranges,
-legality, pressure, and homes. A production pressure fixture also needs a named
-allocator-availability policy; hardware reservation overlays must not be
-misused to simulate a smaller allocator register set.
+legality, pressure, and homes.
+
+Allocator search availability is now a separate compiler-internal validated
+artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
+from the exact target-register environment: each retained view must be target-
+declared allocatable and its complete storage/write footprint must avoid the
+active reservation union. `ExplicitUnconstrainedViewAllowlistV1` accepts only a
+canonical subset of that baseline. It may remove flexible candidates, worsen
+code, create pressure, or make legality fail; it can never add a physical
+capability, revive a reservation, or override architectural state.
+
+This policy is not a reservation overlay. Reservations express mandatory
+target/provider/runtime exclusions and participate in the target-environment
+identity. Availability controls only allocator search. Fixed ABI and operand
+constraints therefore bypass the flexible allowlist, while still undergoing
+the exact class, reservation, and point-local architectural conflict checks.
+An explicit one-view production fixture retains `rdi` on x86-64 and `x0` on
+AArch64. Both reach the first honest pressure witness at incoming VReg 2 and
+classify literal `8` under
+`SelectedVictimImmediateU64EligibilityV1`; x86-64's non-allowlisted fixed
+`rax` return remains legal.
+
+The availability plan has a domain-separated identity, strict codec, complete
+class roster, named-policy provenance, and independent replay against physical,
+constraint, reservation, and selected-key roots. Allocation legality binds its
+identity directly, as do fixed-view copies, homes, spill choices, recovery
+classification, orchestration receipts, and the post-allocation manifest.
+Their identity domains and applicable codec versions advance rather than
+silently accepting old cache bytes. Default orchestration always materializes
+the all-environment policy; a
+separate explicit staging entry accepts an already validated artifact for tests
+and offline search. It is not currently exposed through `build.omg`, and it is
+not part of source-level named optimization selections.
+
+For future ML work, availability is a finite decision action rather than a
+correctness fact: a model may select among validator-supplied candidate-policy
+identities, but may not manufacture view masks, reservations, fixed-constraint
+exceptions, or root optimization selections. Missing model output remains a
+valid deterministic baseline.
 
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,

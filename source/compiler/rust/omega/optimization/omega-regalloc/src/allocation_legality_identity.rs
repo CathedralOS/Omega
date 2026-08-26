@@ -9,9 +9,10 @@ pub fn terminal_allocation_legality_identity(
     plan: &TerminalAllocationLegalityPlan,
 ) -> TerminalAllocationLegalityIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v2\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.allocator_availability.bytes());
     length(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
@@ -83,9 +84,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        TerminalAllocationLegalityPlan, TerminalEntryFixedViewTransition,
-        TerminalFunctionAllocationLegality, TerminalLiveRangeIdentity, TerminalLiveRangePoint,
-        TerminalLivenessPosition, TerminalVirtualFixedConstraintSite, TerminalVirtualPointLegality,
+        TerminalAllocationLegalityPlan, TerminalAllocatorAvailabilityIdentity,
+        TerminalEntryFixedViewTransition, TerminalFunctionAllocationLegality,
+        TerminalLiveRangeIdentity, TerminalLiveRangePoint, TerminalLivenessPosition,
+        TerminalVirtualFixedConstraintSite, TerminalVirtualPointLegality,
         TerminalVirtualRegisterAllocationLegality,
     };
 
@@ -95,6 +97,7 @@ mod tests {
         TerminalAllocationLegalityPlan {
             ranges: TerminalLiveRangeIdentity([1; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([2; 32]),
+            allocator_availability: TerminalAllocatorAvailabilityIdentity::from_bytes([5; 32]),
             functions: vec![TerminalFunctionAllocationLegality {
                 machine: MachineId::new(1).unwrap(),
                 virtual_registers: vec![TerminalVirtualRegisterAllocationLegality {
@@ -129,6 +132,10 @@ mod tests {
             |plan| plan.ranges = TerminalLiveRangeIdentity([3; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([4; 32])
+            },
+            |plan| {
+                plan.allocator_availability =
+                    TerminalAllocatorAvailabilityIdentity::from_bytes([6; 32])
             },
             |plan| plan.functions[0].machine = MachineId::new(2).unwrap(),
             |plan| {

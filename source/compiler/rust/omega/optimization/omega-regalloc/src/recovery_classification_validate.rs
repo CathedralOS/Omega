@@ -29,6 +29,7 @@ pub fn validate_terminal_recovery_classifications<S: ValidatedTerminalSelectedAn
         || plan.ranges != ranges.receipt().identity()
         || plan.legality != legality.receipt().identity()
         || plan.register_environment != legality.receipt().register_environment()
+        || plan.allocator_availability != legality.receipt().allocator_availability()
         || plan.optimization_unit != selected.optimization_unit_identity()
         || plan.fuel_schedule != selected.fuel_schedule_identity()
         || ranges.receipt().selected() != selected.selected_identity()
@@ -39,6 +40,8 @@ pub fn validate_terminal_recovery_classifications<S: ValidatedTerminalSelectedAn
         || spill_choices.receipt().legality() != legality.receipt().identity()
         || spill_choices.receipt().register_environment()
             != legality.receipt().register_environment()
+        || spill_choices.receipt().allocator_availability()
+            != legality.receipt().allocator_availability()
         || plan.functions.len() != selected.selected_plan().functions.len()
         || plan.functions.len() != ranges.plan().functions.len()
         || plan.functions.len() != legality.plan().functions.len()
@@ -97,6 +100,7 @@ pub fn validate_terminal_recovery_classifications<S: ValidatedTerminalSelectedAn
         ranges: plan.ranges,
         legality: plan.legality,
         register_environment: plan.register_environment,
+        allocator_availability: plan.allocator_availability,
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         policy: plan.policy,

@@ -4,8 +4,11 @@ use omega_optimization_core::{
 };
 use omega_regalloc::{
     TerminalAllocationLegalityError, TerminalAllocationLegalityIdentity,
-    ValidatedTerminalAllocationLegality, analyze_terminal_allocation_legality,
-    validate_terminal_allocation_legality,
+    TerminalAllocatorAvailabilityError, TerminalAllocatorAvailabilityIdentity,
+    TerminalAllocatorAvailabilityPolicy, ValidatedTerminalAllocationLegality,
+    ValidatedTerminalAllocatorAvailability, analyze_terminal_allocation_legality,
+    materialize_terminal_allocator_availability, validate_terminal_allocation_legality,
+    validate_terminal_allocator_availability,
 };
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -22,6 +25,7 @@ use crate::{
 #[derive(Debug)]
 pub struct StagedOptimizedAllocationLegality {
     ranges: StagedOptimizedLiveRanges,
+    availability: ValidatedTerminalAllocatorAvailability,
     legality: ValidatedTerminalAllocationLegality,
     custody: StagedOptimizedAllocationLegalityCustodyReceipt,
 }
@@ -32,6 +36,9 @@ impl StagedOptimizedAllocationLegality {
     }
     pub const fn legality(&self) -> &ValidatedTerminalAllocationLegality {
         &self.legality
+    }
+    pub const fn allocator_availability(&self) -> &ValidatedTerminalAllocatorAvailability {
+        &self.availability
     }
     pub const fn custody(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.custody
@@ -49,6 +56,7 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
+    allocator_availability: TerminalAllocatorAvailabilityIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     liveness: omega_regalloc::TerminalLivenessIdentity,
     ranges: omega_regalloc::TerminalLiveRangeIdentity,
@@ -90,6 +98,9 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
+    }
     pub const fn selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.selected
     }
@@ -122,6 +133,7 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedAllocationLegalityCustodyError {
     UpstreamLiveRanges(OptimizedLiveRangeCustodyError),
+    Availability(TerminalAllocatorAvailabilityError),
     Analysis(TerminalAllocationLegalityError),
     Revalidation(TerminalAllocationLegalityError),
     ReceiptMismatch,
@@ -141,14 +153,49 @@ impl std::error::Error for OptimizedAllocationLegalityCustodyError {}
 pub fn stage_optimized_allocation_legality(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
+    let environment = ranges
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let availability = materialize_terminal_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        TerminalAllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
+    stage_optimized_allocation_legality_with_availability(ranges, availability)
+}
+
+pub fn stage_optimized_allocation_legality_with_availability(
+    ranges: StagedOptimizedLiveRanges,
+    availability: ValidatedTerminalAllocatorAvailability,
+) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
     let upstream = validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
         .map_err(OptimizedAllocationLegalityCustodyError::UpstreamLiveRanges)?;
     let environment = ranges
         .liveness_stage()
         .selected_stage()
         .register_environment();
+    let replayed_availability = validate_terminal_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        availability.plan().clone(),
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
+    if replayed_availability.receipt() != availability.receipt() {
+        return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
+    }
     let legality = analyze_terminal_allocation_legality(
         ranges.ranges(),
+        &availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -158,6 +205,7 @@ pub fn stage_optimized_allocation_legality(
     .map_err(OptimizedAllocationLegalityCustodyError::Analysis)?;
     let replayed = validate_terminal_allocation_legality(
         ranges.ranges(),
+        &availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -169,9 +217,14 @@ pub fn stage_optimized_allocation_legality(
     if replayed.receipt() != legality.receipt() {
         return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
     }
-    let custody = custody_receipt(upstream, legality.receipt());
+    let custody = custody_receipt(
+        upstream,
+        availability.receipt().identity(),
+        legality.receipt(),
+    );
     Ok(StagedOptimizedAllocationLegality {
         ranges,
+        availability,
         legality,
         custody,
     })
@@ -179,6 +232,7 @@ pub fn stage_optimized_allocation_legality(
 
 pub fn validate_optimized_allocation_legality_custody(
     ranges: &StagedOptimizedLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
     legality: &ValidatedTerminalAllocationLegality,
 ) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedAllocationLegalityCustodyError>
 {
@@ -188,8 +242,22 @@ pub fn validate_optimized_allocation_legality_custody(
         .liveness_stage()
         .selected_stage()
         .register_environment();
+    let replayed_availability = validate_terminal_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        availability.plan().clone(),
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
+    if replayed_availability.receipt() != availability.receipt() {
+        return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
+    }
     let replayed = validate_terminal_allocation_legality(
         ranges.ranges(),
+        availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -201,11 +269,16 @@ pub fn validate_optimized_allocation_legality_custody(
     if replayed.receipt() != legality.receipt() {
         return Err(OptimizedAllocationLegalityCustodyError::ReceiptMismatch);
     }
-    Ok(custody_receipt(upstream, replayed.receipt()))
+    Ok(custody_receipt(
+        upstream,
+        availability.receipt().identity(),
+        replayed.receipt(),
+    ))
 }
 
 fn custody_receipt(
     upstream: crate::StagedOptimizedLiveRangeCustodyReceipt,
+    allocator_availability: TerminalAllocatorAvailabilityIdentity,
     legality: omega_regalloc::TerminalAllocationLegalityValidationReceipt,
 ) -> StagedOptimizedAllocationLegalityCustodyReceipt {
     StagedOptimizedAllocationLegalityCustodyReceipt {
@@ -218,6 +291,7 @@ fn custody_receipt(
         optimization_unit: upstream.optimization_unit(),
         fuel_schedule: upstream.fuel_schedule(),
         register_environment: upstream.register_environment(),
+        allocator_availability,
         selected: upstream.selected(),
         liveness: upstream.liveness(),
         ranges: upstream.ranges(),

@@ -83,6 +83,7 @@ pub fn validate_terminal_fixed_view_copies(
         source_ranges: plan.source_ranges,
         source_legality: plan.source_legality,
         register_environment: plan.register_environment,
+        allocator_availability: plan.allocator_availability,
         transformed_selected,
         optimization_unit: selected.receipt().optimization_unit(),
         fuel_schedule: selected.receipt().fuel_schedule(),
@@ -110,6 +111,7 @@ fn validate_roots(
         || plan.source_ranges != ranges.receipt().identity()
         || plan.source_legality != legality.receipt().identity()
         || plan.register_environment != register_environment
+        || plan.allocator_availability != legality.receipt().allocator_availability()
         || ranges.plan().selected != selected.receipt().identity()
         || ranges.plan().optimization_unit != selected.receipt().optimization_unit()
         || ranges.plan().fuel_schedule != selected.receipt().fuel_schedule()

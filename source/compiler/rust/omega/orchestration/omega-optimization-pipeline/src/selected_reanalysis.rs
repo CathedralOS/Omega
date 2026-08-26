@@ -46,6 +46,7 @@ pub struct StagedOptimizedSelectedReanalysisCustodyReceipt {
     transformed_liveness: omega_regalloc::TerminalLivenessIdentity,
     transformed_ranges: omega_regalloc::TerminalLiveRangeIdentity,
     transformed_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
+    allocator_availability: omega_regalloc::TerminalAllocatorAvailabilityIdentity,
     function_count: usize,
     virtual_register_count: usize,
     entry_transition_count: usize,
@@ -63,6 +64,11 @@ impl StagedOptimizedSelectedReanalysisCustodyReceipt {
     }
     pub const fn transformed_legality(self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
         self.transformed_legality
+    }
+    pub const fn allocator_availability(
+        self,
+    ) -> omega_regalloc::TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn function_count(self) -> usize {
         self.function_count
@@ -128,8 +134,12 @@ pub fn stage_optimized_selected_reanalysis(
         .liveness_stage()
         .selected_stage()
         .register_environment();
+    let availability = transformation
+        .source_legality_stage()
+        .allocator_availability();
     let legality = analyze_terminal_allocation_legality(
         &ranges,
+        availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -139,6 +149,7 @@ pub fn stage_optimized_selected_reanalysis(
     .map_err(OptimizedSelectedReanalysisError::AllocationLegality)?;
     let replayed_legality = validate_terminal_allocation_legality(
         &ranges,
+        availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -190,8 +201,12 @@ pub fn validate_optimized_selected_reanalysis_custody(
         .liveness_stage()
         .selected_stage()
         .register_environment();
+    let availability = transformation
+        .source_legality_stage()
+        .allocator_availability();
     let replayed_legality = validate_terminal_allocation_legality(
         ranges,
+        availability,
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -233,6 +248,7 @@ fn custody_receipt(
         transformed_liveness: liveness.receipt().identity(),
         transformed_ranges: ranges.receipt().identity(),
         transformed_legality: legality.receipt().identity(),
+        allocator_availability: legality.receipt().allocator_availability(),
         function_count: legality.receipt().function_count(),
         virtual_register_count: legality.receipt().virtual_register_count(),
         entry_transition_count: legality.receipt().entry_transition_count(),

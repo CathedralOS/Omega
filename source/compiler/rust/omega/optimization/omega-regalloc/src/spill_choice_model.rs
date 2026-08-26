@@ -5,11 +5,12 @@ use psi_core::MachineId;
 
 use crate::spill_choice_identity::encode_terminal_spill_choice_content;
 use crate::{
-    TerminalAllocationLegalityIdentity, TerminalLiveRangeIdentity, TerminalLiveRangePoint,
+    TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
+    TerminalLiveRangeIdentity, TerminalLiveRangePoint,
 };
 
 const SPILL_CHOICE_MAGIC: &[u8; 8] = b"OMGSPC\0\0";
-const SPILL_CHOICE_VERSION: u32 = 1;
+const SPILL_CHOICE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSpillChoiceIdentity(pub(crate) [u8; 32]);
@@ -38,6 +39,7 @@ pub struct TerminalSpillChoicePlan {
     pub legality: TerminalAllocationLegalityIdentity,
     pub ranges: TerminalLiveRangeIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub policy: TerminalSpillChoicePolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -72,6 +74,8 @@ impl TerminalSpillChoicePlan {
         let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
+        let allocator_availability =
+            TerminalAllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let policy = match cursor.byte()? {
             0 => TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             tag => return Err(TerminalSpillChoiceDecodeError::UnknownPolicy(tag)),
@@ -160,6 +164,7 @@ impl TerminalSpillChoicePlan {
             legality,
             ranges,
             register_environment,
+            allocator_availability,
             policy,
             budget,
             usage,
@@ -217,6 +222,7 @@ pub struct TerminalSpillChoiceValidationReceipt {
     pub(crate) legality: TerminalAllocationLegalityIdentity,
     pub(crate) ranges: TerminalLiveRangeIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) policy: TerminalSpillChoicePolicy,
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
@@ -236,6 +242,9 @@ impl TerminalSpillChoiceValidationReceipt {
     }
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn policy(self) -> TerminalSpillChoicePolicy {
         self.policy

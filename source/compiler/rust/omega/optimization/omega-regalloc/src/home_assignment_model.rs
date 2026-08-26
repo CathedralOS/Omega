@@ -4,11 +4,12 @@ use psi_core::MachineId;
 
 use crate::home_assignment_identity::encode_terminal_register_home_content;
 use crate::{
-    TerminalAllocationLegalityIdentity, TerminalLiveRangeIdentity, terminal_register_home_identity,
+    TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
+    TerminalLiveRangeIdentity, terminal_register_home_identity,
 };
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 1;
+const REGISTER_HOME_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRegisterHomeIdentity(pub(crate) [u8; 32]);
@@ -31,6 +32,7 @@ pub struct TerminalRegisterHomePlan {
     pub legality: TerminalAllocationLegalityIdentity,
     pub ranges: TerminalLiveRangeIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub functions: Vec<TerminalFunctionRegisterHomes>,
 }
 
@@ -62,6 +64,8 @@ impl TerminalRegisterHomePlan {
         let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
+        let allocator_availability =
+            TerminalAllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let function_count = cursor.length()?;
         let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
         for _ in 0..function_count {
@@ -92,6 +96,7 @@ impl TerminalRegisterHomePlan {
             legality,
             ranges,
             register_environment,
+            allocator_availability,
             functions,
         };
         if terminal_register_home_identity(&plan) != identity {
@@ -120,6 +125,7 @@ pub struct TerminalRegisterHomeValidationReceipt {
     pub(crate) legality: TerminalAllocationLegalityIdentity,
     pub(crate) ranges: TerminalLiveRangeIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
     pub(crate) assignment_count: usize,
 }
@@ -136,6 +142,9 @@ impl TerminalRegisterHomeValidationReceipt {
     }
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn function_count(self) -> usize {
         self.function_count

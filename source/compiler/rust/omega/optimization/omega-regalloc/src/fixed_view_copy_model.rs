@@ -10,8 +10,8 @@ use omega_terminal_selected_instructions::{
 use psi_core::{MachineId, ValueId};
 
 use crate::{
-    TerminalAllocationLegalityIdentity, TerminalLiveRangeIdentity,
-    TerminalVirtualFixedConstraintSite,
+    TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
+    TerminalLiveRangeIdentity, TerminalVirtualFixedConstraintSite,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -40,6 +40,7 @@ pub struct TerminalFixedViewCopyPlan {
     pub source_ranges: TerminalLiveRangeIdentity,
     pub source_legality: TerminalAllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub policy: TerminalFixedViewCopyPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -71,6 +72,7 @@ pub struct TerminalFixedViewCopyValidationReceipt {
     pub(crate) source_ranges: TerminalLiveRangeIdentity,
     pub(crate) source_legality: TerminalAllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) transformed_selected: TerminalSelectedInstructionPlanIdentity,
     pub(crate) optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
     pub(crate) fuel_schedule: psi_core::FuelScheduleIdentity,
@@ -95,6 +97,9 @@ impl TerminalFixedViewCopyValidationReceipt {
     }
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn transformed_selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.transformed_selected

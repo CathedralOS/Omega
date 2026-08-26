@@ -11,12 +11,14 @@ use crate::{
     TerminalAllocationLegalityValidationReceipt, TerminalEntryFixedViewTransition,
     TerminalLiveRangePoint, TerminalVirtualFixedConstraintSite, TerminalVirtualLiveRange,
     TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
-    ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
-    terminal_allocation_legality_identity,
+    ValidatedTerminalAllocationLegality, ValidatedTerminalAllocatorAvailability,
+    ValidatedTerminalLiveRanges, terminal_allocation_legality_identity,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn validate_terminal_allocation_legality(
     ranges: &ValidatedTerminalLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -31,6 +33,9 @@ pub fn validate_terminal_allocation_legality(
         || reservations.target() != target
         || plan.ranges != ranges.receipt().identity()
         || plan.register_environment != register_environment
+        || plan.allocator_availability != availability.receipt().identity()
+        || availability.receipt().register_environment() != register_environment
+        || availability.receipt().physical() != physical.identity()
         || register_environment
             != target_register_environment_identity(
                 target,
@@ -69,6 +74,7 @@ pub fn validate_terminal_allocation_legality(
                 function_index,
                 source,
                 source_register,
+                availability,
                 physical,
                 reservations,
             )?;
@@ -86,6 +92,7 @@ pub fn validate_terminal_allocation_legality(
         identity,
         ranges: plan.ranges,
         register_environment: plan.register_environment,
+        allocator_availability: plan.allocator_availability,
         function_count: plan.functions.len(),
         virtual_register_count: plan
             .functions
@@ -119,6 +126,7 @@ fn replay_register(
     function_index: usize,
     function: &crate::TerminalFunctionLiveRanges,
     register: &TerminalVirtualLiveRange,
+    availability: &ValidatedTerminalAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
 ) -> Result<TerminalVirtualRegisterAllocationLegality, TerminalAllocationLegalityError> {
@@ -136,6 +144,13 @@ fn replay_register(
         .fragments
         .first()
         .map(|fragment| (fragment.block, fragment.start));
+    let available = availability.unconstrained_views(register.class).ok_or(
+        TerminalAllocationLegalityError::UnknownClass {
+            function: function_index,
+            register: register.virtual_register.0,
+            class: register.class.0,
+        },
+    )?;
     let mut points = Vec::new();
     for fragment in &register.fragments {
         let mut point = fragment.start;
@@ -167,6 +182,7 @@ fn replay_register(
             let mut candidates = class
                 .views
                 .iter()
+                .filter(|view_id| available.binary_search(view_id).is_ok())
                 .filter_map(|view_id| {
                     let view = physical
                         .model()

@@ -6,7 +6,7 @@ pub fn terminal_spill_choice_identity(
     plan: &TerminalSpillChoicePlan,
 ) -> TerminalSpillChoiceIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-spill-choices.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-spill-choices.v2\0");
     bytes.extend_from_slice(&encode_terminal_spill_choice_content(plan));
     TerminalSpillChoiceIdentity(Sha256::digest(bytes).into())
 }
@@ -16,6 +16,7 @@ pub(crate) fn encode_terminal_spill_choice_content(plan: &TerminalSpillChoicePla
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.push(match plan.policy {
         TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1 => 0,
     });
@@ -85,6 +86,9 @@ mod tests {
             legality: TerminalAllocationLegalityIdentity([1; 32]),
             ranges: TerminalLiveRangeIdentity([2; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
+            allocator_availability: crate::TerminalAllocatorAvailabilityIdentity::from_bytes(
+                [5; 32],
+            ),
             policy: TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             budget: OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             usage: OptimizationWorkUsage {
@@ -102,6 +106,10 @@ mod tests {
         assert_ne!(baseline, terminal_spill_choice_identity(&changed));
         changed = plan.clone();
         changed.ranges = TerminalLiveRangeIdentity([4; 32]);
+        assert_ne!(baseline, terminal_spill_choice_identity(&changed));
+        changed = plan.clone();
+        changed.allocator_availability =
+            crate::TerminalAllocatorAvailabilityIdentity::from_bytes([6; 32]);
         assert_ne!(baseline, terminal_spill_choice_identity(&changed));
     }
 
@@ -122,6 +130,9 @@ mod tests {
             legality: TerminalAllocationLegalityIdentity([1; 32]),
             ranges: TerminalLiveRangeIdentity([2; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
+            allocator_availability: crate::TerminalAllocatorAvailabilityIdentity::from_bytes(
+                [5; 32],
+            ),
             policy: TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             budget: OptimizationWorkBudget::new(10, 10, 20, 2, 1).unwrap(),
             usage: OptimizationWorkUsage {
@@ -182,10 +193,10 @@ mod tests {
             Err(TerminalSpillChoiceDecodeError::Truncated)
         );
         let mut wrong_version = encoded;
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalSpillChoicePlan::decode(&wrong_version),
-            Err(TerminalSpillChoiceDecodeError::UnsupportedVersion(2))
+            Err(TerminalSpillChoiceDecodeError::UnsupportedVersion(3))
         );
     }
 }

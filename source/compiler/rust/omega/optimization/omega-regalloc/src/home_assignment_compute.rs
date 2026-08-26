@@ -56,6 +56,7 @@ pub(crate) fn compute_terminal_register_homes(
         legality: legality.receipt().identity(),
         ranges: ranges.receipt().identity(),
         register_environment,
+        allocator_availability: legality.receipt().allocator_availability(),
         functions,
     })
 }

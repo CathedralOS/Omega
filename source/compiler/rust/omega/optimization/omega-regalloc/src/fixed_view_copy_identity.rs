@@ -12,11 +12,12 @@ pub fn terminal_fixed_view_copy_identity(
     plan: &TerminalFixedViewCopyPlan,
 ) -> TerminalFixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v2\0");
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.push(match plan.policy {
         TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
     });
@@ -135,6 +136,9 @@ mod tests {
             source_ranges: TerminalLiveRangeIdentity([2; 32]),
             source_legality: TerminalAllocationLegalityIdentity([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
+            allocator_availability: crate::TerminalAllocatorAvailabilityIdentity::from_bytes(
+                [5; 32],
+            ),
             policy: TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
             budget: OptimizationWorkBudget::new(10, 10, 10, 10, 10).unwrap(),
             usage: OptimizationWorkUsage {
@@ -194,6 +198,10 @@ mod tests {
             |plan| plan.source_legality = TerminalAllocationLegalityIdentity([14; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([15; 32])
+            },
+            |plan| {
+                plan.allocator_availability =
+                    crate::TerminalAllocatorAvailabilityIdentity::from_bytes([16; 32])
             },
             |plan| plan.budget = OptimizationWorkBudget::new(11, 10, 10, 10, 10).unwrap(),
             |plan| plan.usage.commits += 1,
