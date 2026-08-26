@@ -999,7 +999,9 @@ Remaining:
   expression, occurrence roster, and cardinality separately rather than
   fabricating one scalar total. A two-era external-root regression and the
   real source-to-Terminal-to-installation storage handoff cover this
-  coexistence-reporting seam.
+  coexistence-reporting seam. The source-derived two-root handoff also covers
+  exact lifecycle-ledger substitution and complete batch retry custody, then
+  composes two live eras into the four exact ordered epoch/schema rows.
   The same real source-derived handoff now covers stale installation-epoch
   replay end to end. It acquires the exact epoch-10 cohort leases, publishes
   epoch 20, proves the stale seal rejects atomically with every prebinding,
@@ -1011,9 +1013,17 @@ Remaining:
   cohort, aggregate/snapshot/coexistence reporting, runtime establishment,
   materialization, and audit origin. Terminal-artifact, lifecycle, and
   materialization-plan substitutions reject transactionally and exact retry
-  mints only one lineage. Add source, terminal, artifact, and installation
-  canaries for a finite multi-instance aggregate, an unbounded installation
-  shape, and cross-origin composition.
+  mints only one lineage. That same installed source root now rejects
+  recomposition with a provider-issued extent even when numeric lineage,
+  geometry, rights, provenance, mapping era, and address space coincide; both
+  origins and their custody return unchanged. Add source, terminal, artifact,
+  and installation canaries for a finite multi-instance aggregate. The former
+  `unbounded installation shape` request does not yet name a representable
+  threat: every current source projection, Terminal catalog, target slot
+  roster, cohort, and lifecycle ceiling is explicitly finite. Specify whether
+  the intended rejection frontier is an unresolved source family, a dynamic
+  target-slot roster, or an artifact-authored occurrence count before adding a
+  canary; do not invent an `Unbounded` production variant solely to reject it.
   Source, canonical-codec, and verifier canaries now close
   coherent understatement of a producer schema against its independent owner
   projection; retain that invariant through the remaining artifact and
@@ -1164,6 +1174,11 @@ Owners:
   returns the complete Extent and content grant, and withdrawal/re-admission
   retries successfully under the correct retained plan without minting a
   placed occurrence or choosing Q12's source result schema.
+  A second source-to-foundation canary takes an exact source-retained External
+  plan through provider schema/device correspondence. Wrong-plan and wrong-
+  profile receipt joins return the exact loan and correspondence for retry;
+  the exact join then withdraws both unchanged. It likewise stops before a
+  placed view or occurrence identity and therefore does not choose Q12's ABI.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
@@ -5474,6 +5489,16 @@ Owners:
   as resource facts. Proposition-consuming tactics, captured value versions,
   premise tokens, dominance, richer proof derivations, and Terminal
   certificates remain open.
+
+  The first checked Type/resource prerequisite is also live for direct-root
+  loans. One deterministic non-authorizing row retains the exact state-owned
+  loan, owner/path, captured place, access polarity, activation and weakening
+  coordinates, parent state/root lifetime, and restoration obligation.
+  Independent checked replay rejects missing, duplicate, state, place, access,
+  formation, closure, reason, or restoration drift, and direct-root structural
+  certificates must rejoin their two exact resource rows. Explicit reborrows
+  and borrow-carrying transfers remain excluded until exact parent/source loan
+  lineage is retained; these checked rows grant no Terminal authority.
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
