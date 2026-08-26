@@ -28,21 +28,22 @@ checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
 
-The closure has 12 source units, 103 root items, 158,663 source bytes in total,
+The closure has 12 source units, 104 root items, 158,404 source bytes in total,
 and a largest source unit of 78,952 bytes. Its root items are 21 data
-declarations, 67 machines, four targets, one trait, and ten imports. The machine
+declarations, 68 machines, four targets, one trait, and ten imports. The machine
 surface includes 20 target-qualified machines, 18 `satisfies` clauses, 16
 bodyless target leaves, and 16 `Binding::CompilerIntrinsic` realizations. These
 forms were invisible in snapshot v1 and are retained candidates required by the
-current source, not incidental zero-count possibilities.
+current source, not incidental zero-count possibilities. Public declarations
+are now observed directly through the reconciled toolchain build prelude.
 
 The largest observed compositional resources are:
 
 | Resource | Observed maximum | Provisional general ceiling |
 | --- | ---: | ---: |
-| source units / total bytes / bytes per unit | 12 / 158,663 / 78,952 | 16 / 262,144 / 131,072 |
+| source units / total bytes / bytes per unit | 12 / 158,404 / 78,952 | 16 / 262,144 / 131,072 |
 | root items / data members / variant payload fields | 103 / 42 / 3 | 128 / 64 / 4 |
-| machine states / state parameters / state statements | 65 / 7 / 26 | 128 / 8 / 32 |
+| machine states / state parameters / state statements | 64 / 7 / 26 | 128 / 8 / 32 |
 | call arguments / static arguments / transition arguments | 6 / 2 / 4 | 8 / 2 / 4 |
 | path components / identifier bytes | 6 / 49 | 8 / 64 |
 | array-literal elements / declared fixed-array length | 806 / 65,536 | 1,024 / 65,536 |

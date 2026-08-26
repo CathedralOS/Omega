@@ -3,8 +3,8 @@
   "checkpoint": 1,
   "status": "provisional",
   "checkpoint_manifest": "compiler/source-checkpoints/checkpoint-000001.json",
-  "checkpoint_closure_sha256": "543f4456bfe82ed35f73e900b249a372725249f828143c42de8088b04bfe6076",
-  "checkpoint_content_set_sha256": "8cf947abc5a1de9e9f690f04c3e32ff6a11e2482b033a4b26228a15ca0e840ca",
+  "checkpoint_closure_sha256": "652827a6d22b1ad1227874f5cd03a2aeaa491936114a0045f1615db30c3a5589",
+  "checkpoint_content_set_sha256": "ba5fe4ab4e6304fcf7799d8150d8c6d10b4613154cd7b8791c23a670b59f9dba",
   "feature_catalog": "omega.omega-self-feature-catalog.v2",
   "census_schema": "omega.omega-source-feature-census.v2",
   "configuration_policy": {
@@ -64,6 +64,7 @@
     "expression.unary.logical_not",
     "item.data",
     "item.machine",
+    "item.public",
     "item.target",
     "item.trait",
     "item.use",
@@ -161,7 +162,6 @@
     "item.conformance",
     "item.const",
     "item.domain",
-    "item.invariant",
     "item.library",
     "item.measure",
     "item.module",
@@ -169,7 +169,6 @@
     "item.package",
     "item.platform",
     "item.proposition",
-    "item.public",
     "item.wire_data",
     "machine.blocks",
     "machine.boundary",
@@ -208,7 +207,6 @@
     "target.host.setting.named",
     "trait.conformance_bound",
     "trait.default_body",
-    "trait.invariant",
     "trait.parent",
     "trait.requires",
     "transition.aggregate_literal_argument",
@@ -320,7 +318,7 @@
       "unit": "states",
       "scope": "per_machine",
       "comparison": "lte",
-      "observed_max": 65,
+      "observed_max": 64,
       "limit": 128
     },
     {
@@ -344,7 +342,7 @@
       "unit": "bytes",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 158663,
+      "observed_max": 158404,
       "limit": 262144
     },
     {
@@ -376,7 +374,7 @@
       "unit": "items",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 103,
+      "observed_max": 104,
       "limit": 128
     },
     {
@@ -528,5 +526,5 @@
       "missing_evidence": "typed census facts beyond syntax-spelled data where, domain, generic, and inline aggregate forms"
     }
   ],
-  "profile_sha256": "2e9dd96b37612655b976c3c41a8fac0bc882a2c9a2d1cbeeaedd5f098d44b14a"
+  "profile_sha256": "22c78113f207a502536a7e835867bd528c8a51e359403542fc22843d8a30f5b6"
 }

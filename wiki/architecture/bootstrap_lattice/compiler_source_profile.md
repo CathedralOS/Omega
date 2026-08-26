@@ -226,16 +226,14 @@ mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
 [`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
 explains the evidence and unresolved decisions. The snapshot remains bounded
-evidence for the pinned source it describes, but its fast gate currently
-rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
-`compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-provenance drift in `Cargo.lock` and
-`bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
-That stages provider also differs from the pinned
-`compiler/source-checkpoints/inputs/build-prelude.omg` snapshot. It must not be
-presented as the current coherent product closure until the product owner
-refreshes the manifest and profile together. The published evidence is enough
-to begin evidence-led bridge work for those facilities only.
+evidence for the pinned source it describes. Its manifest, profile,
+Cargo/provider provenance, and extracted
+`compiler/source-checkpoints/inputs/build-prelude.omg` are refreshed as one
+coherent closure; the prelude now retains its public build vocabulary and
+package-identity declaration. The fast gate rejects any later source,
+provenance, prelude, feature-partition, or resource drift until the product
+owner reviews and refreshes that complete evidence set again. The published
+evidence is enough to begin evidence-led bridge work for those facilities only.
 It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
 does not settle typed semantics, ABI/layout, lowering, or bridge cost for the

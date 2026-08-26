@@ -116,18 +116,11 @@ Remaining:
   differential. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
-  Before publishing the next coherent checkpoint, refresh checkpoint 000001's
-  closure and provenance after the current product changes. The fast gate
-  currently rejects drift in compiled `compiler/psi/lex/lexer.omg`,
-  `compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-  the pinned `Cargo.lock` and
-  `bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`
-  provenance digests. That stages provider also owns the embedded build
-  prelude, which currently differs from
-  `compiler/source-checkpoints/inputs/build-prelude.omg`. Regenerate and review
-  the checkpoint/profile artifacts as one closure; do not loosen the gate or
-  hand-edit only the first mismatch.
-  Also replace
+  Checkpoint 000001's manifest, profile, Cargo/provider provenance, and exact
+  extracted build prelude are refreshed together after the current product
+  changes. The fast gate now accepts that coherent closure and rejects later
+  source, provenance, prelude, feature-partition, or resource drift until the
+  complete evidence set is reviewed and refreshed again. Still replace
   `apps/omega-compiler/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
   design. Resolve the target-package default source convention at the same
