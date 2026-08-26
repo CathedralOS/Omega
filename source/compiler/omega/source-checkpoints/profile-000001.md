@@ -28,7 +28,7 @@ checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
 
-The closure has 12 source units, 106 root items, 158,246 source bytes in total,
+The closure has 12 source units, 106 root items, 158,231 source bytes in total,
 and a largest source unit of 78,952 bytes. Its root items are 21 data
 declarations, 70 machines, four targets, one trait, and ten imports. The machine
 surface includes 20 target-qualified machines, 18 `satisfies` clauses, 16
@@ -41,7 +41,7 @@ The largest observed compositional resources are:
 
 | Resource | Observed maximum | Provisional general ceiling |
 | --- | ---: | ---: |
-| source units / total bytes / bytes per unit | 12 / 158,246 / 78,952 | 16 / 262,144 / 131,072 |
+| source units / total bytes / bytes per unit | 12 / 158,231 / 78,952 | 16 / 262,144 / 131,072 |
 | root items / data members / variant payload fields | 106 / 42 / 3 | 128 / 64 / 4 |
 | machine states / state parameters / state statements | 64 / 7 / 26 | 128 / 8 / 32 |
 | call arguments / static arguments / transition arguments | 6 / 2 / 4 | 8 / 2 / 4 |
