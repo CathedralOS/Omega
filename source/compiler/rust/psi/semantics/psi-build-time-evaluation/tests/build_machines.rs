@@ -72,6 +72,26 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
 }
 
 #[test]
+fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
+    let typed = typed(
+        r#"
+        machine is_positive(value: u64) -> bool { value > 0 }
+        "#,
+    );
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    let value = admission
+        .evaluate_const_evaluable_machine_for_invocation(
+            &typed,
+            "is_positive",
+            vec![BuildTimeValue::Int(4)],
+            psi_build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
+        )
+        .expect("a Boolean proof-position result should cross as an owned snapshot");
+    assert_eq!(value, BuildTimeValue::Bool(true));
+}
+
+#[test]
 fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
     let typed = typed(SOURCE);
     let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
