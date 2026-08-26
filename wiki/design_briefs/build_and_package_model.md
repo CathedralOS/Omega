@@ -108,11 +108,12 @@ machine build(builder: &mut Build)
 }
 ```
 
-The tool invokes the exact one-parameter machine with a build-activation handle
-and scoped standard providers. `Build` both exposes activation-scoped services
-and accumulates the durable build result; ephemeral capabilities never enter
-that normalized result. Console logging is a declared service call, not output
-silently intercepted by the interpreter.
+The tool reserves the first parameter as the build-activation handle,
+`builder: &mut Build`, and may inject additional explicitly declared service
+parameters. `Build` both exposes activation-scoped services and accumulates the
+durable build result; ephemeral capabilities never enter that normalized
+result. Console logging is a declared service call, not output silently
+intercepted by the interpreter.
 
 Unused build-host services are absent from the machine's ordinary
 `reaches`/`invokes` contract and are not supplied through its activation.

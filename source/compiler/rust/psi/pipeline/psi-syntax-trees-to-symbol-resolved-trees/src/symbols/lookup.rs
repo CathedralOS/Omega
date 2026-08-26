@@ -1,16 +1,31 @@
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-pub(super) fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
-    top_level_symbol_by_kinds(
-        symbols,
-        &[
-            SymbolKind::BuiltinType,
-            SymbolKind::Data,
-            SymbolKind::Machine,
-            SymbolKind::Trait,
-        ],
-        name,
-    )
+pub(super) fn top_level_type_symbol_for_source(
+    symbols: &SymbolTable,
+    name: &psi_symbol_resolved_trees::name::DiagnosticName,
+) -> SymbolHandle {
+    symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            name.as_str(),
+            &[
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::Machine,
+                SymbolKind::Trait,
+            ],
+            name.source_span(),
+        )
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
+pub(super) fn top_level_symbol_for_source(
+    symbols: &SymbolTable,
+    kind: SymbolKind,
+    name: &psi_symbol_resolved_trees::name::DiagnosticName,
+) -> SymbolHandle {
+    symbols
+        .find_top_level_by_name_and_kinds_from_source(name.as_str(), &[kind], name.source_span())
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 pub(super) fn top_level_symbol(

@@ -28,5 +28,8 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
-pub use lowerer::{lower_syntax_trees, lower_syntax_trees_with_sources};
+pub use lowerer::{
+    lower_syntax_trees, lower_syntax_trees_with_sources,
+    lower_syntax_trees_with_sources_and_top_level_bindings,
+};
 pub use trait_defaults::synthesize_trait_defaults;

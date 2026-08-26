@@ -37,6 +37,7 @@ pub(super) struct AssembledSyntax {
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
     pub(super) build_source_id: Option<psi_source::SourceId>,
+    pub(super) source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
 }
 
 pub(super) fn append_retained_generated_sources(
@@ -251,7 +252,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
                 })
         })
         .transpose()?;
-    let build_requires_filesystem_layout =
+    let (build_requires_filesystem_layout, source_scoped_top_level_bindings) =
         inject_build_prelude(&mut source_storage, build_source_id, timings)?;
     if build_requires_filesystem_layout {
         imports.seed(
@@ -282,7 +283,11 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
 
     validate_selected_target(&source_storage, target_name)?;
     let source_file_count = source_storage.file_count();
-    let syntax = assemble_syntax(source_storage, build_source_id)?;
+    let syntax = assemble_syntax(
+        source_storage,
+        build_source_id,
+        source_scoped_top_level_bindings,
+    )?;
 
     Ok((source_file_count, syntax))
 }
@@ -580,9 +585,10 @@ fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
     timings: &mut CompileTimings,
-) -> Result<bool, Vec<Diagnostic>> {
+) -> Result<(bool, Vec<psi_symbols::SourceScopedTopLevelBinding>), Vec<Diagnostic>> {
     let mut has_build_machine = false;
-    let mut has_build_data = false;
+    let mut build_source_declares_build_data = false;
+    let mut program_declares_build_data = false;
     let mut build_reaches_filesystem = false;
     for (_, file) in source_storage.files.iter() {
         let is_build_file = Some(file.source_id) == build_source_id;
@@ -602,15 +608,19 @@ fn inject_build_prelude(
                         .any(|service| service.as_str() == "FilesystemHost");
                 }
                 psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
-                    has_build_data = true;
+                    if is_build_file {
+                        build_source_declares_build_data = true;
+                    } else {
+                        program_declares_build_data = true;
+                    }
                 }
                 _ => {}
             }
         }
     }
-    let inject_build_vocabulary = has_build_machine && !has_build_data;
+    let inject_build_vocabulary = has_build_machine && !build_source_declares_build_data;
     if !inject_build_vocabulary {
-        return Ok(build_reaches_filesystem);
+        return Ok((build_reaches_filesystem, Vec::new()));
     }
 
     let build_prelude = if build_reaches_filesystem {
@@ -633,7 +643,15 @@ fn inject_build_prelude(
         parse_sources(lexed, &mut source_storage.syntax_trees)
     })?;
     extend_source_storage(source_storage, parsed)?;
-    Ok(build_reaches_filesystem)
+    let bindings = match (program_declares_build_data, build_source_id) {
+        (true, Some(build_source_id)) => vec![psi_symbols::SourceScopedTopLevelBinding::new(
+            build_source_id,
+            psi_source::SourceId(first_source_id),
+            "Build",
+        )],
+        _ => Vec::new(),
+    };
+    Ok((build_reaches_filesystem, bindings))
 }
 
 /// The darwin boundary-provider substitution (tasks #57/#60). The samples call the
@@ -803,6 +821,7 @@ fn substitute_native_gui_provider(
 fn assemble_syntax(
     sources: SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let files = sources.files.storage_slice().to_vec();
     Ok(AssembledSyntax {
@@ -810,6 +829,7 @@ fn assemble_syntax(
         files,
         sources: Arc::new(sources.sources),
         build_source_id,
+        source_scoped_top_level_bindings,
     })
 }
 
@@ -818,9 +838,10 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     timings: &mut CompileTimings,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
-        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources_and_top_level_bindings(
             &syntax.syntax_trees,
             syntax.sources,
+            syntax.source_scoped_top_level_bindings,
         )
     })
 }

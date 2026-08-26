@@ -102,6 +102,120 @@ fn imported_file_named_build_is_not_a_project_build_root() {
 }
 
 #[test]
+fn exact_build_source_receives_toolchain_build_while_program_build_remains_ordinary() {
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        "data Build { marker: i32 in Wrapping; }\ndata Main { local: Build; }\n",
+    );
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("source-scoped-build-vocabulary");
+}
+
+"#,
+    );
+
+    let checked = compile_to_checked(&project.main(), None)
+        .expect("program and toolchain Build declarations must occupy exact source contexts");
+    let builds = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name.as_str() == "Build")
+        .collect::<Vec<_>>();
+    assert_eq!(builds.len(), 2);
+    let toolchain_build = builds
+        .iter()
+        .copied()
+        .find(|definition| {
+            checked
+                .typed
+                .symbols
+                .symbol_source_span(definition.symbol)
+                .and_then(|span| checked.typed.symbols.source_file(span))
+                .is_some_and(|file| file.path == Path::new("<build-prelude>"))
+        })
+        .expect("exact toolchain Build declaration");
+    let program_build = builds
+        .iter()
+        .copied()
+        .find(|definition| definition.symbol != toolchain_build.symbol)
+        .expect("ordinary program Build declaration");
+
+    let build_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("project build machine");
+    let build_parameter = checked
+        .typed
+        .state_parameters(&checked.typed.machine_states(build_machine)[0])
+        .first()
+        .expect("builder parameter");
+    let psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(build_parameter.type_reference)
+    else {
+        panic!("builder must remain a reference");
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.typed.type_reference_table.type_reference(*referee)
+    else {
+        panic!("builder referee must remain nominal");
+    };
+    assert_eq!(*symbol, toolchain_build.symbol);
+
+    let main = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("Main declaration");
+    let psi_typed_trees::data::DataMember::Field(local) = &checked.typed.data_members(main)[0]
+    else {
+        panic!("Main.local must remain a field");
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        panic!("Main.local must retain a nominal type");
+    };
+    assert_eq!(*symbol, program_build.symbol);
+}
+
+#[test]
+fn source_scoped_toolchain_binding_does_not_hide_ordinary_duplicates() {
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        "use other;\ndata Build { first: i32 in Wrapping; }\n",
+    );
+    project.write("other.omg", "data Build { second: i32 in Wrapping; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("duplicate-program-builds");
+}
+"#,
+    );
+
+    let diagnostics = compile_to_checked(&project.main(), None)
+        .expect_err("two ordinary program Build declarations must still conflict");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "duplicate data `Build`"),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
+#[test]
 fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");

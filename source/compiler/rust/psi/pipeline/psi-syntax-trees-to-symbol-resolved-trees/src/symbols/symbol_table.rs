@@ -23,6 +23,7 @@ use crate::symbols::symbol_table::names::{
 pub(super) fn build_symbol_table(
     program: &SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::lowerer::PendingConstDeclaration],
 ) -> SymbolTable {
     let has_sources = sources.is_some();
@@ -31,7 +32,10 @@ pub(super) fn build_symbol_table(
         .iter()
         .map(|operator| operator_symbol_name(program, operator))
         .collect::<Vec<_>>();
-    let mut builder = SymbolTableBuilder::with_sources(sources);
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        sources,
+        source_scoped_top_level_bindings,
+    );
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let root_children = builder.insert_children(
         root,

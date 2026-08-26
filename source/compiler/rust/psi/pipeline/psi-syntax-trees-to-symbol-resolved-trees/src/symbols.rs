@@ -29,9 +29,15 @@ use top_level::assign_top_level_symbols;
 pub(crate) fn assign_symbols(
     program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::lowerer::PendingConstDeclaration],
 ) {
-    let symbols = build_symbol_table(program, sources, const_declarations);
+    let symbols = build_symbol_table(
+        program,
+        sources,
+        source_scoped_top_level_bindings,
+        const_declarations,
+    );
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);

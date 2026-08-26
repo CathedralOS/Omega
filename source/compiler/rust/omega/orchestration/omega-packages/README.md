@@ -33,8 +33,11 @@ real package fixture demonstrates an irreducible external contract.
   sample population and projects each role through this package reader.
 - The ordinary compiler-canary corpus is also explicit except where a test is
   deliberately malformed, contains only target vocabulary, exercises a scoped
-  build root, or pins the unresolved main-source `Build` collision. Those
-  exceptions are enumerated by the same repository canary rather than inferred.
+  build root, or has an intrinsically invalid build entry. Those exceptions are
+  enumerated by the same repository canary rather than inferred. The exact
+  selected build source resolves the compiler-owned `Build` vocabulary through
+  a source-scoped binding, so an ordinary same-spelled program declaration
+  remains nominally independent and no longer needs an exception.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.
