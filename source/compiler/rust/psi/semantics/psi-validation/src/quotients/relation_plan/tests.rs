@@ -1265,16 +1265,6 @@ fn direct_lift_implication_fixture(
         InputRelation::Quotient(expected_theorem.relation_premises[0].relation),
         InputRelation::ExactEquality(representative.parameters[1].type_reference),
     ];
-    let public_partition = derive_public_precondition_partition(
-        &program,
-        &public_machine,
-        &public_state,
-        &input_relations,
-    )
-    .expect("exact public fact identities");
-    let representative_partition =
-        derive_representative_precondition_partition(&program, &input_relations, &representative)
-            .expect("exact representative fact identities");
     let runtime = super::DirectLiftRuntimeCorrespondence {
         positions: vec![
             super::DefineRuntimePosition {
@@ -1287,6 +1277,17 @@ fn direct_lift_implication_fixture(
             },
         ],
     };
+    let public_partition = derive_public_precondition_partition(
+        &program,
+        &public_machine,
+        &public_state,
+        &input_relations,
+        &runtime.positions,
+    )
+    .expect("exact public fact identities");
+    let representative_partition =
+        derive_representative_precondition_partition(&program, &input_relations, &representative)
+            .expect("exact representative fact identities");
     DirectLiftImplicationFixture {
         program,
         public_machine,
@@ -1396,9 +1397,10 @@ fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tampe
 }
 
 #[test]
-fn direct_lift_runtime_rung_rejects_reordered_duplicated_and_adapted_arguments() {
+fn direct_lift_runtime_rung_accepts_permutations_but_rejects_duplicates_and_adaptation() {
     let mut program = TypedTrees::default();
-    let quotient = quotient_type(&mut program, symbol(880), "ExactQ", symbol(881), "ExactR");
+    let left_quotient = quotient_type(&mut program, symbol(880), "LeftQ", symbol(881), "LeftR");
+    let right_quotient = quotient_type(&mut program, symbol(888), "RightQ", symbol(889), "RightR");
     let carrier = carrier_type(&mut program);
     let left_symbol = symbol(882);
     let right_symbol = symbol(883);
@@ -1408,16 +1410,19 @@ fn direct_lift_runtime_rung_rejects_reordered_duplicated_and_adapted_arguments()
         .expression_table
         .insert(ExpressionNode::Integer(Default::default()));
     let mut state = State {
-        return_type: quotient,
+        return_type: left_quotient,
         ..Default::default()
     };
-    for (symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {
+    for (symbol, name, type_reference) in [
+        (left_symbol, "left", left_quotient),
+        (right_symbol, "right", right_quotient),
+    ] {
         program.push_state_parameter(
             &mut state,
             StateParameter {
                 symbol,
                 name: Identifier::generated_static(name),
-                type_reference: quotient,
+                type_reference,
                 ..Default::default()
             },
         );
@@ -1447,13 +1452,19 @@ fn direct_lift_runtime_rung_rejects_reordered_duplicated_and_adapted_arguments()
             bindings: Vec::new(),
         },
     };
-    let relation = ExactQuotientRelation {
-        quotient_type: quotient,
+    let left_relation = ExactQuotientRelation {
+        quotient_type: left_quotient,
         quotient_symbol: symbol(880),
         relation_symbol: symbol(881),
     };
-    let input_relations = [InputRelation::Quotient(relation); 2];
-    let derive = |program: &mut TypedTrees, arguments: [ExpressionHandle; 2]| {
+    let right_relation = ExactQuotientRelation {
+        quotient_type: right_quotient,
+        quotient_symbol: symbol(888),
+        relation_symbol: symbol(889),
+    };
+    let derive = |program: &mut TypedTrees,
+                  arguments: [ExpressionHandle; 2],
+                  input_relations: [InputRelation; 2]| {
         let arguments = program
             .expression_table
             .insert_expression_handles(arguments);
@@ -1463,23 +1474,77 @@ fn direct_lift_runtime_rung_rejects_reordered_duplicated_and_adapted_arguments()
             &state,
             &call_with_arguments(arguments),
             &input_relations,
-            relation,
+            left_relation,
             &representative,
         )
     };
 
-    assert!(derive(&mut program, [left, right]).is_ok());
+    assert!(
+        derive(
+            &mut program,
+            [left, right],
+            [
+                InputRelation::Quotient(left_relation),
+                InputRelation::Quotient(right_relation),
+            ],
+        )
+        .is_ok()
+    );
+    let reordered = derive(
+        &mut program,
+        [right, left],
+        [
+            InputRelation::Quotient(right_relation),
+            InputRelation::Quotient(left_relation),
+        ],
+    )
+    .expect("lift may explicitly permute unique direct public parameters");
     assert_eq!(
-        derive(&mut program, [right, left]),
-        Err(RelationPlanError::DirectLiftArgumentOrderMismatch(0)),
+        reordered.positions,
+        [
+            super::DefineRuntimePosition {
+                public_parameter: right_symbol,
+                representative_parameter: representative.parameters[0].symbol,
+            },
+            super::DefineRuntimePosition {
+                public_parameter: left_symbol,
+                representative_parameter: representative.parameters[1].symbol,
+            },
+        ]
     );
     assert_eq!(
-        derive(&mut program, [left, left]),
+        derive(
+            &mut program,
+            [left, left],
+            [
+                InputRelation::Quotient(left_relation),
+                InputRelation::Quotient(left_relation),
+            ],
+        ),
         Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique),
     );
     assert_eq!(
-        derive(&mut program, [left, adapted]),
+        derive(
+            &mut program,
+            [left, adapted],
+            [
+                InputRelation::Quotient(left_relation),
+                InputRelation::Quotient(right_relation),
+            ],
+        ),
         Err(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(1)),
+    );
+    assert_eq!(
+        derive(
+            &mut program,
+            [right, left],
+            [
+                InputRelation::Quotient(left_relation),
+                InputRelation::Quotient(right_relation),
+            ],
+        ),
+        Err(RelationPlanError::DirectLiftParameterTypeMismatch(0)),
+        "a permutation cannot retain the stale declaration-order relation vector"
     );
 }
 
@@ -2085,7 +2150,7 @@ fn representative_precondition_partition_rejects_unresolved_value_identity() {
 }
 
 #[test]
-fn public_precondition_partition_distinguishes_q_from_fixed_ordinary_facts() {
+fn public_precondition_partition_follows_the_runtime_permutation() {
     let mut program = TypedTrees::default();
     let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let quotient_parameter = symbol(730);
@@ -2131,16 +2196,32 @@ fn public_precondition_partition_distinguishes_q_from_fixed_ordinary_facts() {
         },
     );
     let relations = [
+        InputRelation::ExactEquality(unit),
         InputRelation::Quotient(ExactQuotientRelation {
             quotient_type: unit,
             quotient_symbol: symbol(732),
             relation_symbol: symbol(733),
         }),
-        InputRelation::ExactEquality(unit),
     ];
 
-    let partition = derive_public_precondition_partition(&program, &machine, &state, &relations)
-        .expect("public parameter identities are exact");
+    let runtime_positions = [
+        super::DefineRuntimePosition {
+            public_parameter: ordinary_parameter,
+            representative_parameter: symbol(734),
+        },
+        super::DefineRuntimePosition {
+            public_parameter: quotient_parameter,
+            representative_parameter: symbol(735),
+        },
+    ];
+    let partition = derive_public_precondition_partition(
+        &program,
+        &machine,
+        &state,
+        &relations,
+        &runtime_positions,
+    )
+    .expect("public parameter identities are exact");
     assert_eq!(
         partition.dependent,
         vec![RepresentativeContractFactLocation {

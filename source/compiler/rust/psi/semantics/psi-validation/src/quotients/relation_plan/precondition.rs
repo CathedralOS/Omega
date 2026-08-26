@@ -9,8 +9,8 @@
 
 use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
 use super::{
-    DefineRuntimeCorrespondence, InputRelation, RelationPlanError, RepresentativeStaticBinding,
-    RepresentativeTelescope,
+    DefineRuntimeCorrespondence, DefineRuntimePosition, InputRelation, RelationPlanError,
+    RepresentativeStaticBinding, RepresentativeTelescope,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -60,20 +60,23 @@ pub(super) fn derive_public_precondition_partition(
     machine: &Machine,
     state: &State,
     input_relations: &[InputRelation],
+    runtime_positions: &[DefineRuntimePosition],
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
     let public_parameters = program
         .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_const)
         .collect::<Vec<_>>();
-    if public_parameters.len() != input_relations.len() {
+    if public_parameters.len() != input_relations.len()
+        || runtime_positions.len() != input_relations.len()
+    {
         return Err(RelationPlanError::DefineRuntimeArityMismatch);
     }
     let varying_parameters = input_relations
         .iter()
-        .zip(public_parameters)
-        .filter_map(|(relation, parameter)| {
-            matches!(relation, InputRelation::Quotient(_)).then_some(parameter.symbol)
+        .zip(runtime_positions)
+        .filter_map(|(relation, position)| {
+            matches!(relation, InputRelation::Quotient(_)).then_some(position.public_parameter)
         })
         .collect::<Vec<_>>();
     derive_precondition_partition(

@@ -1,8 +1,8 @@
 //! Non-executable composition of direct quotient correspondence evidence.
 //!
-//! The lift rung here is intentionally bounded to exact, unique,
-//! position-preserving public arguments and structural fact inclusion. It is
-//! not the general implication or adapted-argument judgment.
+//! The lift rung here is intentionally bounded to exact, unique direct public
+//! arguments (including explicit permutations) and structural fact inclusion.
+//! It is not the general implication or adapted-argument judgment.
 
 use super::precondition::{
     DefinePreconditionCorrespondence, RepresentativeContractFactLocation,
