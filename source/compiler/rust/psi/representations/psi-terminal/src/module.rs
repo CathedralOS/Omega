@@ -1207,10 +1207,12 @@ pub enum OperationKind {
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one in-module structural-result machine. Input claims transfer
-    /// into the callee at invocation. Only a normal structural return
-    /// establishes the operation result and applies the exact returned-claim
-    /// namespace mapping; crash and suspension paths establish neither twice.
+    /// Invoke one in-module structural-result machine. The general form
+    /// transfers input claims and applies the exact returned-claim namespace
+    /// mapping on normal return. The bounded payloadless form instead has no
+    /// arguments, claims, or ordinary contract lanes and returns one
+    /// unrestricted exact structural case. Crash and suspension paths
+    /// establish neither result twice.
     CallStructural {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,

@@ -784,10 +784,12 @@ pub(super) fn validate_structural_frontier(
                             _ => None,
                         })
                         .is_some_and(|operation| {
-                            matches!(
+                            (matches!(
                                 operation.kind,
                                 OperationKind::EstablishPayloadlessCase { .. }
-                            ) && operation.result.structural().is_some_and(|result| {
+                            ) || super::structural_operations::exact_payloadless_structural_call(
+                                module, operation, machines,
+                            )) && operation.result.structural().is_some_and(|result| {
                                 result.place == *source
                                     && result.multiplicity == StructuralMultiplicity::Unrestricted
                                     && result.qualifications.is_empty()

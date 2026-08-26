@@ -138,6 +138,95 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
 
     assert_eq!(certificate.ceiling_units(), 2);
     validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+    drop(verified);
+
+    let mut callee = module.machines.remove(0);
+    callee.id = machine_id(901);
+    callee.entry = block_id(901);
+    callee.blocks[0].id = block_id(901);
+    callee.contract.id = contract_id(901);
+    let caller_operation = operation_id(911);
+    let caller_operation_place = place_id(912);
+    let caller_result_place = place_id(913);
+    module.machines = vec![
+        TerminalMachine {
+            id: machine_id(900),
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            parameters: Vec::new(),
+            result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: caller_result_place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+            }),
+            structural_places: vec![
+                StructuralPlaceDeclaration {
+                    id: caller_operation_place,
+                    kind: psi_core::StructuralPlaceKind::OperationResult {
+                        producer: caller_operation,
+                        structural_type,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: caller_result_place,
+                    kind: psi_core::StructuralPlaceKind::Result,
+                },
+            ],
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(900),
+            blocks: vec![Block {
+                id: block_id(900),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: caller_operation,
+                    result: OperationResult::Structural(StructuralOperationResult {
+                        place: caller_operation_place,
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::CallStructural {
+                        callee: machine_id(901),
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        returned_claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                }],
+                terminator: Terminator::ReturnStructural {
+                    edge: edge_id(911),
+                    source: caller_operation_place,
+                    returned_claims: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(900),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        },
+        callee,
+    ];
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("payloadless structural caller verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("payloadless structural call has an exact fixed bound");
+    assert_eq!(certificate.ceiling_units(), 4);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
 #[test]

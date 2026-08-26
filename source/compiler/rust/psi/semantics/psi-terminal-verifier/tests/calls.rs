@@ -1,16 +1,24 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
-    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
+    BlockId, BoundaryMachineId, ContractId, EdgeId, EvidenceIdentity, EvidenceTermId, IntegerSign,
+    IntegerType, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralCaseSubject,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ContractClause, CrashCause, CrashRouteBucket,
-    CrashRouteGuard, InstallationReachDependency, MachineContract, Operation, OperationKind,
-    OperationResult, ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
-    ServiceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    CrashRouteGuard, EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidenceTermDeclaration, InstallationReachDependency, MachineContract, Operation,
+    OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionDeclaration,
+    PropositionEvidence, ProviderCandidateConformance, ProviderUnitRefinement,
+    ProviderUnitSignature, ServiceDeclaration, StructuralCaseDeclaration, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, ReconstructedTerminalObligationOwner,
@@ -75,6 +83,140 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
         .expect("callee requirement and guarantee verify");
     assert_eq!(verified.accepted_facts().len(), 2);
     assert_eq!(verified.reconstructed_obligations(), &reconstructed);
+}
+
+#[test]
+fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() {
+    let module = payloadless_guarded_call_module();
+    let call_result = place_id(1);
+    let success = structural_case_id(1);
+    let imported = Proposition::Implication {
+        premise: Box::new(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(call_result, Vec::new()),
+            case: success,
+        }),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let absent_imported = Proposition::Implication {
+        premise: Box::new(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(call_result, Vec::new()),
+            case: structural_case_id(2),
+        }),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let reconstructed =
+        reconstruct_terminal_obligations(&module).expect("guarded call facts reconstruct");
+    let caller = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == obligation_id(2))
+        .expect("caller implication obligation");
+    let rebased = Proposition::Implication {
+        premise: Box::new(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(place_id(2), Vec::new()),
+            case: success,
+        }),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    let absent_rebased = Proposition::Implication {
+        premise: Box::new(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(place_id(2), Vec::new()),
+            case: structural_case_id(2),
+        }),
+        conclusion: Box::new(Proposition::Truth),
+    };
+    assert_eq!(
+        caller.semantic_axioms,
+        [imported.clone(), absent_imported, rebased, absent_rebased,],
+        "even an unreturned sibling remains a conditional contract fact"
+    );
+    assert!(
+        !caller
+            .semantic_axioms
+            .contains(&Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(call_result, Vec::new()),
+                case: success,
+            }),
+        "the call does not claim that one guarded case was selected"
+    );
+
+    verify_module(
+        &module,
+        &ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: vec![
+                ObligationEvidence {
+                    obligation: obligation_id(2),
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                },
+                ObligationEvidence {
+                    obligation: obligation_id(1),
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                },
+            ],
+        },
+        &AdmissionProfile::default(),
+    )
+    .expect("the imported implication remains available without selecting a case");
+
+    let mut widened = module.clone();
+    widened.machines[1].contract.ensures = vec![ContractClause {
+        obligation: obligation_id(4),
+        proposition: Proposition::Truth,
+    }];
+    assert_eq!(
+        validate_module(&widened).unwrap_err(),
+        ModuleError::StructuralResultMustBeOwned(machine_id(1)),
+        "the first caller-import rung remains guarded-contract-only"
+    );
+
+    let mut forwarded = module;
+    let proposition = PropositionId::new(1).unwrap();
+    let term = EvidenceTermId::new(1).unwrap();
+    let interface = EvidenceInterfaceIdentity {
+        trait_identity: "ReadyEvidence".into(),
+        arguments: Vec::new(),
+        requirements: Vec::new(),
+    };
+    forwarded.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition,
+        name: "ready".into(),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ReadyEvidence".into(),
+        },
+    }];
+    forwarded.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition,
+        declaration: proposition,
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence_interface: Some(interface.clone()),
+    }];
+    forwarded.evidence_terms = vec![EvidenceTermDeclaration {
+        id: term,
+        proposition,
+        interface,
+    }];
+    forwarded.evidence_contract_lanes = vec![EvidenceContractLane {
+        machine: machine_id(2),
+        kind: EvidenceContractLaneKind::Requires,
+        position: 0,
+        term,
+        output_field: None,
+    }];
+    let row = &mut forwarded.machines[1].contract.outcome_specific_ensures[0];
+    row.proposition = Proposition::Atom(proposition);
+    row.evidence = Some(OutcomeSpecificEvidence {
+        term,
+        output_field: "selected".into(),
+    });
+    assert_eq!(
+        validate_module(&forwarded).unwrap_err(),
+        ModuleError::StructuralResultMustBeOwned(machine_id(1)),
+        "a bare structural call cannot satisfy a forwarded erased evidence input"
+    );
 }
 
 #[test]
@@ -640,6 +782,202 @@ fn call_module() -> TerminalModule {
     }
 }
 
+fn payloadless_guarded_call_module() -> TerminalModule {
+    let result_type = structural_type_id(1);
+    let success = structural_case_id(1);
+    let failure = structural_case_id(2);
+    let call_operation = operation_id(1);
+    let constructor_operation = operation_id(2);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine_id(1),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: result_type,
+            identity: "test::Outcome".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        id: success,
+                        identity: "Success".into(),
+                        fields: Vec::new(),
+                    },
+                    StructuralCaseDeclaration {
+                        id: failure,
+                        identity: "Failure".into(),
+                        fields: Vec::new(),
+                    },
+                ],
+            },
+        }],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: machine_id(1),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                parameters: Vec::new(),
+                result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    place: place_id(2),
+                    structural_type: result_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                }),
+                structural_places: vec![
+                    StructuralPlaceDeclaration {
+                        id: place_id(1),
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: call_operation,
+                            structural_type: result_type,
+                        },
+                    },
+                    StructuralPlaceDeclaration {
+                        id: place_id(2),
+                        kind: StructuralPlaceKind::Result,
+                    },
+                ],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(1),
+                blocks: vec![Block {
+                    id: block_id(1),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: call_operation,
+                        result: OperationResult::Structural(StructuralOperationResult {
+                            place: place_id(1),
+                            structural_type: result_type,
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        }),
+                        kind: OperationKind::CallStructural {
+                            callee: machine_id(2),
+                            structural_arguments: Vec::new(),
+                            claim_transfers: Vec::new(),
+                            returned_claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnStructural {
+                        edge: edge_id(1),
+                        source: place_id(1),
+                        returned_claims: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: vec![ContractClause {
+                        obligation: obligation_id(2),
+                        proposition: Proposition::Truth,
+                    }],
+                    outcome_specific_ensures: Vec::new(),
+                },
+            },
+            TerminalMachine {
+                id: machine_id(2),
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                parameters: Vec::new(),
+                result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    place: place_id(4),
+                    structural_type: result_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                }),
+                structural_places: vec![
+                    StructuralPlaceDeclaration {
+                        id: place_id(3),
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: constructor_operation,
+                            structural_type: result_type,
+                        },
+                    },
+                    StructuralPlaceDeclaration {
+                        id: place_id(4),
+                        kind: StructuralPlaceKind::Result,
+                    },
+                ],
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block_id(2),
+                blocks: vec![Block {
+                    id: block_id(2),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: constructor_operation,
+                        result: OperationResult::Structural(StructuralOperationResult {
+                            place: place_id(3),
+                            structural_type: result_type,
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        }),
+                        kind: OperationKind::EstablishPayloadlessCase {
+                            result_case: success,
+                        },
+                    }],
+                    terminator: Terminator::ReturnStructural {
+                        edge: edge_id(2),
+                        source: place_id(3),
+                        returned_claims: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: contract_id(2),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: vec![
+                        OutcomeSpecificEnsure {
+                            guard: OutcomeSpecificGuard {
+                                result_type,
+                                result_case: success,
+                            },
+                            position: 0,
+                            obligation: obligation_id(1),
+                            proposition: Proposition::Truth,
+                            evidence: None,
+                        },
+                        OutcomeSpecificEnsure {
+                            guard: OutcomeSpecificGuard {
+                                result_type,
+                                result_case: failure,
+                            },
+                            position: 0,
+                            obligation: obligation_id(3),
+                            proposition: Proposition::Truth,
+                            evidence: None,
+                        },
+                    ],
+                },
+            },
+        ],
+    }
+}
+
 fn call_kind_mut(
     module: &mut TerminalModule,
 ) -> (&mut MachineId, &mut Vec<ValueId>, &mut Vec<ObligationId>) {
@@ -726,6 +1064,18 @@ fn obligation_id(raw: u64) -> ObligationId {
 
 fn value_id(raw: u64) -> ValueId {
     ValueId::new(raw).unwrap()
+}
+
+fn place_id(raw: u64) -> PlaceId {
+    PlaceId::new(raw).unwrap()
+}
+
+fn structural_type_id(raw: u64) -> StructuralTypeId {
+    StructuralTypeId::new(raw).unwrap()
+}
+
+fn structural_case_id(raw: u64) -> StructuralCaseId {
+    StructuralCaseId::new(raw).unwrap()
 }
 
 fn service_id(raw: u64) -> ServiceId {

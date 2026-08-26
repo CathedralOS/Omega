@@ -2,6 +2,149 @@
 
 use super::*;
 
+/// Recognize the bounded executable guarded-result carrier whose ordinary
+/// exits each return an exact, claim-free payloadless case. This direct
+/// producer classifier intentionally rejects calls and payload construction;
+/// the separate exact caller-import rung consumes this closed leaf shape.
+pub(crate) fn exact_payloadless_case_return_exits(
+    machine: &TerminalMachine,
+) -> Option<BTreeMap<BlockId, psi_terminal::OutcomeSpecificGuard>> {
+    let result = machine.result.structural()?;
+    if !result.qualifications.is_empty()
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            })
+    {
+        return None;
+    }
+    let mut exits = BTreeMap::new();
+    for block in &machine.blocks {
+        let Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if !returned_claims.is_empty() {
+            return None;
+        }
+        let producer = machine.structural_places.iter().find_map(|place| {
+            (place.id == *source)
+                .then_some(place.kind)
+                .and_then(|kind| match kind {
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    } if structural_type == result.structural_type => Some(producer),
+                    _ => None,
+                })
+        })?;
+        let operation = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)?;
+        let operation_result = operation.result.structural()?;
+        let OperationKind::EstablishPayloadlessCase { result_case } = operation.kind else {
+            return None;
+        };
+        if operation_result.place != *source
+            || operation_result.structural_type != result.structural_type
+            || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !operation_result.claims.is_empty()
+            || !operation_result.qualifications.is_empty()
+        {
+            return None;
+        }
+        exits.insert(
+            block.id,
+            psi_terminal::OutcomeSpecificGuard {
+                result_type: result.structural_type,
+                result_case,
+            },
+        );
+    }
+    (!exits.is_empty()).then_some(exits)
+}
+
+fn is_exact_payloadless_structural_call(
+    module: &TerminalModule,
+    operation: &psi_terminal::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    let OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = &operation.kind
+    else {
+        return false;
+    };
+    let Some(result) = operation.result.structural() else {
+        return false;
+    };
+    let Some(callee) = machines.get(callee).copied() else {
+        return false;
+    };
+    let Some(callee_result) = callee.result.structural() else {
+        return false;
+    };
+    callee.parameters.is_empty()
+        && callee.structural_parameters.is_empty()
+        && callee.entry_claims.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && callee.contract.requires.is_empty()
+        && callee.contract.ensures.is_empty()
+        && callee.contract.crash_routes.is_empty()
+        && module
+            .evidence_contract_lanes
+            .iter()
+            .all(|lane| lane.machine != callee.id)
+        && structural_arguments.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && result.structural_type == callee_result.structural_type
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.multiplicity == callee_result.multiplicity
+        && result.qualifications.is_empty()
+        && result.qualifications == callee_result.qualifications
+        && result.claims.is_empty()
+        && callee.contract.outcome_specific_ensures.iter().all(|row| {
+            propositions::proposition_boolean_field_roots(&row.proposition)
+                .into_iter()
+                .chain(propositions::proposition_content_roots(&row.proposition))
+                .all(|root| root == callee_result.place)
+        })
+        && exact_payloadless_case_return_exits(callee).is_some()
+}
+
+pub(super) fn exact_payloadless_structural_call(
+    module: &TerminalModule,
+    operation: &psi_terminal::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    is_exact_payloadless_structural_call(module, operation, machines)
+}
+
 pub(super) fn validate_unit_operation_static(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -281,6 +424,27 @@ pub(super) fn validate_unit_operation_static(
             let Some(result) = operation.result.structural() else {
                 return Err(ModuleError::StructuralCallResultMismatch(operation.id));
             };
+            if is_exact_payloadless_structural_call(module, operation, machines) {
+                let result_place = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| place.id == result.place);
+                if !matches!(
+                    result_place.map(|place| place.kind),
+                    Some(StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    }) if producer == operation.id && structural_type == result.structural_type
+                ) {
+                    return Err(ModuleError::StructuralCallResultPlaceMismatch(operation.id));
+                }
+                validate_service_reach(
+                    operation.id,
+                    &machine.published_service_ceiling,
+                    &callee.published_service_ceiling,
+                )?;
+                return Ok(());
+            }
             if !callee.parameters.is_empty()
                 || structural_arguments.len() != 1
                 || structural_arguments[0].path.len() != 0

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{MachineId, Proposition, ScalarTerm, ScalarType, ValueId};
+use psi_core::{MachineId, Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, ValueId};
 use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use psi_terminal_semantics::{CallResultRule, call_composition_semantic_row};
@@ -300,6 +300,22 @@ pub(super) fn compose_call_operation(
                         &guarantee.proposition,
                         &substitutions,
                     ),
+                );
+            }
+            for guarantee in &callee.contract.outcome_specific_ensures {
+                let proposition = substitute_proposition_structural_places(
+                    &guarantee.proposition,
+                    &substitutions,
+                );
+                push_unique(
+                    axioms,
+                    Proposition::Implication {
+                        premise: Box::new(Proposition::StructuralCaseMembership {
+                            subject: StructuralCaseSubject::new(call_result.place, Vec::new()),
+                            case: guarantee.guard.result_case,
+                        }),
+                        conclusion: Box::new(proposition),
+                    },
                 );
             }
         }

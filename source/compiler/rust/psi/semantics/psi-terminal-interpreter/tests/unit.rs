@@ -52,57 +52,7 @@ fn unit_artifact_interprets_as_a_value_less_normal_result() {
 fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
     let structural_type = structural_type_id(1);
     let result_case = structural_case_id(1);
-    let operation_place = place_id(1);
-    let result_place = place_id(2);
-    let mut module = unit_module();
-    module.structural_types = vec![StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "test::Outcome".into(),
-        shape: StructuralTypeShape::Sum {
-            cases: vec![psi_terminal::StructuralCaseDeclaration {
-                id: result_case,
-                identity: "Success".into(),
-                fields: Vec::new(),
-            }],
-        },
-    }];
-    let machine = &mut module.machines[0];
-    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
-        place: result_place,
-        structural_type,
-        multiplicity: StructuralMultiplicity::Unrestricted,
-        qualifications: Vec::new(),
-    });
-    machine.structural_places = vec![
-        StructuralPlaceDeclaration {
-            id: operation_place,
-            kind: psi_core::StructuralPlaceKind::OperationResult {
-                producer: operation_id(1),
-                structural_type,
-            },
-        },
-        StructuralPlaceDeclaration {
-            id: result_place,
-            kind: psi_core::StructuralPlaceKind::Result,
-        },
-    ];
-    machine.blocks[0].operations = vec![Operation {
-        id: operation_id(1),
-        result: OperationResult::Structural(StructuralOperationResult {
-            place: operation_place,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
-        kind: OperationKind::EstablishPayloadlessCase { result_case },
-    }];
-    machine.blocks[0].terminator = Terminator::ReturnStructural {
-        edge: edge_id(1),
-        source: operation_place,
-        returned_claims: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-    };
+    let module = payloadless_case_module();
 
     let semantic = encode_module(&module).expect("payloadless case semantics encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
@@ -127,6 +77,50 @@ fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
             .unwrap()
             .units(),
         1
+    );
+}
+
+#[test]
+fn payloadless_structural_call_returns_exact_case_in_four_resumable_units() {
+    let module = payloadless_call_module();
+    let semantic = encode_module(&module).expect("payloadless call semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified payloadless call starts");
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(edge_id(1)),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    assert_eq!(meter.usage().total_units(), 3);
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
+            TerminalPayloadlessCaseResult {
+                value: TerminalPayloadlessCaseValue {
+                    structural_type: structural_type_id(1),
+                    result_case: structural_case_id(1),
+                },
+            }
+        ))
+    );
+    assert_eq!(meter.usage().total_units(), 4);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(1)))
+            .unwrap()
+            .units(),
+        1,
+        "the callee constructor is not replayed after caller-edge exhaustion"
     );
 }
 
@@ -2334,6 +2328,146 @@ fn artifact_sections() -> (Vec<u8>, Vec<u8>) {
         encode_module(&unit_module()).expect("unit semantics encode"),
         encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes"),
     )
+}
+
+fn payloadless_case_module() -> TerminalModule {
+    let structural_type = structural_type_id(1);
+    let result_case = structural_case_id(1);
+    let operation_place = place_id(1);
+    let result_place = place_id(2);
+    let mut module = unit_module();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::Outcome".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![psi_terminal::StructuralCaseDeclaration {
+                id: result_case,
+                identity: "Success".into(),
+                fields: Vec::new(),
+            }],
+        },
+    }];
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: operation_place,
+            kind: psi_core::StructuralPlaceKind::OperationResult {
+                producer: operation_id(1),
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: psi_core::StructuralPlaceKind::Result,
+        },
+    ];
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(1),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: operation_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishPayloadlessCase { result_case },
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(1),
+        source: operation_place,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    module
+}
+
+fn payloadless_call_module() -> TerminalModule {
+    let mut module = payloadless_case_module();
+    let structural_type = structural_type_id(1);
+    let mut callee = module.machines.remove(0);
+    callee.id = machine_id(2);
+    callee.entry = block_id(2);
+    callee.blocks[0].id = block_id(2);
+    let Terminator::ReturnStructural { edge, .. } = &mut callee.blocks[0].terminator else {
+        unreachable!()
+    };
+    *edge = edge_id(2);
+    callee.contract.id = contract_id(2);
+
+    let caller = TerminalMachine {
+        id: machine_id(1),
+        attachment: None,
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        parameters: Vec::new(),
+        result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: place_id(4),
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+        }),
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: place_id(3),
+                kind: psi_core::StructuralPlaceKind::OperationResult {
+                    producer: operation_id(2),
+                    structural_type,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: place_id(4),
+                kind: psi_core::StructuralPlaceKind::Result,
+            },
+        ],
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(1),
+        blocks: vec![Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(2),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: place_id(3),
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::CallStructural {
+                    callee: machine_id(2),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    returned_claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnStructural {
+                edge: edge_id(1),
+                source: place_id(3),
+                returned_claims: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    };
+    module.machines = vec![caller, callee];
+    module
 }
 
 fn unit_module() -> TerminalModule {

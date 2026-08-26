@@ -295,6 +295,18 @@ dominated by the matching case refinement. The retained validity descriptor is
 the intersection of the result occurrence, normalized referenced occurrences,
 and evidence-interface scopes; codec replay preserves that descriptor and
 write-invalidation coordinates independently from the case identity.
+The first caller-side executable carrier remains deliberately fact-only. A
+zero-input `CallStructural` over a direct unrestricted, unqualified,
+claim-free payloadless producer imports each guarded row as a case-membership
+implication after exact result-place substitution. It imports neither a raw
+conclusion nor a case-membership fact and mints no caller evidence term;
+structural return rebases the complete implication to the caller result. The
+bounded call rejects ordinary contract lanes, crash rows, custody transfers,
+and callee evidence contract lanes. Terminal interpretation transports the
+exact payloadless case, fixed fuel composes to four units, and Omega target
+lowering explicitly rejects the call until tagged-sum materialization exists.
+Selected proof outputs, source-arm validity replay, and payload substitution
+remain outside this rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry

@@ -7810,8 +7810,22 @@ Remaining N6/N8 work:
   case has multiple exits. Cases with no exit remain vacuous and reject stray
   proof or producer evidence. The checked planner/lowerer still authors only the
   single exact constructor carrier, and wider or unclassified structural exits
-  retain the replay fence. Payload substitution, caller import, and validity
-  replay remain fail-closed pending later stage-5 rungs.
+  retain the replay fence. The first exact caller-import rung is now live in
+  Terminal Psi. A zero-input `CallStructural` may invoke one direct
+  unrestricted, unqualified, claim-free payloadless producer whose ordinary
+  contract lanes, crash surface, custody transfers, and evidence contract lanes
+  are empty. Each callee guarded row is imported only as
+  `case-membership(call-result, case) -> substituted row`; neither its raw
+  conclusion nor a selected case is invented, and `ReturnStructural` rebases
+  both sides to the caller result. Semantic codec validation keeps this surface
+  disjoint from the legacy linear claim-transfer form. The interpreter
+  transports the exact case and fixed fuel is four units (call, construction,
+  callee return, caller return), including resumable exhaustion without replay.
+  Omega lowering rejects the unrestricted call itself until tagged sum
+  materialization exists. This rung mints no caller evidence term and has no
+  source selector or validity replay; payload substitution, erased proof-output
+  linkage, caller selected-term binding, source-arm lowering, and validity
+  invalidation remain fail-closed.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

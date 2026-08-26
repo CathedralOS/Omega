@@ -55,7 +55,9 @@ pub use frontier::{
     VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
     VerifiedTerminalStructuralFrontiers,
 };
-pub(crate) use structural_operations::structural_argument_canonical_prefix;
+pub(crate) use structural_operations::{
+    exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {

@@ -138,6 +138,92 @@ fn omega_fences_verified_payloadless_case_materialization() {
         ),
         "unexpected result: {result:?}"
     );
+
+    let mut called = module;
+    let mut callee = called.machines.remove(0);
+    callee.id = machine_id(92);
+    callee.entry = block_id(92);
+    callee.blocks[0].id = block_id(92);
+    callee.contract.id = contract_id(92);
+    let call = psi_core::OperationId::new(93).unwrap();
+    let caller = TerminalMachine {
+        id: machine_id(91),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: TerminalMachineResult::Structural(StructuralResultDeclaration {
+            place: place_id(94),
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+        }),
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: place_id(93),
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: call,
+                    structural_type,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: place_id(94),
+                kind: StructuralPlaceKind::Result,
+            },
+        ],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(91),
+        blocks: vec![Block {
+            id: block_id(91),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: call,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: place_id(93),
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::CallStructural {
+                    callee: machine_id(92),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    returned_claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnStructural {
+                edge: edge_id(93),
+                source: place_id(93),
+                returned_claims: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: contract_id(91),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    };
+    called.machines = vec![caller, callee];
+    let semantic = encode_module(&called).expect("payloadless caller verifies");
+    let result = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default());
+    assert!(
+        matches!(
+            result,
+            Err(ArtifactLoweringError::Lowering(
+                LoweringError::UnsupportedPayloadlessCase(rejected_operation)
+            )) if rejected_operation == call
+        ),
+        "the call itself owns the target-lowering fence: {result:?}"
+    );
 }
 
 #[test]
