@@ -83,12 +83,15 @@ These facts constrain the work below.
   validated register environment, selected plan, and a content-identity-bound
   validation receipt. A nested `StagedOptimizedLiveness` carrier additionally
   retains an independently replayed, content-identified liveness plan over the
-  selected CFG. A separate `StagedOptimizedAssignedOperations` carrier
+  selected CFG. `StagedOptimizedLiveRanges` nests that custody again with
+  independently replayed block-local fragments, exact edge connectors, fixed
+  sites, architectural state/actions, and canonical virtual interference. A
+  separate `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
   is not allocator validation: the lane still fails closed before machine emission,
   object/image construction, component construction, or installation because
-  no independent interference or physical-realization validator yet
+  no independently validated physical realization yet
   authorizes those records. Checked compilation
   retains the domain-separated selection identity, and the core crate defines
   a canonical replay/cache identity bundle over selections, ordered rules,
@@ -783,13 +786,22 @@ dependency.
   conditional-return carrier. It keeps typed virtual-register liveness separate
   from architectural register-unit liveness, records dense instruction/use
   positions, fixed entry/return views, exact instruction uses/defs/clobbers,
-  and branch-polarity-preserving successor facts. A separately implemented
+  and branch-polarity-preserving successor facts. The exact admitted selector
+  now also supports a Boolean condition plus one shared unsigned-i64 entry
+  parameter returned from either leaf. That shape proves a value live across
+  both branch edges and a real condition/result interference pair while
+  retaining distinct entry and return fixed-view sites. A separately implemented
   validator reconstructs CFG order, effects, transfers, canonical sets, and a
   domain-separated content identity. Opt-in orchestration retains this result
   only in a nested custody carrier that grants no interval, allocation,
   emission, or publication authority. The v1 analysis rejects use-def, tied,
   and early-clobber operands rather than pretending their later interference
-  semantics are complete.
+  semantics are complete. A second independently validated artifact converts
+  the facts into maximal half-open fragments within each block, exact
+  polarity/edge connectors across blocks, ordered occurrence and fixed-view
+  sites, separate architectural-unit fragments/actions, and canonical unordered
+  virtual-register interference pairs. It never convexifies ranges across CFG
+  blocks or treats layout adjacency as semantic reachability.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, disconnected
@@ -804,6 +816,14 @@ dependency.
   Acceptance: simple functions use registers without the current modulo scratch
   cycling; allocation never assigns reserved or incompatible units; repeated
   builds are identical.
+
+  Sequencing: canonical CFG-aware range fragments and VReg interference now
+  exist for the two admitted conditional shapes, but they grant no allocation
+  authority. Before this task can publish homes, the complete physical model,
+  constraint catalog, and active reservation profile need replay/cache
+  identities; fixed entry-to-return view transitions need explicit splitting
+  or copy semantics; and candidate views must be checked against phase-specific
+  architectural actions as well as semantic unit liveness.
 
 - **OPT-INTERVAL-SPLITTING.** Split live ranges around fixed uses, calls, high-
   pressure regions, and profitable rematerialization points.

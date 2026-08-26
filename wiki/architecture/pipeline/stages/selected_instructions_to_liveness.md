@@ -56,11 +56,13 @@ through the selected-plan identity and parent carrier.
 
 ## Current Admitted Shape And Gaps
 
-The initial production slice covers the selected three-block runtime Boolean
-conditional on x86-64 and AArch64: compare, branch, two constant
-materializations, and two cleanup-free returns. V1 rejects use-def operands,
-tied operands, and early clobbers because their interference timing is not yet
-implemented.
+The initial production slice covers both selected three-block runtime Boolean
+conditional forms on x86-64 and AArch64. The constant form contains compare,
+branch, two materializations, and two cleanup-free returns. The forwarded form
+contains compare, branch, and two returns of one shared unsigned-i64 entry VReg;
+it proves exact live-out and successor facts on both arms. V1 rejects use-def
+operands, tied operands, and early clobbers because their interference timing
+is not yet implemented.
 
 Live intervals, loop weights, call crossings, crashes, cleanup and suspension
 frontiers, disconnected functions, allocation, splitting, spills, frame

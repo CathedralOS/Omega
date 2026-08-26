@@ -620,8 +620,11 @@ The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-selected-instructions` is the data-only
 representation owner, while
 `omega-terminal-target-operations-to-selected-instructions` produces and
-independently validates a three-block runtime conditional whose two leaves
-materialize unsigned 64-bit constants and return. Each virtual register retains
+independently validates two exact three-block runtime conditional forms. The
+first has leaves that materialize unsigned 64-bit constants and return. The
+second carries a shared unsigned 64-bit entry parameter across both branch
+edges and returns it directly, exposing genuine virtual interference and
+different entry/return fixed sites without inventing a move. Each virtual register retains
 its exact Psi value and definition site; each instruction retains its catalog
 constraint, explicit and implicit state footprint, and semantic provenance;
 branch-edge fuel remains attached to the corresponding selected successor so
@@ -710,6 +713,25 @@ This first slice intentionally refuses use-def operands, ties, and early
 clobbers, and makes no claim about flattened intervals, allocation, spills,
 loops, calls, crashes, cleanup, or suspension. Those become admissible only
 with their explicit selected-IR frontiers and dedicated validation rules.
+
+The next allocator-input artifact preserves that CFG meaning instead of
+collapsing every value to one global numeric interval. Each dense instruction
+position has a before and after point. A range is a canonical set of maximal
+half-open fragments within exact block domains plus explicit connectors for
+the selected successor edges on which the value remains live. Occurrence and
+fixed-view rows retain their exact phase. Canonical unordered pairs record VReg
+interference only when fragments overlap in the same block; mutually exclusive
+leaf values therefore remain noninterfering. The shared forwarded parameter
+supplies the first positive cross-edge and condition/result interference case.
+
+Architectural units have their own semantic fragments and edge connectors.
+Instruction uses, defs, and clobbers are separate phase-specific action rows:
+a dead instruction-pointer write must constrain a future home without falsely
+becoming a live architectural value. An independent implementation reconstructs
+all domains, fragments, connectors, occurrences, fixed sites, actions, pairs,
+and the content identity. The orchestration carrier nests complete liveness
+custody and grants no splitting, physical-home, spill, frame, emission, or
+publication authority.
 
 The first allocator should be deterministic linear scan with interval splitting,
 spills, reloads, rematerialization of cheap constants, and verified frame-slot

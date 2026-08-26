@@ -29,7 +29,7 @@ use omega_terminal_target_operations::TerminalTargetOperationPlan;
 use psi_core::{IntegerSign, ScalarType};
 
 mod source;
-use source::{SourceFunction, SourceLeaf, derive_source_functions};
+use source::{SourceFunction, SourceLeaf, SourceLeafValue, derive_source_functions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTerminalSelectedInstructions {
@@ -216,7 +216,16 @@ pub fn validate_terminal_selected_instructions(
     if source.len() != plan.functions.len() || target.functions.len() != plan.functions.len() {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
-    if constraints.fixed_inputs.len() != source.len() {
+    let expected_fixed_inputs = source
+        .iter()
+        .map(|source| {
+            1 + usize::from(matches!(
+                source.when_true.value,
+                SourceLeafValue::EntryParameter { .. }
+            ))
+        })
+        .sum::<usize>();
+    if constraints.fixed_inputs.len() != expected_fixed_inputs {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     require_key_rows(constraints.keys, catalog)?;
@@ -282,8 +291,14 @@ fn build_function(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedFunction, SelectedInstructionError> {
-    let input = fixed_input_constraint(target.machine, source, &constraints.fixed_inputs)
-        .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
+    let input = fixed_input_constraint(
+        target.machine,
+        source.condition_source,
+        source.condition_parameter_index,
+        source.condition_register,
+        &constraints.fixed_inputs,
+    )
+    .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
     let input_view = input.fixed_view;
     let Some(input_view) = physical
         .model()
@@ -295,7 +310,30 @@ fn build_function(
     };
     let input_class = input_view.class;
     let keys = constraints.keys;
-    let result_class = row(catalog, keys.materialize_i64)?.operands[0].class;
+    let result_class = match &source.when_true.value {
+        SourceLeafValue::Immediate { .. } => row(catalog, keys.materialize_i64)?.operands[0].class,
+        SourceLeafValue::EntryParameter {
+            parameter_index,
+            register,
+            ..
+        } => {
+            let result_input = fixed_input_constraint(
+                target.machine,
+                source.when_true.source_value,
+                *parameter_index,
+                *register,
+                &constraints.fixed_inputs,
+            )
+            .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
+            physical
+                .model()
+                .views
+                .iter()
+                .find(|view| view.id == result_input.fixed_view)
+                .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?
+                .class
+        }
+    };
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
     Ok(TerminalSelectedFunction {
@@ -303,8 +341,8 @@ fn build_function(
         attachment: target.attachment,
         provenance: target.provenance.clone(),
         entry_block: TerminalSelectedBlockId(0),
-        virtual_registers: vec![
-            TerminalVirtualRegister {
+        virtual_registers: {
+            let mut registers = vec![TerminalVirtualRegister {
                 id: TerminalVirtualRegisterId(0),
                 scalar_type: ScalarType::Boolean,
                 class: input_class,
@@ -314,53 +352,126 @@ fn build_function(
                 },
                 definition_site: source.condition_definition_site,
                 entry_fixed_view: Some(input_view.id),
-            },
-            TerminalVirtualRegister {
-                id: TerminalVirtualRegisterId(1),
-                scalar_type: u64_type,
-                class: result_class,
-                origin: TerminalVirtualRegisterOrigin::InstructionResult {
-                    instruction: TerminalSelectedInstructionId(2),
-                    source_value: source.when_true.source_value,
-                },
-                definition_site: source.when_true.definition_site,
-                entry_fixed_view: None,
-            },
-            TerminalVirtualRegister {
-                id: TerminalVirtualRegisterId(2),
-                scalar_type: u64_type,
-                class: result_class,
-                origin: TerminalVirtualRegisterOrigin::InstructionResult {
-                    instruction: TerminalSelectedInstructionId(4),
-                    source_value: source.when_false.source_value,
-                },
-                definition_site: source.when_false.definition_site,
-                entry_fixed_view: None,
-            },
-        ],
-        blocks: vec![
-            build_entry_block(source, keys, catalog)?,
-            build_return_block(
-                TerminalSelectedBlockId(1),
-                source.true_block,
-                2,
-                3,
-                TerminalVirtualRegisterId(1),
-                &source.when_true,
-                keys,
-                catalog,
-            )?,
-            build_return_block(
-                TerminalSelectedBlockId(2),
-                source.false_block,
-                4,
-                5,
-                TerminalVirtualRegisterId(2),
-                &source.when_false,
-                keys,
-                catalog,
-            )?,
-        ],
+            }];
+            match (&source.when_true.value, &source.when_false.value) {
+                (
+                    SourceLeafValue::Immediate {
+                        definition_site: true_site,
+                        ..
+                    },
+                    SourceLeafValue::Immediate {
+                        definition_site: false_site,
+                        ..
+                    },
+                ) => {
+                    registers.push(TerminalVirtualRegister {
+                        id: TerminalVirtualRegisterId(1),
+                        scalar_type: u64_type,
+                        class: result_class,
+                        origin: TerminalVirtualRegisterOrigin::InstructionResult {
+                            instruction: TerminalSelectedInstructionId(2),
+                            source_value: source.when_true.source_value,
+                        },
+                        definition_site: *true_site,
+                        entry_fixed_view: None,
+                    });
+                    registers.push(TerminalVirtualRegister {
+                        id: TerminalVirtualRegisterId(2),
+                        scalar_type: u64_type,
+                        class: result_class,
+                        origin: TerminalVirtualRegisterOrigin::InstructionResult {
+                            instruction: TerminalSelectedInstructionId(4),
+                            source_value: source.when_false.source_value,
+                        },
+                        definition_site: *false_site,
+                        entry_fixed_view: None,
+                    });
+                }
+                (
+                    SourceLeafValue::EntryParameter {
+                        parameter_index,
+                        register,
+                        definition_site,
+                    },
+                    SourceLeafValue::EntryParameter { .. },
+                ) => {
+                    let fixed = fixed_input_constraint(
+                        target.machine,
+                        source.when_true.source_value,
+                        *parameter_index,
+                        *register,
+                        &constraints.fixed_inputs,
+                    )
+                    .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?;
+                    registers.push(TerminalVirtualRegister {
+                        id: TerminalVirtualRegisterId(1),
+                        scalar_type: u64_type,
+                        class: result_class,
+                        origin: TerminalVirtualRegisterOrigin::EntryParameter {
+                            source_value: source.when_true.source_value,
+                            parameter_index: *parameter_index,
+                        },
+                        definition_site: *definition_site,
+                        entry_fixed_view: Some(fixed.fixed_view),
+                    });
+                }
+                _ => return Err(SelectedInstructionError::UnsupportedSourceShape { function }),
+            }
+            registers
+        },
+        blocks: match (&source.when_true.value, &source.when_false.value) {
+            (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => vec![
+                build_entry_block(source, keys, catalog)?,
+                build_constant_return_block(
+                    function,
+                    TerminalSelectedBlockId(1),
+                    source.true_block,
+                    2,
+                    3,
+                    TerminalVirtualRegisterId(1),
+                    &source.when_true,
+                    keys,
+                    catalog,
+                )?,
+                build_constant_return_block(
+                    function,
+                    TerminalSelectedBlockId(2),
+                    source.false_block,
+                    4,
+                    5,
+                    TerminalVirtualRegisterId(2),
+                    &source.when_false,
+                    keys,
+                    catalog,
+                )?,
+            ],
+            (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
+                vec![
+                    build_entry_block(source, keys, catalog)?,
+                    build_parameter_return_block(
+                        function,
+                        TerminalSelectedBlockId(1),
+                        source.true_block,
+                        2,
+                        TerminalVirtualRegisterId(1),
+                        &source.when_true,
+                        keys,
+                        catalog,
+                    )?,
+                    build_parameter_return_block(
+                        function,
+                        TerminalSelectedBlockId(2),
+                        source.false_block,
+                        3,
+                        TerminalVirtualRegisterId(1),
+                        &source.when_false,
+                        keys,
+                        catalog,
+                    )?,
+                ]
+            }
+            _ => return Err(SelectedInstructionError::UnsupportedSourceShape { function }),
+        },
     })
 }
 
@@ -414,7 +525,8 @@ fn build_entry_block(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_return_block(
+fn build_constant_return_block(
+    function: usize,
     id: TerminalSelectedBlockId,
     source_block: psi_core::BlockId,
     materialize_id: u32,
@@ -424,24 +536,68 @@ fn build_return_block(
     keys: TerminalSelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedBlock, SelectedInstructionError> {
+    let SourceLeafValue::Immediate {
+        value,
+        constant_operation,
+        constant_fuel,
+        ..
+    } = &source.value
+    else {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    };
     Ok(TerminalSelectedBlock {
         id,
         source_block,
         instructions: vec![instruction(
             TerminalSelectedInstructionId(materialize_id),
-            TerminalSelectedInstructionKind::MaterializeI64 {
-                value: source.value,
-            },
+            TerminalSelectedInstructionKind::MaterializeI64 { value: *value },
             keys.materialize_i64,
             &[register],
             TerminalSelectedInstructionProvenance {
-                operations: vec![source.constant_operation],
+                operations: vec![*constant_operation],
                 values: vec![source.source_value],
-                fuel: source.constant_fuel.clone(),
+                fuel: constant_fuel.clone(),
                 ..Default::default()
             },
             catalog,
         )?],
+        terminator: TerminalSelectedTerminator::Return {
+            instruction: instruction(
+                TerminalSelectedInstructionId(return_id),
+                TerminalSelectedInstructionKind::ReturnI64,
+                keys.return_i64,
+                &[register],
+                TerminalSelectedInstructionProvenance {
+                    values: vec![source.source_value],
+                    edges: vec![source.return_edge],
+                    fuel: source.return_fuel.clone(),
+                    ..Default::default()
+                },
+                catalog,
+            )?,
+            psi_return_edge: source.return_edge,
+        },
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_parameter_return_block(
+    function: usize,
+    id: TerminalSelectedBlockId,
+    source_block: psi_core::BlockId,
+    return_id: u32,
+    register: TerminalVirtualRegisterId,
+    source: &SourceLeaf,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedBlock, SelectedInstructionError> {
+    if !matches!(source.value, SourceLeafValue::EntryParameter { .. }) {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    }
+    Ok(TerminalSelectedBlock {
+        id,
+        source_block,
+        instructions: Vec::new(),
         terminator: TerminalSelectedTerminator::Return {
             instruction: instruction(
                 TerminalSelectedInstructionId(return_id),
@@ -525,16 +681,18 @@ fn row(
         .ok_or(SelectedInstructionError::MissingConstraint(key))
 }
 
-fn fixed_input_constraint<'a>(
+fn fixed_input_constraint(
     machine: psi_core::MachineId,
-    source: &SourceFunction,
-    inputs: &'a [TerminalSelectedFixedInputConstraint],
-) -> Option<&'a TerminalSelectedFixedInputConstraint> {
+    source_value: psi_core::ValueId,
+    parameter_index: usize,
+    register: omega_terminal_target_operations::MachineRegister,
+    inputs: &[TerminalSelectedFixedInputConstraint],
+) -> Option<&TerminalSelectedFixedInputConstraint> {
     let mut matches = inputs.iter().filter(|input| {
         input.machine == machine
-            && input.source_value == source.condition_source
-            && input.parameter_index == source.condition_parameter_index
-            && input.register == source.condition_register
+            && input.source_value == source_value
+            && input.parameter_index == parameter_index
+            && input.register == register
     });
     let first = matches.next()?;
     matches.next().is_none().then_some(first)
@@ -558,7 +716,7 @@ fn validate_function(
             function: function_index,
         });
     }
-    validate_dense(function_index, function)?;
+    validate_dense(function_index, source, function)?;
     validate_virtual_registers(
         function_index,
         target,
@@ -586,11 +744,16 @@ fn validate_virtual_registers(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let input = fixed_input_constraint(target.machine, source, &constraints.fixed_inputs).ok_or(
-        SelectedInstructionError::MissingInputRegisterView {
-            function: function_index,
-        },
-    )?;
+    let input = fixed_input_constraint(
+        target.machine,
+        source.condition_source,
+        source.condition_parameter_index,
+        source.condition_register,
+        &constraints.fixed_inputs,
+    )
+    .ok_or(SelectedInstructionError::MissingInputRegisterView {
+        function: function_index,
+    })?;
     let Some(input_view) = physical
         .model()
         .views
@@ -601,41 +764,96 @@ fn validate_virtual_registers(
             function: function_index,
         });
     };
-    let result_class = row(catalog, constraints.keys.materialize_i64)?.operands[0].class;
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
-    let expected = [
+    let mut expected = vec![(
+        ScalarType::Boolean,
+        input_view.class,
+        TerminalVirtualRegisterOrigin::EntryParameter {
+            source_value: source.condition_source,
+            parameter_index: source.condition_parameter_index,
+        },
+        source.condition_definition_site,
+        Some(input.fixed_view),
+    )];
+    match (&source.when_true.value, &source.when_false.value) {
         (
-            ScalarType::Boolean,
-            input_view.class,
-            TerminalVirtualRegisterOrigin::EntryParameter {
-                source_value: source.condition_source,
-                parameter_index: source.condition_parameter_index,
+            SourceLeafValue::Immediate {
+                definition_site: true_site,
+                ..
             },
-            source.condition_definition_site,
-            Some(input.fixed_view),
-        ),
+            SourceLeafValue::Immediate {
+                definition_site: false_site,
+                ..
+            },
+        ) => {
+            let result_class = row(catalog, constraints.keys.materialize_i64)?.operands[0].class;
+            expected.push((
+                u64_type,
+                result_class,
+                TerminalVirtualRegisterOrigin::InstructionResult {
+                    instruction: TerminalSelectedInstructionId(2),
+                    source_value: source.when_true.source_value,
+                },
+                *true_site,
+                None,
+            ));
+            expected.push((
+                u64_type,
+                result_class,
+                TerminalVirtualRegisterOrigin::InstructionResult {
+                    instruction: TerminalSelectedInstructionId(4),
+                    source_value: source.when_false.source_value,
+                },
+                *false_site,
+                None,
+            ));
+        }
         (
-            u64_type,
-            result_class,
-            TerminalVirtualRegisterOrigin::InstructionResult {
-                instruction: TerminalSelectedInstructionId(2),
-                source_value: source.when_true.source_value,
+            SourceLeafValue::EntryParameter {
+                parameter_index,
+                register,
+                definition_site,
             },
-            source.when_true.definition_site,
-            None,
-        ),
-        (
-            u64_type,
-            result_class,
-            TerminalVirtualRegisterOrigin::InstructionResult {
-                instruction: TerminalSelectedInstructionId(4),
-                source_value: source.when_false.source_value,
-            },
-            source.when_false.definition_site,
-            None,
-        ),
-    ];
+            SourceLeafValue::EntryParameter { .. },
+        ) => {
+            let result_input = fixed_input_constraint(
+                target.machine,
+                source.when_true.source_value,
+                *parameter_index,
+                *register,
+                &constraints.fixed_inputs,
+            )
+            .ok_or(SelectedInstructionError::MissingInputRegisterView {
+                function: function_index,
+            })?;
+            let Some(result_view) = physical
+                .model()
+                .views
+                .iter()
+                .find(|view| view.id == result_input.fixed_view)
+            else {
+                return Err(SelectedInstructionError::MissingInputRegisterView {
+                    function: function_index,
+                });
+            };
+            expected.push((
+                u64_type,
+                result_view.class,
+                TerminalVirtualRegisterOrigin::EntryParameter {
+                    source_value: source.when_true.source_value,
+                    parameter_index: *parameter_index,
+                },
+                *definition_site,
+                Some(result_input.fixed_view),
+            ));
+        }
+        _ => {
+            return Err(SelectedInstructionError::UnsupportedSourceShape {
+                function: function_index,
+            });
+        }
+    }
     for (index, (register, expected)) in function.virtual_registers.iter().zip(expected).enumerate()
     {
         if register.scalar_type != expected.0
@@ -743,30 +961,57 @@ fn validate_selected_blocks(
             block: 0,
         });
     }
-    validate_return_block_projection(
-        function_index,
-        &function.blocks[1],
-        2,
-        3,
-        TerminalVirtualRegisterId(1),
-        &source.when_true,
-        keys,
-        catalog,
-    )?;
-    validate_return_block_projection(
-        function_index,
-        &function.blocks[2],
-        4,
-        5,
-        TerminalVirtualRegisterId(2),
-        &source.when_false,
-        keys,
-        catalog,
-    )
+    match (&source.when_true.value, &source.when_false.value) {
+        (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => {
+            validate_constant_return_block_projection(
+                function_index,
+                &function.blocks[1],
+                2,
+                3,
+                TerminalVirtualRegisterId(1),
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            validate_constant_return_block_projection(
+                function_index,
+                &function.blocks[2],
+                4,
+                5,
+                TerminalVirtualRegisterId(2),
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
+        (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
+            validate_parameter_return_block_projection(
+                function_index,
+                &function.blocks[1],
+                2,
+                TerminalVirtualRegisterId(1),
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            validate_parameter_return_block_projection(
+                function_index,
+                &function.blocks[2],
+                3,
+                TerminalVirtualRegisterId(1),
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
+        _ => Err(SelectedInstructionError::UnsupportedSourceShape {
+            function: function_index,
+        }),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_return_block_projection(
+fn validate_constant_return_block_projection(
     function_index: usize,
     block: &TerminalSelectedBlock,
     materialize_id: u32,
@@ -776,6 +1021,17 @@ fn validate_return_block_projection(
     keys: TerminalSelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
+    let SourceLeafValue::Immediate {
+        value,
+        constant_operation,
+        constant_fuel,
+        ..
+    } = &source.value
+    else {
+        return Err(SelectedInstructionError::UnsupportedSourceShape {
+            function: function_index,
+        });
+    };
     if block.instructions.len() != 1 {
         return Err(SelectedInstructionError::BlockProjectionMismatch {
             function: function_index,
@@ -786,19 +1042,68 @@ fn validate_return_block_projection(
         function_index,
         &block.instructions[0],
         TerminalSelectedInstructionId(materialize_id),
-        TerminalSelectedInstructionKind::MaterializeI64 {
-            value: source.value,
-        },
+        TerminalSelectedInstructionKind::MaterializeI64 { value: *value },
         keys.materialize_i64,
         &[register],
         &TerminalSelectedInstructionProvenance {
-            operations: vec![source.constant_operation],
+            operations: vec![*constant_operation],
             values: vec![source.source_value],
-            fuel: source.constant_fuel.clone(),
+            fuel: constant_fuel.clone(),
             ..Default::default()
         },
         catalog,
     )?;
+    let TerminalSelectedTerminator::Return {
+        instruction,
+        psi_return_edge,
+    } = &block.terminator
+    else {
+        return Err(SelectedInstructionError::BlockProjectionMismatch {
+            function: function_index,
+            block: block.id.0,
+        });
+    };
+    if *psi_return_edge != source.return_edge {
+        return Err(SelectedInstructionError::SuccessorProjectionMismatch {
+            function: function_index,
+            block: block.id.0,
+        });
+    }
+    validate_instruction_projection(
+        function_index,
+        instruction,
+        TerminalSelectedInstructionId(return_id),
+        TerminalSelectedInstructionKind::ReturnI64,
+        keys.return_i64,
+        &[register],
+        &TerminalSelectedInstructionProvenance {
+            values: vec![source.source_value],
+            edges: vec![source.return_edge],
+            fuel: source.return_fuel.clone(),
+            ..Default::default()
+        },
+        catalog,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_parameter_return_block_projection(
+    function_index: usize,
+    block: &TerminalSelectedBlock,
+    return_id: u32,
+    register: TerminalVirtualRegisterId,
+    source: &SourceLeaf,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
+    if !matches!(source.value, SourceLeafValue::EntryParameter { .. })
+        || !block.instructions.is_empty()
+    {
+        return Err(SelectedInstructionError::BlockProjectionMismatch {
+            function: function_index,
+            block: block.id.0,
+        });
+    }
     let TerminalSelectedTerminator::Return {
         instruction,
         psi_return_edge,
@@ -883,9 +1188,22 @@ fn validate_instruction_projection(
 
 fn validate_dense(
     function_index: usize,
+    source: &SourceFunction,
     function: &TerminalSelectedFunction,
 ) -> Result<(), SelectedInstructionError> {
-    if function.virtual_registers.len() != 3
+    let (expected_register_count, expected_instruction_count) =
+        match (&source.when_true.value, &source.when_false.value) {
+            (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => (3, 6),
+            (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
+                (2, 4)
+            }
+            _ => {
+                return Err(SelectedInstructionError::UnsupportedSourceShape {
+                    function: function_index,
+                });
+            }
+        };
+    if function.virtual_registers.len() != expected_register_count
         || function
             .virtual_registers
             .iter()
@@ -922,7 +1240,7 @@ fn validate_dense(
         .collect::<Vec<_>>();
     ids.sort_unstable();
     if ids
-        != (0..6)
+        != (0..expected_instruction_count)
             .map(TerminalSelectedInstructionId)
             .collect::<Vec<_>>()
     {
@@ -994,9 +1312,22 @@ fn validate_def_use(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let mut definitions = vec![0_u8; function.virtual_registers.len()];
-    definitions[0] = 1;
+    let entry_registers = function
+        .virtual_registers
+        .iter()
+        .filter_map(|register| {
+            matches!(
+                register.origin,
+                TerminalVirtualRegisterOrigin::EntryParameter { .. }
+            )
+            .then_some(register.id)
+        })
+        .collect::<BTreeSet<_>>();
+    for register in &entry_registers {
+        definitions[register.0 as usize] = 1;
+    }
     for block in &function.blocks {
-        let mut available = BTreeSet::from([TerminalVirtualRegisterId(0)]);
+        let mut available = entry_registers.clone();
         for instruction in block
             .instructions
             .iter()
@@ -1075,12 +1406,25 @@ fn validate_provenance_partition(
                 function: function_index,
             });
         };
-        if block.instructions[0].provenance.fuel != leaf.constant_fuel
-            || instruction.provenance.fuel != leaf.return_fuel
-        {
-            return Err(SelectedInstructionError::ProvenancePartitionMismatch {
-                function: function_index,
-            });
+        match &leaf.value {
+            SourceLeafValue::Immediate { constant_fuel, .. } => {
+                if block.instructions.len() != 1
+                    || block.instructions[0].provenance.fuel != *constant_fuel
+                    || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
+            SourceLeafValue::EntryParameter { .. } => {
+                if !block.instructions.is_empty() || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
         }
     }
     Ok(())

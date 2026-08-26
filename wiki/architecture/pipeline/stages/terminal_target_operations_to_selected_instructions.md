@@ -25,16 +25,24 @@ carrier.
 
 ## Current Admitted Shape
 
-The initial selector intentionally accepts exactly one runtime Boolean
-parameter controlling a three-block CFG. Each successor block contains one
-leaf-local unsigned 64-bit constant followed by a cleanup-free return. Other
-shapes reject rather than falling back or entering transitional assignment.
+The initial selector intentionally accepts two exact three-block forms under
+one runtime Boolean parameter. In the first, each successor block contains one
+leaf-local unsigned 64-bit constant followed by a cleanup-free return. In the
+second, one additional unsigned 64-bit entry parameter is returned directly
+from either cleanup-free leaf. Other shapes reject rather than falling back or
+entering transitional assignment.
 
 The selected plan contains three virtual registers and six instructions:
 compare, conditional branch, two materializations, and two returns. The
 condition's ABI view and each return view are fixed constraints, not assigned
 homes. x86-64 obtains RFLAGS/RIP effects and AArch64 obtains NZCV/PC effects
 from their independently validated ISA-owned catalog rows.
+
+The forwarded-parameter form has two ABI-constrained entry VRegs and four
+instructions: compare, branch, and two returns. The shared result VReg remains
+live on both exact successor edges. Its entry view and later fixed return views
+are separate constraint sites; no copy, split, or physical home is invented by
+selection.
 
 ## Semantic Custody
 
@@ -67,8 +75,9 @@ from their independently validated ISA-owned catalog rows.
 
 The selected CFG must expand to the complete legalized instruction vocabulary,
 including calls, memory, cleanup, suspension, proof-bearing operations, loops,
-and general value flow. Bounded block/instruction liveness now exists for this
-exact three-block shape, but interval construction, general liveness,
-allocation, spills, frame assignment, and independent physical-realization
-validation remain later stages. The existing scratch-cycling assigned-operation
-route is transitional and is not evidence for any of those properties.
+and general value flow. Bounded block/instruction liveness and CFG-aware range
+fragments now exist for these two exact three-block shapes, but general
+liveness, range splitting, allocation, spills, frame assignment, and
+independent physical-realization validation remain later stages. The existing
+scratch-cycling assigned-operation route is transitional and is not evidence
+for any of those properties.

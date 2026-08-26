@@ -887,6 +887,24 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             && !facade.contains("pub struct RegisterConstraintCatalog"),
         "canonical register-model declarations must not drift back into omega-regalloc"
     );
+    let regalloc_manifest =
+        root.join("source/compiler/rust/omega/optimization/omega-regalloc/Cargo.toml");
+    let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
+    for forbidden in [
+        "omega-assigned-target-operations",
+        "omega-terminal-assigned-target-operations",
+        "omega-terminal-isa-x86_64",
+        "omega-terminal-isa-aarch64",
+        "omega-optimization-pipeline",
+    ] {
+        assert!(
+            !regalloc_manifest_source
+                .lines()
+                .any(|line| line.trim_start().starts_with(forbidden)),
+            "live-range analysis must consume selected/liveness facts, not depend on {forbidden}"
+        );
+    }
 
     for architecture in ["x86_64", "aarch64"] {
         assert!(
