@@ -5,14 +5,17 @@
 //! behind the closed normalized-plan validator.
 
 use omega_calling_conventions::{
-    BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackMaterialization,
-    CallbackRequirementId, CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack,
-    IndirectPointerLocation, LayoutPlanId, LayoutSlotId, MachineRegime, MachineRegister,
-    MachineState, MachineStateSet, NativeParameterId, NativePlace, Preemption, RegisterSet,
-    StatePlan, StaticMachineBinderId, SystemVEightbyteClass, ValidatedBoundaryEntryPlan,
-    ValueClass, ValueLocation, ValuePlacement, ValueShape, callback_requirement_id,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
+    BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackBinderRequirement,
+    CallbackMaterialization, CallbackMaterializationContext, CallbackRequirementId, CallingPolicy,
+    CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, LayoutPlanId,
+    LayoutSlotId, MachineRegime, MachineRegister, MachineState, MachineStateSet,
+    NativeCallbackDemand, NativeParameterId, NativePlace, Preemption, RegisterSet, StatePlan,
+    StaticMachineBinderId, SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass,
+    ValueLocation, ValuePlacement, ValueShape, callback_native_parameter_id,
+    callback_requirement_id, evaluate_ordinary_boundary_entry_plan,
+    validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
+use omega_target::NativeTarget;
 use psi_build_time_evaluation::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
@@ -62,12 +65,20 @@ struct BoundaryValueField {
 }
 
 #[derive(Debug, Clone)]
-struct MaterializedBoundarySignature {
+pub(crate) struct MaterializedBoundarySignature {
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
     callback_binders: Vec<BoundaryCallbackBinder>,
+    callback_demands: Vec<NativeCallbackDemand>,
+    native_parameters: Vec<BoundaryNativeParameter>,
     result: Option<u16>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BoundaryNativeParameter {
+    identity: NativeParameterId,
+    layout_data_symbol: psi_symbols::SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,6 +243,12 @@ pub(crate) struct BoundaryCallingPlanRealization {
     pub(crate) fingerprint: u64,
     pub(crate) boundary_entry_plan: BoundaryEntryPlan,
     pub(crate) callback_binders: Vec<BoundaryCallbackBinder>,
+    pub(crate) callback_demands: Vec<NativeCallbackDemand>,
+    pub(crate) callback_context_closed: bool,
+    pub(crate) native_parameters: Vec<BoundaryNativeParameter>,
+    pub(crate) materialized_signature: MaterializedBoundarySignature,
+    pub(crate) policy_machine: String,
+    pub(crate) relationship_span: psi_source::SourceSpan,
 }
 
 fn validate_retained_callback_binders(
@@ -312,10 +329,30 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
                 .as_ref()
                 .map(|placement| placement.shape),
         };
-        let validated = match omega_calling_conventions::validate_boundary_entry_plan(
-            realization.boundary_entry_plan.clone(),
-            &realized_signature,
-        ) {
+        let replayed = if realization.callback_context_closed {
+            let context = CallbackMaterializationContext {
+                binders: realization
+                    .callback_binders
+                    .iter()
+                    .map(|binder| CallbackBinderRequirement {
+                        binder: binder.binder,
+                        requirement: binder.requirement,
+                    })
+                    .collect(),
+                demands: realization.callback_demands.clone(),
+            };
+            validate_boundary_entry_plan_with_callback_materializations(
+                realization.boundary_entry_plan.clone(),
+                &realized_signature,
+                &context,
+            )
+        } else {
+            omega_calling_conventions::validate_boundary_entry_plan(
+                realization.boundary_entry_plan.clone(),
+                &realized_signature,
+            )
+        };
+        let validated = match replayed {
             Ok(validated) => validated,
             Err(error) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -537,7 +574,13 @@ pub(crate) fn compute_boundary_calling_plans(
             requirement_machine,
             fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
-            callback_binders: signature.callback_binders,
+            callback_binders: signature.callback_binders.clone(),
+            callback_demands: signature.callback_demands.clone(),
+            callback_context_closed: false,
+            native_parameters: signature.native_parameters.clone(),
+            materialized_signature: signature,
+            policy_machine,
+            relationship_span,
         });
     }
     for realization in &evaluated {
@@ -553,6 +596,138 @@ pub(crate) fn compute_boundary_calling_plans(
         );
     }
     Ok(evaluated)
+}
+
+/// Re-evaluate outbound registrar policies only after the checked native
+/// layout pipeline has published its authoritative private-demand catalog.
+/// The target-neutral typed reports are deliberately not consulted here.
+pub(crate) fn close_outbound_callback_materializations(
+    checked: &mut psi_checked_trees::CheckedTrees,
+    realizations: &mut [BoundaryCallingPlanRealization],
+    native_target: NativeTarget,
+    package_inputs: Option<&crate::pipeline::PackageCompilationInputs>,
+) -> Result<(), Vec<Diagnostic>> {
+    let layout_plan = omega_layout::build_layout_plan(checked, native_target)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let admission =
+        psi_build_time_evaluation::BuildTimeAdmissionPlan::infer_with_selection_authority(
+            &checked.typed,
+            package_inputs.map(|inputs| {
+                std::sync::Arc::new(inputs.clone())
+                    as std::sync::Arc<dyn psi_build_time_evaluation::BuildTimeSelectionAuthority>
+            }),
+        );
+
+    for realization in realizations {
+        let mut demands = Vec::new();
+        for parameter in &realization.native_parameters {
+            for demand in layout_plan
+                .private_callback_demands
+                .iter()
+                .filter(|demand| demand.data_symbol == parameter.layout_data_symbol)
+            {
+                demands.push(demand.native_demand(parameter.identity));
+            }
+        }
+        if demands.is_empty() && realization.callback_binders.is_empty() {
+            continue;
+        }
+        if demands.len() > CALLBACK_MATERIALIZATION_CAPACITY {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary registrar has {} target-closed private callback demands; calling policies currently support at most {CALLBACK_MATERIALIZATION_CAPACITY}",
+                demands.len()
+            ))
+            .with_source_span(realization.relationship_span)]);
+        }
+        demands.sort_unstable_by(|left, right| left.destination.cmp(&right.destination));
+        if demands
+            .windows(2)
+            .any(|pair| pair[0].destination == pair[1].destination)
+        {
+            return Err(vec![
+                Diagnostic::error(
+                    "boundary registrar target closure repeats one exact private callback demand",
+                )
+                .with_source_span(realization.relationship_span),
+            ]);
+        }
+
+        let old_fingerprint = realization.fingerprint;
+        let mut signature = realization.materialized_signature.clone();
+        signature.callback_demands = demands.clone();
+        let validated = evaluate_materialized_calling_policy_plan(
+            &checked.typed,
+            &admission,
+            &realization.policy_machine,
+            &signature,
+            Some(
+                psi_build_time_evaluation::BuildTimeInvocationCustody::Source(
+                    realization.relationship_span,
+                ),
+            ),
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+        })?;
+        let classified = CallSignature {
+            parameters: validated
+                .plan()
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect(),
+            result: validated
+                .plan()
+                .call
+                .result
+                .as_ref()
+                .map(|placement| placement.shape),
+        };
+        let context = callback_materialization_context(&signature);
+        let validated = validate_boundary_entry_plan_with_callback_materializations(
+            validated.plan().clone(),
+            &classified,
+            &context,
+        )
+        .map_err(|diagnostic| {
+            vec![
+                Diagnostic::error(format!(
+                    "target-closed outbound callback materialization is invalid: {diagnostic}"
+                ))
+                .with_source_span(realization.relationship_span),
+            ]
+        })?;
+        let new_fingerprint = validated.contract_fingerprint();
+        realization.fingerprint = new_fingerprint;
+        realization.boundary_entry_plan = validated.plan().clone();
+        realization.callback_demands = demands;
+        realization.callback_context_closed = true;
+        realization.materialized_signature = signature;
+
+        checked.typed.record_boundary_calling_plan(
+            psi_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
+                boundary_trait: realization.boundary_trait,
+                boundary_arguments: realization.boundary_arguments.clone(),
+                requirement_machine: realization.requirement_machine,
+                fingerprint: new_fingerprint,
+            },
+        );
+        for nominal_use in &mut checked.facts.nominal_machine_uses.uses {
+            if nominal_use.satisfaction_trait == realization.boundary_trait
+                && nominal_use.satisfaction_requirement == realization.requirement_machine
+                && nominal_use.callback_placement.is_some_and(|placement| {
+                    placement.boundary_calling_plan_fingerprint == old_fingerprint
+                })
+            {
+                nominal_use.callback_placement =
+                    Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
+                        boundary_calling_plan_fingerprint: new_fingerprint,
+                    });
+            }
+        }
+    }
+    Ok(())
 }
 
 fn boundary_policy_instances(
@@ -747,11 +922,13 @@ fn call_signature_from_typed(
     let mut shapes = Vec::new();
     let mut fields = Vec::new();
     let mut parameters = Vec::new();
-    for parameter in typed
+    let runtime_parameters = typed
         .state_signature_parameters(signature)
         .iter()
         .filter(|parameter| !parameter.is_self)
-    {
+        .collect::<Vec<_>>();
+    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
+    for (ordinal, parameter) in runtime_parameters.iter().enumerate() {
         let (_, root) = value_shape_from_type(
             typed,
             parameter.type_reference,
@@ -761,6 +938,16 @@ fn call_signature_from_typed(
             &mut fields,
         )?;
         parameters.push(root);
+        let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
+        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
+        native_parameters.push(BoundaryNativeParameter {
+            identity: callback_native_parameter_id(
+                owner_requirement_identity,
+                u32::try_from(ordinal)
+                    .map_err(|_| "boundary signature has too many runtime parameters")?,
+            ),
+            layout_data_symbol,
+        });
     }
     let result = if signature.return_type.is_valid() {
         let (_, root) = value_shape_from_type(
@@ -828,8 +1015,29 @@ fn call_signature_from_typed(
         fields,
         parameters,
         callback_binders,
+        callback_demands: Vec::new(),
+        native_parameters,
         result,
     })
+}
+
+fn exact_boundary_layout_root_symbol(
+    typed: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> psi_symbols::SymbolHandle {
+    loop {
+        match typed.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { symbol, .. } => return *symbol,
+            TypeReferenceNode::Generic { base_symbol, .. } => return *base_symbol,
+            TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Unit => return psi_symbols::SymbolHandle::invalid(),
+        }
+    }
 }
 
 fn callback_plan_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
@@ -1350,7 +1558,7 @@ fn evaluate_materialized_calling_policy_plan(
     validate_materialized_boundary_plan_result(result, signature)
 }
 
-fn materialized_boundary_signature_from_abi(
+pub(crate) fn materialized_boundary_signature_from_abi(
     signature: &CallSignature,
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
@@ -1389,6 +1597,8 @@ fn materialized_boundary_signature_from_abi(
         fields: Vec::new(),
         parameters,
         callback_binders: Vec::new(),
+        callback_demands: Vec::new(),
+        native_parameters: Vec::new(),
         result,
     })
 }
@@ -1444,6 +1654,31 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
             ],
         });
     }
+    let mut callback_demands = Vec::with_capacity(CALLBACK_MATERIALIZATION_CAPACITY);
+    for index in 0..CALLBACK_MATERIALIZATION_CAPACITY {
+        let demand = signature.callback_demands.get(index);
+        callback_demands.push(BuildTimeValue::Struct {
+            type_name: "NativeCallbackDemandIdentity".to_owned(),
+            fields: vec![
+                (
+                    "destination".to_owned(),
+                    demand.map_or_else(
+                        || {
+                            case(
+                                "NativePlace::Parameter",
+                                vec![("parameter".to_owned(), BuildTimeValue::Int(0))],
+                            )
+                        },
+                        |row| build_native_place(&row.destination),
+                    ),
+                ),
+                (
+                    "requirement".to_owned(),
+                    BuildTimeValue::Int(demand.map_or(0, |row| row.requirement.get()) as i64),
+                ),
+            ],
+        });
+    }
     BuildTimeValue::Struct {
         type_name: "BoundarySignature".to_owned(),
         fields: vec![
@@ -1471,6 +1706,14 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
                 BuildTimeValue::Int(signature.callback_binders.len() as i64),
             ),
             (
+                "callback_demands".to_owned(),
+                BuildTimeValue::Array(callback_demands),
+            ),
+            (
+                "callback_demand_count".to_owned(),
+                BuildTimeValue::Int(signature.callback_demands.len() as i64),
+            ),
+            (
                 "has_result".to_owned(),
                 BuildTimeValue::Bool(signature.result.is_some()),
             ),
@@ -1479,6 +1722,48 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
                 BuildTimeValue::Int(i64::from(signature.result.unwrap_or(0))),
             ),
         ],
+    }
+}
+
+fn build_native_place(place: &NativePlace) -> BuildTimeValue {
+    match place {
+        NativePlace::Parameter(parameter) => case(
+            "NativePlace::Parameter",
+            vec![(
+                "parameter".to_owned(),
+                BuildTimeValue::Int(parameter.get() as i64),
+            )],
+        ),
+        NativePlace::Field {
+            parameter,
+            layout,
+            field_path,
+        } => {
+            let mut slots = Vec::with_capacity(CALLBACK_FIELD_PATH_CAPACITY);
+            for index in 0..CALLBACK_FIELD_PATH_CAPACITY {
+                slots.push(BuildTimeValue::Int(
+                    field_path.get(index).map_or(0, |slot| slot.get()) as i64,
+                ));
+            }
+            case(
+                "NativePlace::Field",
+                vec![
+                    (
+                        "parameter".to_owned(),
+                        BuildTimeValue::Int(parameter.get() as i64),
+                    ),
+                    (
+                        "layout".to_owned(),
+                        BuildTimeValue::Int(layout.get() as i64),
+                    ),
+                    ("field_path".to_owned(), BuildTimeValue::Array(slots)),
+                    (
+                        "field_path_count".to_owned(),
+                        BuildTimeValue::Int(field_path.len() as i64),
+                    ),
+                ],
+            )
+        }
     }
 }
 
@@ -1595,8 +1880,29 @@ fn validate_materialized_boundary_plan_result(
             .collect(),
         result: plan.call.result.as_ref().map(|placement| placement.shape),
     };
-    validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
+    if signature.callback_demands.is_empty() {
+        return validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
+            .map_err(|diagnostic| diagnostic.to_string());
+    }
+    let context = callback_materialization_context(signature);
+    validate_boundary_entry_plan_with_callback_materializations(plan, &classified, &context)
         .map_err(|diagnostic| diagnostic.to_string())
+}
+
+fn callback_materialization_context(
+    signature: &MaterializedBoundarySignature,
+) -> CallbackMaterializationContext {
+    CallbackMaterializationContext {
+        binders: signature
+            .callback_binders
+            .iter()
+            .map(|binder| CallbackBinderRequirement {
+                binder: binder.binder,
+                requirement: binder.requirement,
+            })
+            .collect(),
+        demands: signature.callback_demands.clone(),
+    }
 }
 
 fn invalid_authored_plan(reason: String) -> String {
@@ -2379,7 +2685,7 @@ mod tests {
     }
 
     #[test]
-    fn boundary_signature_publishes_compiler_issued_callback_binders() {
+    fn boundary_signature_publishes_compiler_issued_callback_catalogs() {
         let binder = BoundaryCallbackBinder {
             binder: StaticMachineBinderId::new(41).unwrap(),
             requirement: CallbackRequirementId::new(43).unwrap(),
@@ -2388,11 +2694,21 @@ mod tests {
             requirement_trait: psi_symbols::SymbolHandle::from_arena_index(7),
             requirement_machine: psi_symbols::SymbolHandle::from_arena_index(11),
         };
+        let demand = NativeCallbackDemand {
+            destination: NativePlace::Field {
+                parameter: NativeParameterId::new(47).unwrap(),
+                layout: LayoutPlanId::new(53).unwrap(),
+                field_path: vec![LayoutSlotId::new(59).unwrap()],
+            },
+            requirement: CallbackRequirementId::new(43).unwrap(),
+        };
         let signature = MaterializedBoundarySignature {
             shapes: Vec::new(),
             fields: Vec::new(),
             parameters: Vec::new(),
             callback_binders: vec![binder],
+            callback_demands: vec![demand.clone()],
+            native_parameters: Vec::new(),
             result: None,
         };
         let value = build_boundary_signature(&signature);
@@ -2419,6 +2735,33 @@ mod tests {
         assert_eq!(
             uint(
                 field(row, "requirement", "binder row").unwrap(),
+                "requirement",
+            )
+            .unwrap(),
+            43
+        );
+        assert_eq!(
+            uint(
+                field(fields, "callback_demand_count", "BoundarySignature")
+                    .expect("callback demand count"),
+                "callback demand count",
+            )
+            .unwrap(),
+            1
+        );
+        let BuildTimeValue::Array(rows) =
+            field(fields, "callback_demands", "BoundarySignature").expect("callback demands")
+        else {
+            panic!("callback demand catalog is not an array")
+        };
+        let row = struct_parts(&rows[0], "NativeCallbackDemandIdentity").expect("demand row");
+        assert_eq!(
+            decode_native_place(field(row, "destination", "demand row").unwrap()).unwrap(),
+            demand.destination
+        );
+        assert_eq!(
+            uint(
+                field(row, "requirement", "demand row").unwrap(),
                 "requirement",
             )
             .unwrap(),
@@ -2475,6 +2818,15 @@ mod tests {
             fingerprint,
             boundary_entry_plan: validated.plan().clone(),
             callback_binders: Vec::new(),
+            callback_demands: Vec::new(),
+            callback_context_closed: false,
+            native_parameters: Vec::new(),
+            materialized_signature: materialized_boundary_signature_from_abi(
+                &CallSignature::default(),
+            )
+            .unwrap(),
+            policy_machine: String::new(),
+            relationship_span: psi_source::SourceSpan::default(),
         };
         (checked, vec![realization])
     }
@@ -2504,6 +2856,132 @@ mod tests {
             bound.boundary_entry_plan,
             realizations[0].boundary_entry_plan
         );
+    }
+
+    #[test]
+    fn nominal_callback_consumer_replays_exact_materialization_context() {
+        let (mut checked, mut realizations) = nominal_callback_fixture();
+        let realization = &mut realizations[0];
+        let binder = StaticMachineBinderId::new(101).unwrap();
+        let requirement = CallbackRequirementId::new(103).unwrap();
+        let destination = NativePlace::Field {
+            parameter: NativeParameterId::new(107).unwrap(),
+            layout: LayoutPlanId::new(109).unwrap(),
+            field_path: vec![LayoutSlotId::new(113).unwrap()],
+        };
+        realization.callback_binders = vec![BoundaryCallbackBinder {
+            binder,
+            requirement,
+            static_machine_ordinal: 0,
+            parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(13),
+            requirement_trait: psi_symbols::SymbolHandle::from_arena_index(17),
+            requirement_machine: psi_symbols::SymbolHandle::from_arena_index(19),
+        }];
+        realization.callback_demands = vec![NativeCallbackDemand {
+            destination: destination.clone(),
+            requirement,
+        }];
+        realization.callback_context_closed = true;
+        realization
+            .boundary_entry_plan
+            .call
+            .callback_materializations = vec![CallbackMaterialization {
+            binder,
+            destination,
+        }];
+        let signature = CallSignature::default();
+        let context = CallbackMaterializationContext {
+            binders: vec![CallbackBinderRequirement {
+                binder,
+                requirement,
+            }],
+            demands: realization.callback_demands.clone(),
+        };
+        realization.fingerprint = validate_boundary_entry_plan_with_callback_materializations(
+            realization.boundary_entry_plan.clone(),
+            &signature,
+            &context,
+        )
+        .unwrap()
+        .contract_fingerprint();
+        checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .as_mut()
+            .unwrap()
+            .boundary_calling_plan_fingerprint = realization.fingerprint;
+
+        validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect("exact retained callback context should replay");
+
+        realizations[0].callback_demands[0].destination =
+            NativePlace::Parameter(NativeParameterId::new(127).unwrap());
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("demand substitution must fail the later consumer replay");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("does not name a declared private native-place demand"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+    }
+
+    #[test]
+    fn target_neutral_binder_defers_supply_but_target_closed_binder_rejects_missing_supply() {
+        let (checked, mut realizations) = nominal_callback_fixture();
+        realizations[0].callback_binders = vec![BoundaryCallbackBinder {
+            binder: StaticMachineBinderId::new(131).unwrap(),
+            requirement: CallbackRequirementId::new(137).unwrap(),
+            static_machine_ordinal: 0,
+            parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(23),
+            requirement_trait: psi_symbols::SymbolHandle::from_arena_index(29),
+            requirement_machine: psi_symbols::SymbolHandle::from_arena_index(31),
+        }];
+
+        validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect("a no-target checked realization must remain target-neutral");
+
+        realizations[0].callback_context_closed = true;
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("target closure must reject a binder without native supply");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("omits a nominal callback binder"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+    }
+
+    #[test]
+    fn private_callback_parameter_mapping_rejects_array_and_slice_wrappers() {
+        let mut typed = TypedTrees::default();
+        let symbol = psi_symbols::SymbolHandle::from_arena_index(41);
+        let named = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol,
+            name: psi_typed_trees::name::Identifier::generated("NativeRecord"),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: named,
+                access: psi_language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let array = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: named,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+            });
+        let slice = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: named,
+        });
+
+        assert_eq!(exact_boundary_layout_root_symbol(&typed, named), symbol);
+        assert_eq!(exact_boundary_layout_root_symbol(&typed, reference), symbol);
+        assert!(!exact_boundary_layout_root_symbol(&typed, array).is_valid());
+        assert!(!exact_boundary_layout_root_symbol(&typed, slice).is_valid());
     }
 
     #[test]
@@ -2569,6 +3047,8 @@ mod tests {
             fields: Vec::new(),
             parameters: vec![1],
             callback_binders: Vec::new(),
+            callback_demands: Vec::new(),
+            native_parameters: Vec::new(),
             result: None,
         }
     }
@@ -2608,6 +3088,8 @@ mod tests {
             fields: Vec::new(),
             parameters: vec![0, 1, 0],
             callback_binders: Vec::new(),
+            callback_demands: Vec::new(),
+            native_parameters: Vec::new(),
             result: Some(1),
         };
         let wire = compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 1)
@@ -2737,6 +3219,8 @@ mod tests {
             fields,
             parameters: vec![root],
             callback_binders: Vec::new(),
+            callback_demands: Vec::new(),
+            native_parameters: Vec::new(),
             result: None,
         };
         assert_eq!(

@@ -60,6 +60,28 @@ data AbiValueShape {
     alignment: u64;
 }
 
+// These fields carry compiler-issued nominal identities. Publishing the
+// binder/signature and validated layout-demand catalogs that supply them is a
+// separate compiler step. A private layout demand originates only from one
+// explicitly cited named `PrivateCallbackSlot<Requirement>` conformance in the
+// authoritative layout plan; its physical offset is not repeated here. A
+// policy cannot establish an identity by inventing an integer, and unknown
+// values reject during plan validation.
+data NativePlace {
+    case Parameter(parameter: u64);
+    case Field(
+        parameter: u64,
+        layout: u64,
+        field_path: [u64; 16],
+        field_path_count: u64 [1..=16]
+    );
+}
+
+data NativeCallbackDemandIdentity {
+    destination: NativePlace;
+    requirement: u64;
+}
+
 data BoundarySignature {
     shapes: [ValueShape; 256];
     shape_count: u64 [0..=256];
@@ -69,6 +91,8 @@ data BoundarySignature {
     parameter_count: u64 [0..=32];
     callback_binders: [CallbackBinderIdentity; 32];
     callback_binder_count: u64 [0..=32];
+    callback_demands: [NativeCallbackDemandIdentity; 32];
+    callback_demand_count: u64 [0..=32];
     has_result: bool;
     result: u64;
 }
@@ -147,23 +171,6 @@ data EntryControl {
         immediate: u64
     );
     case InterruptReturn;
-}
-
-// These fields carry compiler-issued nominal identities. Publishing the
-// binder/signature and validated layout-demand catalogs that supply them is a
-// separate compiler step. A private layout demand originates only from one
-// explicitly cited named `PrivateCallbackSlot<Requirement>` conformance in the
-// authoritative layout plan; its physical offset is not repeated here. A
-// policy cannot establish an identity by inventing an integer, and unknown
-// values reject during plan validation.
-data NativePlace {
-    case Parameter(parameter: u64);
-    case Field(
-        parameter: u64,
-        layout: u64,
-        field_path: [u64; 16],
-        field_path_count: u64 [1..=16]
-    );
 }
 
 data CallbackMaterialization {

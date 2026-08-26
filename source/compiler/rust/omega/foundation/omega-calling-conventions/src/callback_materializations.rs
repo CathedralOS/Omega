@@ -52,6 +52,23 @@ pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequireme
     .expect("callback requirement identity is nonzero")
 }
 
+/// Compiler-issued identity of one runtime parameter in an exact boundary
+/// requirement. The source parameter ordinal is an input to this constructor,
+/// never itself a native-place identity.
+pub fn callback_native_parameter_id(
+    canonical_requirement: &str,
+    parameter_ordinal: u32,
+) -> NativeParameterId {
+    NativeParameterId::new(callback_nominal_identity(
+        b"omega.callback-native-parameter.v1",
+        &[
+            canonical_requirement.as_bytes(),
+            &parameter_ordinal.to_le_bytes(),
+        ],
+    ))
+    .expect("callback native-parameter identity is nonzero")
+}
+
 /// Compiler-issued identity of one complete target-closed native layout.
 /// Pointer geometry participates because it supplies the physical callback
 /// extent that is absent from the target-neutral layout report.
@@ -302,6 +319,21 @@ mod tests {
         );
         assert_ne!(requirement.get(), first_layout.get());
         assert_ne!(requirement.get(), first_slot.get());
+
+        let parameter = callback_native_parameter_id("package::Registrar::register#exact", 0);
+        assert_eq!(
+            parameter,
+            callback_native_parameter_id("package::Registrar::register#exact", 0)
+        );
+        assert_ne!(
+            parameter,
+            callback_native_parameter_id("package::Registrar::register#exact", 1)
+        );
+        assert_ne!(
+            parameter,
+            callback_native_parameter_id("package::Registrar::other#exact", 0)
+        );
+        assert_ne!(parameter.get(), requirement.get());
     }
 
     #[test]

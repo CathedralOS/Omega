@@ -536,7 +536,7 @@ fn compile_to_checked_inner_with_replay(
     let CheckedFrontend {
         typed,
         target_default_machine_names,
-        boundary_calling_plan_realizations,
+        mut boundary_calling_plan_realizations,
         ..
     } = frontend;
     let build_evaluation_usage = computed_build_config.evaluation_usage;
@@ -625,6 +625,15 @@ fn compile_to_checked_inner_with_replay(
     if let Some(package_inputs) = package_inputs {
         crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
             &checked.program,
+            package_inputs,
+        )?;
+    }
+    if let Some(native_target) = selected_native_target {
+        crate::pipeline::calling_policy_plans::close_outbound_callback_materializations(
+            Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before callback closure"),
+            &mut boundary_calling_plan_realizations,
+            native_target,
             package_inputs,
         )?;
     }

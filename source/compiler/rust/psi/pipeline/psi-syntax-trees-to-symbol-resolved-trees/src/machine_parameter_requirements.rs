@@ -96,20 +96,23 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
             ) {
                 continue;
             }
-            let TypeReference::Named { name, .. } = argument else {
-                return Err(Diagnostic::error(format!(
-                    "conformance to trait `{}` supplies a non-name argument for requirement-identity parameter `{}`; expected one exact `Trait::requirement` path",
-                    trait_definition.name, parameter.name
-                )));
+            let TypeReference::Named { symbol, name } = argument else {
+                continue;
             };
             let rendered = name.as_str();
-            let exact = resolve_rendered_requirement(program, rendered).map_err(|reason| {
-                Diagnostic::error(format!(
-                    "conformance to trait `{}` supplies invalid requirement-identity argument `{rendered}` for parameter `{}`: {reason}",
-                    trait_definition.name, parameter.name
-                ))
-                .with_source_span(name.source_span())
-            })?;
+            let exact = if symbol.is_valid()
+                && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::State
+                && !program.traits.iter().any(|definition| {
+                    program
+                        .trait_machine_signatures(definition.machines)
+                        .iter()
+                        .any(|requirement| requirement.symbol == *symbol)
+                }) {
+                Some(*symbol)
+            } else {
+                resolve_rendered_requirement(program, rendered).ok()
+            };
+            let Some(exact) = exact else { continue };
             let handle = psi_arena::Handle::from_parts(
                 conformance
                     .arguments
