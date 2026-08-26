@@ -53,9 +53,10 @@ pub use compiler_review::{
     compile_resolved_package_reviews,
 };
 pub use conflict::{
-    ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyResolution,
+    ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyRecordError,
+    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolution,
     ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
-    resolve_review_only_root_policy_decisions,
+    recover_review_only_root_policy_resolution, resolve_review_only_root_policy_decisions,
 };
 pub use declaration::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,

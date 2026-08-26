@@ -126,3 +126,48 @@ package dependency. Exact source and artifact evidence remain instance facts.
 - Tempting but wrong: key an application by its authored name alone.
 - Tempting but wrong: make applications importable packages merely to reuse
   existing graph code.
+
+## Q4 — Scoped build machines as project manifests
+
+### Context
+
+Package identity and dependency projection recognize one canonical free
+`machine build(builder: &mut Build)` in `build.omg`. That entry declares the
+project role and owns the authoritative dependency projection. Standalone
+compiler loading still recognizes both free `build` and scoped
+`Owner::build` machines in `build.omg` as privileged build roots. Two positive
+provider canaries and three deliberately failing build-authority canaries use
+the scoped form.
+
+### Problem statement
+
+One `build.omg` currently has two incompatible meanings. Package-aware readers
+reject scoped build machines because they cannot establish the single canonical
+project role/dependency root, while standalone compilation executes them with
+build authority. Enforcing roles globally would either reject an intended
+composition surface or preserve a second project-manifest model. It would also
+mask the authority diagnostics pinned by the malformed scoped canaries unless
+their intended status is decided first.
+
+### Proposed direction
+
+Retire scoped machines as project build roots. Require exactly one free build
+entry to declare the application, package, or workspace role and own dependency
+projection. Component-specific provider configuration remains ordinary Omega
+composition selected or called from that root rather than acquiring a second
+manifest identity. Migrate the positive scoped canaries to the free entry and
+recast the failing canaries so they continue testing their authority violation
+under the canonical root.
+
+### Alternates
+
+- Acceptable if scoped ownership is semantically important: formally admit
+  exactly one scoped root and specify how it declares project role, owns
+  dependencies, receives the `Build` activation, and excludes any competing
+  free root. Both compiler and package readers must then share that rule.
+- Tempting but wrong: keep standalone acceptance and package-reader rejection;
+  the same file would continue to mean different things by caller.
+- Tempting but wrong: infer project role from the scoped owner name.
+- Tempting but wrong: add a no-op free manifest beside the privileged scoped
+  build; that restores duplicate build roots rather than one authoritative
+  entry.

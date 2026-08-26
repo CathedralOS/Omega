@@ -6,10 +6,12 @@ use omega_packages::{
     PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
     ReviewOnlyRootPolicyResolutionError, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, resolve_review_only_root_policy_decisions,
-    triage_review_update, triage_review_update_from_baseline,
+    recover_review_only_root_policy_resolution, resolve_external_local_package_closure,
+    resolve_review_only_root_policy_decisions, triage_review_update,
+    triage_review_update_from_baseline,
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -25,6 +27,10 @@ fn temp_root(name: &str) -> PathBuf {
         "omega-capability-conflict-{name}-{}-{stamp}",
         std::process::id()
     ))
+}
+
+fn hex_digest(digest: [u8; 32]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn write_package(root: &Path, main: &str) {
@@ -288,6 +294,264 @@ pub proposition settled();
     );
     assert_ne!(accepted_resolution.commitment().digest(), [0; 32]);
 
+    let record_limits = ReviewOnlyRootPolicyRecordLimits::default();
+    let accepted_record = accepted_resolution
+        .encode_canonical(record_limits)
+        .expect("encode accepted root policy");
+    let accepted_text = std::str::from_utf8(&accepted_record).expect("canonical policy UTF-8");
+    let [first_canonical, second_canonical] = accepted_resolution.decisions() else {
+        panic!("accepted resolution has two canonical decisions")
+    };
+    assert_eq!(
+        accepted_text,
+        format!(
+            "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1\n\
+candidate_closure {}\n\
+decision_count 2\n\
+decision {} accept_candidate_change\n\
+decision {} accept_candidate_change\n\
+resolution_commitment {}\n\
+end_root_policy_resolution\n",
+            hex_digest(accepted_resolution.candidate_closure().digest()),
+            hex_digest(first_canonical.conflict().digest()),
+            hex_digest(second_canonical.conflict().digest()),
+            hex_digest(accepted_resolution.commitment().digest()),
+        )
+    );
+    assert_eq!(
+        recover_review_only_root_policy_resolution(&conflicts, &accepted_record, record_limits)
+            .expect("recover accepted root policy"),
+        accepted_resolution
+    );
+    assert_eq!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_accept])
+            .expect("repeat accepted root policy")
+            .encode_canonical(record_limits)
+            .expect("encode repeated policy"),
+        accepted_record
+    );
+
+    let mut wrong_candidate_record = accepted_record.clone();
+    let candidate_offset = "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1\ncandidate_closure ".len();
+    wrong_candidate_record[candidate_offset] = if wrong_candidate_record[candidate_offset] == b'0' {
+        b'1'
+    } else {
+        b'0'
+    };
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &wrong_candidate_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::CandidateClosureMismatch { .. })
+    ));
+
+    let mut reordered_lines = accepted_text.lines().collect::<Vec<_>>();
+    reordered_lines.swap(3, 4);
+    let reordered_record = format!("{}\n", reordered_lines.join("\n"));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            reordered_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::NonCanonicalEncoding)
+    ));
+
+    let mut bad_commitment_record = accepted_record.clone();
+    let commitment_offset = accepted_text
+        .find("resolution_commitment ")
+        .expect("commitment row")
+        + "resolution_commitment ".len();
+    bad_commitment_record[commitment_offset] = if bad_commitment_record[commitment_offset] == b'0' {
+        b'1'
+    } else {
+        b'0'
+    };
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &bad_commitment_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::CommitmentMismatch { .. })
+    ));
+
+    let mut trailing_record = accepted_record.clone();
+    trailing_record.extend_from_slice(b"unexpected\n");
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(&conflicts, &trailing_record, record_limits),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidFraming)
+    ));
+
+    let mut bad_header_record = accepted_record.clone();
+    bad_header_record[0] = b'X';
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(&conflicts, &bad_header_record, record_limits),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidHeader)
+    ));
+
+    let mut invalid_utf8_record = accepted_record.clone();
+    invalid_utf8_record[0] = 0xff;
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(&conflicts, &invalid_utf8_record, record_limits),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidUtf8)
+    ));
+    let crlf_record = accepted_text.replacen('\n', "\r\n", 1);
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            crlf_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidFraming)
+    ));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &accepted_record[..accepted_record.len() - 1],
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidFraming)
+    ));
+
+    let mut uppercase_fingerprint_record = accepted_record.clone();
+    let first_fingerprint_offset =
+        accepted_text.find("decision ").expect("first decision row") + "decision ".len();
+    uppercase_fingerprint_record[first_fingerprint_offset] = b'A';
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &uppercase_fingerprint_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidFingerprint)
+    ));
+
+    let mut invalid_candidate_record = accepted_record.clone();
+    invalid_candidate_record[candidate_offset] = b'g';
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &invalid_candidate_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidCandidateClosure)
+    ));
+
+    let mut invalid_commitment_record = accepted_record.clone();
+    invalid_commitment_record[commitment_offset] = b'g';
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &invalid_commitment_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidCommitment)
+    ));
+
+    let noncanonical_count_record =
+        accepted_text.replacen("decision_count 2", "decision_count 02", 1);
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            noncanonical_count_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidDecisionCount)
+    ));
+    let overflowing_count_record = accepted_text.replacen(
+        "decision_count 2",
+        "decision_count 999999999999999999999999999999999999",
+        1,
+    );
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            overflowing_count_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidDecisionCount)
+    ));
+
+    let invalid_disposition_record =
+        accepted_text.replacen("accept_candidate_change", "allow_candidate_change", 1);
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            invalid_disposition_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidDisposition)
+    ));
+
+    let mut missing_lines = accepted_text.lines().map(str::to_owned).collect::<Vec<_>>();
+    missing_lines[2] = "decision_count 1".to_owned();
+    missing_lines.remove(4);
+    let missing_record = format!("{}\n", missing_lines.join("\n"));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            missing_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::Resolution(
+            ReviewOnlyRootPolicyResolutionError::MissingDecision { .. }
+        ))
+    ));
+
+    let mut duplicate_lines = accepted_text.lines().map(str::to_owned).collect::<Vec<_>>();
+    duplicate_lines[4] = duplicate_lines[3].clone();
+    let duplicate_record = format!("{}\n", duplicate_lines.join("\n"));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            duplicate_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::Resolution(
+            ReviewOnlyRootPolicyResolutionError::DuplicateDecision { .. }
+        ))
+    ));
+
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &accepted_record,
+            ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len() - 1, 2, 2)
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::ByteLimitExceeded { .. })
+    ));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &accepted_record,
+            ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len(), 1, 2)
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::DecisionLimitExceeded { .. })
+    ));
+    assert!(matches!(
+        accepted_resolution.encode_canonical(ReviewOnlyRootPolicyRecordLimits::new(1, 2, 2)),
+        Err(ReviewOnlyRootPolicyRecordError::ByteLimitExceeded { .. })
+    ));
+    assert!(matches!(
+        accepted_resolution.encode_canonical(ReviewOnlyRootPolicyRecordLimits::new(
+            record_limits.maximum_bytes(),
+            1,
+            2
+        )),
+        Err(ReviewOnlyRootPolicyRecordError::DecisionLimitExceeded { .. })
+    ));
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &conflicts,
+            &accepted_record,
+            ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len(), 2, 1)
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::ConflictLimitExceeded { .. })
+    ));
+
     let stale_conflicts = compare_review_only_capabilities(
         &stale_baseline_reviews,
         &candidate_reviews,
@@ -307,6 +571,15 @@ pub proposition settled();
             ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
         )
         .expect("bind alternate-baseline decision");
+    let stale_record =
+        resolve_review_only_root_policy_decisions(&stale_conflicts, &[stale_decision])
+            .expect("resolve alternate-baseline policy")
+            .encode_canonical(record_limits)
+            .expect("encode alternate-baseline policy");
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(&conflicts, &stale_record, record_limits),
+        Err(ReviewOnlyRootPolicyRecordError::UnknownConflictFingerprint { .. })
+    ));
     assert_eq!(
         stale_decision.candidate_closure(),
         package.candidate_closure()
@@ -335,6 +608,19 @@ pub proposition settled();
     assert_ne!(
         rejected_resolution.commitment(),
         accepted_resolution.commitment()
+    );
+    let rejected_record = rejected_resolution
+        .encode_canonical(record_limits)
+        .expect("encode rejected root policy");
+    assert!(
+        std::str::from_utf8(&rejected_record)
+            .expect("rejected policy UTF-8")
+            .contains("reject_candidate_change")
+    );
+    assert_eq!(
+        recover_review_only_root_policy_resolution(&conflicts, &rejected_record, record_limits)
+            .expect("recover rejected root policy"),
+        rejected_resolution
     );
     assert!(matches!(
         resolve_review_only_root_policy_decisions(&conflicts, &[]),
@@ -538,6 +824,27 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
             ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
         ),
         Err(ReviewOnlyRootPolicyResolutionError::NonBlockingConflict { .. })
+    ));
+    let nonblocking_record = format!(
+        "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1\n\
+candidate_closure {}\n\
+decision_count 1\n\
+decision {} accept_candidate_change\n\
+resolution_commitment {}\n\
+end_root_policy_resolution\n",
+        hex_digest(representation_package.candidate_closure().digest()),
+        hex_digest(representation_conflict.fingerprint().digest()),
+        "0".repeat(64),
+    );
+    assert!(matches!(
+        recover_review_only_root_policy_resolution(
+            &representation_conflicts,
+            nonblocking_record.as_bytes(),
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::Resolution(
+            ReviewOnlyRootPolicyResolutionError::NonBlockingConflict { .. }
+        ))
     ));
     assert_eq!(
         triage_review_update(&baseline_reviews, &representation_reviews, &BTreeSet::new())

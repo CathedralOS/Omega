@@ -22,7 +22,7 @@ use std::fmt;
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
 const CONFLICT_FINGERPRINT_VERSION: u16 = 4;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
-const CANDIDATE_CLOSURE_VERSION: u16 = 1;
+const CANDIDATE_CLOSURE_VERSION: u16 = 2;
 const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
 
 /// Resource ceilings for exact review-row comparison.
@@ -150,6 +150,9 @@ impl ReviewOnlyCapabilityConflictFingerprint {
     }
 }
 
+/// Review-only identity of exact candidate source topology and every package's
+/// target, compiler, source-consumption, build-observation, and whole-review
+/// evidence. It does not admit the candidate or certify any observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ReviewOnlyCandidateClosureCommitment([u8; 32]);
 
@@ -601,7 +604,8 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     let candidate_by_key = validate_review_only_closure(candidate_sources, candidate)
         .map_err(map_candidate_closure_validation_error)?
         .into_reviews_by_key();
-    let candidate_closure = derive_candidate_closure_commitment(candidate_sources)?;
+    let candidate_closure =
+        derive_candidate_closure_commitment(candidate_sources, &candidate_by_key)?;
 
     let mut packages = Vec::new();
     packages
@@ -1088,8 +1092,9 @@ fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidenc
     ReviewOnlyCapabilityConflictFingerprint(digest.finalize().into())
 }
 
-fn derive_candidate_closure_commitment(
+fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
     closure: &ResolvedPackageSourceClosure,
+    candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
     let mut digest = Sha256::new();
     hash_field(&mut digest, CANDIDATE_CLOSURE_DOMAIN);
@@ -1107,8 +1112,29 @@ fn derive_candidate_closure_commitment(
             .to_le_bytes(),
     );
     for package in packages {
+        let review_index = candidate_reviews
+            .binary_search_by(|review| review.key().cmp(package.source().key()))
+            .expect("validated candidate closure has one review per source");
+        let review = candidate_reviews[review_index];
         hash_field(&mut digest, &package.source().key().identity().digest());
         hash_resolution(&mut digest, package.source().resolution());
+        hash_field(&mut digest, review.target_name().as_bytes());
+        hash_field(
+            &mut digest,
+            &review.compiler_executable_commitment().digest(),
+        );
+        hash_field(
+            &mut digest,
+            &review.source_consumption_commitment().digest(),
+        );
+        match review.build_observation_commitment() {
+            None => digest.update([0]),
+            Some(commitment) => {
+                digest.update([1]);
+                hash_field(&mut digest, &commitment);
+            }
+        }
+        hash_field(&mut digest, &review.whole_review_commitment());
         digest.update(
             u64::try_from(package.dependencies().len())
                 .expect("bounded dependency count fits u64")
@@ -1628,5 +1654,170 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => {
             "semantic_dependency_declaration"
         }
+    }
+}
+
+#[cfg(test)]
+mod candidate_closure_tests {
+    use super::*;
+    use crate::{
+        ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
+        resolve_external_local_package_closure,
+    };
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[derive(Clone)]
+    struct TestReview {
+        key: PackageKey,
+        resolution: ImmutableSourceResolution,
+        target: String,
+        compiler: ReviewOnlyCompilerExecutableCommitment,
+        source_consumption: ReviewOnlySourceConsumptionCommitment,
+        build_observation: Option<[u8; 32]>,
+        whole_review: [u8; 32],
+        rows: Vec<ReviewOnlyCanonicalRow>,
+    }
+
+    impl PackageReviewEvidence for TestReview {
+        fn key(&self) -> &PackageKey {
+            &self.key
+        }
+
+        fn resolution(&self) -> &ImmutableSourceResolution {
+            &self.resolution
+        }
+
+        fn projection_identity_matches(&self) -> bool {
+            true
+        }
+
+        fn target_name(&self) -> &str {
+            &self.target
+        }
+
+        fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
+            self.compiler
+        }
+
+        fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
+            self.source_consumption
+        }
+
+        fn build_observation_commitment(&self) -> Option<[u8; 32]> {
+            self.build_observation
+        }
+
+        fn whole_review_commitment(&self) -> [u8; 32] {
+            self.whole_review
+        }
+
+        fn canonical_rows(&self) -> &[ReviewOnlyCanonicalRow] {
+            &self.rows
+        }
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "omega-candidate-closure-{name}-{}-{stamp}",
+            std::process::id()
+        ))
+    }
+
+    fn write_package(root: &Path, name: &str, dependency: Option<&str>) {
+        std::fs::create_dir_all(root).expect("create package root");
+        let dependency = dependency.map_or_else(String::new, |location| {
+            format!(
+                "    builder.depend(Source::Path {{\n        location: \"{location}\"\n    }});\n"
+            )
+        });
+        std::fs::write(
+            root.join("build.omg"),
+            format!(
+                "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n{dependency}}}\n"
+            ),
+        )
+        .expect("write package build declaration");
+        std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+            .expect("write package source");
+    }
+
+    fn commitment(
+        closure: &ResolvedPackageSourceClosure,
+        reviews: &[TestReview],
+    ) -> ReviewOnlyCandidateClosureCommitment {
+        let review_refs = reviews.iter().collect::<Vec<_>>();
+        derive_candidate_closure_commitment(closure, &review_refs)
+            .expect("derive candidate closure commitment")
+    }
+
+    #[test]
+    fn candidate_closure_binds_review_evidence_from_every_package() {
+        let parent = temp_root("evidence");
+        let root = parent.join("root");
+        let dependency = parent.join("dependency");
+        let cache = temp_root("cache");
+        write_package(&dependency, "closure-dependency", None);
+        write_package(&root, "closure-root", Some("../dependency"));
+        let closure = resolve_external_local_package_closure(
+            &root,
+            ExternalSourceContext::derive(b"candidate-closure-review-evidence"),
+            &cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve two-package source closure");
+
+        let mut reviews = closure
+            .graph()
+            .packages()
+            .iter()
+            .enumerate()
+            .map(|(index, package)| TestReview {
+                key: package.source().key().clone(),
+                resolution: package.source().resolution().clone(),
+                target: "windows_x64".to_owned(),
+                compiler: ReviewOnlyCompilerExecutableCommitment::from_recovered_digest([1; 32]),
+                source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
+                    [2; 32],
+                ),
+                build_observation: None,
+                whole_review: [u8::try_from(index + 3).expect("small fixture index"); 32],
+                rows: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        reviews.sort_by(|left, right| left.key.cmp(&right.key));
+        let dependency_index = reviews
+            .iter()
+            .position(|review| review.key.name().as_str() == "closure-dependency")
+            .expect("dependency review");
+        let baseline = commitment(&closure, &reviews);
+
+        for change in 0..5 {
+            let mut changed = reviews.clone();
+            let review = &mut changed[dependency_index];
+            match change {
+                0 => review.target = "linux_x64".to_owned(),
+                1 => {
+                    review.compiler =
+                        ReviewOnlyCompilerExecutableCommitment::from_recovered_digest([9; 32])
+                }
+                2 => {
+                    review.source_consumption =
+                        ReviewOnlySourceConsumptionCommitment::from_recovered_digest([9; 32])
+                }
+                3 => review.build_observation = Some([9; 32]),
+                4 => review.whole_review = [9; 32],
+                _ => unreachable!("five evidence axes"),
+            }
+            assert_ne!(commitment(&closure, &changed), baseline);
+        }
+
+        let _ = std::fs::remove_dir_all(parent);
+        let _ = std::fs::remove_dir_all(cache);
     }
 }
