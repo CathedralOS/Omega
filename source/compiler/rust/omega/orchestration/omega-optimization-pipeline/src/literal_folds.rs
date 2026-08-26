@@ -82,12 +82,12 @@ impl StagedOptimizedLiteralFolds {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedLiteralFoldCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
     transformations: Vec<TerminalLiteralFoldIdentity>,
     final_selected: TerminalSelectedInstructionPlanIdentity,
     final_liveness: omega_regalloc::TerminalLivenessIdentity,
     final_ranges: omega_regalloc::TerminalLiveRangeIdentity,
     final_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
-    usage: Vec<OptimizationWorkUsage>,
     final_virtual_register_count: usize,
     final_entry_transition_count: usize,
 }
@@ -95,6 +95,9 @@ pub struct StagedOptimizedLiteralFoldCustodyReceipt {
 impl StagedOptimizedLiteralFoldCustodyReceipt {
     pub const fn source(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
+    }
+    pub fn iterations(&self) -> &[StagedOptimizedLiteralFoldIterationReceipt] {
+        &self.iterations
     }
     pub fn transformations(&self) -> &[TerminalLiteralFoldIdentity] {
         &self.transformations
@@ -111,14 +114,82 @@ impl StagedOptimizedLiteralFoldCustodyReceipt {
     pub const fn final_legality(&self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
         self.final_legality
     }
-    pub fn usage(&self) -> &[OptimizationWorkUsage] {
-        &self.usage
-    }
     pub const fn final_virtual_register_count(&self) -> usize {
         self.final_virtual_register_count
     }
     pub const fn final_entry_transition_count(&self) -> usize {
         self.final_entry_transition_count
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedOptimizedLiteralFoldIterationReceipt {
+    source_selected: TerminalSelectedInstructionPlanIdentity,
+    source_ranges: omega_regalloc::TerminalLiveRangeIdentity,
+    source_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
+    choices: omega_regalloc::TerminalSpillChoiceIdentity,
+    choice_policy: TerminalSpillChoicePolicy,
+    choice_usage: OptimizationWorkUsage,
+    recovery: omega_regalloc::TerminalRecoveryClassificationIdentity,
+    recovery_policy: TerminalRecoveryClassificationPolicy,
+    recovery_usage: OptimizationWorkUsage,
+    fold: TerminalLiteralFoldIdentity,
+    fold_policy: TerminalLiteralFoldPolicy,
+    fold_usage: OptimizationWorkUsage,
+    transformed_selected: TerminalSelectedInstructionPlanIdentity,
+    fresh_liveness: omega_regalloc::TerminalLivenessIdentity,
+    fresh_ranges: omega_regalloc::TerminalLiveRangeIdentity,
+    fresh_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
+}
+
+impl StagedOptimizedLiteralFoldIterationReceipt {
+    pub const fn source_selected(self) -> TerminalSelectedInstructionPlanIdentity {
+        self.source_selected
+    }
+    pub const fn source_ranges(self) -> omega_regalloc::TerminalLiveRangeIdentity {
+        self.source_ranges
+    }
+    pub const fn source_legality(self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
+        self.source_legality
+    }
+    pub const fn choices(self) -> omega_regalloc::TerminalSpillChoiceIdentity {
+        self.choices
+    }
+    pub const fn choice_policy(self) -> TerminalSpillChoicePolicy {
+        self.choice_policy
+    }
+    pub const fn choice_usage(self) -> OptimizationWorkUsage {
+        self.choice_usage
+    }
+    pub const fn recovery(self) -> omega_regalloc::TerminalRecoveryClassificationIdentity {
+        self.recovery
+    }
+    pub const fn recovery_policy(self) -> TerminalRecoveryClassificationPolicy {
+        self.recovery_policy
+    }
+    pub const fn recovery_usage(self) -> OptimizationWorkUsage {
+        self.recovery_usage
+    }
+    pub const fn fold(self) -> TerminalLiteralFoldIdentity {
+        self.fold
+    }
+    pub const fn fold_policy(self) -> TerminalLiteralFoldPolicy {
+        self.fold_policy
+    }
+    pub const fn fold_usage(self) -> OptimizationWorkUsage {
+        self.fold_usage
+    }
+    pub const fn transformed_selected(self) -> TerminalSelectedInstructionPlanIdentity {
+        self.transformed_selected
+    }
+    pub const fn fresh_liveness(self) -> omega_regalloc::TerminalLivenessIdentity {
+        self.fresh_liveness
+    }
+    pub const fn fresh_ranges(self) -> omega_regalloc::TerminalLiveRangeIdentity {
+        self.fresh_ranges
+    }
+    pub const fn fresh_legality(self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
+        self.fresh_legality
     }
 }
 
@@ -371,6 +442,7 @@ fn custody_receipt(
     let final_step = steps.last().expect("literal-fold custody is nonempty");
     StagedOptimizedLiteralFoldCustodyReceipt {
         source,
+        iterations: steps.iter().map(iteration_receipt).collect(),
         transformations: steps
             .iter()
             .map(|step| step.fold.receipt().identity())
@@ -379,11 +451,30 @@ fn custody_receipt(
         final_liveness: final_step.liveness.receipt().identity(),
         final_ranges: final_step.ranges.receipt().identity(),
         final_legality: final_step.legality.receipt().identity(),
-        usage: steps
-            .iter()
-            .map(|step| step.fold.receipt().usage())
-            .collect(),
         final_virtual_register_count: final_step.legality.receipt().virtual_register_count(),
         final_entry_transition_count: final_step.legality.receipt().entry_transition_count(),
+    }
+}
+
+fn iteration_receipt(
+    step: &StagedOptimizedLiteralFoldStep,
+) -> StagedOptimizedLiteralFoldIterationReceipt {
+    StagedOptimizedLiteralFoldIterationReceipt {
+        source_selected: step.fold.plan().source_selected,
+        source_ranges: step.fold.plan().ranges,
+        source_legality: step.fold.plan().legality,
+        choices: step.choices.receipt().identity(),
+        choice_policy: step.choices.receipt().policy(),
+        choice_usage: step.choices.receipt().usage(),
+        recovery: step.recovery.receipt().identity(),
+        recovery_policy: step.recovery.receipt().policy(),
+        recovery_usage: step.recovery.receipt().usage(),
+        fold: step.fold.receipt().identity(),
+        fold_policy: step.fold.receipt().policy(),
+        fold_usage: step.fold.receipt().usage(),
+        transformed_selected: step.fold.receipt().transformed_selected(),
+        fresh_liveness: step.liveness.receipt().identity(),
+        fresh_ranges: step.ranges.receipt().identity(),
+        fresh_legality: step.legality.receipt().identity(),
     }
 }
