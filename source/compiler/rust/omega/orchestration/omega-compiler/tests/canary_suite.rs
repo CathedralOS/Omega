@@ -1,7 +1,7 @@
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport,
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_to_checked,
-    compile_with_artifact_policy, compile_with_test_entry_worker_count_and_artifact_policy,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_request,
+    compile_to_checked, compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
 };
 

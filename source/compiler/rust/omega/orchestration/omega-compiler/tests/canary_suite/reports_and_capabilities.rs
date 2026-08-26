@@ -44,15 +44,15 @@ fn assert_toolchain_build_source_drops(report: &str) {
 #[test]
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
-    let success = compile_with_artifact_policy(
-        CompileOptions {
+    let success = compile_request(
+        CompileRequest::new(CompileOptions {
             root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
                 .join("main.omg"),
             build_dir: Some(success_build_dir.clone()),
             target_name: None,
             write_output: false,
-        },
-        ArtifactEmissionPolicy::OutputOnly,
+        })
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
     .expect("output-only frontend check should succeed");
     assert!(!success.wrote_output());
@@ -62,14 +62,14 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     );
 
     let failure_build_dir = unique_no_output_build_dir();
-    let diagnostics = compile_with_artifact_policy(
-        CompileOptions {
+    let diagnostics = compile_request(
+        CompileRequest::new(CompileOptions {
             root_path: fail_canary("wire/wire_compatibility_preservation_unmet").join("main.omg"),
             build_dir: Some(failure_build_dir.clone()),
             target_name: None,
             write_output: false,
-        },
-        ArtifactEmissionPolicy::OutputOnly,
+        })
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
     .expect_err("output-only mode must retain wire compatibility validation");
     assert!(
@@ -87,14 +87,14 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 #[test]
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
-    let report = compile_with_artifact_policy(
-        CompileOptions {
+    let report = compile_request(
+        CompileRequest::new(CompileOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("windows_x64".into()),
             write_output: true,
-        },
-        ArtifactEmissionPolicy::OutputOnly,
+        })
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
     .expect("output-only backend compile should still certify and install its image");
     assert!(report.wrote_output());

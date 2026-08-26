@@ -16,8 +16,8 @@
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, compile_to_checked,
-    compile_with_artifact_policy, compile_with_test_entry_and_artifact_policy,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest, compile_request,
+    compile_to_checked, compile_with_test_entry_and_artifact_policy,
     compile_with_test_entry_worker_count_and_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
 };
@@ -2936,7 +2936,9 @@ fn try_compile_and_run_native_with_stdin(
             worker_count,
             ArtifactEmissionPolicy::OutputOnly,
         ),
-        (true, None) => compile_with_artifact_policy(options, ArtifactEmissionPolicy::OutputOnly),
+        (true, None) => compile_request(
+            CompileRequest::new(options).with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        ),
         (false, Some(worker_count)) => compile_with_test_entry_worker_count_and_artifact_policy(
             options,
             "Main::main",
