@@ -331,6 +331,7 @@ mod tests {
             entry_boundary_plan: None,
             callback_placements: Arc::from([]),
             callback_thunks: Arc::from([]),
+            callback_private_relocations: Arc::from([]),
             receiver_bases: Vec::new(),
             state_contexts: Vec::new(),
             phase_timings: Arena::<BackendPlanPhaseTiming>::new(),

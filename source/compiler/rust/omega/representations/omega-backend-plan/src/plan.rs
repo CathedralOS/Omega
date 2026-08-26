@@ -1,5 +1,6 @@
 use crate::{
-    BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement, CallbackThunkPlan,
+    BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement,
+    CallbackPrivateRelocationDemand, CallbackThunkPlan,
 };
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
@@ -66,6 +67,9 @@ pub struct BackendPlan {
     /// entries. This is the address-free input to future multi-entry target
     /// instruction and object-symbol lowering.
     pub callback_thunks: Arc<[CallbackThunkPlan]>,
+    /// Complete ordered address-free joins from target-closed private
+    /// materialization rows to emitted callback thunk identities.
+    pub callback_private_relocations: Arc<[CallbackPrivateRelocationDemand]>,
     /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
     /// state's arena index): `Some(base)` when the dispatch case's clone
     /// context was minted by a call through a CONTAINED receiver whose true

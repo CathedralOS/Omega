@@ -224,6 +224,7 @@ mod tests {
             canonical_requirement_overload: format!("Handler::call#{placement_index}"),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            private_materialization: None,
         };
         let entry_key = StateKey {
             machine: placement.selected_machine,

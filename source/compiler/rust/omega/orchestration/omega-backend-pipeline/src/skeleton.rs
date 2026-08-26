@@ -2,7 +2,7 @@ use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
 use omega_backend_plan::{
     BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming, BoundNominalCallbackPlacement,
-    CallbackThunkPlan,
+    CallbackPrivateRelocationDemand, CallbackThunkPlan,
 };
 use omega_calling_conventions::{BoundaryEntryPlan, HostAbiPlan};
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -38,6 +38,7 @@ pub(super) struct BackendPlanSkeletonInput {
     pub entry_boundary_plan: Option<BoundaryEntryPlan>,
     pub callback_placements: Arc<[BoundNominalCallbackPlacement]>,
     pub callback_thunks: Arc<[CallbackThunkPlan]>,
+    pub callback_private_relocations: Arc<[CallbackPrivateRelocationDemand]>,
     pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 
@@ -71,6 +72,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         entry_boundary_plan: input.entry_boundary_plan,
         callback_placements: input.callback_placements,
         callback_thunks: input.callback_thunks,
+        callback_private_relocations: input.callback_private_relocations,
         receiver_bases: Vec::new(),
         state_contexts: Vec::new(),
         phase_timings: input.phase_timings,

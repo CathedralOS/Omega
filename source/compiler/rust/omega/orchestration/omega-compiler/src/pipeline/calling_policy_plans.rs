@@ -372,6 +372,19 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
+        let private_materialization = match bound_private_callback_materialization(
+            nominal_use,
+            realizations,
+        ) {
+            Ok(materialization) => materialization,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "nominal callback use for `{}` could not retain its exact private materialization: {reason}",
+                    nominal_use.canonical_requirement_overload
+                )));
+                continue;
+            }
+        };
         bound.push(omega_backend_plan::BoundNominalCallbackPlacement {
             site: nominal_use.site,
             registration_operation: nominal_use.registration_operation,
@@ -383,6 +396,7 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
             canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
             boundary_calling_plan_fingerprint: realized_fingerprint,
             boundary_entry_plan: validated.plan().clone(),
+            private_materialization,
         });
     }
 
@@ -391,6 +405,151 @@ pub(crate) fn validate_nominal_callback_placement_bindings(
     } else {
         Err(diagnostics)
     }
+}
+
+fn bound_private_callback_materialization(
+    nominal_use: &psi_checked_trees::CheckedNominalMachineUse,
+    realizations: &[BoundaryCallingPlanRealization],
+) -> Result<Option<omega_backend_plan::BoundCallbackPrivateMaterialization>, String> {
+    let matching_registrars = realizations
+        .iter()
+        .filter(|realization| {
+            realization.requirement_machine == nominal_use.registration_operation
+                && realization.callback_binders.iter().any(|binder| {
+                    binder.static_machine_ordinal == nominal_use.static_machine_ordinal
+                        && binder.requirement_trait == nominal_use.satisfaction_trait
+                        && binder.requirement_machine == nominal_use.satisfaction_requirement
+                })
+        })
+        .collect::<Vec<_>>();
+    let [registrar] = matching_registrars.as_slice() else {
+        return Err(format!(
+            "registration operation and exact satisfaction row resolve to {} outbound registrar realizations; exactly one is required",
+            matching_registrars.len()
+        ));
+    };
+    validate_retained_callback_binders(registrar)?;
+
+    let matching_binders = registrar
+        .callback_binders
+        .iter()
+        .filter(|binder| {
+            binder.static_machine_ordinal == nominal_use.static_machine_ordinal
+                && binder.requirement_trait == nominal_use.satisfaction_trait
+                && binder.requirement_machine == nominal_use.satisfaction_requirement
+        })
+        .collect::<Vec<_>>();
+    let [binder] = matching_binders.as_slice() else {
+        return Err(format!(
+            "static-machine ordinal {} and exact satisfaction row resolve to {} binder identities in the selected registrar realization; exactly one is required",
+            nominal_use.static_machine_ordinal,
+            matching_binders.len()
+        ));
+    };
+    let signature = CallSignature {
+        parameters: registrar
+            .boundary_entry_plan
+            .call
+            .parameters
+            .iter()
+            .map(|placement| placement.shape)
+            .collect(),
+        result: registrar
+            .boundary_entry_plan
+            .call
+            .result
+            .as_ref()
+            .map(|placement| placement.shape),
+    };
+    if !registrar.callback_context_closed {
+        if !registrar
+            .boundary_entry_plan
+            .call
+            .callback_materializations
+            .is_empty()
+        {
+            return Err(
+                "an unclosed target context retained private callback materialization rows"
+                    .to_owned(),
+            );
+        }
+        let validated = omega_calling_conventions::validate_boundary_entry_plan(
+            registrar.boundary_entry_plan.clone(),
+            &signature,
+        )
+        .map_err(|error| error.to_string())?;
+        if validated.plan() != &registrar.boundary_entry_plan
+            || validated.contract_fingerprint() != registrar.fingerprint
+        {
+            return Err(
+                "the exact outbound registrar realization drifted from its retained fingerprint"
+                    .to_owned(),
+            );
+        }
+        return Ok(None);
+    }
+
+    let context = CallbackMaterializationContext {
+        binders: registrar
+            .callback_binders
+            .iter()
+            .map(|binder| CallbackBinderRequirement {
+                binder: binder.binder,
+                requirement: binder.requirement,
+            })
+            .collect(),
+        demands: registrar.callback_demands.clone(),
+    };
+    let validated = validate_boundary_entry_plan_with_callback_materializations(
+        registrar.boundary_entry_plan.clone(),
+        &signature,
+        &context,
+    )
+    .map_err(|error| error.to_string())?;
+    if validated.plan() != &registrar.boundary_entry_plan
+        || validated.contract_fingerprint() != registrar.fingerprint
+    {
+        return Err(
+            "the exact outbound registrar realization drifted from its retained fingerprint"
+                .to_owned(),
+        );
+    }
+    let matching_rows = registrar
+        .boundary_entry_plan
+        .call
+        .callback_materializations
+        .iter()
+        .filter(|row| row.binder == binder.binder)
+        .collect::<Vec<_>>();
+    let [row] = matching_rows.as_slice() else {
+        return Err(format!(
+            "exact binder identity resolves to {} private materialization rows; exactly one is required",
+            matching_rows.len()
+        ));
+    };
+    let matching_demands = registrar
+        .callback_demands
+        .iter()
+        .filter(|demand| {
+            demand.destination == row.destination && demand.requirement == binder.requirement
+        })
+        .collect::<Vec<_>>();
+    let [demand] = matching_demands.as_slice() else {
+        return Err(format!(
+            "exact binder destination and callback requirement resolve to {} private demands; exactly one is required",
+            matching_demands.len()
+        ));
+    };
+    Ok(Some(
+        omega_backend_plan::BoundCallbackPrivateMaterialization {
+            binder: binder.binder,
+            destination: row.destination.clone(),
+            requirement: demand.requirement,
+            registrar_boundary_entry_plan: validated.plan().clone(),
+            registrar_calling_plan_fingerprint: validated.contract_fingerprint(),
+            context,
+        },
+    ))
 }
 
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
@@ -2781,11 +2940,12 @@ mod tests {
         let fingerprint = validated.contract_fingerprint();
         let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(1);
         let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
+        let registration_operation = psi_symbols::SymbolHandle::from_arena_index(3);
         let nominal_use = psi_checked_trees::CheckedNominalMachineUse {
             site: psi_checked_trees::NominalMachineUseSite::Expression(
                 psi_typed_trees::expression::ExpressionHandle::from_arena_index(1),
             ),
-            registration_operation: psi_symbols::SymbolHandle::from_arena_index(3),
+            registration_operation,
             static_machine_ordinal: 0,
             selected_machine: psi_symbols::SymbolHandle::from_arena_index(4),
             selected_entry: psi_symbols::SymbolHandle::from_arena_index(5),
@@ -2811,7 +2971,7 @@ mod tests {
         checked.facts.nominal_machine_uses =
             psi_checked_trees::NominalMachineUseFacts::try_with_uses([nominal_use])
                 .expect("valid nominal callback row");
-        let realization = BoundaryCallingPlanRealization {
+        let inbound_realization = BoundaryCallingPlanRealization {
             boundary_trait,
             boundary_arguments: Vec::new(),
             requirement_machine: requirement,
@@ -2828,7 +2988,31 @@ mod tests {
             policy_machine: String::new(),
             relationship_span: psi_source::SourceSpan::default(),
         };
-        (checked, vec![realization])
+        let registrar_realization = BoundaryCallingPlanRealization {
+            boundary_trait: psi_symbols::SymbolHandle::from_arena_index(9),
+            boundary_arguments: Vec::new(),
+            requirement_machine: registration_operation,
+            fingerprint,
+            boundary_entry_plan: validated.plan().clone(),
+            callback_binders: vec![BoundaryCallbackBinder {
+                binder: StaticMachineBinderId::new(31).unwrap(),
+                requirement: CallbackRequirementId::new(37).unwrap(),
+                static_machine_ordinal: 0,
+                parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(11),
+                requirement_trait: boundary_trait,
+                requirement_machine: requirement,
+            }],
+            callback_demands: Vec::new(),
+            callback_context_closed: false,
+            native_parameters: Vec::new(),
+            materialized_signature: materialized_boundary_signature_from_abi(
+                &CallSignature::default(),
+            )
+            .unwrap(),
+            policy_machine: String::new(),
+            relationship_span: psi_source::SourceSpan::default(),
+        };
+        (checked, vec![inbound_realization, registrar_realization])
     }
 
     #[test]
@@ -2860,8 +3044,11 @@ mod tests {
 
     #[test]
     fn nominal_callback_consumer_replays_exact_materialization_context() {
-        let (mut checked, mut realizations) = nominal_callback_fixture();
-        let realization = &mut realizations[0];
+        let (checked, mut realizations) = nominal_callback_fixture();
+        let nominal_use = &checked.facts.nominal_machine_uses.uses[0];
+        let satisfaction_trait = nominal_use.satisfaction_trait;
+        let satisfaction_requirement = nominal_use.satisfaction_requirement;
+        let realization = &mut realizations[1];
         let binder = StaticMachineBinderId::new(101).unwrap();
         let requirement = CallbackRequirementId::new(103).unwrap();
         let destination = NativePlace::Field {
@@ -2874,8 +3061,8 @@ mod tests {
             requirement,
             static_machine_ordinal: 0,
             parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(13),
-            requirement_trait: psi_symbols::SymbolHandle::from_arena_index(17),
-            requirement_machine: psi_symbols::SymbolHandle::from_arena_index(19),
+            requirement_trait: satisfaction_trait,
+            requirement_machine: satisfaction_requirement,
         }];
         realization.callback_demands = vec![NativeCallbackDemand {
             destination: destination.clone(),
@@ -2887,7 +3074,7 @@ mod tests {
             .call
             .callback_materializations = vec![CallbackMaterialization {
             binder,
-            destination,
+            destination: destination.clone(),
         }];
         let signature = CallSignature::default();
         let context = CallbackMaterializationContext {
@@ -2904,16 +3091,82 @@ mod tests {
         )
         .unwrap()
         .contract_fingerprint();
-        checked.facts.nominal_machine_uses.uses[0]
-            .callback_placement
-            .as_mut()
-            .unwrap()
-            .boundary_calling_plan_fingerprint = realization.fingerprint;
-
-        validate_nominal_callback_placement_bindings(&checked, &realizations)
+        let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("exact retained callback context should replay");
+        let retained = bound[0]
+            .private_materialization
+            .as_ref()
+            .expect("target-closed callback use retains its exact private row");
+        assert_eq!(retained.binder, binder);
+        assert_eq!(retained.destination, destination);
+        assert_eq!(retained.requirement, requirement);
+        assert_eq!(retained.context, context);
+        assert_eq!(
+            retained.registrar_boundary_entry_plan,
+            realizations[1].boundary_entry_plan
+        );
+        assert_eq!(
+            retained.registrar_calling_plan_fingerprint,
+            realizations[1].fingerprint
+        );
 
-        realizations[0].callback_demands[0].destination =
+        let mut ordinal_drift = checked.clone();
+        ordinal_drift.facts.nominal_machine_uses.uses[0].static_machine_ordinal = 1;
+        let diagnostics =
+            validate_nominal_callback_placement_bindings(&ordinal_drift, &realizations)
+                .expect_err("a different static-machine ordinal cannot select the binder row");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("exact private materialization")
+                && diagnostics[0]
+                    .message
+                    .contains("outbound registrar realizations"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+
+        let mut operation_drift = checked.clone();
+        operation_drift.facts.nominal_machine_uses.uses[0].registration_operation =
+            psi_symbols::SymbolHandle::from_arena_index(149);
+        let diagnostics =
+            validate_nominal_callback_placement_bindings(&operation_drift, &realizations)
+                .expect_err("a substituted registrar operation cannot select the outbound plan");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("outbound registrar realizations"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+
+        let diagnostics =
+            validate_nominal_callback_placement_bindings(&checked, &realizations[..1])
+                .expect_err("the callback use cannot lose its outbound registrar realization");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("0 outbound registrar realizations"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+        let duplicate_registrar = vec![
+            realizations[0].clone(),
+            realizations[1].clone(),
+            realizations[1].clone(),
+        ];
+        let diagnostics =
+            validate_nominal_callback_placement_bindings(&checked, &duplicate_registrar)
+                .expect_err("the callback use cannot select duplicate outbound realizations");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("2 outbound registrar realizations"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0]
+        );
+
+        realizations[1].callback_demands[0].destination =
             NativePlace::Parameter(NativeParameterId::new(127).unwrap());
         let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect_err("demand substitution must fail the later consumer replay");
@@ -2929,19 +3182,10 @@ mod tests {
     #[test]
     fn target_neutral_binder_defers_supply_but_target_closed_binder_rejects_missing_supply() {
         let (checked, mut realizations) = nominal_callback_fixture();
-        realizations[0].callback_binders = vec![BoundaryCallbackBinder {
-            binder: StaticMachineBinderId::new(131).unwrap(),
-            requirement: CallbackRequirementId::new(137).unwrap(),
-            static_machine_ordinal: 0,
-            parameter_symbol: psi_symbols::SymbolHandle::from_arena_index(23),
-            requirement_trait: psi_symbols::SymbolHandle::from_arena_index(29),
-            requirement_machine: psi_symbols::SymbolHandle::from_arena_index(31),
-        }];
-
         validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("a no-target checked realization must remain target-neutral");
 
-        realizations[0].callback_context_closed = true;
+        realizations[1].callback_context_closed = true;
         let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect_err("target closure must reject a binder without native supply");
         assert!(

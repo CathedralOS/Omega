@@ -215,9 +215,17 @@ separate from the process-entry footprint, through machine emission. Callbacks
 with parameters, results, body operations, transitions, or hidden semantic
 state continue to reject. General multi-entry/re-entrant code emission and
 placement of the private symbol into the registrar's declared native slot are
-separate lowering steps. The placement step consumes only a complete validated
-outbound plan: missing, duplicate, overlapping, shape-incompatible, or
-unresolved private materialization demands reject.
+separate lowering steps. The first placement-planning step is address-free: it
+keeps the handler's inbound entry plan distinct from the registrar operation's
+outbound plan, retains the outbound plan's complete context and fingerprint,
+and joins its exact binder/requirement/`NativePlace` row one-to-one and in order
+with the emitted thunk/root schedule. Missing, duplicate, reordered, or
+identity-drifted demands reject independently. The retained demand owns no
+target operation, physical offset, bytes, object relocation, runtime storage,
+native address, registration authority, or lease. Actual private-symbol
+relocation still consumes only a complete validated outbound plan: missing,
+duplicate, overlapping, shape-incompatible, or unresolved materializations
+reject.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`

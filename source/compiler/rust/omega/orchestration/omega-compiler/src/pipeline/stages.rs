@@ -996,6 +996,7 @@ fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::Emi
         &mut emission,
         &plan.callback_placements,
         &plan.callback_thunks,
+        &plan.callback_private_relocations,
         &plan.encoded_machine,
         &plan.object,
     );
@@ -1009,9 +1010,26 @@ fn retain_callback_thunk_emission_blockers(
     emission: &mut omega_artifacts::EmissionPlan,
     callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
     callback_thunks: &[omega_backend_plan::CallbackThunkPlan],
+    callback_private_relocations: &[omega_backend_plan::CallbackPrivateRelocationDemand],
     encoded_machine: &omega_machine_bytes::EncodedMachinePlan,
     object: &omega_object_file::ObjectPlan,
 ) {
+    if !callback_private_relocations.is_empty()
+        || callback_placements
+            .iter()
+            .any(|placement| placement.private_materialization.is_some())
+    {
+        if let Err(error) = omega_backend_plan::replay_callback_private_relocation_demands(
+            callback_placements,
+            callback_thunks,
+            callback_private_relocations,
+        ) {
+            emission.blockers.insert(omega_artifacts::emission_blocker(
+                "callback private relocation demand",
+                &format!("address-free callback relocation demand replay failed: {error}"),
+            ));
+        }
+    }
     let mut placement_thunk_counts = vec![0usize; callback_placements.len()];
     let mut private_identity_counts = HashMap::<&str, usize>::new();
     for thunk in callback_thunks {
@@ -1587,6 +1605,7 @@ mod tests {
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            private_materialization: None,
         }
     }
 
@@ -1650,7 +1669,14 @@ mod tests {
         object: &omega_object_file::ObjectPlan,
     ) -> Vec<String> {
         let mut emission = empty_emission(encoded.target);
-        retain_callback_thunk_emission_blockers(&mut emission, placements, thunks, encoded, object);
+        retain_callback_thunk_emission_blockers(
+            &mut emission,
+            placements,
+            thunks,
+            &[],
+            encoded,
+            object,
+        );
         emission
             .blockers
             .iter()
