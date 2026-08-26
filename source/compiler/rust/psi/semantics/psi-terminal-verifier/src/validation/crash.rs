@@ -599,28 +599,8 @@ fn validate_boolean_field_terms(
                 scalar_type,
                 left,
                 right,
-            } => {
-                let policy = if matches!(term, ScalarTerm::WrappingIntegerDivide { .. }) {
-                    ArithmeticDomain::Wrapping
-                } else {
-                    ArithmeticDomain::Saturating
-                };
-                let conditions = integer_policy_bridge(IntegerPolicyPrimitive::Divide, policy)
-                    .formation_conditions;
-                if conditions != [IntegerFormationCondition::NonZeroDivisor]
-                    || !safe_policy_divisor(*scalar_type, right, runtime_requirements)
-                {
-                    return Err(ModuleError::UnsafeStructuralCrashPolicyDivisor {
-                        machine: machine.id,
-                        scalar_type: *scalar_type,
-                    });
-                }
-                validate_term(module, machine, left, runtime_requirements)?;
-                validate_term(module, machine, right, runtime_requirements)?;
             }
-            // Remainder retains its explicit safety path until the shared
-            // integer-policy catalog settles a remainder primitive.
-            ScalarTerm::WrappingIntegerRemainder {
+            | ScalarTerm::WrappingIntegerRemainder {
                 scalar_type,
                 left,
                 right,
@@ -630,7 +610,28 @@ fn validate_boolean_field_terms(
                 left,
                 right,
             } => {
-                if !safe_policy_divisor(*scalar_type, right, runtime_requirements) {
+                let policy = if matches!(
+                    term,
+                    ScalarTerm::WrappingIntegerDivide { .. }
+                        | ScalarTerm::WrappingIntegerRemainder { .. }
+                ) {
+                    ArithmeticDomain::Wrapping
+                } else {
+                    ArithmeticDomain::Saturating
+                };
+                let primitive = if matches!(
+                    term,
+                    ScalarTerm::WrappingIntegerRemainder { .. }
+                        | ScalarTerm::SaturatingIntegerRemainder { .. }
+                ) {
+                    IntegerPolicyPrimitive::Remainder
+                } else {
+                    IntegerPolicyPrimitive::Divide
+                };
+                let conditions = integer_policy_bridge(primitive, policy).formation_conditions;
+                if conditions != [IntegerFormationCondition::NonZeroDivisor]
+                    || !safe_policy_divisor(*scalar_type, right, runtime_requirements)
+                {
                     return Err(ModuleError::UnsafeStructuralCrashPolicyDivisor {
                         machine: machine.id,
                         scalar_type: *scalar_type,
@@ -643,10 +644,19 @@ fn validate_boolean_field_terms(
                 scalar_type,
                 left,
                 right,
+            }
+            | ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
             } => {
+                let primitive = if matches!(term, ScalarTerm::ExactIntegerRemainder { .. }) {
+                    IntegerPolicyPrimitive::Remainder
+                } else {
+                    IntegerPolicyPrimitive::Divide
+                };
                 let conditions =
-                    integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
-                        .formation_conditions;
+                    integer_policy_bridge(primitive, ArithmeticDomain::Exact).formation_conditions;
                 if conditions
                     != [
                         IntegerFormationCondition::NonZeroDivisor,
@@ -654,20 +664,6 @@ fn validate_boolean_field_terms(
                     ]
                     || !safe_exact_divisor(*scalar_type, left, right, runtime_requirements)
                 {
-                    return Err(ModuleError::UnsafeStructuralCrashExactDivisor {
-                        machine: machine.id,
-                        scalar_type: *scalar_type,
-                    });
-                }
-                validate_term(module, machine, left, runtime_requirements)?;
-                validate_term(module, machine, right, runtime_requirements)?;
-            }
-            ScalarTerm::ExactIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => {
-                if !safe_exact_divisor(*scalar_type, left, right, runtime_requirements) {
                     return Err(ModuleError::UnsafeStructuralCrashExactDivisor {
                         machine: machine.id,
                         scalar_type: *scalar_type,

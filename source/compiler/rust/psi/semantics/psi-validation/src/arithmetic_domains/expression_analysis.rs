@@ -16,6 +16,7 @@ fn integer_policy_primitive(
         BinaryOperator::Subtract => Some(IntegerPolicyPrimitive::Subtract),
         BinaryOperator::Multiply => Some(IntegerPolicyPrimitive::Multiply),
         BinaryOperator::Divide => Some(IntegerPolicyPrimitive::Divide),
+        BinaryOperator::Modulo => Some(IntegerPolicyPrimitive::Remainder),
         BinaryOperator::ShiftLeft => Some(IntegerPolicyPrimitive::ShiftLeft),
         BinaryOperator::ShiftRight => Some(IntegerPolicyPrimitive::ShiftRight),
         _ => None,
@@ -325,10 +326,11 @@ pub(super) fn analyze(
                     )));
                 }
             }
-            // Exact division retains its dedicated specification-position
-            // definedness checker; preserve that established lane while the
-            // generic interval gate consumes every other representability row.
-            if operator != BinaryOperator::Divide
+            // Exact division/remainder retain their dedicated specification-
+            // position definedness checker; preserve that established lane
+            // while the generic interval gate consumes every other
+            // representability row.
+            if !matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo)
                 && policy_bridge.is_some_and(|bridge| {
                     bridge.formation_conditions.contains(
                     &psi_numerics::integer_policy::IntegerFormationCondition::ResultRepresentable,

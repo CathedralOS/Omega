@@ -406,7 +406,21 @@ fn integer_operation_obligations_follow_the_shared_policy_catalog() {
     );
     assert_eq!(
         LoweredIntegerBinaryKind::ExactRemainder.integer_policy_binding(),
-        None,
+        Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact,)),
+    );
+    assert_eq!(
+        LoweredIntegerBinaryKind::WrappingRemainder.integer_policy_binding(),
+        Some((
+            IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Wrapping,
+        )),
+    );
+    assert_eq!(
+        LoweredIntegerBinaryKind::SaturatingRemainder.integer_policy_binding(),
+        Some((
+            IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Saturating,
+        )),
     );
 }
 

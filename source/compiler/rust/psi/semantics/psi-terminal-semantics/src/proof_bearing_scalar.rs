@@ -75,8 +75,7 @@ impl ProofBearingScalarLeafSchema {
 }
 
 /// Exact join from a Terminal operation row into the shared fixed-width
-/// integer policy catalog. Operations absent from that settled catalog (exact
-/// cast and the remainder family) deliberately have no binding.
+/// integer policy catalog. Exact cast remains outside that settled catalog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProofBearingIntegerPolicyBinding {
     primitive: IntegerPolicyPrimitive,
@@ -98,8 +97,7 @@ impl ProofBearingIntegerPolicyBinding {
 }
 
 /// Return the exact shared-catalog identity for a proof-bearing Terminal row.
-/// Remainder is intentionally absent until the integer policy catalog settles
-/// a remainder primitive.
+/// Exact cast remains the sole row outside the arithmetic primitive catalog.
 pub const fn proof_bearing_integer_policy_binding(
     tag: OperationSemanticTag,
 ) -> Option<ProofBearingIntegerPolicyBinding> {
@@ -122,6 +120,17 @@ pub const fn proof_bearing_integer_policy_binding(
         OperationSemanticTag::SaturatingIntegerDivide => {
             (IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating)
         }
+        OperationSemanticTag::ExactIntegerRemainder => {
+            (IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact)
+        }
+        OperationSemanticTag::WrappingIntegerRemainder => (
+            IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Wrapping,
+        ),
+        OperationSemanticTag::SaturatingIntegerRemainder => (
+            IntegerPolicyPrimitive::Remainder,
+            ArithmeticDomain::Saturating,
+        ),
         OperationSemanticTag::ExactIntegerShiftLeft => {
             (IntegerPolicyPrimitive::ShiftLeft, ArithmeticDomain::Exact)
         }
@@ -143,15 +152,16 @@ fn catalog_goal_shape(binding: ProofBearingIntegerPolicyBinding) -> Option<Scala
             [IntegerFormationCondition::ResultRepresentable],
         ) => Some(ScalarLeafGoalShape::ExactArithmeticRepresentable),
         (
-            IntegerPolicyPrimitive::Divide,
+            IntegerPolicyPrimitive::Divide | IntegerPolicyPrimitive::Remainder,
             [
                 IntegerFormationCondition::NonZeroDivisor,
                 IntegerFormationCondition::ResultRepresentable,
             ],
         ) => Some(ScalarLeafGoalShape::ExactDivisionDefined),
-        (IntegerPolicyPrimitive::Divide, [IntegerFormationCondition::NonZeroDivisor]) => {
-            Some(ScalarLeafGoalShape::NonzeroDivisor)
-        }
+        (
+            IntegerPolicyPrimitive::Divide | IntegerPolicyPrimitive::Remainder,
+            [IntegerFormationCondition::NonZeroDivisor],
+        ) => Some(ScalarLeafGoalShape::NonzeroDivisor),
         (
             IntegerPolicyPrimitive::ShiftLeft,
             [
@@ -314,15 +324,18 @@ const PROOF_BEARING_SCALAR_TAGS: [OperationSemanticTag; 12] = [
     OperationSemanticTag::SaturatingIntegerRemainder,
 ];
 
-const INTEGER_POLICY_BOUND_TAGS: [OperationSemanticTag; 8] = [
+const INTEGER_POLICY_BOUND_TAGS: [OperationSemanticTag; 11] = [
     OperationSemanticTag::ExactIntegerShiftLeft,
     OperationSemanticTag::ExactIntegerShiftRight,
     OperationSemanticTag::ExactIntegerAdd,
     OperationSemanticTag::ExactIntegerSubtract,
     OperationSemanticTag::ExactIntegerMultiply,
     OperationSemanticTag::ExactIntegerDivide,
+    OperationSemanticTag::ExactIntegerRemainder,
     OperationSemanticTag::WrappingIntegerDivide,
+    OperationSemanticTag::WrappingIntegerRemainder,
     OperationSemanticTag::SaturatingIntegerDivide,
+    OperationSemanticTag::SaturatingIntegerRemainder,
 ];
 
 const fn is_proof_bearing_scalar_tag(tag: OperationSemanticTag) -> bool {
@@ -1079,7 +1092,7 @@ mod tests {
 
     #[test]
     fn integer_policy_rows_rejoin_the_shared_catalog_exactly() {
-        assert_eq!(INTEGER_POLICY_BOUND_TAGS.len(), 8);
+        assert_eq!(INTEGER_POLICY_BOUND_TAGS.len(), 11);
         for tag in INTEGER_POLICY_BOUND_TAGS {
             let binding = proof_bearing_integer_policy_binding(tag)
                 .expect("every bound Terminal row has one catalog identity");
@@ -1105,14 +1118,17 @@ mod tests {
                 policy: ArithmeticDomain::Wrapping,
             }),
         );
-        for unbound in [
-            OperationSemanticTag::IntegerExactCast,
-            OperationSemanticTag::ExactIntegerRemainder,
-            OperationSemanticTag::WrappingIntegerRemainder,
-            OperationSemanticTag::SaturatingIntegerRemainder,
-        ] {
-            assert_eq!(proof_bearing_integer_policy_binding(unbound), None);
-        }
+        assert_eq!(
+            proof_bearing_integer_policy_binding(OperationSemanticTag::SaturatingIntegerRemainder),
+            Some(ProofBearingIntegerPolicyBinding {
+                primitive: IntegerPolicyPrimitive::Remainder,
+                policy: ArithmeticDomain::Saturating,
+            }),
+        );
+        assert_eq!(
+            proof_bearing_integer_policy_binding(OperationSemanticTag::IntegerExactCast),
+            None
+        );
     }
 
     #[test]

@@ -2697,36 +2697,34 @@ Remaining:
   the dispatcher falsely claims a kernel derivation of the canonical goal. The
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
-  Eight of those Terminal rows now rejoin the settled shared integer-policy
+  Eleven of those Terminal rows now rejoin the settled shared integer-policy
   catalog by exact primitive/domain identity: exact add/subtract/multiply,
-  exact divide, exact left/right shift, and wrapping/saturating divide. Row
+  exact divide/remainder, exact left/right shift, and wrapping/saturating
+  divide/remainder. Row
   validation derives their existing canonical goal shapes from the catalog's
   formation conditions, so representability, divisor, and shift-count policy
-  are no longer a disconnected Terminal authority. Exact cast and all
-  remainder rows remain explicitly unbound because the catalog defines no
-  corresponding primitive; no policy is inferred past the settled vocabulary.
+  are no longer a disconnected Terminal authority. Exact cast remains
+  explicitly unbound; no policy is inferred past the settled vocabulary.
   The independent Terminal verifier's structural crash-policy validation now
-  also obtains exact/wrapping/saturating divide and exact left/right-shift
+  also obtains exact/wrapping/saturating divide/remainder and exact left/right-shift
   formation conditions directly from the shared catalog before applying its
   own retained-fact safety checks. Exact division still requires both nonzero
   and representability custody, policy division requires nonzero custody, left
   shift requires count and representability custody, and right shift requires
-  count custody. Remainder remains on its explicit verifier path because the
-  settled catalog has no remainder primitive.
+  count custody. Remainder reuses the divisor rules without changing its
+  existing toward-zero or signed `MIN / -1`-pair behavior.
   Checked-to-Terminal integer operation emission now allocates formation
   obligations from the shared catalog's nonempty formation-condition rows for
-  exact add/subtract/multiply/divide, exact left/right shift, and
-  wrapping/saturating divide. Goal-free catalog rows allocate none.
-  Exact/wrapping/saturating remainder retain their existing explicit
-  obligations but remain catalog-unbound because no remainder primitive is
-  settled. One operation-local allocator replaces repeated policy-specific
+  exact add/subtract/multiply/divide/remainder, exact left/right shift, and
+  wrapping/saturating divide/remainder. Goal-free catalog rows allocate none.
+  One operation-local allocator replaces repeated policy-specific
   identity arithmetic; obligation identity and Terminal operation shapes are
   unchanged.
   The dedicated concrete/abstract Exact division definedness checker now also
   obtains its nonzero-divisor and signed-result-representability requirements
   from the shared catalog before applying its existing interval/fact analysis.
-  Exact remainder retains the same explicit two-condition hardware-
-  definedness path because the settled catalog has no remainder primitive.
+  Exact remainder now selects the parallel catalog primitive before applying
+  the same two-condition hardware-definedness analysis.
   Diagnostic ordering, accepted fact frontier, and rejection behavior are
   unchanged.
   The next bounded proof-calculus parity slice exposes canonical disjunction
@@ -8468,13 +8466,13 @@ Remaining N6/N8 work:
   retain explicit proven `Int as Nat` conversions and `IntervalSet<Nat>`;
   signed runtime embeddings reject at the closed projection boundary.
   The shared integer-policy catalog covers add, subtract, multiply, divide,
-  and shifts across Exact, Wrapping, Saturating, and Trapping, with separate
+  remainder, and shifts across Exact, Wrapping, Saturating, and Trapping, with separate
   result laws, formation conditions, primitive trap predicates, and shift-count
   laws. Division keeps zero and signed-minimum/-1 distinct; shift count failure
   stays distinct from overflow. Specification/expression analysis, bounded
   checked operations, proof-bearing Terminal rows, structural-crash replay,
-  and the dedicated Exact-division lane consume the catalog. Remainder remains
-  out until its primitive is ruled. Add remaining bridge integrations only as
+  and the dedicated Exact-division/remainder lane consume the catalog. Add
+  remaining bridge integrations only as
   their owning operation surfaces land.
   The float catalog fixes exact `meaning32`/`meaning64` projection: finite
   values map to exact nonzero rationals, signed zero/infinity survive, NaN

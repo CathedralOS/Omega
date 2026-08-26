@@ -574,6 +574,17 @@ impl LoweredIntegerBinaryKind {
             Self::SaturatingDivide => {
                 Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating))
             }
+            Self::ExactRemainder => {
+                Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact))
+            }
+            Self::WrappingRemainder => Some((
+                IntegerPolicyPrimitive::Remainder,
+                ArithmeticDomain::Wrapping,
+            )),
+            Self::SaturatingRemainder => Some((
+                IntegerPolicyPrimitive::Remainder,
+                ArithmeticDomain::Saturating,
+            )),
             Self::WrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Wrapping)),
             Self::SaturatingAdd => {
                 Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Saturating))
@@ -592,12 +603,7 @@ impl LoweredIntegerBinaryKind {
                 IntegerPolicyPrimitive::Multiply,
                 ArithmeticDomain::Saturating,
             )),
-            Self::BitwiseAnd
-            | Self::BitwiseOr
-            | Self::BitwiseXor
-            | Self::ExactRemainder
-            | Self::WrappingRemainder
-            | Self::SaturatingRemainder => None,
+            Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => None,
         }
     }
 
@@ -609,11 +615,7 @@ impl LoweredIntegerBinaryKind {
                         .formation_conditions
                         .is_empty()
                 });
-        let unsettled_remainder_requires_formation = matches!(
-            self,
-            Self::ExactRemainder | Self::WrappingRemainder | Self::SaturatingRemainder
-        );
-        (catalog_requires_formation || unsettled_remainder_requires_formation).then(|| {
+        catalog_requires_formation.then(|| {
             obligation_id(
                 operation
                     .get()

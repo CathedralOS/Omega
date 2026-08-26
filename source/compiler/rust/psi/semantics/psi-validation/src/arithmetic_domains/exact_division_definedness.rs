@@ -61,22 +61,16 @@ struct ExactDefinednessConditions {
 }
 
 fn exact_definedness_conditions(operator: BinaryOperator) -> ExactDefinednessConditions {
-    if operator == BinaryOperator::Divide {
-        let conditions =
-            integer_policy_bridge(IntegerPolicyPrimitive::Divide, ArithmeticDomain::Exact)
-                .formation_conditions;
-        return ExactDefinednessConditions {
-            nonzero_divisor: conditions.contains(&IntegerFormationCondition::NonZeroDivisor),
-            signed_result_representable: conditions
-                .contains(&IntegerFormationCondition::ResultRepresentable),
-        };
-    }
-
-    // Remainder retains its existing explicit hardware-definedness policy. The
-    // settled integer-policy catalog intentionally has no remainder primitive.
+    let primitive = match operator {
+        BinaryOperator::Divide => IntegerPolicyPrimitive::Divide,
+        BinaryOperator::Modulo => IntegerPolicyPrimitive::Remainder,
+        _ => unreachable!("exact definedness is only queried for division and remainder"),
+    };
+    let conditions = integer_policy_bridge(primitive, ArithmeticDomain::Exact).formation_conditions;
     ExactDefinednessConditions {
-        nonzero_divisor: true,
-        signed_result_representable: true,
+        nonzero_divisor: conditions.contains(&IntegerFormationCondition::NonZeroDivisor),
+        signed_result_representable: conditions
+            .contains(&IntegerFormationCondition::ResultRepresentable),
     }
 }
 
@@ -135,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_remainder_definedness_remains_an_explicit_unsettled_policy() {
+    fn exact_remainder_definedness_follows_the_shared_policy_catalog() {
         assert_eq!(
             exact_definedness_conditions(BinaryOperator::Modulo),
             ExactDefinednessConditions {
