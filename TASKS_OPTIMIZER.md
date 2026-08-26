@@ -90,9 +90,13 @@ These facts constrain the work below.
   `StagedOptimizedSelectedInstructions` carrier retains the optimizer run,
   final optimization unit, independent abstract projection, target plan, exact
   validated register environment, selected plan, and a content-identity-bound
-  validation receipt. A nested `StagedOptimizedLiveness` carrier additionally
-  retains an independently replayed, content-identified liveness plan over the
-  selected CFG. `StagedOptimizedLiveRanges` nests that custody again with
+  validation receipt. That first receipt names the validated pre-physical
+  manifest identity in addition to the optimization-bundle and projection
+  identities. Liveness, live-range, allocation-legality, fixed-view-copy, and
+  register-home receipts propagate it; the parallel transitional-assignment
+  receipt binds it directly as well. A nested `StagedOptimizedLiveness` carrier
+  additionally retains an independently replayed, content-identified liveness
+  plan over the selected CFG. `StagedOptimizedLiveRanges` nests that custody again with
   independently replayed block-local fragments, exact edge connectors, fixed
   sites, architectural state/actions, and canonical virtual interference.
   `StagedOptimizedAllocationLegality` nests that custody once more, joins the
@@ -755,7 +759,10 @@ dependency.
   Unsupported named families fail at registry construction; the current
   operation vocabulary is admitted by exhaustive behavioral observation,
   projection, and target lowering. The empty-selection compatibility route
-  remains untouched. Remaining to close: replace or subsume transitional
+  remains untouched. The validated pre-physical manifest identity survives
+  every implemented selected/physical staging receipt, so a later realization
+  manifest cannot silently join only the older optimizer bundle. Remaining to
+  close: replace or subsume transitional
   scratch assignment with independently verified physical assignment; retain
   optimizer custody through machine emission and component construction; then
   bind optimizer and physical identities into an explicit final realization/

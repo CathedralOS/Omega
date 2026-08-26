@@ -4,6 +4,7 @@ use omega_lowering_optimizer::{
 };
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizedAbstractPlanProjectionIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
@@ -65,6 +66,7 @@ pub struct StagedOptimizedAssignmentCustodyReceipt {
     entry: MachineId,
     optimization: OptimizationIdentityBundleIdentity,
     projection: OptimizedAbstractPlanProjectionIdentity,
+    manifest: PrePhysicalOptimizationManifestIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     function_count: usize,
 }
@@ -88,6 +90,10 @@ impl StagedOptimizedAssignmentCustodyReceipt {
 
     pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
         self.projection
+    }
+
+    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
+        self.manifest
     }
 
     pub const fn register_environment(
@@ -223,6 +229,11 @@ pub fn validate_optimized_assignment_custody(
         entry: target.entry,
         optimization: optimized_target.optimized().identity_bundle().identity(),
         projection: optimized_target.optimized().validation().identity(),
+        manifest: optimized_target
+            .optimized()
+            .pre_physical_manifest()
+            .record()
+            .identity,
         register_environment: register_environment.identity(),
         function_count: target.functions.len(),
     })
