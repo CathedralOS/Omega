@@ -20,3 +20,7 @@ pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 pub machine Build::package(&mut self, name: &[u8]) {
 }
+pub machine Build::application(&mut self, name: &[u8]) {
+}
+pub machine Build::member(&mut self, path: &[u8]) {
+}

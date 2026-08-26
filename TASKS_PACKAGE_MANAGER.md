@@ -2361,18 +2361,45 @@ standard library by path.
       compiler-backed fixture migration also exposed and closed source-free
       generic-instance ownership: synthesized closed data and attached machines
       now retain their exact authored generic declaration as provenance.
-- [ ] **Add `builder.member(path)` and a workspace root `build.omg`.** Members
+- [x] **Add `builder.member(path)` and a workspace root `build.omg`.** Members
       carry paths. This is the file that tells the resolver where packages live
       and makes relocation a manifest edit.
-- [ ] **Add `builder.application(name)`.** `apps/omega-compiler/build.omg` is
+
+      Completed 2026-08-25: the compiler-owned ordinary build surface now
+      includes `Build::member`; the hermetic declaration projector accepts one
+      or more direct canonical member paths as the explicit workspace kind and
+      rejects mixed, hidden, malformed, or duplicate declarations. The root
+      manifest lists std, Psi, and the compiler application in authored order.
+- [x] **Add `builder.application(name)`.** `apps/omega-compiler/build.omg` is
       currently an application by *absence* of a package declaration, and the
       same absence is `MissingPackageDeclaration` — an error — in the package
       reader. One file shape must not mean "fine" or "broken" depending on the
       caller.
-- [ ] **Give `omega/language/std` a `build.omg`.** `builder.package(
+
+      Completed 2026-08-25: `Build::application` is compiler-owned ordinary
+      vocabulary and `apps/omega-compiler/build.omg` declares
+      `omega-compiler`. The unified projector distinguishes package,
+      application, and workspace builds without executing them. The product
+      compiler checkpoint and feature/resource profile pin the expanded build
+      vocabulary and application source.
+- [x] **Give `omega/language/std` a `build.omg`.** `builder.package(
       "omega-language-std")`. Today the standard library has no manifest of any
       kind, which is why no git URL can name it and why minimal checkout is
       impossible.
+
+      Completed 2026-08-25: std declares `omega-language-std`; the existing Psi
+      product source also declares `psi`, so every concrete root workspace
+      member has an explicit kind and stable name. Repository-level tests
+      project all four real declarations through the public reader.
+- [ ] **Migrate project-root build files and enforce roles in every reader.**
+      The declaration projector now rejects absence, but standalone compiler
+      build loading and dependency projection still tolerate role-less files,
+      and the dependency editor can synthesize a role-less build machine.
+      Migrate actual corpus/canary/sample project roots to explicit application
+      declarations, distinguish virtual build-vocabulary fragments from project
+      manifests, then make dependency projection and editing consume the same
+      role projection. Do not maintain two independently parsed meanings of one
+      `build.omg`.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.
@@ -2388,10 +2415,17 @@ standard library by path.
       the repository root. Read the root manifest, consult its members, and
       select by name — the model Cargo uses, and the one that lets this
       repository publish `omega-language-std` without splitting itself apart.
+
+      Blocked on owner question Q2: the source request has repository and
+      revision but no expected package-name selector. The selected member's own
+      declaration remains identity authority; the request still needs
+      unambiguous selection intent for a lockless first resolution.
 - [ ] **`omega fetch <package>` minimal checkout.** Once members declare paths,
-      sparse-checkout plus a blobless clone can retrieve one subtree. Consuming
-      the standard library currently requires cloning roughly 9,300 tracked
-      files to obtain 59.
+      partial Git object acquisition plus parent-authenticated selective
+      materialization can retrieve one subtree. This must not use Git checkout,
+      which the resolver contract deliberately excludes. Consuming the standard
+      library currently requires authenticating and materializing roughly 9,300
+      tracked files to obtain 59.
 - [ ] **Stop mirroring `filesystem_host.omg` in Rust.** `FilesystemHostOperation`
       duplicates the trait's declared machines, and two `#[test]` functions in
       `psi-checked-interpreter/src/evaluator/filesystem_host_operation.rs` read

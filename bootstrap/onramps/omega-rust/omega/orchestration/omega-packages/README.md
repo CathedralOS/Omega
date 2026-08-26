@@ -16,6 +16,15 @@ real package fixture demonstrates an irreducible external contract.
 
 - Every fetched package declares its own human name through the hermetically
   projected ordinary `builder.package("name")` call in its `build.omg`.
+- Every build file declares exactly one role on that same ordinary surface:
+  one `builder.package("name")`, one `builder.application("name")`, or one or
+  more `builder.member("relative/path")` rows. Absence never infers a role.
+  Identity projection accepts only direct root statements on the canonical
+  `builder: &mut Build` parameter and runs before dependency resolution or
+  package-controlled build execution.
+- This repository's root workspace currently names `omega/language/std`,
+  `compiler/psi`, and `apps/omega-compiler`. Each member owns its declaration;
+  paths locate members but do not name them.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.

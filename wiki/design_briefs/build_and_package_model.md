@@ -49,6 +49,7 @@ application declares itself an application:
 machine build(builder: &mut Build) {
     builder.member("omega/language/std");
     builder.member("compiler/psi");
+    builder.member("apps/omega-compiler");
 }
 ```
 

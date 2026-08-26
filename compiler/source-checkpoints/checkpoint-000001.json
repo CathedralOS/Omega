@@ -6,8 +6,8 @@
   "entry_source": "apps/omega-compiler/main.omg",
   "build_source": "apps/omega-compiler/build.omg",
   "source_file_count": 12,
-  "content_set_sha256": "ba5fe4ab4e6304fcf7799d8150d8c6d10b4613154cd7b8791c23a670b59f9dba",
-  "closure_sha256": "652827a6d22b1ad1227874f5cd03a2aeaa491936114a0045f1615db30c3a5589",
+  "content_set_sha256": "37bdd3650fc5e274091205f3b3289370eda9a21c71382ed368a17bf886d378a0",
+  "closure_sha256": "e5fda060cada63560d4ccfaa00f200a8855b76b7e6e699619547612247d62a29",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -28,10 +28,10 @@
   ],
   "compiled_sources": [
     {
-      "byte_length": 477,
+      "byte_length": 520,
       "origin": "repository",
       "path": "apps/omega-compiler/build.omg",
-      "sha256": "d720a611b7e83074071389d2c95f17ea265d82e8d1ab5ed373ca910c5ef73e9e"
+      "sha256": "318ef91d0ada55859bf9150a444d216cca69729687e2aef324a08290856172ae"
     },
     {
       "byte_length": 1501,
@@ -96,13 +96,13 @@
   ],
   "virtual_sources": [
     {
-      "byte_length": 557,
+      "byte_length": 670,
       "identity": "<build-prelude>",
       "origin": "virtual",
       "path": "compiler/source-checkpoints/inputs/build-prelude.omg",
       "provider": "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "provider_symbol": "BUILD_PRELUDE",
-      "sha256": "9e3ec173461bf499f3daf661451b3134e05856933bbe61d96881e32f15134bda"
+      "sha256": "51bb6154212920d5cd5740973b1f0d756a0a02338b4234699ee6997ac8f7c304"
     }
   ],
   "dependency_aliases": [
@@ -189,7 +189,7 @@
     {
       "path": "bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "role": "virtual_source_provider",
-      "sha256": "a4c4296f1411805feed6565b8bc36d5b450e3979975c1003f03df27c44002d3a"
+      "sha256": "9c4dd8f4a80118b94bf0261923423af6528d1351af76dc79b35403ab8e3cf8bb"
     },
     {
       "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",

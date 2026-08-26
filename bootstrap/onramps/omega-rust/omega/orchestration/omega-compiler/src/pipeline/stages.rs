@@ -387,6 +387,10 @@ pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 pub machine Build::package(&mut self, name: &[u8]) {
 }
+pub machine Build::application(&mut self, name: &[u8]) {
+}
+pub machine Build::member(&mut self, path: &[u8]) {
+}
 "#;
 
 const FILESYSTEM_BUILD_PRELUDE: &str = r#"
@@ -417,6 +421,10 @@ pub machine Build::depend(&mut self, source: Source) {
 pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
 pub machine Build::package(&mut self, name: &[u8]) {
+}
+pub machine Build::application(&mut self, name: &[u8]) {
+}
+pub machine Build::member(&mut self, path: &[u8]) {
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
@@ -1188,10 +1196,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
         dependency_methods.sort_by_key(|machine| machine.name.as_str());
-        assert_eq!(dependency_methods.len(), 3);
-        assert_eq!(dependency_methods[0].name.as_str(), "Build::depend");
-        assert_eq!(dependency_methods[1].name.as_str(), "Build::depend_as");
-        assert_eq!(dependency_methods[2].name.as_str(), "Build::package");
+        assert_eq!(dependency_methods.len(), 5);
+        assert_eq!(dependency_methods[0].name.as_str(), "Build::application");
+        assert_eq!(dependency_methods[1].name.as_str(), "Build::depend");
+        assert_eq!(dependency_methods[2].name.as_str(), "Build::depend_as");
+        assert_eq!(dependency_methods[3].name.as_str(), "Build::member");
+        assert_eq!(dependency_methods[4].name.as_str(), "Build::package");
 
         let parameter_names = |machine: &psi_syntax_trees::item::Machine| {
             let [entry] = syntax_trees.items.state_handles(machine.states) else {
@@ -1204,12 +1214,14 @@ mod tests {
                 .map(|handle| syntax_trees.items.state_parameter(*handle).name.as_str())
                 .collect::<Vec<_>>()
         };
-        assert_eq!(parameter_names(dependency_methods[0]), ["self", "source"]);
+        assert_eq!(parameter_names(dependency_methods[0]), ["self", "name"]);
+        assert_eq!(parameter_names(dependency_methods[1]), ["self", "source"]);
         assert_eq!(
-            parameter_names(dependency_methods[1]),
+            parameter_names(dependency_methods[2]),
             ["self", "alias", "source"]
         );
-        assert_eq!(parameter_names(dependency_methods[2]), ["self", "name"]);
+        assert_eq!(parameter_names(dependency_methods[3]), ["self", "path"]);
+        assert_eq!(parameter_names(dependency_methods[4]), ["self", "name"]);
         assert!(!syntax_trees.root_items().any(|item| matches!(
             item,
             psi_syntax_trees::item::Item::Machine(machine)
