@@ -12,8 +12,8 @@ mod wcsu;
 pub use wcsu::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, StackCallContribution, TaskStackFrameSummary,
-    ValidatedTaskStackFrameSummary, admit_same_stack_contribution, compose_task_stack_demand,
-    validate_task_stack_frame_summary,
+    ValidatedTaskStackFrameSummary, WcsuStackPlanProjection, admit_same_stack_contribution,
+    compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
 };
 
 macro_rules! normalized_id {
@@ -52,6 +52,7 @@ normalized_id!(
     "same-stack-contribution-admission-receipt"
 );
 normalized_id!(TaskStackCompositionId, "task-stack-composition");
+normalized_id!(StackPlanProjectionId, "stack-plan-projection");
 normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
 normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");
@@ -75,7 +76,13 @@ normalized_id!(TaskStorageOwnerId, "task-storage-owner");
 normalized_id!(TaskStorageLeaseId, "task-storage-lease");
 normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");
 
-/// Fixed, nonmoving stack resource required by one activation.
+/// Physical fixed-stack shape retained by the existing activation sidecar.
+///
+/// This three-field carrier is not WCSU admission. The compiler's current
+/// local layout bridge still produces it while whole-call-graph collection is
+/// incomplete. New foundation work must obtain the same shape from
+/// [`project_wcsu_stack_plan`] and validate it with
+/// [`validate_wcsu_activation_plan`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StackPlan {
     pub bytes: u64,
@@ -140,22 +147,75 @@ pub struct ActivationPlanCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedActivationPlan(ActivationPlanCandidate);
+pub struct ValidatedActivationPlan {
+    candidate: ActivationPlanCandidate,
+    wcsu_stack_projection: Option<WcsuStackPlanProjection>,
+}
 
 impl ValidatedActivationPlan {
     pub const fn candidate(&self) -> &ActivationPlanCandidate {
-        &self.0
+        &self.candidate
+    }
+
+    /// Exact whole-call-graph evidence used to produce the stack shape.
+    ///
+    /// `None` identifies the temporary compiler-local layout bridge. It is
+    /// deliberately not upgraded into WCSU evidence by activation validation.
+    pub const fn wcsu_stack_projection(&self) -> Option<&WcsuStackPlanProjection> {
+        self.wcsu_stack_projection.as_ref()
     }
 
     /// Normalized identity of the complete provider-independent plan.
     pub fn normalized_identity(&self) -> ActivationPlanId {
-        ActivationPlanId(fingerprint_activation_plan(&self.0))
+        ActivationPlanId(fingerprint_activation_plan(
+            &self.candidate,
+            self.wcsu_stack_projection.as_ref(),
+        ))
     }
 }
 
 pub fn validate_activation_plan(
     candidate: ActivationPlanCandidate,
 ) -> Result<ValidatedActivationPlan, TaskPlanDiagnostic> {
+    validate_activation_plan_shape(&candidate)?;
+    Ok(ValidatedActivationPlan {
+        candidate,
+        wcsu_stack_projection: None,
+    })
+}
+
+/// Validate an activation whose fixed-stack shape is projected from sealed
+/// whole-call-graph WCSU evidence.
+///
+/// The projection must retain its exact normalized identity and must reproduce
+/// every public shape field. Supplying an unrelated byte/alignment tuple or a
+/// different representation therefore fails rather than inheriting the
+/// composition's authority.
+pub fn validate_wcsu_activation_plan(
+    candidate: ActivationPlanCandidate,
+    projection: WcsuStackPlanProjection,
+) -> Result<ValidatedActivationPlan, TaskPlanDiagnostic> {
+    validate_activation_plan_shape(&candidate)?;
+    if !projection.has_valid_identity() {
+        return Err(TaskPlanDiagnostic(
+            "WCSU stack-plan projection identity does not match its retained composition evidence"
+                .into(),
+        ));
+    }
+    if candidate.stack_plan != projection.stack_plan() {
+        return Err(TaskPlanDiagnostic(
+            "activation stack shape does not exactly match its WCSU stack-plan projection".into(),
+        ));
+    }
+    Ok(ValidatedActivationPlan {
+        candidate,
+        wcsu_stack_projection: Some(projection),
+    })
+}
+
+fn validate_activation_plan_shape(
+    candidate: &ActivationPlanCandidate,
+) -> Result<(), TaskPlanDiagnostic> {
     if candidate.stack_plan.bytes == 0 {
         return Err(TaskPlanDiagnostic(
             "activation stack size must be nonzero".into(),
@@ -197,7 +257,7 @@ pub fn validate_activation_plan(
             "activation-wide CPU/thread preservation understates a canonical crossing".into(),
         ));
     }
-    Ok(ValidatedActivationPlan(candidate))
+    Ok(())
 }
 
 /// Which ordinary `TaskRuntime` operation requested one concrete activation.
@@ -821,7 +881,10 @@ impl TaskLifecycleLedger {
     }
 }
 
-fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
+fn fingerprint_activation_plan(
+    plan: &ActivationPlanCandidate,
+    wcsu_stack_projection: Option<&WcsuStackPlanProjection>,
+) -> u64 {
     let mut fingerprint = Fingerprint::new();
     fingerprint.word(plan.machine_contract.normalized_identity());
     fingerprint.word(plan.entry.normalized_identity());
@@ -831,6 +894,10 @@ fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
     fingerprint.word(plan.stack_plan.bytes);
     fingerprint.word(plan.stack_plan.alignment);
     fingerprint.word(plan.stack_plan.representation.normalized_identity());
+    if let Some(projection) = wcsu_stack_projection {
+        fingerprint.byte(1);
+        fingerprint.word(projection.identity().normalized_identity());
+    }
     fingerprint.flag(plan.may_suspend);
     fingerprint.flag(plan.may_block);
     fingerprint.word(plan.canonical_suspension_crossings.len() as u64);
@@ -995,6 +1062,26 @@ mod tests {
         }
     }
 
+    fn wcsu_projection(validation_identity: u64) -> WcsuStackPlanProjection {
+        let root = id(30, TaskStackFrameId::from_normalized_identity);
+        let frame = validate_task_stack_frame_summary(TaskStackFrameSummary {
+            frame: root,
+            local_bytes: 4096,
+            alignment: 16,
+            validation: id(
+                validation_identity,
+                TaskStackFrameValidationId::from_normalized_identity,
+            ),
+            calls: Vec::new(),
+        })
+        .expect("validated WCSU frame");
+        let demand = compose_task_stack_demand(root, [frame]).expect("composed WCSU demand");
+        project_wcsu_stack_plan(
+            &demand,
+            id(6, StackRepresentationId::from_normalized_identity),
+        )
+    }
+
     fn runtime() -> TaskRuntimeId {
         id(80, TaskRuntimeId::from_normalized_identity)
     }
@@ -1052,8 +1139,43 @@ mod tests {
     fn fixed_stack_and_canonical_crossings_form_a_valid_plan() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         assert_eq!(plan.candidate().stack_plan.bytes, 4096);
+        assert_eq!(plan.wcsu_stack_projection(), None);
         assert!(plan.candidate().carry_obligations.preserve_cpu);
         assert_ne!(plan.normalized_identity().normalized_identity(), 0);
+    }
+
+    #[test]
+    fn wcsu_projection_validates_exact_activation_stack_shape() {
+        let projection = wcsu_projection(31);
+        let projection_identity = projection.identity();
+        let mut exact = candidate();
+        exact.stack_plan = projection.stack_plan();
+        let plan = validate_wcsu_activation_plan(exact.clone(), projection)
+            .expect("WCSU-backed activation plan");
+
+        assert_eq!(
+            plan.wcsu_stack_projection().map(|value| value.identity()),
+            Some(projection_identity)
+        );
+
+        let mut changed_bytes = exact.clone();
+        changed_bytes.stack_plan.bytes += 1;
+        assert!(
+            validate_wcsu_activation_plan(changed_bytes, wcsu_projection(31))
+                .expect_err("byte substitution")
+                .0
+                .contains("does not exactly match")
+        );
+
+        let mut changed_representation = exact;
+        changed_representation.stack_plan.representation =
+            id(32, StackRepresentationId::from_normalized_identity);
+        assert!(
+            validate_wcsu_activation_plan(changed_representation, wcsu_projection(31))
+                .expect_err("representation substitution")
+                .0
+                .contains("does not exactly match")
+        );
     }
 
     #[test]
@@ -1118,6 +1240,28 @@ mod tests {
                 .expect("changed crossing")
                 .normalized_identity()
         );
+    }
+
+    #[test]
+    fn activation_identity_binds_exact_wcsu_projection_identity() {
+        let first_projection = wcsu_projection(40);
+        let second_projection = wcsu_projection(41);
+        assert_eq!(
+            first_projection.stack_plan(),
+            second_projection.stack_plan()
+        );
+        assert_ne!(first_projection.identity(), second_projection.identity());
+
+        let mut first_candidate = candidate();
+        first_candidate.stack_plan = first_projection.stack_plan();
+        let mut second_candidate = candidate();
+        second_candidate.stack_plan = second_projection.stack_plan();
+        let first = validate_wcsu_activation_plan(first_candidate, first_projection)
+            .expect("first WCSU-backed activation");
+        let second = validate_wcsu_activation_plan(second_candidate, second_projection)
+            .expect("second WCSU-backed activation");
+
+        assert_ne!(first.normalized_identity(), second.normalized_identity());
     }
 
     #[test]

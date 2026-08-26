@@ -7,8 +7,9 @@
 //! child frame to this stack and therefore has no edge in this graph.
 
 use crate::{
-    AdmittedStackContributionId, SameStackContributionAdmissionReceiptId, TaskPlanDiagnostic,
-    TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId,
+    AdmittedStackContributionId, SameStackContributionAdmissionReceiptId, StackPlan,
+    StackPlanProjectionId, StackRepresentationId, TaskPlanDiagnostic, TaskStackCompositionId,
+    TaskStackFrameId, TaskStackFrameValidationId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -231,6 +232,113 @@ impl ComposedTaskStackDemand {
     }
 }
 
+/// Sealed projection of one composed WCSU demand into a physical fixed-stack
+/// representation.
+///
+/// The compact composition identity is not used as a substitute for the facts
+/// a stack allocator and activation fingerprint rely on. The projection also
+/// retains the exact root, composed shape, frame-validation set, admitted
+/// contribution set, and selected representation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WcsuStackPlanProjection {
+    identity: StackPlanProjectionId,
+    composition: TaskStackCompositionId,
+    root: TaskStackFrameId,
+    bytes: u64,
+    alignment: u64,
+    frame_validations: BTreeSet<TaskStackFrameValidationId>,
+    admitted_contributions: BTreeSet<AdmittedStackContributionId>,
+    representation: StackRepresentationId,
+}
+
+impl WcsuStackPlanProjection {
+    pub const fn identity(&self) -> StackPlanProjectionId {
+        self.identity
+    }
+
+    pub const fn composition(&self) -> TaskStackCompositionId {
+        self.composition
+    }
+
+    pub const fn root(&self) -> TaskStackFrameId {
+        self.root
+    }
+
+    pub const fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
+    pub const fn alignment(&self) -> u64 {
+        self.alignment
+    }
+
+    pub const fn frame_validations(&self) -> &BTreeSet<TaskStackFrameValidationId> {
+        &self.frame_validations
+    }
+
+    pub const fn admitted_contributions(&self) -> &BTreeSet<AdmittedStackContributionId> {
+        &self.admitted_contributions
+    }
+
+    pub const fn representation(&self) -> StackRepresentationId {
+        self.representation
+    }
+
+    pub const fn stack_plan(&self) -> StackPlan {
+        StackPlan {
+            bytes: self.bytes,
+            alignment: self.alignment,
+            representation: self.representation,
+        }
+    }
+
+    pub(crate) fn has_valid_identity(&self) -> bool {
+        self.identity
+            == StackPlanProjectionId(fingerprint_stack_plan_projection(
+                self.composition,
+                self.root,
+                self.bytes,
+                self.alignment,
+                &self.frame_validations,
+                &self.admitted_contributions,
+                self.representation,
+            ))
+    }
+}
+
+/// Bind one validated whole-call-graph demand to the exact fixed-stack
+/// representation that will provision it.
+pub fn project_wcsu_stack_plan(
+    demand: &ComposedTaskStackDemand,
+    representation: StackRepresentationId,
+) -> WcsuStackPlanProjection {
+    let composition = demand.identity;
+    let root = demand.root;
+    let bytes = demand.bytes;
+    let alignment = demand.alignment;
+    let frame_validations = demand.frame_validations.clone();
+    let admitted_contributions = demand.admitted_contributions.clone();
+    let identity = StackPlanProjectionId(fingerprint_stack_plan_projection(
+        composition,
+        root,
+        bytes,
+        alignment,
+        &frame_validations,
+        &admitted_contributions,
+        representation,
+    ));
+    WcsuStackPlanProjection {
+        identity,
+        composition,
+        root,
+        bytes,
+        alignment,
+        frame_validations,
+        admitted_contributions,
+        representation,
+    }
+}
+
 pub fn compose_task_stack_demand(
     root: TaskStackFrameId,
     summaries: impl IntoIterator<Item = ValidatedTaskStackFrameSummary>,
@@ -428,6 +536,32 @@ fn fingerprint_admitted_contribution(candidate: &SameStackContributionAdmissionC
     hash.finish()
 }
 
+fn fingerprint_stack_plan_projection(
+    composition: TaskStackCompositionId,
+    root: TaskStackFrameId,
+    bytes: u64,
+    alignment: u64,
+    frame_validations: &BTreeSet<TaskStackFrameValidationId>,
+    admitted_contributions: &BTreeSet<AdmittedStackContributionId>,
+    representation: StackRepresentationId,
+) -> u64 {
+    let mut hash = Fnv1a::new();
+    hash.word(composition.normalized_identity());
+    hash.word(root.normalized_identity());
+    hash.word(bytes);
+    hash.word(alignment);
+    hash.word(frame_validations.len() as u64);
+    for validation in frame_validations {
+        hash.word(validation.normalized_identity());
+    }
+    hash.word(admitted_contributions.len() as u64);
+    for contribution in admitted_contributions {
+        hash.word(contribution.normalized_identity());
+    }
+    hash.word(representation.normalized_identity());
+    hash.finish()
+}
+
 struct Fnv1a(u64);
 
 impl Fnv1a {
@@ -562,6 +696,93 @@ mod tests {
         assert_eq!(
             demand.admitted_contributions(),
             &BTreeSet::from([admission_identity])
+        );
+    }
+
+    #[test]
+    fn stack_plan_projection_binds_composition_evidence_and_representation() {
+        let root = id(12, TaskStackFrameId::from_normalized_identity);
+        let admission = admission(0x120, "Codec::decode", 13, 48, 16);
+        let admission_identity = admission.identity();
+        let demand = compose_task_stack_demand(
+            root,
+            [frame(
+                12,
+                24,
+                8,
+                vec![StackCallContribution::AdmittedSameStack(admission)],
+            )],
+        )
+        .expect("composed stack demand");
+        let representation = id(14, StackRepresentationId::from_normalized_identity);
+        let projection = project_wcsu_stack_plan(&demand, representation);
+
+        assert_eq!(projection.composition(), demand.identity());
+        assert_eq!(projection.root(), root);
+        assert_eq!(projection.bytes(), 80);
+        assert_eq!(projection.alignment(), 16);
+        assert_eq!(projection.frame_validations(), demand.frame_validations());
+        assert_eq!(
+            projection.admitted_contributions(),
+            &BTreeSet::from([admission_identity])
+        );
+        assert_eq!(projection.representation(), representation);
+        assert_eq!(
+            projection.stack_plan(),
+            StackPlan {
+                bytes: 80,
+                alignment: 16,
+                representation,
+            }
+        );
+        assert_ne!(projection.identity().normalized_identity(), 0);
+
+        let other_representation = project_wcsu_stack_plan(
+            &demand,
+            id(15, StackRepresentationId::from_normalized_identity),
+        );
+        assert_ne!(projection.identity(), other_representation.identity());
+    }
+
+    #[test]
+    fn stack_plan_projection_identity_rejects_evidence_substitution() {
+        let root = id(16, TaskStackFrameId::from_normalized_identity);
+        let first = compose_task_stack_demand(root, [frame(16, 32, 16, Vec::new())])
+            .expect("first composed demand");
+        let mut changed_validation = frame(16, 32, 16, Vec::new());
+        changed_validation.0.validation =
+            id(0x1600, TaskStackFrameValidationId::from_normalized_identity);
+        let second =
+            compose_task_stack_demand(root, [changed_validation]).expect("second composed demand");
+        let representation = id(17, StackRepresentationId::from_normalized_identity);
+        let first_projection = project_wcsu_stack_plan(&first, representation);
+        let mut substituted = project_wcsu_stack_plan(&second, representation);
+
+        assert_eq!(first_projection.stack_plan(), substituted.stack_plan());
+        assert_ne!(first_projection.identity(), substituted.identity());
+        substituted.identity = first_projection.identity;
+        assert!(
+            !substituted.has_valid_identity(),
+            "an identity from equal-shaped but different WCSU evidence must not validate"
+        );
+        let candidate = crate::ActivationPlanCandidate {
+            machine_contract: id(0x1610, crate::MachineContractId::from_normalized_identity),
+            entry: id(0x1611, crate::MachineEntryId::from_normalized_identity),
+            argument_layout: id(0x1612, crate::ValueLayoutId::from_normalized_identity),
+            terminal_outcome_layout: id(0x1613, crate::ValueLayoutId::from_normalized_identity),
+            calling_plan: id(0x1614, crate::CallingPlanId::from_normalized_identity),
+            stack_plan: substituted.stack_plan(),
+            may_suspend: false,
+            may_block: false,
+            canonical_suspension_crossings: Vec::new(),
+            carry_obligations: crate::ActivationCarryObligations::none(),
+            cancellation_required: false,
+        };
+        assert!(
+            crate::validate_wcsu_activation_plan(candidate, substituted)
+                .expect_err("substituted projection identity")
+                .0
+                .contains("projection identity")
         );
     }
 
