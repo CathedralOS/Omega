@@ -247,7 +247,7 @@ beside the linked contracts:
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for generic `OMGCOMP1`, the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`, and exactly one explicit root-package build-source role in `OMGCOMP3`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, accepted-closure, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_COMPILATION_V3.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
 | generated ordinary-source custody | closed for checkpoint 000001's exact Unicode tuple through a sealed locked/offline recipe, generic provenance roles, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, CKIR3/OMGRFN4 preflight composition, and the refreshed product-owned checkpoint join | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md), [`source checkpoint status`](source/compiler/omega/source-checkpoints/README.md) |
-| source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
+| source resolution | bounded compositional relations are closed for the selected checkpoint facilities; OMGRSW9 additionally closes the product build's exact six-row `Console` selection and complete static `ProviderPlan`, with native/self identity and lower-rooted OMGRFN19 reconstruction but without checked-adapter execution or provider admission | [`OMEGA_BOOTSTRAP_RESOLUTION_V9.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md) and preceding versioned contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](source/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
@@ -292,12 +292,20 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
   resource teeth. It grants no accepted-lock or compilation authority.
 - [ ] Carry the product build's explicit six-requirement `Console` selection
   through one complete `ProviderPlan`, checked calls, conservative execution,
-  and lower-rooted reconstruction. The generalized direct-view vector and
-  authoritative build-source prerequisites are closed. Product adapter
-  execution still needs its ranking/reach facts, provider-owned boundary call,
-  and surrounding receiver closure. Structural plan completeness may land as a
-  separately named milestone, but it is not product adapter execution or final
-  provider admission.
+  and lower-rooted reconstruction. OMGRSW9 and OMGRFN19 close the separately
+  named structural milestone: the explicit build selection, six requirements,
+  two checked adapters, four target intrinsics, complete plan rows, retained
+  requirement-targeted calls, native/self identity, and lower-rooted R1-R5
+  reconstruction. They do not execute adapters or admit the provider. Continue
+  from that witness through the ranking/reach facts, provider-owned boundary
+  call, surrounding receiver closure, checked IR, conservative execution, and
+  artifact reconstruction.
+- [ ] Add a focused Delta compiler regression for local state identifiers that
+  equal contextual syntax spellings. The OMGRSW9 producer exposed divergent
+  lowermachine behavior for names such as `write_byte`, `boundary`, and
+  `machine`; renaming those states unblocked this milestone but is not the
+  compiler fix. Isolate the smallest source, correct the contextual scan, and
+  require native/self artifact identity plus the intended execution result.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.
@@ -482,6 +490,12 @@ work.
   specific files so adding a case does not recompile an unrelated monolith.
 - A gate approaching tens of minutes must report subgate timings before more
   feature growth. Profile compiler, evaluator, and harness separately.
+- Do not put OMGRSW9's monolithic Gamma replay in the default lattice. Its
+  681,067-byte elaborated program took 209.34 seconds for the canonical case on
+  the 2026-08-26 measurement and then produced an invalid observation element.
+  Preserve the focused native/self and modular lower-rooted gates; revisit a
+  lower-rung replay only after phase splitting or evaluator/compiler profiling
+  makes it both bounded and diagnostically sound.
 - Keep one compilation single-threaded until profiling justifies compiler
   concurrency. Parallelize independent fixture compiles first.
 - Exhaustive native matrices may be paired with a small representative

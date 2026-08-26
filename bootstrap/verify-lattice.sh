@@ -496,6 +496,10 @@ precise_step "omega-bootstrap CKIR16 lowering meaning (RUST-FREE) — u64 Less s
 precise_step "omega-bootstrap CKIR16 backend — exact qword comparison/range/transport templates and native/self artifact identity" omega-bootstrap-gates delta-checked-ir-v16-backend.sh omega-bootstrap-omgrfn18
 precise_step "omega-bootstrap OMGRFN18 refinement — modular Python owners and split persisted-Beta u64 projections" omega-bootstrap-refinement omgrfn18-reference.sh omega-bootstrap-omgrfn18-reference
 precise_step "omega-bootstrap OMGRFN18 producer refinement — actual native/self OMGRSW8/CKIR16 and production backend artifacts" omega-bootstrap-refinement omgrfn18-same-frame-composite.sh omega-bootstrap-omgrfn18
+precise_step "omega-bootstrap OMGRSW9 independent provider plan — exact six-requirement Console selection and structural mutation controls" omega-bootstrap-gates delta-provider-plan-v9-reference.sh omega-bootstrap-omgrsw9
+precise_step "omega-bootstrap OMGRSW9 handoff — focused OMGCOMP3 native/self complete structural ProviderPlan" omega-bootstrap-gates delta-provider-plan-v9-handoff.sh omega-bootstrap-omgrsw9
+precise_step "omega-bootstrap OMGRFN19 refinement — modular structural owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn19-reference.sh omega-bootstrap-omgrfn19-reference
+precise_step "omega-bootstrap OMGRFN19 producer refinement — actual focused native/self OMGCOMP3 to OMGRSW9 bytes satisfy one R1-R5 frame" omega-bootstrap-refinement omgrfn19-same-frame-composite.sh omega-bootstrap-omgrfn19
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints

@@ -403,6 +403,7 @@ gates rather than being repeated in this decision document.
 | recursive pure full-width trapping-`u32` `+`/`-`/`*` | OMGRSW7, OMGLOWF/CKIR14, independent meaning, conservative backend, and persisted lower-rooted OMGRFN16 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V7.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V7.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V14.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V14.md), and [`OMGCOMP_REFINEMENT_WITNESS_V16.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V16.md) |
 | recurrent guarded head/tail over a runtime-capable direct shared-byte view | OMGRSW4, OMGLOWG/CKIR15, exact ordered direct-binder pass-through vectors, runtime-only/no-static-root custody, independent meaning, conservative backend, and persisted lower-rooted OMGRFN17 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V15.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md), [`OMEGA_BOOTSTRAP_LOWERING_V16.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V16.md), and [`OMGCOMP_REFINEMENT_WITNESS_V17.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V17.md) |
 | direct pure full-width same-carrier `u64 < u64` with true-edge range custody | OMGRSW8, OMGLOWH/CKIR16, exact paired-word meaning, conservative unsigned backend, and persisted lower-rooted OMGRFN18 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V8.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V8.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V16.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V16.md), and [`OMGCOMP_REFINEMENT_WITNESS_V18.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V18.md) |
+| complete static product `Console` provider plan | OMGRSW9 retains the authoritative build selection, all six requirements, two checked adapters, four Linux-x64 intrinsic leaves, complete plan rows, and requirement-targeted calls; OMGRFN19 independently reconstructs the structural relation with persisted-Beta projections and the actual native/self producer bytes | [`OMEGA_BOOTSTRAP_RESOLUTION_V9.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md) and [`OMGCOMP_REFINEMENT_WITNESS_V19.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V19.md) |
 | generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, CKIR3/OMGRFN4 preflight composition, and a coherent product-owned checkpoint refresh over the same tuple | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md) and the [`source checkpoint status`](../../../source/compiler/omega/source-checkpoints/README.md) |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
@@ -441,11 +442,14 @@ manufacture the role. Accepted-lock/closure evidence must separately join the
 exact envelope before the role has package or compilation authority.
 
 The complete plan has two checked adapters (`write`, `write_line`) and four
-compiler-intrinsic leaves. Static completeness can be checked before every row
-is executable, but a milestone claiming the actual product adapter path must
-first carry the generalized recurrent view relation: `console_write_bytes`
-passes the service token and newline around head/tail on two guarded edges,
-whereas CKIR12 owns exactly one synthetic block and no pass-through vector.
+compiler-intrinsic leaves. OMGRSW9 and OMGRFN19 close that static relation; they
+do not execute any row or admit the selected provider. A milestone claiming the
+actual product adapter path must carry the generalized recurrent view relation,
+ranking/reach facts, provider-owned boundary call, and surrounding receiver
+closure through checked IR, conservative execution, and artifact
+reconstruction. `console_write_bytes` passes the service token and newline
+around head/tail on two guarded edges; CKIR12 by itself owns exactly one
+synthetic block and no pass-through vector.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
