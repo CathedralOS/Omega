@@ -14,8 +14,8 @@ governing design is:
 
 The release surface now contains reviewed corrected-model building blocks for
 source custody, typed identity/closure, compiler handoff/review, row conflicts,
-and triage. Legacy manifest, name-keyed lock, whole-section receipt, and
-install/update scaffolding remains test-only and untrusted. No caller-authored
+and triage. The legacy manifest, name-keyed lock, whole-section receipt, and
+install/update scaffolding has been deleted. No caller-authored
 manifest JSON, package name, alias, free-form review receipt, or synthetic
 security artifact may re-enter a production trust path.
 
@@ -144,6 +144,13 @@ complete.
 
   Completed 2026-08-23: the file-by-file and trust-path classification is in
   [`omega-packages/SCAFFOLDING_AUDIT.md`](bootstrap/onramps/omega-rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
+
+  Cleanup 2026-08-25: the name-keyed manifest/lock, Rust-`Debug` diff,
+  free-form receipt, fabricated install/update, legacy audit, and test-only
+  command modules were deleted after a consumer audit proved the corrected
+  production path no longer referenced them. Typed graph closure validation,
+  exact-row conflicts, fixed-vocabulary triage, source diagnostics, and the
+  strict internal JSON reader remain with their corrected consumers.
 
 - [x] **QUARANTINE-PROTOTYPE-CLI.** Prevent the existing manifest-file,
   receipt-file, lock-assembly, and install/update-plan commands from being
@@ -420,8 +427,9 @@ complete.
   reject a family that does not match the key lineage at graph/source custody
   boundaries. The earlier caller-constructible `PackageInstance` placeholder
   was removed: its replacement must join exact source and artifact subjects to
-  re-derived certificate evidence by construction. Migrating the legacy name-keyed graph,
-  lock, and evidence APIs remains. Resolved Git, workspace-member, and
+  re-derived certificate evidence by construction. The legacy name-keyed graph,
+  lock, and evidence APIs have been deleted; constructing their accepted typed
+  replacements remains. Resolved Git, workspace-member, and
   external-local package sources now carry `PackageKey` plus typed immutable
   source resolution but deliberately cannot construct an accepted instance.
   `PackageKey::identity()` now emits a domain-separated opaque 256-bit
@@ -1759,8 +1767,9 @@ complete.
   compiler rows cannot bypass `RECHECKABLE-PACKAGE-EVIDENCE`.
 
   Progress 2026-08-23: legacy manifest, lock, whole-section receipt, install,
-  update, and graph-audit modules now compile only for isolated crate tests and
-  are absent from the release `omega-packages` API. The arbitrary public
+  update, and graph-audit modules were first quarantined from the release
+  `omega-packages` API and were deleted on 2026-08-25 after corrected production
+  consumers no longer referenced them. The arbitrary public
   `PackageInstance` plus caller-derived toolchain/evidence fingerprint tuple was
   removed rather than adapted. Source diagnostics were split onto a retained
   production surface. Production package orchestration can now obtain
@@ -2015,22 +2024,14 @@ complete.
   resolutions remain engineering work. They do not require nominal Chi or a
   new owner decision.
 
-  Milestone 2026-08-25: the review-only conflict model now accepts one closed
-  root-policy disposition for each exact blocking fingerprint and binds the
-  complete decision set to the candidate-closure commitment. That commitment
-  covers the complete source graph plus every candidate package's target,
-  compiler, source-consumption, build-observation, and whole-review evidence;
-  each conflict also binds the baseline and candidate package observations.
-  Conflict fingerprint v5 and fixed-vocabulary rendering v4 make that stronger
-  evidence subject explicit. Construction canonicalizes decision order and
-  rejects empty, incomplete, duplicate,
-  stale/foreign, wrong-candidate, and non-blocking decisions. The exact result
-  reports whether all blocking rows were accepted; it does not claim that the
-  wider transaction may proceed. An accepted row means only that root policy
-  accepts that exact candidate delta. Neither disposition certifies an audit.
-  The object cannot mint accepted evidence or lock state. Durable encoding,
-  governance metadata, root-policy custody, and install/update transaction
-  revalidation remain.
+  Remaining: add one closed root-policy disposition for each exact blocking
+  fingerprint and bind the complete decision set to the candidate-closure
+  commitment. Construction must reject empty, incomplete, duplicate,
+  stale/foreign, wrong-candidate, and non-blocking decisions. The result may
+  report only whether root policy resolved every blocking row; it must not claim
+  that the wider transaction may proceed or that an audit occurred. Durable
+  encoding, governance metadata, root-policy custody, and install/update
+  transaction revalidation remain separate work.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
@@ -2332,7 +2333,9 @@ complete.
   no end-to-end admission test can pass without compiling the fixture.
 
   Completed 2026-08-24: the fabricated local fixture admission integration
-  test was removed. Synthetic legacy values remain only in isolated unit tests.
+  test was removed. The remaining isolated synthetic legacy modules and their
+  tests were deleted on 2026-08-25 rather than carried beside the corrected
+  model.
   The local integration canary now regenerates compiler review evidence from
   resolver-owned fixture custody; the remote suite independently proves exact
   source custody and declaration parity, not sealed package admission.

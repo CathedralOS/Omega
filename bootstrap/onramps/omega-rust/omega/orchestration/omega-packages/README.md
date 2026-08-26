@@ -152,8 +152,8 @@ closure, compiler-review, conflict, baseline, and triage building blocks. No
 manifest-file, receipt-file, lock-assembly, or plan CLI is a production trust
 boundary.
 
-The following superseded assumptions remain quarantined to isolated crate tests
-and must not return to the release path:
+The removed prototype encoded the following superseded assumptions. They must
+not return to the release path or its tests:
 
 - locks keyed by package-authored name alone;
 - mandatory caller-supplied alias and package name;
@@ -770,8 +770,8 @@ unsupported-clause rows still gate sealed admission. The compiler now provides
 a version-52 length-framed binary comparison encoding over this review
 projection; it is explicitly not a package certificate or accepted-lock
 payload. Raw Rust/debug serialization is not an alternative. These pieces do
-not become an admission path until the legacy name-keyed lock APIs are replaced
-and sealed, locally regenerated compiler evidence plus the hardened resolver
+not become an admission path until an accepted typed lock is implemented and
+sealed, locally regenerated compiler evidence plus the hardened resolver
 receipt are wired through end to end. The earlier public
 `PackageInstance` constructor was removed: the real type must not exist as a
 caller-constructible tuple of arbitrary toolchain and evidence fingerprints.
@@ -916,11 +916,10 @@ resolutions remain unfinished engineering work; none independently motivates
 nominal Chi.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
-mandatory `--alias` are quarantined from the production CLI. Their manifest,
-lock, review, install, update, and audit modules compile only for isolated crate
-tests while the typed replacements are built; they are absent from the release
-library API. Invoking the old command names fails before parsing or writing any
-artifact.
+mandatory `--alias` were removed from the production CLI. Their name-keyed
+manifest, lock, review, install, update, audit, diff, and command modules have
+now also been deleted rather than retained as a parallel test-only model.
+Invoking the old command names fails before parsing or writing any artifact.
 
 ## Responsibilities
 
@@ -951,6 +950,10 @@ artifact.
 - Giving downloaded code resolver, root-package, or acceptance authority.
 
 ## Expected structure
+
+This is the intended corrected architecture, not an inventory of current
+files. Entries that do not yet exist describe future owners and do not preserve
+the deleted implementations that previously used the same filenames.
 
 ```text
 omega-packages/

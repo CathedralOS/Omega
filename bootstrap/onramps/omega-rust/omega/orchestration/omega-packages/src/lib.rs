@@ -4,37 +4,23 @@
 //! Omega compiler.
 //!
 //! Source custody, declaration, identity, and pre-admission graph building for
-//! the corrected package design. Superseded name-keyed manifests, locks, and
-//! free-form review receipts compile only in isolated crate tests; they are not
-//! part of this release library's API. See the crate README and
-//! `TASKS_PACKAGE_MANAGER.md` before extending the trust boundary.
+//! the corrected package design. The superseded name-keyed manifest, lock,
+//! install/update, and free-form review-receipt prototypes have been removed.
+//! See the crate README and `TASKS_PACKAGE_MANAGER.md` before extending the
+//! trust boundary.
 
-#[cfg(test)]
-mod audit;
 mod capability_conflict;
 mod closure_resolution;
-#[cfg(test)]
-mod commands;
 mod compiler_handoff;
 mod compiler_review;
 mod declaration;
 mod dependency_edit;
 mod dependency_projection;
-#[cfg(test)]
-mod diff;
 mod graph;
 mod identity;
-#[cfg(test)]
-mod install;
 mod json;
-#[cfg(test)]
-mod lock;
-#[cfg(test)]
-mod manifest;
 mod package_source;
 mod resolver;
-#[cfg(test)]
-mod review;
 mod review_baseline;
 mod review_closure;
 mod review_evidence;
@@ -44,8 +30,6 @@ mod source_commands;
 mod source_patch;
 mod source_review;
 mod source_triage;
-#[cfg(test)]
-mod update;
 
 pub use capability_conflict::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
