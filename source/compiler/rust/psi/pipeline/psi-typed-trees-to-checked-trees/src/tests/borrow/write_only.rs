@@ -53,6 +53,84 @@ fn nested_unconstrained_primitive_record_field_is_writable() {
 }
 
 #[test]
+fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
+    lower_typed_trees(typed(
+        r#"
+            data Inner {
+                bytes: [u8; 4];
+                spare: u8;
+            }
+            data Outer {
+                inner: Inner;
+                other: Inner;
+            }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes = [1, 2, 3, 4];
+            }
+        "#,
+    ))
+    .expect("a whole fixed byte-array leaf behind a common-field path should lower");
+}
+
+#[test]
+fn nested_non_byte_array_record_field_write_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { words: [u16; 2]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.words = [1, 2];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("whole fixed byte array"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_element_write_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[0] = 1;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("proven-in-bounds element of a fixed byte array"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn non_discardable_record_leaf_write_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Receipt [linear] { code: u8; }
+            data Holder { receipt: Receipt; }
+
+            machine replace(holder: &write Holder, next: Receipt) {
+                holder.receipt = move next;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("leaf is an unrestricted primitive or whole fixed byte array"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
 fn nested_invariant_bearing_record_field_write_remains_rejected() {
     let rendered = rendered_rejection(
         r#"

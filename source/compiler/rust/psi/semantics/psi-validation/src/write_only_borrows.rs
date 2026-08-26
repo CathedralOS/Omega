@@ -163,9 +163,10 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
 
 /// Recognize `root.record_field...leaf`, where every receiver is an admitted
 /// plain record and every selected field is relevant and unconstrained. The
-/// final displaced leaf must be an unrestricted primitive. This is a
-/// store-place judgment only: expression traversal still rejects reading the
-/// same path, and sum payloads never enter this content-independent walk.
+/// final displaced leaf must be an unrestricted primitive or a fixed byte
+/// array. This is a store-place judgment only: expression traversal still
+/// rejects reading the same path, and sum payloads never enter this
+/// content-independent walk.
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -215,7 +216,8 @@ fn write_only_record_field_assignment(
             return false;
         }
         if index + 1 == members.len() {
-            return is_unrestricted_scalar(program, field.type_reference);
+            return is_unrestricted_scalar(program, field.type_reference)
+                || fixed_byte_array_length(program, field.type_reference).is_some();
         }
         receiver_type = field.type_reference;
     }
@@ -498,7 +500,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, or a proven-in-bounds element of a fixed byte array; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or whole fixed byte array, or a proven-in-bounds element of a fixed byte array; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
