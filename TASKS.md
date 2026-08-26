@@ -7575,15 +7575,24 @@ compiler concept is introduced.
   progress-bearing provider/progress/profile publication through this
   transaction.
 
+  `CompileReport` can now retain that transaction result without erasing its
+  custody. The report is non-clonable and admits either the legacy compiler
+  publication receipts or one complete terminal deployment result, never both.
+  Terminal report construction replays the deployment before taking ownership;
+  rejection returns the whole published runnable, while success exposes only a
+  borrowed view, a validated native path, or a consuming transfer back to the
+  next owner. A source canary drifts the visible file, recovers the rejected
+  deployment, republishes it, and transfers the repaired custody through the
+  report.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after the production driver obtains these real inputs
   from their installation/deployment owners, invokes the typed transaction for
-  its staged terminal candidate, and retains the returned non-clonable runnable
-  and flat publication receipt in `CompileReport`. The current legacy path
-  still publishes a native executable directly and carries neither the
-  manifest nor an installation acceptance, so removing the fence there would
-  erase the obligation; selected plans and authorized routes remain
-  insufficient.
+  its staged terminal candidate, and constructs the terminal-deployment report
+  instead of calling the legacy writer. The current legacy path still publishes
+  a native executable directly and carries neither the manifest nor an
+  installation acceptance, so removing the fence there would erase the
+  obligation; selected plans and authorized routes remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

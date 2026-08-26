@@ -1875,10 +1875,15 @@ decision. It consumes them in order through begin, provider closure, progress
 closure, finalization, and flat output. Rejection is stage-typed and retains the
 exact current deployment carrier plus every unconsumed later input; no path
 converts a linear failure into diagnostics alone. Progress-free rejection and
-progress-bearing success canaries cross this transaction. The legacy direct
-`write_output` route remains fenced until the production driver obtains those
-inputs from their real owners and retains the non-clonable transaction result
-in its report.
+progress-bearing success canaries cross this transaction. `CompileReport` can
+retain the complete non-clonable result as a publication lane mutually
+exclusive with legacy executable receipts. It replays the
+deployment before taking ownership; rejection returns that deployment intact,
+while success permits borrowed inspection, validated path projection, or a
+consuming transfer to the next owner. The legacy direct `write_output` route
+remains fenced until the production driver obtains the deployment inputs from
+their real owners, invokes the transaction, and constructs this report lane
+instead of the legacy publication path.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice
