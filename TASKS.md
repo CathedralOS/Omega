@@ -7942,25 +7942,29 @@ Remaining N6/N8 work:
   no congruence implication and grant no executable authority.
 
   The first bounded stage-3 correspondence rung is now live. For `lift`
-  requests whose authored runtime arguments are a unique direct subset of the
-  public parameters, checked planning proves structural `Q => P` inclusion
-  independently for the selected theorem's left and right representative
-  applications. `lift` may explicitly omit and permute those parameters: every
-  retained runtime row maps the actual public symbol to its representative
-  position, and public `Q` dependency partitioning follows that map rather than
-  declaration order. Facts over an omitted formed-quotient parameter remain
-  additional dependent `Q`, while facts depending only on omitted ordinary
-  parameters remain fixed. Heterogeneous relation/type drift still rejects.
-  Every dependent representative `P` fact must match one public `Q` fact after
-  exact value/static substitution; extra `Q` facts are permitted. Each row
-  retains exact public, representative, and verified-theorem contract-fact
-  coordinates, and the plan composes them with the verified theorem and exact
-  runtime correspondence into a non-executable certificate. `define` remains
-  strictly position-preserving at exact public arity and retains its exact `Q
-  <=> P` bijection. Fixed representative facts remain ordinary call
-  obligations; generic owner substitution, duplicated/constant/adapted lift
-  arguments, general logical implication, and canonical Terminal replay remain
-  fail-closed, so stage 3 is not complete and stage 4 remains open.
+  requests whose authored runtime arguments directly name public parameters,
+  checked planning proves structural `Q => P` inclusion independently for the
+  selected theorem's left and right representative applications. `lift` may
+  explicitly omit, permute, and repeat those parameters: every occurrence row
+  maps the actual public symbol to its distinct representative position. Public
+  `Q` dependency partitioning follows that map rather than declaration order,
+  and repeated occurrences share one exact instantiated value per theorem side
+  without collapsing positional theorem parameters, relation premises,
+  representative calls, or legality coordinates. Facts over an omitted
+  formed-quotient parameter remain additional dependent `Q`, while facts
+  depending only on omitted ordinary parameters remain fixed. Heterogeneous
+  relation/type drift still rejects. Every dependent representative `P` fact
+  must match one public `Q` fact after exact value/static substitution; one `Q`
+  coordinate may discharge multiple distinct `P` rows and extra `Q` facts are
+  permitted. Each row retains exact public, representative, and
+  verified-theorem contract-fact coordinates, and the plan composes them with
+  the verified theorem and exact runtime correspondence into a non-executable
+  certificate. `define` remains strictly position-preserving at exact public
+  arity and retains its exact `Q <=> P` bijection. Fixed representative facts
+  remain ordinary call obligations; generic owner substitution,
+  constant/adapted lift arguments, general logical implication, and canonical
+  Terminal replay remain fail-closed, so stage 3 is not complete and stage 4
+  remains open.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:

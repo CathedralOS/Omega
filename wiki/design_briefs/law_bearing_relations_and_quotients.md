@@ -766,23 +766,26 @@ certificate adds no runtime dictionary and grants no executable authority;
 general `lift` implication/correspondence and canonical Terminal retention with
 independent replay remain fail closed.
 
-The first bounded `lift` correspondence certificate is also live for a unique
-direct subset of the public parameters, including explicit omission and
-permutation. Each runtime row retains the actual public symbol at its
-representative position, and public `Q` dependency partitioning consumes that
-map rather than declaration order. A fact over an omitted formed-quotient
-parameter remains additional dependent `Q`; a fact depending only on omitted
-ordinary parameters remains fixed. Heterogeneous relation/type drift rejects.
-The certificate checks structural `Q => P` inclusion separately after the
-selected theorem's left and right representative substitutions, permits
-additional public `Q` facts, and retains the exact public, representative, and
-verified-theorem legality coordinate for every included row. The non-executable
-certificate composes those rows with the exact runtime correspondence and
-verified theorem. `define` remains strictly position-preserving at exact public
-arity and continues to use its exact `Q <=> P` bijection. Fixed representative
-facts remain ordinary call obligations, while generic owner substitution,
-adapted/duplicated/constant arguments, general logical implication, and
-canonical Terminal replay remain fail closed.
+The first bounded `lift` correspondence certificate is also live for direct
+public parameters, including explicit omission, permutation, and repeated
+occurrences. Each occurrence row retains the actual public symbol at its
+distinct representative position, and public `Q` dependency partitioning
+consumes that map rather than declaration order. Repeated occurrences share one
+exact instantiated value per theorem side without collapsing positional theorem
+parameters, relation premises, representative applications, or legality
+coordinates. A fact over an omitted formed-quotient parameter remains
+additional dependent `Q`; a fact depending only on omitted ordinary parameters
+remains fixed. Heterogeneous relation/type drift rejects. The certificate checks
+structural `Q => P` inclusion separately after the selected theorem's left and
+right representative substitutions, permits additional public `Q` facts and
+reuse of one exact `Q` coordinate for multiple distinct `P` rows, and retains
+the exact public, representative, and verified-theorem legality coordinate for
+every included row. The non-executable certificate composes those rows with the
+exact runtime correspondence and verified theorem. `define` remains strictly
+position-preserving at exact public arity and continues to use its exact `Q <=>
+P` bijection. Fixed representative facts remain ordinary call obligations,
+while generic owner substitution, adapted/constant arguments, general logical
+implication, and canonical Terminal replay remain fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

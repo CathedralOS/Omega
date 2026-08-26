@@ -1409,7 +1409,239 @@ fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tampe
 }
 
 #[test]
-fn direct_lift_runtime_rung_accepts_permutations_but_rejects_duplicates_and_adaptation() {
+fn direct_lift_duplication_shares_each_side_value_without_collapsing_legality_coordinates() {
+    let mut program = TypedTrees::default();
+    let quotient_type = quotient_type(
+        &mut program,
+        symbol(904),
+        "DiagonalQ",
+        symbol(905),
+        "DiagonalR",
+    );
+    let carrier = carrier_type(&mut program);
+    let public_symbol = symbol(906);
+    let unused_public_symbol = symbol(907);
+    let public_value = named_argument(&mut program, "value", public_symbol);
+    let public_diagonal = {
+        let left = named_argument(&mut program, "value", public_symbol);
+        let right = named_argument(&mut program, "value", public_symbol);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: BinaryOperator::Equal,
+                right,
+            }))
+    };
+    let public_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(public_diagonal),
+        ProofFact::Expression(public_value),
+    ]);
+    let mut public_machine = Machine::default();
+    program.push_machine_contract(
+        &mut public_machine,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: public_facts,
+            ..Default::default()
+        },
+    );
+    let mut public_state = State::default();
+    for (symbol, name) in [(public_symbol, "value"), (unused_public_symbol, "unused")] {
+        program.push_state_parameter(
+            &mut public_state,
+            StateParameter {
+                symbol,
+                name: Identifier::generated_static(name),
+                type_reference: quotient_type,
+                ..Default::default()
+            },
+        );
+    }
+
+    let representative_left = symbol(908);
+    let representative_right = symbol(909);
+    let representative_diagonal = {
+        let left = named_argument(&mut program, "left", representative_left);
+        let right = named_argument(&mut program, "right", representative_right);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: BinaryOperator::Equal,
+                right,
+            }))
+    };
+    let representative_left_value = named_argument(&mut program, "left", representative_left);
+    let representative_right_value = named_argument(&mut program, "right", representative_right);
+    let representative_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(representative_diagonal),
+        ProofFact::Expression(representative_left_value),
+        ProofFact::Expression(representative_right_value),
+    ]);
+    let representative_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: representative_facts,
+        ..Default::default()
+    }]);
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(910),
+        state_symbol: symbol(911),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: representative_left,
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: representative_right,
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: representative_contracts,
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type,
+        quotient_symbol: symbol(904),
+        relation_symbol: symbol(905),
+    };
+    let input_relations = [
+        InputRelation::Quotient(relation),
+        InputRelation::Quotient(relation),
+    ];
+    let runtime = super::DirectLiftRuntimeCorrespondence {
+        positions: vec![
+            super::DefineRuntimePosition {
+                public_parameter: public_symbol,
+                representative_parameter: representative_left,
+            },
+            super::DefineRuntimePosition {
+                public_parameter: public_symbol,
+                representative_parameter: representative_right,
+            },
+        ],
+    };
+    let public_partition = derive_public_precondition_partition(
+        &program,
+        &public_machine,
+        &public_state,
+        &input_relations,
+        &runtime.positions,
+    )
+    .expect("duplicated and omitted quotient parameters remain dependent Q");
+    let representative_partition =
+        derive_representative_precondition_partition(&program, &input_relations, &representative)
+            .expect("both representative occurrences remain dependent P");
+    let expected_theorem =
+        derive_expected_theorem_schema(&program, &input_relations, relation, &representative)
+            .expect("duplication does not alter the universal positional theorem");
+    assert_eq!(expected_theorem.parameters.len(), 4);
+    assert_eq!(expected_theorem.relation_premises.len(), 2);
+    assert_eq!(expected_theorem.left_application.arguments, [0, 2]);
+    assert_eq!(expected_theorem.right_application.arguments, [1, 3]);
+
+    let verified_theorem = super::VerifiedTheoremSchema {
+        theorem_machine_symbol: symbol(912),
+        theorem_state_symbol: symbol(913),
+        parameters: expected_theorem
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(expected_position, _)| {
+                super::theorem_schema_verification::VerifiedTheoremParameter {
+                    expected_position,
+                    theorem_symbol: symbol(920 + expected_position as u32),
+                }
+            })
+            .collect(),
+        relation_premises: expected_theorem
+            .relation_premises
+            .iter()
+            .enumerate()
+            .map(
+                |(expected_position, _)| super::theorem_schema_verification::VerifiedTheoremFact {
+                    expected_position,
+                    actual: TheoremContractFactLocation {
+                        owner: TheoremContractOwner::Machine,
+                        contract_position: 0,
+                        fact_position: 20 + expected_position,
+                    },
+                },
+            )
+            .collect(),
+        legality_premises: expected_theorem
+            .legality_premises
+            .iter()
+            .enumerate()
+            .map(
+                |(expected_position, _)| super::theorem_schema_verification::VerifiedTheoremFact {
+                    expected_position,
+                    actual: TheoremContractFactLocation {
+                        owner: TheoremContractOwner::Machine,
+                        contract_position: 0,
+                        fact_position: 30 + expected_position,
+                    },
+                },
+            )
+            .collect(),
+        conclusion: TheoremContractFactLocation {
+            owner: TheoremContractOwner::State,
+            contract_position: 0,
+            fact_position: 0,
+        },
+    };
+
+    let implication = derive_direct_lift_precondition_implication(
+        &program,
+        &public_machine,
+        &public_state,
+        &representative,
+        &public_partition,
+        &representative_partition,
+        &runtime,
+        &expected_theorem,
+        &verified_theorem,
+    )
+    .expect("Q(x, x) and Q(x) instantiate both representative occurrences per side");
+    assert_eq!(implication.rows.len(), 6);
+    assert_eq!(implication.rows[1].public.fact_position, 1);
+    assert_eq!(implication.rows[2].public.fact_position, 1);
+    assert_eq!(implication.rows[1].representative.fact_position, 1);
+    assert_eq!(implication.rows[2].representative.fact_position, 2);
+    assert_ne!(implication.rows[1].theorem, implication.rows[2].theorem);
+    assert_eq!(implication.rows[4].public.fact_position, 1);
+    assert_eq!(implication.rows[5].public.fact_position, 1);
+    assert_ne!(implication.rows[4].theorem, implication.rows[5].theorem);
+
+    let mut tampered_runtime = runtime.clone();
+    tampered_runtime.positions[1].public_parameter = unused_public_symbol;
+    assert_eq!(
+        derive_direct_lift_precondition_implication(
+            &program,
+            &public_machine,
+            &public_state,
+            &representative,
+            &public_partition,
+            &representative_partition,
+            &tampered_runtime,
+            &expected_theorem,
+            &verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftLeftPreconditionNotImplied(0)),
+    );
+}
+
+#[test]
+fn direct_lift_runtime_rung_accepts_subsets_permutations_and_duplicates_but_rejects_adaptation() {
     let mut program = TypedTrees::default();
     let left_quotient = quotient_type(&mut program, symbol(880), "LeftQ", symbol(881), "LeftR");
     let right_quotient = quotient_type(&mut program, symbol(888), "RightQ", symbol(889), "RightR");
@@ -1527,16 +1759,27 @@ fn direct_lift_runtime_rung_accepts_permutations_but_rejects_duplicates_and_adap
             },
         ]
     );
+    let duplicated = derive(
+        &mut program,
+        [left, left],
+        [
+            InputRelation::Quotient(left_relation),
+            InputRelation::Quotient(left_relation),
+        ],
+    )
+    .expect("lift may repeat one exact direct public parameter");
     assert_eq!(
-        derive(
-            &mut program,
-            [left, left],
-            [
-                InputRelation::Quotient(left_relation),
-                InputRelation::Quotient(left_relation),
-            ],
-        ),
-        Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique),
+        duplicated.positions,
+        [
+            super::DefineRuntimePosition {
+                public_parameter: left_symbol,
+                representative_parameter: representative.parameters[0].symbol,
+            },
+            super::DefineRuntimePosition {
+                public_parameter: left_symbol,
+                representative_parameter: representative.parameters[1].symbol,
+            },
+        ]
     );
     assert_eq!(
         derive(
@@ -1580,6 +1823,106 @@ fn direct_lift_runtime_rung_accepts_permutations_but_rejects_duplicates_and_adap
         ),
         Err(RelationPlanError::DefineRuntimeArityMismatch),
         "define may not omit a public parameter"
+    );
+}
+
+#[test]
+fn direct_lift_runtime_duplication_can_exceed_public_arity_without_granting_mutable_execution() {
+    let mut program = TypedTrees::default();
+    let quotient_type = quotient_type(
+        &mut program,
+        symbol(897),
+        "DuplicatedQ",
+        symbol(898),
+        "DuplicatedR",
+    );
+    let carrier = carrier_type(&mut program);
+    let public_symbol = symbol(899);
+    let value = named_argument(&mut program, "value", public_symbol);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([value, value]);
+    let call = call_with_arguments(arguments);
+    let mut state = State {
+        return_type: quotient_type,
+        ..Default::default()
+    };
+    program.push_state_parameter(
+        &mut state,
+        StateParameter {
+            symbol: public_symbol,
+            name: Identifier::generated_static("value"),
+            type_reference: quotient_type,
+            is_mutable: true,
+            ..Default::default()
+        },
+    );
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(900),
+        state_symbol: symbol(901),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: symbol(902),
+                type_reference: carrier,
+                is_mutable: true,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: symbol(903),
+                type_reference: carrier,
+                is_mutable: true,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: HandleSpan::empty(),
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type,
+        quotient_symbol: symbol(897),
+        relation_symbol: symbol(898),
+    };
+    let input_relations = [
+        InputRelation::Quotient(relation),
+        InputRelation::Quotient(relation),
+    ];
+
+    // This judgment retains correspondence only. Ordinary multiplicity,
+    // custody, and call admission must still reject an executable duplicate
+    // mutable occurrence at their owning layers.
+    let runtime = derive_direct_lift_runtime_correspondence(
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &input_relations,
+        relation,
+        &representative,
+    )
+    .expect("two representative positions may consume one public parameter");
+    assert_eq!(runtime.positions.len(), 2);
+    assert!(
+        runtime
+            .positions
+            .iter()
+            .all(|position| position.public_parameter == public_symbol)
+    );
+    assert_eq!(
+        derive_define_runtime_correspondence(
+            &program,
+            &Machine::default(),
+            &state,
+            &call,
+            &input_relations,
+            relation,
+            &representative,
+        ),
+        Err(RelationPlanError::DefineRuntimeArityMismatch),
     );
 }
 
