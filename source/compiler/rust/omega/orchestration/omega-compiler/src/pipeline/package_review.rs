@@ -2387,6 +2387,7 @@ pub enum PackageReviewSourceLocationRole {
     SemanticDependencyConsumer,
     SemanticDependencyDeclaration,
     TraitParent,
+    ContractClause,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2703,6 +2704,13 @@ pub fn project_checked_package_review(
 
         let (callable, executable_supply) =
             project_callable(compilation, &synchronous_invocations, machine, role, owner)?;
+        let mut contract_locations =
+            project_contract_clause_source_locations(compilation.machine_contracts(machine));
+        collect_type_parameter_contract_source_locations(
+            compilation,
+            compilation.machine_type_parameters(machine),
+            &mut contract_locations,
+        );
         external_executable_supply.extend(executable_supply.into_iter().map(|row| {
             ProjectedReviewRow {
                 row,
@@ -2713,7 +2721,7 @@ pub fn project_checked_package_review(
         callables.push(ProjectedReviewRow {
             row: callable,
             declaration: machine.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: contract_locations,
         });
         projected_build_machine |= role == PackageReviewCallableRole::Build;
     }
@@ -3773,6 +3781,28 @@ fn project_public_traits(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let mut nested_source_locations = Vec::new();
+        collect_type_parameter_contract_source_locations(
+            compilation,
+            parameters,
+            &mut nested_source_locations,
+        );
+        nested_source_locations.extend(compilation.trait_requirements(definition).iter().map(
+            |parent| ProjectedNestedSourceLocation {
+                source_span: parent.source_span,
+                role: PackageReviewSourceLocationRole::TraitParent,
+            },
+        ));
+        for requirement in compilation.trait_machine_signatures(definition) {
+            nested_source_locations.extend(project_contract_clause_source_locations(
+                compilation.state_signature_contracts(requirement),
+            ));
+            collect_type_parameter_contract_source_locations(
+                compilation,
+                compilation.state_signature_type_parameters(requirement),
+                &mut nested_source_locations,
+            );
+        }
         rows.push(ProjectedReviewRow {
             row: PackageReviewTraitShape {
                 identity,
@@ -3784,14 +3814,7 @@ fn project_public_traits(
                 requirements,
             },
             declaration: definition.symbol,
-            nested_source_locations: compilation
-                .trait_requirements(definition)
-                .iter()
-                .map(|parent| ProjectedNestedSourceLocation {
-                    source_span: parent.source_span,
-                    role: PackageReviewSourceLocationRole::TraitParent,
-                })
-                .collect(),
+            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4002,7 +4025,15 @@ fn project_public_conformances(
                 interface,
             },
             declaration: conformance.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: {
+                let mut locations = Vec::new();
+                collect_type_parameter_contract_source_locations(
+                    compilation,
+                    parameters,
+                    &mut locations,
+                );
+                locations
+            },
         });
     }
     projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4451,6 +4482,13 @@ fn project_public_operators(
         };
         let published_crash =
             project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
+        let mut nested_source_locations =
+            project_contract_clause_source_locations(compilation.operator_contracts(declaration));
+        collect_type_parameter_contract_source_locations(
+            compilation,
+            declaration_type_parameters,
+            &mut nested_source_locations,
+        );
         rows.push(ProjectedReviewRow {
             row: PackageReviewOperatorShape {
                 coordinate,
@@ -4469,7 +4507,7 @@ fn project_public_operators(
                 published_crash,
             },
             declaration: declaration.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));
@@ -4608,7 +4646,15 @@ fn project_public_domains(
                 establishment_routes,
             },
             declaration: definition.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: {
+                let mut locations = Vec::new();
+                collect_type_parameter_contract_source_locations(
+                    compilation,
+                    parameters,
+                    &mut locations,
+                );
+                locations
+            },
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -5486,7 +5532,15 @@ fn project_public_data(
                 members,
             },
             declaration: definition.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: {
+                let mut locations = Vec::new();
+                collect_type_parameter_contract_source_locations(
+                    compilation,
+                    parameters,
+                    &mut locations,
+                );
+                locations
+            },
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -7409,6 +7463,45 @@ fn project_contracts(
     projected.sort();
     projected.dedup();
     Ok(projected)
+}
+
+fn project_contract_clause_source_locations(
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+) -> Vec<ProjectedNestedSourceLocation> {
+    contracts
+        .iter()
+        .filter_map(|contract| {
+            contract
+                .keyword_source_span
+                .map(|source_span| ProjectedNestedSourceLocation {
+                    source_span,
+                    role: PackageReviewSourceLocationRole::ContractClause,
+                })
+        })
+        .collect()
+}
+
+fn collect_type_parameter_contract_source_locations(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::data::TypeParameter],
+    locations: &mut Vec<ProjectedNestedSourceLocation>,
+) {
+    for parameter in parameters {
+        let psi_typed_trees::data::TypeParameterKind::Machine {
+            contract: psi_typed_trees::data::MachineParameterContract::Structural(signature),
+        } = &parameter.kind
+        else {
+            continue;
+        };
+        locations.extend(project_contract_clause_source_locations(
+            compilation.state_signature_contracts(signature),
+        ));
+        collect_type_parameter_contract_source_locations(
+            compilation,
+            compilation.state_signature_type_parameters(signature),
+            locations,
+        );
+    }
 }
 
 fn checked_outcome_specific_guarantee<'a>(

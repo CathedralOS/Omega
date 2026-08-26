@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V5\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1154,6 +1154,11 @@ ensures result == 1;
         PackageReviewCanonicalRowRisk::Blocking
     );
     assert!(accepted_claim_conflict.is_blocking());
+    let accepted_claim_render = accepted_claim_conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render changed accepted claim");
+    assert!(accepted_claim_render.contains("baseline_location contract_clause package "));
+    assert!(accepted_claim_render.contains("candidate_location contract_clause package "));
     let accepted_claim_package = accepted_claim_conflicts
         .packages()
         .iter()
@@ -1343,12 +1348,11 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
         ReviewOnlyCapabilityConflictChange::Changed
     );
     assert!(conflict.is_blocking());
-    assert!(
-        conflicts
-            .render_bounded(1024 * 1024)
-            .expect("render public operator conflict")
-            .contains("change changed\nkind public_operator\nrisk blocking\n")
-    );
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render public operator conflict");
+    assert!(rendered.contains("change changed\nkind public_operator\nrisk blocking\n"));
+    assert!(rendered.contains("candidate_location contract_clause package "));
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

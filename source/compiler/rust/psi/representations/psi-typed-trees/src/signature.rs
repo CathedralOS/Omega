@@ -76,6 +76,8 @@ impl Default for StateParameter {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
+    /// Exact authored clause keyword retained independently from semantic facts.
+    pub keyword_source_span: Option<psi_source::SourceSpan>,
     pub binding: Option<Identifier>,
     pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,

@@ -209,6 +209,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("crashes") {
+            let keyword_source_span = Some(input.current_source_span());
             let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
             let ((facts, fact_token_count), rest) =
                 crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
@@ -240,6 +241,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind: CapabilityContractKind::Crashes { cause },
+                    keyword_source_span,
                     binding: None,
                     facts,
                     token_count: fact_token_count
@@ -263,6 +265,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let keyword_source_span = Some(input.current_source_span());
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
                 CapabilityContractKind::Requires
@@ -274,7 +277,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && outcome_case_path_followed_by_arrow(input)?
             {
                 let ((contracts, group_name), rest) =
-                    parse_outcome_specific_ensures_group(syntax_trees, input)?;
+                    parse_outcome_specific_ensures_group(syntax_trees, input, keyword_source_span)?;
                 if outcome_case_groups
                     .iter()
                     .any(|existing| existing == &group_name)
@@ -373,6 +376,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind,
+                    keyword_source_span,
                     binding,
                     facts,
                     token_count,
@@ -548,6 +552,7 @@ fn reject_ambiguous_outcome_specific_ensures(
 fn parse_outcome_specific_ensures_group<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    keyword_source_span: Option<psi_source::SourceSpan>,
 ) -> ParseResult<'tokens, 'source, (Vec<CapabilityContract>, String)> {
     let (result_case, rest) = parse_path_handle_span(input, |member| {
         syntax_trees.items.append_identifier_path_member(member)
@@ -591,6 +596,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
         }
         contracts.push(CapabilityContract {
             kind: CapabilityContractKind::EnsuresForResultCase { result_case },
+            keyword_source_span,
             binding,
             facts,
             token_count,
