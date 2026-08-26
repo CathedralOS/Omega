@@ -20,7 +20,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v2";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v3";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,16 +30,17 @@ impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.constant-conditional-fold.v2",
+                b"omega.psi-rule.constant-conditional-fold.v3",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            2,
+            3,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::ScalarConstants,
             ]),
             AnalysisInvalidationSet::new([
                 AnalysisKind::ControlFlowGraph,
+                AnalysisKind::CallGraph,
                 AnalysisKind::UseDefinition,
                 AnalysisKind::EffectSummaries,
             ]),
@@ -93,58 +94,31 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                     } else {
                         (when_false, when_true)
                     };
-                    if !all_blocks_reachable_after_fold(function, block.id, selected.psi_edge) {
-                        continue;
-                    }
                     let location = NodeLocation {
                         machine: function.machine,
                         block: block.id,
                         node: u32::try_from(node_index).expect("optimization node indices are u32"),
                     };
-                    let selected_fuel = node
-                        .fuel
-                        .iter()
-                        .copied()
-                        .filter(|settlement| {
-                            settlement.site
-                                == omega_optimization_unit::PsiProvenance::Edge(selected.psi_edge)
-                        })
-                        .collect::<Vec<_>>();
-                    let rejected_fuel = node
-                        .fuel
-                        .iter()
-                        .copied()
-                        .filter(|settlement| {
-                            settlement.site
-                                == omega_optimization_unit::PsiProvenance::Edge(rejected.psi_edge)
-                        })
-                        .collect::<Vec<_>>();
-                    if selected_fuel.is_empty() || rejected_fuel.is_empty() {
+                    let Some(reachable) =
+                        reachable_blocks_after_fold(function, block.id, selected.psi_edge)
+                    else {
                         continue;
-                    }
+                    };
+                    let Some((affected_blocks, provenance)) = conditional_fold_accounting(
+                        function,
+                        location,
+                        selected.psi_edge,
+                        rejected.psi_edge,
+                        &reachable,
+                    ) else {
+                        continue;
+                    };
                     candidates.push(
                         PsiRewriteCandidate::new_constant_conditional(
                             unit.identity,
                             Self::contract(),
-                            vec![block.id],
-                            vec![
-                                ProvenanceRewrite {
-                                    disposition: ProvenanceDisposition::RealizedAt(location),
-                                    sources: vec![omega_optimization_unit::PsiProvenance::Edge(
-                                        selected.psi_edge,
-                                    )],
-                                    fuel: selected_fuel,
-                                },
-                                ProvenanceRewrite {
-                                    disposition: ProvenanceDisposition::ProvenUnreachableAt(
-                                        location,
-                                    ),
-                                    sources: vec![omega_optimization_unit::PsiProvenance::Edge(
-                                        rejected.psi_edge,
-                                    )],
-                                    fuel: rejected_fuel,
-                                },
-                            ],
+                            affected_blocks,
+                            provenance,
                             condition_fact,
                             -1,
                             ConstantConditionalRewrite {
@@ -164,11 +138,11 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
     }
 }
 
-fn all_blocks_reachable_after_fold(
+fn reachable_blocks_after_fold(
     function: &omega_optimization_unit::PsiOptimizationFunction,
     source: BlockId,
     selected_edge: psi_core::EdgeId,
-) -> bool {
+) -> Option<BTreeSet<BlockId>> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![function.entry];
     while let Some(block_id) = pending.pop() {
@@ -176,7 +150,7 @@ fn all_blocks_reachable_after_fold(
             continue;
         }
         let Some(block) = function.blocks.iter().find(|block| block.id == block_id) else {
-            return false;
+            return None;
         };
         for edge in block.nodes.iter().flat_map(|node| &node.successors) {
             if block_id != source || edge.psi_edge == selected_edge {
@@ -184,7 +158,94 @@ fn all_blocks_reachable_after_fold(
             }
         }
     }
-    reachable.len() == function.blocks.len()
+    Some(reachable)
+}
+
+fn conditional_fold_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    decision: NodeLocation,
+    selected_edge: psi_core::EdgeId,
+    rejected_edge: psi_core::EdgeId,
+    reachable: &BTreeSet<BlockId>,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let decision_node = function
+        .blocks
+        .iter()
+        .find(|block| block.id == decision.block)?
+        .nodes
+        .get(usize::try_from(decision.node).ok()?)?;
+    let source_fuel = |edge| {
+        decision_node
+            .fuel
+            .iter()
+            .copied()
+            .filter(|settlement| {
+                settlement.site == omega_optimization_unit::PsiProvenance::Edge(edge)
+            })
+            .collect::<Vec<_>>()
+    };
+    let selected_fuel = source_fuel(selected_edge);
+    let rejected_fuel = source_fuel(rejected_edge);
+    if selected_fuel.is_empty() || rejected_fuel.is_empty() {
+        return None;
+    }
+    let removed = function
+        .blocks
+        .iter()
+        .map(|block| block.id)
+        .filter(|block| !reachable.contains(block))
+        .collect::<BTreeSet<_>>();
+    let mut affected = BTreeSet::from([decision.block]);
+    affected.extend(removed.iter().copied());
+    let mut realized = vec![ProvenanceRewrite {
+        disposition: ProvenanceDisposition::RealizedAt(decision),
+        sources: vec![omega_optimization_unit::PsiProvenance::Edge(selected_edge)],
+        fuel: selected_fuel,
+    }];
+    let mut unreachable = vec![ProvenanceRewrite {
+        disposition: ProvenanceDisposition::ProvenUnreachableAt(decision),
+        sources: vec![omega_optimization_unit::PsiProvenance::Edge(rejected_edge)],
+        fuel: rejected_fuel,
+    }];
+    let mut expected_effect = 0u64;
+    for block in &function.blocks {
+        if removed.contains(&block.id) {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                unreachable.push(ProvenanceRewrite {
+                    disposition: ProvenanceDisposition::ProvenUnreachableAt(NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).ok()?,
+                    }),
+                    sources: node.provenance.clone(),
+                    fuel: node.fuel.clone(),
+                });
+            }
+            continue;
+        }
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let location = NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            };
+            let effect_changes = node.effect.input != expected_effect
+                || node.effect.output != expected_effect.checked_add(1)?;
+            if effect_changes && location != decision {
+                affected.insert(block.id);
+                realized.push(ProvenanceRewrite {
+                    disposition: ProvenanceDisposition::RealizedAt(location),
+                    sources: node.provenance.clone(),
+                    fuel: node.fuel.clone(),
+                });
+            }
+            expected_effect = expected_effect.checked_add(1)?;
+        }
+    }
+    realized.sort_by_key(|row| row.disposition.location());
+    unreachable.sort_by_key(|row| row.disposition.location());
+    realized.extend(unreachable);
+    Some((affected.into_iter().collect(), realized))
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1988,7 +2049,7 @@ pub(crate) mod tests {
         with_synthetic_accepted_obligations(unit)
     }
 
-    pub(crate) fn propagated_block_parameter_unit() -> PsiOptimizationUnit {
+    pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimizationUnit {
         let machine = id(601, MachineId::new);
         let entry = id(602, BlockId::new);
         let when_true = id(603, BlockId::new);
@@ -2057,7 +2118,7 @@ pub(crate) mod tests {
                         TerminalAbstractOperation::BooleanConstant {
                             psi_operation: id(611, OperationId::new),
                             result: condition,
-                            value: true,
+                            value: constant,
                         },
                         TerminalAbstractOperation::Conditional {
                             condition,
@@ -2939,7 +3000,7 @@ pub(crate) mod tests {
 
     #[test]
     fn propagated_block_parameter_fact_is_independently_reconstructed() {
-        let unit = propagated_block_parameter_unit();
+        let unit = propagated_block_parameter_unit(true);
         let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
         let candidates = IntegerBitwiseNotConstantsRule
             .propose(&unit, RuleAnalysisView::new(&[constants]))
@@ -3337,7 +3398,7 @@ pub(crate) mod tests {
             assert_eq!(
                 accepted.validator(),
                 omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-                    b"omega.validator.constant-conditional-fold.v2"
+                    b"omega.validator.constant-conditional-fold.v3"
                 )
             );
             let node = &accepted.unit().functions[0].blocks[0].nodes[1];
@@ -3360,8 +3421,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn constant_conditional_fold_refuses_to_orphan_a_branch_region() {
-        let unit = propagated_block_parameter_unit();
+    fn constant_conditional_fold_atomically_prunes_the_unreachable_branch_region() {
+        let unit = propagated_block_parameter_unit(true);
         let contract = ConstantConditionalFoldRule::contract();
         let mut manager = crate::AnalysisManager::new(&unit);
         let products = manager
@@ -3370,12 +3431,114 @@ pub(crate) mod tests {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
-        assert!(
-            ConstantConditionalFoldRule
-                .propose(&unit, RuleAnalysisView::new(&products))
-                .unwrap()
-                .is_empty()
+        let candidate = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .expect("constant branch produces an atomic prune candidate");
+        assert_eq!(
+            candidate.affected_blocks(),
+            [
+                id(602, BlockId::new),
+                id(604, BlockId::new),
+                id(605, BlockId::new),
+            ]
         );
+        assert_eq!(
+            candidate
+                .provenance()
+                .iter()
+                .filter(|row| row.disposition.is_realized())
+                .count(),
+            3
+        );
+        assert_eq!(
+            candidate
+                .provenance()
+                .iter()
+                .filter(|row| !row.disposition.is_realized())
+                .count(),
+            3
+        );
+        let accepted = validate_constant_conditional_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(
+            output.functions[0]
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>(),
+            [
+                id(602, BlockId::new),
+                id(603, BlockId::new),
+                id(605, BlockId::new),
+            ]
+        );
+        assert_eq!(output.functions[0].facts.len(), 2);
+        assert_eq!(output.functions[0].blocks[2].nodes[0].effect.input, 4);
+        assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
+        assert_eq!(accepted.provenance(), candidate.provenance());
+    }
+
+    #[test]
+    fn constant_conditional_pruning_is_symmetric_and_rebases_all_later_blocks() {
+        let unit = propagated_block_parameter_unit(false);
+        let contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(
+            candidate.affected_blocks(),
+            [
+                id(602, BlockId::new),
+                id(603, BlockId::new),
+                id(604, BlockId::new),
+                id(605, BlockId::new),
+            ]
+        );
+        assert_eq!(
+            candidate
+                .provenance()
+                .iter()
+                .filter(|row| row.disposition.is_realized())
+                .count(),
+            5
+        );
+        assert_eq!(
+            candidate
+                .provenance()
+                .iter()
+                .filter(|row| !row.disposition.is_realized())
+                .count(),
+            3
+        );
+        let accepted = validate_constant_conditional_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(
+            output.functions[0]
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>(),
+            [
+                id(602, BlockId::new),
+                id(604, BlockId::new),
+                id(605, BlockId::new),
+            ]
+        );
+        assert_eq!(output.functions[0].facts.len(), 2);
+        assert_eq!(output.functions[0].blocks[1].nodes[0].effect.input, 2);
+        assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
     }
 
     #[test]
@@ -3498,6 +3661,78 @@ pub(crate) mod tests {
         assert!(matches!(
             validate_constant_conditional_candidate(&unit, &wrong_unreachable_fuel),
             Err(OptimizationUnitValidationError::CandidateFuelMismatch)
+        ));
+    }
+
+    #[test]
+    fn constant_conditional_validator_rejects_incomplete_prune_custody_and_region() {
+        let unit = propagated_block_parameter_unit(true);
+        let contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let omega_optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        let condition_fact = candidate
+            .scalar_evaluation_witness()
+            .and_then(IntegerEvaluationWitness::unary_operand)
+            .unwrap();
+        let dead_block = id(604, BlockId::new);
+        let rebased_merge = id(605, BlockId::new);
+
+        let mut incomplete_provenance = candidate.provenance().to_vec();
+        let removed = incomplete_provenance
+            .iter()
+            .position(|row| {
+                !row.disposition.is_realized() && row.disposition.location().block == dead_block
+            })
+            .expect("dead nodes carry unreachable custody");
+        incomplete_provenance.remove(removed);
+        let incomplete_custody = PsiRewriteCandidate::new_constant_conditional(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            incomplete_provenance,
+            condition_fact,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_constant_conditional_candidate(&unit, &incomplete_custody),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        ));
+
+        let incomplete_region = PsiRewriteCandidate::new_constant_conditional(
+            unit.identity,
+            contract,
+            candidate
+                .affected_blocks()
+                .iter()
+                .copied()
+                .filter(|block| *block != rebased_merge)
+                .collect(),
+            candidate.provenance().to_vec(),
+            condition_fact,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_constant_conditional_candidate(&unit, &incomplete_region),
+            Err(OptimizationUnitValidationError::CandidateReachabilityMismatch)
         ));
     }
 

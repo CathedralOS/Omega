@@ -668,7 +668,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v2",
+        b"omega.psi-pass.control-flow-cleanup.v3",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1064,6 +1064,50 @@ mod tests {
     }
 
     #[test]
+    fn named_control_flow_cleanup_atomically_prunes_and_accounts_for_a_dead_arm() {
+        let unit = propagated_block_parameter_unit(true);
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit.clone(), &registry, budget(8)).unwrap();
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.commits, 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(unit.functions[0].blocks.len(), 4);
+        assert_eq!(output.functions[0].blocks.len(), 3);
+        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(ledger.records()[0].provenance.len(), 6);
+        assert_eq!(
+            ledger.records()[0]
+                .provenance
+                .iter()
+                .filter(|row| row.disposition.is_realized())
+                .count(),
+            3
+        );
+        assert_eq!(
+            ledger.records()[0]
+                .provenance
+                .iter()
+                .filter(|row| !row.disposition.is_realized())
+                .count(),
+            3
+        );
+        assert_eq!(output.functions[0].facts.len(), 2);
+        assert_eq!(output.functions[0].blocks[2].nodes[0].effect.input, 4);
+        assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
+        assert_eq!(manifest.unwrap().decisions().len(), 1);
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
     fn ordered_multi_rule_group_reaches_a_dependent_exact_fixed_point() {
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
@@ -1168,7 +1212,7 @@ mod tests {
 
     #[test]
     fn manifest_retains_propagated_block_parameter_fact_identity() {
-        let unit = propagated_block_parameter_unit();
+        let unit = propagated_block_parameter_unit(true);
         let AnalysisProduct::ScalarConstants(constants) = crate::compute_analysis(
             &unit,
             omega_optimization_core::AnalysisKind::ScalarConstants,

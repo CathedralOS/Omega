@@ -690,6 +690,114 @@ mod tests {
         )
     }
 
+    fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(4_101).unwrap();
+        let entry = BlockId::new(4_102).unwrap();
+        let when_true = BlockId::new(4_103).unwrap();
+        let when_false = BlockId::new(4_104).unwrap();
+        let condition = ValueId::new(4_105).unwrap();
+        let forwarded = ValueId::new(4_106).unwrap();
+        let result = ValueId::new(4_107).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(forwarded, scalar_type)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(4_108).unwrap(),
+                            result: OperationResult::Scalar(declaration(
+                                condition,
+                                ScalarType::Boolean,
+                            )),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        }],
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(4_111).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(4_112).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(4_113).unwrap(),
+                            value: forwarded,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(4_114).unwrap(),
+                            value: forwarded,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(4_115).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn staged_forwarded_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
         let (semantic, proof) = conditional_forwarded_parameter_artifact();
         let optimized = optimize_artifact_sections(
@@ -1096,6 +1204,40 @@ mod tests {
             optimized.selections().as_slice(),
             [Optimization::ControlFlowCleanup]
         );
+    }
+
+    #[test]
+    fn control_flow_cleanup_projects_an_atomically_pruned_block_roster() {
+        let (semantic, proof) = constant_conditional_prune_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 2);
+        assert_eq!(
+            optimized.plan().functions[0].block_entries[1].operation_offset,
+            2
+        );
+        assert_eq!(optimized.plan().functions[0].operations.len(), 3);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .filter(|row| !row.disposition.is_realized())
+                .count(),
+            2
+        );
+        let report = optimized.pre_physical_manifest().record().render_text();
+        assert!(report.contains("source structure: functions=1, blocks=3, nodes=4"));
+        assert!(report.contains("optimized structure: functions=1, blocks=2, nodes=3"));
+        assert!(report.contains("proven-unreachable=2"));
+        assert!(report.contains("runtime-charge=none reason=proven-unreachable"));
     }
 
     #[test]
