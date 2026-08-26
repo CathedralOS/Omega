@@ -1840,8 +1840,14 @@ installed provider occurrence, progress-establishment receipt, or
 `InstalledCode` claim: compilation assembles evidence but cannot mint runtime
 or publication authority. The deployment owner consumes the candidate, joins
 real installation occurrences and receipts under the live registry, acquires
-installed-code custody, and only then produces a runnable carrier. The legacy
-direct `write_output` path remains fenced until it delegates to that owner.
+installed-code custody, and only then produces a runnable carrier. That owner
+can now consume the finalized runnable to publish one flat executable: it
+replays the canonical installation/image join, stages and validates the exact
+sealed bytes and executable mode before atomic rename, replays the visible
+file, and returns a non-clonable installation/image/path receipt while retaining
+the runnable. Every failure returns the exact runnable and requested path for
+retry; receipt replay detects later byte or mode drift. The legacy direct
+`write_output` path remains fenced until it delegates to that owner.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

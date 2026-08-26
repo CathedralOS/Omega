@@ -14,6 +14,7 @@ use omega_compiler::{
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
     begin_terminal_component_deployment_with_claimed_registry,
+    publish_terminal_component_flat_output,
 };
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
 use omega_effects::{
@@ -70,7 +71,8 @@ use omega_terminal_image_emission::{
     build_terminal_object_artifact, decode_terminal_installation_record,
     derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
     emit_terminal_executable_image, emit_terminal_object_container,
-    encode_terminal_installation_record, validate_terminal_installation_record,
+    encode_terminal_installation_record, terminal_installation_fingerprint,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
@@ -673,6 +675,90 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         .expect("progress-free production deployment finalizes");
     assert!(runnable.progress().is_none());
     assert!(runnable.roots().live_external_roots_are_empty());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let scratch = ScratchDirectory(fresh_scratch_directory(
+            "omega-terminal-component-flat-output",
+        ));
+        let file_name = runnable
+            .terminal_artifact()
+            .image()
+            .output()
+            .file_name
+            .clone();
+        let expected_bytes = runnable.terminal_artifact().image().output().bytes.clone();
+        let installed_identity = runnable.installed_code();
+
+        let wrong_name = scratch.0.join("not-the-sealed-name");
+        let error = publish_terminal_component_flat_output(runnable, wrong_name.clone())
+            .expect_err("flat publication must reject a substituted executable filename");
+        assert!(error.diagnostic().contains("sealed executable filename"));
+        let (runnable, returned_path) = error.into_parts();
+        assert_eq!(returned_path, wrong_name);
+        assert_eq!(runnable.installed_code(), installed_identity);
+
+        let blocked_parent = scratch.0.join("not-a-directory");
+        std::fs::write(&blocked_parent, b"occupied").expect("create blocked output parent");
+        let blocked_path = blocked_parent.join(&file_name);
+        let error = publish_terminal_component_flat_output(runnable, blocked_path.clone())
+            .expect_err("filesystem rejection must preserve runnable deployment custody");
+        assert!(error.diagnostic().contains("output directory"));
+        let (runnable, returned_path) = error.into_parts();
+        assert_eq!(returned_path, blocked_path);
+        assert_eq!(runnable.installed_code(), installed_identity);
+
+        let output_path = scratch.0.join("published").join(&file_name);
+        let published = publish_terminal_component_flat_output(runnable, output_path.clone())
+            .expect("returned runnable custody should publish on an exact retry");
+        assert_eq!(published.receipt().output_path(), output_path);
+        assert_eq!(published.receipt().byte_count(), expected_bytes.len());
+        assert_eq!(
+            published.receipt().installation_fingerprint(),
+            terminal_installation_fingerprint(
+                published.runnable().terminal_artifact().installation()
+            )
+            .expect("terminal installation fingerprint")
+        );
+        assert_eq!(
+            published.receipt().image_fingerprint(),
+            published
+                .runnable()
+                .terminal_artifact()
+                .installation()
+                .image()
+        );
+        assert_eq!(
+            std::fs::read(&output_path).expect("read deployed flat output"),
+            expected_bytes
+        );
+        assert_eq!(
+            std::fs::metadata(&output_path)
+                .expect("read deployed flat output mode")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        published
+            .validate()
+            .expect("flat output receipt should replay against retained runnable custody");
+
+        std::fs::write(&output_path, b"drifted").expect("drift published output");
+        let validation = published
+            .validate()
+            .expect_err("post-publication byte drift must invalidate the receipt");
+        assert!(validation.diagnostic().contains("bytes differ"));
+        let (runnable, _drifted_receipt) = published.into_parts();
+        assert_eq!(runnable.installed_code(), installed_identity);
+        let repaired = publish_terminal_component_flat_output(runnable, output_path)
+            .expect("retained runnable custody should repair a drifted flat output");
+        repaired
+            .validate()
+            .expect("repaired flat output should replay exactly");
+    }
 }
 
 #[test]
@@ -897,6 +983,40 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let runnable = progress_closed
         .finalize(ProfileDecisionId::new(0x5424).expect("progress publication profile decision"))
         .expect("production deployment binds the runnable component");
+
+    #[cfg(unix)]
+    let runnable = {
+        let scratch = ScratchDirectory(fresh_scratch_directory(
+            "omega-terminal-progress-flat-output",
+        ));
+        let output_path = scratch
+            .0
+            .join(&runnable.terminal_artifact().image().output().file_name);
+        let published = publish_terminal_component_flat_output(runnable, output_path)
+            .expect("progress-bearing deployment should authorize exact flat output");
+        assert!(
+            published
+                .runnable()
+                .terminal_artifact()
+                .installation()
+                .component_progress()
+                .is_some(),
+            "flat publication must retain the installation's accepted progress manifest"
+        );
+        assert_eq!(
+            published.receipt().installation_fingerprint(),
+            terminal_installation_fingerprint(
+                published.runnable().terminal_artifact().installation()
+            )
+            .expect("progress installation fingerprint")
+        );
+        published
+            .validate()
+            .expect("progress-bearing flat output should replay exactly");
+        let (runnable, receipt) = published.into_parts();
+        drop(receipt);
+        runnable
+    };
 
     let tcb_acceptance = |identity: u64| {
         evaluate_executable_tcb_profile(
