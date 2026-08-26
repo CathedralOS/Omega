@@ -302,7 +302,7 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::DirectLiftArgumentIsNotPublicParameter(position) => write!(
                 formatter,
-                "direct-lift argument {position} is neither a direct public parameter nor an admitted closed scalar literal"
+                "direct-lift argument {position} is neither a direct public parameter nor an admitted closed literal"
             ),
             Self::DirectLiftParameterModeMismatch(position) => write!(
                 formatter,
@@ -314,7 +314,7 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::DirectLiftLiteralTargetMismatch(position) => write!(
                 formatter,
-                "direct-lift literal {position} is not a closed boolean or explicitly landed, in-range integer of the representative parameter's exact primitive type and arithmetic domain"
+                "direct-lift literal {position} does not have an admitted exact representative target and value identity"
             ),
             Self::DirectLiftResultTypeMismatch => formatter.write_str(
                 "the direct-lift result quotient carrier does not match the representative result",
@@ -391,6 +391,7 @@ pub(super) fn derive_direct_terminal_plan(
                 psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
                 psi_typed_trees::expression::ExpressionNode::Float(_) => true,
                 psi_typed_trees::expression::ExpressionNode::String(_) => true,
+                psi_typed_trees::expression::ExpressionNode::ArrayLiteral(_) => true,
                 _ => false,
             };
             if request.kind == QuotientOperationKind::Lift && is_closed_literal_candidate {

@@ -8064,7 +8064,13 @@ Remaining N6/N8 work:
   `&[u8]` representative position or an exact constrained `[u8; N]` named
   value-domain buffer when its payload fits. Its immutable-image bytes and
   exact target identity are retained; planning neither selects an encoding
-  domain nor adapts to a different buffer shape.
+  domain nor adapts to a different buffer shape. An exact-width quoted byte
+  literal that ordinary contextual typing has already landed as a canonical
+  closed `[u8; N]` array may likewise feed that exact representative target.
+  The canonical retained shape is one unsuffixed decimal `u8` value per array
+  element. Its ordered bytes and normalized array identity remain evidence;
+  the quotient planner performs no padding, truncation, element coercion, or
+  contextual landing of its own.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8073,8 +8079,9 @@ Remaining N6/N8 work:
   format are all proof-value identity even when rendering would erase a
   difference. Literal-only facts remain fixed ordinary call obligations.
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
-  undersized, bare fixed-array, or otherwise constrained byte-string targets,
-  aggregates, zero-value,
+  undersized or otherwise constrained byte-string targets, raw strings not
+  already context-landed for a bare fixed array, noncanonical or heterogeneous
+  arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public

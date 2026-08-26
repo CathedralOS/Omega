@@ -795,16 +795,22 @@ feed an exact shared `&[u8]` representative position or an exact constrained
 `[u8; N]` named value-domain buffer when its payload fits. The certificate
 retains its immutable-image bytes and exact target identity; planning selects
 no encoding domain and performs no mutable-view or different-buffer-shape
-conversion. Exact
+conversion. An exact-width quoted byte literal that ordinary contextual typing
+has already landed as a canonical closed `[u8; N]` array may likewise feed that
+exact representative target. The retained canonical shape is one unsuffixed
+decimal `u8` value per element. Its ordered bytes and normalized array identity
+remain evidence; quotient planning performs no padding, truncation, element
+coercion, or contextual landing of its own. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
 arithmetic domain, and float spelling and format remain proof-value identity
 even where rendering is equal; there is no evaluation or inferred implication.
 Literal-only facts stay fixed ordinary call obligations. Mismatched or
-out-of-range integers, mismatched floats, mutable/non-byte, undersized, bare
-fixed-array, or otherwise constrained byte-string targets, aggregates,
-zero-value, casts, calls, computations,
+out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
+otherwise constrained byte-string targets, raw strings not already
+context-landed for a bare fixed array, noncanonical or heterogeneous arrays,
+other aggregates, zero-value, casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
