@@ -34,13 +34,14 @@ pub use rules::{
     ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
-    ExactIntegerSubtractConstantsRule, SaturatingIntegerAddConstantsRule,
-    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
-    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
+    ExactIntegerSubtractConstantsRule, IntegerBitwiseNotConstantsRule, IntegerWidenConstantsRule,
+    SaturatingIntegerAddConstantsRule, SaturatingIntegerDivideConstantsRule,
+    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerRemainderConstantsRule,
+    SaturatingIntegerSubtractConstantsRule, WrappingIntegerAddConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
+    built_in_psi_registry,
 };
 
 #[cfg(test)]

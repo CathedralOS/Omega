@@ -475,11 +475,7 @@ fn evaluate_integer_operation(
         ..
     } = node.operation
     {
-        let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
-            return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
-        };
-        let operand_value = literal_integer_fact(function, operand, operand_support)
-            .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+        let operand_value = unary_integer_operand(function, candidate, operand)?;
         let evaluated = source_type
             .exact_cast_value_to(target_type, operand_value)
             .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
@@ -489,6 +485,45 @@ fn evaluate_integer_operation(
             target_type,
             evaluated,
             OptimizationSafetyClass::ProofCertified,
+        ));
+    }
+    if let O::IntegerWiden {
+        psi_operation,
+        result,
+        source_type,
+        target_type,
+        operand,
+    } = node.operation
+    {
+        let operand_value = unary_integer_operand(function, candidate, operand)?;
+        let evaluated = source_type
+            .widen_value_to(target_type, operand_value)
+            .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+        return Ok((
+            psi_operation,
+            result,
+            target_type,
+            evaluated,
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ));
+    }
+    if let O::IntegerBitwiseNot {
+        psi_operation,
+        result,
+        scalar_type,
+        operand,
+    } = node.operation
+    {
+        let operand_value = unary_integer_operand(function, candidate, operand)?;
+        let evaluated = scalar_type
+            .bitwise_not(operand_value)
+            .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+        return Ok((
+            psi_operation,
+            result,
+            scalar_type,
+            evaluated,
+            OptimizationSafetyClass::ExactOperationSemantics,
         ));
     }
     enum IntegerOperation {
@@ -888,6 +923,18 @@ fn evaluate_integer_operation(
     let evaluated =
         evaluated.ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
     Ok((source, result, scalar_type, evaluated, safety_class))
+}
+
+fn unary_integer_operand(
+    function: &PsiOptimizationFunction,
+    candidate: &PsiRewriteCandidate,
+    operand: ValueId,
+) -> Result<psi_core::IntegerValue, OptimizationUnitValidationError> {
+    let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    };
+    literal_integer_fact(function, operand, operand_support)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)
 }
 
 fn literal_integer_fact(
