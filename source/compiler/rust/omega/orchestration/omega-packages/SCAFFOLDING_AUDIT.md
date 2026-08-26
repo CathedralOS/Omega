@@ -48,7 +48,7 @@ and
 | `src/source_commands.rs` | Rewrite | Diagnostic rendering is useful. Explicit `local`/`git` adapter selection has replaced locator guessing, but execution still uses the unhardened resolver. Keep marked unhardened until the remaining resolver P0 work lands. |
 | removed `src/commands.rs` | Deleted | The test-only manifest/lock/plan/review command facade was removed after production routing had already been quarantined. Source diagnostics remain separately in `source_commands.rs`. |
 | `src/lib.rs` | Rewrite | Superseded manifest, lock, receipt, install, update, diff, command, and graph-audit modules are deleted. The arbitrary `PackageInstance`/compiler-fingerprint constructor was removed. Production orchestration must instead receive opaque compiler/resolver evidence; the crate remains experimental until those replacements exist. |
-| `apps/omega-cli/src/main.rs` package command routing | Deleted/quarantined | Manifest-based audit, review, plan, and lock names fail closed before parsing or mutation. Their unreachable implementation bodies and argument parsers are deleted; only the rejecting name gates remain until corrected commands exist. |
+| `apps/omega-cli/src/main.rs` package command routing | Deleted/quarantined | Direct install/update and manifest-based audit, review, plan, and lock names fail closed at dispatch before compiler parsing, resolution, or mutation. Their unreachable implementation bodies and argument parsers are deleted; only the rejecting name gates remain until corrected commands exist. Ordinary `.omg` filenames using those words remain compiler inputs. |
 
 ## Trust-path findings
 

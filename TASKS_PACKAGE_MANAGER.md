@@ -2241,6 +2241,15 @@ complete.
 
 ## P6 — Commands
 
+  Safety milestone 2026-08-26: the production CLI now intercepts direct
+  `omega install` and `omega update` invocations at command dispatch and exits
+  before compiler argument parsing, source resolution, or project mutation.
+  Their diagnostic states that accepted package admission is not implemented.
+  This preserves the production fence while P0, recheckable evidence, and the
+  accepted lock remain incomplete; it implements no install or update
+  semantics. Exact source filenames such as `install.omg` and `update.omg`
+  remain ordinary compiler inputs.
+
 - **OMEGA-INSTALL.** Implement
   `omega install <source> [--rev <revision>] [--as <alias>]`.
 

@@ -47,10 +47,13 @@ fn main() {
         audit(raw_arguments);
         return;
     }
-    if first_argument
-        .as_deref()
-        .is_some_and(|first| first == "review" || first == "plan" || first == "lock")
-    {
+    if first_argument.as_deref().is_some_and(|first| {
+        first == "install"
+            || first == "update"
+            || first == "review"
+            || first == "plan"
+            || first == "lock"
+    }) {
         quarantined_package_command();
     }
 
@@ -202,9 +205,10 @@ fn quarantined_package_command() -> ! {
 
 fn print_package_prototype_quarantine() {
     eprintln!(
-        "error: this caller-authored package manifest/lock/review prototype is \
-         quarantined and unavailable from the production omega CLI; package \
-         admission will return only with compiler-issued evidence"
+        "error: accepted package admission is not implemented; package \
+         install/update and the former manifest/lock/review prototype are \
+         quarantined and unavailable from the production omega CLI until \
+         compiler-issued evidence can be independently rechecked"
     );
 }
 
