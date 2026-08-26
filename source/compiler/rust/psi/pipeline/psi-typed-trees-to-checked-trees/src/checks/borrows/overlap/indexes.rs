@@ -418,10 +418,46 @@ mod tests {
         let mutated_right = range_bounds(&mut program, other, four, false);
 
         assert!(!index_expressions_may_overlap(&program, left, right));
+        let left_place = psi_checked_trees::CapturedPlace {
+            root_symbol: symbol(20),
+            segments: vec![psi_facts::PlaceSegment::Index { expression: left }],
+        };
+        let right_place = psi_checked_trees::CapturedPlace {
+            root_symbol: symbol(20),
+            segments: vec![psi_facts::PlaceSegment::Index { expression: right }],
+        };
+        let compatibility = super::super::captured_place_compatibility(
+            &program,
+            &left_place,
+            &psi_checked_trees::BorrowAccessKind::Mutable,
+            &right_place,
+            &psi_checked_trees::BorrowAccessKind::Mutable,
+        );
+        assert!(compatibility.disjoint);
+        assert!(compatibility.non_interfering);
+        assert_eq!(
+            compatibility.containment,
+            psi_checked_trees::CapturedPlaceContainment::None
+        );
         assert!(
             index_expressions_may_overlap(&program, left, mutated_right),
             "changing the shared boundary symbol must restore conservative overlap"
         );
+        let changed_place = psi_checked_trees::CapturedPlace {
+            root_symbol: symbol(20),
+            segments: vec![psi_facts::PlaceSegment::Index {
+                expression: mutated_right,
+            }],
+        };
+        let changed = super::super::captured_place_compatibility(
+            &program,
+            &left_place,
+            &psi_checked_trees::BorrowAccessKind::Mutable,
+            &changed_place,
+            &psi_checked_trees::BorrowAccessKind::Mutable,
+        );
+        assert!(!changed.disjoint);
+        assert!(!changed.non_interfering);
     }
 
     #[test]

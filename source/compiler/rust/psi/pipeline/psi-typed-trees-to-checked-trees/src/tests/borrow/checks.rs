@@ -829,6 +829,91 @@ fn accepts_disjoint_member_borrow_arguments() {
 }
 
 #[test]
+fn rejects_read_then_mutable_overlap_independent_of_argument_order() {
+    let source = r#"
+        data Main { value: i32; }
+
+        machine Main::main(&mut self) {
+            self.mix(self.value, &mut self.value);
+        }
+
+        machine Main::mix(&mut self, before: i32, current: &mut i32) {
+            current = before;
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a read followed by a mutable access to the same place must conflict");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("as both mutable and read-only"),
+        "expected the order-independent access conflict, got:\n{combined}"
+    );
+}
+
+#[test]
+fn dependent_sibling_reads_remain_noninterfering() {
+    let source = r#"
+        data Ledger
+        where
+            count <= len,
+        {
+            len: u32;
+            count: u32;
+        }
+
+        data Main { ledger: Ledger; }
+
+        machine Main::main(&self) {
+            self.observe(self.ledger.count, self.ledger.len);
+        }
+
+        machine Main::observe(&self, count: u32, len: u32) {
+        }
+    "#;
+
+    check_program(source).expect("two reads cannot invalidate their shared dependent fact");
+}
+
+#[test]
+fn dependent_sibling_mutation_refuses_noninterference_without_panicking() {
+    let source = r#"
+        data Ledger
+        where
+            count <= len,
+        {
+            len: u32;
+            count: u32;
+        }
+
+        data Main { ledger: Ledger; }
+
+        machine Main::main(&mut self) {
+            self.observe(&mut self.ledger.count, self.ledger.len);
+        }
+
+        machine Main::observe(&mut self, count: &mut u32, len: u32) {
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("a mutable dependent sibling access must not establish non-interference");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("as both mutable and read-only"),
+        "expected a normal dependent-sibling diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     let source = r#"
         data Main {

@@ -1,4 +1,107 @@
 use super::indexes::{index_expression_may_contain_fixed, index_expressions_may_overlap};
+use psi_checked_trees::CapturedPlaceContainment;
+
+pub(super) fn place_segments_containment(
+    left: &[psi_facts::PlaceSegment],
+    right: &[psi_facts::PlaceSegment],
+) -> CapturedPlaceContainment {
+    if left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| structural_segment_equal(*left, *right))
+    {
+        return CapturedPlaceContainment::Same;
+    }
+    if path_contains(left, right) {
+        return CapturedPlaceContainment::LeftContainsRight;
+    }
+    if path_contains(right, left) {
+        return CapturedPlaceContainment::RightContainsLeft;
+    }
+    CapturedPlaceContainment::None
+}
+
+fn path_contains(
+    container: &[psi_facts::PlaceSegment],
+    contained: &[psi_facts::PlaceSegment],
+) -> bool {
+    container.len() <= contained.len()
+        && container
+            .iter()
+            .zip(contained)
+            .all(|(container, contained)| segment_contains(*container, *contained))
+}
+
+fn segment_contains(
+    container: psi_facts::PlaceSegment,
+    contained: psi_facts::PlaceSegment,
+) -> bool {
+    if structural_segment_equal(container, contained) {
+        return true;
+    }
+    match (container, contained) {
+        (
+            psi_facts::PlaceSegment::FixedRange { start, end },
+            psi_facts::PlaceSegment::FixedIndex { index },
+        ) => start < end && start <= index && index < end,
+        (
+            psi_facts::PlaceSegment::FixedRange {
+                start: outer_start,
+                end: outer_end,
+            },
+            psi_facts::PlaceSegment::FixedRange {
+                start: inner_start,
+                end: inner_end,
+            },
+        ) => {
+            outer_start < outer_end
+                && inner_start < inner_end
+                && outer_start <= inner_start
+                && inner_end <= outer_end
+        }
+        _ => false,
+    }
+}
+
+fn structural_segment_equal(left: psi_facts::PlaceSegment, right: psi_facts::PlaceSegment) -> bool {
+    match (left, right) {
+        (
+            psi_facts::PlaceSegment::Field {
+                symbol: left_symbol,
+            },
+            psi_facts::PlaceSegment::Field {
+                symbol: right_symbol,
+            },
+        ) => left_symbol == right_symbol,
+        (
+            psi_facts::PlaceSegment::Case {
+                variant: left_variant,
+            },
+            psi_facts::PlaceSegment::Case {
+                variant: right_variant,
+            },
+        ) => left_variant == right_variant,
+        (
+            psi_facts::PlaceSegment::FixedIndex { index: left_index },
+            psi_facts::PlaceSegment::FixedIndex { index: right_index },
+        ) => left_index == right_index,
+        (
+            psi_facts::PlaceSegment::FixedRange {
+                start: left_start,
+                end: left_end,
+            },
+            psi_facts::PlaceSegment::FixedRange {
+                start: right_start,
+                end: right_end,
+            },
+        ) => left_start == right_start && left_end == right_end,
+        // Runtime/symbolic selectors need a captured value/version before they
+        // can establish containment, even when expression handles happen to
+        // match. The existing overlap tactic remains conservative for them.
+        _ => false,
+    }
+}
 
 pub(super) fn place_segments_may_overlap(
     program: &psi_typed_trees::TypedTrees,
@@ -187,5 +290,28 @@ mod tests {
             &[range(1, 1)],
             &[range(0, 2)],
         ));
+    }
+
+    #[test]
+    fn fixed_structural_containment_is_directional() {
+        let range = |start, end| psi_facts::PlaceSegment::FixedRange { start, end };
+        let index = |index| psi_facts::PlaceSegment::FixedIndex { index };
+
+        assert_eq!(
+            place_segments_containment(&[range(0, 4)], &[index(2)]),
+            CapturedPlaceContainment::LeftContainsRight
+        );
+        assert_eq!(
+            place_segments_containment(&[index(2)], &[range(0, 4)]),
+            CapturedPlaceContainment::RightContainsLeft
+        );
+        assert_eq!(
+            place_segments_containment(&[range(0, 8)], &[range(2, 4)]),
+            CapturedPlaceContainment::LeftContainsRight
+        );
+        assert_eq!(
+            place_segments_containment(&[range(0, 4)], &[range(4, 8)]),
+            CapturedPlaceContainment::None
+        );
     }
 }

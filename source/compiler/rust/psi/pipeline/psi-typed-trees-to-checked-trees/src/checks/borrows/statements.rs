@@ -1,4 +1,4 @@
-use psi_checked_trees::{BorrowAccessKind, CheckFacts, FlowStateFact};
+use psi_checked_trees::{CheckFacts, FlowStateFact};
 use psi_diagnostics::Diagnostic;
 
 use crate::flow::{StateMutationSummaryCache, call_mutated_places, statement_mutated_place};
@@ -6,7 +6,7 @@ use crate::labels::symbol_name;
 use crate::semantic_calls::find_state_in_machine;
 
 use super::details::{active_loan_detail, canonical_place_label};
-use super::overlap::{borrow_loan_overlaps_loan, canonical_place_overlaps_loan};
+use super::overlap::{borrow_loan_compatibility, canonical_place_loan_compatibility};
 
 pub(super) fn check_statement_borrows(
     program: &psi_typed_trees::TypedTrees,
@@ -53,17 +53,13 @@ pub(super) fn check_statement_borrows(
                 .borrow_loan_constraints(statement.entry_constraints)
             {
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
-                if loan.kind == BorrowAccessKind::Read && active_loan.kind == BorrowAccessKind::Read
-                {
-                    continue;
-                }
                 if loan.source_owner_symbol == active_loan.owner_symbol
                     && active_loan.kind.is_exclusive()
                 {
                     continue;
                 }
 
-                if !borrow_loan_overlaps_loan(program, facts, loan, active_loan) {
+                if borrow_loan_compatibility(program, facts, loan, active_loan).non_interfering {
                     continue;
                 }
 
@@ -98,19 +94,19 @@ pub(super) fn check_statement_borrows(
             .borrow_loan_constraints(statement.entry_constraints)
         {
             let loan = facts.borrow.loans.get(loan_handle);
-            if canonical_place_overlaps_loan(program, &mutated_place, loan, &facts.borrow) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "statement {} mutates `{}` while local borrow `{}` is still active ({})",
-                    statement.statement_index,
-                    canonical_place_label(program, &mutated_place),
-                    symbol_name(program, loan.owner_symbol),
-                    active_loan_detail(state_flow, facts, loan_handle, statement.statement_index)
-                        .unwrap_or_else(|| format!(
-                            "borrowed at statement {}",
-                            loan.statement_index
-                        )),
-                )));
+            if canonical_place_loan_compatibility(program, &mutated_place, loan, &facts.borrow)
+                .non_interfering
+            {
+                continue;
             }
+            diagnostics.push(Diagnostic::error(format!(
+                "statement {} mutates `{}` while local borrow `{}` is still active ({})",
+                statement.statement_index,
+                canonical_place_label(program, &mutated_place),
+                symbol_name(program, loan.owner_symbol),
+                active_loan_detail(state_flow, facts, loan_handle, statement.statement_index)
+                    .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
+            )));
         }
     }
 
@@ -172,7 +168,9 @@ fn check_call_mutation_borrows(
         {
             let loan = facts.borrow.loans.get(loan_handle);
             for mutated_place in &mutated_places {
-                if !canonical_place_overlaps_loan(program, mutated_place, loan, &facts.borrow) {
+                if canonical_place_loan_compatibility(program, mutated_place, loan, &facts.borrow)
+                    .non_interfering
+                {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
