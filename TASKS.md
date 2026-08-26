@@ -7209,17 +7209,20 @@ Owners:
   Private relocation/emission remains subsequent.
 
   The first source canary cohort is live: the exact target-selected registrar
-  closes one nested private slot while an independently named, uncited
-  third-party `PrivateCallbackSlot` conformance remains inert. Focused negative
-  canaries reject an uncited demand assumption, an overloaded signature-free
-  requirement path, a cited conformance whose layout subject differs from the
-  active policy owner, a cited slot whose callback requirement differs from the
-  binder, duplicate cited placement, and a machine requirement substituted for
-  the required named slot conformance. Add pass canaries for direct parameters,
-  multiple explicitly named slots, and the same target-neutral requirement
-  placed at different x86/x64 offsets. Add the remaining fail canaries for
-  missing or overlapping supply, semantic projection/read/write/serialization,
-  raw calling-plan offset, and replay drift.
+  closes two explicitly named, nonoverlapping nested private slots for two
+  nominal binders while an independently named, uncited third-party
+  `PrivateCallbackSlot` conformance remains inert. Focused negative canaries
+  reject an uncited demand assumption, an overloaded signature-free requirement
+  path, a cited conformance whose layout subject differs from the active policy
+  owner, a cited slot whose callback requirement differs from the binder,
+  duplicate cited placement, and a machine requirement substituted for the
+  required named slot conformance. Add a pass canary for direct parameters. Add
+  the same target-neutral requirement placed at different x86/x64 offsets once
+  the target catalog gains its missing 32-bit x86 engineering support; its
+  present native targets are X86-64 and AArch64 only. Add the remaining fail
+  canaries for missing or overlapping supply, semantic
+  projection/read/write/serialization, raw calling-plan offset, and replay
+  drift.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful

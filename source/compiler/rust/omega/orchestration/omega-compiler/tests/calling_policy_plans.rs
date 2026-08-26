@@ -133,6 +133,9 @@ data Spread {
 WndClassWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
 
+SecondaryWndClassWindowProcedureSlot:
+    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+
 UnusedWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
@@ -144,11 +147,13 @@ machine Spread::plan(&mut self, schema: Schema) -> Plan {
     let plan: Plan = Plan {
         entries: self.entries,
         entry_count: 1,
-        size_fixed: 16,
+        size_fixed: 24,
         size_is_dynamic: false,
         align: 8,
     };
-    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)
+    let placed: Plan =
+        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);
+    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
 }
 
 data ForeignRecord {
@@ -169,12 +174,12 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     state select_catalog(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.callback_demand_count == 0 {
             true -> check_root(signature, signature.parameters[0])
-            _ -> select_one_demand(signature)
+            _ -> select_two_demands(signature)
         }
     }
 
-    state select_one_demand(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.callback_demand_count == 1 {
+    state select_two_demands(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.callback_demand_count == 2 {
             true -> check_root(signature, signature.parameters[0])
             _ -> reject()
         }
@@ -207,7 +212,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         output.call.callback_materialization_count = signature.callback_demand_count;
-        transition signature.callback_demand_count == 1 {
+        transition signature.callback_demand_count == 2 {
             true -> bind_callback(signature, output)
             _ -> accept(output)
         }
@@ -221,6 +226,9 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
         bound.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
         bound.call.callback_materializations[0].destination =
             signature.callback_demands[0].destination;
+        bound.call.callback_materializations[1].binder = signature.callback_binders[1].binder;
+        bound.call.callback_materializations[1].destination =
+            signature.callback_demands[1].destination;
         BoundaryPlanResult::Accepted { plan: bound }
     }
 
@@ -236,8 +244,11 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
 }
 
 boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
-    machine register<machine Selected>(specification: &Spread<ForeignRecord>)
+    machine register<machine Selected, machine SecondarySelected>(
+        specification: &Spread<ForeignRecord>
+    )
     where machine Selected satisfies WindowProcedure::call;
+    where machine SecondarySelected satisfies WindowProcedure::call;
 }
 
 data Main { }
@@ -245,7 +256,7 @@ machine Main::main(&mut self) { }
 "#;
 
 #[test]
-fn target_selected_callback_policy_consumes_closed_layout_demand_catalog() {
+fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
     let main_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(6)
@@ -257,13 +268,13 @@ fn target_selected_callback_policy_consumes_closed_layout_demand_catalog() {
         "the source canary and its readable test fixture must remain identical"
     );
     compile_to_checked(&main_path, Some("windows_x64"))
-        .expect("target-selected registrar should consume its exact closed demand catalog");
+        .expect("target-selected registrar should consume both exact closed layout demands");
 }
 
 #[test]
 fn callback_private_materialization_requires_an_explicit_cited_demand() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
-        "    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
+        "    let placed: Plan =\n        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);\n    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",
         "    plan",
     );
     let main_path = write_program("callback-uncited-demand", &source);
@@ -348,8 +359,8 @@ fn callback_private_materialization_rejects_the_wrong_callback_requirement() {
 #[test]
 fn callback_private_materialization_rejects_duplicate_source_placement() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
-        "    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
-        "    let placed: Plan =\n        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);\n    Plan::place_private<WndClassWindowProcedureSlot>(placed, 8)",
+        "Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",
+        "Plan::place_private<WndClassWindowProcedureSlot>(placed, 16)",
     );
     let rendered = compile_std_negative("duplicate-placement", &source);
 
