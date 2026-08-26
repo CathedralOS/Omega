@@ -17,6 +17,7 @@ use membership::parse_membership_expression_handle;
 pub(in crate::parser) use postfix::memory_ordering_from_expression;
 pub(super) use postfix::parse_argument_list_after_open_paren_handle;
 use postfix::parse_postfix_expression_handle;
+pub(in crate::parser) use postfix::try_parse_static_symbol_application;
 
 pub(super) fn parse_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

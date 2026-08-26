@@ -173,8 +173,10 @@ pub(crate) fn lower_generic_conformance_bounds(
                     syntax_trees,
                     bound.arguments,
                 )?,
-                conformance: None,
-                conformance_name: bound.conformance.as_ref().map(crate::name::lower_name),
+                selected_conformance: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(crate::expression::lower_static_machine_argument),
             })
         })
         .collect()

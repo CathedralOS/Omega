@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 62;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 63;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 20;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 21;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -625,17 +625,26 @@ fn encode_conformance_bound(
         }
     }
     encoder.u32(bound.subject_parameter);
-    match (&bound.selected_conformance, &bound.selected_carrier) {
-        (None, None) => encoder.byte(0),
-        (Some(conformance), Some(carrier)) => {
+    match (&bound.selected_conformance, &bound.selected_subject) {
+        (None, None)
+            if bound.selected_lifetime_arguments.is_empty()
+                && bound.selected_arguments.is_empty() =>
+        {
+            encoder.byte(0)
+        }
+        (Some(conformance), Some(subject)) => {
             encoder.byte(1);
             encode_nominal(encoder, conformance)?;
-            encode_nominal(encoder, carrier)?;
-            encoder.sequence(&bound.selected_carrier_arguments, encode_type_identity)?;
+            encoder.sequence(&bound.selected_lifetime_arguments, |encoder, argument| {
+                encoder.u32(*argument);
+                Ok(())
+            })?;
+            encoder.sequence(&bound.selected_arguments, encode_contract_static_argument)?;
+            encode_contract_static_argument(encoder, subject)?;
         }
         _ => {
             return Err(PackageReviewEncodingError::new(
-                "selected conformance review row has an incomplete carrier identity",
+                "selected conformance review row has an incomplete application identity",
             ));
         }
     }

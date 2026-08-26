@@ -1189,6 +1189,17 @@ complete.
   different lifetime ordinal changes canonical evidence. Conformances targeting
   a lifetime-parameterized trait remain fail-closed pending the declaration-site
   application decision in `OWNER_QUESTIONS.md`.
+  Review v63 and canonical row v21 close selected generic-conformance
+  applications in public machine and trait bounds. Psi retains the authored
+  nested application through syntax, resolution, typing, checked closure, and
+  specialization. Review independently rejoins the exact public conformance
+  declaration and encodes alpha-normalized lifetime arguments, categorized
+  type/const/machine arguments, the instantiated subject, and the exact public
+  trait plus its instantiated type arguments. Missing, extra, or category-wrong
+  arguments reject during checked closure; non-public selections and
+  proposition/evidence arguments reject before canonical evidence. Binder
+  renames are stable, while changing any selected application argument changes
+  review identity.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
@@ -1359,8 +1370,10 @@ complete.
   checked `StateSignature` owner. Named inputs retain ordered proposition and
   evidence-interface identity while treating their source aliases as local;
   named outputs additionally retain their public selector identity. Generic
-  selected-conformance telescopes and unsupported expression forms still fail
-  closed. Trailing `boundary host` / `boundary
+  selected-conformance applications retain their exact declaration, complete
+  alpha-normalized lifetime/static telescope, instantiated subject, and exact
+  public trait application. Proposition/evidence application arguments and
+  unsupported expression forms still fail closed. Trailing `boundary host` / `boundary
   Name` clauses are retired at the source grammar rather than awaiting a
   package row. Exact
   checked crash capsules keyed by trait and requirement now project each
@@ -1443,12 +1456,11 @@ complete.
   ordinary, lifetime-free traits retain exact package-qualified trait and
   requirement identities, alpha-normalized arguments, and optional conformance
   alias. Binder-free generic requirements, explicit conformance evidence
-  binders, and non-generic selected conformances on reviewed callables use the
-  same canonical row as public traits. Selected conformances with their own
-  generic telescope, static-machine/proposition arguments in selected
-  conformance applications, and non-public, external, operator, or lifetime-
-  parameterized realizations reject until their complete rows exist
-  rather than disappearing from review.
+  binders, and selected conformances with representable complete applications
+  on reviewed callables use the same canonical row as public traits. Selected
+  proposition/evidence application arguments and non-public, external,
+  operator, or lifetime-parameterized realizations reject until their complete
+  rows exist rather than disappearing from review.
   Public callable `requires` and `ensures` retain exact structural rows for the
   closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified

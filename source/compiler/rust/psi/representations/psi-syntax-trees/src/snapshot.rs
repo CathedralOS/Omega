@@ -225,7 +225,7 @@ pub struct GenericConformanceBoundSnapshot {
     pub carrier: IdentifierSnapshot,
     pub arguments: Vec<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conformance: Option<IdentifierSnapshot>,
+    pub selected_conformance: Option<StaticArgumentSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1530,7 +1530,10 @@ fn snapshot_generic_conformance_bound(
             .iter()
             .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
             .collect(),
-        conformance: bound.conformance.as_ref().map(snapshot_identifier),
+        selected_conformance: bound
+            .selected_conformance
+            .as_ref()
+            .map(snapshot_static_argument),
     }
 }
 

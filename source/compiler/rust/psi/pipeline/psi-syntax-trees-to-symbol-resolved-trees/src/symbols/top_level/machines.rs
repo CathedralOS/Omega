@@ -5,6 +5,7 @@ use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::{top_level_symbol, top_level_symbol_for_source};
 use crate::symbols::scope::MachineScope;
+use crate::symbols::targets::assign_static_argument_symbols;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,
@@ -251,12 +252,10 @@ pub(super) fn assign_machine_symbols(
                 .map(|parameter| parameter.symbol)
                 .unwrap_or_else(SymbolHandle::invalid);
 
-            if let Some(conformance_name) = &bound.conformance_name {
+            if let Some(selected) = &mut bound.selected_conformance {
                 bound.carrier =
                     top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
-                let selected =
-                    top_level_symbol(symbols, SymbolKind::Conformance, conformance_name.as_str());
-                bound.conformance = selected.is_valid().then_some(selected);
+                assign_static_argument_symbols(symbols, machine_symbol, selected, true);
             } else {
                 bound.carrier =
                     top_level_symbol(symbols, SymbolKind::Trait, bound.carrier_name.as_str());
@@ -269,7 +268,7 @@ pub(super) fn assign_machine_symbols(
                 machine_symbol,
                 bound.arguments,
             );
-            if bound.conformance_name.is_none()
+            if bound.selected_conformance.is_none()
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()
                     .find(|(name, _)| name == bound.carrier_name.as_str())
@@ -282,7 +281,7 @@ pub(super) fn assign_machine_symbols(
                     proposition_slots,
                 );
             }
-            if bound.conformance_name.is_none()
+            if bound.selected_conformance.is_none()
                 && let Some((_, machine_slots)) = trait_machine_identity_slots
                     .iter()
                     .find(|(name, _)| name == bound.carrier_name.as_str())
