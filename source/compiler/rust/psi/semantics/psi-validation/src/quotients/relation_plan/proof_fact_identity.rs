@@ -67,6 +67,18 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn fixed_byte_array(symbol: SymbolHandle, bytes: &[u8]) -> Self {
+        Self {
+            symbol,
+            rendered: format!("{bytes:?}"),
+            trace: bytes
+                .iter()
+                .map(|byte| format!("integer:{byte}:unlanded"))
+                .collect::<Vec<_>>()
+                .join(","),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,

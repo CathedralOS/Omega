@@ -7,8 +7,9 @@
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
 //! members of the public telescope or supply a closed boolean, integer with an
 //! explicit or exact target-derived landing, float with an explicit or exact
-//! target-derived format, or immutable-image byte string to its exact shared
-//! byte view or bounded value-domain buffer representative position.
+//! target-derived format, immutable-image byte string to its exact shared byte
+//! view or bounded value-domain buffer, or a canonically context-landed byte
+//! array to its exact fixed-array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -49,6 +50,10 @@ pub(super) enum ClosedLiftLiteral {
         landing: FloatFormat,
     },
     ByteString {
+        bytes: std::sync::Arc<[u8]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    FixedByteArray {
         bytes: std::sync::Arc<[u8]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
@@ -276,6 +281,45 @@ pub(super) fn closed_lift_literal_for_representative(
     representative_type: TypeReferenceHandle,
     position: usize,
 ) -> Result<Option<ClosedLiftLiteral>, RelationPlanError> {
+    if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
+    {
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(width),
+        } = program
+            .type_reference_table
+            .type_reference(representative_type)
+        else {
+            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        };
+        if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        }
+        let elements = program.expression_table.expression_handles(*elements);
+        if elements.len() != *width {
+            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        }
+        let bytes = elements
+            .iter()
+            .map(|element| {
+                let ExpressionNode::Integer(literal) =
+                    program.expression_table.expression(*element)
+                else {
+                    return None;
+                };
+                let value = literal
+                    .value_u64()
+                    .and_then(|value| u8::try_from(value).ok())?;
+                (literal.landing().is_none() && literal.text() == value.to_string())
+                    .then_some(value)
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+        return Ok(Some(ClosedLiftLiteral::FixedByteArray {
+            bytes: bytes.into(),
+            target_type: program.normalized_type_identity(representative_type),
+        }));
+    }
     if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
         let exact_target = exact_shared_byte_slice(program, representative_type)
             || crate::expression_types::bounded_byte_buffer_capacity(program, representative_type)

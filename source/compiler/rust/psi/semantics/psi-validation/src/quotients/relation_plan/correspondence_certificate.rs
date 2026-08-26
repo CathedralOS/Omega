@@ -125,6 +125,14 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     position.representative_parameter,
                     bytes,
                 )),
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::FixedByteArray {
+                        bytes, ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::fixed_byte_array(
+                    position.representative_parameter,
+                    bytes,
+                )),
             }
         }
 
