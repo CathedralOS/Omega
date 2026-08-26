@@ -73,6 +73,9 @@ pub trait TerminalNativeFuelTransferRuntimeImageEvidence {
     fn target(&self) -> omega_target::NativeTarget;
     fn unrelocated_text_bytes(&self) -> &[u8];
     fn final_text_bytes(&self) -> &[u8];
+    /// Exact compiler-owned `.text` coordinate named by the replayed sponsor
+    /// call relocation. This remains a coordinate, not a callable reference.
+    fn sponsor_text_offset(&self) -> usize;
     fn transfer_runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence;
 }
 

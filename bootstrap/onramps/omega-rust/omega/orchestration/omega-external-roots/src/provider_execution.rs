@@ -875,6 +875,10 @@ impl ProviderExecution {
         self.provider_plan
     }
 
+    pub const fn selected_entry(&self) -> EntryStubId {
+        self.entry
+    }
+
     pub const fn normalized_identity(&self) -> u64 {
         self.normalized_identity
     }

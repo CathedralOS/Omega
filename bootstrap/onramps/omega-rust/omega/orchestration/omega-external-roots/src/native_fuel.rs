@@ -19,10 +19,12 @@ use omega_terminal_installation_evidence::{
     TerminalNativeFuelImageEvidence, TerminalNativeFuelTransferRuntimeEvidence,
     TerminalNativeFuelTransferRuntimeImageEvidence, TerminalObjectEvidence,
 };
+use psi_layout_plans::EntryStubId;
 
 use super::{
-    ComposedFuelDemand, ExternalRootDiagnostic, Fnv1a, FuelProvisionId, FuelSuspensionFreeEvidence,
-    NativeFuelContextLayout, NativeFuelMeterPlanId, NativeFuelTargetPlanProjection,
+    ComposedFuelDemand, ExternalRootDiagnostic, ExternalRootId, Fnv1a, FuelProvisionId,
+    FuelSuspensionFreeEvidence, InstalledExternalRoot, NativeFuelContextLayout,
+    NativeFuelMeterPlanId, NativeFuelTargetPlanProjection, ProviderExecutionId,
     SponsorContextTransport,
 };
 
@@ -299,6 +301,7 @@ pub struct InstalledNativeFuelTransferCode {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     runtime_evidence: TerminalNativeFuelTransferRuntimeEvidence,
+    sponsor_text_offset: usize,
     unrelocated_text_fingerprint: u64,
     final_text_fingerprint: u64,
     fingerprint: u64,
@@ -319,6 +322,10 @@ impl InstalledNativeFuelTransferCode {
 
     pub const fn runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
         &self.runtime_evidence
+    }
+
+    pub const fn sponsor_text_offset(&self) -> usize {
+        self.sponsor_text_offset
     }
 
     pub const fn unrelocated_text_fingerprint(&self) -> u64 {
@@ -384,6 +391,11 @@ pub fn bind_installed_native_fuel_transfer_code<
                 .into(),
         ));
     }
+    if image.sponsor_text_offset() >= image.final_text_bytes().len() {
+        return Err(ExternalRootDiagnostic(
+            "native fuel transfer sponsor coordinate is outside the complete replayed image".into(),
+        ));
+    }
 
     let mut unrelocated_hash = Fnv1a::new();
     unrelocated_hash.bytes(b"omega.native-fuel-transfer-unrelocated-text.v1");
@@ -403,6 +415,7 @@ pub fn bind_installed_native_fuel_transfer_code<
     fingerprint.u64(installed_code.identity().normalized_identity());
     fingerprint.u64(installed_code.artifact().normalized_identity());
     fingerprint.u64(runtime_evidence.fingerprint());
+    fingerprint.u64(image.sponsor_text_offset() as u64);
     fingerprint.u64(unrelocated_text_fingerprint);
     fingerprint.u64(final_text_fingerprint);
 
@@ -413,6 +426,7 @@ pub fn bind_installed_native_fuel_transfer_code<
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         runtime_evidence: runtime_evidence.clone(),
+        sponsor_text_offset: image.sponsor_text_offset(),
         unrelocated_text_fingerprint,
         final_text_fingerprint,
         fingerprint: fingerprint.finish(),
@@ -434,6 +448,131 @@ fn runtime_text_matches_image(
         && final_text
             .get(span.text_offset..end)
             .is_some_and(|bytes| bytes == evidence.final_bytes())
+}
+
+/// Installed provider route reached by the compiler-owned transfer stub.
+/// This retains the exact fixed, suspension-free sponsor provision separately
+/// from transfer-code custody and binds the relocation's sponsor coordinate to
+/// the selected entry of one installed external root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledNativeFuelSponsorRoute {
+    sponsor_path: SuspensionFreeFixedFuelProvision,
+    transfer_code_fingerprint: u64,
+    root: ExternalRootId,
+    provider_execution: ProviderExecutionId,
+    provider_execution_fingerprint: u64,
+    entry: EntryStubId,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    sponsor_text_offset: usize,
+    fingerprint: u64,
+}
+
+impl InstalledNativeFuelSponsorRoute {
+    pub const fn sponsor_path(&self) -> &SuspensionFreeFixedFuelProvision {
+        &self.sponsor_path
+    }
+
+    pub const fn root(&self) -> ExternalRootId {
+        self.root
+    }
+
+    pub const fn provider_execution(&self) -> ProviderExecutionId {
+        self.provider_execution
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    pub const fn sponsor_text_offset(&self) -> usize {
+        self.sponsor_text_offset
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
+    fn binds_transfer_code(&self, transfer_code: &InstalledNativeFuelTransferCode) -> bool {
+        self.transfer_code_fingerprint == transfer_code.fingerprint
+            && self.installed_code == transfer_code.installed_code
+            && self.installed_code_context == transfer_code.installed_code_context
+            && self.artifact == transfer_code.artifact
+            && self.sponsor_text_offset == transfer_code.sponsor_text_offset
+    }
+}
+
+/// Join the transfer image's resolved sponsor coordinate to one exact
+/// installed provider entry whose native-fuel column is the same fixed
+/// provision retained by the independently derived suspension-free proof.
+pub fn bind_installed_native_fuel_sponsor_route(
+    sponsor_path: SuspensionFreeFixedFuelProvision,
+    transfer_code: &InstalledNativeFuelTransferCode,
+    sponsor_root: &InstalledExternalRoot<'_>,
+) -> Result<InstalledNativeFuelSponsorRoute, ExternalRootDiagnostic> {
+    let installed_code = sponsor_root.installed_code;
+    let provider_execution = &sponsor_root.evidence.provider_execution;
+    let entry = provider_execution.selected_entry();
+    if !transfer_code.binds_installed_code(installed_code)
+        || sponsor_root.evidence.installed_code != installed_code.receipt_context()
+        || provider_execution
+            .validate_installed_entry_binding(installed_code)
+            .is_err()
+    {
+        return Err(ExternalRootDiagnostic(
+            "native fuel sponsor route does not bind the transfer image's exact installed code and provider execution"
+                .into(),
+        ));
+    }
+    if !installed_code.binds_entry_offset(entry, transfer_code.sponsor_text_offset as u64) {
+        return Err(ExternalRootDiagnostic(
+            "native fuel transfer sponsor coordinate does not name the selected installed root entry"
+                .into(),
+        ));
+    }
+    if sponsor_root.evidence.native_fuel.kind() != NativeFuelRealizationKind::FixedProvision
+        || !sponsor_root.evidence.native_fuel.matches(
+            &sponsor_path.fixed.demand,
+            sponsor_path.fixed.provision,
+            sponsor_path.fixed.granted_units,
+            installed_code,
+        )
+    {
+        return Err(ExternalRootDiagnostic(
+            "native fuel sponsor route is not the exact installed fixed provision retained by its suspension-free proof"
+                .into(),
+        ));
+    }
+
+    let mut fingerprint = Fnv1a::new();
+    fingerprint.bytes(b"omega.installed-native-fuel-sponsor-route.v1");
+    fingerprint.u64(transfer_code.fingerprint);
+    fingerprint.u64(sponsor_root.root.normalized_identity());
+    fingerprint.u64(provider_execution.identity().normalized_identity());
+    fingerprint.u64(provider_execution.normalized_identity());
+    fingerprint.u64(entry.normalized_identity());
+    fingerprint.u64(transfer_code.sponsor_text_offset as u64);
+    fingerprint.u64(sponsor_path.fixed.demand.composition_fingerprint());
+    fingerprint.u64(sponsor_path.fixed.provision.normalized_identity());
+    fingerprint.u64(sponsor_path.fixed.granted_units);
+    fingerprint.u64(sponsor_path.suspension_free.composition_fingerprint());
+    fingerprint.u64(sponsor_root.evidence.root.normalized_identity());
+    fingerprint.u64(sponsor_root.evidence.root.boundary_contract_fingerprint());
+
+    Ok(InstalledNativeFuelSponsorRoute {
+        sponsor_path,
+        transfer_code_fingerprint: transfer_code.fingerprint,
+        root: sponsor_root.root,
+        provider_execution: provider_execution.identity(),
+        provider_execution_fingerprint: provider_execution.normalized_identity(),
+        entry,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        sponsor_text_offset: transfer_code.sponsor_text_offset,
+        fingerprint: fingerprint.finish(),
+    })
 }
 
 /// Pre-install dynamic meter selection. Structural transfer-plan admission is
@@ -480,30 +619,77 @@ impl DynamicNativeFuelMeterPlan {
 }
 
 /// Installed custody for the executable exhaustion-transfer runtime. This
-/// value deliberately has no public constructor until target-runtime emission,
-/// final-byte replay, and sponsor-path installation can establish every field.
-/// Its presence in the final join makes opaque validation receipt identifiers
-/// insufficient to admit dynamic execution.
+/// is the join of independently sealed transfer-code bytes and an installed
+/// fixed, suspension-free sponsor route. Its presence in the final realization
+/// makes opaque validation receipt identifiers insufficient to admit dynamic
+/// execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledNativeFuelTransferRuntime {
     plan: DynamicNativeFuelMeterPlan,
-    installed_code: InstalledCodeId,
-    installed_code_context: InstalledCodeContext,
-    artifact: ArtifactId,
+    transfer_code: InstalledNativeFuelTransferCode,
+    sponsor_route: InstalledNativeFuelSponsorRoute,
     fingerprint: u64,
 }
 
 impl InstalledNativeFuelTransferRuntime {
+    pub const fn transfer_code(&self) -> &InstalledNativeFuelTransferCode {
+        &self.transfer_code
+    }
+
+    pub const fn sponsor_route(&self) -> &InstalledNativeFuelSponsorRoute {
+        &self.sponsor_route
+    }
+
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
     }
 
     fn matches(&self, plan: &DynamicNativeFuelMeterPlan, installed_code: &InstalledCode) -> bool {
         self.plan == *plan
-            && self.installed_code == installed_code.identity()
-            && self.installed_code_context == installed_code.receipt_context()
-            && self.artifact == installed_code.artifact()
+            && self.transfer_code.binds_installed_code(installed_code)
+            && self.sponsor_route.binds_transfer_code(&self.transfer_code)
+            && self.sponsor_route.sponsor_path == plan.sponsor_path
     }
+}
+
+/// Construct executable transfer custody only after both independent joins
+/// agree with the exact dynamic plan. Neither installed bytes nor an installed
+/// fixed root can manufacture this value alone.
+pub fn bind_installed_native_fuel_transfer_runtime(
+    plan: DynamicNativeFuelMeterPlan,
+    transfer_code: InstalledNativeFuelTransferCode,
+    sponsor_route: InstalledNativeFuelSponsorRoute,
+) -> Result<InstalledNativeFuelTransferRuntime, ExternalRootDiagnostic> {
+    if transfer_code.transfer_plan != plan.transfer_plan {
+        return Err(ExternalRootDiagnostic(
+            "installed native fuel transfer code does not match the dynamic plan's exact transfer projection"
+                .into(),
+        ));
+    }
+    if sponsor_route.sponsor_path != plan.sponsor_path
+        || !sponsor_route.binds_transfer_code(&transfer_code)
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed native fuel sponsor route does not match the dynamic plan and exact transfer code"
+                .into(),
+        ));
+    }
+
+    let mut fingerprint = Fnv1a::new();
+    fingerprint.bytes(b"omega.installed-native-fuel-transfer-runtime.v1");
+    fingerprint.u64(transfer_code.fingerprint());
+    fingerprint.u64(sponsor_route.fingerprint());
+    fingerprint.u64(plan.transfer_plan.normalized_identity());
+    fingerprint.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
+    fingerprint.u64(plan.sponsor_path.fixed.provision.normalized_identity());
+    fingerprint.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
+
+    Ok(InstalledNativeFuelTransferRuntime {
+        plan,
+        transfer_code,
+        sponsor_route,
+        fingerprint: fingerprint.finish(),
+    })
 }
 
 /// Validated pre-install input to target instrumentation. This owns the exact
@@ -1315,6 +1501,7 @@ mod tests {
         target: NativeTarget,
         unrelocated: Vec<u8>,
         final_text: Vec<u8>,
+        sponsor_text_offset: usize,
         evidence: TerminalNativeFuelTransferRuntimeEvidence,
     }
 
@@ -1336,6 +1523,10 @@ mod tests {
 
         fn final_text_bytes(&self) -> &[u8] {
             &self.final_text
+        }
+
+        fn sponsor_text_offset(&self) -> usize {
+            self.sponsor_text_offset
         }
 
         fn transfer_runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
@@ -1612,8 +1803,53 @@ mod tests {
             target: profile.native_target(),
             unrelocated: vec![unrelocated_fill; 64],
             final_text: vec![final_fill; 64],
+            sponsor_text_offset: 16,
             evidence,
         }
+    }
+
+    fn installed_root_sponsor_path(provision_identity: u64) -> SuspensionFreeFixedFuelProvision {
+        let demand = crate::tests::fixed_fuel();
+        let root_suspension = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+            id(30, ProviderFuelSummaryId::from_normalized_identity),
+            id(2, RootProviderId::from_normalized_identity),
+            schedule(),
+            id(
+                40,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
+            ),
+            id(
+                140,
+                FuelSuspensionValidationReceiptId::from_normalized_identity,
+            ),
+        );
+        let leaf_suspension = AdmittedOpaqueFuelSuspensionFree::from_admitted_provider(
+            id(31, ProviderFuelSummaryId::from_normalized_identity),
+            id(12, RootProviderId::from_normalized_identity),
+            schedule(),
+            id(
+                41,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
+            ),
+            id(
+                141,
+                FuelSuspensionValidationReceiptId::from_normalized_identity,
+            ),
+        );
+        let suspension_free =
+            derive_fuel_suspension_free(&demand, [root_suspension, leaf_suspension])
+                .expect("complete installed sponsor closure");
+        let fixed = admit_fixed_native_fuel(
+            &demand,
+            id(
+                provision_identity,
+                FuelProvisionId::from_normalized_identity,
+            ),
+            64,
+        )
+        .expect("fixed installed sponsor provision");
+        bind_suspension_free_fixed_fuel(fixed, suspension_free)
+            .expect("fixed suspension-free installed sponsor path")
     }
 
     #[test]
@@ -1707,6 +1943,80 @@ mod tests {
             .expect_err("a profile sharing one native tuple cannot substitute")
             .0
             .contains("exact admitted plan")
+        );
+    }
+
+    #[test]
+    fn installed_transfer_runtime_requires_the_exact_fixed_sponsor_entry_route() {
+        let profile = TargetProfile::LinuxX64;
+        let transfer_plan = x86_transfer_plan(profile);
+        let image = transfer_runtime_image(
+            profile,
+            x86_transfer_runtime_evidence(profile, vec![9; 4], vec![9; 4], vec![9; 4], vec![9; 4]),
+            9,
+            9,
+        );
+        let entry = psi_layout_plans::EntryStubId::from_normalized_identity(1490).expect("entry");
+        let mut installed = crate::tests::installed_code_with_fill(490, entry, 9);
+        let transfer_code =
+            bind_installed_native_fuel_transfer_code(transfer_plan.clone(), &image, &installed)
+                .expect("exact transfer bytes");
+        let sponsor_path = installed_root_sponsor_path(53);
+        let plan = DynamicNativeFuelMeterPlan::from_admitted_transfer_plan(
+            transfer_plan,
+            schedule(),
+            id(490, NativeFuelMeterPlanId::from_normalized_identity),
+            sponsor_path.clone(),
+        );
+        let (_ledger, sponsor_root) = crate::tests::install_test_root(&mut installed, entry);
+
+        let route = bind_installed_native_fuel_sponsor_route(
+            sponsor_path.clone(),
+            &transfer_code,
+            &sponsor_root,
+        )
+        .expect("resolved sponsor call names exact installed fixed root entry");
+        assert_eq!(route.entry(), entry);
+        assert_eq!(route.sponsor_text_offset(), 16);
+        let runtime = bind_installed_native_fuel_transfer_runtime(
+            plan.clone(),
+            transfer_code.clone(),
+            route.clone(),
+        )
+        .expect("both installed joins unlock transfer runtime custody");
+        assert!(runtime.matches(&plan, sponsor_root.installed_code));
+        assert_eq!(runtime.transfer_code(), &transfer_code);
+        assert_eq!(runtime.sponsor_route(), &route);
+
+        let mut wrong_coordinate_image = image;
+        wrong_coordinate_image.sponsor_text_offset = 17;
+        let wrong_coordinate_code = bind_installed_native_fuel_transfer_code(
+            x86_transfer_plan(profile),
+            &wrong_coordinate_image,
+            sponsor_root.installed_code,
+        )
+        .expect("in-range coordinate remains byte custody only");
+        assert!(
+            bind_installed_native_fuel_sponsor_route(
+                sponsor_path,
+                &wrong_coordinate_code,
+                &sponsor_root,
+            )
+            .expect_err("adjacent text cannot substitute for selected entry")
+            .0
+            .contains("selected installed root entry")
+        );
+
+        let wrong_provision = installed_root_sponsor_path(54);
+        assert!(
+            bind_installed_native_fuel_sponsor_route(
+                wrong_provision,
+                &transfer_code,
+                &sponsor_root,
+            )
+            .expect_err("a different fixed provision cannot borrow this root")
+            .0
+            .contains("exact installed fixed provision")
         );
     }
 

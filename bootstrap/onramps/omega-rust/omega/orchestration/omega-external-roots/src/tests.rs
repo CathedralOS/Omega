@@ -363,7 +363,7 @@ impl TerminalStackDemandEvidence for TestTerminalStackDemand {
     }
 }
 
-fn fixed_fuel() -> ComposedFuelDemand {
+pub(crate) fn fixed_fuel() -> ComposedFuelDemand {
     let leaf = FixedFuelProviderSummary::from_admitted_provider(
         root_id(31, ProviderFuelSummaryId::from_normalized_identity),
         root_id(12, RootProviderId::from_normalized_identity),
@@ -1235,7 +1235,7 @@ fn writer_site(base_address: u64) -> PlacementSite {
     }
 }
 
-fn install_test_root<'code>(
+pub(crate) fn install_test_root<'code>(
     code: &'code mut InstalledCode,
     entry: EntryStubId,
 ) -> (InstalledRootLedger, InstalledExternalRoot<'code>) {
