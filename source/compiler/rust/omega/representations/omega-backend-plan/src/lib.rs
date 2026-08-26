@@ -14,8 +14,9 @@ pub use callback_placements::{
 };
 pub use callback_private_relocations::{
     CallbackPrivateRelocationDemand, CallbackRegistrarArgumentBinding,
+    CallbackRegistrarPhysicalDestination, CallbackRegistrarPhysicalDestinationKind,
     replay_callback_private_relocation_demand, replay_callback_private_relocation_demands,
-    replay_callback_registrar_argument_bindings,
+    replay_callback_registrar_argument_bindings, replay_callback_registrar_physical_destinations,
 };
 pub use callback_root_schedule::{
     CallbackRootActivationIdentity, CallbackRootSchedule, plan_callback_root_schedule,

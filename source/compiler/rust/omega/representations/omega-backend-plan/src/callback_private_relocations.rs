@@ -4,7 +4,7 @@ use crate::{
     replay_callback_root_schedule, validate_bound_nominal_callback_placement,
 };
 use omega_calling_conventions::{
-    CallbackRequirementId, NativePlace, PlanDiagnostic, StaticMachineBinderId,
+    CallbackRequirementId, NativePlace, PlanDiagnostic, StaticMachineBinderId, ValuePlacement,
 };
 use omega_control_flow::MachineFunctionIdentity;
 use omega_platform_interface::HostCallPlan;
@@ -42,6 +42,34 @@ pub struct CallbackRegistrarArgumentBinding {
     pub demand: CallbackPrivateRelocationDemand,
     pub host_call: Handle<omega_abstract_operations::AbstractHostCallOccurrence>,
     pub native_argument: Handle<omega_abstract_operations::AbstractHostCallNativeArgument>,
+}
+
+/// Target-closed ABI-relative destination for one exact callback registrar
+/// argument binding.
+///
+/// A field row retains the complete authoritative layout-demand snapshot; its
+/// physical offset is evidence produced by native layout closure, never a new
+/// identity or an authored coordinate. This carrier owns no selected
+/// operation, object symbol, relocation, bytes, runtime address, registration
+/// authority, or lease.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackRegistrarPhysicalDestination {
+    pub binding_index: usize,
+    pub binding: CallbackRegistrarArgumentBinding,
+    pub formal_ordinal: u32,
+    pub parameter_placement: ValuePlacement,
+    pub kind: CallbackRegistrarPhysicalDestinationKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallbackRegistrarPhysicalDestinationKind {
+    /// Synthetic/internal coverage only until the authored direct-parameter
+    /// declaration is settled by OWNER_QUESTIONS Q13.
+    Parameter,
+    Field {
+        layout_demand_index: usize,
+        layout_demand: omega_layout::TargetClosedPrivateCallbackDemand,
+    },
 }
 
 /// Independently replay one address-free demand against its exact checked
@@ -326,6 +354,206 @@ pub fn replay_callback_registrar_argument_bindings(
         }
     }
 
+    Ok(())
+}
+
+/// Independently replay the complete ABI-relative callback destination
+/// catalog against the exact registrar binding, outbound `CallPlan`, and
+/// authoritative target-closed layout rows.
+pub fn replay_callback_registrar_physical_destinations(
+    target: omega_target::NativeTarget,
+    placements: &[BoundNominalCallbackPlacement],
+    thunks: &[CallbackThunkPlan],
+    demands: &[CallbackPrivateRelocationDemand],
+    host_calls: &HostCallPlan,
+    boundaries: &omega_abstract_operations::AbstractBoundarySummary,
+    bindings: &[CallbackRegistrarArgumentBinding],
+    layouts: &omega_layout::LayoutPlan,
+    destinations: &[CallbackRegistrarPhysicalDestination],
+) -> Result<(), PlanDiagnostic> {
+    replay_callback_registrar_argument_bindings(
+        placements, thunks, demands, host_calls, boundaries, bindings,
+    )?;
+    if destinations.len() != bindings.len() {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical-destination replay requires {} exact rows, but retained {}",
+            bindings.len(),
+            destinations.len()
+        )));
+    }
+    let pointer_size = u16::try_from(target.pointer_size)
+        .map_err(|_| PlanDiagnostic("callback registrar target pointer size exceeds u16".into()))?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| {
+        PlanDiagnostic("callback registrar target pointer alignment exceeds u16".into())
+    })?;
+
+    for (binding_index, binding) in bindings.iter().enumerate() {
+        let destination = destinations.get(binding_index).ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar argument binding {binding_index} is missing its physical destination"
+            ))
+        })?;
+        if destination.binding_index != binding_index || destination.binding != *binding {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar physical destination drifted from binding {binding_index}"
+            )));
+        }
+        let (_, native_argument) = boundaries
+            .host_call_arguments
+            .iter()
+            .find(|(handle, _)| *handle == binding.native_argument)
+            .ok_or_else(|| {
+                PlanDiagnostic(format!(
+                    "callback registrar physical destination {binding_index} lost its exact native argument"
+                ))
+            })?;
+        if destination.formal_ordinal != native_argument.formal_ordinal
+            || native_argument.native_parameter
+                != Some(native_place_root_parameter(&binding.demand.destination)?)
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} changed its formal or native-parameter identity"
+            )));
+        }
+        let placement = placements
+            .get(binding.demand.placement_index)
+            .ok_or_else(|| {
+                PlanDiagnostic(format!(
+                    "callback registrar physical destination {binding_index} names a missing placement"
+                ))
+            })?;
+        let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} lost its outbound materialization"
+            ))
+        })?;
+        if materialization
+            .registrar_boundary_entry_plan
+            .call
+            .policy
+            .architecture()
+            != target.architecture
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} retained an outbound ABI policy for a different target architecture"
+            )));
+        }
+        let parameter_index = usize::try_from(destination.formal_ordinal).map_err(|_| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} formal ordinal is unrepresentable"
+            ))
+        })?;
+        let expected_placement = materialization
+            .registrar_boundary_entry_plan
+            .call
+            .parameters
+            .get(parameter_index)
+            .ok_or_else(|| {
+                PlanDiagnostic(format!(
+                    "callback registrar physical destination {binding_index} formal ordinal has no outbound ABI placement"
+                ))
+            })?;
+        if destination.parameter_placement != *expected_placement
+            || destination.parameter_placement.shape.byte_size != pointer_size
+            || destination.parameter_placement.shape.alignment != pointer_alignment
+            || destination.parameter_placement.locations.is_empty()
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} changed its exact pointer-sized outbound ABI placement"
+            )));
+        }
+
+        match (&binding.demand.destination, &destination.kind) {
+            (NativePlace::Parameter(_), CallbackRegistrarPhysicalDestinationKind::Parameter) => {}
+            (
+                NativePlace::Field {
+                    layout, field_path, ..
+                },
+                CallbackRegistrarPhysicalDestinationKind::Field {
+                    layout_demand_index,
+                    layout_demand,
+                },
+            ) => {
+                let [slot] = field_path.as_slice() else {
+                    return Err(PlanDiagnostic(format!(
+                        "callback registrar physical destination {binding_index} requires one exact target-closed field slot; multi-segment paths remain an engineering gap"
+                    )));
+                };
+                let expected_layout_demand = layouts
+                    .private_callback_demands
+                    .get(*layout_demand_index)
+                    .ok_or_else(|| {
+                        PlanDiagnostic(format!(
+                            "callback registrar physical destination {binding_index} retained an invalid layout-demand index"
+                        ))
+                    })?;
+                if layout_demand != expected_layout_demand
+                    || layout_demand.layout != *layout
+                    || layout_demand.slot != *slot
+                    || layout_demand.requirement != binding.demand.requirement
+                {
+                    return Err(PlanDiagnostic(format!(
+                        "callback registrar physical destination {binding_index} drifted from its exact layout, slot, or requirement row"
+                    )));
+                }
+                replay_physical_layout_geometry(target, layouts, binding_index, layout_demand)?;
+            }
+            _ => {
+                return Err(PlanDiagnostic(format!(
+                    "callback registrar physical destination {binding_index} changed its direct/field destination kind"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn replay_physical_layout_geometry(
+    target: omega_target::NativeTarget,
+    layouts: &omega_layout::LayoutPlan,
+    binding_index: usize,
+    layout_demand: &omega_layout::TargetClosedPrivateCallbackDemand,
+) -> Result<(), PlanDiagnostic> {
+    if !layout_demand.data_symbol.is_valid()
+        || layout_demand.byte_size != target.pointer_size
+        || layout_demand.alignment != target.pointer_alignment
+        || layout_demand.alignment == 0
+        || !layout_demand.offset.is_multiple_of(layout_demand.alignment)
+    {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} retained invalid target pointer geometry"
+        )));
+    }
+    let end = layout_demand
+        .offset
+        .checked_add(layout_demand.byte_size)
+        .ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} field extent overflowed"
+            ))
+        })?;
+    let matching_data_layouts = layouts
+        .data_layouts
+        .iter()
+        .filter(|(_, layout)| layout.symbol == layout_demand.data_symbol)
+        .collect::<Vec<_>>();
+    let [(_, data_layout)] = matching_data_layouts.as_slice() else {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} resolves to {} data layouts; exactly one is required",
+            matching_data_layouts.len()
+        )));
+    };
+    if end > data_layout.layout.size
+        || data_layout.layout.alignment < layout_demand.alignment
+        || !data_layout
+            .layout
+            .alignment
+            .is_multiple_of(layout_demand.alignment)
+    {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} field range is outside or misaligned for its exact data layout"
+        )));
+    }
     Ok(())
 }
 

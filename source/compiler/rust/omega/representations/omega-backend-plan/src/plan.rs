@@ -1,6 +1,7 @@
 use crate::{
     BackendArtifactRoots, BackendPlanPhaseTiming, BoundNominalCallbackPlacement,
-    CallbackPrivateRelocationDemand, CallbackRegistrarArgumentBinding, CallbackThunkPlan,
+    CallbackPrivateRelocationDemand, CallbackRegistrarArgumentBinding,
+    CallbackRegistrarPhysicalDestination, CallbackThunkPlan,
 };
 use omega_abstract_operations::{AbstractDataPlan, AbstractOperationPlan};
 use omega_assigned_target_operations::AssignedTargetOperationPlan;
@@ -73,6 +74,9 @@ pub struct BackendPlan {
     /// Complete address-free joins from each private relocation demand to the
     /// exact outbound registrar occurrence and native destination root.
     pub callback_registrar_arguments: Arc<[CallbackRegistrarArgumentBinding]>,
+    /// Complete ABI-relative joins from callback registrar arguments to their
+    /// exact outbound parameter placement and target-closed field geometry.
+    pub callback_registrar_destinations: Arc<[CallbackRegistrarPhysicalDestination]>,
     /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
     /// state's arena index): `Some(base)` when the dispatch case's clone
     /// context was minted by a call through a CONTAINED receiver whose true

@@ -1,5 +1,6 @@
 use super::callback_private_relocations::plan_callback_private_relocations;
 use super::callback_registrar_arguments::plan_callback_registrar_arguments;
+use super::callback_registrar_destinations::plan_callback_registrar_physical_destinations;
 use super::callback_thunks::plan_callback_thunks;
 use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
@@ -462,6 +463,22 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 &backend_plan.abstract_operations.semantics.boundaries,
             )
         })?;
+    backend_plan.callback_registrar_destinations = record_backend_phase(
+        &mut phase_timings,
+        "callback registrar physical destinations",
+        || {
+            plan_callback_registrar_physical_destinations(
+                backend_plan.target,
+                &backend_plan.callback_placements,
+                &backend_plan.callback_thunks,
+                &backend_plan.callback_private_relocations,
+                &backend_plan.host_calls,
+                &backend_plan.abstract_operations.semantics.boundaries,
+                &backend_plan.callback_registrar_arguments,
+                &backend_plan.layouts,
+            )
+        },
+    )?;
     backend_plan.target_operations =
         record_backend_phase(&mut phase_timings, "target operations", || {
             build_target_operation_plan(
