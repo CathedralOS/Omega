@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 69;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 70;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 27;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -97,6 +97,10 @@ fn encode_with_limits(
     encoder.sequence(&review.representation_tcb, encode_representation_tcb)?;
     encoder.sequence(&review.semantic_dependencies, encode_semantic_dependency)?;
     encoder.sequence(&review.callables, encode_callable)?;
+    encoder.sequence(
+        &review.external_executable_supply,
+        encode_external_executable_supply,
+    )?;
     encoder.sequence(&review.dangerous_authorities, encode_dangerous_authority)?;
     encoder.sequence(
         &review.dangerous_authority_slack,
@@ -128,11 +132,12 @@ fn encode_rows_with_limits(
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.semantic_dependencies.len())
         .saturating_add(review.callables.len())
+        .saturating_add(review.external_executable_supply.len())
         .saturating_add(
             review
                 .callables
                 .iter()
-                .filter(|callable| callable.supply == MachineSupplyMode::Accepted)
+                .filter(|callable| callable.supply == PackageReviewCallableSupply::Accepted)
                 .count(),
         )
         .saturating_add(review.dangerous_authorities.len())
@@ -322,7 +327,7 @@ fn encode_rows_with_limits(
                 |encoder| encode_callable(encoder, callable),
             )?,
         )?;
-        if callable.supply == MachineSupplyMode::Accepted {
+        if callable.supply == PackageReviewCallableSupply::Accepted {
             push_row(
                 &mut rows,
                 &mut total_row_bytes,
@@ -338,6 +343,22 @@ fn encode_rows_with_limits(
                 )?,
             )?;
         }
+    }
+    for (index, supply) in review.external_executable_supply.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::ExternalExecutableSupply,
+                PackageReviewCanonicalRowRisk::OpaqueBlocking,
+                row_source(&review.row_sources.external_executable_supply, index)?,
+                |encoder| encode_external_executable_supply_key(encoder, supply),
+                |encoder| encode_external_executable_supply(encoder, supply),
+            )?,
+        )?;
     }
     for (index, authority) in review.dangerous_authorities.iter().enumerate() {
         push_row(
@@ -497,6 +518,7 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::PublicConst => 12,
         PackageReviewCanonicalRowKind::PublicOperator => 13,
         PackageReviewCanonicalRowKind::PublicConformance => 14,
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
     }
 }
 
@@ -1154,14 +1176,7 @@ fn encode_callable(
         Ok(())
     })?;
     encode_type_identity(encoder, &callable.return_type)?;
-    encoder.sequence(&callable.conformances, |encoder, conformance| {
-        encode_nominal(encoder, &conformance.trait_identity)?;
-        encode_nominal(encoder, &conformance.requirement_identity)?;
-        encoder.sequence(&conformance.arguments, encode_type_identity)?;
-        encoder.option(conformance.alias.as_deref(), |encoder, alias| {
-            encoder.string(alias)
-        })
-    })?;
+    encoder.sequence(&callable.conformances, encode_callable_conformance)?;
     encoder.sequence(&callable.contracts, encode_callable_contract)?;
     encoder.option(
         callable.declared_service_reach.as_deref(),
@@ -1193,6 +1208,58 @@ fn encode_callable(
     encode_termination(encoder, &callable.checked_termination)?;
     encode_crash(encoder, &callable.checked_crash)?;
     encoder.sequence(&callable.mutation, encode_mutation)
+}
+
+fn encode_callable_conformance(
+    encoder: &mut Encoder,
+    conformance: &PackageReviewCallableConformance,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &conformance.trait_identity)?;
+    encode_nominal(encoder, &conformance.requirement_identity)?;
+    encoder.sequence(&conformance.arguments, encode_type_identity)?;
+    encoder.option(conformance.alias.as_deref(), |encoder, alias| {
+        encoder.string(alias)
+    })
+}
+
+fn encode_external_executable_supply_key(
+    encoder: &mut Encoder,
+    supply: &PackageReviewExternalExecutableSupply,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &supply.callable)?;
+    encode_callable_conformance(encoder, &supply.conformance)
+}
+
+fn encode_external_executable_supply(
+    encoder: &mut Encoder,
+    supply: &PackageReviewExternalExecutableSupply,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_external_executable_supply_key(encoder, supply)?;
+    match &supply.binding {
+        PackageReviewExternalBinding::Import { library, symbol } => {
+            encoder.byte(0);
+            encoder.string(library)?;
+            encoder.string(symbol)?;
+        }
+        PackageReviewExternalBinding::Syscall { number } => {
+            encoder.byte(1);
+            encoder.i64(*number);
+        }
+        PackageReviewExternalBinding::CompilerIntrinsic => encoder.byte(2),
+        PackageReviewExternalBinding::VtableSlot { index } => {
+            encoder.byte(3);
+            encoder.i64(*index);
+        }
+        PackageReviewExternalBinding::VtableField { field } => {
+            encoder.byte(4);
+            encoder.string(field)?;
+        }
+        PackageReviewExternalBinding::TableFunction { field } => {
+            encoder.byte(5);
+            encoder.string(field)?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_callable_contract(
@@ -1697,18 +1764,14 @@ fn encode_nominal(
 
 fn encode_supply(
     encoder: &mut Encoder,
-    supply: MachineSupplyMode,
+    supply: PackageReviewCallableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.byte(match supply {
-        MachineSupplyMode::CheckedBody => 0,
-        MachineSupplyMode::Requirement => 1,
-        MachineSupplyMode::Boundary => 2,
-        MachineSupplyMode::Accepted => 3,
-        MachineSupplyMode::ExternalRealization { .. } => {
-            return Err(PackageReviewEncodingError::new(
-                "reviewed callable unexpectedly carries an interner-backed external realization",
-            ));
-        }
+        PackageReviewCallableSupply::CheckedBody => 0,
+        PackageReviewCallableSupply::Requirement => 1,
+        PackageReviewCallableSupply::Boundary => 2,
+        PackageReviewCallableSupply::Accepted => 3,
+        PackageReviewCallableSupply::ExternalRealization => 4,
     });
     Ok(())
 }
@@ -2390,6 +2453,7 @@ mod tests {
             representation_tcb: Vec::new(),
             semantic_dependencies: Vec::new(),
             callables: Vec::new(),
+            external_executable_supply: Vec::new(),
             dangerous_authorities: Vec::new(),
             dangerous_authority_slack: Vec::new(),
             selected_providers: Vec::new(),
@@ -2404,6 +2468,7 @@ mod tests {
                 representation_tcb: Vec::new(),
                 semantic_dependencies: Vec::new(),
                 callables: Vec::new(),
+                external_executable_supply: Vec::new(),
                 dangerous_authorities: Vec::new(),
                 dangerous_authority_slack: Vec::new(),
                 selected_provider_set: PackageReviewCanonicalRowSource::compiler_derived(

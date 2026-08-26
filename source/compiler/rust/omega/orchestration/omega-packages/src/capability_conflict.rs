@@ -1572,6 +1572,7 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::AcceptedClaim => "accepted_claim",
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => "dangerous_authority_slack",
         PackageReviewCanonicalRowKind::SemanticDependency => "semantic_dependency",
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply => "external_executable_supply",
     }
 }
 
@@ -1592,6 +1593,7 @@ const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::PublicConst => 12,
         PackageReviewCanonicalRowKind::PublicOperator => 13,
         PackageReviewCanonicalRowKind::PublicConformance => 14,
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
     }
 }
 

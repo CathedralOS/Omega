@@ -1030,7 +1030,8 @@ build-contract admission does not wait for blanket Terminal coverage. Evidence
 rows state their exact class; missing Terminal evidence cannot be represented
 as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
 
-Bodyless external realization is consequently one separate blocking
+Every package-owned bodyless external realization, including a private
+implementation leaf, is consequently one separate blocking
 executable-supply trust row. It binds the exact package-qualified callable and
 conformance application to a closed compiler-owned mechanism identity: import
 library and symbol, syscall number, compiler intrinsic, vtable slot, vtable
@@ -1049,6 +1050,17 @@ invariant as a backstop but is not the mandatory reconstruction source. Do not
 introduce nominal Chi for this seam. A new stage is warranted only by a real
 shared semantic boundary with independent consumers, transformations, or
 invariants; reuse a coherent existing stage such as Exact when it is simpler.
+
+Review v70/canonical row v28 now implements the lane. An external leaf must be
+bodyless and carry exactly one conformance application; supply mode,
+conformance binding, mechanism tag, and structural binding-table identity must
+agree. Malformed import/syscall/vtable/table payloads and table fields without
+an exact attached data owner reject. The row key is callable plus complete
+conformance application and its value is the structural binding, preserving
+callable API bytes across a binding-only update while producing one
+`OpaqueBlocking` supply conflict. Private leaves receive the trust row without
+becoming public callable API. Recovery, source accounting, and conflict
+rendering retain the row without making an audit or Terminal claim.
 
 Underdeclared effective reach is a compiler error. Overdeclared reach remains a
 visible contract-slack row. “Realized” here is the exact inferred transitive row

@@ -1222,14 +1222,21 @@ and refuses review when any checked-implementation claim was left unjudged. Acce
 opaque supply remains trust-bearing. These rows are currently in-memory review
 state, not sealed lock evidence.
 
-External executable supply is a separate blocking trust row. It binds an exact
-package-qualified callable/conformance application to a closed compiler-owned
-import, syscall, intrinsic, vtable, or table-function identity and makes no
-Terminal or audit claim. The compiler projects it only after successful
-checking, joining facts from their earliest coherent private representations
-and rejecting inconsistent supply-mode, conformance-binding, or binding-table
-state. Only the canonical row crosses this crate boundary; no nominal Chi stage
-or public package IR is introduced for the internal join.
+External executable supply is a separate blocking trust row. Review v70/row
+v28 binds every package-owned external leaf, including private implementation
+leaves, to an exact package-qualified callable/conformance application and a
+closed compiler-owned import, syscall, intrinsic, vtable, or table-function
+identity. External leaves must be bodyless with exactly one conformance;
+inconsistent or malformed supply-mode, conformance-binding, mechanism,
+binding-table, payload, or attached-table state rejects. The callable and
+complete conformance application form the stable key, while the structural
+binding is value, so a binding-only update renders exactly one
+`external_executable_supply` conflict with `opaque_blocking` risk and leaves
+callable API bytes unchanged. Private leaves do not become public callable
+rows. The compiler projects this only after successful checking, joining facts
+from their earliest coherent private representations. Only the canonical row
+crosses this crate boundary; it makes no Terminal or audit claim and introduces
+no nominal Chi stage or public package IR.
 
 ## Fixtures
 
