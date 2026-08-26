@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn free_machine_named_transition_is_rejected_as_a_nonlocal_jump() {
+    let canary = fail_canary("calls/free_machine_named_transition_rejected");
+    let diagnostics = compile_canary_without_output_for_target(&canary, "macos_arm64")
+        .expect_err("a named transition must not enter another free machine");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let expected = fs::read_to_string(canary.join("expected.txt"))
+        .expect("foreign named-transition canary should pin its diagnostic");
+    assert!(
+        combined.contains(expected.trim()),
+        "expected the unsupported-transition diagnostic, got:\n{combined}"
+    );
+    assert!(
+        !combined.contains("exact local target state is missing"),
+        "a foreign free-machine target must not enter local-state ownership lookup:\n{combined}"
+    );
+}
+
+#[test]
 fn retired_domain_when_surface_is_absent_from_authored_corpus() {
     let root = repo_root();
     let tracked = Command::new("git")
