@@ -1783,7 +1783,9 @@ mod tests {
                 &recovery,
                 legality.allocator_availability(),
                 environment.identity(),
+                environment.physical(),
                 environment.constraints(),
+                environment.reservations(),
                 environment.allocation_constraint_keys(),
                 TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
                 budget(),
@@ -1809,12 +1811,36 @@ mod tests {
                     &recovery,
                     legality.allocator_availability(),
                     environment.identity(),
+                    environment.physical(),
                     environment.constraints(),
+                    environment.reservations(),
                     environment.allocation_constraint_keys(),
                     corrupted_recipe,
                 ),
                 Err(omega_regalloc::TerminalLiteralFoldError::DecisionMismatch { .. })
             ));
+            let foreign_target = match target.architecture {
+                omega_target::Architecture::X86_64 => NativeTarget::linux_arm64(),
+                omega_target::Architecture::Aarch64 => NativeTarget::linux_x64(),
+            };
+            let foreign_environment = baseline_target_register_environment(foreign_target).unwrap();
+            assert_eq!(
+                validate_terminal_literal_fold(
+                    selected.selected(),
+                    ranges.ranges(),
+                    legality.legality(),
+                    &choices,
+                    &recovery,
+                    legality.allocator_availability(),
+                    environment.identity(),
+                    foreign_environment.physical(),
+                    foreign_environment.constraints(),
+                    foreign_environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    fold_one.plan().clone(),
+                ),
+                Err(omega_regalloc::TerminalLiteralFoldError::RootMismatch)
+            );
             let folded_add = &fold_one.transformed().functions[0].blocks[1].instructions[1];
             assert!(matches!(
                 folded_add.kind,
@@ -1875,7 +1901,9 @@ mod tests {
                 &recovery_one,
                 legality.allocator_availability(),
                 environment.identity(),
+                environment.physical(),
                 environment.constraints(),
+                environment.reservations(),
                 environment.allocation_constraint_keys(),
                 TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
                 budget(),

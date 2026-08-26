@@ -1,6 +1,7 @@
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedRegisterConstraintCatalog,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile,
 };
 use omega_terminal_target_operations_to_selected_instructions::terminal_selected_instruction_plan_identity;
 
@@ -25,7 +26,9 @@ pub fn validate_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis>(
     recovery: &ValidatedTerminalRecoveryClassifications,
     availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: TargetRegisterEnvironmentConstraintKeys,
     plan: TerminalLiteralFoldPlan,
 ) -> Result<ValidatedTerminalLiteralFold, TerminalLiteralFoldError> {
@@ -37,6 +40,10 @@ pub fn validate_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis>(
         recovery,
         availability,
         register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
     )?;
     if plan.source_selected != selected.selected_identity()
         || plan.spill_choices != spill_choices.receipt().identity()

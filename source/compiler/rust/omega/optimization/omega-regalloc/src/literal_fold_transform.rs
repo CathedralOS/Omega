@@ -1,7 +1,9 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_register_model::{
     RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
-    TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+    target_register_environment_identity,
 };
 use omega_terminal_selected_instructions::{
     TerminalSelectedFunction, TerminalSelectedInstruction, TerminalSelectedInstructionId,
@@ -28,6 +30,10 @@ pub(crate) fn validate_literal_fold_roots<S: ValidatedTerminalSelectedAnalysis>(
     recovery: &ValidatedTerminalRecoveryClassifications,
     availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), TerminalLiteralFoldError> {
     if ranges.receipt().selected() != selected.selected_identity()
         || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
@@ -36,6 +42,17 @@ pub(crate) fn validate_literal_fold_roots<S: ValidatedTerminalSelectedAnalysis>(
         || legality.receipt().register_environment() != register_environment
         || legality.receipt().allocator_availability() != availability.receipt().identity()
         || availability.receipt().register_environment() != register_environment
+        || availability.receipt().physical() != physical.identity()
+        || constraints.physical_identity() != physical.identity()
+        || reservations.physical_identity() != physical.identity()
+        || reservations.target() != selected.selected_plan().target
+        || target_register_environment_identity(
+            selected.selected_plan().target,
+            physical,
+            constraints,
+            reservations,
+            selected_keys,
+        ) != register_environment
         || spill_choices.receipt().ranges() != ranges.receipt().identity()
         || spill_choices.receipt().legality() != legality.receipt().identity()
         || spill_choices.receipt().register_environment() != register_environment

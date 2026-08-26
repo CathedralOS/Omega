@@ -1,7 +1,8 @@
 use omega_optimization_core::OptimizationWorkBudget;
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedRegisterConstraintCatalog,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile,
 };
 use omega_terminal_target_operations_to_selected_instructions::terminal_selected_instruction_plan_identity;
 
@@ -24,7 +25,9 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis
     recovery: &ValidatedTerminalRecoveryClassifications,
     availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: TargetRegisterEnvironmentConstraintKeys,
     policy: TerminalLiteralFoldPolicy,
     budget: OptimizationWorkBudget,
@@ -37,6 +40,10 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis
         recovery,
         availability,
         register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
     )?;
     if policy != TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 {
         return Err(TerminalLiteralFoldError::UnsupportedPolicy);
