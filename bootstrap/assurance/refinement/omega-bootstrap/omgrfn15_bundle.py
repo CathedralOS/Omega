@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Untrusted exact-byte packer for the private OMGRFN15 candidate frame."""
+"""Untrusted exact-byte packer for the private OMGRFN15 frame."""
 
 from __future__ import annotations
 
