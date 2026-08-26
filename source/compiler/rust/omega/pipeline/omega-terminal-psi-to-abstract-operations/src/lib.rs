@@ -19,6 +19,107 @@ use psi_terminal::{
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
+/// Required optimizer input produced only after canonical artifact decoding,
+/// Terminal-Psi validation, proof reconstruction, and evidence admission.
+///
+/// The ordinary native path may consume the bare abstract plan for backwards
+/// compatibility. Optimizer entry points must instead require this carrier so
+/// proof, ownership, and path-sensitive semantic context cannot become an
+/// optional side channel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedTerminalOptimizationInput {
+    plan: TerminalAbstractOperationPlan,
+    context: VerifiedTerminalOptimizationContext,
+}
+
+impl VerifiedTerminalOptimizationInput {
+    pub const fn plan(&self) -> &TerminalAbstractOperationPlan {
+        &self.plan
+    }
+
+    pub const fn context(&self) -> &VerifiedTerminalOptimizationContext {
+        &self.context
+    }
+}
+
+/// Verifier-owned semantic and proof context retained beside the reconstructible
+/// Omega plan. The complete immutable Terminal module is intentional: narrow
+/// projections may be derived from it, but cannot recreate discarded place
+/// paths, call obligations, edge cleanup, or borrow frontiers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedTerminalOptimizationContext {
+    terminal_module: psi_terminal::TerminalModule,
+    proof_bundle: psi_terminal_verifier::ProofBundle,
+    proof_bundle_fingerprint: psi_terminal_codec::ProofBundleFingerprint,
+    reconstructed_obligations: psi_terminal_verifier::ReconstructedTerminalObligationSet,
+    accepted_facts: Vec<psi_proof_admission::AcceptedFact>,
+}
+
+impl VerifiedTerminalOptimizationContext {
+    pub const fn terminal_module(&self) -> &psi_terminal::TerminalModule {
+        &self.terminal_module
+    }
+
+    pub const fn proof_bundle(&self) -> &psi_terminal_verifier::ProofBundle {
+        &self.proof_bundle
+    }
+
+    pub const fn proof_bundle_fingerprint(&self) -> psi_terminal_codec::ProofBundleFingerprint {
+        self.proof_bundle_fingerprint
+    }
+
+    pub const fn reconstructed_obligations(
+        &self,
+    ) -> &psi_terminal_verifier::ReconstructedTerminalObligationSet {
+        &self.reconstructed_obligations
+    }
+
+    pub fn accepted_facts(&self) -> &[psi_proof_admission::AcceptedFact] {
+        &self.accepted_facts
+    }
+}
+
+/// A reconstructible optimizer unit that cannot detach from the exact
+/// verifier context which authorized its proof- and borrow-sensitive facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedPsiOptimizationUnit {
+    input: VerifiedTerminalOptimizationInput,
+    unit: omega_optimization_unit::PsiOptimizationUnit,
+}
+
+impl VerifiedPsiOptimizationUnit {
+    pub const fn input(&self) -> &VerifiedTerminalOptimizationInput {
+        &self.input
+    }
+
+    pub const fn unit(&self) -> &omega_optimization_unit::PsiOptimizationUnit {
+        &self.unit
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        VerifiedTerminalOptimizationInput,
+        omega_optimization_unit::PsiOptimizationUnit,
+    ) {
+        (self.input, self.unit)
+    }
+}
+
+/// The only optimizer-facing unit constructor. Consuming the verified carrier
+/// prevents callers from pairing a plan with evidence admitted for a different
+/// Terminal-Psi artifact.
+pub fn build_verified_psi_optimization_unit(
+    input: VerifiedTerminalOptimizationInput,
+    fuel_schedule: psi_core::FuelScheduleIdentity,
+) -> Result<VerifiedPsiOptimizationUnit, omega_optimization_unit::OptimizationUnitBuildError> {
+    let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+        input.plan(),
+        fuel_schedule,
+    )?;
+    Ok(VerifiedPsiOptimizationUnit { input, unit })
+}
+
 /// Canonical-decode and verify terminal-Psi semantic/proof artifact sections
 /// before constructing Omega's source-independent realization requirements.
 /// Producer-owned modules and frontend trees cannot cross this boundary.
@@ -34,6 +135,23 @@ pub fn lower_artifact_sections(
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+}
+
+/// Construct the required optimizer carrier without affecting the ordinary
+/// empty-selection path. This API intentionally repeats canonical artifact
+/// admission only when an optimizer consumer explicitly asks for it.
+pub fn lower_artifact_sections_for_optimization(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+) -> Result<VerifiedTerminalOptimizationInput, ArtifactLoweringError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)?;
+    retain_verified_optimization_input(&verified)
 }
 
 /// Decode a persisted obligation ledger, reconstruct it from the exact semantic
@@ -64,6 +182,53 @@ pub fn lower_replay_artifact_sections(
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+}
+
+/// Replay the persisted obligation ledger and retain the complete admitted
+/// verifier context required by optimization.
+pub fn lower_replay_artifact_sections_for_optimization(
+    semantic_bytes: &[u8],
+    obligation_ledger_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &psi_proof_admission::AdmissionProfile,
+) -> Result<VerifiedTerminalOptimizationInput, ArtifactLoweringError> {
+    let module = psi_terminal_codec::decode_module(semantic_bytes)
+        .map_err(ArtifactLoweringError::SemanticDecode)?;
+    let obligation_ledger =
+        psi_terminal_codec::decode_terminal_obligation_ledger(obligation_ledger_bytes)
+            .map_err(ArtifactLoweringError::ObligationLedgerDecode)?;
+    let trust_graph = psi_terminal_codec::current_terminal_trust_graph()
+        .map_err(ArtifactLoweringError::TrustGraph)?;
+    psi_terminal_codec::validate_terminal_obligation_ledger(
+        &obligation_ledger,
+        &module,
+        &trust_graph,
+    )
+    .map_err(ArtifactLoweringError::ObligationReplay)?;
+    let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
+        .map_err(ArtifactLoweringError::ProofDecode)?;
+    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map_err(ArtifactLoweringError::Verification)?;
+    retain_verified_optimization_input(&verified)
+}
+
+fn retain_verified_optimization_input(
+    verified: &VerifiedTerminalModule<'_>,
+) -> Result<VerifiedTerminalOptimizationInput, ArtifactLoweringError> {
+    let plan = lower_decoded_verified_module(verified).map_err(ArtifactLoweringError::Lowering)?;
+    let proof_bundle_fingerprint =
+        psi_terminal_codec::proof_bundle_fingerprint(verified.proof_bundle())
+            .map_err(ArtifactLoweringError::ProofFingerprint)?;
+    Ok(VerifiedTerminalOptimizationInput {
+        plan,
+        context: VerifiedTerminalOptimizationContext {
+            terminal_module: verified.module().clone(),
+            proof_bundle: verified.proof_bundle().clone(),
+            proof_bundle_fingerprint,
+            reconstructed_obligations: verified.reconstructed_obligations().clone(),
+            accepted_facts: verified.accepted_facts().to_vec(),
+        },
+    })
 }
 
 /// Bind Omega's provider policy only to exact rows preserved from the verified
@@ -1539,6 +1704,7 @@ pub enum ArtifactLoweringError {
     TrustGraph(psi_terminal_codec::TrustGraphError),
     ObligationReplay(psi_terminal_codec::CodecError),
     ProofDecode(psi_terminal_codec::ProofCodecError),
+    ProofFingerprint(psi_terminal_codec::ProofCodecError),
     Verification(psi_terminal_verifier::VerificationError),
     Lowering(LoweringError),
 }

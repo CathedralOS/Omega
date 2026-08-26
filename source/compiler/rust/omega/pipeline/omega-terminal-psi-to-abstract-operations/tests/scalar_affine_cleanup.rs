@@ -2,7 +2,8 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractFunctionResult, TerminalAbstractOperation,
 };
 use omega_terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, LoweringError, lower_artifact_sections,
+    ArtifactLoweringError, LoweringError, build_verified_psi_optimization_unit,
+    lower_artifact_sections, lower_artifact_sections_for_optimization,
 };
 use psi_core::{
     BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId, PlaceId,
@@ -21,7 +22,7 @@ use psi_terminal::{
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_terminal_codec::{encode_module, encode_proof_bundle, proof_bundle_fingerprint};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
@@ -187,6 +188,52 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
 
     let plan = lower_artifact_sections(&semantics, &proof_bytes, &AdmissionProfile::default())
         .expect("verified contextual scalar cleanup enters Omega");
+    let optimizer_input = lower_artifact_sections_for_optimization(
+        &semantics,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+    )
+    .expect("verified contextual scalar cleanup retains optimizer context");
+    assert_eq!(optimizer_input.plan(), &plan);
+    let optimizer_context = optimizer_input.context();
+    assert_eq!(optimizer_context.terminal_module(), &module);
+    assert_eq!(optimizer_context.proof_bundle(), &proof);
+    assert_eq!(
+        optimizer_context.proof_bundle_fingerprint(),
+        proof_bundle_fingerprint(&proof).expect("canonical proof fingerprint")
+    );
+    assert_eq!(
+        optimizer_context
+            .reconstructed_obligations()
+            .obligations()
+            .iter()
+            .map(|row| row.obligation.id)
+            .collect::<Vec<_>>(),
+        vec![obligation_id(1)]
+    );
+    assert_eq!(
+        optimizer_context
+            .accepted_facts()
+            .iter()
+            .map(|fact| fact.obligation)
+            .collect::<Vec<_>>(),
+        vec![obligation_id(1)]
+    );
+    let verified_unit = build_verified_psi_optimization_unit(
+        optimizer_input,
+        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("verified optimizer unit reconstruction");
+    assert_eq!(verified_unit.unit().terminal_psi, plan.terminal_psi);
+    assert_eq!(
+        verified_unit
+            .input()
+            .context()
+            .accepted_facts()
+            .first()
+            .map(|fact| fact.obligation),
+        Some(obligation_id(1))
+    );
     let lowered_caller = plan
         .functions
         .iter()

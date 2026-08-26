@@ -74,6 +74,14 @@ These facts constrain the work below.
   obligation references and its independent validator reconstructs that index;
   the references are not accepted facts until joined with verifier-owned
   evidence, so the unit tasks remain open.
+- The clean artifact boundary now exposes a required
+  `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
+  lowered plan beside the complete immutable Terminal module, exact proof
+  bundle and fingerprint, verifier-reconstructed obligation set, and accepted
+  facts. The ordinary empty-selection path continues to request only the bare
+  plan, so it performs no optimizer-context construction. The unit tasks remain
+  open until the builder derives complete path-sensitive indices from this
+  required context and the independent validator checks them.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

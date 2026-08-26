@@ -1449,6 +1449,7 @@ dependencies = [
 name = "omega-terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-optimization-unit",
  "omega-terminal-abstract-operations",
  "psi-core",
  "psi-proof-admission",

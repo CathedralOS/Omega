@@ -129,7 +129,12 @@ optimization report continue to retain its identity.
 ```text
 canonical Terminal Psi semantic + proof sections
     -> decode, reconstruct obligations, verify, admit
-    -> TerminalAbstractOperationPlan
+    -> VerifiedTerminalOptimizationInput
+       { TerminalAbstractOperationPlan,
+         immutable TerminalModule,
+         proof bundle + fingerprint,
+         reconstructed obligations,
+         accepted facts }
     -> build PsiOptimizationUnit (private SSA/CFG + semantic side tables)
     -> target-neutral analyses and verified rewrites
     -> OptimizedPsiPlan + TransformationLedger
@@ -158,6 +163,15 @@ An optimized plan is never published as a replacement Terminal Psi artifact.
 The Psi reference interpreter continues to execute the original verified
 module. Native/optimized agreement is evidence about the realization, not a
 new definition of program meaning.
+
+The verified optimizer input is required, not an optional evidence attachment
+to a bare plan. Compatibility lowering has a separate bare-plan entry; the
+verified carrier exposes no consuming operation that detaches its plan from the
+context, and no optimizer constructor accepts the reduced value. Keeping the
+complete verified Terminal module beside the lowering seed ensures that later
+unit builders can derive call obligations, structural place paths, edge
+cleanup, and borrow/claim frontiers even where the current abstract plan does
+not yet project them.
 
 ## Optimization unit
 
