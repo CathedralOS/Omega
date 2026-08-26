@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 61);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 19);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 62);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 20);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -5087,6 +5087,91 @@ pub Scoped<'{lifetime}, Element>:
 
     assert_eq!(first_row.key_bytes(), second_row.key_bytes());
     assert_eq!(first_row.canonical_bytes(), second_row.canonical_bytes());
+}
+
+#[test]
+fn public_lifetime_conformances_project_inherited_requirement_substitutions() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let source = |first: &str, second: &str, selected: &str, body: &str| {
+        format!(
+            r#"pub data Borrow<'{first}, Element> {{ value: &'{first} Element; }}
+pub trait Parent<Source> {{
+    machine absorb(value: Source);
+}}
+pub trait Child<Source>: Parent<Source> {{ }}
+pub Scoped<'{first}, '{second}, Element>:
+    Element satisfies Child<Borrow<'{selected}, Element>>
+{{
+    machine absorb(value: Borrow<'{selected}, Element>) {{ {body} }}
+}}
+"#
+        )
+    };
+    let project = |source: String| {
+        package.write("main.omg", &source);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("lifetime-generic inherited conformance should check");
+        project_checked_package_review(&checked)
+            .expect("inherited lifetime substitution should project exactly")
+    };
+
+    let first = project(source("left", "right", "left", ""));
+    let [shape] = first.public_conformances() else {
+        panic!("one inherited lifetime conformance")
+    };
+    let [requirement] = shape.interface().requirements() else {
+        panic!("one inherited requirement")
+    };
+    assert_eq!(requirement.declaring_trait().path(), "Parent");
+    assert_eq!(
+        requirement.declaring_trait_arguments(),
+        shape.interface().arguments()
+    );
+    let first_row = first
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("first inherited lifetime conformance row");
+
+    let renamed = project(source(
+        "primary",
+        "secondary",
+        "primary",
+        "let private_value: i32 = 1;",
+    ));
+    let renamed_row = renamed
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("renamed inherited lifetime conformance row");
+    assert_eq!(first_row.canonical_bytes(), renamed_row.canonical_bytes());
+
+    let changed = project(source("left", "right", "right", ""));
+    let changed_row = changed
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("changed inherited lifetime conformance row");
+    assert_ne!(first_row.canonical_bytes(), changed_row.canonical_bytes());
 }
 
 #[test]

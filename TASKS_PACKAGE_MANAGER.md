@@ -1181,6 +1181,14 @@ complete.
   spellings such as `"A"` and `"\x41"` therefore have identical identity, while
   any changed octet changes canonical evidence. Unsupported aggregate and
   advanced call forms remain fail-closed.
+  Review v62 and canonical row v20 close inherited requirement projection for
+  lifetime-generic public conformances whose selected trait itself has no
+  lifetime telescope. Declaring-trait arguments now apply the complete inherited
+  type substitution before deriving alpha-normalized lifetime topology; binder
+  renames and private realization bodies remain irrelevant, while selecting a
+  different lifetime ordinal changes canonical evidence. Conformances targeting
+  a lifetime-parameterized trait remain fail-closed pending the declaration-site
+  application decision in `OWNER_QUESTIONS.md`.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value

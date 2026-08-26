@@ -617,8 +617,13 @@ v61/canonical row v19 adds exact raw byte-sequence literals to public contract
 expressions. It encodes the decoded octets directly, with no text
 interpretation, so equivalent literal spellings share identity and any changed
 byte changes the reviewed row. Unsupported aggregate and advanced call forms
-still fail closed. Review v43 and canonical row v3 represent static-machine
-parameters directly: structural contracts retain
+still fail closed. Review v62/canonical row v20 retains fully substituted,
+lifetime-sensitive declaring-trait arguments for inherited requirements of a
+lifetime-generic public conformance. Alpha-renaming and private realization
+bodies remain irrelevant; changing the selected lifetime ordinal changes the
+row. A conformance targeting a lifetime-parameterized trait remains fail-closed
+pending its declaration-site application rule. Review v43 and canonical row v3
+represent static-machine parameters directly: structural contracts retain
 their complete alpha-normalized nested signature and operational envelope,
 while nominal contracts retain exact public trait and requirement identities.
 Nested structural binders have exact checked proof/crash custody; missing rows,
