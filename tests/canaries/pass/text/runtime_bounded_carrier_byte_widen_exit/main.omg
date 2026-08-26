@@ -1,0 +1,20 @@
+// A runtime indexed byte from owned bounded-carrier storage is still an
+// ordinary u8 value. Its explicit `as i32` conversion must therefore use the
+// same value-preserving unsigned widening path as an ordinary array element.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    message: [u8; 8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.message = "ALERT";
+    self.console.exit_process(self.message[0] as i32);
+}

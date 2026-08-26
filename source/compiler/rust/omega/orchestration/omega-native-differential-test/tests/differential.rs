@@ -956,6 +956,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("termination/runtime_shrinking_slice_recursion_exit", 70),
     ("text/runtime_bounded_carrier_alias_concat_exit", 70),
     ("text/runtime_bounded_carrier_byte_index_exit", 70),
+    ("text/runtime_bounded_carrier_byte_widen_exit", 65),
     ("text/runtime_carrier_indexed_read_exit", 70),
     ("text/runtime_decimal_to_number_exit", 70),
     ("text/runtime_number_to_decimal_exit", 70),
@@ -1318,7 +1319,7 @@ fn run_canary_authored_root_inventory_is_pinned() {
         .iter()
         .map(|(canary, _)| *canary)
         .collect::<BTreeSet<_>>();
-    assert_eq!(RUN_CANARIES.len(), 890, "RUN_CANARIES total drifted");
+    assert_eq!(RUN_CANARIES.len(), 891, "RUN_CANARIES total drifted");
     assert_eq!(
         run_canaries.len(),
         RUN_CANARIES.len(),
@@ -1334,7 +1335,7 @@ fn run_canary_authored_root_inventory_is_pinned() {
         .difference(&rooted)
         .copied()
         .collect::<BTreeSet<_>>();
-    assert_eq!(rooted.len(), 886, "authored RUN root inventory drifted");
+    assert_eq!(rooted.len(), 887, "authored RUN root inventory drifted");
     assert_eq!(rootless.len(), 4, "rootless RUN inventory drifted");
 
     assert_eq!(AUTHORED_ROOT_GUI_EXCLUSIONS.len(), 4);

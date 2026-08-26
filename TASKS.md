@@ -569,10 +569,13 @@ Remaining:
   Windows probes—now retain authored Windows entry selection. Their exact
   Windows roots are structurally cross-compiled on every development host,
   while native execution remains Windows-gated; this does not imply Linux
-  `Gui`, `Input`, or raw-filesystem lowering. A registry-derived inventory now
-  pins 890 `RUN_CANARIES`, 886 with authored roots, and exactly the four
-  excluded GUI fixtures rootless. The tracked non-GUI authored-root backlog is
-  zero. The earlier reported
+  `Gui`, `Input`, or raw-filesystem lowering. An additional bounded-carrier
+  regression now projects one runtime-indexed `u8` value and explicitly widens
+  it to `i32`, proving unsigned extension agrees between checked interpretation
+  and native execution rather than existing only in guard comparison. A
+  registry-derived inventory now pins 891 `RUN_CANARIES`, 887 with authored
+  roots, and exactly the four excluded GUI fixtures rootless. The tracked
+  non-GUI authored-root backlog is zero. The earlier reported
   backlog of 18 was incorrect: its baseline parser omitted 39 multiline-form
   RUN rows, then
   the migration ledger subtracted 34 authored roots outside `RUN_CANARIES` as

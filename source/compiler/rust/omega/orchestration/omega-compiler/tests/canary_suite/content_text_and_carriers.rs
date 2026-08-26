@@ -779,8 +779,8 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
 // `message[i]` reads the byte at `base + pointer_size + i` (content after the
 // length word, u8 elements). The compound guard `message[0] == 'A' &&
 // message[2] == 'E'` reads two bytes of "ALERT"; both hold -> ok arm exits 70.
-// (Indexing in guards is the parsing workhorse; widening a byte's value into a
-// wider int, e.g. exiting it, needs a separate u8->i32 zero-extension still TODO.)
+// (Indexing in guards is the parsing workhorse; the separate bounded-carrier
+// widening canary covers using the indexed byte as an explicitly widened value.)
 #[test]
 fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
@@ -805,6 +805,36 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
         Some(70),
         "expected the compound byte-index guard `message[0]=='A' && message[2]=='E'` \
          to hold and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bounded_carrier_byte_widen_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_byte_widen_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-bounded-carrier-byte-widen-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded carrier indexed-byte widening canary should compile");
+
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded carrier indexed-byte widening should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("bounded carrier indexed-byte widening canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(65),
+        "expected `self.message[0] as i32` to zero-extend ASCII A (65), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
