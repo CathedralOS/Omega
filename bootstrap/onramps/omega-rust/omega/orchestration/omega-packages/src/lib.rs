@@ -13,6 +13,7 @@ mod capability_conflict;
 mod closure_resolution;
 mod compiler_handoff;
 mod compiler_review;
+mod conflict;
 mod declaration;
 mod dependency_edit;
 mod dependency_projection;
@@ -50,6 +51,11 @@ pub use compiler_review::{
     CompileResolvedPackageReviewsError, CompilerExecutableVerificationPhase,
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
     compile_resolved_package_reviews,
+};
+pub use conflict::{
+    ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyResolution,
+    ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
+    resolve_review_only_root_policy_decisions,
 };
 pub use declaration::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,

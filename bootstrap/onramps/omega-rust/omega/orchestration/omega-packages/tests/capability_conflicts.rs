@@ -5,10 +5,11 @@ use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    ReviewOnlyRootPolicyResolutionError, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    resolve_external_local_package_closure, triage_review_update,
-    triage_review_update_from_baseline,
+    resolve_external_local_package_closure, resolve_review_only_root_policy_decisions,
+    triage_review_update, triage_review_update_from_baseline,
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -45,6 +46,7 @@ machine build(builder: &mut Build) {
 fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     let live = temp_root("live");
     let baseline_cache = temp_root("baseline-cache");
+    let stale_baseline_cache = temp_root("stale-baseline-cache");
     let candidate_cache = temp_root("candidate-cache");
     let representation_cache = temp_root("representation-cache");
     let dangerous_slack_cache = temp_root("dangerous-slack-cache");
@@ -78,6 +80,28 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
 }
 
 pub proposition ready();
+"#,
+    );
+    let stale_baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &stale_baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve alternate baseline custody");
+    let stale_baseline_reviews =
+        compile_resolved_package_reviews(&stale_baseline_sources, "windows_x64", &build_root)
+            .expect("compile alternate baseline review");
+
+    write_package(
+        &live,
+        r#"pub machine add_u64(left: u64, right: u64) -> u64 {
+    left + right
+}
+
+pub proposition ready();
+pub proposition settled();
 "#,
     );
     let candidate_sources = resolve_external_local_package_closure(
@@ -210,13 +234,13 @@ pub proposition ready();
         "decoding must enforce the configured identity ceiling"
     );
     assert_eq!(conflicts.packages().len(), 1);
-    assert_eq!(conflicts.conflict_count(), 1);
+    assert_eq!(conflicts.conflict_count(), 2);
     let package = &conflicts.packages()[0];
     assert_eq!(package.key(), candidate_sources.graph().root());
     assert!(package.dependency_path().steps().is_empty());
     assert_ne!(package.candidate_closure().digest(), [0; 32]);
-    let [conflict] = package.conflicts() else {
-        panic!("one added public proposition row")
+    let [conflict, second_conflict] = package.conflicts() else {
+        panic!("two added public proposition rows")
     };
     assert_eq!(
         conflict.kind(),
@@ -235,6 +259,102 @@ pub proposition ready();
     assert_eq!(candidate_locations[0].relative_path(), "main.omg");
     assert!(conflict.is_blocking());
     assert_ne!(conflict.fingerprint().digest(), [0; 32]);
+    assert_eq!(
+        second_conflict.kind(),
+        PackageReviewCanonicalRowKind::PublicProposition
+    );
+    assert!(second_conflict.is_blocking());
+
+    let first_accept = package
+        .root_policy_decision(
+            conflict,
+            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+        )
+        .expect("bind first exact blocking row");
+    let second_accept = package
+        .root_policy_decision(
+            second_conflict,
+            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+        )
+        .expect("bind second exact blocking row");
+    let accepted_resolution =
+        resolve_review_only_root_policy_decisions(&conflicts, &[second_accept, first_accept])
+            .expect("resolve every blocking row");
+    assert!(accepted_resolution.all_blocking_rows_accepted());
+    assert_eq!(accepted_resolution.decisions().len(), 2);
+    assert_eq!(
+        accepted_resolution.candidate_closure(),
+        package.candidate_closure()
+    );
+    assert_ne!(accepted_resolution.commitment().digest(), [0; 32]);
+
+    let stale_conflicts = compare_review_only_capabilities(
+        &stale_baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare same candidate against alternate baseline");
+    let [stale_package] = stale_conflicts.packages() else {
+        panic!("alternate baseline has one changed package")
+    };
+    let [stale_conflict] = stale_package.conflicts() else {
+        panic!("alternate baseline has one changed proposition")
+    };
+    let stale_decision = stale_package
+        .root_policy_decision(
+            stale_conflict,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        )
+        .expect("bind alternate-baseline decision");
+    assert_eq!(
+        stale_decision.candidate_closure(),
+        package.candidate_closure()
+    );
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[stale_decision, first_accept]),
+        Err(ReviewOnlyRootPolicyResolutionError::StaleOrForeignConflict { .. })
+    ));
+    assert_eq!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_accept])
+            .expect("decision input order is canonicalized")
+            .commitment(),
+        accepted_resolution.commitment()
+    );
+
+    let second_reject = package
+        .root_policy_decision(
+            second_conflict,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        )
+        .expect("bind explicit candidate rejection");
+    let rejected_resolution =
+        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, second_reject])
+            .expect("a rejection is still a complete policy result");
+    assert!(!rejected_resolution.all_blocking_rows_accepted());
+    assert_ne!(
+        rejected_resolution.commitment(),
+        accepted_resolution.commitment()
+    );
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[]),
+        Err(ReviewOnlyRootPolicyResolutionError::EmptyDecisionSet)
+    ));
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept]),
+        Err(ReviewOnlyRootPolicyResolutionError::MissingDecision { .. })
+    ));
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(&conflicts, &[first_accept, first_accept]),
+        Err(ReviewOnlyRootPolicyResolutionError::DuplicateDecision { .. })
+    ));
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(
+            &conflicts,
+            &[first_accept, first_accept, second_accept]
+        ),
+        Err(ReviewOnlyRootPolicyResolutionError::TooManyDecisions { maximum: 2 })
+    ));
     assert_eq!(
         triage_review_update(&baseline_reviews, &candidate_reviews, &BTreeSet::new()).disposition(),
         PackageTriageDisposition::BlockedCapabilityChange
@@ -334,6 +454,41 @@ pub proposition ready();
     )
     .expect("unchanged rows compare cleanly");
     assert!(unchanged.is_empty());
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(&unchanged, &[]),
+        Err(ReviewOnlyRootPolicyResolutionError::NoBlockingConflicts)
+    ));
+
+    let removal_conflicts = compare_review_only_capabilities(
+        &candidate_reviews,
+        &baseline_reviews,
+        &baseline_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare blocking candidate removals");
+    let [removal_package] = removal_conflicts.packages() else {
+        panic!("one package removes public propositions")
+    };
+    assert_eq!(removal_package.conflicts().len(), 2);
+    for removal in removal_package.conflicts() {
+        assert_eq!(
+            removal.kind(),
+            PackageReviewCanonicalRowKind::PublicProposition
+        );
+        assert_eq!(
+            removal.change(),
+            ReviewOnlyCapabilityConflictChange::Removed
+        );
+        assert!(removal.baseline_row().is_some());
+        assert!(removal.candidate_row().is_none());
+        assert!(removal.is_blocking());
+        removal_package
+            .root_policy_decision(
+                removal,
+                ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+            )
+            .expect("candidate-change decision also covers row removal");
+    }
 
     write_package(
         &live,
@@ -377,6 +532,13 @@ pub machine add_u64(left: u64, right: u64) -> u64 {
         PackageReviewCanonicalRowRisk::AuditRecommended
     );
     assert!(!representation_conflict.is_blocking());
+    assert!(matches!(
+        representation_package.root_policy_decision(
+            representation_conflict,
+            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+        ),
+        Err(ReviewOnlyRootPolicyResolutionError::NonBlockingConflict { .. })
+    ));
     assert_eq!(
         triage_review_update(&baseline_reviews, &representation_reviews, &BTreeSet::new())
             .disposition(),
@@ -523,6 +685,36 @@ ensures result == 1;
         PackageReviewCanonicalRowRisk::Blocking
     );
     assert!(accepted_claim_conflict.is_blocking());
+    let accepted_claim_package = accepted_claim_conflicts
+        .packages()
+        .iter()
+        .find(|package| {
+            package
+                .conflicts()
+                .iter()
+                .any(|conflict| conflict.fingerprint() == accepted_claim_conflict.fingerprint())
+        })
+        .expect("accepted-claim package");
+    let wrong_candidate_decision = accepted_claim_package
+        .root_policy_decision(
+            accepted_claim_conflict,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        )
+        .expect("bind other candidate decision");
+    assert!(matches!(
+        resolve_review_only_root_policy_decisions(
+            &conflicts,
+            &[wrong_candidate_decision, first_accept]
+        ),
+        Err(ReviewOnlyRootPolicyResolutionError::WrongCandidateClosure { .. })
+    ));
+    assert!(matches!(
+        package.root_policy_decision(
+            accepted_claim_conflict,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        ),
+        Err(ReviewOnlyRootPolicyResolutionError::ConflictDoesNotBelongToPackage { .. })
+    ));
     assert!(
         accepted_claim_conflict
             .candidate_source()
@@ -544,6 +736,7 @@ ensures result == 1;
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(stale_baseline_cache);
     let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(representation_cache);
     let _ = std::fs::remove_dir_all(dangerous_slack_cache);
