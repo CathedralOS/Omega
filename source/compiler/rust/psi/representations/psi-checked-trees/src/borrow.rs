@@ -274,6 +274,35 @@ pub struct CheckedReborrowParentSuspensionBoundary {
     pub source: crate::FlowInvalidationSource,
 }
 
+/// Lexical disposition of the immediate parent carrier at the child's end.
+///
+/// This classification describes only source/flow liveness. In particular,
+/// `LivePastChild` is not proof of authority reactivation, and a retired parent
+/// does not imply that authority was returned, cascaded, or discarded.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ParentLexicalStatusAtChildEnd {
+    RetiredBeforeChild,
+    #[default]
+    RetiredWithChild,
+    LivePastChild,
+}
+
+/// Exact checked weakening-order join for one retained direct reborrow.
+///
+/// The two handles identify the authoritative flow events; `status` is derived
+/// from their semantic statement phases rather than arena insertion order.
+/// This checked-only row grants no suspension-containment, restoration,
+/// reactivation, cascade, or Terminal authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowParentEndStatus {
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub status: ParentLexicalStatusAtChildEnd,
+}
+
 /// Checked-only resource closure for one explicit direct reborrow.
 ///
 /// The row retains the child's exact activation/weakening lifecycle and a
@@ -296,6 +325,7 @@ pub struct CheckedReborrowLoanResource {
     pub parent_loan: Handle<BorrowLoanFact>,
     pub parent_resource: CheckedParentBorrowResource,
     pub parent_suspension: CheckedReborrowParentSuspensionBoundary,
+    pub parent_end_status: CheckedReborrowParentEndStatus,
     pub restoration: CheckedReborrowRestorationObligation,
 }
 

@@ -1,9 +1,9 @@
 use psi_checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowLoanResource,
+    CheckedParentBorrowResource, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowRestorationObligation, FlowFacts,
-    FlowInvalidationSource,
+    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -69,6 +69,9 @@ struct CheckedReborrowLoanResourceDraft {
     parent_loan: psi_arena::Handle<BorrowLoanFact>,
     child_activation: psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
     parent_entry_constraint: psi_arena::Handle<psi_checked_trees::FlowConstraintRef>,
+    child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    parent_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    parent_lexical_status: ParentLexicalStatusAtChildEnd,
 }
 
 impl CheckedReborrowLoanResourceDraft {
@@ -93,6 +96,14 @@ impl CheckedReborrowLoanResourceDraft {
                 child_activation: self.child_activation,
                 parent_entry_constraint: self.parent_entry_constraint,
                 source: self.activation_source,
+            },
+            parent_end_status: CheckedReborrowParentEndStatus {
+                child_loan: self.loan,
+                parent_loan: self.parent_loan,
+                parent_resource: parent_resource.clone(),
+                child_weakening: self.child_weakening,
+                parent_weakening: self.parent_weakening,
+                status: self.parent_lexical_status,
             },
             restoration: CheckedReborrowRestorationObligation {
                 child_loan: self.loan,
@@ -375,7 +386,12 @@ fn reconstruct_reborrow_resource_drafts(
                 .weakenings
                 .span_or_empty(flow_state.borrow_weakenings)
                 .iter()
-                .filter(|weakening| weakening.loan == loan_handle)
+                .enumerate()
+                .filter(|(_, weakening)| weakening.loan == loan_handle)
+                .filter_map(|(offset, weakening)| {
+                    span_handle(flow_state.borrow_weakenings, offset)
+                        .map(|handle| (handle, weakening))
+                })
                 .collect::<Vec<_>>();
             if activations.len() != 1 || weakenings.len() != 1 {
                 diagnostics.push(Diagnostic::error(
@@ -384,7 +400,7 @@ fn reconstruct_reborrow_resource_drafts(
                 continue;
             }
             let (child_activation, activation) = activations[0];
-            let weakening = weakenings[0];
+            let (child_weakening, weakening) = weakenings[0];
             if activation.source
                 != (FlowInvalidationSource::Statement {
                     statement_index: loan.statement_index,
@@ -395,6 +411,35 @@ fn reconstruct_reborrow_resource_drafts(
                 ));
                 continue;
             }
+            let parent_weakenings = flow
+                .borrow_lifetimes
+                .weakenings
+                .span_or_empty(flow_state.borrow_weakenings)
+                .iter()
+                .enumerate()
+                .filter(|(_, weakening)| weakening.loan == *parent_loan)
+                .filter_map(|(offset, weakening)| {
+                    span_handle(flow_state.borrow_weakenings, offset)
+                        .map(|handle| (handle, weakening))
+                })
+                .collect::<Vec<_>>();
+            let [(parent_weakening, parent_weakening_fact)] = parent_weakenings.as_slice() else {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow parent status requires exactly one parent weakening",
+                ));
+                continue;
+            };
+            let Some(parent_lexical_status) = parent_lexical_status_at_child_end(
+                parent_weakening_fact.source,
+                parent_weakening_fact.reason,
+                weakening.source,
+                weakening.reason,
+            ) else {
+                diagnostics.push(Diagnostic::error(
+                    "checked direct-reborrow parent status has an unsupported weakening boundary",
+                ));
+                continue;
+            };
 
             let Some(statement) = flow
                 .control
@@ -444,6 +489,9 @@ fn reconstruct_reborrow_resource_drafts(
                 parent_loan: *parent_loan,
                 child_activation,
                 parent_entry_constraint: *parent_entry_constraint,
+                child_weakening,
+                parent_weakening: *parent_weakening,
+                parent_lexical_status,
             });
         }
     }
@@ -453,6 +501,36 @@ fn reconstruct_reborrow_resource_drafts(
     } else {
         Err(diagnostics)
     }
+}
+
+fn parent_lexical_status_at_child_end(
+    parent_source: FlowInvalidationSource,
+    parent_reason: psi_checked_trees::FlowBorrowWeakeningReason,
+    child_source: FlowInvalidationSource,
+    child_reason: psi_checked_trees::FlowBorrowWeakeningReason,
+) -> Option<ParentLexicalStatusAtChildEnd> {
+    let parent = weakening_boundary_key(parent_source, parent_reason)?;
+    let child = weakening_boundary_key(child_source, child_reason)?;
+    Some(match parent.cmp(&child) {
+        std::cmp::Ordering::Less => ParentLexicalStatusAtChildEnd::RetiredBeforeChild,
+        std::cmp::Ordering::Equal => ParentLexicalStatusAtChildEnd::RetiredWithChild,
+        std::cmp::Ordering::Greater => ParentLexicalStatusAtChildEnd::LivePastChild,
+    })
+}
+
+fn weakening_boundary_key(
+    source: FlowInvalidationSource,
+    reason: psi_checked_trees::FlowBorrowWeakeningReason,
+) -> Option<(usize, u8)> {
+    let FlowInvalidationSource::Statement { statement_index } = source else {
+        return None;
+    };
+    let phase = match reason {
+        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => 0,
+        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => 1,
+        psi_checked_trees::FlowBorrowWeakeningReason::StateExit => 2,
+    };
+    Some((statement_index, phase))
 }
 
 fn span_handle<T>(span: psi_arena::HandleSpan<T>, offset: usize) -> Option<psi_arena::Handle<T>> {
