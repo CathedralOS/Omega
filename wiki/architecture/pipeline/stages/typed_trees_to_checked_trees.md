@@ -197,7 +197,17 @@ Current ownership is:
   `psi-checked-trees/src/borrow.rs` owns the grouped `BorrowFacts` root and
   constructor for writable-root, access, call, loan-owner-segment, loan, and
   state borrow arenas. Each published loan addresses its owner projection by a
-  handle span into the shared owner-segment arena.
+  handle span into the shared owner-segment arena. The first checked-only
+  resource-closure rung deterministically rejoins each direct-root loan to its
+  exact state, owner path, captured place, access polarity, activation,
+  weakening, parent state-invocation lifetime, and restoration obligation.
+  Independent checked replay rejects missing, duplicate, or drifted rows, and
+  direct-root compatibility certificates consume these joined place/access
+  rows rather than manufacturing resource facts. This carrier remains
+  non-authorizing and is not Terminal evidence. Reborrow and borrow-carrying
+  transfer rows remain excluded until exact parent/source occurrences are
+  retained; their lineage, restoration replay, and Terminal resource authority
+  are still open.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

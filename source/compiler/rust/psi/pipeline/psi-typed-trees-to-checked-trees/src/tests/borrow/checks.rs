@@ -1,4 +1,4 @@
-use crate::checks::check_checked_facts;
+use crate::checks::check_unretained_borrow_fixture_facts as check_checked_facts;
 use crate::flow::canonical_place_overlaps_segments;
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 use crate::{

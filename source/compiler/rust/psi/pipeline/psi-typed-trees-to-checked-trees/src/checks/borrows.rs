@@ -4,6 +4,7 @@ mod elision;
 mod escape;
 mod overlap;
 mod persistent;
+mod resources;
 mod statements;
 
 use psi_checked_trees::{CheckFacts, FlowStateFact};
@@ -23,6 +24,7 @@ pub(crate) fn check_flow_call_borrows(
     if !retained_diagnostics.is_empty() {
         return Err(retained_diagnostics);
     }
+    resources::replay_checked_direct_borrow_resources(facts)?;
     let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
 
@@ -70,6 +72,12 @@ pub(crate) fn check_flow_call_borrows(
     }
 }
 
+pub(super) fn initialize_checked_direct_borrow_resources(
+    facts: &mut CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    resources::initialize_checked_direct_borrow_resources(facts)
+}
+
 fn validate_checked_borrow_compatibility_certificates(
     program: &psi_typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -103,14 +111,20 @@ fn replay_checked_borrow_compatibility_certificate(
         ));
     }
 
-    let forming = facts.borrow.loans.get(certificate.forming_loan);
-    let active = facts.borrow.loans.get(certificate.active_loan);
+    let Some((forming_access, active_access)) = facts
+        .borrow
+        .compatibility_certificate_resource_accesses(certificate)
+    else {
+        return Err(Diagnostic::error(
+            "checked borrow compatibility certificate does not rejoin its exact state-owned loans",
+        ));
+    };
     let replayed = overlap::captured_place_compatibility(
         program,
         &certificate.forming_place,
-        &forming.kind,
+        forming_access,
         &certificate.active_place,
-        &active.kind,
+        active_access,
     );
     let replayed_conclusion = psi_checked_trees::BorrowCompatibilityConclusion {
         disjoint: replayed.disjoint,

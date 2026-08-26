@@ -22,11 +22,27 @@ pub(crate) fn check_checked_facts(
     program: &psi_typed_trees::TypedTrees,
     facts: &psi_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    // Unit tests that assemble facts directly do not need the retained
-    // permission artifact; run the same checks against a clone. The compiler
-    // path below records into the owned checked tree.
     let mut scratch = facts.clone();
     check_checked_facts_recording(program, &mut scratch)
+}
+
+/// Complete a legacy unit fixture that was assembled below the checked-tree
+/// construction boundary, then run the ordinary independent validator.
+/// Production checked trees never use this helper.
+#[cfg(test)]
+pub(crate) fn check_unretained_borrow_fixture_facts(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut scratch = facts.clone();
+    borrows::initialize_checked_direct_borrow_resources(&mut scratch)?;
+    check_checked_facts_recording(program, &mut scratch)
+}
+
+pub(crate) fn initialize_checked_direct_borrow_resources(
+    facts: &mut psi_checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    borrows::initialize_checked_direct_borrow_resources(facts)
 }
 
 pub(crate) fn check_checked_facts_recording(

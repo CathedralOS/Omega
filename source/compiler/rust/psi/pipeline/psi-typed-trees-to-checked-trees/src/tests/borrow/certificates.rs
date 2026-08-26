@@ -138,7 +138,7 @@ fn rejects_each_changed_compatibility_conclusion_axis() {
 }
 
 #[test]
-fn rejects_conclusion_after_resource_access_polarity_drift() {
+fn rejects_raw_loan_access_drift_from_joined_resource_polarity() {
     let mut checked = checked_shared_overlap();
     let certificate = sole_certificate(&checked);
     assert!(!certificate.conclusion.disjoint);
@@ -157,11 +157,11 @@ fn rejects_conclusion_after_resource_access_polarity_drift() {
 
     let diagnostics =
         crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
-            .expect_err("the conclusion must replay from current exact loan polarities");
+            .expect_err("the direct resource must replay from the authoritative loan polarity");
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("conclusion drifted"))
+            .any(|diagnostic| diagnostic.message.contains("resource closure drifted"))
     );
 }
 

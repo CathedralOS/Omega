@@ -154,6 +154,53 @@ pub struct BorrowLoanFact {
     pub kind: BorrowAccessKind,
 }
 
+/// Exact state-invocation parent lifetime for one direct-root loan.
+///
+/// This checked-only identity does not create authority. It names the
+/// state-owned root whose already-validated authority is temporarily
+/// constrained by the loan.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedDirectBorrowParentLifetime {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub root_symbol: SymbolHandle,
+}
+
+/// Restoration obligation retained for one direct-root loan.
+///
+/// The row records where checked flow ends the loan and must restore the
+/// parent root's availability. It is not evidence that restoration occurred
+/// and grants no compatibility authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedDirectBorrowRestorationObligation {
+    pub parent: CheckedDirectBorrowParentLifetime,
+    pub weakening_source: crate::FlowInvalidationSource,
+    pub weakening_reason: crate::FlowBorrowWeakeningReason,
+}
+
+/// Checked-only resource closure for one state-local loan captured directly
+/// from a root authority occurrence.
+///
+/// Reborrows and borrow-carrying transfers deliberately have no row in this
+/// first prerequisite: `source_owner_symbol` must be invalid. Compatibility
+/// certificates remain a separate proof ledger and cannot manufacture one of
+/// these resources.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedDirectBorrowLoanResource {
+    pub loan: Handle<BorrowLoanFact>,
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub owner_symbol: SymbolHandle,
+    pub owner_path: Vec<BorrowLoanOwnerSegment>,
+    pub captured_place: CapturedPlace,
+    pub access: BorrowAccessKind,
+    pub activation_source: crate::FlowInvalidationSource,
+    pub weakening_source: crate::FlowInvalidationSource,
+    pub weakening_reason: crate::FlowBorrowWeakeningReason,
+    pub parent_lifetime: CheckedDirectBorrowParentLifetime,
+    pub restoration: CheckedDirectBorrowRestorationObligation,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
@@ -175,6 +222,10 @@ pub struct BorrowFacts {
     /// Zero-premise structural certificates retained by checked borrow
     /// admission. This is a separate proof ledger from the loan resource rows.
     pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
+    /// Non-authorizing direct-root resource closures reconstructed from the
+    /// exact loan activation/weakening ledger. Reborrow and transfer lineage
+    /// remain fenced from this first checked-only carrier.
+    pub direct_loan_resources: Arena<CheckedDirectBorrowLoanResource>,
 }
 
 impl BorrowFacts {
@@ -196,6 +247,7 @@ impl BorrowFacts {
             loans,
             states,
             compatibility_certificates: Arena::new(),
+            direct_loan_resources: Arena::new(),
         }
     }
 
@@ -230,10 +282,79 @@ impl BorrowFacts {
         let forming_loan = self.loans.get(certificate.forming_loan);
         let active_loan = self.loans.get(certificate.active_loan);
         forming_loan.statement_index == certificate.formation.statement_index
-            && certificate.forming_place.root_symbol == forming_loan.root_symbol
-            && certificate.forming_place.segments == self.loan_segments(forming_loan)
-            && certificate.active_place.root_symbol == active_loan.root_symbol
-            && certificate.active_place.segments == self.loan_segments(active_loan)
+            && self.certificate_place_matches_resource(
+                state,
+                certificate.forming_loan,
+                forming_loan,
+                &certificate.forming_place,
+            )
+            && self.certificate_place_matches_resource(
+                state,
+                certificate.active_loan,
+                active_loan,
+                &certificate.active_place,
+            )
+    }
+
+    /// Returns the exact access polarities that an independently replayed
+    /// compatibility certificate must consume.
+    ///
+    /// Direct-root loans use the joined checked resource row. Reborrow and
+    /// transfer loans remain on their established raw-loan route until their
+    /// parent occurrence lineage has a checked resource representation.
+    pub fn compatibility_certificate_resource_accesses(
+        &self,
+        certificate: &CheckedBorrowCompatibilityCertificate,
+    ) -> Option<(&BorrowAccessKind, &BorrowAccessKind)> {
+        if !self.compatibility_certificate_matches_resources(certificate) {
+            return None;
+        }
+        let forming_loan = self.loans.get(certificate.forming_loan);
+        let active_loan = self.loans.get(certificate.active_loan);
+        Some((
+            self.certificate_loan_access(certificate.forming_loan, forming_loan)?,
+            self.certificate_loan_access(certificate.active_loan, active_loan)?,
+        ))
+    }
+
+    fn certificate_place_matches_resource(
+        &self,
+        state: &StateBorrowFact,
+        handle: Handle<BorrowLoanFact>,
+        loan: &BorrowLoanFact,
+        place: &CapturedPlace,
+    ) -> bool {
+        if loan.source_owner_symbol.is_valid() {
+            return place.root_symbol == loan.root_symbol
+                && place.segments == self.loan_segments(loan);
+        }
+        let mut matches = self
+            .direct_loan_resources
+            .iter()
+            .filter(|(_, resource)| resource.loan == handle);
+        let Some((_, resource)) = matches.next() else {
+            return false;
+        };
+        matches.next().is_none()
+            && resource.machine_symbol == state.machine_symbol
+            && resource.state_symbol == state.state_symbol
+            && &resource.captured_place == place
+    }
+
+    fn certificate_loan_access<'a>(
+        &'a self,
+        handle: Handle<BorrowLoanFact>,
+        loan: &'a BorrowLoanFact,
+    ) -> Option<&'a BorrowAccessKind> {
+        if loan.source_owner_symbol.is_valid() {
+            return Some(&loan.kind);
+        }
+        let mut matches = self
+            .direct_loan_resources
+            .iter()
+            .filter(|(_, resource)| resource.loan == handle);
+        let access = &matches.next()?.1.access;
+        matches.next().is_none().then_some(access)
     }
 
     pub fn access_segments(&self, access: &BorrowArgumentAccessFact) -> &[psi_facts::PlaceSegment] {
@@ -302,6 +423,7 @@ mod tests {
         assert_eq!(facts.loans, loans);
         assert_eq!(facts.states, states);
         assert!(facts.compatibility_certificates.is_empty());
+        assert!(facts.direct_loan_resources.is_empty());
     }
 
     #[test]
