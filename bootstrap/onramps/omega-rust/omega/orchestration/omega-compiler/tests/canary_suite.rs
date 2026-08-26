@@ -594,6 +594,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/content_conservation_entry_former_retired",
     "calls/library_block_retired",
     "capabilities/capability_entry_retired",
+    "calls/explicit_machine_entry_retired",
+    "calls/public_machine_entry_retired",
     "core/content_retained_custody_from_borrow",
     "core/extent_reconstruction_does_not_grant",
     "core/extent_no_wrap_lookalike",

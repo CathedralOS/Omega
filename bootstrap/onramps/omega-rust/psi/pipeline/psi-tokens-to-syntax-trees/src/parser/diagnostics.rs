@@ -74,7 +74,6 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::Contains => "contains",
         KeywordKind::Else => "else",
         KeywordKind::Enum => "enum",
-        KeywordKind::Entry => "entry",
         KeywordKind::False => "false",
         KeywordKind::Foreign => "foreign",
         KeywordKind::Host => "host",

@@ -1,0 +1,1 @@
+explicit nested `entry` / `pub entry` machine members are retired

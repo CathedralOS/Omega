@@ -18,7 +18,6 @@ data KeywordKind [copy] {
     case Contains;
     case Data;
     case Else;
-    case Entry;
     case Enum;
     case False;
     case Foreign;

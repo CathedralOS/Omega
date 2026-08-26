@@ -1954,10 +1954,8 @@ fn lowers_dungeon_style_machine_program() {
         gold: u32[exact];
     }
 
-    machine Inventory::clear {
-        pub entry(&mut self, inventory: &mut Inventory) {
-            inventory.gold = 0;
-        }
+    pub machine Inventory::clear(&mut self, inventory: &mut Inventory) {
+        inventory.gold = 0;
     }
     "#;
 
@@ -2202,13 +2200,9 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
 #[test]
 fn keeps_attached_machines_as_distinct_callables() {
     let source = r#"
-    machine Game::new {
-        pub entry() {}
-    }
+    pub machine Game::new() {}
 
-    machine Game::running {
-        pub entry() {}
-    }
+    pub machine Game::running() {}
     "#;
 
     let tokens = Lexer::new(source)

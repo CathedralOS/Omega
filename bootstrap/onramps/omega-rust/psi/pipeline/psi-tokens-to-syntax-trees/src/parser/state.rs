@@ -1,4 +1,3 @@
-use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::{
     parse_asm_block_statement_handles, parse_statement_handle, reject_retired_proof_output_binding,
@@ -49,14 +48,8 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
 pub(super) fn parse_state<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    kind: StateKind,
 ) -> ParseResult<'tokens, 'source, State> {
-    let (name, input) =
-        if kind.allows_implicit_entry_name() && input.at_punctuation(PunctuationKind::LeftParen) {
-            (Identifier::generated("entry"), input)
-        } else {
-            input.take_identifier()?
-        };
+    let (name, input) = input.take_identifier()?;
 
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;

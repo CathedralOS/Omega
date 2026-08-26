@@ -62,11 +62,8 @@ fn eof_reports_expected_identifier() {
 
 #[test]
 fn machine_item_error_lists_expected_members() {
-    let message = parse_error_message("machine main { entry() {} let value: i32; }");
-    assert_eq!(
-        message,
-        "expected one of `pub entry`, `entry`, `state`, found keyword `let`"
-    );
+    let message = parse_error_message("machine main { state ready() {} let value: i32; }");
+    assert_eq!(message, "expected `state`, found keyword `let`");
 }
 
 #[test]

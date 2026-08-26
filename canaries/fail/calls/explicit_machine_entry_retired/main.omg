@@ -1,0 +1,5 @@
+data Main {}
+
+machine Main::main {
+    entry(&mut self) {}
+}

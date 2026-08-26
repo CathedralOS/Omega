@@ -457,8 +457,7 @@ machine Lexer::classify_keyword(&mut self) {
     state capability_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "capability"); let matched: bool = self.predicate_result; transition matched { true -> capability_yes() _ -> contains_kw() } }
     state contains_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "contains"); let matched: bool = self.predicate_result; transition matched { true -> contains_yes() _ -> data_kw() } }
     state data_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "data"); let matched: bool = self.predicate_result; transition matched { true -> data_yes() _ -> else_kw() } }
-    state else_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "else"); let matched: bool = self.predicate_result; transition matched { true -> else_yes() _ -> entry_kw() } }
-    state entry_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "entry"); let matched: bool = self.predicate_result; transition matched { true -> entry_yes() _ -> enum_kw() } }
+    state else_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "else"); let matched: bool = self.predicate_result; transition matched { true -> else_yes() _ -> enum_kw() } }
     state enum_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "enum"); let matched: bool = self.predicate_result; transition matched { true -> enum_yes() _ -> false_kw() } }
     state false_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "false"); let matched: bool = self.predicate_result; transition matched { true -> false_yes() _ -> foreign_kw() } }
     state foreign_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "foreign"); let matched: bool = self.predicate_result; transition matched { true -> foreign_yes() _ -> host_kw() } }
@@ -490,7 +489,6 @@ machine Lexer::classify_keyword(&mut self) {
     state contains_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Contains }); }
     state data_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Data }); }
     state else_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Else }); }
-    state entry_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Entry }); }
     state enum_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Enum }); }
     state false_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::False }); }
     state foreign_yes(&mut self) { self.push_token(TokenKind::Keyword { kind: KeywordKind::Foreign }); }
