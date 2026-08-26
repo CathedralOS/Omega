@@ -2005,10 +2005,15 @@ Remaining:
   external-binding projection and its source-boundary plan replay live under
   `provider_plans`; and the strict emitted program-storage bridge owner now
   controls source/physical gates, target fallback, preview wrapper insertion,
-  and final replay against the mutated backend plan. Both compiler routes call
-  those owners at their original settlement points. The checked/terminal
-  cutover, remaining post-check fact courier/mutations, and output destination
-  custody remain open.
+  and final replay against the mutated backend plan. That owner also performs
+  the exact optional selected-entry/source/backend-plan join and settles final
+  wrapper evidence at the unchanged pre-publication boundary. The legacy
+  output owner now retains unpublished-versus-written custody through final
+  report construction, deriving output kind, receipt cardinality, and the
+  exact program-storage binding instead of returning a loose tuple to the
+  driver. Both compiler routes call those owners at their original settlement
+  points. The checked/terminal cutover, remaining post-check fact courier/
+  mutations, and request-level output-destination policy remain open.
 
   Restore the driver contract:
 
