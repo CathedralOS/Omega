@@ -257,6 +257,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .or_else(|| plan.render_direct_lift_precondition_implication())
                         .map(|value| format!(" plus exact {value}"))
                         .unwrap_or_default();
+                    let fixed_call_preconditions = plan
+                        .render_fixed_representative_call_preconditions()
+                        .map(|value| format!(" plus discharged {value}"))
+                        .unwrap_or_default();
                     let correspondence_certificate = plan
                         .render_correspondence_certificate()
                         .map(|value| format!(" plus composed non-executable {value}"))
@@ -349,12 +353,12 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                             "general precondition implication and adapted lift arguments".to_owned(),
                         );
                     }
-                    if plan.has_fixed_representative_preconditions() {
+                    if plan.has_undischarged_fixed_representative_preconditions() {
                         remaining.push("fixed representative call obligations".to_owned());
                     }
                     remaining.push("canonical Terminal correspondence replay".to_owned());
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{fixed_call_preconditions}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),

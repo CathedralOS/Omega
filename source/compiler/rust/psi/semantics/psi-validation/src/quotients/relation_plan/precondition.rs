@@ -56,6 +56,11 @@ pub(super) struct DefinePreconditionFactPair {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::quotients) struct DefinePreconditionCorrespondence {
     pub(super) dependent: Vec<DefinePreconditionFactPair>,
+    /// Facts independent of quotient-bearing positions still belong to the
+    /// faithful definition's exact public/representative precondition
+    /// bijection. They are paired separately so Terminal replay cannot
+    /// silently treat them as a weakened lift obligation.
+    pub(super) fixed: Vec<DefinePreconditionFactPair>,
 }
 
 pub(super) fn derive_public_precondition_partition(
@@ -248,7 +253,19 @@ pub(super) fn derive_define_precondition_correspondence(
         &representative_substitutions,
         &representative.static_application.bindings,
     )?;
-    Ok(DefinePreconditionCorrespondence { dependent })
+    let fixed = pair_precondition_facts(
+        program,
+        public_machine.contracts,
+        public_state.contracts,
+        representative.machine_contracts,
+        representative.state_contracts,
+        &public.fixed,
+        &representative_partition.fixed,
+        &public_substitutions,
+        &representative_substitutions,
+        &representative.static_application.bindings,
+    )?;
+    Ok(DefinePreconditionCorrespondence { dependent, fixed })
 }
 
 #[allow(clippy::too_many_arguments)]
