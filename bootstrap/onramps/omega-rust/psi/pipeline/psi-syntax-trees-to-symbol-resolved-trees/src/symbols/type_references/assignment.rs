@@ -49,7 +49,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                         matches!(
                             parameter.kind,
                             psi_symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: psi_symbol_resolved_trees::data::MachineParameterContract::DeclarationIdentity
+                                contract: psi_symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
                             }
                         )
                     })

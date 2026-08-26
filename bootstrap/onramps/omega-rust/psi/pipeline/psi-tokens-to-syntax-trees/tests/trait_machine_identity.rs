@@ -21,7 +21,7 @@ fn trait_machine_parameter_is_a_declaration_identity_without_a_where_contract() 
     assert!(matches!(
         parameter.kind,
         TypeParameterKind::Machine {
-            contract: Some(MachineParameterContract::DeclarationIdentity)
+            contract: Some(MachineParameterContract::RequirementIdentity)
         }
     ));
 }
