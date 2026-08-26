@@ -3,6 +3,11 @@
 //! Only normalized target and terminal-installation facts enter this crate;
 //! source-shaped representations and legacy operation graphs are absent.
 
+mod native_fuel_runtime;
+pub use native_fuel_runtime::{
+    Aarch64NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
+};
+
 use omega_calling_conventions::{MachineRegister, RegisterSet};
 use omega_target::Architecture;
 use omega_terminal_installation_evidence::{
