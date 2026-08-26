@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{MachineId, Proposition, PropositionContext, ScalarType, ValueId};
-use psi_proof_kernel::{Obligation, ObligationClass};
+use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use psi_terminal_semantics::{
     OperationSemanticError, OperationSemanticTag, goal_free_scalar_leaf_equation,

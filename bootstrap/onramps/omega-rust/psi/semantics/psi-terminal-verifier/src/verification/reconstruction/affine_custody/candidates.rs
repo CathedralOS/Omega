@@ -1,7 +1,7 @@
 //! Ordered affine-witness candidates for independent reconstruction.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::IntegerAffineWitness;
+use psi_proof_admission::IntegerAffineWitness;
 
 use super::{definition_index::DefinitionIndex, frontier};
 

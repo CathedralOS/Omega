@@ -101,11 +101,10 @@ suffix marks an on-ramp, not every source directory.
 - `compiler/source-checkpoints/` owns exact deterministic product-source
   closures and distinct provisional `Ωself` censuses.
 - `apps/omega-compiler/` owns the hosted product compiler entrypoint.
-- The Rust producer's currently named `psi-proof-kernel` checks product-local
-  Psi judgments and admissions; it is distinct from the bootstrap derivation
-  checker under `bootstrap/assurance/`. Its pending rename to a product-local
-  admission/checking name is ordinary on-ramp work in
-  [`TASKS.md`](../../../TASKS.md), not bootstrap-lattice work.
+- The Rust producer's `psi-proof-admission` crate checks product-local Psi
+  judgments and admission policy. It is distinct from the generic bootstrap
+  derivation checker under `bootstrap/assurance/` and has no bootstrap-lattice
+  authority.
 - Shared corpora belong at the narrowest common owner. A fixture used by several
   rungs or assurance seams belongs in `bootstrap/corpus/`, not in whichever gate
   happened to be written first.
@@ -147,7 +146,7 @@ that the language, compiler, or assurance work in that directory is finished.
 | current Rust Psi/Omega compiler and CLI | `bootstrap/onramps/omega-rust/` | complete |
 | cross-cutting proof kernel | `bootstrap/assurance/proof-kernel/{implementations,tools,corpus,gates}/` | complete |
 | Beta-source/Alpha-artifact refinement | `bootstrap/assurance/refinement/beta/` | complete |
-| bridge lower-rooted artifact reconstruction | `bootstrap/assurance/refinement/omega-bootstrap/` | complete placement; bridge assurance remains open |
+| bridge meaning/artifact reconstruction and gates | `bootstrap/assurance/refinement/omega-bootstrap/` | complete; bridge assurance remains open |
 | shared lattice corpus | `bootstrap/corpus/` | complete |
 | Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` | first Psi lexical checkpoint landed; remaining phases open |
 | product compiler closure/profile checkpoints | `compiler/source-checkpoints/` | active |

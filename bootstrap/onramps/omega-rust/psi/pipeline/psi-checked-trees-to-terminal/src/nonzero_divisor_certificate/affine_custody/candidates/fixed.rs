@@ -1,7 +1,7 @@
 //! Producer-local completion of affine witnesses for one exact target.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::IntegerAffineWitness;
+use psi_proof_admission::IntegerAffineWitness;
 
 use super::super::{DefinitionIndex, frontier};
 

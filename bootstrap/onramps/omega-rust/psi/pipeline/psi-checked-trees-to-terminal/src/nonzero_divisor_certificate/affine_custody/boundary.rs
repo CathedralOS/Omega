@@ -1,7 +1,7 @@
 //! Producer-local affine completion strictly after one source boundary.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::{DefinitionIndex, candidates};
 

@@ -1,7 +1,7 @@
 //! Side-local evidence selection for exact integer-cast bounds.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod affine;
 mod alias;

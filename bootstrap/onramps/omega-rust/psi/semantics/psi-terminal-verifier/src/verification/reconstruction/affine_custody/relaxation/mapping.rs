@@ -1,7 +1,7 @@
 //! Independent exact affine endpoint mapping for relaxation replay.
 
 use psi_core::Proposition;
-use psi_proof_kernel::CheckedIntegerAffineForm;
+use psi_proof_admission::CheckedIntegerAffineForm;
 
 mod endpoint;
 mod orientation;

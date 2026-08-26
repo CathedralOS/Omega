@@ -12,6 +12,6 @@ path = "src/lib.rs"
 psi-core = { path = "../../foundation/psi-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
-psi-proof-kernel = { path = "../psi-proof-kernel" }
+psi-proof-admission = { path = "../psi-proof-admission" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-semantics = { path = "../psi-terminal-semantics" }

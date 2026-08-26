@@ -76,15 +76,15 @@ const INTEGER_SHIFT_CHAINS_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/chains.rs");
 const INTEGER_SHIFT_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-verifier/src/verification/integer_shift/composition.rs");
-const PROOF_KERNEL_LIB_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/lib.rs");
+const PROOF_KERNEL_LIB_SOURCE: &[u8] = include_bytes!("../../psi-proof-admission/src/lib.rs");
 const PROOF_KERNEL_EVIDENCE_SOURCE: &[u8] =
-    include_bytes!("../../psi-proof-kernel/src/evidence.rs");
-const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/kernel.rs");
-const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-kernel/src/proof.rs");
+    include_bytes!("../../psi-proof-admission/src/evidence.rs");
+const PROOF_KERNEL_KERNEL_SOURCE: &[u8] = include_bytes!("../../psi-proof-admission/src/kernel.rs");
+const PROOF_KERNEL_PROOF_SOURCE: &[u8] = include_bytes!("../../psi-proof-admission/src/proof.rs");
 const PROOF_KERNEL_INTEGER_AFFINE_SOURCE: &[u8] =
-    include_bytes!("../../psi-proof-kernel/src/integer_affine.rs");
+    include_bytes!("../../psi-proof-admission/src/integer_affine.rs");
 const PROOF_KERNEL_INTEGER_CAST_SOURCE: &[u8] =
-    include_bytes!("../../psi-proof-kernel/src/integer_cast.rs");
+    include_bytes!("../../psi-proof-admission/src/integer_cast.rs");
 const PROOF_CODEC_SOURCE: &[u8] = include_bytes!("proof_bundle.rs");
 const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.rs");
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");

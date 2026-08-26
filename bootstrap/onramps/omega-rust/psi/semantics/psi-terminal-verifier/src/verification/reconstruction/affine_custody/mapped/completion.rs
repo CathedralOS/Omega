@@ -1,7 +1,7 @@
 //! Independent completion of one pre-boundary affine witness.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{
+use psi_proof_admission::{
     IntegerAffineWitness, check_integer_affine_bound_conversion, check_integer_affine_witness,
 };
 

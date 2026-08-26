@@ -2,7 +2,7 @@ use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ServiceId, ValueId,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{

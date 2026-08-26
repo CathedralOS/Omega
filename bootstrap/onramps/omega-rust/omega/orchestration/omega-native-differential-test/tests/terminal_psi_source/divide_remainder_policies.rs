@@ -340,12 +340,13 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         .iter()
         .find(|evidence| evidence.obligation == obligation)
         .expect("wrapping-divide certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route
+    else {
         panic!("wrapping divide must use a checked certificate")
     };
     assert!(matches!(
         certificate.proof.rule,
-        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-divide semantics");
@@ -373,11 +374,11 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         .iter_mut()
         .find(|evidence| evidence.obligation == obligation)
         .expect("wrapping-divide certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
     else {
         panic!("wrapping divide must use a checked certificate")
     };
-    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -587,12 +588,13 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         .iter()
         .find(|evidence| evidence.obligation == obligation)
         .expect("wrapping-remainder certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route
+    else {
         panic!("wrapping remainder must use a checked certificate")
     };
     assert!(matches!(
         certificate.proof.rule,
-        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("wrapping-remainder semantics");
@@ -621,11 +623,11 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         .iter_mut()
         .find(|evidence| evidence.obligation == obligation)
         .expect("wrapping-remainder certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
     else {
         panic!("wrapping remainder must use a checked certificate")
     };
-    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -800,12 +802,13 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         .iter()
         .find(|evidence| evidence.obligation == obligation)
         .expect("saturating-divide certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route
+    else {
         panic!("saturating divide must use a checked certificate")
     };
     assert!(matches!(
         certificate.proof.rule,
-        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-divide semantics");
@@ -834,11 +837,11 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         .iter_mut()
         .find(|evidence| evidence.obligation == obligation)
         .expect("saturating-divide certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
     else {
         panic!("saturating divide must use a checked certificate")
     };
-    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")
@@ -1013,12 +1016,13 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         .iter()
         .find(|evidence| evidence.obligation == obligation)
         .expect("saturating-remainder certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route
+    else {
         panic!("saturating remainder must use a checked certificate")
     };
     assert!(matches!(
         certificate.proof.rule,
-        psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
     ));
 
     let semantic = encode_module(&lowered.semantic_module).expect("saturating-remainder semantics");
@@ -1047,11 +1051,11 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         .iter_mut()
         .find(|evidence| evidence.obligation == obligation)
         .expect("saturating-remainder certificate exists");
-    let psi_proof_kernel::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
+    let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut corrupt.route
     else {
         panic!("saturating remainder must use a checked certificate")
     };
-    let psi_proof_kernel::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
+    let psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint, .. } =
         &mut certificate.proof.rule
     else {
         panic!("known divisor uses literal equality substitution")

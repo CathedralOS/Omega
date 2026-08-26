@@ -1,7 +1,7 @@
 //! Exact integer-cast witness and certificate completion for production.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod target;
 

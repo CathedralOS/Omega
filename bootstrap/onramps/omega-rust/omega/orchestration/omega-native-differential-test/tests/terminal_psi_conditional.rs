@@ -16,7 +16,7 @@ use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, SuccessorEdge, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,

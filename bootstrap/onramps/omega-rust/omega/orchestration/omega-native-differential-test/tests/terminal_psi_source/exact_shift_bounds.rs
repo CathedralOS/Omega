@@ -27,7 +27,7 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
         evidence.obligation == cast_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
 
@@ -148,7 +148,7 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         evidence.obligation == shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
 
@@ -263,7 +263,7 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
         evidence.obligation == shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
 

@@ -1,7 +1,7 @@
 //! Side-local selection of retained evidence for bounded affine proofs.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::affine_custody::DefinitionIndex;
 

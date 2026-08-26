@@ -1,7 +1,7 @@
 //! Independent direct completion of one checked affine witness.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{CheckedIntegerAffineForm, check_integer_affine_bound_conversion};
+use psi_proof_admission::{CheckedIntegerAffineForm, check_integer_affine_bound_conversion};
 
 pub(super) fn retained(
     form: &CheckedIntegerAffineForm,

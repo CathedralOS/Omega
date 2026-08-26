@@ -165,7 +165,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("the reconstructed exact-operation proof should verify canonically");
     let module_bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -281,7 +281,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("local-prefix cleanup module should verify");
 
@@ -521,7 +521,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("short-circuit local convergence should preserve the structural frontier");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -578,7 +578,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("final short-circuit cleanup should verify after repeated local convergence");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -677,7 +677,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("mixed scalar/structural parameter module should verify");
 
@@ -759,7 +759,7 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("closed Boolean return and cleanup should verify");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -841,7 +841,7 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("short-circuit cleanup frontiers should verify on every path");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)

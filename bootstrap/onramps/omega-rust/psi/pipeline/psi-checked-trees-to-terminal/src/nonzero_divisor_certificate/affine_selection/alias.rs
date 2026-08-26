@@ -1,7 +1,7 @@
 //! Fixed one- and two-alias affine-root proof completion.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::{affine_custody::DefinitionIndex, alias_transport};
 

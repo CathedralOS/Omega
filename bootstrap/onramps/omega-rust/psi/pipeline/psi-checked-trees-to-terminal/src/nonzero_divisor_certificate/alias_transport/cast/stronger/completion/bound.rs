@@ -1,7 +1,7 @@
 //! Fixed stronger alias root-bound construction for cast production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::super::super::integer_evidence::closed_integer_relation;
 

@@ -96,18 +96,21 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             Vec::new(),
             &[
                 ("psi-core/proposition.rs", PROPOSITION_SOURCE),
-                ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
-                ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
                 (
-                    "psi-proof-kernel/integer_affine.rs",
+                    "psi-proof-admission/evidence.rs",
+                    PROOF_KERNEL_EVIDENCE_SOURCE,
+                ),
+                ("psi-proof-admission/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+                (
+                    "psi-proof-admission/integer_affine.rs",
                     PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
                 ),
                 (
-                    "psi-proof-kernel/integer_cast.rs",
+                    "psi-proof-admission/integer_cast.rs",
                     PROOF_KERNEL_INTEGER_CAST_SOURCE,
                 ),
-                ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
-                ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+                ("psi-proof-admission/lib.rs", PROOF_KERNEL_LIB_SOURCE),
+                ("psi-proof-admission/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
                 ("psi-terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
             ],
         ),
@@ -150,7 +153,7 @@ fn proof_kernel_node() -> TrustDependencyNode {
         TrustDependencyStatus::TrustedJudgment,
         "Rust implementation of the current terminal proof calculus",
         "rust-proof-kernel-v7",
-        "psi-proof-kernel",
+        "psi-proof-admission",
         "portable proof bundle acceptance",
         "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
@@ -159,18 +162,21 @@ fn proof_kernel_node() -> TrustDependencyNode {
             "root:explicit-rust-migration-policy",
         ]),
         &[
-            ("psi-proof-kernel/lib.rs", PROOF_KERNEL_LIB_SOURCE),
-            ("psi-proof-kernel/evidence.rs", PROOF_KERNEL_EVIDENCE_SOURCE),
-            ("psi-proof-kernel/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+            ("psi-proof-admission/lib.rs", PROOF_KERNEL_LIB_SOURCE),
             (
-                "psi-proof-kernel/integer_affine.rs",
+                "psi-proof-admission/evidence.rs",
+                PROOF_KERNEL_EVIDENCE_SOURCE,
+            ),
+            ("psi-proof-admission/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+            (
+                "psi-proof-admission/integer_affine.rs",
                 PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
             ),
             (
-                "psi-proof-kernel/integer_cast.rs",
+                "psi-proof-admission/integer_cast.rs",
                 PROOF_KERNEL_INTEGER_CAST_SOURCE,
             ),
-            ("psi-proof-kernel/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+            ("psi-proof-admission/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
         ],
     )
 }

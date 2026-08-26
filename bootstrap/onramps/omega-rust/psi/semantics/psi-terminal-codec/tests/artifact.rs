@@ -7,7 +7,7 @@ use psi_core::{
     Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType, StructuralCaseId,
     StructuralCaseSubject, StructuralFieldId, StructuralPlaceKind, ValueId,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
     IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
@@ -78,7 +78,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
             }),
         }],
     };
-    let accepted = psi_proof_kernel::accept_certificate(
+    let accepted = psi_proof_admission::accept_certificate(
         &PropositionContext::default(),
         &conclusion,
         &[Proposition::Truth],
@@ -89,8 +89,8 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(
         accepted.rules,
         vec![
-            psi_proof_kernel::AcceptedProofRule::Assumption,
-            psi_proof_kernel::AcceptedProofRule::DisjunctionIntroduction,
+            psi_proof_admission::AcceptedProofRule::Assumption,
+            psi_proof_admission::AcceptedProofRule::DisjunctionIntroduction,
         ]
     );
     assert_eq!(accepted.assumptions.len(), 1);
@@ -117,14 +117,14 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
         unreachable!("fixture carries a certificate")
     };
     assert_eq!(
-        psi_proof_kernel::check_certificate(
+        psi_proof_admission::check_certificate(
             &PropositionContext::default(),
             &conclusion,
             &[Proposition::Truth],
             &[],
             &certificate.proof,
         ),
-        Err(psi_proof_kernel::ProofError::UnknownDisjunct(2))
+        Err(psi_proof_admission::ProofError::UnknownDisjunct(2))
     );
 
     let mut stale = bytes;
@@ -261,14 +261,14 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
         PropositionContext::from_value_types([(value_id(75), ScalarType::Integer(integer))])
             .expect("context");
     assert_eq!(
-        psi_proof_kernel::check_certificate(
+        psi_proof_admission::check_certificate(
             &context,
             &conclusion,
             &[],
             &[equality],
             &certificate.proof,
         ),
-        Err(psi_proof_kernel::ProofError::UnknownIntegerOrderEndpoint(2))
+        Err(psi_proof_admission::ProofError::UnknownIntegerOrderEndpoint(2))
     );
 }
 
@@ -421,7 +421,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
     let context =
         PropositionContext::from_value_types([(value_id(73), ScalarType::Integer(integer))])
             .expect("context");
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &context,
         &goal,
         &[],
@@ -437,7 +437,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
     let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
         unreachable!("fixture carries a certificate")
     };
-    psi_proof_kernel::check_certificate(&context, &goal, &[], &[tighter], &certificate.proof)
+    psi_proof_admission::check_certificate(&context, &goal, &[], &[tighter], &certificate.proof)
         .expect("negative nonzero certificate checks after decoding");
 }
 
@@ -679,7 +679,7 @@ fn proof_format_canonically_encodes_boolean_equality() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -824,7 +824,7 @@ fn proof_format_canonically_encodes_integer_equality() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -854,7 +854,7 @@ fn proof_format_canonically_encodes_integer_ordering() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-ordering certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -884,7 +884,7 @@ fn proof_format_canonically_encodes_integer_bitwise_terms() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -916,7 +916,7 @@ fn proof_format_canonically_encodes_wrapping_shift_terms() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -945,7 +945,7 @@ fn proof_format_canonically_encodes_integer_bitwise_not() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise-not certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -975,7 +975,7 @@ fn proof_format_canonically_encodes_integer_widening() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-widen certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1003,7 +1003,7 @@ fn proof_format_canonically_encodes_address_carriers() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive address certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1035,7 +1035,7 @@ fn proof_format_canonically_encodes_exact_right_shifts() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-right-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1067,7 +1067,7 @@ fn proof_format_canonically_encodes_exact_left_shifts() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-left-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1097,7 +1097,7 @@ fn proof_format_canonically_encodes_exact_integer_addition() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-add certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1127,7 +1127,7 @@ fn proof_format_canonically_encodes_exact_integer_subtraction() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-subtract certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1157,7 +1157,7 @@ fn proof_format_canonically_encodes_exact_integer_multiplication() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-multiply certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1187,7 +1187,7 @@ fn proof_format_canonically_encodes_exact_integer_division() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1217,7 +1217,7 @@ fn proof_format_canonically_encodes_exact_integer_remainder() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1247,7 +1247,7 @@ fn proof_format_canonically_encodes_wrapping_integer_division() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1277,7 +1277,7 @@ fn proof_format_canonically_encodes_wrapping_integer_remainder() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1307,7 +1307,7 @@ fn proof_format_canonically_encodes_saturating_integer_division() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1337,7 +1337,7 @@ fn proof_format_canonically_encodes_saturating_integer_remainder() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1364,7 +1364,7 @@ fn proof_format_canonically_encodes_boolean_negation() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-negation certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
     assert_eq!(&bytes[8..10], &19_u16.to_le_bytes());
@@ -1394,7 +1394,7 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],
@@ -1458,7 +1458,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         )],
     )
     .expect("context");
-    psi_proof_kernel::check_certificate(&context, &goal, &[], &[], &proof)
+    psi_proof_admission::check_certificate(&context, &goal, &[], &[], &proof)
         .expect("reflexive content certificate");
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
@@ -1489,7 +1489,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],
@@ -1528,7 +1528,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],
@@ -1567,7 +1567,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],
@@ -1606,7 +1606,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],
@@ -1691,7 +1691,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
         }],
     };
 
-    psi_proof_kernel::check_certificate(
+    psi_proof_admission::check_certificate(
         &psi_core::PropositionContext::default(),
         &goal,
         &[],

@@ -1,7 +1,7 @@
 use psi_core::{
     BoundaryMachineId, IntegerValue, OperationId, PlaceId, StructuralPlaceKind, ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;

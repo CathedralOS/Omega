@@ -1,7 +1,7 @@
 //! Independent replay of one closed endpoint relaxation after affine mapping.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{CheckedIntegerAffineForm, check_integer_affine_bound_conversion};
+use psi_proof_admission::{CheckedIntegerAffineForm, check_integer_affine_bound_conversion};
 
 mod completion;
 mod mapping;

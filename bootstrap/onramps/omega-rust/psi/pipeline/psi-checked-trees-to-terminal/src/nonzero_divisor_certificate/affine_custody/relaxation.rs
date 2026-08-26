@@ -1,7 +1,7 @@
 //! One closed endpoint relaxation after exact affine mapping.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{CheckedIntegerAffineForm, IntegerAffineWitness, ProofNode, ProofRule};
+use psi_proof_admission::{CheckedIntegerAffineForm, IntegerAffineWitness, ProofNode, ProofRule};
 
 mod completion;
 mod mapping;

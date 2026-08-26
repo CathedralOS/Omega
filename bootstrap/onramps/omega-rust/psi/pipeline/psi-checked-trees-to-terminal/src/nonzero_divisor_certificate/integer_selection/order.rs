@@ -1,7 +1,7 @@
 //! Exact, closed-strengthened, and two-citation integer order proofs.
 
 use psi_core::Proposition;
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::integer_evidence::cited_facts;
 

@@ -387,7 +387,7 @@ dependencies = [
  "omega-target",
  "psi-checked-trees-to-terminal",
  "psi-core",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-fixed-fuel",
  "psi-terminal-verifier",
@@ -456,7 +456,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees",
@@ -645,7 +645,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
@@ -916,7 +916,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
@@ -1418,7 +1418,7 @@ version = "0.1.0"
 dependencies = [
  "omega-terminal-abstract-operations",
  "psi-core",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
@@ -1578,7 +1578,7 @@ dependencies = [
  "psi-core",
  "psi-language-semantics",
  "psi-numerics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
@@ -1688,7 +1688,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "psi-proof-kernel"
+name = "psi-proof-admission"
 version = "0.1.0"
 dependencies = [
  "psi-core",
@@ -1805,7 +1805,7 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-language-semantics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-semantics",
  "psi-terminal-verifier",
@@ -1817,7 +1817,7 @@ name = "psi-terminal-fixed-fuel"
 version = "0.1.0"
 dependencies = [
  "psi-core",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
@@ -1837,7 +1837,7 @@ name = "psi-terminal-interpreter"
 version = "0.1.0"
 dependencies = [
  "psi-core",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
@@ -1860,7 +1860,7 @@ dependencies = [
  "psi-core",
  "psi-language-semantics",
  "psi-numerics",
- "psi-proof-kernel",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-semantics",
 ]

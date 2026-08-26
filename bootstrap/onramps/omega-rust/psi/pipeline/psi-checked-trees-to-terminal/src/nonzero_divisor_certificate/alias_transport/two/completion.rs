@@ -1,7 +1,7 @@
 //! Fixed two-alias endpoint-substitution completion for production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::index::substitute_bound_endpoint;
 

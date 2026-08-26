@@ -7,7 +7,7 @@ use psi_core::{
     StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId, ValueId,
     content_conservation_fingerprint,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
 };

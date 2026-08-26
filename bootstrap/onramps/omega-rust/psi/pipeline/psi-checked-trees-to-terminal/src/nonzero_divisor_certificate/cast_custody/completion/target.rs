@@ -1,7 +1,7 @@
 //! Producer-local completion of one ordered exact-cast target.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{IntegerCastChainWitness, ProofNode, ProofRule, check_certificate};
+use psi_proof_admission::{IntegerCastChainWitness, ProofNode, ProofRule, check_certificate};
 
 use super::super::chain;
 

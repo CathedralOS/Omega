@@ -1,7 +1,7 @@
 //! Common affine-custody completion for landed-literal certificates.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::affine_custody::{self, DefinitionIndex};
 

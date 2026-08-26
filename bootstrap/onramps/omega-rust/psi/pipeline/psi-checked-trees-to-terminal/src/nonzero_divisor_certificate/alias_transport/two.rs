@@ -1,7 +1,7 @@
 //! Exactly two value-alias substitutions for canonical order production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod candidates;
 mod completion;

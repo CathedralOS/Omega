@@ -1,7 +1,7 @@
 //! Independent replay of one ordered exact-cast target.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{
+use psi_proof_admission::{
     IntegerCastChainWitness, check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
 };
 

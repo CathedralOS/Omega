@@ -175,18 +175,6 @@ Remaining:
   condition. Rust-specific maintenance stays in its suffixed on-ramp and never
   moves into `compiler/{psi,omega}/`.
 
-- **PSI-PROOF-ADMISSION-NAME.** Rename the Rust on-ramp crate currently called
-  `psi-proof-kernel` to a product-local admission/checking name such as
-  `psi-proof-admission`. Its job is Psi judgment and admission policy, not the
-  generic cross-cutting derivation kernel under
-  `bootstrap/assurance/proof-kernel/`. Keep this as ordinary product/on-ramp
-  maintenance; do not move it into `TASKS_BOOTSTRAP.md` or change either
-  component's authority while renaming it.
-
-  Acceptance: Cargo metadata, imports, architecture maps, and focused tests use
-  the new role name; no live product crate can be mistaken for the generic
-  bootstrap proof kernel.
-
 ## Execution order
 
 The numbered groups express dependency order, not an exclusive assignment.

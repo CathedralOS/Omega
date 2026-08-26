@@ -1,7 +1,7 @@
 //! Producer-local cast-to-affine completion for one retained root bound.
 
 use psi_core::{IntegerType, Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::super::{affine_custody, cast_custody};

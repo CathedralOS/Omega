@@ -167,7 +167,7 @@ pub fn stage_terminal_component(
     checked: &CheckedCompilation,
     target: omega_target::NativeTarget,
     subsystem: u16,
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     settlements: &[TerminalComponentProviderSettlement<'_>],
 ) -> Result<TerminalComponentCandidate, Vec<Diagnostic>> {
     let selected_target = checked.selected_native_target().ok_or_else(|| {

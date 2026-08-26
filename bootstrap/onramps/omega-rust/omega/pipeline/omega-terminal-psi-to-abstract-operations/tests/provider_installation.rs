@@ -6,7 +6,7 @@ use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
     StructuralTypeId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
     ProviderCandidateConformance, ProviderSignatureParameter, ProviderUnitRefinement,

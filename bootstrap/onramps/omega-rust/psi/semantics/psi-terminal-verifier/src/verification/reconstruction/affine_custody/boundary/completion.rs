@@ -1,7 +1,7 @@
 //! Independent completion of one post-boundary affine witness.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::IntegerAffineWitness;
+use psi_proof_admission::IntegerAffineWitness;
 
 pub(super) fn retained(
     context: &PropositionContext,

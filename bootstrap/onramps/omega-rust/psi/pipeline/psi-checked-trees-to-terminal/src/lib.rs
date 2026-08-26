@@ -58,7 +58,7 @@ use psi_numerics::{
     arithmetic::ArithmeticDomain,
     integer_policy::{IntegerPolicyPrimitive, integer_policy_bridge},
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{

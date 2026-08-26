@@ -1,7 +1,7 @@
 //! Fixed inner-relation precedence for one endpoint substitution.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::integer_evidence::closed_integer_relation;
 use super::super::super::{affine_custody::DefinitionIndex, affine_selection};

@@ -7,7 +7,7 @@ use omega_compiler::{
 };
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_verifier::verify_module;

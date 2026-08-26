@@ -1,7 +1,7 @@
 //! Producer-local fixed two-equality affine endpoint selection.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::super::affine_custody::DefinitionIndex;
 

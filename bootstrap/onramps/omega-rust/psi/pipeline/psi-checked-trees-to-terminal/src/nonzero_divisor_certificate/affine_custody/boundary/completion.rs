@@ -1,7 +1,7 @@
 //! Producer-local completion of one post-boundary affine witness.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{IntegerAffineWitness, ProofNode};
+use psi_proof_admission::{IntegerAffineWitness, ProofNode};
 
 pub(super) fn prove(
     context: &PropositionContext,

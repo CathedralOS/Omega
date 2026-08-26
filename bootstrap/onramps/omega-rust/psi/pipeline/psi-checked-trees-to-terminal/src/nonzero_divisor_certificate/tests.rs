@@ -1,6 +1,6 @@
 use super::*;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId};
-use psi_proof_kernel::{PrimitiveJudgment, ProofRule};
+use psi_proof_admission::{PrimitiveJudgment, ProofRule};
 
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
     ScalarTerm::value(
