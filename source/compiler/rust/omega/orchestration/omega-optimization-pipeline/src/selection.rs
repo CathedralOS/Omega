@@ -61,6 +61,7 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
     projection: OptimizedAbstractPlanProjectionIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     function_count: usize,
 }
@@ -96,6 +97,12 @@ impl StagedOptimizedSelectionCustodyReceipt {
 
     pub const fn selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.selected
+    }
+
+    pub const fn register_environment(
+        self,
+    ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
+        self.register_environment
     }
 
     pub const fn function_count(self) -> usize {
@@ -219,6 +226,7 @@ pub fn validate_optimized_selection_custody(
         projection: optimized_target.optimized().validation().identity(),
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
+        register_environment: register_environment.identity(),
         selected: selected.receipt().identity(),
         function_count: plan.functions.len(),
     })

@@ -1,7 +1,11 @@
 use omega_register_model::{
     PhysicalRegisterModel, RegisterConstraintCatalog, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterModelValidationError, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, validate_physical_register_model,
+    RegisterInstructionConstraint, RegisterModelValidationError, RegisterReservationProfile,
+    RegisterReservationProfileValidationError, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+    target_register_environment_identity, validate_physical_register_model,
+    validate_register_reservation_profile,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
@@ -29,7 +33,9 @@ pub struct ValidatedTargetRegisterEnvironment {
     target: NativeTarget,
     physical: ValidatedPhysicalRegisterModel,
     constraints: ValidatedRegisterConstraintCatalog,
+    reservations: ValidatedRegisterReservationProfile,
     selected_keys: TerminalSelectedConstraintKeys,
+    identity: TargetRegisterEnvironmentIdentity,
 }
 
 impl ValidatedTargetRegisterEnvironment {
@@ -43,6 +49,14 @@ impl ValidatedTargetRegisterEnvironment {
 
     pub const fn constraints(&self) -> &ValidatedRegisterConstraintCatalog {
         &self.constraints
+    }
+
+    pub const fn reservations(&self) -> &ValidatedRegisterReservationProfile {
+        &self.reservations
+    }
+
+    pub const fn identity(&self) -> TargetRegisterEnvironmentIdentity {
+        self.identity
     }
 
     pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
@@ -68,7 +82,7 @@ impl ValidatedTargetRegisterEnvironment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetRegisterEnvironmentValidationError {
     Physical(RegisterModelValidationError),
     TargetArchitectureMismatch {
@@ -77,6 +91,8 @@ pub enum TargetRegisterEnvironmentValidationError {
     },
     X86_64(X86_64RegisterConstraintCatalogValidationError),
     Aarch64(Aarch64RegisterConstraintCatalogValidationError),
+    Reservations(RegisterReservationProfileValidationError),
+    InapplicableReservationOverlay,
     UnsupportedSelectedInstructionAbi,
 }
 
@@ -103,7 +119,13 @@ pub fn baseline_target_register_environment(
         Architecture::X86_64 => x86_64_register_constraint_catalog(&validated),
         Architecture::Aarch64 => aarch64_register_constraint_catalog(&validated),
     };
-    validate_target_register_environment(target, physical, constraints)
+    let reservations = conservative_baseline_reservation_profile(target, &physical);
+    validate_target_register_environment_with_reservations(
+        target,
+        physical,
+        constraints,
+        reservations,
+    )
 }
 
 /// Independently join raw physical and constraint declarations for one exact
@@ -113,6 +135,24 @@ pub fn validate_target_register_environment(
     target: NativeTarget,
     physical: PhysicalRegisterModel,
     constraints: RegisterConstraintCatalog,
+) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
+    let reservations = conservative_baseline_reservation_profile(target, &physical);
+    validate_target_register_environment_with_reservations(
+        target,
+        physical,
+        constraints,
+        reservations,
+    )
+}
+
+/// Join the exact raw artifacts and an explicit active reservation profile.
+/// This is the cache/decode validation boundary; no reservation declaration
+/// becomes active merely by appearing in the physical model.
+pub fn validate_target_register_environment_with_reservations(
+    target: NativeTarget,
+    physical: PhysicalRegisterModel,
+    constraints: RegisterConstraintCatalog,
+    reservations: RegisterReservationProfile,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
     let physical = validate_physical_register_model(physical)
         .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
@@ -134,12 +174,61 @@ pub fn validate_target_register_environment(
     };
     let selected_keys = selected_constraint_keys(target)
         .ok_or(TargetRegisterEnvironmentValidationError::UnsupportedSelectedInstructionAbi)?;
+    if reservations
+        .active_overlays
+        .iter()
+        .any(|name| name == "darwin.aarch64.platform")
+        && target.object_format != ObjectFormat::MachO
+    {
+        return Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay);
+    }
+    let reservations = validate_register_reservation_profile(reservations, target, &physical)
+        .map_err(TargetRegisterEnvironmentValidationError::Reservations)?;
+    let identity = target_register_environment_identity(
+        target,
+        &physical,
+        &constraints,
+        &reservations,
+        selected_environment_keys(selected_keys),
+    );
     Ok(ValidatedTargetRegisterEnvironment {
         target,
         physical,
         constraints,
+        reservations,
         selected_keys,
+        identity,
     })
+}
+
+fn conservative_baseline_reservation_profile(
+    target: NativeTarget,
+    physical: &PhysicalRegisterModel,
+) -> RegisterReservationProfile {
+    let mut active_overlays = physical
+        .reservations
+        .iter()
+        .filter(|overlay| {
+            overlay.name != "darwin.aarch64.platform" || target.object_format == ObjectFormat::MachO
+        })
+        .map(|overlay| overlay.name.clone())
+        .collect::<Vec<_>>();
+    active_overlays.sort();
+    RegisterReservationProfile {
+        name: "omega.conservative-baseline-v1".into(),
+        active_overlays,
+    }
+}
+
+const fn selected_environment_keys(
+    keys: TerminalSelectedConstraintKeys,
+) -> TargetRegisterEnvironmentConstraintKeys {
+    TargetRegisterEnvironmentConstraintKeys {
+        materialize_i64: keys.materialize_i64,
+        compare_i64_zero: keys.compare_i64_zero,
+        conditional_branch: keys.conditional_branch,
+        return_i64: keys.return_i64,
+    }
 }
 
 fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedConstraintKeys> {
@@ -210,7 +299,121 @@ mod tests {
                     .map(|constraint| constraint.key)
                     .collect::<Vec<_>>()
             );
+            assert_eq!(
+                environment.identity(),
+                baseline_target_register_environment(target)
+                    .unwrap()
+                    .identity()
+            );
         }
+    }
+
+    #[test]
+    fn baseline_profile_is_exact_conservative_and_platform_applicable() {
+        let linux = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+        let macos = baseline_target_register_environment(NativeTarget::macos_arm64()).unwrap();
+        assert!(
+            !linux
+                .reservations()
+                .profile()
+                .active_overlays
+                .iter()
+                .any(|name| name == "darwin.aarch64.platform")
+        );
+        assert!(
+            macos
+                .reservations()
+                .profile()
+                .active_overlays
+                .iter()
+                .any(|name| name == "darwin.aarch64.platform")
+        );
+        assert_ne!(
+            linux.reservations().identity(),
+            macos.reservations().identity()
+        );
+        assert_ne!(linux.identity(), macos.identity());
+
+        let raw = omega_terminal_isa_aarch64::aarch64_physical_register_model();
+        let physical = validate_physical_register_model(raw.clone()).unwrap();
+        let catalog = omega_terminal_isa_aarch64::aarch64_register_constraint_catalog(&physical);
+        let mut inapplicable =
+            conservative_baseline_reservation_profile(NativeTarget::macos_arm64(), &raw);
+        inapplicable.name = "test.inapplicable-platform".into();
+        assert_eq!(
+            validate_target_register_environment_with_reservations(
+                NativeTarget::linux_arm64(),
+                raw,
+                catalog,
+                inapplicable,
+            ),
+            Err(TargetRegisterEnvironmentValidationError::InapplicableReservationOverlay)
+        );
+    }
+
+    #[test]
+    fn environment_identity_binds_each_component_and_explicit_policy() {
+        let target = NativeTarget::linux_x64();
+        let baseline = baseline_target_register_environment(target).unwrap();
+        assert_ne!(
+            baseline.physical().identity(),
+            baseline_target_register_environment(NativeTarget::linux_arm64())
+                .unwrap()
+                .physical()
+                .identity()
+        );
+        assert_ne!(
+            baseline.constraints().identity(),
+            baseline_target_register_environment(NativeTarget::linux_arm64())
+                .unwrap()
+                .constraints()
+                .identity()
+        );
+
+        let raw = x86_64_physical_register_model();
+        let physical = validate_physical_register_model(raw.clone()).unwrap();
+        let catalog = x86_64_register_constraint_catalog(&physical);
+        let mut reduced = conservative_baseline_reservation_profile(target, &raw);
+        reduced.name = "test.no-metering-reservation".into();
+        reduced
+            .active_overlays
+            .retain(|name| name != "omega.x86.metering");
+        let reduced = validate_target_register_environment_with_reservations(
+            target,
+            raw.clone(),
+            catalog.clone(),
+            reduced,
+        )
+        .unwrap();
+        assert_ne!(
+            baseline.reservations().identity(),
+            reduced.reservations().identity()
+        );
+        assert_ne!(baseline.identity(), reduced.identity());
+
+        let changed_layout_target = NativeTarget {
+            pointer_size: 4,
+            ..target
+        };
+        let changed_layout = validate_target_register_environment_with_reservations(
+            changed_layout_target,
+            raw.clone(),
+            catalog.clone(),
+            conservative_baseline_reservation_profile(changed_layout_target, &raw),
+        )
+        .unwrap();
+        assert_ne!(baseline.identity(), changed_layout.identity());
+
+        let windows = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
+        assert_eq!(
+            baseline.physical().identity(),
+            windows.physical().identity()
+        );
+        assert_eq!(
+            baseline.constraints().identity(),
+            windows.constraints().identity()
+        );
+        assert_ne!(baseline.identity(), windows.identity());
     }
 
     #[test]

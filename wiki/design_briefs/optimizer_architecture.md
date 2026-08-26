@@ -686,6 +686,31 @@ redefining the expected target semantics; fixed-register view resolution fails
 closed for the same noncanonical input. Selected staging reruns its independent
 projection validator against the exact retained environment before issuing its
 cross-stage custody receipt.
+
+The register environment has four distinct replay identities. The physical
+identity covers every unit, view, class, convention, and reservation
+declaration in stored canonical order. The instruction-catalog identity covers
+every required key, operand constraint, tie, early-clobber bit, and implicit
+unit effect and is also bound to the physical identity whose local IDs it uses.
+An active-reservation-profile identity covers a named, strictly sorted subset
+of reservation overlays and the independently recomputed effective unit union;
+declaration alone never activates an overlay. Finally, the environment identity
+binds the exact native target, the three component identities, and the selected
+materialize/compare/branch/return keys. Selection, liveness, live-range, and
+transitional-assignment custody all retain this joined identity.
+
+The first active policy is explicitly named
+`omega.conservative-baseline-v1`. It reserves all declared overlays except a
+known inapplicable platform overlay (currently Darwin AArch64 `x18` on a
+non-Mach-O target). This safely over-reserves frame, dispatch, and metering
+units while those plans are not yet joined to allocator input. It is not an
+optimization level or a hidden build mode, and it does not claim closure over
+future provider/backend reservations. A provider-backed allocation must add
+its exact reservation requirement to a named active profile or fail closed.
+`NativeTarget` currently cannot distinguish Windows x64 from UEFI x64; if their
+reservation policies diverge, the environment must additionally bind the
+deployment `TargetProfile` (or a successor policy identity) before allocation.
+
 These declarations do not alter the current scratch-cycling assignment lane
 and are not allocator output evidence. The selected optimizer lane may retain
 that transitional

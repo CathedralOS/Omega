@@ -64,8 +64,16 @@ These facts constrain the work below.
   units, and missing/extra inventory; a second ISA-owned comparison rejects
   class-compatible register substitution or missing architectural state. The
   former name-only constraint rows have been removed, so there is one
-  constraint authority. Optimized staging now constructs and retains an opaque
-  target-register environment from both validated artifacts; the transitional
+  constraint authority. The physical model and catalog now carry separate,
+  domain-separated content identities; catalog identity is bound to its exact
+  physical-model identity. Optimized staging now constructs and retains an opaque
+  target-register environment from both validated artifacts plus an explicit
+  active reservation profile. The current named conservative baseline activates
+  every declared non-inapplicable overlay, excludes the Darwin platform overlay
+  on Linux AArch64, and records the exact sorted effective-unit union. A composite
+  identity binds the native target, all three component identities, and the four
+  selected instruction keys, and is copied through selection, liveness,
+  live-range, and transitional-assignment custody. The transitional
   scratch assignment and emission paths still do not consume it as allocator
   evidence. `OPT-REGISTER-MODEL` remains open for the complete ordinary
   instruction and feature-variant inventories, parallel ABI banks/aggregate
@@ -769,7 +777,12 @@ dependency.
   validators now reject a structurally valid but semantically altered
   same-architecture physical model before constructing canonical constraint
   rows, and fixed-register resolvers refuse noncanonical models; selected
-  custody then revalidates against the exact retained environment.
+  custody then revalidates against the exact retained environment. Physical,
+  catalog, reservation-profile, and joined-environment identities cover every
+  retained field with fixed-width canonical encodings; exhaustive mutation and
+  both-target tests guard determinism and separation. The active baseline is
+  intentionally conservative policy, not a claim that every declared overlay
+  is universally active.
   Remaining to close: the rest of the ordinary instruction keys and fixed/tied
   constraints, complete integer/vector/aggregate ABI banks, feature-profile
   variants (including extended vector/floating control state), and dynamic
@@ -819,11 +832,13 @@ dependency.
 
   Sequencing: canonical CFG-aware range fragments and VReg interference now
   exist for the two admitted conditional shapes, but they grant no allocation
-  authority. Before this task can publish homes, the complete physical model,
-  constraint catalog, and active reservation profile need replay/cache
-  identities; fixed entry-to-return view transitions need explicit splitting
-  or copy semantics; and candidate views must be checked against phase-specific
-  architectural actions as well as semantic unit liveness.
+  authority. The currently admitted physical model, constraint catalog, and
+  explicit conservative active-reservation profile now have replay/cache
+  identities joined into downstream custody. Before this task can publish
+  homes, fixed entry-to-return view transitions need explicit splitting or copy
+  semantics; candidate views must be checked against phase-specific
+  architectural actions as well as semantic unit liveness; and provider/runtime
+  reservation requirements must either join the active profile or fail closed.
 
 - **OPT-INTERVAL-SPLITTING.** Split live ranges around fixed uses, calls, high-
   pressure regions, and profitable rematerialization points.
