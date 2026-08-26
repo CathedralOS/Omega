@@ -810,7 +810,7 @@ fn is_terminator(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_optimization_unit::{ValueUse, build_psi_optimization_unit};
+    use omega_optimization_unit::{ValueUse, reconstruct_psi_optimization_unit_seed};
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
         TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
@@ -872,7 +872,7 @@ mod tests {
                 ],
             }],
         };
-        build_psi_optimization_unit(
+        reconstruct_psi_optimization_unit_seed(
             &plan,
             FuelScheduleIdentity::new(1).expect("nonzero schedule"),
         )

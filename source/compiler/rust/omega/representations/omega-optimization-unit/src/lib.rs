@@ -177,10 +177,12 @@ impl std::fmt::Display for OptimizationUnitBuildError {
 
 impl std::error::Error for OptimizationUnitBuildError {}
 
-/// Deterministically reconstruct an optimization unit from the verified clean
-/// lowering seed. This function is intentionally total over the current
-/// abstract-operation vocabulary and returns before publishing partial state.
-pub fn build_psi_optimization_unit(
+/// Low-level deterministic projection from the clean lowering seed.
+///
+/// This is not an optimizer admission boundary: consumers that may transform
+/// the unit must use the verified constructor owned by the Terminal-Psi
+/// artifact boundary so the plan cannot detach from its verifier context.
+pub fn reconstruct_psi_optimization_unit_seed(
     plan: &TerminalAbstractOperationPlan,
     fuel_schedule: FuelScheduleIdentity,
 ) -> Result<PsiOptimizationUnit, OptimizationUnitBuildError> {
@@ -940,8 +942,8 @@ mod tests {
     #[test]
     fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
         let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
-        let first = build_psi_optimization_unit(&plan(), schedule).unwrap();
-        let second = build_psi_optimization_unit(&plan(), schedule).unwrap();
+        let first = reconstruct_psi_optimization_unit_seed(&plan(), schedule).unwrap();
+        let second = reconstruct_psi_optimization_unit_seed(&plan(), schedule).unwrap();
         assert_eq!(first, second);
         assert_eq!(first.functions[0].blocks[0].nodes.len(), 2);
         assert_ne!(

@@ -1,6 +1,7 @@
 use omega_terminal_psi_to_abstract_operations::{
     ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
     lower_artifact_sections, lower_replay_artifact_sections,
+    lower_replay_artifact_sections_for_optimization,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
@@ -41,6 +42,18 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         lower_replay_artifact_sections(&semantic, &obligation_ledger, &proof, &profile)
             .expect("locally replayed artifact lowering"),
         plan
+    );
+    let replayed_optimizer_input = lower_replay_artifact_sections_for_optimization(
+        &semantic,
+        &obligation_ledger,
+        &proof,
+        &profile,
+    )
+    .expect("locally replayed optimizer input");
+    assert_eq!(replayed_optimizer_input.plan(), &plan);
+    assert_eq!(
+        replayed_optimizer_input.context().terminal_module(),
+        &module
     );
 
     let mut substituted_module = module.clone();
