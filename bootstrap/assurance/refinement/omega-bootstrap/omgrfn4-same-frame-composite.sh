@@ -83,6 +83,7 @@ cleanup() {
 }
 trap cleanup EXIT
 : > "$T/timings.tsv"
+: > "$T/check-queue.tsv"
 python3 - "$T/started" <<'PY'
 from pathlib import Path
 import sys, time
@@ -607,8 +608,12 @@ PY
 
 check() { # checker expected input case
   NAME=$1 EXPECTED=$2 INPUT=$3 CASE=$4
-  observe "check-$NAME-$CASE" "$EXPECTED" 60 "$INPUT" \
-    "$T/$NAME-$CASE.out" yes "$T/$NAME"
+  # Checker observations consume immutable carriers and publish only private,
+  # case-specific files. Queue them so the complete matrix can use a bounded
+  # worker set once every carrier has been constructed. Tabs/newlines cannot
+  # occur in these repository-owned labels or temporary paths.
+  printf '%s\t%s\t%s\t%s\n' "$NAME" "$EXPECTED" "$INPUT" "$CASE" \
+    >> "$T/check-queue.tsv"
 }
 
 for NAME in $CHECKERS; do check "$NAME" 0 "$T/canonical.rfn" canonical; done
@@ -860,6 +865,81 @@ if actual != expected:
     raise SystemExit("OMGRFN4 same-frame composite: canonical carrier was mutated")
 PY
 
+# Each queued observation remains an invocation of the same timeout/status/
+# empty-output runner. A fixed upper bound prevents the large persisted Beta
+# checkers from oversubscribing memory. Per-job timing files are joined in
+# declaration order, and the first failing declaration is reported even when a
+# later concurrent observation happens to finish first.
+python3 -B - "$T" "${OMEGA_OMGRFN4_CHECK_JOBS:-4}" <<'PY'
+from pathlib import Path
+import subprocess, sys, time
+
+root = Path(sys.argv[1])
+try:
+    workers = int(sys.argv[2])
+except ValueError:
+    raise SystemExit("OMGRFN4 same-frame composite: checker parallelism must be an integer")
+if not 1 <= workers <= 4:
+    raise SystemExit("OMGRFN4 same-frame composite: checker parallelism must be within 1..4")
+root.joinpath("check-workers").write_text(f"{workers}\n", encoding="ascii")
+
+jobs = []
+for index, line in enumerate(root.joinpath("check-queue.tsv").read_text(encoding="ascii").splitlines()):
+    fields = line.split("\t")
+    if len(fields) != 4:
+        raise SystemExit(f"OMGRFN4 same-frame composite: malformed queued check {index}")
+    name, expected, input_path, case = fields
+    label = f"check-{name}-{case}"
+    jobs.append({
+        "index": index,
+        "label": label,
+        "command": [
+            sys.executable, str(root / "run.py"), label, expected, "60", input_path,
+            str(root / f"{name}-{case}.out"), "yes",
+            str(root / f"check-{index}.timing"), str(root / name),
+        ],
+    })
+
+active = {}
+next_job = 0
+failures = []
+
+def launch(job):
+    process = subprocess.Popen(job["command"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    active[process] = job
+
+while next_job < len(jobs) and len(active) < workers:
+    launch(jobs[next_job]); next_job += 1
+
+while active:
+    completed = [process for process in active if process.poll() is not None]
+    if not completed:
+        time.sleep(0.01)
+        continue
+    for process in sorted(completed, key=lambda item: active[item]["index"]):
+        job = active.pop(process)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            failures.append((job["index"], stdout, stderr))
+    if not failures:
+        while next_job < len(jobs) and len(active) < workers:
+            launch(jobs[next_job]); next_job += 1
+
+with root.joinpath("timings.tsv").open("a", encoding="ascii") as report:
+    for job in jobs[:next_job]:
+        timing = root / f"check-{job['index']}.timing"
+        if timing.exists():
+            report.write(timing.read_text(encoding="ascii"))
+
+if failures:
+    _, stdout, stderr = min(failures, key=lambda item: item[0])
+    if stdout:
+        sys.stdout.buffer.write(stdout)
+    if stderr:
+        sys.stderr.buffer.write(stderr)
+    raise SystemExit(1)
+PY
+
 for NAME in $CHECKERS; do cat "$T/$NAME.resources"; done > "$T/resources.tsv"
 python3 - "$T/timings.tsv" "$T/resources.tsv" "$T/canonical.rfn" "$T/started" <<'PY'
 from collections import defaultdict
@@ -897,6 +977,7 @@ print(
     + f"producer-build-command-total={phases['build']:.3f}s "
     f"producer-command-total={phases['producer']:.3f}s "
     f"checker-command-total={sum(checks.values()):.3f}s "
+    f"checker-parallelism={Path(sys.argv[4]).parent.joinpath('check-workers').read_text(encoding='ascii').strip()} "
     f"slowest={slow[1]}:{slow[0]:.3f}s wall={wall:.3f}s"
 )
 print("OMGRFN4 same-frame composite resources: " + " ".join(resources))
