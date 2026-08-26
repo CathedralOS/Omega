@@ -53,10 +53,15 @@ pub use fixed_view_copies::{
     validate_optimized_fixed_view_copy_custody,
 };
 pub use literal_fold_homes::{
-    OptimizedPostLiteralFoldHomeCustodyError, StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
+    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds,
+    StagedOptimizedRegisterHomesAfterSelectedLowering,
     stage_optimized_register_homes_after_literal_folds,
+    stage_optimized_register_homes_after_selected_lowering,
     validate_optimized_register_home_after_literal_fold_custody,
+    validate_optimized_register_home_after_selected_lowering_custody,
 };
 pub use literal_folds::{
     OptimizedLiteralFoldCustodyError, SelectedLoweringOptimizationSchedule,
@@ -80,9 +85,12 @@ pub use machine_effects::{
     OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffectCustodyReceipt,
     StagedOptimizedMachineEffectSourceCustodyReceipt, StagedOptimizedMachineEffects,
     stage_optimized_machine_effects, stage_optimized_machine_effects_after_fixed_view_copies,
-    stage_optimized_machine_effects_after_literal_folds, validate_optimized_machine_effect_custody,
+    stage_optimized_machine_effects_after_literal_folds,
+    stage_optimized_machine_effects_after_selected_lowering,
+    validate_optimized_machine_effect_custody,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
+    validate_optimized_machine_effect_custody_after_selected_lowering,
 };
 pub use post_allocation_machine_effects::{
     OptimizedPostAllocationMachinePipelineError,
@@ -91,8 +99,10 @@ pub use post_allocation_machine_effects::{
     stage_optimized_post_allocation_machine_plan,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_literal_folds,
+    stage_optimized_post_allocation_machine_plan_after_selected_lowering,
     validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
     validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
+    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
 };
 pub use post_allocation_selected_form_encoding::{
@@ -2819,23 +2829,45 @@ mod tests {
                 validate_selected_lowering_optimization_custody(&run).unwrap(),
                 *run.custody()
             );
-            let final_step = run.steps().last().unwrap();
-            let environment = run
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment();
-            omega_regalloc::assign_terminal_register_homes(
-                final_step.legality(),
-                final_step.ranges(),
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                environment.allocation_constraint_keys(),
-            )
-            .unwrap();
+            let completion = run.custody().identity();
+            let final_selected = run.custody().final_selected();
+            let expected_transformations = run
+                .custody()
+                .iterations()
+                .iter()
+                .map(|iteration| {
+                    PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
+                })
+                .collect::<Vec<_>>();
+            let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
+            assert_eq!(
+                homes
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_lowering_completion,
+                Some(completion)
+            );
+            assert_eq!(
+                homes
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                expected_transformations
+            );
+            assert_eq!(
+                validate_optimized_register_home_after_selected_lowering_custody(&homes).unwrap(),
+                *homes.custody()
+            );
+            let post = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
+                .unwrap();
+            assert_eq!(post.machine().receipt().selected(), final_selected);
+            assert_eq!(
+                validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+                    &homes, &post,
+                )
+                .unwrap(),
+                *post.custody()
+            );
         }
     }
 
@@ -2879,6 +2911,22 @@ mod tests {
             assert_eq!(
                 validate_selected_lowering_optimization_custody(&run).unwrap(),
                 *run.custody()
+            );
+            let completion = run.custody().identity();
+            let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
+            let manifest = homes.post_allocation_manifest().record();
+            assert_eq!(manifest.selected_lowering_completion, Some(completion));
+            assert!(manifest.selected_transformations.is_empty());
+            assert_eq!(manifest.selected, source_selected);
+            let post = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
+                .unwrap();
+            assert_eq!(post.machine().receipt().selected(), source_selected);
+            assert_eq!(
+                validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+                    &homes, &post,
+                )
+                .unwrap(),
+                *post.custody()
             );
         }
     }

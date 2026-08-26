@@ -450,7 +450,9 @@ These facts constrain the work below.
   frame, emission, and publication unavailable. Its human renderer is again a
   projection of the content-identified record. The transformation ledger
   distinguishes fixed-view-copy and literal-fold identities in application
-  order and rejects exact duplicates. A versioned canonical codec round-trips
+  order and rejects exact duplicates. A separate optional selected-lowering
+  completion identity proves named-suite execution without pretending a
+  zero-change result transformed the CFG. The v4 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
   Decoding remains non-authoritative. Final physical/
@@ -791,8 +793,12 @@ dependency.
   fold/reanalysis steps plus a mandatory validated zero-action termination
   attempt. Aggregate choice/classification/fold usage must fit the one retained
   suite budget. The one-step staging APIs keep their explicit apply-or-reject
-  behavior. Remaining to close: bind this completion receipt into downstream
-  homes/post-allocation custody and the final realization manifest, then route
+  behavior. The named completion now has a domain-separated identity and joins
+  strict homes, pre-allocation effects, the post-allocation manifest, and the
+  independently replayed post-allocation machine sidecar. Its manifest field is
+  separate from the ordered literal-fold ledger, so a verified zero-change run
+  truthfully records completion with no invented transformation. Remaining to
+  close: bind this completion into the final realization manifest, then route
   the compiler's nonempty selected lane through it without opening publication
   early.
 
@@ -1204,10 +1210,12 @@ dependency.
   the selected plan, optimization unit, fuel schedule, native target,
   register-environment/catalog roots, complete ordered rows, and counts. Opt-in
   orchestration can stage the sidecar by borrow over original selection,
-  fixed-view-copy output, or the final output of an explicit literal-fold
-  sequence. Each route independently revalidates its exact source custody and
-  binds the transformed selected identity; no pre-transformation analysis fact
-  crosses that boundary.
+  fixed-view-copy output, the final output of an explicit literal-fold
+  sequence, or a completed named selected-lowering suite. Each route
+  independently revalidates its exact source custody and binds the transformed
+  selected identity; the named-suite path retains positive completion evidence
+  even when its ordered change ledger is empty. No pre-transformation analysis
+  fact crosses that boundary.
 
   The sidecar also has a strict, versioned, self-authenticating binary codec
   (currently v3 after adding encoded-realization content).
@@ -1225,8 +1233,9 @@ dependency.
   catalog alternative; zero or multiple matches fail closed rather than
   introducing a hidden cost policy. Independent reconstruction rejects root,
   chosen-alternative, physical-view, and unit-footprint corruption. Borrowed
-  orchestration covers ordinary homes, fixed-view-copy homes, and literal-fold
-  homes without transferring emission authority.
+  orchestration covers ordinary homes, fixed-view-copy homes, literal-fold
+  homes, and named selected-lowering completion homes without transferring
+  emission authority.
 
   x86 flag-transparent three-address addition uses one always-applicable LEA
   alternative for allocator-produced GPR64 homes. R12 is a valid SIB index

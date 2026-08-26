@@ -402,9 +402,14 @@ selected-lowering suite executor does not append the zero-action attempt as a
 transformation; it retains it separately as completion evidence. It derives
 the suite and budget from upstream optimized custody rather than accepting
 detached caller claims. The executor is available to the clean orchestration
-lane, but native compiler publication remains closed until this phase receipt
-is joined through homes, machine validation, emission, and the final
-realization manifest.
+lane. Its completion receipt has a domain-separated identity carried through
+strict homes, pre-allocation machine effects, and the home-aware post-
+allocation machine sidecar. The post-allocation manifest records that
+completion identity separately from its ordered literal-fold transformation
+ledger. Consequently, an already-fixed-point run records an empty change
+ledger and a nonempty suite-completion identity without pretending that a
+rewrite occurred. Native compiler publication remains closed until this phase
+receipt is joined through emission and the final realization manifest.
 
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
@@ -461,7 +466,9 @@ range, allocation-legality, register-environment, and register-home identities.
 Transformed routes additionally bind an ordered typed selected-transformation
 ledger. Its current variants distinguish fixed-view-copy identities from
 literal-fold identities; order, kind, and identity are all canonical inputs,
-and exact duplicate identities reject rather than being silently collapsed.
+and exact duplicate identities reject rather than being silently collapsed. A
+separate optional selected-lowering completion identity proves execution of a
+named suite even when that ledger is empty; it is not itself a transformation.
 The selected root is always the final transformed CFG. Exact function,
 assignment, distinct-view,
 interference, and remaining-transition counts are structured fields. Because
@@ -470,7 +477,8 @@ record may truthfully say no spill was required for the admitted plan. Frame
 layout, machine emission, and publication remain explicitly unavailable, so
 the record grants none of those authorities.
 
-The post-allocation record also has a versioned canonical codec. It reconstructs
+The post-allocation record also has a versioned canonical codec (v4 after the
+selected-lowering completion join). It reconstructs
 the typed target, ordered transformation roster, every upstream identity,
 availability status, and statistic, then recomputes the stored manifest
 identity. Unknown stage, target, transformation, spill, or availability tags,
@@ -1188,11 +1196,13 @@ versioned codec. The envelope carries an explicit magic, version, and content
 identity;
 the decoder consumes the complete closed vocabulary and rejects truncation,
 trailing bytes, unknown tags, and stale identities. Orchestration admits the
-same analysis over three separately validated selected forms: original
-selection, fixed-view-copy output, and the final result of an explicitly
-invoked literal-fold sequence. Its custody receipt names which form was used
-and retains that form's independently replayed receipt, so a transformed CFG
-cannot inherit the source CFG's machine facts by shape or convention.
+same analysis over four separately validated selected forms: original
+selection, fixed-view-copy output, the final result of an explicitly invoked
+literal-fold sequence, and a completed named selected-lowering suite. Its
+custody receipt names which form was used and retains that form's independently
+replayed receipt, so a transformed CFG cannot inherit the source CFG's machine
+facts by shape or convention. The named-suite route remains meaningful when
+its independently validated result contains zero rewrites.
 
 Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
 i64 materialization is encoder-resolved because its current canonical variant
@@ -1236,9 +1246,10 @@ operand. Catalog, pre-allocation, and post-allocation identities bind this
 contract; the strict pre-allocation codec is v3 for the same reason.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
-fixed-view-copy output, and an explicit literal-fold sequence, always retaining
-the matching transformed custody and validated post-allocation manifest. This
-still grants no emission authority.
+fixed-view-copy output, an explicit literal-fold sequence, and named selected-
+lowering completion, always retaining the matching transformed or verified-
+no-change custody and validated post-allocation manifest. This still grants no
+emission authority.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s

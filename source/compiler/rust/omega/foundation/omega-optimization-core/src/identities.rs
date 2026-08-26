@@ -90,6 +90,10 @@ canonical_identity!(
     b"omega.post-allocation-optimization-manifest-identity.v1\0"
 );
 canonical_identity!(
+    SelectedLoweringOptimizationCompletionIdentity,
+    b"omega.selected-lowering-optimization-completion-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );

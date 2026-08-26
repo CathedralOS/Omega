@@ -17,8 +17,10 @@ use crate::{
     OptimizedSelectionCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
     StagedOptimizedLiteralFolds, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt, validate_optimized_fixed_view_copy_custody,
+    StagedOptimizedSelectionCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
+    StagedSelectedLoweringOptimizationRun, validate_optimized_fixed_view_copy_custody,
     validate_optimized_literal_fold_custody, validate_optimized_selection_custody,
+    validate_selected_lowering_optimization_custody,
 };
 
 /// Borrowed, non-authoritative pre-allocation machine-effect sidecar with the
@@ -74,6 +76,7 @@ pub enum StagedOptimizedMachineEffectSourceCustodyReceipt {
     Selected(StagedOptimizedSelectionCustodyReceipt),
     FixedViewCopies(StagedOptimizedFixedViewCopyCustodyReceipt),
     LiteralFolds(StagedOptimizedLiteralFoldCustodyReceipt),
+    SelectedLowering(StagedSelectedLoweringOptimizationCustodyReceipt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +84,7 @@ pub enum OptimizedMachineEffectPipelineError {
     Upstream(OptimizedSelectionCustodyError),
     FixedViewCopies(OptimizedFixedViewCopyCustodyError),
     LiteralFolds(OptimizedLiteralFoldCustodyError),
+    SelectedLowering(OptimizedLiteralFoldCustodyError),
     X86_64Catalog(X86_64TerminalMachineEffectCatalogValidationError),
     Aarch64Catalog(Aarch64TerminalMachineEffectCatalogValidationError),
     Analysis(TerminalMachineEffectError),
@@ -161,6 +165,28 @@ pub fn stage_optimized_machine_effects_after_literal_folds(
     Ok(StagedOptimizedMachineEffects { effects, custody })
 }
 
+pub fn stage_optimized_machine_effects_after_selected_lowering(
+    source: &StagedSelectedLoweringOptimizationRun,
+) -> Result<StagedOptimizedMachineEffects, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_selected_lowering_optimization_custody(source)
+        .map_err(OptimizedMachineEffectPipelineError::SelectedLowering)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let environment = selected_stage.register_environment();
+    let effects = match source.steps().last() {
+        Some(step) => analyze(step.fold(), selected_stage, environment)?,
+        None => analyze(selected_stage.selected(), selected_stage, environment)?,
+    };
+    let custody = custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::SelectedLowering(source_receipt),
+        &effects,
+    );
+    Ok(StagedOptimizedMachineEffects { effects, custody })
+}
+
 pub fn validate_optimized_machine_effect_custody(
     source: &StagedOptimizedSelectedInstructions,
     effects: &ValidatedTerminalPreAllocationMachineEffects,
@@ -222,6 +248,33 @@ pub fn validate_optimized_machine_effect_custody_after_literal_folds(
     )?;
     Ok(custody_receipt(
         StagedOptimizedMachineEffectSourceCustodyReceipt::LiteralFolds(source_receipt),
+        &replayed,
+    ))
+}
+
+pub fn validate_optimized_machine_effect_custody_after_selected_lowering(
+    source: &StagedSelectedLoweringOptimizationRun,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+) -> Result<StagedOptimizedMachineEffectCustodyReceipt, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_selected_lowering_optimization_custody(source)
+        .map_err(OptimizedMachineEffectPipelineError::SelectedLowering)?;
+    let selected_stage = source
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let environment = selected_stage.register_environment();
+    let replayed = match source.steps().last() {
+        Some(step) => revalidate(step.fold(), selected_stage, environment, effects)?,
+        None => revalidate(
+            selected_stage.selected(),
+            selected_stage,
+            environment,
+            effects,
+        )?,
+    };
+    Ok(custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::SelectedLowering(source_receipt),
         &replayed,
     ))
 }
