@@ -1,5 +1,5 @@
 // Standalone multi-unit Omega source resolver.  Exact OMGCOMP input produces
-// the least canonical OMGRSW1/2/3/4 normalized frontend handoff.  No output is published
+// the least canonical OMGRSW1/2/3/4/5 normalized frontend handoff.  No output is published
 // until framing, independent source lexing, module/use/pub resolution, static
 // bindings, signatures, body spans, canonical types, and the exact root pass.
 // Status 251 is malformed/unsupported; 252 is declared carrier exhaustion.
@@ -14,7 +14,7 @@ data Main {
     status: i32; c: i32; n: i32; decoded: i32;
     i: i32; j: i32; k: i32; x: i32; y: i32; scan_index: i32;
     pos: i32; limit: i32; current_source: i32; literal_seen: i32;
-    tok: i32; tok_start: i32; tok_len: i32; int_value: i32;
+    tok: i32; tok_start: i32; tok_len: i32; int_value: i32; int_high: i32;
     match_ok: i32; depth: i32; saved_start: i32; saved_len: i32;
     saved_type: i32; result_id: i32; found_count: i32;
     current_visibility: i32; current_record: i32; current_sum: i32;
@@ -56,10 +56,11 @@ data Main {
     // and resolved machine declaration.
     // 204704..205215 four sum columns; 205216..229797 six case columns;
     // 229798..254379 six case-payload columns; 254380..254507 one private
-    // combined record/sum graph-state column.  Case and payload backing admits
+    // combined record/sum graph-state column; 254508..262699 records whether a
+    // raw scalar type carried an authored range.  Case and payload backing admits
     // one private overflow row so a malformed first over-limit member remains
     // semantic rejection rather than carrier exhaustion.
-    tables: [i32; 254508];
+    tables: [i32; 262700];
 
 
     words: [u8; 62];
@@ -332,7 +333,7 @@ machine Main::skip_block_comment(&mut self) {
 }
 
 machine Main::next_token(&mut self) {
-    self.tok=0; self.tok_start=self.pos; self.tok_len=0; self.int_value=0;
+    self.tok=0; self.tok_start=self.pos; self.tok_len=0; self.int_value=0; self.int_high=0;
     transition self.status==0 { true -> skip() _ -> done() }
     state skip() { transition self.pos<self.limit { true -> whitespace() _ -> eof() } }
     state whitespace() { self.c=self.input[self.pos]; transition self.c==32 { true -> skip_one() _ -> tab() } }
@@ -375,17 +376,27 @@ machine Main::next_token(&mut self) {
     state raw_prefix_hash() { transition self.input[self.pos]==35 { true -> bad() _ -> done() } }
     state digit0() { transition self.c>=48 { true -> digit1() _ -> punctuation() } }
     state digit1() { transition self.c<58 { true -> integer_begin() _ -> punctuation() } }
-    state integer_begin() { self.int_value=0; transition 0 { _ -> integer() } }
+    // Decimal payloads are accumulated as two base-65536 limbs.  Every
+    // intermediate remains below 655,360, so accepting the complete u32 range
+    // never relies on signed-D0 overflow or truncation.
+    state integer_begin() { self.int_value=0; self.int_high=0; transition 0 { _ -> integer() } }
     state integer() { transition self.pos<self.limit { true -> integer_byte() _ -> integer_done() } }
     state integer_byte() { self.c=self.input[self.pos]; transition self.c>=48 { true -> integer_digit_hi() _ -> integer_done() } }
-    state integer_digit_hi() { transition self.c<58 { true -> integer_room() _ -> integer_done() } }
-    state integer_room() { transition self.int_value<=214748364 { true -> integer_last_check() _ -> bad() } }
-    state integer_last_check() { transition self.int_value<214748364 { true -> integer_add() _ -> integer_last() } }
-    state integer_last() { transition self.c-48<=7 { true -> integer_add() _ -> bad() } }
-    state integer_add() { self.int_value=self.int_value*10+self.c-48; self.pos=self.pos+1; transition 0 { _ -> integer() } }
-    state integer_done() { self.tok=257; self.tok_len=self.pos-self.tok_start; transition 0 { _ -> done() } }
+    state integer_digit_hi() { transition self.c<58 { true -> integer_low() _ -> integer_done() } }
+    state integer_low() { self.decoded=self.int_value*10+self.c-48; self.int_value=self.decoded%65536; self.decoded=self.decoded/65536; transition 0 { _ -> integer_high_limb() } }
+    state integer_high_limb() { self.decoded=self.int_high*10+self.decoded; transition self.decoded<=65535 { true -> integer_add() _ -> bad() } }
+    state integer_add() { self.int_high=self.decoded; self.pos=self.pos+1; transition 0 { _ -> integer() } }
+    state integer_done() { transition self.int_high<32768 { true -> integer_pack_low() _ -> integer_pack_high() } }
+    state integer_pack_low() { self.int_value=self.int_value+self.int_high*65536; transition 0 { _ -> integer_token() } }
+    state integer_pack_high() { self.int_value=self.int_value+(self.int_high-32768)*65536-2147483647-1; self.resolution_version=5; transition 0 { _ -> integer_token() } }
+    state integer_token() { self.tok=257; self.tok_len=self.pos-self.tok_start; transition 0 { _ -> done() } }
     state punctuation() { transition self.c<128 { true -> punctuation_save() _ -> bad() } }
-    state punctuation_save() { self.tok=self.c; self.tok_len=1; self.pos=self.pos+1; transition 0 { _ -> done() } }
+    state punctuation_save() { self.tok=self.c; self.tok_len=1; self.pos=self.pos+1; transition self.tok==45 { true -> subtraction_room() _ -> done() } }
+    // The first byte of an adjacent `->` is control punctuation, not an
+    // arithmetic subtraction selector.
+    state subtraction_room() { transition self.pos<self.limit { true -> subtraction_arrow() _ -> subtraction_version() } }
+    state subtraction_arrow() { transition self.input[self.pos]==62 { true -> done() _ -> subtraction_version() } }
+    state subtraction_version() { self.resolution_version=5; transition 0 { _ -> done() } }
     state eof() { self.tok=0; self.tok_start=self.limit; self.tok_len=0; transition 0 { _ -> done() } }
     state over() { self.exhaust(); transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
@@ -515,6 +526,7 @@ machine Main::allocate_raw_type(&mut self) {
         self.tables[130976+self.raw_type_result]=0-1; self.tables[139168+self.raw_type_result]=0;
         self.tables[147360+self.raw_type_result]=0; self.tables[155552+self.raw_type_result]=0;
         self.tables[163744+self.raw_type_result]=0-1; self.tables[171936+self.raw_type_result]=0-1;
+        self.tables[254508+self.raw_type_result]=0;
         transition 0 { _ -> done() }
     }
     state over() { self.exhaust(); transition 0 { _ -> done() } }
@@ -530,11 +542,13 @@ machine Main::parse_type_constraints(&mut self, raw: i32) {
     state trapping_save() { self.tables[122784+raw]=1; self.next_token(); transition 0 { _ -> range_check() } }
     state range_check() { transition self.tok==91 { true -> range_kind() _ -> done() } }
     state range_kind() { transition self.tables[114592+raw]==2 { true -> range_open() _ -> bad() } }
-    state range_open() { self.next_token(); transition self.tok==257 { true -> range_low() _ -> bad() } }
+    state range_open() { self.tables[254508+raw]=1; self.next_token(); transition self.tok==257 { true -> range_low_bound() _ -> bad() } }
+    state range_low_bound() { transition self.int_value>=0 { true -> range_low() _ -> bad() } }
     state range_low() { self.tables[147360+raw]=self.int_value; self.next_token(); self.expect_token(46); transition self.status==0 { true -> dot2() _ -> done() } }
     state dot2() { self.expect_token(46); transition self.status==0 { true -> equal() _ -> done() } }
     state equal() { self.expect_token(61); transition self.status==0 { true -> high_token() _ -> done() } }
-    state high_token() { transition self.tok==257 { true -> range_high() _ -> bad() } }
+    state high_token() { transition self.tok==257 { true -> range_high_bound() _ -> bad() } }
+    state range_high_bound() { transition self.int_value>=0 { true -> range_high() _ -> bad() } }
     state range_high() { self.tables[155552+raw]=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> order() _ -> done() } }
     state order() { transition self.tables[147360+raw]<=self.tables[155552+raw] { true -> done() _ -> bad() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
@@ -569,7 +583,7 @@ machine Main::parse_type(&mut self) {
     state array_element_kind() { transition self.tables[114592+self.raw_type_result]==7 { true -> bad() _ -> array_element() } }
     state array_element() { self.saved_type=self.raw_type_result; self.expect_token(59); transition self.status==0 { true -> array_length_token() _ -> done() } }
     state array_length_token() { transition self.tok==257 { true -> array_length_bound() _ -> bad() } }
-    state array_length_bound() { transition self.int_value<=65536 { true -> array_length_save() _ -> over() } }
+    state array_length_bound() { transition self.int_value>=0 & self.int_value<=65536 { true -> array_length_save() _ -> over() } }
     state array_length_save() { self.y=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> array_allocate() _ -> done() } }
     state array_allocate() { self.allocate_raw_type(); transition self.status==0 { true -> array_save() _ -> done() } }
     state array_save() { self.tables[114592+self.raw_type_result]=5; self.tables[130976+self.raw_type_result]=self.saved_type; self.tables[139168+self.raw_type_result]=self.y; transition 0 { _ -> array_constraints() } }
@@ -715,7 +729,7 @@ machine Main::parse_data(&mut self) {
         self.tables[31008+self.x]=3; self.tables[32544+self.x]=self.current_sum;
         self.tables[204704+self.current_sum]=self.x; self.tables[204832+self.current_sum]=self.case_count;
         self.tables[204960+self.current_sum]=0; self.tables[205088+self.current_sum]=self.current_copy;
-        self.sum_count=self.sum_count+1; transition self.resolution_version==4 { true -> sum_cases() _ -> sum_version() }
+        self.sum_count=self.sum_count+1; transition self.resolution_version>=4 { true -> sum_cases() _ -> sum_version() }
     }
     state sum_version() { self.resolution_version=3; transition 0 { _ -> sum_cases() } }
     state sum_cases() { transition self.tok==125 { true -> complete() _ -> sum_case_word() } }
@@ -817,7 +831,8 @@ machine Main::parse_parameter_list(&mut self, kind: i32, owner: i32) {
         self.block_parameter_count=self.block_parameter_count+1;
         transition self.tables[114592+self.raw_type_result]==7 { true -> version_four() _ -> stored() }
     }
-    state version_four() { self.resolution_version=4; transition 0 { _ -> stored() } }
+    state version_four() { transition self.resolution_version==5 { true -> stored() _ -> version_four_save() } }
+    state version_four_save() { self.resolution_version=4; transition 0 { _ -> stored() } }
     state stored() { self.current_parameter_count=self.current_parameter_count+1; transition 0 { _ -> tail() } }
     state close() { self.expect_token(41); transition 0 { _ -> done() } }
     state over() { self.exhaust(); transition 0 { _ -> done() } }
@@ -1283,8 +1298,11 @@ machine Main::canonicalize_raw(&mut self, raw: i32) {
         self.candidate_kind=self.tables[114592+raw]; self.candidate_flags=self.tables[122784+raw];
         self.candidate_payload0=0; self.candidate_payload1=0;
         self.candidate_lo=self.tables[147360+raw]; self.candidate_hi=self.tables[155552+raw];
-        transition 0 { _ -> intern() }
+        transition self.resolution_version==5 { true -> scalar_v5_u32() _ -> intern() }
     }
+    state scalar_v5_u32() { transition self.candidate_kind==2 { true -> scalar_v5_unconstrained() _ -> intern() } }
+    state scalar_v5_unconstrained() { transition self.tables[254508+raw]==0 { true -> scalar_v5_full() _ -> intern() } }
+    state scalar_v5_full() { self.candidate_hi=0-1; transition 0 { _ -> intern() } }
     state intern() { self.intern_candidate(); transition self.status==0 { true -> save() _ -> done() } }
     state save() { self.tables[171936+raw]=self.result_id; transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
@@ -1329,9 +1347,12 @@ machine Main::build_canonical_types(&mut self) {
     }
     state u32_type() {
         self.tables[180128+self.type_count]=2; self.tables[182176+self.type_count]=0; self.tables[184224+self.type_count]=0;
-        self.tables[186272+self.type_count]=0; self.tables[188320+self.type_count]=0; self.tables[190368+self.type_count]=2147483647;
-        self.type_count=self.type_count+1; self.scan_index=0; transition 0 { _ -> nonarray_raw() }
+        self.tables[186272+self.type_count]=0; self.tables[188320+self.type_count]=0;
+        transition self.resolution_version==5 { true -> u32_type_v5() _ -> u32_type_legacy() }
     }
+    state u32_type_legacy() { self.tables[190368+self.type_count]=2147483647; transition 0 { _ -> u32_type_done() } }
+    state u32_type_v5() { self.tables[190368+self.type_count]=0-1; transition 0 { _ -> u32_type_done() } }
+    state u32_type_done() { self.type_count=self.type_count+1; self.scan_index=0; transition 0 { _ -> nonarray_raw() } }
     // Match the frozen producer's prepare_ck_types algorithm exactly: scan
     // raw authored descriptors once for non-arrays, then repeat whole-table
     // array scans and intern only rows whose element is already canonical.
@@ -1659,7 +1680,7 @@ machine Main::main(&mut self) {
     state envelope() { self.decode_envelope(); transition self.status==0 { true -> sources() _ -> finish() } }
     state sources() { self.parse_sources(); transition self.status==0 { true -> literal_check() _ -> finish() } }
     state literal_check() { transition self.literal_seen==1 { true -> literal_version() _ -> imports() } }
-    state literal_version() { transition self.resolution_version==4 { true -> imports() _ -> literal_bad() } }
+    state literal_version() { transition self.resolution_version>=4 { true -> imports() _ -> literal_bad() } }
     state literal_bad() { self.reject(); transition 0 { _ -> finish() } }
     state imports() { self.resolve_imports(); transition self.status==0 { true -> bindings() _ -> finish() } }
     state bindings() { self.resolve_bindings(); transition self.status==0 { true -> types() _ -> finish() } }

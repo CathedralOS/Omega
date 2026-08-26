@@ -1,0 +1,31 @@
+data ByteChoice [copy] {
+    case Value(value: u8);
+    case Empty;
+}
+
+data SubProducer {
+    cursor: u32 in Trapping;
+    floor: u32 in Trapping;
+    choice: ByteChoice;
+}
+
+machine SubProducer::run(&mut self) -> u8 {
+    self.cursor = 70;
+    self.floor = 1;
+    self.choice = ByteChoice::Value { value: 7 };
+    transition self.choice {
+        ByteChoice::Value { value } -> advance(value, self.cursor - self.floor, 9)
+        ByteChoice::Empty -> failed()
+    }
+
+    state advance(&mut self, prefix: u8, next: u32 in Trapping, suffix: u8) {
+        self.cursor = next;
+        transition self.cursor == 69 && prefix == 7 && suffix == 9 {
+            true -> passed()
+            false -> failed()
+        }
+    }
+
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}

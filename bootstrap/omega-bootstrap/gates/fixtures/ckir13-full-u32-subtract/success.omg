@@ -1,0 +1,17 @@
+data SubProducer {
+    cursor: u32 in Trapping;
+    floor: u32 in Trapping;
+}
+
+machine SubProducer::run(&mut self) -> u8 {
+    self.cursor = 4294967295;
+    self.floor = 4294967290;
+    self.cursor = self.cursor - self.floor;
+    transition self.cursor == 5 {
+        true -> passed()
+        false -> failed()
+    }
+
+    state passed(&mut self) { 70 }
+    state failed(&mut self) { 0 }
+}

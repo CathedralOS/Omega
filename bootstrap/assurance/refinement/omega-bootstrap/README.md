@@ -8,6 +8,12 @@ both the one-byte true path and empty false path, reconstruct the exact literal,
 descriptor, nonempty guard, deferred head/tail edge, result 70, and complete ELF
 template.
 
+[`OMGRFN15`](OMGCOMP_REFINEMENT_WITNESS_V15.md) reserves the exact
+OMGRSW5/CKIR13 full-width subtraction frame and has a producer-backed focused
+independent reference gate.  It is explicitly a candidate seam, not the current
+successor: lower-rooted persisted-Beta R1--R5 reconstruction and exact ELF
+reconstruction remain open, so OMGRFN14 stays the latest admitted carrier.
+
 The immediately preceding trapping-add carrier remains
 [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md): `OMGRFND\0` / version 13 binds
 exact OMGCOMP and least OMGRSW1/2/3 to CKIR11's selected canonical
