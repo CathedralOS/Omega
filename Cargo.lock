@@ -2138,6 +2138,7 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-language-core",
+ "psi-language-semantics",
 ]
 
 [[package]]
@@ -2283,6 +2284,7 @@ version = "0.1.0"
 dependencies = [
  "psi-access-plans",
  "psi-arena",
+ "psi-core",
  "psi-diagnostics",
  "psi-effects",
  "psi-facts",

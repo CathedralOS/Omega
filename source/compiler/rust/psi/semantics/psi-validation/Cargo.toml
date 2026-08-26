@@ -23,6 +23,7 @@ psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 
 [dev-dependencies]
+psi-core = { path = "../../foundation/psi-core" }
 psi-source-files-to-tokens = { path = "../../pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/psi-syntax-trees-to-symbol-resolved-trees" }

@@ -22,6 +22,7 @@ use std::collections::HashSet;
 
 mod carrier_fence;
 mod relation_plan;
+mod terminal_bridge;
 
 use carrier_fence::{CarrierFenceViolation, first_forbidden_carrier_content};
 
@@ -62,6 +63,37 @@ pub fn validate_quotient_formations(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Derive the first source-handle-free quotient correspondence aggregate.
+///
+/// This API is deliberately separate from ordinary validation. It grants no
+/// checked or executable authority, and [`validate_program`] continues to
+/// reject every quotient operation request. The extraction is all-or-nothing:
+/// if any retained request lies outside the narrow total direct faithful
+/// `define` bridge, no partial aggregate is returned.
+pub fn extract_non_executable_quotient_correspondences(
+    program: &TypedTrees,
+) -> Result<
+    Vec<psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence>,
+    Vec<Diagnostic>,
+> {
+    let proof_only = psi_typed_trees::proof_only::classify(program);
+    let mut diagnostics = Vec::new();
+    collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    terminal_bridge::extract(program).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| {
+                Diagnostic::error(format!(
+                    "non-executable quotient correspondence extraction failed: {error}"
+                ))
+            })
+            .collect()
+    })
 }
 
 pub(crate) fn validate_quotients(

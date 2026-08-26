@@ -913,6 +913,15 @@ contract correspondence, and normalized result flow remain required. Bare
 calls on representatives or quotient values cannot discover a structurally
 similar proof machine.
 
+For the narrow total direct `define` shape, a separate proof-only preparation
+API can now erase the completed validation evidence into source-free canonical
+correspondence and replay it independently through a standalone Terminal-Psi
+carrier. This is not executable admission: the carrier is not part of a
+`TerminalModule` or its codec, normal validation still rejects the request, and
+no representative call is lowered. General `lift` implication—including the
+explicit transport authority still required for membership and opaque
+proposition families—and executable Terminal lowering remain open.
+
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative
 is nevertheless opaque. Quotient formation suppresses synthesized structural
