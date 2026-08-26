@@ -54,7 +54,7 @@ DELTA_ARCH=aarch64 cargo run -- ../samples/shape.alp out  # macOS arm64
 - **Legacy O0/O1 fixture profiles plus the bounded-scalar bridge canary — DONE
   for native/self-host, direct artifacts, product validation, and current
   lower-rung observations.**
-  `../../omega-bootstrap/source/compiler/omega/omega-bootstrap-frontend.alp` is the canonical
+  `../../omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the canonical
   pre-profile regression compiler slice
   (`samples/omega-bootstrap-frontend.alp` is the canonical sample link and
   `samples/omega0-frontend.alp` is a compatibility alias):
