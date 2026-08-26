@@ -31,6 +31,24 @@ pub(crate) fn estimated_contract_fact_capacity(program: &psi_typed_trees::TypedT
                 })
                 .sum::<usize>()
         }))
+        .chain(
+            program
+                .operators()
+                .iter()
+                .chain(
+                    program
+                        .domain_definitions()
+                        .iter()
+                        .flat_map(|domain| program.domain_operators(domain)),
+                )
+                .map(|operator| {
+                    program
+                        .operator_contracts(operator)
+                        .iter()
+                        .map(|contract| contract.facts.len())
+                        .sum::<usize>()
+                }),
+        )
         .chain(program.machines().iter().map(|machine| {
             program
                 .machine_type_parameters(machine)

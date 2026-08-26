@@ -286,6 +286,15 @@ fn contract_owner_parameter<'program>(
                     })
                 });
         }
+        ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
+            return psi_typed_trees::operator::declaration_by_symbol(program, operator_symbol)
+                .and_then(|operator| {
+                    program
+                        .operator_parameters(operator)
+                        .iter()
+                        .find(|parameter| matches(parameter))
+                });
+        }
         ContractProofFactOwner::Unknown | ContractProofFactOwner::OperatorUse { .. } => {
             return None;
         }

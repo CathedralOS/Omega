@@ -694,6 +694,11 @@ collection, scalar index or optional range endpoints, and inclusivity. Changing
 an index, endpoint, or inclusive end changes review identity; missing,
 ambiguous, or mismatched custody rejects. Indexed children compose recursively
 inside arrays.
+The v69/row-v27 wire shape is unchanged while public operator contracts now
+require checked declaration custody. Every non-crash `requires`/`ensures` fact
+must have one exact `OperatorDeclaration` owner row keyed by its declaration;
+missing, duplicate, or mismatched owner/kind/fact rows reject. No named
+operator-contract syntax or evidence lane is introduced.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

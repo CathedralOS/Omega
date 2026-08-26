@@ -1,12 +1,12 @@
 use omega_compiler::{
-    BuildObservationClass, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
-    PackageCompilationInputs, PackageDependencyBinding, PackageReviewArithmeticDomain,
-    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageReviewCastForm, PackageReviewCheckedServiceReach,
-    PackageReviewConformanceSubject, PackageReviewContractBinaryOperator,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    BuildObservationClass, CheckedCompilation, PACKAGE_REVIEW_ENCODING_VERSION,
+    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageCompilationInputs, PackageDependencyBinding,
+    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCallableRole,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
+    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
@@ -2459,6 +2459,61 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         row.risk() == PackageReviewCanonicalRowRisk::Blocking
             && row.source().authored_locations().is_some()
     }));
+
+    let ordered_symbol = checked
+        .operators()
+        .iter()
+        .find(|operator| operator.is_public && !operator.contracts.is_empty())
+        .map(|operator| operator.symbol)
+        .expect("checked ordered operator declaration");
+    let owner = psi_checked_trees::ContractProofFactOwner::OperatorDeclaration {
+        operator_symbol: ordered_symbol,
+    };
+    let (checked_contract_handle, checked_contract) = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .find(|(_, fact)| fact.owner == owner)
+        .map(|(handle, fact)| (handle, fact.clone()))
+        .expect("one checked operator-declaration contract row");
+
+    let assert_owner_row_rejects = |checked: &CheckedCompilation, count: usize| {
+        let diagnostics = project_checked_package_review(checked)
+            .expect_err("malformed operator-declaration custody must reject review");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(&format!(
+                "contract fact has {count} checked owner rows; expected one"
+            ))
+        }));
+    };
+
+    let mut missing = checked.clone();
+    assert!(
+        missing
+            .facts
+            .proof
+            .contract_facts
+            .free(checked_contract_handle)
+    );
+    assert_owner_row_rejects(&missing, 0);
+
+    let mut duplicate = checked.clone();
+    duplicate
+        .facts
+        .proof
+        .contract_facts
+        .append(checked_contract.clone());
+    assert_owner_row_rejects(&duplicate, 2);
+
+    let mut wrong_owner = checked.clone();
+    wrong_owner
+        .facts
+        .proof
+        .contract_facts
+        .get_mut(checked_contract_handle)
+        .owner = psi_checked_trees::ContractProofFactOwner::Unknown;
+    assert_owner_row_rejects(&wrong_owner, 0);
 }
 
 #[test]

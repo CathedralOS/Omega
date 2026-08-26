@@ -59,6 +59,11 @@ pub(super) fn contract_fact_point(contract: &ContractProofFact) -> ProgramPoint 
             machine_symbol: owner_symbol,
             state_symbol,
         },
+        ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
+            ProgramPoint::Definition {
+                symbol: operator_symbol,
+            }
+        }
         ContractProofFactOwner::OperatorUse {
             origin:
                 psi_checked_trees::CheckedValueOrigin::StateStatement {
@@ -96,6 +101,10 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
         } => FactOrigin::StateSignatureContract {
             owner_symbol,
             state_symbol,
+        },
+        ContractProofFactOwner::OperatorDeclaration { operator_symbol } => match contract.kind {
+            ContractProofFactKind::Requires => FactOrigin::OperatorRequires { operator_symbol },
+            ContractProofFactKind::Ensures => FactOrigin::OperatorEnsures { operator_symbol },
         },
         ContractProofFactOwner::OperatorUse {
             operator_symbol, ..
