@@ -25,6 +25,63 @@ nominal_plan_id!(LayoutPlanId);
 nominal_plan_id!(LayoutSlotId);
 nominal_plan_id!(CallbackRequirementId);
 
+fn callback_nominal_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
+    let mut identity = 0xcbf2_9ce4_8422_2325u64;
+    for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            identity ^= u64::from(byte);
+            identity = identity.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    if identity == 0 { 1 } else { identity }
+}
+
+/// Compiler-issued identity of one canonical callback requirement overload.
+/// The same constructor is used for boundary binders and target-closed private
+/// layout demands, so matching text cannot be rebound through a second hash
+/// convention.
+pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequirementId {
+    CallbackRequirementId::new(callback_nominal_identity(
+        b"omega.callback-requirement.v1",
+        &[canonical_requirement.as_bytes()],
+    ))
+    .expect("callback requirement identity is nonzero")
+}
+
+/// Compiler-issued identity of one complete target-closed native layout.
+/// Pointer geometry participates because it supplies the physical callback
+/// extent that is absent from the target-neutral layout report.
+pub fn callback_layout_plan_id(
+    native_layout_fingerprint: u64,
+    pointer_size: usize,
+    pointer_alignment: usize,
+) -> LayoutPlanId {
+    LayoutPlanId::new(callback_nominal_identity(
+        b"omega.callback-layout-plan.v1",
+        &[
+            &native_layout_fingerprint.to_le_bytes(),
+            &(pointer_size as u64).to_le_bytes(),
+            &(pointer_alignment as u64).to_le_bytes(),
+        ],
+    ))
+    .expect("callback layout-plan identity is nonzero")
+}
+
+/// Compiler-issued identity of one exact named private slot in one closed
+/// layout. The physical offset is already retained by the complete layout
+/// identity and is never repeated as slot identity.
+pub fn callback_layout_slot_id(layout: LayoutPlanId, canonical_slot: &str) -> LayoutSlotId {
+    LayoutSlotId::new(callback_nominal_identity(
+        b"omega.callback-layout-slot.v1",
+        &[&layout.get().to_le_bytes(), canonical_slot.as_bytes()],
+    ))
+    .expect("callback layout-slot identity is nonzero")
+}
+
 /// One target-owned destination for a compiler-private callback relocation.
 ///
 /// These are nominal plan identities, never source parameter ordinals or byte
@@ -212,6 +269,40 @@ mod tests {
         CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
         validate_boundary_entry_plan, validate_boundary_entry_plan_with_callback_materializations,
     };
+
+    #[test]
+    fn target_closed_nominal_identities_are_domain_separated_and_mutation_sensitive() {
+        let first_layout = callback_layout_plan_id(0x101, 8, 8);
+        assert_eq!(first_layout, callback_layout_plan_id(0x101, 8, 8));
+        assert_ne!(first_layout, callback_layout_plan_id(0x102, 8, 8));
+        assert_ne!(first_layout, callback_layout_plan_id(0x101, 4, 4));
+
+        let first_slot = callback_layout_slot_id(first_layout, "package::WindowSlot");
+        assert_eq!(
+            first_slot,
+            callback_layout_slot_id(first_layout, "package::WindowSlot")
+        );
+        assert_ne!(
+            first_slot,
+            callback_layout_slot_id(first_layout, "package::OtherSlot")
+        );
+        assert_ne!(
+            first_slot,
+            callback_layout_slot_id(callback_layout_plan_id(0x102, 8, 8), "package::WindowSlot")
+        );
+
+        let requirement = callback_requirement_id("package::WindowProcedure::call#exact");
+        assert_eq!(
+            requirement,
+            callback_requirement_id("package::WindowProcedure::call#exact")
+        );
+        assert_ne!(
+            requirement,
+            callback_requirement_id("package::WindowProcedure::call#other")
+        );
+        assert_ne!(requirement.get(), first_layout.get());
+        assert_ne!(requirement.get(), first_slot.get());
+    }
 
     #[test]
     fn binds_nominal_binders_to_exact_native_demands() {

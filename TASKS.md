@@ -7149,9 +7149,20 @@ Owners:
   only for executed calls, normalized without ambient lookup, retained on
   `PlanLaidLayout`, and included in native-layout fingerprints. Authored
   lookalikes, wrong layout subjects, duplicate placement, wrong static
-  categories, and ambiguous requirement overloads reject. The next rung is
-  target closure and the outbound-plan join described above; private
-  relocation/emission remains subsequent.
+  categories, and ambiguous requirement overloads reject.
+
+  The target-closure rung is also complete. `omega-layout` independently
+  rejoins every retained private callback demand to the canonical layout
+  subject and complete native-layout identity, supplies the selected target's
+  function-pointer extent/alignment, and rejects size/alignment drift,
+  out-of-bounds placement, semantic/private or private/private overlap,
+  subject substitution, duplicate slots, and nominal identity collisions.
+  `At`, `IntegerAt`, `Bits`, and repeated-element physical extents retain their
+  exact occupancy; validated stride padding remains padding. Domain-separated
+  nonzero layout, slot, and callback-requirement identities publish in the
+  exact `LayoutPlan` demand catalog, with the requirement constructor shared
+  by boundary binders. The outbound `BoundarySignature` publication/context
+  join and private relocation/emission remain subsequent.
 
   Add pass canaries for direct parameters, one nested slot, multiple explicitly
   named slots, an inert uncited third-party conformance, and the same

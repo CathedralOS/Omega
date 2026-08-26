@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
@@ -18,6 +19,7 @@ psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }
 omega-target = { path = "../../foundation/omega-target" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }

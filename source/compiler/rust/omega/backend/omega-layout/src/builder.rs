@@ -4,8 +4,11 @@ use crate::sizing::{
 };
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
-    MachineLayout, RepeatedFieldLayout, StoredIntegerLayout, TypeLayout, TypeLayoutDescriptor,
-    VariantLayout,
+    MachineLayout, RepeatedFieldLayout, StoredIntegerLayout, TargetClosedPrivateCallbackDemand,
+    TypeLayout, TypeLayoutDescriptor, VariantLayout,
+};
+use omega_calling_conventions::{
+    callback_layout_plan_id, callback_layout_slot_id, callback_requirement_id,
 };
 use omega_target::NativeTarget;
 use psi_arena::Arena;
@@ -91,6 +94,7 @@ struct LayoutBuilder<'program> {
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
     repeated_fields: Vec<RepeatedFieldLayout>,
+    private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -205,6 +209,7 @@ impl<'program> LayoutBuilder<'program> {
             bit_fields: Vec::new(),
             stored_integers: Vec::new(),
             repeated_fields: Vec::new(),
+            private_callback_demands: Vec::new(),
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -225,6 +230,7 @@ impl<'program> LayoutBuilder<'program> {
             repeated_fields: self.repeated_fields,
             machine_layouts: self.machine_layouts,
             variants: self.variants,
+            private_callback_demands: self.private_callback_demands,
         }
     }
 
@@ -457,6 +463,28 @@ impl<'program> LayoutBuilder<'program> {
                     element_stride: repeated_field.element_stride,
                 });
             }
+            let closed_demands = if plan.private_callback_demands.is_empty() {
+                Vec::new()
+            } else {
+                let canonical_layout_subject = self
+                    .program
+                    .normalized_hermetic_symbol_identity(plan.policy_symbol)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "plan-laid data `{}` cannot rederive its private callback layout subject: {reason}",
+                            plan.data_name
+                        ))
+                    })?;
+                close_private_callback_demands(
+                    plan,
+                    self.fields
+                        .span(fields)
+                        .expect("newly inserted plan-laid fields retain their span"),
+                    self.target,
+                    &canonical_layout_subject,
+                )?
+            };
+            self.private_callback_demands.extend(closed_demands);
 
             return Ok(DataLayout {
                 symbol: definition.symbol,
@@ -1217,6 +1245,287 @@ impl<'program> LayoutBuilder<'program> {
     }
 }
 
+fn close_private_callback_demands(
+    plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
+    fields: &[FieldLayout],
+    target: NativeTarget,
+    canonical_layout_subject: &str,
+) -> Result<Vec<TargetClosedPrivateCallbackDemand>, Diagnostic> {
+    if plan.private_callback_demands.is_empty() {
+        return Ok(Vec::new());
+    }
+    if plan.validated_layout.size != u64::try_from(plan.size).ok()
+        || plan.validated_layout.align != plan.align as u64
+    {
+        return Err(Diagnostic::error(format!(
+            "plan-laid data `{}` changed its validated size/alignment before private callback closure",
+            plan.data_name
+        )));
+    }
+    if target.pointer_size == 0
+        || target.pointer_alignment == 0
+        || !target.pointer_alignment.is_power_of_two()
+    {
+        return Err(Diagnostic::error(format!(
+            "plan-laid data `{}` cannot close private callback slots for invalid target pointer geometry {}/{}",
+            plan.data_name, target.pointer_size, target.pointer_alignment
+        )));
+    }
+    if plan.align < target.pointer_alignment || !plan.align.is_multiple_of(target.pointer_alignment)
+    {
+        return Err(Diagnostic::error(format!(
+            "plan-laid data `{}` has alignment {}, which cannot align a {}-byte private callback slot",
+            plan.data_name, plan.align, target.pointer_alignment
+        )));
+    }
+
+    let semantic_ranges = plan_laid_semantic_ranges(plan, fields)?;
+    let native_layout_fingerprint = psi_layout_plans::normalized_native_layout_plan_fingerprint(
+        &psi_layout_plans::NativeLayoutPlanReport {
+            layout: plan.validated_layout.clone(),
+            private_callback_demands: plan.private_callback_demands.clone(),
+        },
+    );
+    let layout = callback_layout_plan_id(
+        native_layout_fingerprint,
+        target.pointer_size,
+        target.pointer_alignment,
+    );
+    let mut occupied_private = Vec::<(usize, usize, &str)>::new();
+    let mut closed = Vec::with_capacity(plan.private_callback_demands.len());
+    for demand in &plan.private_callback_demands {
+        if demand.layout_subject_identity != canonical_layout_subject {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` changed layout subject from `{canonical_layout_subject}` to `{}`",
+                plan.data_name, demand.slot_identity, demand.layout_subject_identity
+            )));
+        }
+        if closed
+            .iter()
+            .any(|prior: &TargetClosedPrivateCallbackDemand| {
+                prior.slot_identity.as_ref() == demand.slot_identity
+            })
+        {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` repeats private callback slot `{}` during target closure",
+                plan.data_name, demand.slot_identity
+            )));
+        }
+        let offset = usize::try_from(demand.offset).map_err(|_| {
+            Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` offset {} cannot be represented for the selected target",
+                plan.data_name, demand.slot_identity, demand.offset
+            ))
+        })?;
+        if !offset.is_multiple_of(target.pointer_alignment) {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` offset {} is not aligned to the selected target's {}-byte function-pointer alignment",
+                plan.data_name, demand.slot_identity, offset, target.pointer_alignment
+            )));
+        }
+        let end = offset.checked_add(target.pointer_size).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` extent overflows",
+                plan.data_name, demand.slot_identity
+            ))
+        })?;
+        if end > plan.size {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` range {}..{} lies outside its {}-byte layout",
+                plan.data_name, demand.slot_identity, offset, end, plan.size
+            )));
+        }
+        if semantic_ranges
+            .iter()
+            .any(|&(start, semantic_end)| ranges_overlap(offset, end, start, semantic_end))
+        {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slot `{}` range {}..{} overlaps semantic field storage",
+                plan.data_name, demand.slot_identity, offset, end
+            )));
+        }
+        if let Some((_, _, prior)) = occupied_private
+            .iter()
+            .find(|&&(start, prior_end, _)| ranges_overlap(offset, end, start, prior_end))
+        {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slots `{prior}` and `{}` overlap",
+                plan.data_name, demand.slot_identity
+            )));
+        }
+
+        let slot = callback_layout_slot_id(layout, &demand.slot_identity);
+        let requirement = callback_requirement_id(&demand.callback_requirement_identity);
+        if let Some(prior) = closed
+            .iter()
+            .find(|prior: &&TargetClosedPrivateCallbackDemand| {
+                prior.slot == slot && prior.slot_identity.as_ref() != demand.slot_identity
+            })
+        {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` private callback slots `{}` and `{}` collide on one nominal slot identity",
+                plan.data_name, prior.slot_identity, demand.slot_identity
+            )));
+        }
+        if let Some(prior) = closed
+            .iter()
+            .find(|prior: &&TargetClosedPrivateCallbackDemand| {
+                prior.requirement == requirement
+                    && prior.callback_requirement_identity.as_ref()
+                        != demand.callback_requirement_identity
+            })
+        {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` callback requirements `{}` and `{}` collide on one nominal requirement identity",
+                plan.data_name,
+                prior.callback_requirement_identity,
+                demand.callback_requirement_identity
+            )));
+        }
+
+        occupied_private.push((offset, end, demand.slot_identity.as_str()));
+        closed.push(TargetClosedPrivateCallbackDemand {
+            data_symbol: plan.data_symbol,
+            slot_identity: demand.slot_identity.clone().into(),
+            layout_subject_identity: demand.layout_subject_identity.clone().into(),
+            callback_requirement_identity: demand.callback_requirement_identity.clone().into(),
+            layout,
+            slot,
+            requirement,
+            offset,
+            byte_size: target.pointer_size,
+            alignment: target.pointer_alignment,
+        });
+    }
+    closed.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));
+    Ok(closed)
+}
+
+fn plan_laid_semantic_ranges(
+    plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
+    fields: &[FieldLayout],
+) -> Result<Vec<(usize, usize)>, Diagnostic> {
+    let mut ranges = Vec::new();
+    for (index, field) in fields.iter().enumerate() {
+        if let Some(bit_field) = plan
+            .bit_fields
+            .iter()
+            .find(|candidate| candidate.field_index == index)
+        {
+            for fragment in &bit_field.fragments {
+                let byte_size = usize::from(fragment.container_width_bits).div_ceil(8);
+                push_semantic_range(
+                    plan,
+                    field.name.as_str(),
+                    fragment.container_byte_offset,
+                    byte_size,
+                    &mut ranges,
+                )?;
+            }
+            continue;
+        }
+        if let Some(integer_field) = plan
+            .integer_fields
+            .iter()
+            .find(|candidate| candidate.field_index == index)
+        {
+            push_semantic_range(
+                plan,
+                field.name.as_str(),
+                field.offset,
+                usize::from(integer_field.stored_width_bits).div_ceil(8),
+                &mut ranges,
+            )?;
+            continue;
+        }
+        if let Some(repeated_field) = plan
+            .repeated_fields
+            .iter()
+            .find(|candidate| candidate.field_index == index)
+        {
+            let Some((_, length)) = field.type_descriptor.fixed_array() else {
+                return Err(Diagnostic::error(format!(
+                    "plan-laid data `{}` repeated field `{}` lost its fixed-array shape during private callback closure",
+                    plan.data_name, field.name
+                )));
+            };
+            if length == 0 || !field.layout.size.is_multiple_of(length) {
+                return Err(Diagnostic::error(format!(
+                    "plan-laid data `{}` repeated field `{}` has invalid target element geometry",
+                    plan.data_name, field.name
+                )));
+            }
+            let element_size = field.layout.size / length;
+            // Repeated placement owns each compiler-derived element extent,
+            // not the whole stride. The already-validated inter-element
+            // padding is intentionally available to a private demand; an
+            // ordinary one-entry aggregate `At` row instead reaches the
+            // whole-field arm below and occupies its complete layout size.
+            for element in 0..length {
+                let start = field
+                    .offset
+                    .checked_add(
+                        element
+                            .checked_mul(repeated_field.element_stride)
+                            .ok_or_else(|| {
+                                Diagnostic::error(
+                                    "repeated field callback-closure offset overflows",
+                                )
+                            })?,
+                    )
+                    .ok_or_else(|| {
+                        Diagnostic::error("repeated field callback-closure offset overflows")
+                    })?;
+                push_semantic_range(plan, field.name.as_str(), start, element_size, &mut ranges)?;
+            }
+            continue;
+        }
+        push_semantic_range(
+            plan,
+            field.name.as_str(),
+            field.offset,
+            field.layout.size,
+            &mut ranges,
+        )?;
+    }
+    Ok(ranges)
+}
+
+fn push_semantic_range(
+    plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
+    field: &str,
+    start: usize,
+    byte_size: usize,
+    ranges: &mut Vec<(usize, usize)>,
+) -> Result<(), Diagnostic> {
+    if byte_size == 0 {
+        return Ok(());
+    }
+    let end = start.checked_add(byte_size).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "plan-laid data `{}` semantic field `{field}` extent overflows during private callback closure",
+            plan.data_name
+        ))
+    })?;
+    if end > plan.size {
+        return Err(Diagnostic::error(format!(
+            "plan-laid data `{}` semantic field `{field}` range {start}..{end} lies outside its {}-byte layout during private callback closure",
+            plan.data_name, plan.size
+        )));
+    }
+    ranges.push((start, end));
+    Ok(())
+}
+
+fn ranges_overlap(
+    left_start: usize,
+    left_end: usize,
+    right_start: usize,
+    right_end: usize,
+) -> bool {
+    left_start < right_end && right_start < left_end
+}
+
 fn binding_for_type<'program>(
     symbol: SymbolHandle,
     name: &str,
@@ -1274,8 +1583,8 @@ fn const_argument_value(
 
 #[cfg(test)]
 mod tests {
-    use super::build_layout_plan;
-    use crate::DataShape;
+    use super::{build_layout_plan, close_private_callback_demands};
+    use crate::{DataShape, FieldLayout, TypeLayout};
     use omega_target::NativeTarget;
     use psi_checked_trees::{CheckFacts, CheckedTrees};
     use psi_source_files_to_tokens::Lexer;
@@ -1289,6 +1598,156 @@ mod tests {
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         CheckedTrees::with_roots(typed, CheckFacts::default())
+    }
+
+    fn private_callback_layout(
+        offset: u64,
+        size: usize,
+    ) -> psi_typed_trees::typed_trees::PlanLaidLayout {
+        psi_typed_trees::typed_trees::PlanLaidLayout {
+            data_name: "Spread<ForeignRecord>".to_owned(),
+            data_symbol: psi_symbols::SymbolHandle::from_arena_index(1),
+            field_symbols: vec![psi_symbols::SymbolHandle::from_arena_index(2)],
+            schema_symbol: psi_symbols::SymbolHandle::from_arena_index(3),
+            schema_field_symbols: vec![psi_symbols::SymbolHandle::from_arena_index(4)],
+            policy_symbol: psi_symbols::SymbolHandle::from_arena_index(5),
+            policy_plan_machine_symbol: psi_symbols::SymbolHandle::from_arena_index(6),
+            validated_layout: psi_layout_plans::LayoutPlanReport {
+                schema_identity: 0x51,
+                entries: vec![psi_layout_plans::LayoutFieldEntryReport {
+                    field: "payload".to_owned(),
+                    member_identity: None,
+                    placement: psi_layout_plans::LayoutPlacementReport::At { offset: 0 },
+                }],
+                offsets: Some(vec![0]),
+                size: Some(size as u64),
+                align: 8,
+            },
+            private_callback_demands: vec![psi_layout_plans::PrivateCallbackLayoutDemandReport {
+                slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
+                layout_subject_identity: "package::Spread".to_owned(),
+                callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
+                offset,
+            }],
+            offsets: vec![0],
+            bit_fields: Vec::new(),
+            integer_fields: Vec::new(),
+            repeated_fields: Vec::new(),
+            size,
+            align: 8,
+        }
+    }
+
+    fn private_callback_fields() -> [FieldLayout; 1] {
+        [FieldLayout {
+            symbol: psi_symbols::SymbolHandle::from_arena_index(2),
+            name: psi_checked_trees::name::Identifier::from("payload"),
+            offset: 0,
+            layout: TypeLayout {
+                size: 8,
+                alignment: 8,
+            },
+            ..FieldLayout::default()
+        }]
+    }
+
+    #[test]
+    fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
+        let target = NativeTarget::windows_x64();
+        let fields = private_callback_fields();
+        let valid = private_callback_layout(8, 16);
+        let [closed] = close_private_callback_demands(&valid, &fields, target, "package::Spread")
+            .expect("aligned private callback padding should close")
+            .try_into()
+            .expect("one private callback demand");
+        assert_eq!(
+            (closed.offset, closed.byte_size, closed.alignment),
+            (8, 8, 8)
+        );
+        assert_eq!(
+            closed.requirement,
+            omega_calling_conventions::callback_requirement_id(
+                "package::WindowProcedure::call#exact"
+            )
+        );
+
+        let moved = close_private_callback_demands(
+            &private_callback_layout(16, 24),
+            &fields,
+            target,
+            "package::Spread",
+        )
+        .expect("another valid offset should close");
+        assert_ne!(closed.layout, moved[0].layout);
+        assert_ne!(closed.slot, moved[0].slot);
+
+        let unaligned = close_private_callback_demands(
+            &private_callback_layout(9, 24),
+            &fields,
+            target,
+            "package::Spread",
+        )
+        .expect_err("unaligned callback slot must reject");
+        assert!(unaligned.message.contains("is not aligned"));
+
+        let outside = close_private_callback_demands(
+            &private_callback_layout(16, 16),
+            &fields,
+            target,
+            "package::Spread",
+        )
+        .expect_err("out-of-bounds callback slot must reject");
+        assert!(outside.message.contains("lies outside its 16-byte layout"));
+
+        let semantic_overlap = close_private_callback_demands(
+            &private_callback_layout(0, 16),
+            &fields,
+            target,
+            "package::Spread",
+        )
+        .expect_err("semantic/private overlap must reject");
+        assert!(
+            semantic_overlap
+                .message
+                .contains("overlaps semantic field storage")
+        );
+
+        let mut private_overlap = valid;
+        let mut second = private_overlap.private_callback_demands[0].clone();
+        second.slot_identity.push_str("::Second");
+        private_overlap.private_callback_demands.push(second);
+        let private_overlap =
+            close_private_callback_demands(&private_overlap, &fields, target, "package::Spread")
+                .expect_err("private/private overlap must reject");
+        assert!(
+            private_overlap.message.contains("private callback slots")
+                && private_overlap.message.contains("overlap")
+        );
+
+        let subject_tamper = close_private_callback_demands(
+            &private_callback_layout(8, 16),
+            &fields,
+            target,
+            "package::OtherLayout",
+        )
+        .expect_err("layout-subject substitution must reject");
+        assert!(subject_tamper.message.contains("changed layout subject"));
+
+        let mut duplicate_slot = private_callback_layout(8, 24);
+        let mut conflicting = duplicate_slot.private_callback_demands[0].clone();
+        conflicting
+            .callback_requirement_identity
+            .push_str("::Other");
+        conflicting.offset = 16;
+        duplicate_slot.private_callback_demands.push(conflicting);
+        let duplicate_slot =
+            close_private_callback_demands(&duplicate_slot, &fields, target, "package::Spread")
+                .expect_err("one canonical slot cannot close under conflicting requirements");
+        assert!(
+            duplicate_slot
+                .message
+                .contains("repeats private callback slot")
+        );
     }
 
     #[test]

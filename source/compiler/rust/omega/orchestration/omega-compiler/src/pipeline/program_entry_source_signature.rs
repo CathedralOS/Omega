@@ -532,6 +532,7 @@ mod tests {
             repeated_fields: Vec::new(),
             machine_layouts: Arena::with_capacity(0),
             variants: Arena::with_capacity(0),
+            private_callback_demands: Vec::new(),
         }
     }
 

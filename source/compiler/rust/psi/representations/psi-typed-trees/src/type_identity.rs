@@ -147,6 +147,37 @@ pub enum NormalizedDomainTerm {
 }
 
 impl TypedTrees {
+    /// Canonical identity for an exact resolved declaration that may cross a
+    /// target-neutral/target-closed compiler boundary. Managed package symbols
+    /// retain their package digest; toolchain symbols retain their closed
+    /// toolchain owner. Local or provenance-free declarations fail closed.
+    pub fn normalized_hermetic_symbol_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<String, String> {
+        if !symbol.is_valid() {
+            return Err("a hermetic identity contains an unresolved declaration".to_owned());
+        }
+        let path = self.symbols.display_path(symbol, "::");
+        if let Some(package) = self.symbols.symbol_package_identity(symbol) {
+            let mut owner = String::with_capacity(64);
+            use std::fmt::Write as _;
+            for byte in package.digest() {
+                let _ = write!(owner, "{byte:02x}");
+            }
+            return Ok(format!("package:{owner}::{path}"));
+        }
+        match self.symbols.symbol_source_origin(symbol) {
+            Some(psi_source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+            Some(origin) => Err(format!(
+                "declaration `{path}` has non-hermetic source origin `{origin:?}`"
+            )),
+            None => Err(format!(
+                "declaration `{path}` has no retained source/package provenance"
+            )),
+        }
+    }
+
     pub fn normalized_type_identity(
         &self,
         type_reference: TypeReferenceHandle,

@@ -325,6 +325,7 @@ mod tests {
                 repeated_fields: Vec::new(),
                 machine_layouts: Arena::new(),
                 variants: Arena::new(),
+                private_callback_demands: Vec::new(),
             }),
             entry_key: key(),
             entry_boundary_plan: None,

@@ -279,7 +279,7 @@ fn normalize_private_callback_demands(
                 .map_err(|diagnostic| diagnostic.to_string())?;
         let slot_identity = format!(
             "{}#{:016x}",
-            normalized_symbol_identity(typed, selected.symbol)?,
+            typed.normalized_hermetic_symbol_identity(selected.symbol)?,
             closed_application.fingerprint,
         );
         if normalized
@@ -295,7 +295,8 @@ fn normalize_private_callback_demands(
         }
         normalized.push(PrivateCallbackLayoutDemandReport {
             slot_identity,
-            layout_subject_identity: normalized_symbol_identity(typed, conformance.carrier_symbol)?,
+            layout_subject_identity: typed
+                .normalized_hermetic_symbol_identity(conformance.carrier_symbol)?,
             callback_requirement_identity: typed
                 .normalized_trait_requirement_overload_identity(requirement_trait, requirement_row)
                 .identity(),
@@ -304,33 +305,6 @@ fn normalize_private_callback_demands(
     }
     normalized.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));
     Ok(normalized)
-}
-
-fn normalized_symbol_identity(
-    typed: &TypedTrees,
-    symbol: psi_symbols::SymbolHandle,
-) -> Result<String, String> {
-    if !symbol.is_valid() {
-        return Err("a private layout identity contains an unresolved declaration".to_owned());
-    }
-    let path = typed.symbols.display_path(symbol, "::");
-    if let Some(package) = typed.symbols.symbol_package_identity(symbol) {
-        let mut owner = String::with_capacity(64);
-        use std::fmt::Write as _;
-        for byte in package.digest() {
-            let _ = write!(owner, "{byte:02x}");
-        }
-        return Ok(format!("package:{owner}::{path}"));
-    }
-    match typed.symbols.symbol_source_origin(symbol) {
-        Some(psi_source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
-        Some(origin) => Err(format!(
-            "private layout identity `{path}` has non-hermetic source origin `{origin:?}`"
-        )),
-        None => Err(format!(
-            "private layout identity `{path}` has no retained source/package provenance"
-        )),
-    }
 }
 
 /// Materializes one compiler-checked, source-owned record through a normalized

@@ -378,21 +378,32 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
 
 #[test]
 fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
-    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(6)
-        .expect("compiler crate should live under source/compiler/rust/omega/orchestration/omega-compiler")
+        .expect("compiler crate should live under source/compiler/rust/omega/orchestration/omega-compiler");
+    let core_layout = fs::read_to_string(repository.join("omega/language/core/layout.omg"))
+        .expect("read normative core layout source");
+    assert_eq!(
+        core_layout
+            .match_indices("pub trait PrivateCallbackSlot<machine Requirement>")
+            .count(),
+        1,
+        "core layout must publish exactly one normative PrivateCallbackSlot trait"
+    );
+    let canary = repository
         .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
-    let checked =
+    let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x51))
             .expect("private callback-slot layout canary should compile");
 
-    let recorded = checked
+    let layout_index = checked
         .typed
         .plan_laid_layouts
         .iter()
-        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .position(|layout| layout.data_name == "Spread<ForeignRecord>")
         .expect("the plan-laid layout should be retained");
+    let recorded = &checked.typed.plan_laid_layouts[layout_index];
     assert_eq!(recorded.offsets, vec![0]);
     assert_eq!(recorded.validated_layout.size, Some(16));
     assert_eq!(recorded.validated_layout.align, 8);
@@ -421,6 +432,135 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         first,
         psi_layout_plans::normalized_native_layout_plan_fingerprint(&moved),
         "private placement must participate in native layout identity"
+    );
+
+    let target = NativeTarget::windows_x64();
+    let closed = build_layout_plan(&checked, target)
+        .expect("the selected target should close the private callback slot");
+    let [closed_demand] = closed.private_callback_demands.as_slice() else {
+        panic!("the exact target-closed private callback demand should be published");
+    };
+    assert_eq!(closed_demand.data_symbol, recorded.data_symbol);
+    assert_eq!(closed_demand.offset, 8);
+    assert_eq!(closed_demand.byte_size, 8);
+    assert_eq!(closed_demand.alignment, 8);
+    assert_eq!(closed_demand.slot_identity.as_ref(), demand.slot_identity);
+    assert_eq!(
+        closed_demand.requirement,
+        omega_calling_conventions::callback_requirement_id(&demand.callback_requirement_identity)
+    );
+    let native_demand =
+        closed_demand.native_demand(omega_calling_conventions::NativeParameterId::new(1).unwrap());
+    assert_eq!(native_demand.requirement, closed_demand.requirement);
+    assert!(matches!(
+        native_demand.destination,
+        omega_calling_conventions::NativePlace::Field {
+            field_path,
+            ..
+        } if field_path == [closed_demand.slot]
+    ));
+
+    let first_layout_identity = closed_demand.layout;
+    {
+        let mutated = &mut checked.typed.plan_laid_layouts[layout_index];
+        mutated.private_callback_demands[0].offset = 16;
+        mutated.size = 24;
+        mutated.validated_layout.size = Some(24);
+    }
+    let moved = build_layout_plan(&checked, target)
+        .expect("a distinct valid target layout should close independently");
+    assert_ne!(
+        first_layout_identity, moved.private_callback_demands[0].layout,
+        "valid private-offset mutation must change target-closed layout identity"
+    );
+}
+
+#[test]
+fn target_closed_private_callback_slot_rejects_geometry_mutations() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under source/compiler/rust/omega/orchestration/omega-compiler")
+        .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+    let mut checked =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x56))
+            .expect("private callback-slot layout canary should compile");
+    let layout_index = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .position(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .expect("the plan-laid layout should be retained");
+    let original = checked.typed.plan_laid_layouts[layout_index].clone();
+    let target = NativeTarget::windows_x64();
+
+    checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 9;
+    let error =
+        build_layout_plan(&checked, target).expect_err("unaligned private slot must reject");
+    assert!(error.message.contains("is not aligned"), "{error:?}");
+
+    checked.typed.plan_laid_layouts[layout_index] = original.clone();
+    checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 16;
+    let error =
+        build_layout_plan(&checked, target).expect_err("out-of-bounds private slot must reject");
+    assert!(
+        error.message.contains("lies outside its 16-byte layout"),
+        "{error:?}"
+    );
+
+    checked.typed.plan_laid_layouts[layout_index] = original.clone();
+    checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 0;
+    let error =
+        build_layout_plan(&checked, target).expect_err("semantic/private overlap must reject");
+    assert!(
+        error.message.contains("overlaps semantic field storage"),
+        "{error:?}"
+    );
+
+    checked.typed.plan_laid_layouts[layout_index] = original.clone();
+    let mut overlapping =
+        checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].clone();
+    overlapping.slot_identity.push_str("::SecondSlot");
+    checked.typed.plan_laid_layouts[layout_index]
+        .private_callback_demands
+        .push(overlapping);
+    let error =
+        build_layout_plan(&checked, target).expect_err("private/private overlap must reject");
+    assert!(
+        error.message.contains("private callback slots") && error.message.contains("overlap"),
+        "{error:?}"
+    );
+
+    checked.typed.plan_laid_layouts[layout_index] = original.clone();
+    checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0]
+        .layout_subject_identity
+        .push_str("::Substituted");
+    let error = build_layout_plan(&checked, target)
+        .expect_err("retained layout-subject substitution must reject");
+    assert!(
+        error.message.contains("changed layout subject"),
+        "{error:?}"
+    );
+
+    checked.typed.plan_laid_layouts[layout_index] = original;
+    let mut conflicting =
+        checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].clone();
+    conflicting
+        .callback_requirement_identity
+        .push_str("::Other");
+    conflicting.offset = 16;
+    checked.typed.plan_laid_layouts[layout_index]
+        .private_callback_demands
+        .push(conflicting);
+    checked.typed.plan_laid_layouts[layout_index].size = 24;
+    checked.typed.plan_laid_layouts[layout_index]
+        .validated_layout
+        .size = Some(24);
+    let error = build_layout_plan(&checked, target)
+        .expect_err("one canonical slot cannot close under conflicting requirements");
+    assert!(
+        error.message.contains("repeats private callback slot"),
+        "{error:?}"
     );
 }
 
