@@ -281,8 +281,9 @@ pub use provider_plans::{
 };
 pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use psi_build_time_evaluation::{
-    BuildTimeValue, compute_access_plan, compute_layout_plan, compute_placement_plan,
-    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
+    BuildTimeValue, ValidatedConstMaterialization, compute_access_plan, compute_layout_plan,
+    compute_placement_plan, evaluate_and_materialize_typed_owned_layout_into,
+    materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
 };
 pub use psi_layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, DataSymbolId,
