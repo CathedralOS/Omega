@@ -15,6 +15,14 @@ pub fn terminal_pre_allocation_machine_effect_identity(
 
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v1\0");
+    bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
+    TerminalPreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
+}
+
+pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
+    plan: &TerminalPreAllocationMachineEffectPlan,
+) -> Vec<u8> {
+    let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -52,7 +60,7 @@ pub fn terminal_pre_allocation_machine_effect_identity(
             }
         }
     }
-    TerminalPreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
+    bytes
 }
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: TerminalSelectedInstructionKind) {

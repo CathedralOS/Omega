@@ -1162,6 +1162,16 @@ machine-effect-catalog identities. This is pre-allocation analysis authority
 only: explicit VReg operands have no physical write footprint until homes are
 joined, and no alternative is chosen here.
 
+The sidecar crosses process or cache boundaries only through its strict v1
+codec. The envelope carries an explicit magic, version, and content identity;
+the decoder consumes the complete closed vocabulary and rejects truncation,
+trailing bytes, unknown tags, and stale identities. Orchestration admits the
+same analysis over three separately validated selected forms: original
+selection, fixed-view-copy output, and the final result of an explicitly
+invoked literal-fold sequence. Its custody receipt names which form was used
+and retains that form's independently replayed receipt, so a transformed CFG
+cannot inherit the source CFG's machine facts by shape or convention.
+
 Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
 i64 materialization is encoder-resolved because it may expand to a MOVZ/MOVN/
 MOVK sequence. x86 branch and register-dependent forms remain encoder-resolved.
