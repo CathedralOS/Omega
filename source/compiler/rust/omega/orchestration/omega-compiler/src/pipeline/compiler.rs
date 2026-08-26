@@ -10,7 +10,7 @@ use crate::pipeline::boundary_report::{
 };
 use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::compile_policy::{
-    ExecutableTcbBuildPolicy, ExecutableTcbInstallationAuthorization,
+    ExecutableTcbBuildPolicy, settle_compiler_executable_tcb_installation,
 };
 use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::output::{LegacyCompilerOutputCustody, write_output};
@@ -496,31 +496,14 @@ impl Compiler {
             prepared_trust_lock,
             checked.program.as_ref(),
         )?;
-        let selected_provider_plan_facts =
-            crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
-                Arc::get_mut(&mut checked.program)
-                    .expect("checked program must be uniquely owned before backend fan-out"),
+        let executable_tcb_installation_authorization =
+            settle_compiler_executable_tcb_installation(
+                &mut checked,
                 &provider_plans,
                 selected_provider_plan_facts,
                 &build_config.grants,
-            )?
-            .with_opaque_executable_admissions(
-                self.executable_tcb_policy
-                    .opaque_executable_admissions
-                    .iter()
-                    .cloned(),
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(format!(
-                    "executable TCB admission rejected: {reason}"
-                ))]
-            })?;
-        let executable_tcb_installation_authorization =
-            ExecutableTcbInstallationAuthorization::bind(
-                &selected_provider_plan_facts,
-                self.executable_tcb_policy.profile.as_ref(),
+                &self.executable_tcb_policy,
             )?;
-        checked.selected_provider_plans = Arc::new(selected_provider_plan_facts);
         checked.component_progress =
             crate::pipeline::component_progress::build_selected_component_progress_manifest(
                 &checked.program,
