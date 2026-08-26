@@ -129,7 +129,7 @@ pub use package_review::{
     PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
     PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDangerousAuthority,
     PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
-    PackageReviewDataField, PackageReviewDataMember, PackageReviewDataShape,
+    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainSemanticRole, PackageReviewDomainShape, PackageReviewEncodingError,

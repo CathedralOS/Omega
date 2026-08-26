@@ -697,9 +697,22 @@ pub enum PackageReviewDataMember {
     },
 }
 
+/// Closed semantic form of one public data declaration. Quotient identity is
+/// the carrier family plus relation declaration; the proof implementation that
+/// licensed formation is intentionally not API identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewDataKind {
+    Ordinary,
+    Quotient {
+        carrier: PackageReviewTypeIdentity,
+        relation: PackageReviewNominalIdentity,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDataShape {
     identity: PackageReviewNominalIdentity,
+    kind: PackageReviewDataKind,
     supply: psi_language_semantics::DataSupplyMode,
     lifetime_parameter_count: usize,
     type_parameters: Vec<PackageReviewTypeParameter>,
@@ -753,6 +766,10 @@ impl PackageReviewRepresentationTcb {
 impl PackageReviewDataShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
         &self.identity
+    }
+
+    pub const fn kind(&self) -> &PackageReviewDataKind {
+        &self.kind
     }
 
     pub const fn supply(&self) -> psi_language_semantics::DataSupplyMode {
@@ -4988,6 +5005,7 @@ fn project_public_data(
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
     require_rederived_data_definition_facts(compilation)?;
+    let quotient_formations = psi_validation::validate_quotient_formations(compilation)?;
     let mut rows = Vec::new();
     for definition in compilation
         .data_definitions()
@@ -4998,12 +5016,6 @@ fn project_public_data(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if definition.quotient.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "public data `{}` uses quotient semantics not yet represented by package review",
-                identity.path
-            ))]);
-        }
         let parameters = compilation.data_type_parameters(definition);
         let (binders, type_parameters) = project_type_parameters(
             compilation,
@@ -5012,6 +5024,48 @@ fn project_public_data(
             &identity.path,
             &definition.lifetime_parameters,
         )?;
+        let kind = if definition.quotient.is_some() {
+            let matching_formations = quotient_formations
+                .iter()
+                .filter(|formation| formation.data_symbol == definition.symbol)
+                .collect::<Vec<_>>();
+            let [formation] = matching_formations.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "public quotient data `{}` has {} independently rederived formation rows; expected one",
+                    identity.path,
+                    matching_formations.len()
+                ))]);
+            };
+            let matching_relations = compilation
+                .propositions()
+                .iter()
+                .filter(|relation| relation.symbol == formation.relation_symbol)
+                .collect::<Vec<_>>();
+            let [relation] = matching_relations.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "public quotient data `{}` has {} exact relation declarations; expected one",
+                    identity.path,
+                    matching_relations.len()
+                ))]);
+            };
+            if !relation.is_public {
+                return Err(vec![Diagnostic::error(format!(
+                    "public quotient data `{}` exposes non-public relation `{}`",
+                    identity.path, relation.name
+                ))]);
+            }
+            PackageReviewDataKind::Quotient {
+                carrier: review_signature_type_identity_with_binders(
+                    compilation,
+                    formation.carrier,
+                    &binders,
+                    &definition.lifetime_parameters,
+                )?,
+                relation: nominal_identity(compilation, formation.relation_symbol)?,
+            }
+        } else {
+            PackageReviewDataKind::Ordinary
+        };
         let invariants =
             project_data_invariant_facts(compilation, definition, &identity, &binders)?;
 
@@ -5062,6 +5116,7 @@ fn project_public_data(
         rows.push(ProjectedReviewRow {
             row: PackageReviewDataShape {
                 identity,
+                kind,
                 supply: definition.supply_mode,
                 lifetime_parameter_count: definition.lifetime_parameters.len(),
                 type_parameters,

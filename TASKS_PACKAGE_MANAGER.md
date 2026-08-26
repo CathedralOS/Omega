@@ -1162,8 +1162,19 @@ complete.
   the review projection: supply mode, lifetime arity, alpha-normalized type and
   const parameters, copy/carry properties, zero gating, retired identities,
   fields, variants, payloads, relevance, and package-qualified type identities.
-  Public data quotients fail review until exact canonical rows exist; none are
-  silently omitted. Data declarations do not admit proposition parameters.
+  Review v60 and canonical row v18 give public data a closed ordinary/quotient
+  discriminant. A quotient row binds the exact carrier-family type identity
+  and package-qualified public relation declaration. Package review reruns the
+  complete quotient-formation validator and requires exactly one formation
+  fact rather than trusting retained typed quotient metadata. The relation's
+  existing public-proposition row owns its telescope, body, and evidence
+  classification; those facts are not duplicated in the data row. The selected
+  `Equivalence` conformance licenses formation but does not enter quotient API
+  identity, so switching valid proof implementations leaves the public-data row
+  unchanged. Its authored selection is nevertheless retained as private
+  implementation custody for package admission. The sealed core relation-law
+  traits are public package-consumable toolchain declarations. Data
+  declarations do not admit proposition parameters.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
