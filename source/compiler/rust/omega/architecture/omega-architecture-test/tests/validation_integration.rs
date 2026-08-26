@@ -2615,7 +2615,9 @@ fn generic_conformance_bounds_survive_typing_and_resolve_exact_selection() {
     assert_eq!(typed.symbols.name(ordinary.carrier), "Projection");
     assert_eq!(ordinary.arguments.len(), 1);
     assert!(named.subject.is_valid());
-    let selected = named.conformance.expect("named conformance symbol");
+    let selected = named
+        .selected_conformance_symbol()
+        .expect("named conformance symbol");
     assert_eq!(typed.symbols.name(selected), "Primary");
     assert_eq!(
         typed.symbols.get(selected).kind,
